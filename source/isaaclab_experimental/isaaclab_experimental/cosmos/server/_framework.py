@@ -43,7 +43,6 @@ class CosmosInferenceModel:
         device: str = "cuda:0",
         *,
         use_compile: bool = True,
-        max_episode_frames: int | None = None,
         kv_window: int = 30,
         attention_sink: int = 3,
     ):
@@ -53,8 +52,6 @@ class CosmosInferenceModel:
             checkpoint: Exported HF checkpoint directory or a Framework checkpoint name.
             device: CUDA device in this process's visible GPU set.
             use_compile: Enable the Framework's compiled CUDA-graph streaming path.
-            max_episode_frames: Longest episode a session may request, ``1 + 4*k`` frames with ``k >= 1``. None
-                (default) leaves the budget to each session. Validate quality for your rollout length.
             kv_window: Generation history the transformer attends to [latent frames]. The Sim-Transfer recipe
                 uses 30; shorter windows are faster and need less memory but remember less of the episode.
             attention_sink: Earliest latent frames always kept in the history window; the recipe uses 3.
@@ -63,10 +60,6 @@ class CosmosInferenceModel:
             ValueError: If the runtime or checkpoint does not support this streaming contract.
             ImportError: If the optional Cosmos Framework runtime is unavailable.
         """
-        if max_episode_frames is not None and (
-            type(max_episode_frames) is not int or max_episode_frames < 5 or (max_episode_frames - 1) % 4
-        ):
-            raise ValueError("The Cosmos episode cap must be 1 + 4*k frames with k >= 1, or None for no cap.")
         if (
             type(kv_window) is not int
             or type(attention_sink) is not int
@@ -74,7 +67,6 @@ class CosmosInferenceModel:
             or not 0 <= attention_sink < kv_window
         ):
             raise ValueError("Cosmos needs a positive history window and an attention sink smaller than it.")
-        self._max_episode_frames = max_episode_frames
         import torch
         from cosmos_framework.inference.common.init import init_script
 
@@ -161,7 +153,6 @@ class CosmosInferenceModel:
             "initial_frames": 1,
             "update_frames": 4,
             "canvases": [list(canvas) for canvas in CANVAS_ASPECT_RATIOS],
-            "max_episode_frames": max_episode_frames,
             "fps": 30,
             # The Framework restarts single rows of a batch only on its compiled CUDA-graph path.
             "partial_resets": use_compile and _vae_cache_owner(model.tokenizer_vision_gen) is not None,
@@ -197,7 +188,7 @@ class CosmosInferenceModel:
                 derives from the camera's RGB with the Framework's own filter.
             height: Control image height [pixels].
             width: Control image width [pixels].
-            max_episode_frames: Episode horizon; must be 1 + 4*k and within the service's cap.
+            max_episode_frames: Episode horizon, ``1 + 4*k`` frames; the model is told the episode's duration.
 
         Returns:
             A session whose close releases generation history, retaining model weights.
@@ -221,16 +212,8 @@ class CosmosInferenceModel:
             raise ValueError("Cosmos controls must use edge, blur, depth, or seg modality.")
         if (height, width) not in CANVAS_ASPECT_RATIOS:
             raise ValueError(f"Unsupported Cosmos canvas {(height, width)}; choose one of {list(CANVAS_ASPECT_RATIOS)}.")
-        if (
-            type(max_episode_frames) is not int
-            or max_episode_frames < 1
-            or (max_episode_frames - 1) % 4
-            or (self._max_episode_frames is not None and max_episode_frames > self._max_episode_frames)
-        ):
-            raise ValueError(
-                f"Cosmos max_episode_frames must be 1 + 4*k and at most the service cap {self._max_episode_frames}; "
-                "raise it with isaaclab-cosmos-server --max-episode-frames."
-            )
+        if type(max_episode_frames) is not int or max_episode_frames < 1 or (max_episode_frames - 1) % 4:
+            raise ValueError("Cosmos max_episode_frames must be 1 + 4*k.")
 
         import torch
 
@@ -248,13 +231,10 @@ class CosmosInferenceModel:
         """Warm one canvas through finite-history saturation using a disposable session.
 
         The warmup emits ``1 + 4 * kv_window`` frames from blank controls (121 for the default window), one latent
-        more than the history window holds, within the episode cap. Its prompt, seed, VAE caches, and generation
-        history are discarded before real cameras can connect. Other canvases or prompts can still require
-        compilation on their first use.
+        more than the history window holds. Its prompt, seed, VAE caches, and generation history are discarded
+        before real cameras can connect. Other canvases or prompts can still require compilation on their first use.
         """
         frames = 1 + 4 * self.capabilities["kv_window"]
-        if self._max_episode_frames is not None:
-            frames = min(frames, self._max_episode_frames)
         stream = self.open_stream(
             num_views=1,
             seeds=(0,),

@@ -38,8 +38,8 @@ Compatible camera tasks can use Cosmos without a task-specific preset: add `--co
 with the same aspect ratio and view, generates with Cosmos, and scales the result back to the camera's size,
 so the policy's observation keeps its shape. It uses one environment unless `--num_envs` asks for more (see
 "Several environments"). The task's episode length and capture rate determine the requested frame budget;
-capture timing is preserved. Start the service first: Isaac Lab checks its availability and any explicit
-episode cap before creating the simulation.
+capture timing is preserved. Start the service first: Isaac Lab checks that it is running and idle before
+creating the simulation.
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl \
@@ -200,6 +200,8 @@ package also exports the camera client API for existing task configurations.
 chain. To write the chain by hand instead, add it to the task's camera configuration. For depth conditioning:
 
 ```python
+import math
+
 from isaaclab.sensors import CameraCfg
 from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
@@ -207,7 +209,8 @@ input_name, modifiers = depth_processor(
     CosmosModelCfg(
         modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
-        max_episode_frames=301,  # Example: 10 seconds at 30 captures/s, plus the initial capture.
+        # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
+        max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
     ),
     near=0.2,
     far=12.0,
@@ -285,8 +288,7 @@ are not silently retried against an already advanced episode.
 The service runs one active generation session at a time; a session serves one camera view per environment
 (see "Several environments"). Supported `(height, width)` canvases are `(480, 832)`,
 `(544, 736)`, `(640, 640)`, `(736, 544)`, and `(832, 480)`. An episode's frame budget
-must be `1 + 4*k`, up to the service's episode cap. Reset before exhausting
-that budget.
+must be `1 + 4*k`. Reset before exhausting that budget.
 
 ## Several environments
 
@@ -362,8 +364,9 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
 
 `--video_length 600` records 600 steps, one 10-second episode. The run prints the clip directory when it starts.
 `--viz newton_gl` keeps the visualizer running every step; a visualizer added only for the recording does not
-advance during headless training, and its streaming view records the first frame throughout. On a machine without a screen, such as over SSH, run `unset DISPLAY` first: with
-`DISPLAY` set, the headless visualizer cannot create its OpenGL context.
+advance during headless training, and its streaming view records the first frame throughout. On a machine without
+a screen, such as over SSH, run `unset DISPLAY` first: with `DISPLAY` set, the headless visualizer cannot create
+its OpenGL context.
 
 Each reset shows black until the environment's next chunk. For a clip without mid-episode resets, add
 `env.fall_dist=10.0` so a dropped cube does not end the episode; environments then reset together at the time limit.
@@ -401,23 +404,16 @@ for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket 
 `ssh -L 5555:/tmp/isaaclab-cosmos-<uid>.sock gpu-host`. Then set the camera's endpoint to `tcp://127.0.0.1:5555`;
 the protocol has no authentication, so do not open a public interface.
 
-## Episode length cap
+## Episode frame budget
 
-There is no server episode cap by default. An operator can set an optional cap with
-`isaaclab-cosmos-server --max-episode-frames N` (`1 + 4*k`, with `k >= 1`); `0` removes it and `status`
-reports `null` when uncapped. This is an operational limit, not a model training horizon.
+Each session requests a frame budget, `1 + 4*k` frames per episode; the server sets no limit of its own. The
+service tells the model the episode's duration from this budget. `--cosmos` and the Shadow Hand presets derive it
+from the task's episode duration and actual capture cadence, including the initial capture and rounding up to
+`1 + 4*k`. Low-level camera chains must set `CosmosModelCfg.max_episode_frames` explicitly. Reset the environment
+before that budget is exhausted; the service rejects further generation rather than silently resetting the episode.
 
-Each session still requests a finite frame budget. `--cosmos` and the Shadow Hand presets derive it from
-the task's episode duration and actual capture cadence, including the initial capture and rounding up to
-`1 + 4*k`. Low-level camera chains must set `CosmosModelCfg.max_episode_frames` explicitly. Reset the
-environment before that budget is exhausted; the service rejects further generation rather than silently
-resetting the episode.
-
-If a task exceeds an explicit server cap, training fails before simulation with the required frame count.
-Raise or remove the server cap, shorten the episode, or deliberately change the camera's capture period.
-Isaac Lab does not automatically slow the camera. Startup logs show captures and generated updates per
-second of simulation time. The model uses a sliding history window; longer episodes still need quality
-and memory validation on the intended workload.
+Startup logs show the budget and the captures and generated updates per second of simulation time. The model uses
+a sliding history window; longer episodes still need quality and memory validation on the intended workload.
 
 See [Image transfer for camera images](image_transfer.md) for the underlying model
 contract, camera scheduling, and optional PPISP processing. Service shutdown and
