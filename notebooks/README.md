@@ -1,7 +1,7 @@
 # Isaac Lab Colab notebooks
 
 These notebooks are self-contained introductions to Isaac Lab 3.0. They install Isaac Lab from the
-`develop` branch and its dependencies in the Colab VM;
+`release/3.0.0` branch and its dependencies in the Colab VM;
 they do not modify the checkout from which the notebook was opened.
 
 | Notebook | What it covers |
@@ -27,7 +27,7 @@ and [Warp requirements](https://github.com/NVIDIA/warp#installing).
 
 The notebooks run headless: every example records a video from a camera sensor and
 plays it beneath its cell. Physics runs on Newton with MuJoCo Warp (VBD for
-deformables), and cameras use the Newton Warp renderer. This avoids OV RTX's
+deformables), and cameras use the Newton Warp renderer with shadows enabled. This avoids OV RTX's
 requirement for RTX-capable hardware, which GPUs such as the A100 do not meet.
 A setup cell warms up physics and rendering; the first run compiles Warp kernels
 and later runs reuse the cache. Full hosted-Colab execution has not yet been validated.
@@ -42,5 +42,5 @@ The warmup cell can keep using Newton.
 Colab forms (dropdowns and hidden code cells) only render in Colab. In a local
 Jupyter session they appear as ordinary code; edit the assigned values directly.
 
-For a reproducible workshop, change `@develop` in the installation command of each
+For a reproducible workshop, change `@release/3.0.0` in the installation command of each
 notebook to `@<release-tag>` for the exact Isaac Lab 3.0 release tag used by the class.
