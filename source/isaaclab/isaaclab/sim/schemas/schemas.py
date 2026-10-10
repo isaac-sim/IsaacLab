@@ -918,9 +918,10 @@ def apply_mesh_collision(
     standard ``UsdPhysics.MeshCollisionAPI``) on top of its own backend cooking namespace.
 
     The token is *not* a plain namespaced attribute -- it is shared state on the family anchor implied
-    by the present cooking fragment. Each fragment carries a :attr:`mesh_approximation_name` whose
-    default encodes the token its schema implies (e.g. ``"convexHull"`` for :class:`PhysxConvexHullCfg`,
-    ``"sdf"`` for :class:`PhysxSDFMeshCfg`). A name of ``"none"`` leaves the token unchanged, so when
+    by the present cooking fragment. The core and PhysX fragments carry a :attr:`mesh_approximation_name`
+    whose default encodes the token their schema implies (e.g. ``"convexHull"`` for :class:`PhysxConvexHullCfg`,
+    ``"sdf"`` for :class:`PhysxSDFMeshCfg`); the Newton cooking fragments carry none and leave the token
+    unchanged. A name of ``"none"`` also leaves the token unchanged, so when
     several fragments are dispatched in order by :func:`apply_mesh_collision_properties` the last one
     with a non-``"none"`` name wins -- this is how a core fragment composes with a backend cooking
     fragment. The name is validated against :const:`MESH_APPROXIMATION_TOKENS`; an unknown name raises

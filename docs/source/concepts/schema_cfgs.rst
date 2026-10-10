@@ -3,6 +3,11 @@
 Schema Configuration Classes
 ============================
 
+.. important::
+
+   This page documents the deprecated single-cfg API, scheduled for removal in 3.2.
+   For new assets, use :doc:`schema fragments <schema_fragments>`.
+
 Isaac Lab's spawners author USD physics attributes onto prims via a layered set of
 configuration classes. The layering separates **universal-physics** parameters
 from **backend-specific** parameters, so the same asset cfg can be authored once
@@ -16,7 +21,7 @@ Migrating from 2.x? See :ref:`schemas-cfg-refactor` in the 3.0 migration guide.
 Quick example
 -------------
 
-Add MuJoCo (MJC) gravity compensation to an articulated asset:
+Legacy example: add MuJoCo (MJC) gravity compensation to an articulated asset:
 
 .. code-block:: python
 

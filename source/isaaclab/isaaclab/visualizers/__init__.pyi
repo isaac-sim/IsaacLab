@@ -8,7 +8,8 @@ __all__ = [
     "PerspectiveCameraCfg",
     "SceneCameraCfg",
     "VisualizerCfg",
+    "WindowCfg",
 ]
 
 from .base_visualizer import BaseVisualizer
-from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
+from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg

@@ -53,6 +53,35 @@ def test_spawn_usd(sim):
 
 
 @pytest.mark.isaacsim_ci
+def test_spawn_usd_mesh_collision_props_target_colliders(sim, tmp_path):
+    """Bare props reach all colliders; a pattern narrows the target without cooking visuals."""
+    asset_path = tmp_path / "asset.usda"
+    asset = Usd.Stage.CreateNew(str(asset_path))
+    asset.SetDefaultPrim(UsdGeom.Xform.Define(asset, "/Asset").GetPrim())
+    for name in ("left", "right"):
+        UsdPhysics.CollisionAPI.Apply(UsdGeom.Mesh.Define(asset, f"/Asset/{name}").GetPrim())
+    UsdGeom.Mesh.Define(asset, "/Asset/visual")
+    asset.Save()
+
+    bare = sim_utils.UsdFileCfg(
+        usd_path=str(asset_path),
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+    )
+    bare.func("/World/Bare", bare)
+    sphere = sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")
+    mapped = bare.replace(mesh_collision_props={"/right": [sphere]})
+    mapped.func("/World/Mapped", mapped)
+
+    for name in ("left", "right"):
+        prim = sim.stage.GetPrimAtPath(f"/World/Bare/{name}")
+        assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
+    mapped_right = sim.stage.GetPrimAtPath("/World/Mapped/right")
+    assert mapped_right.GetAttribute("physics:approximation").Get() == "boundingSphere"
+    assert not sim.stage.GetPrimAtPath("/World/Mapped/left").HasAPI(UsdPhysics.MeshCollisionAPI)
+    assert not sim.stage.GetPrimAtPath("/World/Bare/visual").HasAPI(UsdPhysics.MeshCollisionAPI)
+
+
+@pytest.mark.isaacsim_ci
 def test_spawn_usd_make_uninstanceable_applies_material_to_instance_colliders(sim, tmp_path):
     """Test applying a physics material to colliders inside an instanceable USD asset."""
     geometry_path = tmp_path / "geometry.usda"

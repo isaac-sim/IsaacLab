@@ -396,9 +396,9 @@ class NewtonCollisionPropertiesCfg(CollisionBaseCfg):
 
 
 @deprecated_schema_cfg(
-    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...),"
-    " UsdPhysicsMeshCollisionCfg(...), NewtonMeshCollisionCfg(...)] (and move mesh_collision_property"
-    " to the spawner's mesh_collision_props slot)"
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)] in the spawner's"
+    " collision_props slot and [UsdPhysicsMeshCollisionCfg(...), NewtonMeshCollisionCfg(...)] (plus any"
+    " mesh_collision_property) in its mesh_collision_props slot"
 )
 @configclass
 class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisionBaseCfg):
@@ -433,9 +433,9 @@ class NewtonMeshCollisionPropertiesCfg(NewtonCollisionPropertiesCfg, MeshCollisi
 
 
 @deprecated_schema_cfg(
-    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...),"
-    " NewtonSDFCollisionCfg(...)] (and move mesh_collision_property to the spawner's"
-    " mesh_collision_props slot)"
+    "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)] in the spawner's"
+    " collision_props slot and NewtonSDFCollisionCfg(...) (plus any mesh_collision_property) in its"
+    " mesh_collision_props slot"
 )
 @configclass
 class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
@@ -450,11 +450,14 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
         If the values are None, they are not modified.
 
     .. deprecated:: 3.1
-        Pass :class:`NewtonSDFCollisionCfg` in the spawner's ``mesh_collision_props`` slot (its
-        cooking schema implies the ``sdf`` approximation token), and the inherited collision
-        fields as ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]``
-        in the ``collision_props`` slot. Naming only :class:`NewtonSDFCollisionCfg` would silently
-        drop the inherited fields. This class will be removed in 3.2.
+        Pass :class:`NewtonSDFCollisionCfg` in the spawner's ``mesh_collision_props`` slot, and the
+        inherited collision fields as
+        ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...), NewtonCollisionCfg(...)]`` in the
+        ``collision_props`` slot. Naming only :class:`NewtonSDFCollisionCfg` would silently drop the
+        inherited fields. Like this class, :class:`NewtonSDFCollisionCfg` authors no
+        ``physics:approximation`` token: Newton's USD importer enables SDF generation from
+        ``NewtonSDFCollisionAPI`` itself and ignores the token on such a collider, so an asset's
+        authored token is left as is. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "newton"
@@ -556,6 +559,9 @@ class NewtonSDFCollisionCfg(MeshCollisionFragment):
     consumed by Newton's USD importer. Mirrors the legacy
     :class:`NewtonSDFCollisionPropertiesCfg`. Dispatched alongside the USD/PhysX mesh-collision
     fragments via :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    The fragment authors no ``physics:approximation`` token: Newton's USD importer enables SDF
+    generation from ``NewtonSDFCollisionAPI`` itself and ignores the token on such a collider.
 
     .. note::
         These ``newton:sdf*`` / ``newton:hydroelastic*`` attributes are read by Newton's USD

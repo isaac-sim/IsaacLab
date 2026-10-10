@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import warnings
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
@@ -141,13 +142,34 @@ class PerspectiveCameraCfg:
 
 @configclass
 class SceneCameraCfg:
-    """Select an existing scene camera's output for display in the visualizer.
+    """Select an existing scene camera's output as the visualizer's main view.
 
     This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
     """
 
     prim_path: str = MISSING
     """Scene camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable."""
+
+
+@configclass
+class WindowCfg:
+    """Native window presentation, independent of the camera's image resolution."""
+
+    size: tuple[int, int] = (1920, 1080)
+    """Initial window width and height [px]."""
+
+    fps: float = 30.0
+    """Maximum Newton window update rate [Hz], measured in wall-clock time.
+
+    Headless on-demand recording is independent of this limit. Kit owns its application update cadence.
+    """
+
+    def validate_config(self) -> None:
+        """Require positive dimensions and a finite, positive presentation rate."""
+        if len(self.size) != 2 or any(not isinstance(value, int) or value < 1 for value in self.size):
+            raise ValueError("WindowCfg.size must contain positive integer width and height.")
+        if not math.isfinite(self.fps) or self.fps <= 0:
+            raise ValueError("WindowCfg.fps must be finite and positive.")
 
 
 @configclass
@@ -167,13 +189,20 @@ class VisualizerCfg:
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
+    window: WindowCfg = WindowCfg()
+    """Native window settings used by Newton and Kit; network visualizers manage their own presentation."""
+
+    headless: bool = False
+    """Render on demand without opening a native viewer window."""
+
     # Primary interactive camera settings
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
     PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
-    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
+    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    Kit, Rerun, and Viser display the first scene source in their camera panel.
+    None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
     """
 
@@ -186,11 +215,12 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
-    """Solid background color as normalized RGB values in ``[0, 1]``.
+    background_color: tuple[float, float, float] | None = None
+    """Viewer perspective-camera background as normalized RGB values in ``[0, 1]``.
 
-    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
-    backend's native background. Scene lighting remains independent of the visible background.
+    None preserves the scene HDR background in Kit and Newton RTX, or Newton GL's procedural sky.
+    An explicit color changes only the visible background, not scene lighting or reflections.
+    Scene-camera images retain their sensor's :attr:`~isaaclab.sensors.CameraCfg.background_color`.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
