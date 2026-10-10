@@ -130,12 +130,6 @@ def main():
                 collision_props = schemas_cfg.UsdPhysicsCollisionCfg(
                     collision_enabled=args_cli.collision_approximation != "none"
                 )
-                # Mesh collision approximation properties
-                mesh_collision_props = (
-                    schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=args_cli.collision_approximation)
-                    if args_cli.collision_approximation != "none"
-                    else None
-                )
                 # Mesh converter call
                 mesh_converter_cfg = MeshConverterCfg(
                     mass_props=mass_props,
@@ -146,7 +140,11 @@ def main():
                     usd_dir=f"{args_cli.output}/{filename[:-4]}",
                     usd_file_name=f"{filename[:-4]}.usd",
                     make_instanceable=args_cli.make_instanceable,
-                    mesh_collision_props=mesh_collision_props,
+                    mesh_collision_props=(
+                        schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=args_cli.collision_approximation)
+                        if args_cli.collision_approximation != "none"
+                        else None
+                    ),
                 )
                 # Create mesh converter and import the file
                 mesh_converter = MeshConverter(mesh_converter_cfg)

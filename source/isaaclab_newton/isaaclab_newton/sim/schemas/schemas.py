@@ -130,8 +130,7 @@ def apply_mujoco_joint(cfg: MujocoJointCfg, prim_path: str, stage: Usd.Stage | N
     through the actuator, and it is inert unless that body's ``mjc:gravcomp`` is non-zero. So when
     :attr:`~MujocoJointCfg.actuatorgravcomp` is requested, this enables ``mjc:gravcomp = 1.0`` on the
     joint's child body (its ``physics:body1`` target) when the body has not authored it. An explicitly
-    authored body gravcomp, including ``0.0``, is preserved. Keeping this coupling in the Newton applier (not the core
-    spawner) keeps the core package free of any backend dependency.
+    authored body gravcomp, including ``0.0``, is preserved. This coupling belongs in the Newton applier.
 
     Args:
         cfg: The :class:`MujocoJointCfg` fragment to apply.

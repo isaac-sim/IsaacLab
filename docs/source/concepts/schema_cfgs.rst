@@ -5,15 +5,8 @@ Schema Configuration Classes
 
 .. important::
 
-   The single-cfg hierarchy described on this page (the ``*BaseCfg`` classes in
-   ``isaaclab.sim.schemas`` and their ``Physx*PropertiesCfg`` / ``Newton*PropertiesCfg`` /
-   ``Mujoco*PropertiesCfg`` subclasses) is **deprecated and scheduled for removal in 3.2**.
-   For new code, author :doc:`schema fragments <schema_fragments>` instead — small,
-   single-namespace classes (e.g. :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg`,
-   :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`) passed as a list to the same
-   spawner field. This page documents the field-to-USD-attribute mapping and class
-   hierarchy for understanding existing code and migrating it; see
-   :ref:`schema fragments <schema-fragments-migration>` for the fragment equivalents.
+   This page documents the deprecated single-cfg API, scheduled for removal in 3.2.
+   For new assets, use :doc:`schema fragments <schema_fragments>`.
 
 Isaac Lab's spawners author USD physics attributes onto prims via a layered set of
 configuration classes. The layering separates **universal-physics** parameters
@@ -28,21 +21,7 @@ Migrating from 2.x? See :ref:`schemas-cfg-refactor` in the 3.0 migration guide.
 Quick example
 -------------
 
-Add MuJoCo (MJC) gravity compensation to an articulated asset. The recommended,
-fragment-based form:
-
-.. code-block:: python
-
-   import isaaclab.sim as sim_utils
-   from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg, MujocoJointCfg
-
-   spawn = sim_utils.UsdFileCfg(
-       usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Franka/franka_instanceable.usd",
-       rigid_props=[MujocoRigidBodyCfg(gravcomp=1.0)],
-       joint_drive_props=[MujocoJointCfg(actuatorgravcomp=True)],
-   )
-
-The deprecated single-cfg equivalent, still supported until 3.2:
+Legacy example: add MuJoCo (MJC) gravity compensation to an articulated asset:
 
 .. code-block:: python
 
@@ -59,12 +38,11 @@ The deprecated single-cfg equivalent, still supported until 3.2:
    )
 
 The Mujoco-specific fields land under ``mjc:*`` on the prim; any
-``RigidBodyBaseCfg`` / ``JointDriveBaseCfg`` fields you set on the same legacy-cfg
-instance land under ``physics:*``. See :ref:`schema-cfgs-mixed` for the full routing
-rules of the legacy hierarchy.
+``RigidBodyBaseCfg`` / ``JointDriveBaseCfg`` fields you set on the same instance
+land under ``physics:*``. See :ref:`schema-cfgs-mixed` for the full routing rules.
 
-Class hierarchy (legacy, deprecated)
--------------------------------------
+Class hierarchy
+---------------
 
 For each property group (rigid body, joint drive, collision, articulation root,
 material, mesh collision), Isaac Lab defines a single base class in core
@@ -121,13 +99,10 @@ field for each property group (``rigid_props``, ``joint_drive_props``,
 ``collision_props``, etc.), and Python's polymorphism allows any subclass to be
 passed where the base type is expected.
 
-When to use which class (legacy, deprecated)
----------------------------------------------
+When to use which class
+-----------------------
 
-The choice depends on which backends you target and which fields you need. This
-section describes the deprecated single-cfg hierarchy; for new code, pick the
-equivalent fragment(s) instead (see the fragment names in
-:ref:`schema fragments <schema-fragments-migration>`).
+The choice depends on which backends you target and which fields you need.
 
 **Use a base class** (``RigidBodyBaseCfg``, ``JointDriveBaseCfg``, etc.)
    when you only need universal-physics fields and you want your asset cfg to be
@@ -346,13 +321,12 @@ declared. The applied schemas (``PhysxRigidBodyAPI`` for ``disable_gravity``,
 none for the Mjc raw attribute) are added only when the corresponding
 fields are non-None.
 
-Spawner usage (legacy, deprecated)
-------------------------------------
+Spawner usage
+-------------
 
 Spawners (``UsdFileCfg``, ``MeshCuboidCfg``, ``MeshSphereCfg``, …) accept
 the base class type for each slot and use polymorphism to dispatch to the
-correct subclass at write time. For new code, pass a list of fragments to the
-same field instead, as shown in :doc:`schema_fragments`:
+correct subclass at write time:
 
 .. code-block:: python
 
@@ -376,26 +350,25 @@ same field instead, as shown in :doc:`schema_fragments`:
 Gravity compensation (MuJoCo solver)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Gravity compensation has two halves and you typically need both, whether authored
-through fragments (:class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg` /
-:class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`) or the deprecated single cfg
-(:class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg` /
-:class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg`):
+Gravity compensation has two halves and you typically need both:
 
-* **Body-level**: ``gravcomp`` on each rigid body (writes ``mjc:gravcomp``). This is
-  what *computes* the compensation force.
-* **Joint-level**: ``actuatorgravcomp`` on each joint (writes ``mjc:actuatorgravcomp``).
-  This routes the compensation force through the actuator channel (``qfrc_actuator``)
-  so it counts against ``actuatorfrcrange``; otherwise it goes to ``qfrc_passive``.
+* **Body-level**:
+  :attr:`~isaaclab_newton.sim.schemas.MujocoRigidBodyPropertiesCfg.gravcomp`
+  on each rigid body (writes ``mjc:gravcomp``). This is what *computes* the
+  compensation force.
+* **Joint-level**:
+  :attr:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg.actuatorgravcomp`
+  on each joint (writes ``mjc:actuatorgravcomp``). This routes the compensation
+  force through the actuator channel (``qfrc_actuator``) so it counts against
+  ``actuatorfrcrange``; otherwise it goes to ``qfrc_passive``.
 
 ``actuatorgravcomp=True`` alone is a no-op — without body-level ``gravcomp``
-there are no forces to route. To prevent this footgun, Isaac Lab
-**auto-enables** body-level ``gravcomp=1.0`` whenever a joint requests
-``actuatorgravcomp=True`` and the actuated body has not set ``gravcomp`` itself.
-An explicit body ``gravcomp``, including ``0.0``, is preserved, so set it on the body
-to pick a different compensation factor or to opt a body out. This holds for both the
-:class:`~isaaclab_newton.sim.schemas.MujocoJointCfg` fragment and the deprecated
-:class:`~isaaclab_newton.sim.schemas.MujocoJointDrivePropertiesCfg`.
+there are no forces to route. To prevent this footgun, the spawner
+**auto-enables** ``MujocoRigidBodyPropertiesCfg(gravcomp=1.0)`` whenever
+``joint_drive_props`` is a Mujoco cfg with ``actuatorgravcomp=True`` and
+``rigid_props`` is not already a Mujoco cfg. If you want a different
+``gravcomp`` value (or want to disable the auto-enable), pass an explicit
+``MujocoRigidBodyPropertiesCfg`` in ``rigid_props``.
 
 Naming convention
 -----------------

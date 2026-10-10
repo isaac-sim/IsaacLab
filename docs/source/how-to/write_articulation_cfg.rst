@@ -62,19 +62,9 @@ For common USD properties, use the solver-common fragments from ``isaaclab.sim.s
 :class:`~sim.schemas.UsdPhysicsRigidBodyCfg` and :class:`~sim.schemas.UsdPhysicsDriveCfg`. Pass
 a backend's fragments from ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
-settings alongside them in the same spawner field, as a list. The :ref:`schema-cfgs` guide explains
-the available classes and their USD namespaces; :doc:`../concepts/schema_fragments` shows how to
-author both backends' attributes in one spawn configuration.
-
-The Cartpole below passes a list of fragments to ``rigid_props`` and ``articulation_props``:
-``rigid_props`` carries a :class:`~sim.schemas.UsdPhysicsRigidBodyCfg` fragment next to a
-:class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` fragment, and ``articulation_props`` carries
-a :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` fragment next to a
-:class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg` fragment, so each backend reads its own
-attributes from the same configuration. Its PhysX solver iterations and sleep thresholds do not
-configure Newton's solver. When adapting it to Newton, retain the shared initial-state and
-actuator configuration and configure the Newton solver separately. For example, to keep the
-PhysX fragment and add Newton's self-collision setting:
+settings alongside them in the same spawner field. See :doc:`../concepts/schema_fragments` for
+the fragment API. The Cartpole below already has both PhysX and Newton articulation fragments;
+its PhysX solver settings do not configure Newton's solver. To change Newton's self-collision setting:
 
 .. code-block:: python
 
@@ -84,10 +74,8 @@ PhysX fragment and add Newton's self-collision setting:
    from isaaclab.utils import clone
 
    robot_cfg = clone(CARTPOLE_CFG)
-   robot_cfg.spawn.articulation_props = [
-       *robot_cfg.spawn.articulation_props,
-       NewtonArticulationCfg(self_collision_enabled=False),
-   ]
+   newton_props = next(cfg for cfg in robot_cfg.spawn.articulation_props if isinstance(cfg, NewtonArticulationCfg))
+   newton_props.self_collision_enabled = True
 
 See :doc:`solver_tuning_mjwarp` for solver settings,
 :doc:`prepare_asset_for_newton`
