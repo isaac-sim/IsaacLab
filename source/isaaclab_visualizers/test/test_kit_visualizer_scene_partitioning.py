@@ -67,10 +67,42 @@ def test_training_pause_follows_kit_timeline(monkeypatch):
     monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
 
     timeline.is_playing.return_value = False
+    timeline.is_stopped.return_value = False
     assert visualizer.is_training_paused()
 
-    timeline.is_playing.return_value = True
+    timeline.is_stopped.return_value = True
     assert not visualizer.is_training_paused()
+
+    timeline.is_playing.return_value = True
+    timeline.is_stopped.return_value = False
+    assert not visualizer.is_training_paused()
+
+
+def test_app_update_restores_unset_play_setting(monkeypatch):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._scene_data_provider = MagicMock()
+    monkeypatch.setattr(visualizer, "is_training_paused", lambda: False)
+    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: MagicMock(render_generation=1))
+    settings = MagicMock()
+    settings.get.return_value = None
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    app = MagicMock()
+    app.is_running.return_value = True
+    app_module = ModuleType("omni.kit.app")
+    app_module.get_app = lambda: app
+    kit_module = ModuleType("omni.kit")
+    kit_module.app = app_module
+    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
+    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
+    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
+
+    visualizer.step(0.1)
+
+    assert settings.set.call_args_list[-1].args == ("/app/player/playSimulations", True)
 
 
 @pytest.mark.parametrize("generated", [False, True])

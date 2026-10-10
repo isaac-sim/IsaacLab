@@ -209,7 +209,7 @@ class KitVisualizer(BaseVisualizer):
                     play_flag = settings.get("/app/player/playSimulations")
                     settings.set("/app/player/playSimulations", False)
                     app.update()
-                    settings.set("/app/player/playSimulations", bool(play_flag))
+                    settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
                 self._app_pumped_this_step = True
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
@@ -293,7 +293,7 @@ class KitVisualizer(BaseVisualizer):
             play_flag = settings.get("/app/player/playSimulations")
             settings.set("/app/player/playSimulations", False)
             omni.kit.app.get_app().update()
-            settings.set("/app/player/playSimulations", bool(play_flag))
+            settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):
@@ -339,7 +339,8 @@ class KitVisualizer(BaseVisualizer):
         try:
             import omni.timeline
 
-            return not omni.timeline.get_timeline_interface().is_playing()
+            timeline = omni.timeline.get_timeline_interface()
+            return not timeline.is_playing() and not timeline.is_stopped()
         except Exception:
             return False
 

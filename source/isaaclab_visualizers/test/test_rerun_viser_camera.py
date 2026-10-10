@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
@@ -40,11 +41,42 @@ def test_rerun_visualizer_caps_updates_by_wall_time(monkeypatch):
     assert visualizer._is_render_due()
 
 
-def test_rerun_visualizer_rejects_nonpositive_max_fps():
+@pytest.mark.parametrize("max_fps", [0.0, -1.0, float("nan"), float("inf"), float("-inf")])
+def test_rerun_visualizer_rejects_invalid_max_fps(max_fps):
     assert RerunVisualizerCfg().max_fps == 60.0
 
-    with pytest.raises(ValueError, match="max_fps must be positive or None"):
-        RerunVisualizerCfg(max_fps=0.0)
+    with pytest.raises(ValueError, match="max_fps must be finite and positive or None"):
+        RerunVisualizerCfg(max_fps=max_fps)
+
+
+def test_rerun_rate_limit_preserves_streaming_and_plot_cadence(monkeypatch):
+    visualizer = _initialized_rerun_visualizer(RerunVisualizerCfg(max_fps=60.0, live_plots_update_interval=1))
+    visualizer._live_plot_sources = [object()]
+    render_live_plots = MagicMock()
+    monkeypatch.setattr(visualizer, "_render_live_plots", render_live_plots)
+    publication_due = iter((False, True))
+    monkeypatch.setattr(visualizer, "_is_render_due", lambda: next(publication_due))
+
+    visualizer.step(0.01)
+    visualizer._viewer.begin_frame.assert_not_called()
+    assert visualizer._live_plots_pending
+
+    visualizer.step(0.01)
+    assert visualizer._compose_streaming_frame.call_count == 2
+    visualizer._viewer.begin_frame.assert_called_once()
+    render_live_plots.assert_called_once_with()
+    assert not visualizer._live_plots_pending
+
+
+def test_rerun_recording_bypasses_interactive_rate_limit(monkeypatch):
+    visualizer = _initialized_rerun_visualizer(RerunVisualizerCfg(max_fps=60.0, record_to_rrd="recording.rrd"))
+    is_render_due = MagicMock(return_value=False)
+    monkeypatch.setattr(visualizer, "_is_render_due", is_render_due)
+
+    visualizer.step(0.01)
+
+    is_render_due.assert_not_called()
+    visualizer._viewer.begin_frame.assert_called_once()
 
 
 def test_viser_visualizer_set_camera_view(monkeypatch):
@@ -61,3 +93,20 @@ def test_viser_visualizer_set_camera_view(monkeypatch):
     monkeypatch.setattr(visualizer, "_try_apply_viser_camera_view", lambda pose: False)
     visualizer.set_camera_view([4, 5, 6], [0, 0, 0])
     assert visualizer._pending_camera_pose == ((4.0, 5.0, 6.0), (0.0, 0.0, 0.0))
+
+
+def _initialized_rerun_visualizer(cfg: RerunVisualizerCfg) -> RerunVisualizer:
+    visualizer = RerunVisualizer(cfg)
+    visualizer._is_initialized = True
+    visualizer._viewer = MagicMock()
+    visualizer._viewer.is_paused.return_value = False
+    visualizer.backend = SimpleNamespace(
+        model=SimpleNamespace(num_envs=1, body_count=0),
+        state_0=SimpleNamespace(body_q=None, particle_q=None),
+        geometry_offsets=(),
+    )
+    visualizer._scene_data_provider = MagicMock()
+    visualizer._scene_data_provider.get_transforms.return_value = False
+    visualizer._transform_mapping = ()
+    visualizer._compose_streaming_frame = MagicMock()
+    return visualizer

@@ -409,7 +409,7 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
-def test_newton_viewer_camera_keys_ignore_mouse_capture():
+def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
     capture = SimpleNamespace(mouse=True, keyboard=False)
     viewer.gui = SimpleNamespace(
@@ -418,10 +418,18 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture():
     )
 
     viewer._patch_keyboard_capture()
+    dispatched = []
+    monkeypatch.setattr(
+        newton_visualizer_module.ViewerGL,
+        "on_key_press",
+        lambda _self, symbol, modifiers: dispatched.append((symbol, modifiers)),
+    )
 
-    assert not viewer.gui.is_capturing()
+    viewer.on_key_press(1, 2)
+    assert dispatched == [(1, 2)]
     capture.keyboard = True
-    assert viewer.gui.is_capturing()
+    viewer.on_key_press(3, 4)
+    assert dispatched == [(1, 2)]
 
 
 class _FakeTrainingControlsImgui:
