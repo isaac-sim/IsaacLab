@@ -118,6 +118,11 @@ configurations, including output types and backgrounds, remain per sensor.
 Read camera data
 ----------------
 
+``camera.get_world_poses(convention="opengl")`` reads the current world poses without capturing images
+or changing cached measurement poses. This includes motion of the camera's parent body even when
+``update_latest_camera_pose=False``. It accepts the same orientation conventions as
+``set_world_poses`` and returns device tensors for positions and quaternions.
+
 :attr:`~sensors.CameraData.output` maps each requested name to a
 :class:`~isaaclab.utils.warp.ProxyArray`. For ``N`` camera views, height ``H``, width ``W``, and
 ``C`` channels, each output has shape ``(N, H, W, C)``. Use ``torch`` for a cached zero-copy Torch

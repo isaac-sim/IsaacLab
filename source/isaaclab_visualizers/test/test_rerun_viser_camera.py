@@ -105,8 +105,9 @@ def _initialized_rerun_visualizer(cfg: RerunVisualizerCfg) -> RerunVisualizer:
         state_0=SimpleNamespace(body_q=None, particle_q=None),
         geometry_offsets=(),
     )
-    visualizer._scene_data_provider = MagicMock()
-    visualizer._scene_data_provider.get_transforms.return_value = False
+    provider = MagicMock()
+    provider.get_transforms.return_value = False
+    visualizer._sim = SimpleNamespace(get_scene_data_provider=lambda: provider)
     visualizer._transform_mapping = ()
     visualizer.render_tiled_rgb_array = MagicMock(return_value=None)
     return visualizer

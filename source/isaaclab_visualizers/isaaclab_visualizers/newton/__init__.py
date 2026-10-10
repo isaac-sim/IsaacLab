@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
 if TYPE_CHECKING:
-    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer, NewtonVisualizer
+    from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 __all__ = [
-    # Base config (shared fields, not directly instantiable as a visualizer)
+    # Deprecated GL configuration
     "NewtonVisualizerCfg",
     # GL backend
     "NewtonGLVisualizer",
@@ -31,13 +31,15 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    if name in ("NewtonVisualizer", "NewtonGLVisualizer", "NewtonRTXVisualizer"):
-        from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer, NewtonVisualizer
+    if name == "NewtonRTXVisualizer":
+        from .newton_visualizer import NewtonRTXVisualizer
+
+        return NewtonRTXVisualizer
+    if name in ("NewtonVisualizer", "NewtonGLVisualizer"):
+        from .newton_visualizer import NewtonGLVisualizer
 
         if name == "NewtonGLVisualizer":
             return NewtonGLVisualizer
-        if name == "NewtonRTXVisualizer":
-            return NewtonRTXVisualizer
         import warnings
 
         warnings.warn(

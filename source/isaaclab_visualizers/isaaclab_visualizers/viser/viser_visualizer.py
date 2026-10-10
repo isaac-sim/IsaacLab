@@ -35,9 +35,6 @@ logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
 
 
@@ -348,34 +345,28 @@ class ViserVisualizer(BaseVisualizer):
         self._paused_rendering = False
         self._paused_simulation = False
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize viewer resources and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used to fetch model/state data.
+            sim: Simulation owner used to resolve scene data and native resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when available.
         """
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
 
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._active_record_path = self.cfg.record_to_viser
         self._create_viewer(record_to_viser=self.cfg.record_to_viser, metadata=metadata)
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
             logger=logger,
@@ -400,7 +391,7 @@ class ViserVisualizer(BaseVisualizer):
         Args:
             dt: Simulation time-step in seconds.
         """
-        if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
+        if not self._is_initialized or self._viewer is None or self._sim is None:
             return
 
         self._apply_pending_camera_pose()
@@ -434,7 +425,7 @@ class ViserVisualizer(BaseVisualizer):
             # When streaming_view is active, skip the 3D Newton scene so the
             # background streaming composite is the only content visible.
             if not self.cfg.streaming_view:
-                backend, provider = self.backend, self._scene_data_provider
+                backend, provider = self.backend, self._sim.get_scene_data_provider()
                 poses = SceneDataFormat.Transform()
                 if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                     backend.state_0.body_q = poses.transforms
@@ -481,12 +472,11 @@ class ViserVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)

@@ -467,6 +467,22 @@ backend-specific fragment silently drops the inherited properties.
        :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
        :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+   * - ``DeformableBodyPropertiesBaseCfg``
+     - None: the class has no fields. Pass
+       :class:`~isaaclab.sim.schemas.DeformableBodyFragment` subclasses in a deformable slot, and
+       subclass :class:`~isaaclab.sim.schemas.DeformableBodyFragment` for a custom cfg
+   * - ``OmniPhysicsDeformableBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
+   * - ``PhysXDeformableBodyPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
+   * - ``PhysxDeformableBodyPropertiesCfg``, ``DeformableBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
+   * - ``NewtonDeformableBodyPropertiesCfg``
+     - None: the class has no fields. Set the matching deformable slot to an empty list,
+       for example ``volume_deformable_props=[]``
 
 .. note::
 
@@ -479,10 +495,34 @@ backend-specific fragment silently drops the inherited properties.
    attributes, so the fragment that writes them is the PhysX one regardless of
    which backend consumes it.
 
-.. note::
+**Deformable bodies: pick the slot**
 
-   The deformable cfgs (``DeformableBodyPropertiesBaseCfg`` and its backend
-   subclasses) are **not** deprecated: their fragment families do not exist yet.
+The slot now selects the deformable type. Replace ``deformable_props`` with
+``surface_deformable_props`` when its physics material is a surface deformable material;
+otherwise use ``volume_deformable_props``. An empty slot creates a body with backend defaults,
+including on Newton. Add only the fragments whose values you need to set. The active backend
+chooses the deformable schemas, whereas the legacy cfg type chose them previously.
+
+PhysX properties split into :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
+for ``omniphysics:*``, :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` for
+solver properties, and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`
+for surface-only properties. Legacy PhysX cfgs explicitly authored
+``kinematic_enabled=False`` and ``solver_position_iteration_count=16``; the fragment API
+uses the same schema defaults without authoring them. Set those values explicitly only
+when preserving authored USD on a pre-authored asset matters.
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+   from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+
+   cloth = sim_utils.MeshRectangleCfg(
+       size=(0.2, 0.2),
+       surface_deformable_props=PhysxDeformableBodyCfg(self_collision=True),
+       collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
+       physics_material=PhysxSurfaceDeformableBodyMaterialCfg(),
+   )
 
 **Code migration**
 
@@ -565,6 +605,10 @@ of fragments, so one call can author a whole subtree:
    * - ``modify_fixed_tendon_properties``, ``modify_spatial_tendon_properties``
      - :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`,
        :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`
+   * - ``define_deformable_body_properties``, ``modify_deformable_body_properties``
+     - :func:`~isaaclab.sim.schemas.apply_volume_deformable_properties` or
+       :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties`, matching the
+       deformable type; pass ``create_if_missing=True`` to replace ``define_*``
 
 .. code-block:: python
 
@@ -574,9 +618,8 @@ of fragments, so one call can author a whole subtree:
    # Recommended: authors every matching prim, takes a fragment list
    sim_utils.apply_rigid_body_properties("/World/Robot/.*", [PhysxRigidBodyCfg(linear_damping=0.1)])
 
-The deformable writers (``define_deformable_body_properties``,
-``modify_deformable_body_properties``, ``define_deformable_curve_properties``)
-are not deprecated.
+``define_deformable_curve_properties`` is not deprecated: there is no curve
+fragment family to replace it.
 
 **Silencing the warnings while you migrate**
 
@@ -1031,7 +1074,7 @@ removed in a future release.
 
 Actuator configurations now use joint-qualified names for solver limits. Update active
 configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` through the 3.x release line and will be removed in 3.1.
+``DeprecationWarning`` and will be removed in 3.1.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
@@ -1053,7 +1096,7 @@ configurations to the canonical fields below. The former names remain accepted w
 ``actuator_effort_limit`` clips explicit actuator-model output. ``joint_effort_limit`` and
 ``joint_velocity_limit`` are construction-time joint-property overrides selected by an actuator
 group's joint expression. The deprecated aliases ``effort_limit``, ``velocity_limit``,
-``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted through 3.x. ``effort_limit``
+``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted until 3.1. ``effort_limit``
 resolves to the rated ``actuator_effort_limit`` for every actuator type. For an implicit group
 without a separately configured solver clamp, the rated value also populates
 ``joint_effort_limit`` for backward compatibility; configure both fields to author distinct
@@ -1685,7 +1728,7 @@ pattern as the general ProxyArray backend migration described above.
 **Ray Alignment Configuration**
 
 The ``attach_yaw_only`` boolean parameter on :class:`~isaaclab.sensors.RayCasterCfg` has been
-deprecated in favor of the new ``ray_alignment`` parameter, which accepts one of three string
+removed in favor of the new ``ray_alignment`` parameter, which accepts one of three string
 values:
 
 .. list-table::
@@ -1793,7 +1836,7 @@ Migrate tensor access, indexed writes, buffers, and quaternion conventions befor
 
          identity = (0.0, 0.0, 0.0, 1.0)
          root_pos = robot.data.root_pos_w.torch
-         robot.write_root_pose_to_sim_index(pose, env_ids)
+         robot.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
 
 
 .. rubric:: Quaternion Format
@@ -2056,9 +2099,9 @@ by the convention change.
 
 .. rubric:: Quaternion Utility API Changes
 
-**The ``convert_quat`` function has been removed**
+**The convert_quat function is no longer needed**
 
-Previously, IsaacLab had a utility function to convert between quaternion formats:
+IsaacLab provides a utility function to convert between quaternion formats:
 
 .. code-block:: python
 
@@ -2066,8 +2109,9 @@ Previously, IsaacLab had a utility function to convert between quaternion format
    from isaaclab.utils.math import convert_quat
    quat_xyzw = convert_quat(quat_wxyz, "xyzw")
 
-Since everything now uses XYZW natively, this function is no longer needed.
-If you were using it, simply remove the conversion calls.
+Since everything now uses XYZW natively, this function is no longer needed for Isaac Lab data.
+If you were using it, simply remove the conversion calls. Keep it only to convert external
+data that still uses WXYZ order.
 
 
 **Math utility functions now expect XYZW**
@@ -2258,7 +2302,8 @@ All asset write methods have been split into two explicit variants:
   boolean mask selecting which environments to update. The ``data`` tensor has shape
   ``(num_envs, ...)``.
 
-The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
+The previous ``write_*_to_sim(data, env_ids)`` methods are deprecated and forward to the
+``_index`` variants.
 
 .. code-block:: python
 
@@ -2945,8 +2990,6 @@ and ``MJCFImporterConfig`` dataclass.
 The following :class:`~sim.converters.MjcfConverterCfg` settings have been **removed** because
 the new converter handles them automatically based on the MJCF file content:
 
-- ``fix_base`` — base fixedness is now inferred from the MJCF ``<freejoint>`` tag.
-- ``link_density`` — density is now read directly from the MJCF model.
 - ``import_inertia_tensor`` — inertia tensors are always imported.
 - ``import_sites`` — sites are always imported.
 
@@ -2965,8 +3008,8 @@ The following new settings were added to :class:`~sim.converters.MjcfConverterCf
 +-----------------------------------------------------------------+------------------------------------------------------+
 | :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.            |
 +-----------------------------------------------------------------+------------------------------------------------------+
-| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"default"``,      |
-|                                                                 | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
+| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"Convex Hull"``,  |
+|                                                                 | ``"Convex Decomposition"``, ``"Bounding Cube"``).    |
 +-----------------------------------------------------------------+------------------------------------------------------+
 
 
@@ -3232,11 +3275,12 @@ For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
 
 **Installation Requirement**
 
-Isaac Capture must now be installed in your Isaac Lab environment:
+Isaac Capture must now be installed in your Isaac Lab environment. It ships with the ``teleop``
+extra:
 
 .. code-block:: bash
 
-   pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
+   uv sync --extra teleop --extra isaacsim
 
 See :ref:`install-isaac-teleop` for complete installation instructions.
 

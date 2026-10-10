@@ -3,6 +3,13 @@
 
 .. automodule:: isaaclab.visualizers
 
+Custom visualizers implement ``initialize(sim, *, cameras)`` and ``reset(soft=False)``.
+Initialization receives the simulation owner explicitly. Call ``super().initialize(sim, cameras=cameras)``
+to retain the simulation as ``self._sim`` and bind scene data. Resolve backend-specific resources in
+the implementation; core lifecycle dispatch does not import or construct them. Hard resets can reacquire
+resources through ``self._sim.get_or_create_backend(...)`` and access the stage through ``self._sim.stage``.
+Rendering uses the resolved resources.
+
 Additional Public Classes
 -------------------------
 
@@ -15,6 +22,7 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
 
    BaseVisualizer
    VisualizerCfg
+   WindowCfg
    PerspectiveCameraCfg
    SceneCameraCfg
 
@@ -28,4 +36,7 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :show-inheritance:
 
 .. autoclass:: SceneCameraCfg
+   :show-inheritance:
+
+.. autoclass:: WindowCfg
    :show-inheritance:
