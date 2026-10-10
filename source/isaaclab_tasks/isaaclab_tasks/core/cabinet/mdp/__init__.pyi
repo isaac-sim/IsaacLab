@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "RateLimitedJointPositionActionCfg",
     "align_ee_handle",
     "align_grasp_around_handle",
     "approach_ee_handle",
@@ -17,6 +18,7 @@ __all__ = [
     "rel_ee_drawer_distance",
 ]
 
+from .actions_cfg import RateLimitedJointPositionActionCfg
 from .observations import ee_pos, ee_quat, fingertips_pos, rel_ee_drawer_distance
 from .rewards import (
     align_ee_handle,
