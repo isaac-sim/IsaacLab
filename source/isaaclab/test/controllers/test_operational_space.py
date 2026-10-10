@@ -796,6 +796,9 @@ def test_floating_base_osc_action_term_indexing():
         num_arm_joints = action_term._num_DoF
 
         # --- 3. Step the env to populate physics buffers ---
+        arm_joint_ids, _ = robot.find_joints(_G1_ARM_JOINT_NAMES)
+        robot.write_joint_armature_to_sim_index(armature=0.5, joint_ids=arm_joint_ids)
+        assert torch.all(robot.data.joint_armature.torch[:, arm_joint_ids] == 0.5)
         zero_actions = torch.zeros(num_envs, action_term.action_dim, device=env.device)
         action_term.process_actions(zero_actions)
         action_term.apply_actions()
@@ -809,7 +812,8 @@ def test_floating_base_osc_action_term_indexing():
         full_mass_matrix = robot.data.mass_matrix.torch
         full_gravity = robot.data.gravity_compensation_forces.torch
 
-        manual_mass = full_mass_matrix[:, jacobi_joint_idx, :][:, :, jacobi_joint_idx]
+        manual_mass = full_mass_matrix[:, jacobi_joint_idx, :][:, :, jacobi_joint_idx].clone()
+        manual_mass.diagonal(dim1=-2, dim2=-1).add_(robot.data.joint_armature.torch[:, arm_joint_ids])
         manual_gravity = full_gravity[:, jacobi_joint_idx]
 
         # --- 6. KEY ASSERTION: action term output must match manual extraction with correct indices ---
@@ -825,7 +829,8 @@ def test_floating_base_osc_action_term_indexing():
         # --- 8. Verify correct indices differ from raw joint_ids (the old bug) ---
         # Reconstruct the original joint_ids before any slice(None) optimization
         original_joint_ids, _ = robot.find_joints(_G1_ARM_JOINT_NAMES)
-        buggy_mass = full_mass_matrix[:, original_joint_ids, :][:, :, original_joint_ids]
+        buggy_mass = full_mass_matrix[:, original_joint_ids, :][:, :, original_joint_ids].clone()
+        buggy_mass.diagonal(dim1=-2, dim2=-1).add_(robot.data.joint_armature.torch[:, original_joint_ids])
         assert not torch.allclose(term_mass, buggy_mass, atol=1e-6), (
             "Action term mass matrix should NOT match extraction with raw joint_ids (no num_base_dofs offset)"
         )

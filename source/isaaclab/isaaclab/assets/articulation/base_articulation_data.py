@@ -946,15 +946,15 @@ class BaseArticulationData(ABC):
 
     @property
     def mass_matrix(self) -> ProxyArray:
-        """Per-env generalized mass matrix ``M(q)`` in joint space.
+        """Per-env rigid-body mass matrix ``M_body(q)`` in joint space.
 
         Shape: ``(num_instances, num_joints + num_base_dofs, num_joints + num_base_dofs)``,
         dtype ``wp.float32`` [kg·m² or kg, per DoF type]. DoF-axis convention matches
         :attr:`body_link_jacobian_w`.
 
-        ``M(q)`` is symmetric positive-definite. ``M[i, j]`` is the coefficient
-        relating DoF ``j``'s acceleration to the inertial torque on DoF ``i`` in
-        ``M(q) q_ddot + C(q, q_dot) q_dot + g(q) = tau``.
+        ``M_body(q)`` is symmetric positive-definite and excludes :attr:`joint_armature`.
+        Controllers that model joint armature as additional inertia can add it to the
+        joint diagonal explicitly. Other solver-specific inertial terms may also be absent.
         """
         raise NotImplementedError(f"{type(self).__name__} does not implement mass_matrix.")
 

@@ -1718,6 +1718,14 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
         M_0 = articulation.data.mass_matrix.torch.clone()
         g_0 = articulation.data.gravity_compensation_forces.torch.clone()
 
+        if island == "ordered":
+            # Armature changes the simulated joint inertia, but the exposed matrix is rigid-body inertia.
+            armature_0 = articulation.data.joint_armature.torch.clone()
+            articulation.write_joint_armature_to_sim_index(armature=armature_0[1:2] + 0.25, env_ids=[1])
+            torch.testing.assert_close(articulation.data.joint_armature.torch[1:2], armature_0[1:2] + 0.25)
+            torch.testing.assert_close(articulation.data.mass_matrix.torch, M_0)
+            articulation.write_joint_armature_to_sim_index(armature=armature_0[1:2], env_ids=[1])
+
         # Non-trivial configuration via manual writes (no sim step, so the assert
         # compares both quantities at exactly this state): random joint offsets,
         # and for floating-base a non-identity root pose.
