@@ -1,6 +1,3 @@
-Changed
-^^^^^^^
-
 * **Breaking:** Changed the non-camera soft-beam ``rsl_rl`` experiment name from ``franka_soft`` to
   ``lift_soft``, matching the ``lift_cloth`` and ``lift_cable`` naming of the sibling tasks. This
   also moves the logs of the contributed ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling`` task,
