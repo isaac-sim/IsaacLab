@@ -25,6 +25,84 @@ Validated model versions: Torch 2.9.0+cu128, NumPy 1.26.4, Transformers 4.57.3, 
 
 Keep `nvidia/Cosmos-Reason2` in the backbone path, including its symlink name; the upstream model selects its backbone class from this string. Model assets must already be local. The launcher sets `HF_HUB_OFFLINE=1` and the previously accepted `OMNI_KIT_ACCEPT_EULA=YES`.
 
+## One-command cloud deployment
+
+The deployment script targets **Ubuntu 22.04/24.04 x86_64** with a rendering-capable NVIDIA GPU
+(24 GB VRAM or more), at least 32 GB host RAM and driver **580.65.06 or newer** for the simulator's
+CUDA 13.0 Torch build. Driver 580.95.05+ is recommended by the Isaac Lab installation guide.
+CUDA availability alone does not establish Isaac Sim rendering support; use a GPU supported by
+[Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html).
+Allow at least **100 GiB free** for environments, download caches and smoke-test outputs in addition
+to the transferred models; each PPO checkpoint adds about 9.1 GiB. The script checks the checkout,
+GR00T and uv cache volumes. It uses the provider's installed driver; CUDA runtime libraries come
+with the Python wheels, so a separate CUDA toolkit is unnecessary for this installation.
+
+Transfer this Isaac Lab branch and both model directories to the server first. The micro-SFT
+checkpoint is a local training artifact; the script does not substitute a public base model.
+Do **not** copy `.venv` directories between servers. When transferring the backbone, dereference
+its symlink (for example, use `rsync -aL`) or also transfer its target. Keep the destination name
+`nvidia/Cosmos-Reason2-2B`. With the default sibling directory layout:
+
+```text
+workspace/
+├── IsaacLab/                 # this branch, including uv.lock and deploy.sh
+├── Isaac-GR00T/              # script creates this if absent
+└── embodied-template/models/
+    ├── stack-cube-n1.7-sft/checkpoint/
+    └── nvidia/Cosmos-Reason2-2B/
+```
+
+Run from the transferred Isaac Lab checkout:
+
+```bash
+bash scripts/reinforcement_learning/gr00t_skrl/deploy.sh
+```
+
+It installs OS packages with root/passwordless sudo, bootstraps uv if absent, obtains Python 3.12,
+fetches the validated GR00T commit `d2b7e75b937e3ec9aa5dbc798f08b89692c49734`, and installs the
+two `.venv` environments from their frozen lockfiles. GR00T sync runs from its own directory;
+the additional PPO dependencies use `uv --no-config pip` with a snapshot constraint file.
+Existing extra packages are retained by `--inexact`. A different or modified existing GR00T
+checkout is rejected; pass a new `--model_project` to keep it separate. The deployment is
+noninteractive and uses the previously accepted `OMNI_KIT_ACCEPT_EULA=YES`.
+
+Default verification checks dependency versions, both CUDA environments, local weight shards,
+offline processor loading and a falling procedural sphere in headless Kit/PhysX using the task's
+simulation config. It prints the launch command with your paths and GPU. The processor uses
+`--backbone_path` even when its saved config contains a previous server's absolute path; saved
+checkpoint files and processor fingerprints remain unchanged.
+
+For custom locations, a preconfigured image, and full two-step PPO verification:
+
+```bash
+bash scripts/reinforcement_learning/gr00t_skrl/deploy.sh \
+  --model_project /data/Isaac-GR00T \
+  --model_path /data/models/stack-cube-n1.7-sft/checkpoint \
+  --backbone_path /data/models/nvidia/Cosmos-Reason2-2B \
+  --gpu 0 --skip_system_deps --smoke_test
+```
+
+`--skip_system_deps` requires the OS libraries listed in the script to be installed already.
+`--smoke_test` exercises the real Franka scene, both RGB cameras, two rollout steps, native PPO
+updates and checkpoint writing. It requires network access to the task's USD assets or an existing
+asset cache. Installation also needs access to Ubuntu package repositories, GitHub, PyPI, NVIDIA
+and PyTorch wheel indexes. Set your proxy and `UV_CACHE_DIR` before running when needed; frozen
+lockfiles retain their recorded download URLs.
+
+Other useful invocations:
+
+```bash
+# Inspect the deployment plan without installing or launching anything.
+bash scripts/reinforcement_learning/gr00t_skrl/deploy.sh --dry_run
+# Recheck existing environments without reinstalling.
+bash scripts/reinforcement_learning/gr00t_skrl/deploy.sh --verify_only
+```
+
+Pass the same custom path/GPU arguments when verifying. Logs and model dependency snapshots are
+written under `logs/gr00t_skrl/deploy/<timestamp>/`; optional smoke outputs live in its `smoke/`
+subdirectory. Re-running resumes package installation without rewriting lockfiles or overwriting
+prior run directories. A failed check exits nonzero and prevents reporting deployment success.
+
 ## Policy and physical action contract
 
 For the model-configured horizon `H`, padded action dimension `D`, generation steps `K` and fixed `sigma=0.05`:

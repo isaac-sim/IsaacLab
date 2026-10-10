@@ -119,7 +119,9 @@ class FrozenEncoder:
         self.model = model
         self.backbone = model.backbone
         self.head = model.action_head
-        self.processor = AutoProcessor.from_pretrained(cfg.model_path, local_files_only=True)
+        self.processor = AutoProcessor.from_pretrained(
+            cfg.model_path, model_name=cfg.backbone_path, local_files_only=True
+        )
         self.processor.eval()
         self.embodiment = EmbodimentTag.resolve("libero_sim")
         self.layout = FeatureLayout(
