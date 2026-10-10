@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd
@@ -202,6 +203,10 @@ def spawn_sensor_frame(
 ) -> Usd.Prim:
     """Create a plain USD Xform prim as a sensor attachment frame.
 
+    .. deprecated:: 3.0
+        Author and track an existing Xform instead. This function remains available during the
+        deprecation cycle.
+
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths
         if the input prim path is a regex pattern.
@@ -221,4 +226,9 @@ def spawn_sensor_frame(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
+    warnings.warn(
+        "spawn_sensor_frame is deprecated; author and track an existing Xform instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return create_prim(prim_path, "Xform", translation=translation, orientation=orientation)
