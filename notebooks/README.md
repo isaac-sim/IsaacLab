@@ -1,7 +1,7 @@
 # Isaac Lab Colab notebooks
 
-These notebooks are self-contained introductions to Isaac Lab 3.0. They clone the
-Isaac Lab `develop` branch into the Colab VM and install its pinned dependencies;
+These notebooks are self-contained introductions to Isaac Lab 3.0. They install Isaac Lab from the
+`develop` branch and its dependencies in the Colab VM;
 they do not modify the checkout from which the notebook was opened.
 
 | Notebook | What it covers |
@@ -15,19 +15,32 @@ they do not modify the checkout from which the notebook was opened.
 ## Before running
 
 1. Open a notebook in Google Colab.
-2. Select **Runtime > Change runtime type > GPU**. An L4 or A100 runtime is
+2. Open **Runtime → Change runtime type**.
+3. Set **Runtime Version** to **2026.07**, which includes **Python 3.12.13**.
+4. Select your **GPU** accelerator and reconnect. An L4 or A100 runtime is
    recommended; free-tier hardware and memory availability vary.
-3. Run the installation cell, restart the session once, and run the remaining cells in order.
+5. Run the installation cell, restart the session once, and run the remaining cells in order.
+
+Python 3.12 and an NVIDIA CUDA GPU are required. Warp supports CPU and CUDA execution,
+but this notebook workflow requires CUDA; TPU runtimes are not supported. See the [Colab runtime versions](https://research.google.com/colaboratory/runtime-version-faq.html)
+and [Warp requirements](https://github.com/NVIDIA/warp#installing).
 
 The notebooks run headless: every example records a video from a camera sensor and
 plays it beneath its cell. Physics runs on Newton with MuJoCo Warp (VBD for
-deformables), and cameras render with OV RTX. A setup cell compiles the OV RTX
-shaders once, which takes a couple of minutes on a fresh runtime; later videos
-start in seconds. Pretrained checkpoints are downloaded on demand from the Isaac Lab
+deformables), and cameras use the Newton Warp renderer. This avoids OV RTX's
+requirement for RTX-capable hardware, which GPUs such as the A100 do not meet.
+A setup cell warms up physics and rendering; the first run compiles Warp kernels
+and later runs reuse the cache. Full hosted-Colab execution has not yet been validated.
+Pretrained checkpoints are downloaded on demand from the Isaac Lab
 asset server.
+
+With a local runtime, you can install the `ov` extra and set `RENDERER = "ovrtx"`
+in the backend-selection cell. This requires compatible RTX hardware and
+[OV RTX drivers](https://github.com/NVIDIA-Omniverse/ovrtx/blob/main/docs/driver_requirements.rst).
+The warmup cell can keep using Newton.
 
 Colab forms (dropdowns and hidden code cells) only render in Colab. In a local
 Jupyter session they appear as ordinary code; edit the assigned values directly.
 
-For a reproducible workshop, change `ISAACLAB_REF` in the installation cell of each
-notebook from `develop` to the exact Isaac Lab 3.0 release tag used by the class.
+For a reproducible workshop, change `@develop` in the installation command of each
+notebook to `@<release-tag>` for the exact Isaac Lab 3.0 release tag used by the class.
