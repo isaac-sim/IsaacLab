@@ -13,6 +13,8 @@ The run follows the CartPole configuration of the FlashNeRD main-results study
    ``--teacher isaaclab`` records the Isaac Lab Cartpole with MuJoCo Warp; ``--teacher physicsnemo``
    generates the study's own Cartpole with Newton's Featherstone solver through the PhysicsNeMo Robotics
    example code in ``--physicsnemo-root``.
+   The Isaac Lab cart has 2 kg of moving mass against the study's 52.5 kg, so its default forces of up to
+   400 N accelerate it ten times harder; ``--force-range 57.1`` matches the study's cart acceleration.
 2. ``train``: ParallelNeRD with the frozen CartPole geometry, ten frames of history, global batch 4,096,
    a linear 1e-3 to 1e-4 learning rate, resident windows, and FP16 autocast. Every checkpoint appends the
    held-out ``E_H`` to ``rollout_nrmse.jsonl``, and a rerun resumes from the last checkpoint. Launch it
@@ -50,8 +52,11 @@ from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 HORIZONS = (1, 15, 50, 100, 200, 500)
 # FlashNeRD in Table I of the paper; the study adds H = 50 and 500.
 PAPER_FLASHNERD = {1: 4.4e-5, 15: 1.7e-4, 100: 3.2e-3, 200: 6.0e-2}
-# The Isaac Lab cart effort is 100 N per action unit and saturates at 400 N.
-EFFORT_BOUND = 4.0
+# The Isaac Lab cart actuator saturates at 400 N.
+ISAACLAB_FORCE_RANGE = 400.0
+# The study drives its 52.5 kg Cartpole with up to 1500 N; the same 28.6 m/s^2 of the Isaac Lab Cartpole's
+# 2 kg of moving mass needs 57 N.
+ISAACLAB_MATCHED_FORCE_RANGE = 1500.0 / 52.5 * 2.0
 # Data controls of the study's CartPole teacher.
 STUDY_DATA = {
     "history": 10,
@@ -63,8 +68,20 @@ STUDY_DATA = {
 }
 
 
-def record_isaaclab(path: Path, *, num_envs: int, transitions: int, episodes_per_env: int, seed: int, device: str):
-    """Record ``num_envs * episodes_per_env`` Isaac Lab episodes of ``transitions`` transitions each."""
+def record_isaaclab(
+    path: Path,
+    *,
+    num_envs: int,
+    transitions: int,
+    episodes_per_env: int,
+    seed: int,
+    device: str,
+    force_range: float = ISAACLAB_FORCE_RANGE,
+):
+    """Record ``num_envs * episodes_per_env`` Isaac Lab episodes of ``transitions`` transitions each.
+
+    Each frame applies a cart force drawn uniformly within ``force_range`` [N].
+    """
     cfg = CartpoleFlashNeRDBenchmarkEnvCfg()
     cfg.scene.num_envs = num_envs
     cfg.sim.device = device
@@ -73,7 +90,8 @@ def record_isaaclab(path: Path, *, num_envs: int, transitions: int, episodes_per
     env = CartpoleEnv(cfg=cfg)
     try:
         env.reset(seed=seed)
-        actions = UniformRandomActions(num_envs, cfg.action_space, high=EFFORT_BOUND, device=env.device, seed=seed)
+        high = force_range / cfg.action_scale
+        actions = UniformRandomActions(num_envs, cfg.action_space, high=high, device=env.device, seed=seed)
         dones = None
         with TrajectoryDatasetRecorder(
             env, path, scenario_id="flashnerd-cartpole", seed=seed, replace=True
@@ -168,6 +186,15 @@ def main() -> None:
     )
     parser.add_argument("--teacher", choices=["isaaclab", "physicsnemo"], default="isaaclab")
     parser.add_argument(
+        "--force-range",
+        type=float,
+        default=ISAACLAB_FORCE_RANGE,
+        help=(
+            "Bound [N] of the uniform Isaac Lab cart forces. The default is the actuator limit; "
+            f"{ISAACLAB_MATCHED_FORCE_RANGE:.1f} N matches the study's cart acceleration."
+        ),
+    )
+    parser.add_argument(
         "--physicsnemo-root", type=Path, help="PhysicsNeMo Robotics checkout for --teacher physicsnemo."
     )
     parser.add_argument("--max-updates", type=int, default=100_000)
@@ -185,8 +212,19 @@ def main() -> None:
 
     if "data" in args.stages:
         if args.teacher == "isaaclab":
-            record_isaaclab(train_data, num_envs=2000, transitions=100, episodes_per_env=5, seed=7, device=device)
-            record_isaaclab(evaluation_data, num_envs=2048, transitions=509, episodes_per_env=1, seed=8, device=device)
+            for path, num_envs, transitions, episodes_per_env, seed in (
+                (train_data, 2000, 100, 5, 7),
+                (evaluation_data, 2048, 509, 1, 8),
+            ):
+                record_isaaclab(
+                    path,
+                    num_envs=num_envs,
+                    transitions=transitions,
+                    episodes_per_env=episodes_per_env,
+                    seed=seed,
+                    device=device,
+                    force_range=args.force_range,
+                )
         else:
             generate_physicsnemo(
                 args.physicsnemo_root, train_data, trajectories=10_000, world_batch=2_000, transitions=100, seed=7
