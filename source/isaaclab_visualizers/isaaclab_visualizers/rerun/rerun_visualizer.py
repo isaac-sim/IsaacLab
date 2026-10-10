@@ -14,6 +14,7 @@ import logging
 import socket
 import time
 import webbrowser
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
@@ -102,6 +103,19 @@ def _rerun_web_viewer_url(host: str, web_port: int, connect_to: str) -> str:
     """Return rerun web UI URL with prefilled endpoint."""
     # Keep the nested URL readable while still encoding '+' in the rerun+http scheme.
     return f"http://{host}:{int(web_port)}/?url={quote(connect_to, safe=':/')}"
+
+
+@contextlib.contextmanager
+def _use_recording_stream(recording: rr.RecordingStream | None) -> Iterator[None]:
+    """Temporarily route module-level Rerun calls to one recording without flushing it."""
+    if recording is None:
+        yield
+        return
+    previous = rr.set_thread_local_data_recording(recording)
+    try:
+        yield
+    finally:
+        rr.set_thread_local_data_recording(previous)
 
 
 class NewtonViewerRerun(ViewerRerun):
@@ -271,12 +285,16 @@ class RerunVisualizer(BaseVisualizer):
         super().__init__(cfg)
         self.cfg: RerunVisualizerCfg = cfg
         self._viewer: NewtonViewerRerun | None = None
+        self._recording_viewer: NewtonViewerRerun | None = None
+        self._live_recording_stream: rr.RecordingStream | None = None
+        self._file_recording_stream: rr.RecordingStream | None = None
         self._backend_display: str | None = None
         self._step_counter = 0
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._last_render_wall_time: float | None = None
         self._live_plots_pending = False
+        self._recording_live_plots_pending = False
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize rerun viewer and bind scene data provider.
@@ -317,30 +335,63 @@ class RerunVisualizer(BaseVisualizer):
             grpc_port=grpc_port,
             keep_historical_data=self.cfg.keep_historical_data,
             keep_scalar_history=self.cfg.keep_scalar_history or self.cfg.enable_live_plots,
-            record_to_rrd=self.cfg.record_to_rrd,
+            record_to_rrd=None,
             open_browser=self.cfg.open_browser,
             streaming_view=self._camera_sensor is not None,
         )
-        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._live_recording_stream = rr.get_global_data_recording()
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
+        if self.cfg.record_to_rrd is not None:
+            if self._live_recording_stream is None:
+                raise RuntimeError("Rerun did not create a live recording stream.")
+            try:
+                self._recording_viewer = NewtonViewerRerun(
+                    app_id=self.cfg.app_id,
+                    rec_id=rr.get_recording_id(self._live_recording_stream),
+                    # Newton requires a live mode during construction. Reuse the live recording identity,
+                    # then immediately replace this viewer's sink with the dedicated file sink below.
+                    address=rerun_address,
+                    serve_web_viewer=False,
+                    web_port=web_port,
+                    grpc_port=grpc_port,
+                    keep_historical_data=True,
+                    keep_scalar_history=True,
+                    record_to_rrd=None,
+                    open_browser=False,
+                    streaming_view=self._camera_sensor is not None,
+                )
+                self._file_recording_stream = rr.get_global_data_recording()
+                if self._file_recording_stream is None:
+                    raise RuntimeError("Rerun did not create a file recording stream.")
+                self._file_recording_stream.set_sinks(
+                    rr.FileSink(self.cfg.record_to_rrd), default_blueprint=self._recording_viewer._get_blueprint()
+                )
+            finally:
+                rr.set_global_data_recording(self._live_recording_stream)
+
         viewer_host = _normalize_host(bind_address)
         viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
         print()
         self._log_viewer_url("RerunVisualizer", viewer_url)
         if self.cfg.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
-        self._viewer.set_model(self.backend.model)
-        self._viewer.show_particles = self.cfg.show_particles
-        self._viewer.set_visible_worlds(self._env_ids)
-        # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
-        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+        viewer_streams = tuple(self._viewer_streams())
+        marker_groups = sim.vis_marker_registry.get_groups().values()
+        for viewer, recording_stream in viewer_streams:
+            with _use_recording_stream(recording_stream):
+                viewer.marker_groups = marker_groups
+                viewer.set_model(self.backend.model)
+                viewer.show_particles = self.cfg.show_particles
+                viewer.set_visible_worlds(self._env_ids)
+                # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
+                viewer.set_world_offsets((0.0, 0.0, 0.0))
+                viewer.up_axis = 2
+                viewer.scaling = 1.0
+                viewer._paused = False
         backend = self.physics_backend or "unknown"
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
         self._apply_camera_pose((self.cfg.eye, self.cfg.lookat))
-        self._viewer.up_axis = 2
-        self._viewer.scaling = 1.0
-        self._viewer._paused = False
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
         self._log_initialization_table(
@@ -361,7 +412,9 @@ class RerunVisualizer(BaseVisualizer):
             ],
         )
 
-        rr.log("info/physics_backend", rr.TextDocument(""), static=True)
+        for _, recording_stream in viewer_streams:
+            with _use_recording_stream(recording_stream):
+                rr.log("info/physics_backend", rr.TextDocument(""), static=True)
 
         self._is_initialized = True
         atexit.register(self.close)
@@ -381,39 +434,49 @@ class RerunVisualizer(BaseVisualizer):
         if self._live_plot_sources:
             self._live_plots_step_counter += 1
             interval = max(1, getattr(self.cfg, "live_plots_update_interval", 10))
-            self._live_plots_pending |= self._live_plots_step_counter % interval == 0
+            plots_due = self._live_plots_step_counter % interval == 0
+            self._live_plots_pending |= plots_due
+            self._recording_live_plots_pending |= plots_due and self._recording_viewer is not None
 
-        # Recordings retain every simulation frame. Interactive publication is capped while
-        # local streaming composition continues at the simulation render cadence.
-        publish_due = self.cfg.record_to_rrd is not None or self._is_render_due()
+        publish_due = self._is_render_due()
+        publish_live = publish_due and not self._viewer.is_paused()
+        record_frame = self._recording_viewer is not None
 
         num_envs = self.backend.model.num_envs
 
-        if publish_due and not self._viewer.is_paused():
+        if publish_live or record_frame:
             backend, provider = self.backend, self._sim.get_scene_data_provider()
             poses = SceneDataFormat.Transform()
             if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                 backend.state_0.body_q = poses.transforms
             if backend.geometry_offsets:
                 provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-            self._viewer.begin_frame(self._sim_time)
-            try:
-                # Empty body arrays skip log_state, but streaming still runs after end_frame.
-                body_q = backend.state_0.body_q
-                if body_q is None or body_q.shape[0]:
-                    self._viewer.log_state(backend.state_0)
-                    if self.cfg.enable_markers:
-                        render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
-                if self._live_plots_pending:
-                    self._render_live_plots()
-                    self._live_plots_pending = False
-            finally:
-                self._viewer.end_frame()
+        if record_frame:
+            self._log_frame(
+                self._recording_viewer,
+                self._file_recording_stream,
+                num_envs,
+                include_live_plots=self._recording_live_plots_pending,
+            )
+            self._recording_live_plots_pending = False
+        if publish_live:
+            self._log_frame(
+                self._viewer,
+                self._live_recording_stream,
+                num_envs,
+                include_live_plots=self._live_plots_pending,
+            )
+            self._live_plots_pending = False
 
         # Compose outside the viewer frame context; paused viewers keep their last logged image.
         composite = self.render_tiled_rgb_array()
-        if publish_due and composite is not None and not self._viewer.is_paused():
-            rr.log("streaming/view", rr.Image(composite))
+        if composite is not None:
+            if record_frame:
+                with _use_recording_stream(self._file_recording_stream):
+                    rr.log("streaming/view", rr.Image(composite))
+            if publish_live:
+                with _use_recording_stream(self._live_recording_stream):
+                    rr.log("streaming/view", rr.Image(composite))
 
     def reset(self, soft: bool = False) -> None:
         """Rebind the viewer when a hard reset replaces the shared native model."""
@@ -425,27 +488,25 @@ class RerunVisualizer(BaseVisualizer):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
-        self._viewer.set_visible_worlds(self._env_ids)
-        self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+        for viewer, recording_stream in self._viewer_streams():
+            with _use_recording_stream(recording_stream):
+                viewer.set_model(backend.model)
+                viewer.set_visible_worlds(self._env_ids)
+                viewer.set_world_offsets((0.0, 0.0, 0.0))
 
     def close(self) -> None:
         """Close viewer/session resources."""
         if self._is_closed:
             return
 
-        if self._viewer is not None:
+        for viewer, recording_stream in reversed(tuple(self._viewer_streams())):
             try:
-                self._viewer.close()
+                with _use_recording_stream(recording_stream):
+                    viewer.close()
             except Exception as exc:
                 logger.warning("[RerunVisualizer] Failed while closing viewer: %s", exc)
-            finally:
-                self._viewer = None
-
-        try:
-            rr.disconnect()
-        except Exception as exc:
-            logger.warning("[RerunVisualizer] Failed while disconnecting rerun: %s", exc)
+        self._recording_viewer = self._viewer = None
+        self._file_recording_stream = self._live_recording_stream = None
         self.backend = self._transform_mapping = None
         super().close()
 
@@ -470,34 +531,37 @@ class RerunVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         cam_pos, cam_target = pose
-        self._viewer._camera_pose = pose
+        viewer_streams = tuple(self._viewer_streams())
+        for viewer, _ in viewer_streams:
+            viewer._camera_pose = pose
         # Do not send a Spatial3DView blueprint when the streaming composite is active:
         # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
         # by a 3D view, hiding the streaming composite panel entirely.
         if self._camera_sensor is not None:
             return
         panel_states = [rrb.TimePanel(state="hidden")]
-        rr.send_blueprint(
-            rrb.Blueprint(
-                rrb.Vertical(
-                    rrb.Spatial3DView(
-                        name="3D View",
-                        origin="/",
-                        eye_controls=rrb.EyeControls3D(
-                            position=cam_pos,
-                            look_target=cam_target,
-                        ),
+        blueprint = rrb.Blueprint(
+            rrb.Vertical(
+                rrb.Spatial3DView(
+                    name="3D View",
+                    origin="/",
+                    eye_controls=rrb.EyeControls3D(
+                        position=cam_pos,
+                        look_target=cam_target,
                     ),
-                    rrb.TextDocumentView(
-                        name=f"Physics: {self._backend_display or 'unknown'}",
-                        origin="info/physics_backend",
-                    ),
-                    row_shares=[20, 1],
                 ),
-                *panel_states,
-                collapse_panels=True,
-            )
+                rrb.TextDocumentView(
+                    name=f"Physics: {self._backend_display or 'unknown'}",
+                    origin="info/physics_backend",
+                ),
+                row_shares=[20, 1],
+            ),
+            *panel_states,
+            collapse_panels=True,
         )
+        for _, recording_stream in viewer_streams:
+            with _use_recording_stream(recording_stream):
+                rr.send_blueprint(blueprint)
         self._last_camera_pose = (cam_pos, cam_target)
 
     def set_camera_view(
@@ -563,18 +627,22 @@ class RerunVisualizer(BaseVisualizer):
             else:
                 names.append(source.manager_name)
         self._viewer._live_plot_manager_names = names
+        if self._recording_viewer is not None:
+            self._recording_viewer._live_plot_manager_names = names
 
-    def _render_live_plots(self) -> None:
+    def _render_live_plots(self, viewer: NewtonViewerRerun | None = None) -> None:
         """Push manager-term scalars to Rerun as time-series scalars."""
-        if self._viewer is None or not self._live_plot_sources:
+        if viewer is None:
+            viewer = self._viewer
+        if viewer is None or not self._live_plot_sources:
             return
         for source in self._live_plot_sources:
             for term_name, values in source.collect(self._live_plot_env_idx).items():
                 if len(values) == 1:
-                    self._viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
+                    viewer.log_scalar(f"{source.manager_name}/{term_name}", values[0])
                 else:
                     for i, v in enumerate(values):
-                        self._viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
+                        viewer.log_scalar(f"{source.manager_name}/{term_name}[{i}]", v)
 
     def is_training_paused(self) -> bool:
         """Return whether training is paused.
@@ -600,6 +668,37 @@ class RerunVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.consume_reset_request()
+
+    def _log_frame(
+        self,
+        viewer: NewtonViewerRerun,
+        recording_stream: rr.RecordingStream | None,
+        num_envs: int,
+        *,
+        include_live_plots: bool,
+    ) -> None:
+        """Log one simulation frame to a specific Rerun destination."""
+        backend = self.backend
+        with _use_recording_stream(recording_stream):
+            viewer.begin_frame(self._sim_time)
+            try:
+                # Empty body arrays skip log_state, but streaming still runs after end_frame.
+                body_q = backend.state_0.body_q
+                if body_q is None or body_q.shape[0]:
+                    viewer.log_state(backend.state_0)
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(viewer, self._env_ids, num_envs=num_envs)
+                if include_live_plots:
+                    self._render_live_plots(viewer)
+            finally:
+                viewer.end_frame()
+
+    def _viewer_streams(self) -> Iterator[tuple[NewtonViewerRerun, rr.RecordingStream | None]]:
+        """Yield each viewer with the Rerun stream that owns its output."""
+        if self._viewer is not None:
+            yield self._viewer, self._live_recording_stream
+        if self._recording_viewer is not None:
+            yield self._recording_viewer, self._file_recording_stream
 
     def _is_render_due(self) -> bool:
         """Return whether enough wall time elapsed for another Rerun update."""

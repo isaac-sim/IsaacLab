@@ -11,6 +11,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+import rerun as rr
+import rerun.blueprint as rrb
+import rerun_bindings
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
 from isaaclab_visualizers.rerun import rerun_visualizer as rerun_visualizer_module
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
@@ -64,19 +67,94 @@ def test_rerun_rate_limit_preserves_streaming_and_plot_cadence(monkeypatch):
     visualizer.step(0.01)
     assert visualizer.render_tiled_rgb_array.call_count == 2
     visualizer._viewer.begin_frame.assert_called_once()
-    render_live_plots.assert_called_once_with()
+    render_live_plots.assert_called_once_with(visualizer._viewer)
     assert not visualizer._live_plots_pending
 
 
-def test_rerun_recording_bypasses_interactive_rate_limit(monkeypatch):
-    visualizer = _initialized_rerun_visualizer(RerunVisualizerCfg(max_fps=60.0, record_to_rrd="recording.rrd"))
-    is_render_due = MagicMock(return_value=False)
-    monkeypatch.setattr(visualizer, "_is_render_due", is_render_due)
+def test_rerun_recording_preserves_frames_without_bypassing_live_rate_limit(tmp_path, monkeypatch):
+    recording_path = tmp_path / "recording.rrd"
+    viewers = []
 
-    visualizer.step(0.01)
+    class _RecordingViewer:
+        def __init__(self, *, app_id, rec_id=None, record_to_rrd=None, **_kwargs):
+            self.stream = rr.RecordingStream(app_id, recording_id=rec_id)
+            rr.set_global_data_recording(self.stream)
+            if record_to_rrd is not None:
+                self.stream.save(record_to_rrd)
+            self.live_sink = self.stream.binary_stream()
+            self.begin_frame_calls = 0
+            self._camera_pose = None
+            viewers.append(self)
 
-    is_render_due.assert_not_called()
-    visualizer._viewer.begin_frame.assert_called_once()
+        def _get_blueprint(self):
+            return rrb.Blueprint(rrb.Spatial3DView())
+
+        def begin_frame(self, sim_time):
+            self.begin_frame_calls += 1
+            rr.set_time("time", timestamp=sim_time)
+
+        def log_state(self, _state):
+            rr.log("test/frame", rr.Scalars(self.begin_frame_calls))
+
+        def end_frame(self):
+            pass
+
+        def is_paused(self):
+            return False
+
+        def set_model(self, _model):
+            pass
+
+        def set_visible_worlds(self, _worlds):
+            pass
+
+        def set_world_offsets(self, _offsets):
+            pass
+
+        def close(self):
+            self.live_sink.read()
+            self.stream.disconnect()
+
+    monkeypatch.setattr(rerun_visualizer_module, "NewtonViewerRerun", _RecordingViewer)
+    monkeypatch.setattr(
+        rerun_visualizer_module,
+        "_ensure_rerun_server",
+        lambda **_kwargs: ("rerun+http://127.0.0.1:9876/proxy", False),
+    )
+    provider = MagicMock(num_envs=1)
+    provider.create_mapping.return_value = ()
+    provider.get_transforms.return_value = False
+    backend = SimpleNamespace(
+        model=SimpleNamespace(num_envs=1, body_count=0, body_label=()),
+        state_0=SimpleNamespace(body_q=None, particle_q=None),
+        geometry_offsets=(),
+    )
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(physics=object()),
+        device="cpu",
+        get_scene_data_provider=lambda: provider,
+        get_or_create_backend=lambda _cfg: backend,
+        vis_marker_registry=SimpleNamespace(get_groups=lambda: {}),
+    )
+    visualizer = RerunVisualizer(
+        RerunVisualizerCfg(max_fps=60.0, record_to_rrd=str(recording_path), enable_markers=False)
+    )
+    publication_due = iter((False, False, True))
+    monkeypatch.setattr(visualizer, "_is_render_due", lambda: next(publication_due))
+
+    try:
+        visualizer.initialize(sim, cameras=[])
+        for _ in range(3):
+            visualizer.step(0.01)
+    finally:
+        visualizer.close()
+
+    recording = rerun_bindings.load_recording(recording_path)
+    recorded_frame_rows = sum(chunk.num_rows for chunk in recording.chunks() if chunk.entity_path == "/test/frame")
+    assert recorded_frame_rows == 3
+    assert len(viewers) == 2
+    assert viewers[0].begin_frame_calls == 1
+    assert viewers[1].begin_frame_calls == 3
 
 
 def test_viser_visualizer_set_camera_view(monkeypatch):

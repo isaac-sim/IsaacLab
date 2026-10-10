@@ -79,7 +79,10 @@ class RerunVisualizerCfg(VisualizerCfg):
     """
 
     record_to_rrd: str | None = None
-    """Path to save .rrd recording file. None = no recording."""
+    """Path to save every simulation frame to an .rrd file independently of the live update limit.
+
+    ``None`` disables recording.
+    """
 
     def __post_init__(self) -> None:
         super().__post_init__()
