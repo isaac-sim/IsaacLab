@@ -16,7 +16,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 import torch.distributed as dist
@@ -71,7 +71,7 @@ class _PredictLast(torch.nn.Module):
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         predict_last = getattr(self.network, "predict_last", None)
-        return predict_last(inputs) if callable(predict_last) else self.network(inputs)[:, -1]
+        return cast(torch.Tensor, predict_last(inputs) if callable(predict_last) else self.network(inputs)[:, -1])
 
 
 @contextmanager
@@ -82,17 +82,18 @@ def _fp32_parallel_nerd_attention() -> Iterator[None]:
     the matmul back to FP16, where logits beyond 65,504 overflow and the softmax returns NaN. Trained
     models reach such logits within tens of thousands of updates at FlashNeRD learning rates.
     """
-    attention = parallel_nerd_model._ParallelBlock._full_attention
+    block_class: Any = parallel_nerd_model._ParallelBlock  # pyright: ignore[reportPrivateUsage]
+    attention = block_class._full_attention
 
-    def full_precision_attention(block, query, key, value):
+    def full_precision_attention(self, query: torch.Tensor, key: torch.Tensor, value: torch.Tensor) -> torch.Tensor:
         with torch.autocast("cuda", enabled=False):
-            return attention(block, query, key, value)
+            return attention(self, query, key, value)
 
-    parallel_nerd_model._ParallelBlock._full_attention = full_precision_attention
+    block_class._full_attention = full_precision_attention
     try:
         yield
     finally:
-        parallel_nerd_model._ParallelBlock._full_attention = attention
+        block_class._full_attention = attention
 
 
 def materialize_windows(
