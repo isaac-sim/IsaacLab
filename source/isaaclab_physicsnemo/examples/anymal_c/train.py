@@ -31,7 +31,9 @@ from isaaclab.envs import ManagerBasedRLEnv
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--dataset", type=Path, required=True, help="Dataset written by record.py.")
+    parser.add_argument(
+        "--dataset", type=Path, nargs="+", required=True, help="Datasets written by record.py, trained on together."
+    )
     parser.add_argument("--output", type=Path, required=True, help="Training output directory.")
     parser.add_argument("--max-updates", type=int, default=60_000)
     parser.add_argument("--batch-size", type=int, default=4096, help="Global batch over all ranks.")

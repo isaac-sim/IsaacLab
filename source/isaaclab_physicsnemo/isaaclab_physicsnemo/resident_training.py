@@ -125,15 +125,24 @@ def materialize_windows(
         seed=0,
         options=LoaderOptions(num_workers=num_workers),
     )
-    inputs, targets = [], []
+    # Fill preallocated tensors instead of concatenating batches, which would double the peak device memory.
+    count, filled = len(windows), 0
+    inputs = targets = None
     try:
         for loaded in pipeline.loader:
             transition, target = normalize_transition(adapter, normalizer, loaded)
-            inputs.append(transition.inputs.to(dtype=input_dtype))
-            targets.append(target.to(dtype=torch.float32))
+            if inputs is None or targets is None:
+                inputs = torch.empty((count, *transition.inputs.shape[1:]), dtype=input_dtype, device=device)
+                targets = torch.empty((count, *target.shape[1:]), dtype=torch.float32, device=device)
+            size = target.shape[0]
+            inputs[filled : filled + size] = transition.inputs
+            targets[filled : filled + size] = target
+            filled += size
     finally:
         pipeline.close()
-    return ResidentWindows(torch.cat(inputs), torch.cat(targets))
+    if inputs is None or targets is None or filled != count:
+        raise RuntimeError(f"Materialized {filled} of {count} transition windows.")
+    return ResidentWindows(inputs, targets)
 
 
 def fit_resident(

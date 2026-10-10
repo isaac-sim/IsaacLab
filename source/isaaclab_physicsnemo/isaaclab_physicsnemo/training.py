@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import shutil
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -156,7 +156,7 @@ class TrainingSummary:
 
 
 def train_dynamics_artifact(
-    dataset_path: str | Path,
+    dataset_path: str | Path | Sequence[str | Path],
     model: newton.Model,
     output_dir: str | Path,
     *,
@@ -176,7 +176,8 @@ def train_dynamics_artifact(
     replaced.
 
     Args:
-        dataset_path: Dataset written by :class:`~isaaclab_physicsnemo.TrajectoryDatasetRecorder`.
+        dataset_path: Dataset written by :class:`~isaaclab_physicsnemo.TrajectoryDatasetRecorder`, or several
+            datasets of the same schema, such as recordings of different seeds, which are trained on together.
         model: Finalized Newton model of the recording scene, used to build the state codec.
         output_dir: Directory receiving training checkpoints and the ``artifact`` directory.
         remove_root_translation: Same value the dataset was recorded with. Ignored when ``codec`` is given.
@@ -207,13 +208,18 @@ def train_dynamics_artifact(
 
     # Window sampling reads many short slices per trajectory, which is far faster from memory than
     # from per-trajectory Zarr groups.
-    with NewtonTrajectoryZarrReader(dataset_path) as stored:
-        trajectories = [stored[index][0] for index in range(len(stored))]
-        reader = InMemoryTrajectoryReader(
-            trajectories,
-            schema=stored.schema,
-            metadata=[stored.trajectory_metadata(index) for index in range(len(stored))],
-        )
+    dataset_paths = [dataset_path] if isinstance(dataset_path, (str, Path)) else list(dataset_path)
+    trajectories, metadata, schema = [], [], None
+    for path in dataset_paths:
+        with NewtonTrajectoryZarrReader(path) as stored:
+            if schema is not None and stored.schema.differences(schema):
+                raise ValueError(f"The dataset at {path} has a different schema than {dataset_paths[0]}.")
+            schema = stored.schema
+            trajectories += [stored[index][0] for index in range(len(stored))]
+            metadata += [stored.trajectory_metadata(index) for index in range(len(stored))]
+    if len({item.trajectory_id for item in metadata}) != len(metadata):
+        raise ValueError("The datasets share trajectory identifiers; record them with different seeds.")
+    reader = InMemoryTrajectoryReader(trajectories, schema=schema, metadata=metadata)
     split = split_reader_ids(
         reader,
         validation_fraction=settings.validation_fraction,
@@ -222,7 +228,7 @@ def train_dynamics_artifact(
         group_by="trajectory",
     )
     if not split.train or not split.validation:
-        raise ValueError(f"The dataset at {dataset_path} has too few trajectories for a train/validation split.")
+        raise ValueError(f"The datasets {dataset_paths} have too few trajectories for a train/validation split.")
 
     if codec is None:
         codec = newton_state_codec(model, "joint", joint_remove_root_translation=remove_root_translation)
@@ -289,7 +295,7 @@ def train_dynamics_artifact(
             not in ("checkpoint_every", "validate_every", "log_every", "loader_workers", "rollout_horizons", "compile")
         }
         identity |= {
-            "dataset": str(Path(dataset_path).expanduser().resolve()),
+            "dataset": [str(Path(path).expanduser().resolve()) for path in dataset_paths],
             "train_windows": resident_train.targets.shape[0],
             "world_size": manager.world_size,
         }
