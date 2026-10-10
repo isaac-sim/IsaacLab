@@ -9,3 +9,6 @@
   ``WindowCfg.fps`` (30 by default); headless on-demand capture retained its independent cadence.
   Renamed the GPU array API to ``render_tiled_rgba_array()`` for consistency with ``render_tiled_rgb_array()``.
 * Merged window defaults per field without sharing mutable state between visualizers or the task template.
+* **Breaking:** Removed ``SimulationContext.has_active_visualizers()`` and ``resolve_visualizer_types()``.
+  Read ``sim.cfg.visualizer_cfgs`` directly for configured types and headless flags; check
+  ``sim.get_setting("/isaaclab/video/auto_start_kit")`` for implicit Kit video rendering.

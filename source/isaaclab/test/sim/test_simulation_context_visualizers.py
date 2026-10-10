@@ -805,12 +805,7 @@ def _make_context_with_settings(
     has_gui: bool = False,
     has_offscreen_render: bool = False,
 ):
-    """Build a minimal SimulationContext suitable for testing is_rendering, _resolve_visualizer_cfgs,
-    and initialize_visualizers.
-
-    Centralises the ``object.__new__`` construction so new internal attributes only need to be added
-    in one place when the production code changes.
-    """
+    """Build a minimal SimulationContext for visualizer construction, initialization, and rendering checks."""
     cfg = type(
         "Cfg",
         (),
@@ -854,7 +849,8 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl", "newton_rtx"])
     ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
 
-    cfgs = ctx._resolve_visualizer_cfgs()
+    ctx._create_visualizers()
+    cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
     assert len(cfgs) == 2
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
@@ -896,7 +892,8 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         settings, visualizer_cfgs=[explicit_cfg, rtx_cfg], default_visualizer_cfg=default_cfg
     )
 
-    cfgs = ctx._resolve_visualizer_cfgs()
+    ctx._create_visualizers()
+    cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
     assert len(cfgs) == 2
     # env-level hints applied (were at class defaults on explicit_cfg)
@@ -920,7 +917,8 @@ def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields()
     explicit_cfg = NewtonGLVisualizerCfg(eye=(1.0, 2.0, 3.0))
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
 
-    cfgs = ctx._resolve_visualizer_cfgs()
+    ctx._create_visualizers()
+    cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
     assert cfgs[0].eye == (1.0, 2.0, 3.0)
 

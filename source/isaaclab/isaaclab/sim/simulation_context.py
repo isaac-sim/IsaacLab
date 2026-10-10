@@ -319,12 +319,6 @@ class SimulationContext:
         """Returns whether offscreen rendering is enabled (cached at init)."""
         return self._has_offscreen_render
 
-    def has_active_visualizers(self) -> bool:
-        """Return whether any visualizer path is active for rendering/camera control."""
-        return any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs) or bool(
-            self.get_setting("/isaaclab/video/auto_start_kit")
-        )
-
     def is_running(self) -> bool:
         """Return whether the simulation should keep running.
 
@@ -349,8 +343,11 @@ class SimulationContext:
 
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available, including from a headless visualizer."""
-        return (
-            self.has_gui or self.has_offscreen_render or self.has_active_visualizers() or bool(self.cfg.visualizer_cfgs)
+        return bool(
+            self.has_gui
+            or self.has_offscreen_render
+            or self.cfg.visualizer_cfgs
+            or self.get_setting("/isaaclab/video/auto_start_kit")
         )
 
     @property
@@ -409,12 +406,8 @@ class SimulationContext:
                 if getattr(target, field.name) == getattr(target_defaults, field.name):
                     setattr(target, field.name, deepcopy(default_val))
 
-    def resolve_visualizer_types(self) -> list[str]:
-        """Return the types of the visualizers in :attr:`SimulationCfg.visualizer_cfgs`."""
-        return [cfg.visualizer_type for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type]
-
-    def _resolve_visualizer_cfgs(self) -> list[Any]:
-        """Return the configured visualizers with the shared defaults applied, plus a Kit visualizer for XR."""
+    def _create_visualizers(self) -> None:
+        """Construct cfg-owned consumers and publish their requirements before scene cloning."""
         resolved = list(self.cfg.visualizer_cfgs)
         for cfg in resolved:
             self._apply_default_visualizer_cfg(cfg)
@@ -438,11 +431,7 @@ class SimulationContext:
                 resolved.append(KitVisualizerCfg())
                 logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
-        return resolved
-
-    def _create_visualizers(self) -> None:
-        """Construct cfg-owned consumers and publish their requirements before scene cloning."""
-        for cfg in self._resolve_visualizer_cfgs():
+        for cfg in resolved:
             if cfg.visualizer_type is not None:
                 requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type]
                 self.requires_usd_stage |= requires_stage
