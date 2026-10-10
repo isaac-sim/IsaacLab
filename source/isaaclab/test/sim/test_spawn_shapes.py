@@ -178,6 +178,7 @@ def test_spawn_cone_with_all_props(sim):
         mass_props=sim_utils.MassCfg(mass=5.0),
         rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere"),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
     )
@@ -194,6 +195,7 @@ def test_spawn_cone_with_all_props(sim):
     # -- collision properties
     prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
+    assert prim.GetAttribute("physics:approximation").Get() == "boundingSphere"
 
 
 """

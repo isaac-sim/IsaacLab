@@ -121,8 +121,8 @@ def apply_mesh_collision_props(value, anchor_path: str, default_pattern: str, st
     prims that carry ``UsdPhysics.CollisionAPI``; other matches are ignored. Each collider receives
     the fragments through :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, or a
     legacy configuration through :func:`~isaaclab.sim.schemas.define_mesh_collision_properties`.
-    Colliders inside instances cannot be authored on and are skipped with a warning; a pattern that
-    matches no collider logs a warning and authors nothing.
+    Colliders inside instances cannot be authored on and are skipped. A pattern that matches no
+    writable collider logs a warning and authors nothing.
 
     Args:
         value: The value of the ``mesh_collision_props`` spawner-configuration field.
@@ -133,22 +133,24 @@ def apply_mesh_collision_props(value, anchor_path: str, default_pattern: str, st
     from pxr import UsdPhysics  # noqa: PLC0415
 
     from .. import schemas  # noqa: PLC0415
-    from ..schemas.schemas import _match_fragment_targets  # noqa: PLC0415
+    from ..utils import find_matching_prims  # noqa: PLC0415
 
     mapping = fragment_mapping(value, default_pattern)
-    is_legacy = mapping is None
-    entries = {default_pattern: value} if is_legacy else mapping
-    for pattern, fragments in entries.items():
-        if not is_legacy and not fragments:
+    for pattern, fragments in ({default_pattern: value} if mapping is None else mapping).items():
+        if mapping is not None and not fragments:
             continue
         expr = props_expr(anchor_path, pattern)
-        colliders, _, _ = _match_fragment_targets(expr, lambda prim: prim.HasAPI(UsdPhysics.CollisionAPI), stage)
+        colliders = [
+            prim
+            for prim in find_matching_prims(expr, stage)
+            if prim.HasAPI(UsdPhysics.CollisionAPI) and not (prim.IsInstance() or prim.IsInstanceProxy())
+        ]
         if not colliders:
             logger.warning("No mesh-collision targets (colliders) matched expression '%s'; nothing was authored.", expr)
             continue
         for collider in colliders:
             collider_path = collider.GetPath().pathString
-            if is_legacy:
+            if mapping is None:
                 schemas.define_mesh_collision_properties(collider_path, fragments, stage=stage)
             else:
                 schemas.apply_mesh_collision_properties(collider_path, fragments, stage=stage)

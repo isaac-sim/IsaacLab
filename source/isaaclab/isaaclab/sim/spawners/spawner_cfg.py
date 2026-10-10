@@ -169,25 +169,13 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         | schemas.MeshCollisionBaseCfg
         | None
     ) = None
-    """Mesh-collision (cooking) properties to apply to the colliders. Defaults to None.
+    """Mesh-collision properties for existing colliders. Defaults to None.
 
-    Accepts either a mapping from target pattern to a list of
-    :class:`~isaaclab.sim.schemas.MeshCollisionFragment` fragments
-    (e.g. ``{"/.*": [UsdPhysicsMeshCollisionCfg(...), PhysxConvexHullCfg(...)]}``) or a single legacy
-    cfg (e.g. :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`). Each fragment list is written by
-    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, which applies
-    ``UsdPhysics.MeshCollisionAPI`` and the ``physics:approximation`` token implied by the fragments.
-
-    The family only targets colliders: matched prims that carry ``UsdPhysics.CollisionAPI`` (after
-    :attr:`collision_props` is applied). Other matched prims are ignored, and a pattern that matches no
-    collider authors nothing and logs a warning. Keys are anchored like :attr:`collision_props` (for USD
-    assets: the spawn prim; for shapes and meshes: the geometry prim the spawner authors). As a shorthand,
-    a bare fragment or a list of fragments targets every collider under a USD asset (``"(/.*)?"``) and the
-    geometry prim on the shape and mesh spawners (``""``), which is the reach of the legacy
-    ``CollisionBaseCfg.mesh_collision_property`` field this slot replaces.
-
-    Deformable bodies collide through their simulation mesh, so spawners that also create a deformable
-    body raise ``ValueError`` when this slot is set.
+    Accepts a fragment, a list of fragments, a target-pattern mapping, or a legacy
+    :class:`~isaaclab.sim.schemas.MeshCollisionBaseCfg`. Patterns anchor at the spawn prim for file
+    spawners and the geometry prim for shape and mesh spawners. A bare value reaches every collider
+    under a file asset or the geometry collider of a shape or mesh. Non-colliders are ignored.
+    Deformable spawners reject this slot because they collide through their simulation mesh.
     """
 
     activate_contact_sensors: bool = False

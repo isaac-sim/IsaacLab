@@ -613,13 +613,7 @@ def _spawn_mesh_data(
             stage,
         )
         if cfg.mesh_collision_props is not None:
-            if bare_fragments(cfg.mesh_collision_props):
-                fragments = cfg.mesh_collision_props
-                if not isinstance(fragments, (list, tuple)):
-                    fragments = [fragments]
-                schemas.apply_mesh_collision_properties(mesh_prim_path, fragments, stage=stage)
-            else:
-                schemas.define_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
+            apply_mesh_collision_props(cfg.mesh_collision_props, mesh_prim_path, "", stage)
 
     if cfg.visual_material is not None:
         material_path = (

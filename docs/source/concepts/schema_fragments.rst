@@ -28,10 +28,11 @@ update). Irregular APIs override ``func`` — for example
 :func:`~isaaclab.sim.schemas.apply_drive` to handle the multi-instance
 ``UsdPhysics.DriveAPI``.
 
-Fragments are grouped into *families*, one per spawner slot. Each family has a writer
-that resolves target prims from an expression and dispatches every fragment via its
-``func``. Backend fragments carry backend-specific appliers, so the core package never
-imports a backend:
+Fragments are grouped into *families*, one per spawner slot. Most family writers resolve
+target prims from an expression and dispatch every fragment via its ``func``. The
+``mesh_collision_props`` slot selects existing colliders first, then calls its single-prim
+writer for each. Backend fragments carry backend-specific appliers, so the core package
+never imports a backend:
 
 .. list-table::
    :header-rows: 1
@@ -70,15 +71,6 @@ imports a backend:
    * - ``surface_deformable_props``
      - :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties`
      - surface deformable-body prims (triangle-mesh simulation mesh)
-
-The mesh-collision family tunes how a collider is cooked. Its fragments
-(:class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` for the ``physics:approximation`` token,
-the ``Physx*Cfg`` cooking fragments, and the Newton cooking fragments
-:class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` /
-:class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`) only reach colliders: matched prims
-without ``UsdPhysics.CollisionAPI`` are ignored, and every collider receives
-``UsdPhysics.MeshCollisionAPI`` together with the fragments. A PhysX cooking fragment sets the
-approximation token it implies; the Newton fragments set none.
 
 The tendon families are *tune-not-apply*: the tendon topology is authored in the source
 asset, so their writers only tune existing instances and never create them. The deformable
