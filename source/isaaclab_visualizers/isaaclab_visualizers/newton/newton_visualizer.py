@@ -400,6 +400,7 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         if self.gui is not None:
             from imgui_bundle import implot
 
+            self._configure_camera_input_capture()
             self._implot = implot
             self._implot_ctx = implot.create_context()
             implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
@@ -411,12 +412,6 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         super().end_frame()
         if self._close_requested:
             self.renderer.close()
-
-    def on_key_press(self, symbol, modifiers):
-        """Forward key presses unless UI is currently capturing input."""
-        if self.gui is not None and self.gui.should_ignore_keyboard_input():
-            return
-        super().on_key_press(symbol, modifiers)
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Image coordinates must not pick objects in the hidden perspective scene."""
@@ -465,6 +460,10 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
             self._mpm_particles_all_active = bool(((flags & int(nt.ParticleFlags.ACTIVE)) != 0).all())
             self._mpm_particle_flags_cache_key = cache_key
         return self._mpm_particles_all_active
+
+    def _configure_camera_input_capture(self) -> None:
+        """Let Newton's camera keys operate while ImGui captures only mouse input."""
+        self.gui.is_capturing = self.gui.should_ignore_keyboard_input
 
     def _log_particles(self, state):
         """Log MPM particles without per-frame active-flag compaction when all particles are active.

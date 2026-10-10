@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
@@ -53,13 +52,6 @@ class RerunVisualizerCfg(VisualizerCfg):
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    max_fps: float | None = 60.0
-    """Maximum Rerun updates per wall-clock second.
-
-    Intermediate simulation frames are dropped when training runs faster than this rate, reducing
-    the web viewer load. Set to ``None`` to publish every simulation step.
-    """
-
     keep_historical_data: bool = False
     """Keep transform history for time scrubbing (False = constant memory for training)."""
 
@@ -79,12 +71,4 @@ class RerunVisualizerCfg(VisualizerCfg):
     """
 
     record_to_rrd: str | None = None
-    """Path to save every simulation frame to an .rrd file independently of the live update limit.
-
-    ``None`` disables recording.
-    """
-
-    def __post_init__(self) -> None:
-        super().__post_init__()
-        if self.max_fps is not None and (not math.isfinite(self.max_fps) or self.max_fps <= 0.0):
-            raise ValueError("max_fps must be finite and positive or None.")
+    """Path to save .rrd recording file. None = no recording."""

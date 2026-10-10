@@ -352,26 +352,36 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
-def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
+def test_newton_viewer_camera_keys_ignore_mouse_capture():
+    from newton._src.viewer.camera import Camera
+    from newton._src.viewer.viewer_gui import ViewerGui
+    from pyglet.window import key
+
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    capture = SimpleNamespace(mouse=True, keyboard=False)
-    viewer.gui = SimpleNamespace(
-        is_capturing=lambda: capture.mouse or capture.keyboard,
-        should_ignore_keyboard_input=lambda: capture.keyboard,
-    )
+    viewer.camera = Camera(width=64, height=64, up_axis="Z")
+    viewer._camera_speed = 1.0
+    viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
 
-    dispatched = []
-    monkeypatch.setattr(
-        newton_visualizer_module.ViewerGL,
-        "on_key_press",
-        lambda _self, symbol, modifiers: dispatched.append((symbol, modifiers)),
+    gui = ViewerGui.__new__(ViewerGui)
+    gui.ui = SimpleNamespace(
+        is_available=True,
+        is_capturing=lambda: True,
+        io=SimpleNamespace(want_capture_mouse=True, want_capture_keyboard=False),
     )
+    gui._viewer = viewer
+    gui._cam_vel = np.zeros(3, dtype=np.float32)
+    gui._cam_damp_tau = 0.01
+    viewer.gui = gui
 
-    viewer.on_key_press(1, 2)
-    assert dispatched == [(1, 2)]
-    capture.keyboard = True
-    viewer.on_key_press(3, 4)
-    assert dispatched == [(1, 2)]
+    start = np.asarray(viewer.camera.pos)
+    viewer._configure_camera_input_capture()
+    viewer._update_camera(1.0)
+    moved = np.asarray(viewer.camera.pos)
+    assert not np.array_equal(moved, start)
+
+    gui.ui.io.want_capture_keyboard = True
+    viewer._update_camera(1.0)
+    np.testing.assert_array_equal(viewer.camera.pos, moved)
 
 
 class _FakeTrainingControlsImgui:
