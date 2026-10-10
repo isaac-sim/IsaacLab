@@ -166,3 +166,35 @@ Available Tasks
      <div class="environment-task-list" data-task-list></div>
      <p class="environment-empty-state" data-task-empty hidden>No tasks match this search.</p>
    </div>
+
+Franka Reach holding
+--------------------
+
+``Isaac-Reach-Franka`` supports ``presets=hold`` for joint-position policies that
+continue tracking after reaching the goal. The goal remains fixed for the
+12-second episode, and the success reward is paid at each step within the
+position and orientation tolerances. This preset adds six end-effector pose-error
+observations, giving the policy 38 inputs, and uses the separate RSL-RL experiment
+directory ``reach_franka_hold``.
+
+The holding preset uses task-level control profiles for the selected physics
+backend. Newton MJWarp uses one tenth of the authored arm stiffness with the
+same damping. Isaac Sim PhysX uses the authored stiffness and stronger
+joint-command change penalties. The robot asset, armature, effort limits, and
+policy exploration settings are unchanged. Train a new policy when changing
+the holding preset or its control profile.
+
+Train and play with the same preset and physics backend:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Reach-Franka \
+      physics=newton_mjwarp presets=hold
+
+   uv run isaaclab play --rl_library rsl_rl --task Isaac-Reach-Franka \
+      --checkpoint /path/to/model_2999.pt physics=newton_mjwarp presets=hold
+
+For Isaac Sim PhysX, use ``uv run --extra isaacsim`` and
+``physics=isaacsim_physx``. The default Franka Reach policy has 32 inputs;
+its checkpoint cannot be used with the holding preset. IK and OSC controllers
+use their existing controller presets.
