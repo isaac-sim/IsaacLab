@@ -18,6 +18,26 @@ if TYPE_CHECKING:
     from ...rsl_rl import RslRlBaseRunnerCfg
 
 
+def checkpoint_load_cfg(reset_optimizer: bool, *, runner_class: str = "OnPolicyRunner") -> dict[str, bool] | None:
+    """Select checkpoint models while optionally keeping the newly configured policy optimizer.
+
+    Distillation continuation requires a student checkpoint. Ordinary loading initializes a new
+    student from a PPO teacher. RND retains its own checkpoint optimizer alongside its models.
+
+    Args:
+        reset_optimizer: Whether to keep the policy optimizer's initial state and learning rate.
+        runner_class: Runner owning the checkpoint models.
+
+    Returns:
+        Native RSL-RL load selection, or None for its ordinary checkpoint behavior.
+    """
+    if not reset_optimizer:
+        return None
+    if runner_class == "DistillationRunner":
+        return {"student": True, "teacher": True, "optimizer": False, "iteration": True}
+    return {"actor": True, "critic": True, "optimizer": False, "iteration": True, "rnd": True}
+
+
 def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
     """Add RSL-RL arguments to the parser.
 
@@ -38,6 +58,11 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
             " (https://wandb.ai/<entity>/<project>/runs/<run_id>, optionally with a '?checkpoint=<iteration>' query,"
             " or the wandb:<entity>/<project>/<run_id> shorthand)."
         ),
+    )
+    arg_group.add_argument(
+        "--reset_optimizer",
+        action="store_true",
+        help="Load checkpoint models and iteration without restoring the policy optimizer state.",
     )
     arg_group.add_argument(
         "--logger", type=str, default=None, choices={"wandb", "tensorboard", "neptune"}, help="Logger module to use."

@@ -448,13 +448,28 @@ def test_collect_presets_root_level():
 
 def test_register_task_mixed_overrides():
     """Global presets, path presets, preset-path scalars, global scalars, and bare args apply together."""
-    overrides = ["presets=fast", "env.decimation=10", "env.backend=newton_mjwarp", "env.backend.dt=0.001", "--flag"]
-    env_cfg, agent_cfg, hydra_args = _register(PresetCfgEnvCfg(), overrides=overrides)
+    env = PresetCfgEnvCfg()
+    env.decimation = preset(default=4, fast=8)
+    env.range = preset(default=(0.6, 1.7), fast=(0.25, 2.5))
+    agent = PresetCfgAgentCfg()
+    agent.learning_rate = preset(default=3e-4, fast=1e-3)
+    overrides = [
+        "presets=fast",
+        "env.decimation=10",
+        "env.range=(0.1, 0.9)",
+        "agent.learning_rate=1e-5",
+        "env.backend=newton_mjwarp",
+        "env.backend.dt=0.001",
+        "--flag",
+    ]
+    env_cfg, agent_cfg, hydra_args = _register(env, agent, overrides)
     assert isinstance(env_cfg.observations, FastObservationsCfg)
     assert isinstance(agent_cfg.policy, FastPolicyCfg)
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001
     assert env_cfg.decimation == 10
+    assert env_cfg.range == (0.1, 0.9)
+    assert agent_cfg.learning_rate == 1e-5
     assert hydra_args == ["--flag"]
 
 

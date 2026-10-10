@@ -605,9 +605,16 @@ def test_export_dispatches_selected_backend(monkeypatch) -> None:
 
 
 def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
-    """A task registry default selects the backend when the CLI omits it."""
+    """Direct workers discover downstream tasks before selecting their registered default backend."""
+    from isaaclab import cli
+
     task_name = "Isaac-DefaultAgentDispatchTest"
-    gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    entry_point = SimpleNamespace(
+        load=lambda: gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    )
+    monkeypatch.setattr(
+        cli.importlib.metadata, "entry_points", lambda *, group: [entry_point] if group == "isaaclab.tasks" else []
+    )
     monkeypatch.setitem(sys.modules, "isaaclab_tasks", types.ModuleType("isaaclab_tasks"))
     received: dict[str, object] = {}
     monkeypatch.setattr(
@@ -845,3 +852,37 @@ def test_skrl_play_restores_jax_backend(monkeypatch) -> None:
         play_skrl.run([])
 
     assert not hasattr(skrl.config.jax, "backend")
+
+
+@pytest.mark.parametrize("reset_optimizer", [False, True])
+@pytest.mark.parametrize("runner_class", ["OnPolicyRunner", "DistillationRunner"])
+def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(reset_optimizer: bool, runner_class: str) -> None:
+    """Both runners restore their models and iteration while optionally keeping a fresh optimizer."""
+    from rsl_rl.algorithms import PPO, Distillation
+    from rsl_rl.storage import RolloutStorage
+    from tensordict import TensorDict
+
+    from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
+
+    algorithm = PPO if runner_class == "OnPolicyRunner" else Distillation
+    storage = None
+    if algorithm is Distillation:
+        storage = RolloutStorage(
+            "distillation", 1, 15, TensorDict({"obs": torch.zeros(1, 2)}, batch_size=[1]), [1], "cpu"
+        )
+    source = algorithm(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=storage, learning_rate=3e-4)
+    source_model = source.actor if algorithm is PPO else source.student
+    source_model(torch.ones(1, 2)).sum().backward()
+    source.optimizer.step()
+    destination = algorithm(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=storage, learning_rate=1e-5)
+    assert destination.load(source.save(), checkpoint_load_cfg(reset_optimizer, runner_class=runner_class), strict=True)
+    if algorithm is Distillation:
+        assert destination.teacher_loaded
+        model_pairs = ((source.student, destination.student), (source.teacher, destination.teacher))
+    else:
+        model_pairs = ((source.actor, destination.actor), (source.critic, destination.critic))
+    for source_model, destination_model in model_pairs:
+        for key, value in source_model.state_dict().items():
+            torch.testing.assert_close(destination_model.state_dict()[key], value)
+    assert destination.optimizer.param_groups[0]["lr"] == (1e-5 if reset_optimizer else 3e-4)
+    assert bool(destination.optimizer.state) is not reset_optimizer
