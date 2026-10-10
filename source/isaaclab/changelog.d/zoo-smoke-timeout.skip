@@ -1,1 +1,0 @@
-Allowed cold-cache zoo smoke launches to complete initialization, ten simulation steps, and shutdown on CI runners.
