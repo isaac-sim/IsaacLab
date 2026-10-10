@@ -32,7 +32,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import instantiate, validate
 from isaaclab.utils.noise import NoiseModel
-from isaaclab.utils.seed import configure_seed
+from isaaclab.utils.seed import WarpRng, configure_seed
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
@@ -125,7 +125,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # set the seed for the environment
         if self.cfg.seed is not None:
-            self.cfg.seed = self.seed(self.cfg.seed)
+            self.cfg.seed = configure_seed(self.cfg.seed)
         else:
             logger.warning("Seed not set for the environment. The environment creation may not be deterministic.")
 
@@ -165,6 +165,9 @@ class DirectRLEnvWarp(DirectRLEnv):
                 self._setup_scene()
                 # attach_stage_to_usd_context()
         logger.info(f"Scene manager: {self.scene}")
+
+        # Process-wide per-env Warp RNG state (isaaclab.utils.seed.WarpRng), shared by terms, tasks and sensors.
+        WarpRng.initialize(self.num_envs, self.device)
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -345,7 +348,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         """
         # set the seed
         if seed is not None:
-            self.seed(seed)
+            configure_seed(seed)
 
         # reset state of scene
         self._reset_idx(self._ALL_ENV_MASK)

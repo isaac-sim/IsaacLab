@@ -780,3 +780,28 @@ _GATHER_SUBTRACT_2D_DISPATCHER = IndexKernelDispatcher(gather_subtract_2d, ("env
 def gather_subtract_2d_kernel(env_ids: "wp.array | torch.Tensor", item_ids: "wp.array | torch.Tensor") -> wp.Kernel:
     """Select the gather-subtract worker for the selector dtypes."""
     return _GATHER_SUBTRACT_2D_DISPATCHER.select(env_ids, item_ids)
+
+
+##
+# Random number generation.
+##
+
+
+@wp.kernel(enable_backward=False)
+def initialize_rng_state(
+    # input
+    seed: wp.int32,
+    # output
+    state: wp.array(dtype=wp.uint32),
+):
+    """Initialize one random number generator state per environment.
+
+    Launch with ``dim=(num_envs,)``. Kernels that draw from ``state[i]`` should store the advanced state back,
+    so the next launch or graph replay draws new numbers.
+
+    Args:
+        seed: Seed shared by all environments; each environment uses its index as the offset.
+        state: Random number generator states. Shape is (num_envs,).
+    """
+    env_id = wp.tid()
+    state[env_id] = wp.rand_init(seed, env_id)

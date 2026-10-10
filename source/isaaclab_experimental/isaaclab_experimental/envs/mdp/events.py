@@ -31,6 +31,7 @@ import warp as wp
 
 from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
 from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
+from isaaclab.utils.seed import WarpRng
 
 from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
 from isaaclab_experimental.managers import SceneEntityCfg
@@ -98,7 +99,7 @@ def randomize_rigid_body_com(
         dim=env.num_envs,
         inputs=[
             env_mask,
-            env.rng_state_wp,
+            WarpRng.state,
             asset.data.body_com_pos_b.warp,
             asset_cfg.body_ids_wp,
             fn._com_lo,
@@ -178,7 +179,7 @@ def apply_external_force_torque(
         dim=env.num_envs,
         inputs=[
             env_mask,
-            env.rng_state_wp,
+            WarpRng.state,
             apply_external_force_torque._scratch_forces,
             apply_external_force_torque._scratch_torques,
             force_range[0],
@@ -258,7 +259,7 @@ def push_by_setting_velocity(
         dim=env.num_envs,
         inputs=[
             env_mask,
-            env.rng_state_wp,
+            WarpRng.state,
             asset.data.root_vel_w.warp,
             push_by_setting_velocity._scratch_vel,
             push_by_setting_velocity._lin_lo,
@@ -377,7 +378,7 @@ def reset_root_state_uniform(
         dim=env.num_envs,
         inputs=[
             env_mask,
-            env.rng_state_wp,
+            WarpRng.state,
             asset.data.default_root_pose.warp,
             asset.data.default_root_vel.warp,
             env.env_origins_wp,
@@ -470,11 +471,6 @@ def reset_joints_by_offset(
             f"but got None for asset '{asset_cfg.name}'. "
             "Use isaaclab_experimental.managers.SceneEntityCfg and ensure joint_names are set."
         )
-    if not hasattr(env, "rng_state_wp") or env.rng_state_wp is None:
-        raise AttributeError(
-            "reset_joints_by_offset requires env.rng_state_wp to be initialized. "
-            "Use ManagerBasedEnvWarp or ManagerBasedRLEnvWarp as the base environment."
-        )
 
     wp.launch(
         kernel=_reset_joints_by_offset_kernel,
@@ -482,7 +478,7 @@ def reset_joints_by_offset(
         inputs=[
             env_mask,
             asset_cfg.joint_ids_wp,
-            env.rng_state_wp,
+            WarpRng.state,
             asset.data.default_joint_pos.warp,
             asset.data.default_joint_vel.warp,
             asset.data.joint_pos.warp,
@@ -561,11 +557,6 @@ def reset_joints_by_scale(
             f"but got None for asset '{asset_cfg.name}'. "
             "Use isaaclab_experimental.managers.SceneEntityCfg and ensure joint_names are set."
         )
-    if not hasattr(env, "rng_state_wp") or env.rng_state_wp is None:
-        raise AttributeError(
-            "reset_joints_by_scale requires env.rng_state_wp to be initialized. "
-            "Use ManagerBasedEnvWarp or ManagerBasedRLEnvWarp as the base environment."
-        )
 
     wp.launch(
         kernel=_reset_joints_by_scale_kernel,
@@ -573,7 +564,7 @@ def reset_joints_by_scale(
         inputs=[
             env_mask,
             asset_cfg.joint_ids_wp,
-            env.rng_state_wp,
+            WarpRng.state,
             asset.data.default_joint_pos.warp,
             asset.data.default_joint_vel.warp,
             asset.data.joint_pos.warp,
