@@ -3,6 +3,39 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.2 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` treating an ``ArticulationRootAPI`` prim that is
+  not a rigid body as the frame's parent body. Frames below such a prim without a rigid-body ancestor, for example a
+  :class:`~isaaclab.sensors.camera.Camera` spawned at an articulation whose root API sits on its root Xform, raised
+  ``matched no Newton bodies``. They now stay static in their environment, as on PhysX.
+* Fixed :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` instances created before the Newton model exists
+  not covering the environments they select. A static frame created after the scene was cloned collapsed to one
+  frame without an environment offset, and a view selecting some environments got a frame in every environment.
+  Such views now resolve against the finalized model, as views created after reset do.
+* Fixed :attr:`~isaaclab_newton.assets.Articulation.num_base_dofs` counting six floating-base DoFs for an
+  articulation whose root link is jointed to the world by a non-free joint.
+* Fixed external wrenches acting only on the first solver substep when ``num_substeps > 1``, and only on the first
+  physics step when Newton runs the decimation loop. :class:`~isaaclab_newton.physics.NewtonManager` now re-applies
+  the body forces written before a step on every solver substep of that step.
+* Fixed the body-offset Jacobian of
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonDifferentialInverseKinematicsAction` and
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonOperationalSpaceControllerAction`. The translational rows are now
+  shifted by the offset rotated with the body orientation, and the angular rows are no longer rotated by the offset
+  rotation, matching the target frame's pose and velocity.
+* Fixed Windows hangs from lazy MuJoCo-Warp GPU allocations during CUDA graph capture by running
+  the first requested physics step eagerly before recording the graph for subsequent steps.
+* Preserved joints and bodies beneath nested asset declarations in Newton clones without importing an identical child copy twice.
+* Rejected independently sourced nested Newton clone declarations that would overlap a parent's imported bodies.
+* Preserved deformable particles and visual bindings when a cloned parent contained a declared deformable child.
+* Preserved nested cloth across parent-only and child-only world compositions, including its configured world position.
+* Rejected shared Newton roots that contain cloned environments; declare individual global asset paths instead.
+
+
 9.1.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,24 @@ Changelog
 
 .. towncrier release notes start
 
+5.1.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OV dependencies to ``ovrtx==0.5.1.385782``, ``ovstage==0.2.1.385922``, and
+  ``ovphysx==0.6.4.72118723``. These versions form one compatibility set; upgrade them together with
+  ``uv sync --inexact --extra ov``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera outputs freezing after 500 frames. The OVRTX render products now disable RTX
+  eco mode, because OVRTX does not detect transform updates read from GPU as scene changes.
+* Selected the simulation's CUDA device for OVRTX rendering in multi-GPU runs.
+
+
 5.1.2 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,19 @@ Changelog
 
 .. towncrier release notes start
 
+1.3.5 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint pretrained`` rejecting tasks that run on a Newton Kamino solver, such as
+  ``Isaac-Fourbar-Pole-Swingup``. Newton solvers are named after their config class, for example
+  ``newtonkaminopadmm``.
+* Fixed RLinf playback launched with ``uv run`` failing when Ray attempted to upload working directories larger
+  than 512 MiB. The upload is now disabled for both RLinf training and playback.
+
+
 1.3.4 (2026-10-06)
 ~~~~~~~~~~~~~~~~~~
 

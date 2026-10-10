@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+2.0.2 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton RTX (OVRTX) recordings stopping when a multi-prototype marker switches prototype mid-run.
+
+
 2.0.1 (2026-10-06)
 ~~~~~~~~~~~~~~~~~~
 

@@ -3,6 +3,20 @@ Changelog
 
 .. towncrier release notes start
 
+23.0.2 (2026-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ANYmal symmetry augmentation in :mod:`isaaclab_tasks.core.velocity.mdp.symmetry.anymal` mirroring
+  the wrong joints when the articulation's joint order is not the PhysX order, such as on the default Newton
+  backend. The left-right and front-back joint permutations are now resolved from the joint names.
+* Fixed missing RL configuration errors to suggest compatible ``--rl_library`` selections.
+* Fixed the Shadow Hand ``randomized`` preset setting the hand and cube restitution to 1.0, which bounced the cube off
+  the hand on PhysX and OvPhysX and slowed learning; it now keeps the unrandomized value of 0.0.
+
+
 23.0.1 (2026-10-06)
 ~~~~~~~~~~~~~~~~~~~
 
