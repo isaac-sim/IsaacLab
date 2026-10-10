@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import env_selection_kwargs
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
@@ -90,13 +91,19 @@ class CurriculumManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float | torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, float | torch.Tensor]:
         """Returns the current state of individual curriculum terms.
 
         Note:
-            This function does not use the environment indices :attr:`env_ids`
-            and logs the state of all the terms. The argument is only present
-            to maintain consistency with other classes.
+            The logged state covers all the terms regardless of the selected environments. The selection only
+            resets the class terms.
+
+        Args:
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             Dictionary of curriculum terms and their states.
@@ -117,26 +124,29 @@ class CurriculumManager(ManagerBase):
                         term_state = term_state.detach().clone()
                     extras[f"Curriculum/{term_name}"] = term_state
         # reset all the curriculum terms
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(env_ids=env_ids)
+            self._reset_term(term_cfg.func, env_mask, env_ids)
         return extras
 
-    def compute(self, env_ids: Sequence[int] | None = None):
+    def compute(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         """Update the curriculum terms.
 
-        This function calls each curriculum term managed by the class.
+        This function calls each curriculum term managed by the class. Terms that take ``env_mask`` are called
+        on every update; terms that take indices are skipped when no environment is selected.
 
         Args:
             env_ids: The list of environment IDs to update.
                 If None, all the environments are updated. Defaults to None.
+            env_mask: Boolean mask of the environments to update. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
         """
-        # resolve environment indices
-        if env_ids is None:
-            env_ids = slice(None)
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # iterate over all the curriculum terms
         for name, term_cfg in zip(self._term_names, self._term_cfgs):
-            state = term_cfg.func(self._env, env_ids, **term_cfg.params)
-            self._curriculum_state[name] = state
+            selection = env_selection_kwargs(term_cfg.func, env_mask, env_ids)
+            if selection is not None:
+                self._curriculum_state[name] = term_cfg.func(self._env, *selection.values(), **term_cfg.params)
 
     def get_active_iterable_terms(self, env_idx: int) -> Sequence[tuple[str, Sequence[float]]]:
         """Returns the active terms as iterable sequence of tuples.

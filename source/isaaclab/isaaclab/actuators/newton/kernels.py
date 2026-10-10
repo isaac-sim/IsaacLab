@@ -56,6 +56,17 @@ def build_per_dof_env_mask_kernel(
     out_mask[i] = env_mask[env]
 
 
+@wp.kernel(enable_backward=False)
+def gather_dof_mask_kernel(
+    indices: wp.array(dtype=wp.uint32),
+    dof_mask: wp.array(dtype=wp.bool),
+    out_mask: wp.array(dtype=wp.bool),
+):
+    """Gather one Newton actuator's per-DOF reset mask from a mask over the flat DOF space."""
+    i = wp.tid()
+    out_mask[i] = dof_mask[int(indices[i])]
+
+
 # ---------------------------------------------------------------------------
 # Articulation-level kernels: in-graph post-actuator hook.
 # ---------------------------------------------------------------------------

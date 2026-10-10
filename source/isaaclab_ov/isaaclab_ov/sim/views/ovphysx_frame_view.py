@@ -25,8 +25,6 @@ from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, Fra
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_ov.physics import OvPhysxManager
-
 logger = logging.getLogger(__name__)
 
 WORLD_BODY_INDEX = -1
@@ -309,6 +307,9 @@ class OvPhysxFrameView(BaseFrameView):
                 (e.g. ``validate_xform_ops``); accepted for backend-agnostic
                 kwarg passing through the :class:`FrameView` factory.
         """
+        from isaaclab.sim import SimulationContext
+
+        self._physics_manager = SimulationContext.instance().physics_manager
         self._prim_path = prim_path
         self._device = device
         self._kwargs = kwargs
@@ -358,11 +359,11 @@ class OvPhysxFrameView(BaseFrameView):
         self._usd_view: UsdFrameView | None = None
 
         # Try synchronous init; defer to PHYSICS_READY if the PhysX instance is not yet alive.
-        physx = OvPhysxManager.get_physx_instance()
+        physx = self._physics_manager.get_physx_instance()
         if physx is not None:
             self._initialize_impl(physx)
         else:
-            OvPhysxManager.register_callback(
+            self._physics_manager.register_callback(
                 self._on_physics_ready,
                 PhysicsEvent.PHYSICS_READY,
                 name=f"ovphysx_frame_view_{prim_path}",
@@ -370,7 +371,7 @@ class OvPhysxFrameView(BaseFrameView):
 
     def _on_physics_ready(self, _event) -> None:
         """Replace any prior root view when the OVPhysX ``PhysX`` instance becomes ready."""
-        physx = OvPhysxManager.get_physx_instance()
+        physx = self._physics_manager.get_physx_instance()
         if physx is None:
             raise RuntimeError("OvPhysxFrameView: PHYSICS_READY fired but OvPhysxManager has no PhysX instance.")
         previous_root_view = getattr(self, "_root_view", None)

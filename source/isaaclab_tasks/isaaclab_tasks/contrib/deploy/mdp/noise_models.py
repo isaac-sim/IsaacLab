@@ -48,7 +48,7 @@ class ResetSampledConstantNoiseModel(NoiseModel):
         self._sampled_noise = torch.zeros((num_envs, 1), device=self._device)
         self._num_components: int | None = None
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
         """Reset the noise model by sampling NEW noise values.
 
         This method samples new noise for the specified environments using the configured noise function.
@@ -57,7 +57,15 @@ class ResetSampledConstantNoiseModel(NoiseModel):
         Args:
             env_ids: The environment ids to reset the noise model for. Defaults to None,
                 in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
+                Takes precedence over ``env_ids``.
         """
+        if env_mask is not None:
+            # sample noise for all environments and keep it for the selected ones
+            dummy_data = torch.zeros((self._num_envs, 1), device=self._device)
+            sampled_noise = self._noise_model_cfg.noise_cfg.func(dummy_data, self._noise_model_cfg.noise_cfg)
+            self._sampled_noise = torch.where(env_mask[:, None], sampled_noise, self._sampled_noise)
+            return
         # resolve the environment ids
         if env_ids is None:
             env_ids = slice(None)
@@ -136,12 +144,22 @@ class ResetSampledQuaternionNoiseModel(NoiseModel):
         self._perturbation_quat = torch.zeros((num_envs, 4), device=device)
         self._perturbation_quat[:, 3] = 1.0
 
-    def reset(self, env_ids: Sequence[int] | slice | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
         """Sample new rotation perturbations for the specified environments.
 
         Args:
             env_ids: The environment ids to reset. Defaults to None (all environments).
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
+                Takes precedence over ``env_ids``.
         """
+        if env_mask is not None:
+            # sample perturbations for all environments and keep them for the selected ones
+            roll = torch.empty(self._num_envs, device=self._device).uniform_(*self._roll_range)
+            pitch = torch.empty(self._num_envs, device=self._device).uniform_(*self._pitch_range)
+            yaw = torch.empty(self._num_envs, device=self._device).uniform_(*self._yaw_range)
+            quat = quat_from_euler_xyz(roll, pitch, yaw)
+            torch.where(env_mask[:, None], quat, self._perturbation_quat, out=self._perturbation_quat)
+            return
         if env_ids is None:
             env_ids = slice(None)
 

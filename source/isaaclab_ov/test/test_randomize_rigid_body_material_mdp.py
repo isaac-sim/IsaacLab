@@ -16,6 +16,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import torch
 import warp as wp
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
@@ -80,7 +81,7 @@ def test_randomize_material_writes_friction_within_range(device):
 
         cfg = EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=params)
         term = randomize_rigid_body_material(cfg, env)
-        term(env, None, **cfg.params)
+        term(env, torch.ones(num_cubes, dtype=torch.bool, device=sim.device), **cfg.params)
 
         materials = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
         assert materials.shape[0] == num_cubes and materials.shape[-1] == 3

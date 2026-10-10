@@ -352,9 +352,10 @@ def test_fixed_joint_selection(sim, monkeypatch, root_type):
     views = {}
     view_factory = Mock(wraps=ArticulationView)
     monkeypatch.setattr(sensor_module, "ArticulationView", view_factory)
-    monkeypatch.setattr(sensor_module.NewtonManager, "views", views)
-    monkeypatch.setattr(sensor_module.NewtonManager, "get_model", lambda: model)
-    monkeypatch.setattr(sensor_module.NewtonManager, "get_state_0", lambda: state)
+    manager = sim_utils.SimulationContext.instance().physics_manager
+    monkeypatch.setattr(manager, "views", views)
+    monkeypatch.setattr(manager, "get_model", lambda: model)
+    monkeypatch.setattr(manager, "get_state_0", lambda: state)
     monkeypatch.setattr(sensor_module.BaseJointWrenchSensor, "_initialize_impl", lambda self: None)
     monkeypatch.setattr(sensor_module, "resolve_matching_prims_from_source", lambda *a, **kw: [(None, root_expr)])
     sensor = sensor_module.JointWrenchSensor(JointWrenchSensorCfg(prim_path=root_expr))

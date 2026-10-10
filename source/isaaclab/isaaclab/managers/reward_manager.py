@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-from ..utils import index_fill_
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
@@ -100,26 +99,31 @@ class RewardManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """Returns the episodic sum of individual reward terms.
 
         Args:
             env_ids: The environment ids for which the episodic sum of
                 individual reward terms is to be returned. Defaults to all the environment ids.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
-            Dictionary of episodic sum of individual reward terms.
+            Dictionary of episodic sum of individual reward terms, averaged over the reset environments. The
+            averages are zero when no environment is selected.
         """
-        if env_ids is None:
-            env_ids = slice(None)
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # average of r_1 + r_2 + ... + r_n over the selected environments, for all terms at once
-        episodic_sum_avg = torch.mean(self._episode_sum_buf[env_ids], dim=0) / self._env.max_episode_length_s
+        selected = env_mask.unsqueeze(-1)
+        episode_sums = torch.where(selected, self._episode_sum_buf, 0.0).sum(dim=0) / env_mask.sum().clamp_min(1)
+        episodic_sum_avg = episode_sums / self._env.max_episode_length_s
+        self._episode_sum_buf.masked_fill_(selected, 0.0)
         extras = {"Episode_Reward/" + key: episodic_sum_avg[i] for i, key in enumerate(self._term_names)}
-        # reset episodic sums
-        index_fill_(self._episode_sum_buf, env_ids, 0.0)
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
-            term_cfg.func.reset(env_ids=env_ids)
+            self._reset_term(term_cfg.func, env_mask, env_ids)
         return extras
 
     def compute(self, dt: float) -> torch.Tensor:

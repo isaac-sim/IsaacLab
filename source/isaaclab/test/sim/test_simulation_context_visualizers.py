@@ -256,50 +256,6 @@ def test_update_visualizers_skips_dispatch_when_live_plots_disabled():
     assert dispatched == []
 
 
-def test_newton_visualizer_is_initialized_and_rebound_before_capture():
-    created = []
-    reset_calls = []
-    camera_calls = []
-
-    class _Cfg(VisualizerCfg):
-        def __init__(self, visualizer_type, enable_picking=False):
-            super().__init__()
-            self.visualizer_type = visualizer_type
-            self.enable_picking = enable_picking
-            self.headless = False
-            self.class_type = self._construct
-
-        def _construct(self, cfg):
-            viz = _FakeVisualizer(cfg)
-            viz.initialize = lambda _provider, **_scene: created.append(cfg.visualizer_type)
-            viz.reset = lambda soft: reset_calls.append((cfg.visualizer_type, soft))
-            viz.set_camera_view = lambda eye, target: camera_calls.append((cfg.visualizer_type, eye, target))
-            return viz
-
-    ctx = _make_context_with_settings(
-        {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
-    )
-    ctx._create_visualizers()
-    eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
-    ctx.set_camera_view(eye, target)
-    ctx._prepare_newton_visualizer_for_capture()
-    assert created == ["newton_gl", "newton_rtx"]
-
-    ctx.initialize_visualizers()
-    ctx._prepare_newton_visualizer_for_capture()
-
-    assert created == ["newton_gl", "newton_rtx", "rerun"]
-    assert len(ctx._visualizers) == 3
-    assert camera_calls == [(name, eye, target) for name in ("newton_gl", "newton_rtx", "rerun")]
-    assert ctx._pending_camera_view is None
-    assert reset_calls == [
-        ("newton_gl", False),
-        ("newton_rtx", False),
-        ("newton_gl", False),
-        ("newton_rtx", False),
-    ]
-
-
 def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
@@ -353,10 +309,11 @@ class _DummyViserSceneDataProvider:
 
 @pytest.fixture
 def web_backend(monkeypatch):
-    model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
+    model = SimpleNamespace(body_label=["/Object"], body_count=1, world_count=4)
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
+        physics_manager=SimpleNamespace(),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
     )
@@ -397,7 +354,9 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_setup_isaaclab_sidebar", lambda self, server: None)
 
-    cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
+    cfg = NewtonBackendCfg(
+        physics_cfg=web_backend.cfg.physics, device=web_backend.device, manager=web_backend.physics_manager
+    )
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
     visualizer.initialize(cast(Any, provider), cameras=[])
     visualizer.step(0.25)

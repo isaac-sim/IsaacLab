@@ -17,7 +17,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.utils import index_fill_
+from isaaclab.utils import env_mask_from_ids, index_fill_
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -130,48 +130,57 @@ class UniformVelocityCommand(CommandTerm):
         self._error_yaw_sum += error_yaw
         self._step_count += 1.0
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
         # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
         # is below both thresholds. Then super().reset() logs and zeros ``self.metrics``;
-        # we zero the running sums for ``env_ids`` afterwards so the next episode starts clean.
-        if env_ids is None:
-            env_ids = slice(None)
-        denom = self._step_count[env_ids].clamp_min(1.0)
-        mean_error_xy = self._error_xy_sum[env_ids] / denom
-        mean_error_yaw = self._error_yaw_sum[env_ids] / denom
-        self.metrics["error_vel_xy"][env_ids] = mean_error_xy
-        self.metrics["error_vel_yaw"][env_ids] = mean_error_yaw
-        self.metrics["success_rate"][env_ids] = (
+        # we zero the running sums for the reset envs afterwards so the next episode starts clean.
+        if env_mask is None:
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+        denom = self._step_count.clamp_min(1.0)
+        mean_error_xy = self._error_xy_sum / denom
+        mean_error_yaw = self._error_yaw_sum / denom
+        success = (
             (mean_error_xy < self.cfg.vel_xy_success_threshold) & (mean_error_yaw < self.cfg.vel_yaw_success_threshold)
         ).float()
-        extras = super().reset(env_ids)
+        for name, value in (
+            ("error_vel_xy", mean_error_xy),
+            ("error_vel_yaw", mean_error_yaw),
+            ("success_rate", success),
+        ):
+            torch.where(env_mask, value, self.metrics[name], out=self.metrics[name])
+        extras = super().reset(env_mask=env_mask)
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # / wandb card across tasks); pop it from the returned dict so CommandManager does
         # not additionally log it under ``Metrics/<term_name>/success_rate``.
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
-        index_fill_(self._error_xy_sum, env_ids, 0.0)
-        index_fill_(self._error_yaw_sum, env_ids, 0.0)
-        index_fill_(self._step_count, env_ids, 0.0)
+        self._error_xy_sum.masked_fill_(env_mask, 0.0)
+        self._error_yaw_sum.masked_fill_(env_mask, 0.0)
+        self._step_count.masked_fill_(env_mask, 0.0)
         return extras
 
-    def _resample_command(self, env_ids: Sequence[int]):
-        # sample velocity commands
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        r = torch.empty(num_envs, device=self.device)
+    def _resample_command(self, env_mask: torch.Tensor):
+        # sample velocity commands for all environments and keep them only for the selected ones
+        r = torch.empty(self.num_envs, device=self.device)
+        vel_command_b = torch.empty_like(self.vel_command_b)
         # -- linear velocity - x direction
-        self.vel_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
+        vel_command_b[:, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
         # -- linear velocity - y direction
-        self.vel_command_b[env_ids, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
+        vel_command_b[:, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
         # -- ang vel yaw - rotation around z
-        self.vel_command_b[env_ids, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+        vel_command_b[:, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
+        torch.where(env_mask[:, None], vel_command_b, self.vel_command_b, out=self.vel_command_b)
         # heading target
         if self.cfg.heading_command:
-            self.heading_target[env_ids] = r.uniform_(*self.cfg.ranges.heading)
+            torch.where(env_mask, r.uniform_(*self.cfg.ranges.heading), self.heading_target, out=self.heading_target)
             # update heading envs
-            self.is_heading_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
+            is_heading_env = r.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
+            torch.where(env_mask, is_heading_env, self.is_heading_env, out=self.is_heading_env)
         # update standing envs
-        self.is_standing_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+        is_standing_env = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+        torch.where(env_mask, is_standing_env, self.is_standing_env, out=self.is_standing_env)
 
     def _update_command(self):
         """Post-processes the velocity command.
@@ -297,28 +306,31 @@ class NormalVelocityCommand(UniformVelocityCommand):
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"
         return msg
 
-    def _resample_command(self, env_ids):
-        # sample velocity commands
-        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        r = torch.empty(num_envs, device=self.device)
+    def _resample_command(self, env_mask: torch.Tensor):
+        # sample velocity commands for all environments and keep them only for the selected ones
+        r = torch.empty(self.num_envs, device=self.device)
+        vel_command_b = torch.empty_like(self.vel_command_b)
         # -- linear velocity - x direction
-        self.vel_command_b[env_ids, 0] = r.normal_(mean=self.cfg.ranges.mean_vel[0], std=self.cfg.ranges.std_vel[0])
-        self.vel_command_b[env_ids, 0] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
+        vel_command_b[:, 0] = r.normal_(mean=self.cfg.ranges.mean_vel[0], std=self.cfg.ranges.std_vel[0])
+        vel_command_b[:, 0] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
         # -- linear velocity - y direction
-        self.vel_command_b[env_ids, 1] = r.normal_(mean=self.cfg.ranges.mean_vel[1], std=self.cfg.ranges.std_vel[1])
-        self.vel_command_b[env_ids, 1] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
+        vel_command_b[:, 1] = r.normal_(mean=self.cfg.ranges.mean_vel[1], std=self.cfg.ranges.std_vel[1])
+        vel_command_b[:, 1] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
         # -- angular velocity - yaw direction
-        self.vel_command_b[env_ids, 2] = r.normal_(mean=self.cfg.ranges.mean_vel[2], std=self.cfg.ranges.std_vel[2])
-        self.vel_command_b[env_ids, 2] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
+        vel_command_b[:, 2] = r.normal_(mean=self.cfg.ranges.mean_vel[2], std=self.cfg.ranges.std_vel[2])
+        vel_command_b[:, 2] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
+        torch.where(env_mask[:, None], vel_command_b, self.vel_command_b, out=self.vel_command_b)
 
         # update element wise zero velocity command
         # TODO what is zero prob ?
-        self.is_zero_vel_x_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.ranges.zero_prob[0]
-        self.is_zero_vel_y_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.ranges.zero_prob[1]
-        self.is_zero_vel_yaw_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.ranges.zero_prob[2]
+        for buf, prob in zip(
+            (self.is_zero_vel_x_env, self.is_zero_vel_y_env, self.is_zero_vel_yaw_env), self.cfg.ranges.zero_prob
+        ):
+            torch.where(env_mask, r.uniform_(0.0, 1.0) <= prob, buf, out=buf)
 
         # update standing envs
-        self.is_standing_env[env_ids] = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+        is_standing_env = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
+        torch.where(env_mask, is_standing_env, self.is_standing_env, out=self.is_standing_env)
 
     def _update_command(self):
         """Sets velocity command to zero for standing envs."""

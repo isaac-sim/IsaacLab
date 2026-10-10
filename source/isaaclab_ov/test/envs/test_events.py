@@ -31,6 +31,7 @@ from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import env_mask_from_ids
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
@@ -100,19 +101,19 @@ def test_material_body_and_environment_selection(event_env):
         "asset_cfg": SceneEntityCfg("robot", body_ids=[0]),
     }
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
-    term(env, torch.tensor([1]), **params)
+    term(env, env_mask_from_ids([1], env.num_envs, env.device), **params)
     expected = before.clone()
     expected[selected_row] = torch.tensor([0.4, 0.4, 0.3])
     torch.testing.assert_close(wp.to_torch(view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)), expected)
 
     params["asset_cfg"] = SceneEntityCfg("robot", body_ids=[])
     empty_term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
-    empty_term(env, None, **params)
+    empty_term(env, env_mask_from_ids(None, env.num_envs, env.device), **params)
     torch.testing.assert_close(wp.to_torch(view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)), expected)
 
     params["asset_cfg"] = SceneEntityCfg("robot", body_ids=list(reversed(range(robot.num_bodies))))
     full_term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
-    full_term(env, slice(None), **params)
+    full_term(env, env_mask_from_ids(slice(None), env.num_envs, env.device), **params)
     torch.testing.assert_close(
         wp.to_torch(view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)),
         torch.tensor([0.4, 0.4, 0.3]).expand_as(before),
@@ -149,7 +150,7 @@ def test_collider_offsets_preserve_unselected_state(event_env):
         term = randomize_rigid_body_collider_offsets(
             EventTermCfg(func=randomize_rigid_body_collider_offsets, params={"asset_cfg": asset_cfg}), env
         )
-        term(env, torch.tensor([1]), asset_cfg, (-0.01, -0.01), (0.04, 0.04))
+        term(env, env_mask_from_ids([1], env.num_envs, env.device), asset_cfg, (-0.01, -0.01), (0.04, 0.04))
         expected_rest = before_rest.clone()
         expected_contact = before_contact.clone()
         expected_rest[1] = -0.01
@@ -157,8 +158,13 @@ def test_collider_offsets_preserve_unselected_state(event_env):
         torch.testing.assert_close(wp.to_torch(view.get_attribute(rest_type)), expected_rest)
         torch.testing.assert_close(wp.to_torch(view.get_attribute(contact_type)), expected_contact)
 
-        term(env, slice(1, 2), asset_cfg, contact_offset_distribution_params=(0.06, 0.06))
+        term(
+            env,
+            env_mask_from_ids(slice(1, 2), env.num_envs, env.device),
+            asset_cfg,
+            contact_offset_distribution_params=(0.06, 0.06),
+        )
         expected_contact[1] = 0.06
-        term(env, None, asset_cfg)
+        term(env, env_mask_from_ids(None, env.num_envs, env.device), asset_cfg)
         torch.testing.assert_close(wp.to_torch(view.get_attribute(rest_type)), expected_rest)
         torch.testing.assert_close(wp.to_torch(view.get_attribute(contact_type)), expected_contact)

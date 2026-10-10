@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
-from ..utils import index_fill_
+from ..utils import env_ids_from_mask, env_mask_from_ids
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
@@ -157,9 +157,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         }
         scalars = {
             "episode": {
-                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
-                if getattr(self, "reward_buf", None) is not None
-                else 0.0,
+                "mean_reward": lambda: (
+                    float(getattr(self, "reward_buf", None).mean())
+                    if getattr(self, "reward_buf", None) is not None
+                    else 0.0
+                ),
                 "episode_length": lambda: float(self.episode_length_buf.float().mean()),
             }
         }
@@ -217,8 +219,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         for _ in range(self.cfg.decimation // steps_per_call):
             self._sim_step_counter += steps_per_call
-            self.action_manager.apply_action()
-            self.scene.write_data_to_sim()
+            if not self._physics_handles_actions:
+                self.action_manager.apply_action()
+                self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
             # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
@@ -242,34 +245,24 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.recorder_manager.record_post_step()
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
-        if len(reset_env_ids) > 0:
-            # capture the terminal observation before reset and expose it for Same-Step autoreset.
-            if self.cfg.compute_final_obs:
-                self.extras["final_obs"] = self.observation_manager.compute()
-            self.recorder_manager.record_pre_reset(reset_env_ids)
-
-            self._reset_idx(reset_env_ids)
-
-            # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+        # note: the reset runs every step on the reset mask, so the step never waits on the device
+        if self.cfg.compute_final_obs:
+            # expose the terminal observation before reset for Same-Step autoreset
+            self.extras["final_obs"] = self.observation_manager.compute()
+        self._reset_terminated_envs(self.reset_buf)
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if self.reset_buf.any():
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
-            self.recorder_manager.record_post_reset(reset_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
         if self.sim.consume_reset_request():
             # Only reset envs not already reset this step to avoid redundant resets.
-            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            index_fill_(not_yet_reset, reset_env_ids, False)
-            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
-            if len(manual_reset_ids) > 0:
-                # mark as terminated so RL wrappers observe the episode boundary
-                index_fill_(self.reset_terminated, manual_reset_ids, True)
-                # mirror the recorder lifecycle used for normal resets
-                self.recorder_manager.record_pre_reset(manual_reset_ids)
-                self._reset_idx(manual_reset_ids)
-                self.recorder_manager.record_post_reset(manual_reset_ids)
+            manual_reset = ~self.reset_buf
+            # mark as terminated so RL wrappers observe the episode boundary
+            self.reset_terminated |= manual_reset
+            self._reset_terminated_envs(manual_reset)
 
         self.command_manager.compute(dt=self.step_dt)
         if "interval" in self.event_manager.active_terms:
@@ -379,48 +372,61 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
+    def _reset_terminated_envs(self, env_mask: torch.Tensor):
+        """Reset the environments selected by ``env_mask`` within :meth:`step`.
+
+        Subclasses that override :meth:`_reset_idx` keep receiving indices, which waits on the device.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
+        recording = len(self.recorder_manager.active_terms) > 0
+        if recording or type(self)._reset_idx is not ManagerBasedRLEnv._reset_idx:
+            env_ids = env_ids_from_mask(env_mask)
+            if len(env_ids) == 0:
+                return
+            self.recorder_manager.record_pre_reset(env_ids)
+            self._reset_idx(env_ids)
+            self.recorder_manager.record_post_reset(env_ids)
+        else:
+            self._reset_mask(env_mask)
+
     def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
             env_ids: A slice or environment indices on the environment device.
         """
+        self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
+
+    def _reset_mask(self, env_mask: torch.Tensor):
+        """Reset the environments selected by a boolean mask.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+        """
         # update the curriculum for environments that need a reset
-        self.curriculum_manager.compute(env_ids=env_ids)
+        self.curriculum_manager.compute(env_mask=env_mask)
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        self.scene.reset(env_mask=env_mask)
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
+            self.event_manager.apply(mode="reset", env_mask=env_mask, global_env_step_count=env_step_count)
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
-        self.extras["log"] = dict()
-        # -- observation manager
-        info = self.observation_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- action manager
-        info = self.action_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- rewards manager
-        info = self.reward_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- curriculum manager
-        info = self.curriculum_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- command manager
-        info = self.command_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- event manager
-        info = self.event_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- termination manager
-        info = self.termination_manager.reset(env_ids)
-        self.extras["log"].update(info)
-        # -- recorder manager
-        info = self.recorder_manager.reset(env_ids)
-        self.extras["log"].update(info)
+        managers = (
+            self.observation_manager,
+            self.action_manager,
+            self.reward_manager,
+            self.curriculum_manager,
+            self.command_manager,
+            self.event_manager,
+            self.termination_manager,
+            self.recorder_manager,
+        )
+        self._reset_managers(env_mask, managers)
 
-        index_fill_(self.episode_length_buf, env_ids, 0)
+        self.episode_length_buf.masked_fill_(env_mask, 0)

@@ -65,7 +65,8 @@ class EpisodeErrorRecorder:
         """Summarize and clear completed episodes.
 
         Args:
-            env_ids: Environments whose episodes completed, or ``None`` for all.
+            env_ids: Environments whose episodes completed, as indices, a slice, or a boolean mask of shape
+                (num_envs,), or ``None`` for all. A boolean mask does not synchronize the device.
 
         Returns:
             Mean, median, and 90th-percentile episode-minimum errors as 0-dim
@@ -79,7 +80,11 @@ class EpisodeErrorRecorder:
             env_ids = slice(None)
         statistics = {}
         if self._updated:
-            values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
+            if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+                # unselected environments are NaN, so the NaN-aware statistics ignore them
+                values = torch.where(env_ids & self._has_sample, self.minimum_error, torch.nan)
+            else:
+                values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
             statistics = {
                 "mean": values.nanmean(),
                 "median": values.nanmedian(),
@@ -139,9 +144,13 @@ class SuccessTracker:
         """Count one reached goal for the given environments.
 
         Args:
-            env_ids: Environments whose goal was just resampled.
+            env_ids: Environments whose goal was just resampled, as indices or a boolean mask of shape
+                (num_envs,). A boolean mask does not synchronize the device.
         """
-        self._goals_reached[env_ids] += 1.0
+        if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+            self._goals_reached += env_ids
+        else:
+            self._goals_reached[env_ids] += 1.0
 
     def earned(self, reached: torch.Tensor) -> torch.Tensor:
         """Drop the goals a reset handed out, and release the guard.
@@ -188,15 +197,20 @@ class SuccessTracker:
         resample counted is discarded.
 
         Args:
-            env_ids: Environments whose episodes completed.
+            env_ids: Environments whose episodes completed, as indices, a slice, or a boolean mask of
+                shape (num_envs,). A boolean mask does not synchronize the device.
             skip_next_update: Whether each environment is reset mid-step, with the
                 task evaluating its new goal before any physics runs against it.
                 Only those need the guard :meth:`earned` applies: a reset that ends
                 the step leaves the task to evaluate the new goal a full step later,
-                where a reach is earned.
+                where a reach is earned. Aligned with :paramref:`env_ids`, or of shape
+                (num_envs,) when :paramref:`env_ids` is a boolean mask.
         """
         index_fill_(self._goals_reached, env_ids, 0.0)
-        self._skip_update[env_ids] = skip_next_update
+        if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+            torch.where(env_ids, skip_next_update, self._skip_update, out=self._skip_update)
+        else:
+            self._skip_update[env_ids] = skip_next_update
 
 
 def sample_joint_positions_within_limits(

@@ -10,6 +10,10 @@ __all__ = [
     "TENSOR_TYPE_CONVERSIONS",
     "convert_to_torch",
     "index_fill_",
+    "env_ids_from_mask",
+    "env_mask_from_ids",
+    "env_selection_kwargs",
+    "takes_env_mask",
     "CircularBuffer",
     "DelayBuffer",
     "TimestampedBuffer",
@@ -65,7 +69,7 @@ __all__ = [
 ]
 
 from .timer import Timer
-from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, index_fill_
+from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, env_ids_from_mask, env_mask_from_ids, env_selection_kwargs, index_fill_, takes_env_mask
 from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer
 from .dict import (
     to_dict,

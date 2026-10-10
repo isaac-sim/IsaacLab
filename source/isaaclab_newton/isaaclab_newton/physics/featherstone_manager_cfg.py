@@ -33,7 +33,7 @@ class FeatherstoneSolverCfg(NewtonSolverCfg):
     See: https://en.wikipedia.org/wiki/Semi-implicit_Euler_method
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.featherstone_manager:NewtonFeatherstoneManager"
+    class_type: type[NewtonManager] | str = "{DIR}.featherstone_manager:FeatherstoneSolverAdapter"
     """Manager class for the Featherstone solver."""
 
     solver_type: str = "featherstone"

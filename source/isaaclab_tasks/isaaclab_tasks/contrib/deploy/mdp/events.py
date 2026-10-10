@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import random
 from typing import TYPE_CHECKING
 
 import torch
@@ -43,10 +42,9 @@ class randomize_gear_type(ManagerTermBase):
 
         # Create gear type mapping (shared across all terms)
         self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-
-        # Store current gear type for each environment (as list for easy access)
-        # Initialize all to first gear type in the list
-        self._current_gear_type = [self.gear_types[0]] * env.num_envs
+        self._gear_type_names = list(self.gear_type_map)
+        # gear type indices of the selectable gear types, keyed by the gear types
+        self._choices: dict[tuple[str, ...], torch.Tensor] = {}
 
         # Store current gear type indices as tensor for efficient vectorized access
         # Initialize all to first gear type index
@@ -61,30 +59,41 @@ class randomize_gear_type(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: torch.Tensor,
+        env_mask: torch.Tensor,
         gear_types: list[str] = ["gear_small", "gear_medium", "gear_large"],
     ):
         """Randomize the gear type for specified environments.
 
         Args:
             env: The environment containing the assets
-            env_ids: Environment IDs to randomize
+            env_mask: Boolean mask of the environments to randomize. Shape is (num_envs,).
             gear_types: List of available gear types to choose from
         """
         # Randomly select gear type for each environment
         # Use the parameter passed to __call__ (not self.gear_types) to allow runtime overrides
-        for env_id in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
-            chosen_gear = random.choice(gear_types)
-            self._current_gear_type[env_id] = chosen_gear
-            self._current_gear_type_indices[env_id] = self.gear_type_map[chosen_gear]
+        key = tuple(gear_types)
+        if key not in self._choices:
+            # note: the copy is non-blocking so that the reset does not wait on the device
+            choices = torch.tensor([self.gear_type_map[gear] for gear in gear_types], dtype=torch.long)
+            self._choices[key] = choices.to(env.device, non_blocking=True)
+        choices = self._choices[key]
+        sampled = choices[torch.randint(len(choices), (env.num_envs,), device=env.device)]
+        indices = self._current_gear_type_indices
+        torch.where(env_mask, sampled, indices, out=indices)
 
     def get_gear_type(self, env_id: int) -> str:
-        """Get the current gear type for a specific environment."""
-        return self._current_gear_type[env_id]
+        """Get the current gear type for a specific environment.
+
+        This reads the gear type indices on the host, which waits on the device.
+        """
+        return self._gear_type_names[int(self._current_gear_type_indices[env_id])]
 
     def get_all_gear_types(self) -> list[str]:
-        """Get current gear types for all environments."""
-        return self._current_gear_type
+        """Get current gear types for all environments.
+
+        This reads the gear type indices on the host, which waits on the device.
+        """
+        return [self._gear_type_names[index] for index in self._current_gear_type_indices.tolist()]
 
     def get_all_gear_type_indices(self) -> torch.Tensor:
         """Get current gear type indices for all environments as a tensor.
@@ -407,9 +416,8 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        # Pre-allocate gear type mapping and indices
+        # Pre-allocate gear type mapping
         self.gear_type_map = {"gear_small": 0, "gear_medium": 1, "gear_large": 2}
-        self.gear_type_indices = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
 
         # Cache asset names
         self.gear_asset_names = ["factory_gear_small", "factory_gear_medium", "factory_gear_large"]
@@ -418,7 +426,7 @@ class randomize_gears_and_base_pose(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: torch.Tensor,
+        env_mask: torch.Tensor,
         pose_range: dict = {},
         velocity_range: dict = {},
         gear_pos_range: dict = {},
@@ -427,7 +435,7 @@ class randomize_gears_and_base_pose(ManagerTermBase):
 
         Args:
             env: Environment instance
-            env_ids: Environment IDs to randomize
+            env_mask: Boolean mask of the environments to randomize. Shape is (num_envs,).
             pose_range: Pose randomization range for base and all gears
             velocity_range: Velocity randomization range
             gear_pos_range: Additional position randomization for selected gear only
@@ -444,8 +452,8 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         # Shared pose samples for all assets
         pose_keys = ["x", "y", "z", "roll", "pitch", "yaw"]
         range_list_pose = [pose_range.get(key, (0.0, 0.0)) for key in pose_keys]
-        ranges_pose = torch.tensor(range_list_pose, device=device)
-        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        ranges_pose = torch.tensor(range_list_pose).to(device, non_blocking=True)
+        num_envs = env.num_envs
         rand_pose_samples = math_utils.sample_uniform(
             ranges_pose[:, 0], ranges_pose[:, 1], (num_envs, 6), device=device
         )
@@ -456,7 +464,7 @@ class randomize_gears_and_base_pose(ManagerTermBase):
 
         # Shared velocity samples
         range_list_vel = [velocity_range.get(key, (0.0, 0.0)) for key in pose_keys]
-        ranges_vel = torch.tensor(range_list_vel, device=device)
+        ranges_vel = torch.tensor(range_list_vel).to(device, non_blocking=True)
         rand_vel_samples = math_utils.sample_uniform(ranges_vel[:, 0], ranges_vel[:, 1], (num_envs, 6), device=device)
 
         # Prepare poses for all assets
@@ -467,9 +475,9 @@ class randomize_gears_and_base_pose(ManagerTermBase):
         asset_names_to_process = [self.base_asset_name] + self.gear_asset_names
         for asset_name in asset_names_to_process:
             asset: RigidObject | Articulation = env.scene[asset_name]
-            default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
-            default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
-            positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_pose_samples[:, 0:3]
+            default_root_pose = asset.data.default_root_pose.torch
+            default_root_vel = asset.data.default_root_vel.torch
+            positions = default_root_pose[:, 0:3] + env.scene.env_origins + rand_pose_samples[:, 0:3]
             orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
             velocities = default_root_vel + rand_vel_samples
             positions_by_asset[asset_name] = positions
@@ -478,22 +486,20 @@ class randomize_gears_and_base_pose(ManagerTermBase):
 
         # Per-env gear offset (gear_pos_range) applied only to selected gear
         range_list_gear = [gear_pos_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges_gear = torch.tensor(range_list_gear, device=device)
+        ranges_gear = torch.tensor(range_list_gear).to(device, non_blocking=True)
         rand_gear_offsets = math_utils.sample_uniform(
             ranges_gear[:, 0], ranges_gear[:, 1], (num_envs, 3), device=device
         )
 
         # Get gear type indices directly as tensor
-        num_reset_envs = num_envs
-        gear_type_indices = self.gear_type_indices[:num_reset_envs]
-        all_gear_type_indices = gear_type_manager.get_all_gear_type_indices()
-        gear_type_indices[:] = all_gear_type_indices[env_ids]
+        gear_type_indices = gear_type_manager.get_all_gear_type_indices()
 
         # Apply offsets using vectorized operations with masks
         for gear_idx, asset_name in enumerate(self.gear_asset_names):
             if asset_name in positions_by_asset:
-                mask = gear_type_indices == gear_idx
-                positions_by_asset[asset_name][mask] = positions_by_asset[asset_name][mask] + rand_gear_offsets[mask]
+                mask = (gear_type_indices == gear_idx).unsqueeze(-1)
+                positions = positions_by_asset[asset_name]
+                positions_by_asset[asset_name] = torch.where(mask, positions + rand_gear_offsets, positions)
 
         # Write to sim
         for asset_name in positions_by_asset.keys():
@@ -501,5 +507,5 @@ class randomize_gears_and_base_pose(ManagerTermBase):
             positions = positions_by_asset[asset_name]
             orientations = orientations_by_asset[asset_name]
             velocities = velocities_by_asset[asset_name]
-            asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-            asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
+            asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask)
+            asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask)

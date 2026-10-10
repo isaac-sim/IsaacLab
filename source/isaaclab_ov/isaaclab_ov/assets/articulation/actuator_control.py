@@ -98,9 +98,11 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         self._actuator_runtime.compute(collection, dt)
         return True
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(
+        self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None
+    ) -> None:
         if self._native_actuator_path_active and self._actuator_runtime is not None:
-            self._actuator_runtime.reset(env_ids)
+            self._actuator_runtime.reset(env_ids, env_mask=env_mask)
 
     def stage_user_command(
         self,

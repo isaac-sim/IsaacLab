@@ -81,8 +81,9 @@ def test_negative_thrust_range_results_finite():
     assert torch.isfinite(action.thrusts).all()
 
 
-def test_reset_idx_resamples_only_selected_envs():
-    """reset_idx re-samples parameters and re-initializes thrust only for the selected env."""
+@pytest.mark.parametrize("use_mask", [False, True])
+def test_reset_idx_resamples_only_selected_envs(use_mask):
+    """Index and mask resets re-sample parameters and re-initialize thrust only for the selected env."""
     from isaaclab_contrib.actuators import Thruster
 
     num_envs = 3
@@ -101,7 +102,10 @@ def test_reset_idx_resamples_only_selected_envs():
     prev_thrust = thr.curr_thrust.clone()
     prev_tau_inc = thr.tau_inc_s.clone()
 
-    thr.reset_idx(torch.tensor([0], dtype=torch.int64, device=DEVICE))
+    if use_mask:
+        thr.reset(env_mask=torch.tensor([True, False, False], device=DEVICE))
+    else:
+        thr.reset_idx(torch.tensor([0], dtype=torch.int64, device=DEVICE))
 
     assert not torch.isclose(torch.tensor(prev_val, device=DEVICE), thr.tau_inc_s[0, 0])
     torch.testing.assert_close(thr.curr_thrust[0], thr.thrust_const[0] * init_rps[0] ** 2)

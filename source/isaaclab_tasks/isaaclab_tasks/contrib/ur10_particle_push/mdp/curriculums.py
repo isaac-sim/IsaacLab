@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -48,19 +47,19 @@ class SinglePushCurriculum(ManagerTermBase):
     def __call__(
         self,
         env: UR10ParticlePushEnv,
-        env_ids: Sequence[int] | torch.Tensor | slice,
+        env_mask: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
-        """Credit completed outcomes, draw new reset levels, and return logging state."""
-        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if env.common_step_counter > 0 and num_envs > 0:
-            completed_levels = self._levels[env_ids]
-            self._episode_count += torch.bincount(completed_levels, minlength=self._probabilities.numel())
-            self._success_count += torch.bincount(
-                completed_levels[env.success_this_step[env_ids]],
-                minlength=self._probabilities.numel(),
-            )
-        if num_envs > 0:
-            self._levels[env_ids] = self._sample_levels(num_envs)
+        """Credit completed outcomes, draw new reset levels, and return logging state.
+
+        Args:
+            env: The environment.
+            env_mask: Boolean mask of the environments being reset. Shape is (num_envs,).
+        """
+        if env.common_step_counter > 0:
+            # count per level with scatter-add, since bincount on the device synchronizes
+            self._episode_count.scatter_add_(0, self._levels, env_mask.long())
+            self._success_count.scatter_add_(0, self._levels, (env_mask & env.success_this_step).long())
+        torch.where(env_mask, self._sample_levels(env.num_envs), self._levels, out=self._levels)
 
         state = {
             "mean_level": self._levels.float().mean(),

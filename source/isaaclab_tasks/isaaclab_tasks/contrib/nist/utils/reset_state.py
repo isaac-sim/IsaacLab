@@ -36,8 +36,18 @@ def get_reset_state(env, env_ids: Tensor, reset_assets: Sequence[str], is_relati
     return torch.cat(states, dim=-1)
 
 
-def set_reset_state(env, states: Tensor, env_ids: Tensor, reset_assets: Sequence[str], is_relative: bool = False):
-    """Split ``states`` by scene asset and write reset-state slices."""
+def set_reset_state(
+    env, states: Tensor, env_mask: Tensor, reset_assets: Sequence[str], is_relative: bool = False
+) -> None:
+    """Split ``states`` by scene asset and write the reset states of the selected environments.
+
+    Args:
+        env: The environment.
+        states: Concatenated reset states of every environment. Shape is (num_envs, state_dim).
+        env_mask: Boolean mask of the environments to write. Shape is (num_envs,).
+        reset_assets: Names of the scene assets in ``states``.
+        is_relative: Whether the root positions in ``states`` are relative to the environment origins.
+    """
     offset = 0
     for name, articulation in env.scene._articulations.items():
         if name in reset_assets:
@@ -46,12 +56,12 @@ def set_reset_state(env, states: Tensor, env_ids: Tensor, reset_assets: Sequence
             root_state = state[:, :13]
             if is_relative:
                 root_state = root_state.clone()
-                root_state[:, :3] += env.scene.env_origins[env_ids]
-            articulation.write_root_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
-            articulation.write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
-            articulation.write_joint_position_to_sim_index(position=state[:, 13 : 13 + n_joints], env_ids=env_ids)
-            articulation.write_joint_velocity_to_sim_index(
-                velocity=state[:, 13 + n_joints : 13 + 2 * n_joints], env_ids=env_ids
+                root_state[:, :3] += env.scene.env_origins
+            articulation.write_root_pose_to_sim_mask(root_pose=root_state[:, :7], env_mask=env_mask)
+            articulation.write_root_velocity_to_sim_mask(root_velocity=root_state[:, 7:], env_mask=env_mask)
+            articulation.write_joint_position_to_sim_mask(position=state[:, 13 : 13 + n_joints], env_mask=env_mask)
+            articulation.write_joint_velocity_to_sim_mask(
+                velocity=state[:, 13 + n_joints : 13 + 2 * n_joints], env_mask=env_mask
             )
             offset += width
 
@@ -60,7 +70,7 @@ def set_reset_state(env, states: Tensor, env_ids: Tensor, reset_assets: Sequence
             root_state = states[:, offset : offset + 13]
             if is_relative:
                 root_state = root_state.clone()
-                root_state[:, :3] += env.scene.env_origins[env_ids]
-            rigid_object.write_root_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
-            rigid_object.write_root_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
+                root_state[:, :3] += env.scene.env_origins
+            rigid_object.write_root_pose_to_sim_mask(root_pose=root_state[:, :7], env_mask=env_mask)
+            rigid_object.write_root_velocity_to_sim_mask(root_velocity=root_state[:, 7:], env_mask=env_mask)
             offset += 13

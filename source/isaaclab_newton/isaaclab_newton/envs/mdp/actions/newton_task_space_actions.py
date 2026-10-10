@@ -10,6 +10,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -35,6 +36,8 @@ logger = logging.getLogger(__name__)
 class _NewtonTaskSpaceAction(ActionTerm):
     """Shared joint, body, and root-frame kinematics for the Newton task-space action terms."""
 
+    supports_graph_capture = True
+
     _asset: Articulation
 
     def __init__(
@@ -54,13 +57,17 @@ class _NewtonTaskSpaceAction(ActionTerm):
         self._body_idx = body_ids[0]
         self._body_name = body_names[0]
         self._jacobi_body_idx = self._body_idx - 1 if self._asset.is_fixed_base else self._body_idx
-        self._jacobi_joint_ids = [j + self._asset.num_base_dofs for j in self._joint_ids]
+        self._jacobi_joint_ids = torch.tensor(
+            [j + self._asset.num_base_dofs for j in self._joint_ids], device=self.device
+        )
         logger.info(
             f"Resolved joints {self._joint_names} [{self._joint_ids}] and body {self._body_name} [{self._body_idx}]"
             f" for the action term {self.__class__.__name__}."
         )
         if self._num_joints == self._asset.num_joints:
             self._joint_ids = slice(None)
+        else:
+            self._joint_ids = torch.tensor(self._joint_ids, device=self.device)
 
         if self.cfg.body_offset is not None:
             self._offset_pos = torch.tensor(self.cfg.body_offset.pos, device=self.device).repeat(self.num_envs, 1)
@@ -72,8 +79,8 @@ class _NewtonTaskSpaceAction(ActionTerm):
         self._ee_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
         self._jacobian_b = torch.zeros(self.num_envs, 6, self._num_joints, device=self.device)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
 
     def _joint_pos_target(self, target: str) -> torch.Tensor:
         """Resolve a named joint posture target for the controlled joints."""
@@ -206,7 +213,7 @@ class NewtonDifferentialInverseKinematicsAction(_NewtonTaskSpaceAction):
             self._physics_dt,
             null_space_joint_pos_target=self._null_space_target,
         )
-        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=joint_pos_des, joint_ids=self._joint_ids)
 
 
 class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
@@ -331,12 +338,15 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
             motion_stiffness=self._action_slice("stiffness"),
             motion_damping=self._action_slice("damping"),
         )
-        self._asset.set_joint_effort_target_index(target=efforts, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_effort_index(value=efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        super().reset(env_ids)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        super().reset(env_ids=env_ids, env_mask=env_mask)
         if self._contact_sensor is not None:
-            self._contact_sensor.reset(env_ids)
+            if env_mask is None:
+                self._contact_sensor.reset(env_ids)
+            else:
+                self._contact_sensor.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
 
     def _action_slice(self, name: str) -> torch.Tensor | None:
         return self._processed_actions[:, self._slices[name]] if name in self._slices else None

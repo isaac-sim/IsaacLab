@@ -103,11 +103,13 @@ class SimulationContext:
         """
         cls._reset_callbacks.pop(name, None)
 
-    def __init__(self, cfg: SimulationCfg | None = None):
+    def __init__(self, cfg: SimulationCfg | None = None, *, physics_manager: PhysicsManager | None = None):
         """Initialize the simulation context.
 
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
+            physics_manager: Manager to attach and own for this context's lifetime. Defaults to constructing
+                the manager selected by ``cfg.physics.class_type``. A manager may belong to only one context.
 
         Raises:
             RuntimeError: If a simulation context already exists.
@@ -117,6 +119,9 @@ class SimulationContext:
                 "A SimulationContext already exists. Use SimulationContext.instance() to retrieve it,"
                 " or call SimulationContext.clear_instance() before constructing a replacement."
             )
+
+        if physics_manager is not None and physics_manager._sim is not None:
+            raise ValueError("The physics manager is already attached to a simulation context.")
 
         from pxr import UsdUtils  # noqa: PLC0415
 
@@ -129,7 +134,8 @@ class SimulationContext:
         use_isaac_sim = has_kit()
         self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
         self.cfg.physics = self._physics
-        self._physics.class_type._prepare_stage_creation()
+        manager_type = self._physics.class_type if physics_manager is None else type(physics_manager)
+        manager_type._prepare_stage_creation()
 
         # Get or create stage based on config
         stage_cache = UsdUtils.StageCache.Get()
@@ -188,7 +194,7 @@ class SimulationContext:
             torch.cuda.set_device(self.cfg.device)
         wp.set_device(self.cfg.device)
 
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        self.physics_manager = self._physics.class_type() if physics_manager is None else physics_manager
         # Must be set before physics_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
@@ -452,16 +458,9 @@ class SimulationContext:
             self._render_context.clone_contexts.update(cfg.cloning_contexts)
             self._pending_visualizers.append(instantiate(cfg))
 
-    def initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
-        """Initialize the constructed visualizers after their shared scene has been cloned.
-
-        Args:
-            config_filter: Predicate on a visualizer config selecting which pending visualizers to
-                initialize, e.g. only the consumers needed before graph capture. Defaults to None (all).
-        """
+    def initialize_visualizers(self) -> None:
+        """Initialize the constructed visualizers after their shared scene has been cloned."""
         for visualizer in tuple(self._pending_visualizers):
-            if config_filter is not None and not config_filter(visualizer.cfg):
-                continue
             camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
             env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
             cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
@@ -471,8 +470,7 @@ class SimulationContext:
             self._visualizers_started = True
             if self._pending_camera_view is not None:
                 visualizer.set_camera_view(*self._pending_camera_view)
-        if not self._pending_visualizers:
-            self._pending_camera_view = None
+        self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
         """Return the scene data provider shared by visualizers and renderers."""
@@ -537,23 +535,6 @@ class SimulationContext:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
 
-    def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
-        """Initialize or rebind the Newton viewer before solver graph capture."""
-        # Picking applies forces inside solver substeps, so its kernels and buffers
-        # must exist during graph capture. Render-only viewers can initialize later.
-        self.initialize_visualizers(self._requires_pre_capture_newton_init)
-        for viz in (viz for viz in self._visualizers if self._requires_pre_capture_newton_init(viz.cfg)):
-            viz.reset(soft=False)
-
-    @staticmethod
-    def _requires_pre_capture_newton_init(cfg: Any) -> bool:
-        """Return whether a config contributes Newton picking inputs to capture."""
-        return (
-            cfg.visualizer_type in {"newton_gl", "newton_rtx"}
-            and bool(getattr(cfg, "enable_picking", False))
-            and not bool(getattr(cfg, "headless", False))
-        )
-
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.
 
@@ -563,7 +544,6 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
-        # Initialize visualizers not prepared by a backend-specific pre-capture hook.
         self.initialize_visualizers()
         self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)
         # Start the timeline so the play button is pressed

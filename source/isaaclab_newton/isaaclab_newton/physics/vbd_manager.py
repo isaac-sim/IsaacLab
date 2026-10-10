@@ -7,37 +7,36 @@
 
 from __future__ import annotations
 
-from newton import Model, ModelBuilder
+from typing import TYPE_CHECKING
+
+from newton import ModelBuilder, State
 from newton.solvers import SolverVBD
 
-from .newton_manager import NewtonManager
+from .newton_solver import NewtonSolver
 from .vbd_manager_cfg import VBDSolverCfg
 
+if TYPE_CHECKING:
+    from .newton_backend import NewtonBackend
 
-class NewtonVBDManager(NewtonManager):
-    """Newton manager specialization for the VBD solver."""
+
+class VBDSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the VBD solver, which double-buffers state."""
+
+    solver_class = SolverVBD
+    supports_heterogeneous_worlds = True
+    prepares_step = True
 
     @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: VBDSolverCfg) -> None:
         """Color the completed builder before allocating the model."""
         builder.color(balance_colors=False)
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
-        """Construct the configured VBD solver."""
-        return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
+    def supports_body_forces(cls, backend: NewtonBackend) -> bool:
+        return not backend.cfg.solver_cfg.integrate_with_external_rigid_solver
 
     @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> None:
-        """Construct VBD and configure its base-manager state."""
-        NewtonManager._solver = cls._create_solver(model, solver_cfg)
-        NewtonManager._use_single_state = False
-        NewtonManager._needs_collision_pipeline = True
-        NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
-
-    @classmethod
-    def _simulate_physics_only(cls) -> None:
-        """Rebuild the VBD particle BVH before stepping physics."""
-        if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
-            cls._solver.rebuild_bvh(cls.backend.state_0)
-        super()._simulate_physics_only()
+    def prepare_step(cls, backend: NewtonBackend, state: State) -> None:
+        """Rebuild the particle BVH before each physics step."""
+        if backend.model.particle_count > 0:
+            backend.solver.rebuild_bvh(state)

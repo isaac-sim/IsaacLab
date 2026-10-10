@@ -24,7 +24,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
 
@@ -119,19 +118,24 @@ class RigidObject(BaseRigidObject):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
         """Reset the rigid object.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+                Takes precedence over ``env_ids``.
         """
         # resolve all indices
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
+        if isinstance(env_mask, torch.Tensor):
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
+
+    supports_graph_capture = True
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -140,27 +144,22 @@ class RigidObject(BaseRigidObject):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        # write external wrench
-        if self._instantaneous_wrench_composer.active or self._permanent_wrench_composer.active:
-            if self._instantaneous_wrench_composer.active:
-                composer = self._instantaneous_wrench_composer
-                composer.add_raw_buffers_from(self._permanent_wrench_composer)
-            else:
-                composer = self._permanent_wrench_composer
-            force_b, torque_b, _ = composer.get_forces_and_torques()
-            wp.launch(
-                shared_kernels.update_wrench_array_with_force_and_torque,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    force_b,
-                    torque_b,
-                    self._data.body_link_pose_w.warp,
-                    self._data._sim_bind_body_external_wrench,
-                    self._ALL_ENV_MASK,
-                    self._ALL_BODY_MASK,
-                ],
-            )
+        composer = self._instantaneous_wrench_composer
+        composer.add_raw_buffers_from(self._permanent_wrench_composer)
+        force_b, torque_b = composer.compose_to_body_frame()
+        wp.launch(
+            shared_kernels.update_wrench_array_with_force_and_torque,
+            dim=(self.num_instances, self.num_bodies),
+            device=self.device,
+            inputs=[
+                force_b,
+                torque_b,
+                self._data.body_link_pose_w.warp,
+                self._data._sim_bind_body_external_wrench,
+                self._ALL_ENV_MASK,
+                self._ALL_BODY_MASK,
+            ],
+        )
         self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
@@ -371,8 +370,8 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # Nonfloating root bindings write model.joint_X_p, not state.joint_q.
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if not self.root_view.is_floating_base:
+            self._physics_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_ids=env_ids)
@@ -421,8 +420,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if not self.root_view.is_floating_base:
+            self._physics_manager.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=env_mask)
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
             self.data._reset_pose(env_mask=env_mask)
@@ -476,8 +475,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if not self.root_view.is_floating_base:
+            self._physics_manager.add_model_change(ModelFlags.JOINT_PROPERTIES)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -529,8 +528,8 @@ class RigidObject(BaseRigidObject):
             ],
             device=self.device,
         )
-        if (solver := SimulationManager._solver) is not None and not self.root_view.is_floating_base:
-            solver.notify_model_changed(ModelFlags.JOINT_PROPERTIES)
+        if not self.root_view.is_floating_base:
+            self._physics_manager.add_model_change(ModelFlags.JOINT_PROPERTIES, env_mask=env_mask)
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
@@ -807,7 +806,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_masses_mask(
         self,
@@ -856,7 +855,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_coms_index(
         self,
@@ -907,7 +906,7 @@ class RigidObject(BaseRigidObject):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_coms_mask(
         self,
@@ -959,7 +958,7 @@ class RigidObject(BaseRigidObject):
         )
         self.data._reset_body_com_pose_b_dependents()
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     def set_inertias_index(
         self,
@@ -1007,7 +1006,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
     def set_inertias_mask(
         self,
@@ -1056,7 +1055,7 @@ class RigidObject(BaseRigidObject):
             device=self.device,
         )
         # tell the physics engine that some of the body properties have been updated
-        SimulationManager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES)
+        self._physics_manager.add_model_change(ModelFlags.BODY_INERTIAL_PROPERTIES, env_mask=env_mask)
 
     """
     Internal helper.
@@ -1070,13 +1069,13 @@ class RigidObject(BaseRigidObject):
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
         self._root_view = ArticulationView(
-            SimulationManager.get_model(),
+            self._physics_manager.get_model(),
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
         )
 
         # container for data access
-        self._data = RigidObjectData(self.root_view, self.device)
+        self._data = RigidObjectData(self.root_view, self.device, physics_manager=self._physics_manager)
 
         # create buffers
         self._create_buffers()

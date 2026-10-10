@@ -11,8 +11,8 @@ import isaaclab_contrib.custom_coupling.tasks  # noqa: F401
 
 from isaaclab_tasks.utils import resolve_task_config
 
-MANUAL_MANAGER = "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:NewtonCoupledMJWarpVBDManager"
-PROXY_MANAGER = "isaaclab_contrib.coupling.coupler:NewtonCouplerManager"
+MANUAL_MANAGER = "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:CoupledMJWarpVBDSolverAdapter"
+PROXY_MANAGER = "isaaclab_contrib.coupling.coupler:CouplerSolverAdapter"
 
 
 def test_example_default_preset_uses_the_manual_coupler() -> None:

@@ -19,7 +19,7 @@ import warp as wp
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers import CommandTerm, ManagerTermBase
-from isaaclab.utils import index_fill_
+from isaaclab.utils import env_ids_from_mask, env_mask_from_ids, index_fill_
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     quat_apply,
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 @wp.kernel
 def _resample_reset_kernel(
-    env_ids: wp.array(dtype=wp.int32),
+    env_mask: wp.array(dtype=wp.bool),
     typeable: wp.array(dtype=wp.int64),
     lo: wp.int32,
     hi: wp.int32,
@@ -62,10 +62,11 @@ def _resample_reset_kernel(
     the target with prob ``match_prob`` (else a mistake), guards against an instant success, and seeds the
     metrics + progress water marks. Used both per-env on the normal reset and, launched over a large pool, to
     oversample candidates for the bucket-downsampled reset curriculum. The ragged fill is a plain per-thread
-    loop, so no padded-matrix masking and no ``sum(t)`` host sync.
+    loop, so no padded-matrix masking and no ``sum(t)`` host sync. Threads of unselected rows return early.
     """
-    i = wp.tid()
-    e = env_ids[i]
+    e = wp.tid()
+    if not env_mask[e]:
+        return
     rng = wp.rand_init(seed, e)
     m = int(typeable.shape[0])
     width = int(target.shape[1])
@@ -336,31 +337,33 @@ class LetterTypingCommand(CommandTerm):
         typed_n = torch.where(self.typed >= 0, self.typed.float() / scale, -1.0)
         return torch.cat([target_n, typed_n], dim=1)
 
-    def _resample_command(self, env_ids: Sequence[int]):
-        """Reset the typing command for ``env_ids``.
+    def _resample_command(self, env_mask: torch.Tensor):
+        """Reset the typing command for the environments selected by ``env_mask``.
 
         Without the curriculum this is just the normal random reset. With it, the snapshot buffer is built
         once (lazily, on the first reset) and each env either takes the normal random reset or is restored to
         a buffered frontier snapshot, chosen per env by the Beta sampler (see :meth:`_sample_sources`). The
         source picked for each env is recorded so the ending episode's success can be attributed to the right
-        snapshot in :meth:`reset`.
+        snapshot in :meth:`reset`. The curriculum path runs inside the host-side :meth:`reset` and resolves
+        indices; the normal path does not synchronize the device.
+
+        Args:
+            env_mask: Boolean mask of the environments to resample. Shape is (num_envs,).
         """
         if not self._cur_enabled or not self._episode_reset:
             # No curriculum, or the mid-episode resampling timer: just re-draw the word/buffer, no teleport.
-            self._resample_normal(env_ids)
+            self._resample_normal(env_mask)
             return
         if not self._buffer_built:
             self._build_buffer()
-        env_ids_t = self._env.scene._ALL_INDICES[env_ids]
+        env_ids_t = env_ids_from_mask(env_mask)
         k = int(env_ids_t.numel())
         if k == 0:
             return
         source = self._sample_sources(k)  # (k,): -1 normal reset, else snapshot index in [0, cap)
         self._env_source[env_ids_t] = source
         normal_mask = source < 0
-        normal_ids = env_ids_t[normal_mask]
-        if normal_ids.numel() > 0:
-            self._resample_normal(normal_ids)
+        self._resample_normal(env_mask_from_ids(env_ids_t[normal_mask], self.num_envs, self.device))
         buf_mask = ~normal_mask
         if bool(buf_mask.any()):
             self._restore_snapshot(env_ids_t[buf_mask], source[buf_mask])
@@ -404,12 +407,12 @@ class LetterTypingCommand(CommandTerm):
         distance = torch.zeros(m_candidates, dtype=torch.float32, device=self.device)
         scratch1 = torch.zeros(m_candidates, dtype=torch.long, device=self.device)  # max_prefix (unused here)
         scratch2 = torch.zeros(m_candidates, dtype=torch.long, device=self.device)  # min_prefix (unused here)
-        env_ids = torch.arange(m_candidates, device=self.device, dtype=torch.int32)
+        env_mask = torch.ones(m_candidates, dtype=torch.bool, device=self.device)
         wp.launch(
             _resample_reset_kernel,
             dim=m_candidates,
             inputs=[
-                wp.from_torch(env_ids, dtype=wp.int32),
+                wp.from_torch(env_mask, dtype=wp.bool),
                 wp.from_torch(self._typeable.contiguous(), dtype=wp.int64),
                 int(lo),
                 int(hi),
@@ -649,22 +652,19 @@ class LetterTypingCommand(CommandTerm):
         index_fill_(self.new_high, env_ids, False)
         index_fill_(self.new_low, env_ids, False)
 
-    def _resample_normal(self, env_ids: Sequence[int] | torch.Tensor):
+    def _resample_normal(self, env_mask: torch.Tensor):
         # Normal (random) reset path: draw the target word + a match_prob-typed start buffer, guard against an
-        # instant success, and seed the typing metrics + progress water marks - one Warp thread per resetting
-        # env, so the ragged fill reads as a per-thread loop instead of padded-matrix masking, with no sum(t)
-        # host sync (see :func:`_resample_reset_kernel`). Non-ragged per-env bookkeeping stays in torch.
-        env_ids_t = self._env.scene._ALL_INDICES[env_ids]
-        k = int(env_ids_t.numel())
-        if k == 0:
-            return
+        # instant success, and seed the typing metrics + progress water marks - one Warp thread per env that
+        # returns early for unselected envs, so the ragged fill reads as a per-thread loop instead of
+        # padded-matrix masking, with no host sync (see :func:`_resample_reset_kernel`). Non-ragged per-env
+        # bookkeeping stays in torch.
         lo, hi = self.cfg.letter_length
         self._resample_seed += 1
         wp.launch(
             _resample_reset_kernel,
-            dim=k,
+            dim=self.num_envs,
             inputs=[
-                wp.from_torch(env_ids_t.to(torch.int32).contiguous(), dtype=wp.int32),
+                wp.from_torch(env_mask.contiguous(), dtype=wp.bool),
                 wp.from_torch(self._typeable.contiguous(), dtype=wp.int64),
                 int(lo),
                 int(hi),
@@ -683,10 +683,10 @@ class LetterTypingCommand(CommandTerm):
             ],
             device=str(self.device),
         )
-        index_fill_(self._prev_pressed, env_ids_t, False)
-        index_fill_(self._just_reset, env_ids_t, True)
-        index_fill_(self.new_high, env_ids_t, False)
-        index_fill_(self.new_low, env_ids_t, False)
+        self._prev_pressed.masked_fill_(env_mask[:, None], False)
+        self._just_reset.masked_fill_(env_mask, True)
+        self.new_high.masked_fill_(env_mask, False)
+        self.new_low.masked_fill_(env_mask, False)
 
     def _update_command(self):
         if self._press_level is None:
@@ -761,15 +761,19 @@ class LetterTypingCommand(CommandTerm):
         first_mismatch = torch.where(mismatch, pos, self.max_len).min(dim=1).values
         return torch.minimum(first_mismatch, torch.minimum(self.typed_len, self.target_len))
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
         """Resample the target word and snap the arm above its first key (see :meth:`_solve_reset_pose`).
 
         Runs only on episode reset (not on the mid-episode resampling timer), so the IK snap never
-        teleports the arm while the agent is mid-word.
+        teleports the arm while the agent is mid-word. The success split, curriculum attribution, and IK snap
+        are host-side, so this resolves the selected indices (synchronizing the device) and returns no metrics
+        when no environment is selected.
         """
-        if env_ids is None:
-            env_ids = slice(None)
-        ids = self._env.scene._ALL_INDICES[env_ids]
+        if env_mask is None:
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+        ids = env_ids_from_mask(env_mask)
+        if ids.numel() == 0:
+            return {}
 
         # Terminal success (read BEFORE super().reset() resamples the word) of the ending episodes, plus the
         # STARTING distance-to-success each began at (captured at its previous reset).
@@ -814,7 +818,7 @@ class LetterTypingCommand(CommandTerm):
         # Mark the episode-reset window so _resample_command takes the curriculum path (snapshot restore)
         # here, while the mid-episode resampling timer stays on the normal random resample.
         self._episode_reset = True
-        extras = super().reset(env_ids)
+        extras = super().reset(env_mask=env_mask)
         self._episode_reset = False
         # Record the starting distance of the freshly-seeded episodes (both reset paths set self.distance to the
         # start value; the IK snap below only moves the arm) for the distance<K success split at their next reset.

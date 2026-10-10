@@ -30,6 +30,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.test.utils import test_devices
 from isaaclab.utils import clone
 from isaaclab.utils.warp import ProxyArray
 
@@ -1037,3 +1038,35 @@ def test_write_command_mask_uses_full_sized_value(command_name):
         getattr(collection.target_command, f"set_{command_name}_mask")(
             value=value, env_mask=wp.array([1, 0], dtype=wp.int32, device="cpu"), joint_mask=joint_mask
         )
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_masked_reset_leaves_unselected_envs_untouched(device):
+    """A mask-only reset re-initializes the masked environments' delay state and leaves the rest unchanged."""
+    num_envs = 4
+    control = FakeActuatorControl(num_envs=num_envs, device=device)
+    cfg = DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=1.0, damping=0.0, min_delay=2, max_delay=2)
+    collection = ActuatorCollection({"delayed": cfg}, control)
+    delayed = collection["delayed"]
+    buffers = delayed._delay_buffers
+    for delay_buffer in buffers:
+        delay_buffer.set_time_lag(1)
+    for _ in range(3):
+        collection.compute()
+    env_mask = torch.tensor([False, True, False, True], device=device)
+
+    if device.startswith("cuda"):
+        torch.cuda.synchronize(device)
+        previous = torch.cuda.get_sync_debug_mode()
+        torch.cuda.set_sync_debug_mode("error")
+    try:
+        collection.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+    finally:
+        if device.startswith("cuda"):
+            torch.cuda.set_sync_debug_mode(previous)
+
+    expected_lags = torch.where(env_mask, 2, 1).to(torch.int)
+    expected_pushes = torch.where(env_mask, 0, 3)
+    for delay_buffer in buffers:
+        torch.testing.assert_close(delay_buffer.time_lags, expected_lags)
+        torch.testing.assert_close(delay_buffer.num_pushes, expected_pushes)

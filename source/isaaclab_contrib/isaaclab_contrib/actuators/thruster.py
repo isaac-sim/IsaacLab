@@ -176,9 +176,30 @@ class Thruster:
         )
         self.curr_thrust[env_ids] = self.thrust_const[env_ids] * self._init_thruster_rps[env_ids] ** 2
 
-    def reset(self, env_ids: Sequence[int]) -> None:
-        """Reset all envs."""
-        self.reset_idx(env_ids)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        """Re-sample parameters and reinitialize state of the selected envs.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
+
+        Args:
+            env_ids: Env indices to reset. If ``None``, resets all envs.
+            env_mask: Boolean mask of the envs to reset. Shape is (num_envs,). Resets without synchronizing the
+                device and leaves the unselected envs unchanged. Defaults to None.
+        """
+        if env_mask is None:
+            self.reset_idx(env_ids)
+            return
+        # sample every env and keep the unselected ones, which avoids a device sync
+        mask = env_mask[:, None]
+        shape = (self._num_envs, self.num_motors)
+        tau_inc = math_utils.sample_uniform(*self.tau_inc_r, shape, self._device)
+        tau_dec = math_utils.sample_uniform(*self.tau_dec_r, shape, self._device)
+        thrust_const = math_utils.sample_uniform(*self.thrust_const_r, shape, self._device)
+        torch.where(mask, tau_inc, self.tau_inc_s, out=self.tau_inc_s)
+        torch.where(mask, tau_dec, self.tau_dec_s, out=self.tau_dec_s)
+        torch.where(mask, thrust_const, self.thrust_const, out=self.thrust_const)
+        torch.where(mask, self.thrust_const * self._init_thruster_rps**2, self.curr_thrust, out=self.curr_thrust)
 
     def motor_model_rate(self, error: torch.Tensor, mixing_factor: torch.Tensor):
         return torch.clamp(mixing_factor * (error), -self.max_rate, self.max_rate)

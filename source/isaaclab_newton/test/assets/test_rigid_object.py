@@ -32,7 +32,6 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.assets import RigidObject, RigidObjectCollection
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import ModelFlags
 from newton_test_utils import env_origins, local_usd, newton_sim_cfg, spawn_assets, world_gravity
 
@@ -43,6 +42,7 @@ from isaaclab.envs.mdp.events import randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.math import (
     combine_frame_transforms,
     quat_apply_inverse,
@@ -185,12 +185,12 @@ def test_collection_single_instance_initialization(device: str) -> None:
         assert object_collection.data.body_mass.torch.shape == (1, 1)
         assert object_collection.data.body_inertia.torch.shape == (1, 1, 9)
 
-        callback_count = len(SimulationManager._callbacks)
+        callback_count = len(sim.physics_manager._callbacks)
         for _ in range(2):
             old_data = object_collection.data
             sim.reset()
             assert object_collection.data is not old_data
-            assert len(SimulationManager._callbacks) == callback_count
+            assert len(sim.physics_manager._callbacks) == callback_count
 
             pose = object_collection.data.default_body_pose.torch.clone()
             velocity = torch.zeros((1, 1, 6), device=device)
@@ -336,7 +336,7 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     device = scene.device
 
     # Resolve each cube's shapes from the flat Newton model, independent of the asset's view binding.
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     body_world = model.body_world.numpy()
     shape_body = model.shape_body.numpy()
     is_cube = np.asarray([label.endswith("/Object") for label in model.body_label])
@@ -360,7 +360,7 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     term = randomize_rigid_body_material(
         EventTermCfg(func=randomize_rigid_body_material, mode="startup", params=params), env
     )
-    term(env, torch.tensor([num_cubes - 1], device=device), **params)
+    term(env, env_mask_from_ids([num_cubes - 1], num_cubes, device), **params)
 
     # Simulate physics
     scene.step()
@@ -384,8 +384,12 @@ def test_rigid_body_set_mass(scene: _Scene) -> None:
 
     # Get masses before updating one environment.
     original_masses = cube_object.data.body_mass.torch.clone()
-    raw_model_inv_mass = cube_object.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[:, 0]
-    raw_model_inv_inertia = cube_object.root_view.get_attribute("body_inv_inertia", SimulationManager.get_model())[:, 0]
+    raw_model_inv_mass = cube_object.root_view.get_attribute(
+        "body_inv_mass", SimulationContext.instance().physics_manager.get_model()
+    )[:, 0]
+    raw_model_inv_inertia = cube_object.root_view.get_attribute(
+        "body_inv_inertia", SimulationContext.instance().physics_manager.get_model()
+    )[:, 0]
     assert cube_object.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
     assert cube_object.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
     model_inv_mass = cube_object.data._sim_bind_body_inv_mass
@@ -460,7 +464,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model = SimulationManager.get_model()
+        model = SimulationContext.instance().physics_manager.get_model()
         model_gravity_arr = model.gravity[: model.world_count]
         global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert cube_object.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -476,7 +480,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
         event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
         for row, values in enumerate(new_gravity.tolist()):
-            event(env, torch.tensor([row], device=device), (values, values), operation="abs")
+            event(env, env_mask_from_ids([row], num_cubes, device), (values, values), operation="abs")
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(cube_object.data.GRAVITY_VEC_W.torch, new_gravity)
@@ -688,15 +692,14 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
 
     After ``write_root_{link,com}_pose_to_sim_{index,mask}``, the cached ``_sim_bind_body_link_pose_w``
     (Newton ``body_q``) is stale until forward kinematics is re-evaluated. The getter must call
-    :meth:`SimulationManager.forward` so the returned tensor matches the written pose. Without the fix,
+    :meth:`NewtonManager.forward` so the returned tensor matches the written pose. Without the fix,
     the getter returns the pre-write value. The write must also dirty the simulator-side
     ``_fk_reset_mask`` so collision queries (which read ``body_q`` directly, not via the property)
     re-run FK before the next step.
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        return bool(wp.to_torch(SimulationContext.instance().physics_manager.backend.fk_mask).any().item())
 
     cube_object = scene.cube
     num_cubes = cube_object.num_instances
@@ -709,7 +712,7 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
         pre_write_pose = cube_object.data.body_link_pose_w.torch.clone().view(num_cubes, 7)
 
         # Clear the dirty flag so we can observe that the write sets it.
-        SimulationManager.forward()
+        SimulationContext.instance().physics_manager.forward()
         assert not _fk_reset_mask_dirty()
 
         # A target pose distinct from the current one in translation and in orientation (90 deg about z).
@@ -719,7 +722,9 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
         getattr(cube_object, f"write_root_{writer}")(root_pose=target_pose)
 
         # The simulator-side dirty flag must be set before any property read clears it via forward().
-        assert _fk_reset_mask_dirty(), f"{writer} pose write must call SimulationManager.invalidate_fk()"
+        assert _fk_reset_mask_dirty(), (
+            f"{writer} pose write must call SimulationContext.instance().physics_manager.invalidate_fk()"
+        )
 
         # Read without stepping: getter must trigger forward kinematics and return the fresh pose.
         body_link = cube_object.data.body_link_pose_w.torch.view(num_cubes, 7)
@@ -776,9 +781,9 @@ def test_set_body_inertial_properties_updates_inverses(scene: _Scene) -> None:
     body_mask = wp.array([False, True, False], dtype=wp.bool, device=device)
     selected = (0, 1)
 
-    raw_model_inv_mass = object_collection.root_view.get_attribute("body_inv_mass", SimulationManager.get_model())[
-        :, :, 0
-    ]
+    raw_model_inv_mass = object_collection.root_view.get_attribute(
+        "body_inv_mass", SimulationContext.instance().physics_manager.get_model()
+    )[:, :, 0]
     assert object_collection.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
     model_inv_mass = object_collection.data._sim_bind_body_inv_mass
     original_inv_mass = wp.to_torch(model_inv_mass).clone()
@@ -793,7 +798,7 @@ def test_set_body_inertial_properties_updates_inverses(scene: _Scene) -> None:
     torch.testing.assert_close(updated_inv_mass[unselected], original_inv_mass[unselected])
 
     raw_model_inv_inertia = object_collection.root_view.get_attribute(
-        "body_inv_inertia", SimulationManager.get_model()
+        "body_inv_inertia", SimulationContext.instance().physics_manager.get_model()
     )[:, :, 0]
     assert object_collection.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
     model_inv_inertia = object_collection.data._sim_bind_body_inv_inertia
@@ -873,7 +878,7 @@ def test_collection_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model = SimulationManager.get_model()
+        model = SimulationContext.instance().physics_manager.get_model()
         model_gravity_arr = model.gravity[: model.world_count]
         global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert object_collection.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -886,7 +891,7 @@ def test_collection_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
             dtype=torch.float32,
         )
         wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        SimulationContext.instance().physics_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
         torch.testing.assert_close(wp.to_torch(model.gravity)[-1], global_gravity)
 
         # Recompute the lazily-cached projected_gravity_b without sim.step: bodies stay
@@ -1069,7 +1074,7 @@ def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
 
     For a collection, ``_sim_bind_body_link_pose_w`` is bound directly to the simulator's root-transforms
     buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
-    collision detection is. The write methods must therefore call :meth:`SimulationManager.invalidate_fk`
+    collision detection is. The write methods must therefore call :meth:`NewtonManager.invalidate_fk`
     so downstream consumers re-run forward kinematics before the next step. Without the fix,
     ``_fk_reset_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
     also pinned: a refactor that decouples ``_sim_bind_body_link_pose_w`` from the write target would
@@ -1077,15 +1082,14 @@ def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        return bool(wp.to_torch(SimulationContext.instance().physics_manager.backend.fk_mask).any().item())
 
     cube_object = scene.collection
     scene.step()
 
     for writer in ("link_pose_to_sim_index", "link_pose_to_sim_mask", "com_pose_to_sim_index", "com_pose_to_sim_mask"):
         # Clear the dirty flag so we can observe that the write sets it.
-        SimulationManager.forward()
+        SimulationContext.instance().physics_manager.forward()
         assert not _fk_reset_mask_dirty()
 
         pre_write_pose = cube_object.data.body_link_pose_w.torch.clone()
@@ -1093,7 +1097,9 @@ def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
         target_pose[..., :3] += torch.tensor([10.0, 5.0, 2.0], device=target_pose.device)
         getattr(cube_object, f"write_body_{writer}")(body_poses=target_pose)
 
-        assert _fk_reset_mask_dirty(), f"{writer} pose write must call SimulationManager.invalidate_fk()"
+        assert _fk_reset_mask_dirty(), (
+            f"{writer} pose write must call SimulationContext.instance().physics_manager.invalidate_fk()"
+        )
 
         # body_link_pose_w must reflect the write immediately — its underlying buffer is the write
         # target. A regression that moves this property to a separate cached buffer (mirroring the

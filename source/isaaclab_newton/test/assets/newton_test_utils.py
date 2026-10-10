@@ -21,7 +21,6 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation, RigidObject, RigidObjectCollection
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import ModelFlags
 
 import isaaclab.sim as sim_utils
@@ -145,13 +144,13 @@ def world_gravity(gravity: Vec3) -> Iterator[None]:
     Args:
         gravity: Gravity applied to every world [m/s^2].
     """
-    model = SimulationManager.get_model()
+    model = SimulationContext.instance().physics_manager.get_model()
     world_gravity_view = wp.to_torch(model.gravity[: model.world_count])
     previous = world_gravity_view.clone()
     world_gravity_view.copy_(torch.tensor(gravity, device=previous.device))
-    SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+    SimulationContext.instance().physics_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
     try:
         yield
     finally:
         world_gravity_view.copy_(previous)
-        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        SimulationContext.instance().physics_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)

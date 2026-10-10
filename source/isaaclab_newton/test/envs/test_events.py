@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -21,19 +21,24 @@ from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.envs.mdp import (
     JointEffortActionCfg,
+    apply_external_force_torque,
     joint_pos,
+    push_by_setting_velocity,
     randomize_joint_parameters,
     randomize_physics_scene_gravity,
     randomize_rigid_body_collider_offsets,
     randomize_rigid_body_material,
     randomize_visual_shape,
+    reset_joints_by_offset,
+    reset_root_state_uniform,
+    reset_scene_to_default,
 )
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
 from isaaclab.visualizers import VisualizerCfg
 
 
@@ -124,7 +129,7 @@ def test_material_body_selection(event_env: ManagerBasedEnv):
     expected_friction[selected] = 0.4
     expected_restitution[selected] = 0.1
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
-    term(env, torch.tensor([1], device=env.device, dtype=torch.int32), **params)
+    term(env, env_mask_from_ids([1], env.num_envs, env.device), **params)
     torch.testing.assert_close(friction, expected_friction)
     torch.testing.assert_close(restitution, expected_restitution)
 
@@ -141,16 +146,26 @@ def test_collider_offsets_preserve_unselected_environments(event_env: ManagerBas
     term = randomize_rigid_body_collider_offsets(
         EventTermCfg(func=randomize_rigid_body_collider_offsets, params={"asset_cfg": asset_cfg}), env
     )
-    term(env, torch.tensor([1], device=env.device), asset_cfg, (0.3, 0.3), (0.4, 0.4))
+    term(env, env_mask_from_ids([1], env.num_envs, env.device), asset_cfg, (0.3, 0.3), (0.4, 0.4))
     expected_margin[worlds == 1] = 0.3
     expected_gap[worlds == 1] = 0.1
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
-    term(env, slice(0, 1), asset_cfg, contact_offset_distribution_params=(0.6, 0.6))
+    term(
+        env,
+        env_mask_from_ids(slice(0, 1), env.num_envs, env.device),
+        asset_cfg,
+        contact_offset_distribution_params=(0.6, 0.6),
+    )
     expected_gap[worlds == 0] = 0.6 - expected_margin[worlds == 0]
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
-    term(env, torch.tensor([1], device=env.device), asset_cfg, contact_offset_distribution_params=(0.2, 0.2))
+    term(
+        env,
+        env_mask_from_ids([1], env.num_envs, env.device),
+        asset_cfg,
+        contact_offset_distribution_params=(0.2, 0.2),
+    )
     expected_gap[worlds == 1] = 0.0
     torch.testing.assert_close(margin, expected_margin)
     torch.testing.assert_close(gap, expected_gap)
@@ -171,13 +186,13 @@ def test_gravity_selectors_preserve_global_world(event_env: ManagerBasedEnv):
         (slice(0, 0), []),
     ):
         gravity.copy_(original)
-        term(env, selector, **params)
+        term(env, env_mask_from_ids(selector, env.num_envs, env.device), **params)
         expected = original.clone()
         expected[rows] = torch.tensor([1.0, 2.0, 3.0], device=env.device)
         torch.testing.assert_close(gravity, expected)
     gravity.copy_(original)
     bounds = ([1.0, 2.0, 3.0], [1.0, 2.0, 3.0])
-    selection = torch.tensor([1], device=env.device)
+    selection = env_mask_from_ids([1], env.num_envs, env.device)
     for _ in range(2):
         term(env, selection, bounds, operation="add")
     expected = original.clone()
@@ -204,7 +219,12 @@ def test_joint_friction_preserves_unselected_environments(event_env: ManagerBase
     params = {"asset_cfg": SceneEntityCfg("robot"), "operation": "abs"}
     term = randomize_joint_parameters(EventTermCfg(func=randomize_joint_parameters, params=params), env)
     for selector, row, value in ((torch.tensor([1], device=env.device), 1, 0.5), (slice(2, 3), 2, 0.7)):
-        term(env, selector, friction_distribution_params=(value, value), **params)
+        term(
+            env,
+            env_mask_from_ids(selector, env.num_envs, env.device),
+            friction_distribution_params=(value, value),
+            **params,
+        )
         selected = [
             dof
             for joint, label in enumerate(model.joint_label)
@@ -237,7 +257,7 @@ def test_visual_colors_select_bodies_and_rebind(
     term = randomize_visual_shape(EventTermCfg(func=randomize_visual_shape, params=params), env)
     replacement = copy(model)
     replacement.shape_color = wp.clone(model.shape_color)
-    monkeypatch.setattr(NewtonManager.backend, "model", replacement)
+    monkeypatch.setattr(SimulationContext.instance().physics_manager.backend, "model", replacement)
     monkeypatch.setattr(env.scene["robot"].root_view, "model", model)
     colors = wp.to_torch(replacement.shape_color)
     before = colors.clone()
@@ -304,7 +324,7 @@ def test_kamino_material_groups_persist(event_env: ManagerBasedEnv):
     }
     term = randomize_rigid_body_material(EventTermCfg(func=randomize_rigid_body_material, params=params), env)
     for _ in range(2):
-        term(env, torch.tensor([1], device=env.device), **params)
+        term(env, env_mask_from_ids([1], env.num_envs, env.device), **params)
         for values, original in ((friction, original_friction), (restitution, original_restitution)):
             torch.testing.assert_close(values[untouched], original[untouched])
             groups = values[selected]
@@ -314,3 +334,48 @@ def test_kamino_material_groups_persist(event_env: ManagerBasedEnv):
         # Equal sampled values must not merge the original material groups.
         friction[selected] = 0.7
         restitution[selected] = 0.6
+
+
+def test_mask_resets_write_only_selected_environments_without_sync(event_env: ManagerBasedEnv):
+    """Mask-native reset and interval terms leave unselected environments unchanged and never wait on the device."""
+    env = event_env
+    robot = env.scene["robot"]
+    env_mask = env_mask_from_ids([1, 3], env.num_envs, env.device)
+    asset_cfg = SceneEntityCfg("robot", joint_ids=[0, 2])
+    asset_cfg.resolve(env.scene)
+    asset_cfg.finalize(env.device)
+    joint_pos = robot.data.joint_pos.torch.clone()
+    root_pose = robot.data.root_pose_w.torch.clone()
+    pose_range = {"x": (0.1, 0.1), "yaw": (0.5, 0.5)}
+    root_term = reset_root_state_uniform(
+        EventTermCfg(func=reset_root_state_uniform, params={"pose_range": pose_range, "velocity_range": {}}), env
+    )
+
+    def apply_terms():
+        reset_joints_by_offset(env, env_mask, (0.3, 0.3), (0.0, 0.0), asset_cfg)
+        root_term(env, env_mask, pose_range, {})
+        push_by_setting_velocity(env, env_mask, {"z": (1.0, 1.0)})
+        apply_external_force_torque(env, env_mask, (1.0, 1.0), (0.0, 0.0), asset_cfg)
+
+    # the first call caches the sampling bounds and selections on the device
+    apply_terms()
+    torch.cuda.synchronize(env.device)
+    torch.cuda.set_sync_debug_mode("error")
+    try:
+        apply_terms()
+    finally:
+        torch.cuda.set_sync_debug_mode(0)
+    expected_joint_pos = joint_pos.clone()
+    expected_joint_pos[1::2, 0] = robot.data.default_joint_pos.torch[1::2, 0] + 0.3
+    expected_joint_pos[1::2, 2] = robot.data.default_joint_pos.torch[1::2, 2] + 0.3
+    torch.testing.assert_close(robot.data.joint_pos.torch, expected_joint_pos)
+    expected_x = robot.data.default_root_pose.torch[:, 0] + env.scene.env_origins[:, 0] + 0.1
+    torch.testing.assert_close(robot.data.root_pose_w.torch[1::2, 0], expected_x[1::2])
+    torch.testing.assert_close(robot.data.root_pose_w.torch[0::2], root_pose[0::2])
+    torch.testing.assert_close(robot.data.root_vel_w.torch[1::2, 2], torch.ones(2, device=env.device))
+    forces = wp.to_torch(robot.permanent_wrench_composer._local_force_b)
+    torch.testing.assert_close(forces[0::2], torch.zeros_like(forces[0::2]))
+    torch.testing.assert_close(forces[1::2][:, [0, 2]], torch.ones_like(forces[1::2][:, [0, 2]]))
+    # restore the shared environment
+    reset_scene_to_default(env, env_mask_from_ids(None, env.num_envs, env.device))
+    robot.permanent_wrench_composer.reset()

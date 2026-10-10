@@ -14,7 +14,7 @@ isaaclab_contrib.coupling
   CouplerProxyMappingCfg
   CouplerProxyCfg
   CouplerAdmmCfg
-  NewtonCouplerManager
+  CouplerSolverAdapter
 
 Coupler Configurations
 ----------------------
@@ -47,7 +47,7 @@ Coupler Configurations
 Newton Coupler
 --------------
 
-.. autoclass:: NewtonCouplerManager
+.. autoclass:: CouplerSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:

@@ -336,7 +336,7 @@ class SensorBase(ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
+        physics_mgr_cls = self._physics_manager = sim_utils.SimulationContext.instance().physics_manager
 
         obj_ref = weakref.proxy(self)
 
@@ -362,7 +362,7 @@ class SensorBase(ABC):
         # check would also match ``OvPhysxManager``, which does not expose
         # ``IsaacEvents``, so use an exact class-name match).
         self._prim_deletion_handle = None
-        if physics_mgr_cls.__name__ == "PhysxManager":
+        if physics_mgr_cls.backend_name == "physx":
             from isaaclab_physx.physics import IsaacEvents  # noqa: PLC0415
 
             self._prim_deletion_handle = physics_mgr_cls.register_callback(

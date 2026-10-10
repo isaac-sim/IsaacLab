@@ -9,12 +9,11 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonManager, XPBDSolverCfg
+from isaaclab_newton.physics import NewtonBackend, NewtonCfg, XPBDSolverCfg
+from isaaclab_newton.physics import newton_backend as nb
 from newton import CollisionPipeline, Mesh, Model, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -24,28 +23,16 @@ from isaaclab_contrib.coupling import (
     CouplerEntryCfg,
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
-    NewtonCouplerManager,
+    CouplerSolverAdapter,
 )
 
 
-@pytest.fixture
-def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
-    """Isolate every global manager slot touched by coupler construction."""
-    clean_values = {
-        "backend": SimpleNamespace(model=None),
-        "_solver": None,
-        "_use_single_state": None,
-        "_contacts": None,
-        "_collision_pipeline": None,
-        "_collision_cfg": None,
-        "_needs_collision_pipeline": False,
-        "_supports_contact_sensors": True,
-        "_supports_rigid_body_force_input": False,
-        "_report_contacts": False,
-    }
-    for name, value in clean_values.items():
-        monkeypatch.setattr(NewtonManager, name, value)
-    yield
+def _bind_coupler(model: Model, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonBackend:
+    """Build a backend on ``model`` whose coupler solver and contacts are constructed."""
+    backend = NewtonBackend(model, NewtonCfg(solver_cfg=solver_cfg), dt=1.0 / 60.0)
+    assert backend.solver_adapter is CouplerSolverAdapter
+    nb.init_solver(backend)
+    return backend
 
 
 def _build_overlapping_body_model(*, mesh_contact: bool = False) -> Model:
@@ -92,7 +79,7 @@ def _entry_configs() -> list[CouplerEntryCfg]:
     ]
 
 
-def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager):
+def test_proxy_destination_can_receive_only_proxy_bodies():
     model = _build_overlapping_body_model()
     solver_cfg = CouplerProxyCfg(
         entries=[
@@ -112,10 +99,9 @@ def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager
         ],
     )
 
-    NewtonManager.backend.model = model
-    NewtonCouplerManager._build_solver(model, solver_cfg)
+    backend = _bind_coupler(model, solver_cfg)
 
-    assert NewtonManager._solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+    assert backend.solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
 
 
 @pytest.mark.parametrize(
@@ -129,7 +115,6 @@ def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager
 def test_real_coupler_constructs_resets_and_steps(
     algorithm: str,
     expected_solver_type: type,
-    isolated_newton_manager,
 ):
     """Exercise supported coupling configurations or reject unsupported capacity overrides."""
     model = _build_overlapping_body_model(mesh_contact=algorithm == "admm_capacity")
@@ -156,13 +141,12 @@ def test_real_coupler_constructs_resets_and_steps(
             solver_cfg.contact_matching_pos_threshold = 0.001
             solver_cfg.contact_matching_normal_dot_threshold = 0.9
 
-    NewtonManager.backend.model = model
     if algorithm == "admm_capacity" and not hasattr(SolverCoupledADMM.Config, "contact_max_triangle_pairs"):
         with pytest.raises(RuntimeError, match=r"Newton.*does not support contact_max_triangle_pairs"):
-            NewtonCouplerManager._build_solver(model, solver_cfg)
+            _bind_coupler(model, solver_cfg)
         return
-    NewtonCouplerManager._build_solver(model, solver_cfg)
-    solver = NewtonManager._solver
+    backend = _bind_coupler(model, solver_cfg)
+    solver = backend.solver
 
     assert isinstance(solver, expected_solver_type)
     if algorithm == "admm_capacity":
@@ -181,9 +165,8 @@ def test_real_coupler_constructs_resets_and_steps(
         assert isinstance(nested_solver, SolverXPBD)
         assert nested_solver.model is solver.view(name)
 
-    NewtonCouplerManager._initialize_contacts()
-    collision_pipeline = NewtonManager._collision_pipeline
-    contacts = NewtonManager._contacts
+    collision_pipeline = backend.collision_pipeline
+    contacts = backend.contacts
     assert isinstance(collision_pipeline, CollisionPipeline)
     assert contacts is not None
     assert set(solver._entry_contact_buffers) == {"source", "destination"}

@@ -31,8 +31,12 @@ def _material_backend(material_paths: list[str], monkeypatch):
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+    from isaaclab_newton.physics import NewtonManager
+
+    manager = NewtonManager(device="cpu")
+    manager._sim = sim
+    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu", manager=manager)
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg, manager=manager))
     for index, material_path in enumerate(material_paths):
         shape = UsdGeom.Cube.Define(stage, f"/World/shape_{index}")
         builder.add_shape_box(-1, label=str(shape.GetPath()))

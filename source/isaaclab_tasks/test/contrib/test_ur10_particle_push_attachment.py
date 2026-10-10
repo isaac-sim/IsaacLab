@@ -7,7 +7,7 @@
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
-from isaaclab.sim import SimulationCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 SIM_CFG = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), load_visual_shapes=True))
@@ -15,7 +15,6 @@ launch_test_simulation(SIM_CFG)
 
 import pytest
 import torch
-from isaaclab_newton.physics import NewtonManager
 from newton import ShapeFlags
 
 from isaaclab.assets import AssetBaseCfg
@@ -44,7 +43,7 @@ def test_paddle_follows_wrist_after_cloning_and_joint_state_writes(device):
         sim.reset()
         robot = scene["robot"]
         wrist_id = robot.find_bodies("ee_link")[0][0]
-        model = NewtonManager.backend.model
+        model = SimulationContext.instance().physics_manager.backend.model
         paddle_paths = [f"/World/envs/env_{world}/Robot/ee_link/Paddle" for world in range(2)]
         paddle_ids = [model.body_label.index(path) for path in paddle_paths]
         joint_pos = robot.data.default_joint_pos.torch.clone()
@@ -54,7 +53,9 @@ def test_paddle_follows_wrist_after_cloning_and_joint_state_writes(device):
             robot.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.zeros_like(joint_pos))
             wrist_pose = robot.data.body_link_pose_w.torch[:, wrist_id]
             expected_pos = wrist_pose[:, :3] + math_utils.quat_apply(wrist_pose[:, 3:], offset)
-            actual_pose = torch.as_tensor(NewtonManager.backend.state_0.body_q.numpy(), device=device)[paddle_ids]
+            actual_pose = torch.as_tensor(
+                SimulationContext.instance().physics_manager.backend.state_0.body_q.numpy(), device=device
+            )[paddle_ids]
             torch.testing.assert_close(actual_pose[:, :3], expected_pos, atol=1.0e-5, rtol=0.0)
             rotation_error = math_utils.quat_error_magnitude(actual_pose[:, 3:], wrist_pose[:, 3:])
             torch.testing.assert_close(rotation_error, torch.zeros_like(rotation_error), atol=1.0e-5, rtol=0.0)

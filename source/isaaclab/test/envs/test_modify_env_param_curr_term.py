@@ -31,7 +31,7 @@ from isaaclab.utils import configclass
 pytestmark = pytest.mark.integration
 
 
-def replace_value(env, env_id, data, value, num_steps):
+def replace_value(env, env_mask, data, value, num_steps):
     if env.common_step_counter > num_steps and data != value:
         return value
     # use the sentinel to indicate “no change”
@@ -173,6 +173,7 @@ def test_modify_env_param_indexes_into_dict_values():
     cfg = CurrTerm(func=mdp.modify_env_param, params={"address": "params.ranges[1].high"})
     term = mdp.modify_env_param(cfg, env)
 
-    term(env, None, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
+    env_mask = torch.ones(1, dtype=torch.bool)
+    term(env, env_mask, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
 
     assert env.params["ranges"][1].high == 20.0

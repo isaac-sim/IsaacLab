@@ -52,7 +52,7 @@ class PhysicsEvent(Enum):
 class CallbackHandle:
     """Handle for a registered callback, allowing deregistration."""
 
-    def __init__(self, callback_id: int, manager: type[PhysicsManager]):
+    def __init__(self, callback_id: int, manager: PhysicsManager):
         self._id = callback_id
         self._manager = manager
 
@@ -79,13 +79,18 @@ class PhysicsManager(ABC):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
-    _sim: ClassVar[SimulationContext | None] = None
-    _cfg: ClassVar[Any] = None
-    _device: ClassVar[str] = "cuda:0"
-    _sim_time: ClassVar[float] = 0.0
-    _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
-    _callback_id: ClassVar[int] = 0
-    views: ClassVar[dict[tuple[type, str], Any]] = {}
+    backend_name: ClassVar[str]
+    """Backend implementation key used by asset and sensor factories."""
+
+    def __init__(self):
+        self._sim: SimulationContext | None = None
+        self._cfg: Any = None
+        self._device: str = "cuda:0"
+        self._sim_time: float = 0.0
+        self._callbacks: dict[int, tuple[Any, Callable, int, str | None, Any]] = {}
+        self._callback_id: int = 0
+        self.views: dict[tuple[type, str], Any] = {}
+
     clone_context_type: ClassVar[type[object] | None] = None
 
     supports_anim_recording: ClassVar[bool] = False
@@ -228,9 +233,8 @@ class PhysicsManager(ABC):
             )
         return new_root
 
-    @classmethod
     def register_callback(
-        cls,
+        self,
         callback: Callable[[Any], None],
         event: PhysicsEvent,
         order: int = 0,
@@ -253,37 +257,36 @@ class PhysicsManager(ABC):
         Example:
             >>> def on_physics_ready(payload):
             ...     print("Physics is ready!")
-            >>> handle = PhysxManager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY)
+            >>> handle = sim.physics_manager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY)
             >>> # Later, to remove:
             >>> handle.deregister()
         """
-        cid = cls._callback_id
-        cls._callback_id += 1
+        # IDs stay unique for this owner even when callbacks are cleared and registered again.
+        cid = self._callback_id
+        self._callback_id += 1
 
         if wrap_weak_ref:
-            callback = cls._wrap_weak_ref(callback)
+            callback = self._wrap_weak_ref(callback)
 
-        subscription = cls._subscribe_to_event(cid, callback, event, order, name)
+        subscription = self._subscribe_to_event(cid, callback, event, order, name)
 
-        cls._callbacks[cid] = (event, callback, order, name, subscription)
-        return CallbackHandle(cid, cls)
+        self._callbacks[cid] = (event, callback, order, name, subscription)
+        return CallbackHandle(cid, self)
 
-    @classmethod
-    def deregister_callback(cls, callback_id: int | CallbackHandle) -> None:
+    def deregister_callback(self, callback_id: int | CallbackHandle) -> None:
         """Remove a registered callback.
 
         Args:
             callback_id: The ID or CallbackHandle returned by register_callback().
         """
         cid = callback_id.id if isinstance(callback_id, CallbackHandle) else callback_id
-        if cid not in cls._callbacks:
+        if cid not in self._callbacks:
             return
 
-        event, callback, order, name, subscription = cls._callbacks.pop(cid)
-        cls._unsubscribe_from_event(cid, event, subscription)
+        event, callback, order, name, subscription = self._callbacks.pop(cid)
+        self._unsubscribe_from_event(cid, event, subscription)
 
-    @classmethod
-    def dispatch_event(cls, event: PhysicsEvent, payload: Any = None) -> None:
+    def dispatch_event(self, event: PhysicsEvent, payload: Any = None) -> None:
         """Dispatch an event to all registered callbacks.
 
         This is the default implementation using simple callback lists.
@@ -293,34 +296,23 @@ class PhysicsManager(ABC):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in cls._callbacks.items() if ev == event]
+        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in self._callbacks.items() if ev == event]
         matching.sort(key=lambda x: x[2])
 
         for _, callback, _ in matching:
             callback(payload)
 
-    @classmethod
-    def clear_callbacks(cls) -> None:
+    def clear_callbacks(self) -> None:
         """Remove all registered callbacks.
 
-        Do NOT reset ``_callback_id`` — handle IDs must remain monotonically
-        unique across the lifetime of the process.  Resetting the counter
-        would let a future :meth:`register_callback` hand out an ID that an
-        old, still-alive :class:`CallbackHandle` (e.g. on a sensor that has
-        not been garbage-collected yet) holds, so when the old object
-        eventually finalizes its ``__del__`` would deregister the new
-        callback.  This bit ovphysx's kitless multi-context tests where two
-        ``InteractiveScene``s are created in sequence: the first scene's
-        sensor would post-GC deregister the second scene's
-        ``_initialize_callback`` by ID collision, leaving the second sensor
-        forever uninitialized.
+        IDs remain unique for this manager's lifetime. Otherwise a retained handle could deregister a new callback
+        after a close and reinitialization of the same manager.
         """
-        for cid in list(cls._callbacks.keys()):
-            cls.deregister_callback(cid)
-        cls._callbacks.clear()
+        for cid in list(self._callbacks.keys()):
+            self.deregister_callback(cid)
+        self._callbacks.clear()
 
-    @classmethod
-    def _wrap_weak_ref(cls, callback: Callable) -> Callable:
+    def _wrap_weak_ref(self, callback: Callable) -> Callable:
         """Wrap bound methods with weak references to prevent leaks.
 
         Args:
@@ -343,9 +335,8 @@ class PhysicsManager(ABC):
             return weak_callback
         return callback
 
-    @classmethod
     def _subscribe_to_event(
-        cls,
+        self,
         callback_id: int,
         callback: Callable,
         event: PhysicsEvent,
@@ -369,9 +360,8 @@ class PhysicsManager(ABC):
         """
         return None
 
-    @classmethod
     def _unsubscribe_from_event(
-        cls,
+        self,
         callback_id: int,
         event: PhysicsEvent,
         subscription: Any,
@@ -387,9 +377,8 @@ class PhysicsManager(ABC):
         """
         pass
 
-    @classmethod
     @abstractmethod
-    def initialize(cls, sim_context: SimulationContext) -> None:
+    def initialize(self, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
 
         Subclasses should call super().initialize() first, then do backend-specific setup.
@@ -397,12 +386,10 @@ class PhysicsManager(ABC):
         Args:
             sim_context: Parent simulation context.
         """
-        # Set on PhysicsManager explicitly so PhysicsManager.get_*() works
-        # regardless of which subclass is active (Python class vars are per-class)
-        PhysicsManager._sim = sim_context
-        PhysicsManager._cfg = sim_context.cfg.physics
-        PhysicsManager._device = sim_context.cfg.device
-        PhysicsManager._sim_time = 0.0
+        self._sim = sim_context
+        self._cfg = sim_context.cfg.physics
+        self._device = sim_context.cfg.device
+        self._sim_time = 0.0
 
         # The OVD Recorder (omni.physx.pvd) only records PhysX simulations. On other backends the
         # recording would silently never start, so the process would run until manually killed
@@ -410,16 +397,15 @@ class PhysicsManager(ABC):
         # ``get_setting`` may be absent on lightweight sim_context test doubles that only
         # implement the ``cfg``/``device`` surface this method also reads above.
         get_setting = getattr(sim_context, "get_setting", None)
-        if get_setting and get_setting("/isaaclab/anim_recording/enabled") and not cls.supports_anim_recording:
+        if get_setting and get_setting("/isaaclab/anim_recording/enabled") and not self.supports_anim_recording:
             raise ValueError(
-                f"'--anim_recording_enabled' was set, but the active physics backend ('{cls.__name__}') does not"
+                f"'--anim_recording_enabled' was set, but the active physics backend ('{type(self).__name__}') does not"
                 " support the OVD Recorder. Select the PhysX backend, e.g. by appending"
                 " 'physics=isaacsim_physx' to the command line."
             )
 
-    @classmethod
     @abstractmethod
-    def reset(cls, soft: bool = False) -> None:
+    def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
 
         Args:
@@ -427,26 +413,22 @@ class PhysicsManager(ABC):
         """
         pass
 
-    @classmethod
     @abstractmethod
-    def forward(cls) -> None:
+    def forward(self) -> None:
         """Update kinematics without stepping physics (for rendering)."""
         pass
 
-    @classmethod
     @abstractmethod
-    def get_scene_data_backend(cls) -> SceneDataBackend:
+    def get_scene_data_backend(self) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""
         pass
 
-    @classmethod
     @abstractmethod
-    def step(cls) -> None:
+    def step(self) -> None:
         """Step physics simulation by one timestep (physics only, no rendering)."""
         pass
 
-    @classmethod
-    def pre_render(cls) -> None:
+    def pre_render(self) -> None:
         """Sync deferred physics state to the rendering backend.
 
         Called by :meth:`~isaaclab.sim.SimulationContext.render` before cameras
@@ -456,16 +438,14 @@ class PhysicsManager(ABC):
         """
         pass
 
-    @classmethod
-    def after_visualizers_render(cls) -> None:
+    def after_visualizers_render(self) -> None:
         """Hook after visualizers have stepped during :meth:`~isaaclab.sim.SimulationContext.render`.
 
         Use for physics-backend sync (e.g. fabric) if needed. Default is a no-op.
         """
         pass
 
-    @classmethod
-    def video_capture_backend(cls) -> str | None:
+    def video_capture_backend(self) -> str | None:
         """Return the video capture backend identifier for this physics manager.
 
         Used by :class:`~isaaclab.envs.utils.video_recorder.VideoRecorder` to select
@@ -479,8 +459,7 @@ class PhysicsManager(ABC):
         """
         return None
 
-    @classmethod
-    def close(cls) -> None:
+    def close(self) -> None:
         """Clean up physics resources.
 
         Subclasses whose STOP listeners own backend handles should call
@@ -491,41 +470,30 @@ class PhysicsManager(ABC):
         fail, callback and shared simulation state is still cleared before an
         aggregate :class:`RuntimeError` is raised from the first failure.
         """
-        sim = PhysicsManager._sim
-        # A config may declare its manager lazily as a ``"module:Class"`` string, which proxies
-        # attribute access but is a ``str``, so compare against that form as well as the class.
-        # The string must name the class's defining module; a config that pointed at a re-export
-        # path would not match here.
-        is_active_manager = sim is not None and (
-            sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
-        )
-        callback_errors = cls._dispatch_event_collect_errors(PhysicsEvent.STOP) if is_active_manager else []
+        callback_errors = self._dispatch_event_collect_errors(PhysicsEvent.STOP)
 
         try:
-            cls.clear_callbacks()
+            self.clear_callbacks()
         finally:
-            if is_active_manager:
-                PhysicsManager.views.clear()
-                PhysicsManager._sim = None
-                PhysicsManager._cfg = None
-                PhysicsManager._sim_time = 0.0
+            self.views.clear()
+            self._sim_time = 0.0
+            self._sim = self._cfg = None
 
         if callback_errors:
             raise RuntimeError(
                 f"{len(callback_errors)} callback(s) failed during PhysicsEvent.STOP dispatch."
             ) from callback_errors[0]
 
-    @classmethod
-    def _dispatch_event_collect_errors(cls, event: PhysicsEvent, payload: Any = None) -> list[Exception]:
+    def _dispatch_event_collect_errors(self, event: PhysicsEvent, payload: Any = None) -> list[Exception]:
         """Dispatch an event to every listener and collect direct or backend-stored failures."""
         matching = [
             (callback, order)
-            for registered_event, callback, order, _name, _subscription in cls._callbacks.values()
+            for registered_event, callback, order, _name, _subscription in self._callbacks.values()
             if registered_event == event
         ]
         matching.sort(key=lambda item: item[1])
         callback_errors: list[Exception] = []
-        raise_stored = getattr(cls, "raise_callback_exception_if_any", None)
+        raise_stored = getattr(self, "raise_callback_exception_if_any", None)
 
         def drain_stored_error() -> None:
             if callable(raise_stored):
@@ -542,62 +510,66 @@ class PhysicsManager(ABC):
             drain_stored_error()
         return callback_errors
 
-    @classmethod
-    def get_physics_dt(cls) -> float:
+    def get_physics_dt(self) -> float:
         """Get the physics timestep in seconds."""
-        return PhysicsManager._sim.cfg.dt if PhysicsManager._sim else 1.0 / 60.0
+        return self._sim.cfg.dt if self._sim else 1.0 / 60.0
 
-    @classmethod
-    def get_device(cls) -> str:
+    def get_device(self) -> str:
         """Get the physics simulation device."""
-        return PhysicsManager._device
+        return self._device
 
-    @classmethod
-    def get_simulation_time(cls) -> float:
+    def get_simulation_time(self) -> float:
         """Get the current simulation time in seconds."""
-        return PhysicsManager._sim_time
+        return self._sim_time
 
-    @classmethod
-    def get_physics_sim_view(cls) -> Any:
+    def get_physics_sim_view(self) -> Any:
         """Get the physics simulation view. Override in subclasses."""
         return None
 
-    @classmethod
-    def play(cls) -> None:
+    def play(self) -> None:
         """Start or resume physics simulation. Default is no-op."""
         pass
 
-    @classmethod
-    def pause(cls) -> None:
+    def pause(self) -> None:
         """Pause physics simulation. Default is no-op."""
         pass
 
-    @classmethod
-    def stop(cls) -> None:
+    def stop(self) -> None:
         """Stop physics simulation. Default is no-op."""
         pass
 
-    @classmethod
-    def wait_for_playing(cls) -> None:
+    def wait_for_playing(self) -> None:
         """Block until the timeline is playing. Default is no-op."""
         pass
 
-    @classmethod
-    def set_decimation(cls, decimation: int) -> None:
-        """Inform the physics backend how many substeps the environment runs per policy step.
+    def bind_control(self, actions, scene) -> bool:
+        """Bind action terms and command submission to the physics step when supported.
 
-        Backends that can fold the full decimation loop into a single
-        :meth:`step` call (e.g. Newton with all-graphable actuators) use this
-        to size their internal loop / CUDA graph.  The default implementation
-        is a no-op.
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets submit commands.
+
+        Returns:
+            Whether physics now applies actions and submits scene commands on every physics step.
+        """
+        return False
+
+    def set_decimation(self, decimation: int, *, apply_every_physics_step: bool | None = None) -> None:
+        """Inform the physics backend how many physics steps the environment runs per policy step.
+
+        Backends that can run the full decimation loop in a single :meth:`step` call (e.g. Newton) use this to size
+        their internal loop and CUDA graph; :meth:`handles_decimation` reports whether they do. The default
+        implementation is a no-op.
 
         Args:
             decimation: Number of physics steps per environment step.
+            apply_every_physics_step: Whether the environment applies actions before every physics step. ``True``
+                keeps the loop in the environment, ``False`` lets the backend run it, and ``None`` leaves the decision
+                to the backend's default policy.
         """
         pass
 
-    @classmethod
-    def handles_decimation(cls) -> bool:
+    def handles_decimation(self) -> bool:
         """``True`` when :meth:`step` executes the full decimation loop internally.
 
         When this returns ``True`` the environment should call :meth:`step`
@@ -605,13 +577,12 @@ class PhysicsManager(ABC):
         """
         return False
 
-    @classmethod
-    def get_backend(cls) -> str:
+    def get_backend(self) -> str:
         """Get the tensor backend being used ("numpy" or "torch")."""
-        return "torch" if "cuda" in PhysicsManager._device else "numpy"
+        return "torch" if "cuda" in self._device else "numpy"
 
     @staticmethod
-    def safe_callback_invoke(fn: Callable, *args, physics_manager: type[PhysicsManager] | None = None) -> None:
+    def safe_callback_invoke(fn: Callable, *args, physics_manager: PhysicsManager | None = None) -> None:
         """Invoke a callback, catching exceptions that would be swallowed by external event buses.
 
         Ignores ``ReferenceError`` (from garbage-collected weakref proxies). All other

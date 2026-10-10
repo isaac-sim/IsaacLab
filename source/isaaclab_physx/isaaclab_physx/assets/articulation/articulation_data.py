@@ -21,7 +21,6 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from ..kernels import vec13f
 
@@ -73,13 +72,14 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: physx.ArticulationView, device: str):
+    def __init__(self, root_view: physx.ArticulationView, device: str, *, physics_manager):
         """Initializes the articulation data.
 
         Args:
             root_view: The root articulation view.
             device: The device used for processing.
         """
+        self._physics_manager = physics_manager
         super().__init__(root_view, device)
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class
@@ -94,7 +94,7 @@ class ArticulationData(BaseArticulationData):
         self._has_reversed_joints = False
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
@@ -176,7 +176,7 @@ class ArticulationData(BaseArticulationData):
                 self._mass_matrix,
             ]
         )
-        SimulationManager.kinematics_dirty = True
+        self._physics_manager.kinematics_dirty = True
 
     def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
@@ -204,7 +204,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_state_w,
             ]
         )
-        SimulationManager.kinematics_dirty = True
+        self._physics_manager.kinematics_dirty = True
 
     def _reset_body_com_pose_b_dependents(self) -> None:
         """Reset cached properties derived from body-frame center-of-mass offsets."""
@@ -846,7 +846,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        SimulationManager.update_kinematics()
+        self._physics_manager.update_kinematics()
         self._refresh_body_state_user(
             self._body_link_pose_w, lambda: self._root_view.get_link_transforms().view(wp.transformf)
         )
@@ -921,7 +921,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
-        SimulationManager.update_kinematics()
+        self._physics_manager.update_kinematics()
         self._refresh_body_state_user(
             self._body_com_vel_w, lambda: self._root_view.get_link_velocities().view(wp.spatial_vectorf)
         )

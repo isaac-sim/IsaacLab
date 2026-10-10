@@ -21,8 +21,6 @@ from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
-
 from .frame_transformer_data import FrameTransformerData
 from .kernels import frame_transformer_update_kernel
 
@@ -254,7 +252,7 @@ class FrameTransformer(BaseFrameTransformer):
         ]
 
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)

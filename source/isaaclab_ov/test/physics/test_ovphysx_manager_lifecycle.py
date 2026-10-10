@@ -39,24 +39,24 @@ class _FakePhysX:
 
 @pytest.fixture
 def manager_module(monkeypatch):
-    """Import the manager and restore its class-global state after each test."""
+    """Create an independent manager and native resource for each test."""
     import isaaclab_ov.physics.ovphysx_manager as module
     from isaaclab_ov.physics import OvPhysxBackendCfg
 
-    from isaaclab.physics import PhysicsManager
     from isaaclab.sim import SimulationContext
 
+    monkeypatch.setattr(module.OvPhysxManager, "_physx_schemas_registered", False)
+    manager = module.OvPhysxManager()
     cfg = OvPhysxBackendCfg(device="cpu")
-    sim = SimpleNamespace(_backend_registry=[], physics_manager=module.OvPhysxManager)
+    sim = SimpleNamespace(_backend_registry=[], physics_manager=manager)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     with monkeypatch.context() as construction:
         construction.setattr(module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
         backend = sim.get_or_create_backend(cfg)
-    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    monkeypatch.setattr(manager, "_sim", sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
     monkeypatch.setattr(module.atexit, "register", lambda callback: None)
-    manager = module.OvPhysxManager
     test_state = {
         "_cfg": None,
         "backend": backend,
@@ -67,11 +67,11 @@ def manager_module(monkeypatch):
         "_clone_recipes": [],
         "_atexit_registered": False,
         "_scene_data_backend": None,
-        "_physx_schemas_registered": False,
         "_gravity": None,
     }
     for name, value in test_state.items():
         monkeypatch.setattr(manager, name, value)
+    monkeypatch.setattr(module, "manager", manager, raising=False)
     return module
 
 
@@ -84,9 +84,7 @@ def _fake_ovphysx_module(bootstrap):
 
 
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
-    from isaaclab.physics import PhysicsManager
-
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=None, device="cpu", gravity=(0.0, 0.0, -9.81)),
         stage=object(),
@@ -94,7 +92,7 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
         clone_contexts={},
     )
     for name in ("_sim", "_cfg", "_device", "_sim_time"):
-        monkeypatch.setattr(PhysicsManager, name, getattr(PhysicsManager, name))
+        monkeypatch.setattr(manager, name, getattr(manager, name))
     monkeypatch.setattr(manager, "_ensure_physx_schemas_registered", lambda: None)
     monkeypatch.setattr(manager, "backend", None)
 
@@ -124,7 +122,7 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
 def test_schema_registration_skips_providers_already_supplied_by_host(
     monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
 ):
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     schema_paths = [
         Path("/schemas/PhysxSchema/resources"),
         Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
@@ -205,7 +203,7 @@ def test_registry_shares_native_cfg_without_replacing_pxr(monkeypatch, manager_m
 def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch, manager_module, stop_fails):
     from isaaclab.physics import PhysicsManager
 
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     events = []
 
     def stop(cls):
@@ -213,7 +211,7 @@ def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch,
         if stop_fails:
             raise ValueError("listener failure")
 
-    monkeypatch.setattr(PhysicsManager, "close", classmethod(stop))
+    monkeypatch.setattr(PhysicsManager, "close", stop)
     monkeypatch.setattr(manager.backend, "close", lambda: events.append("release"))
 
     with pytest.raises(ValueError, match="listener failure") if stop_fails else nullcontext():
@@ -223,23 +221,21 @@ def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch,
 
 
 def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager_module):
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     manager.backend.physx = None
-    monkeypatch.setattr(manager, "close", classmethod(lambda cls: pytest.fail("unexpected close")))
+    monkeypatch.setattr(manager, "close", lambda: pytest.fail("unexpected close"))
     monkeypatch.setattr(manager.backend, "close", lambda: pytest.fail("unexpected release"))
 
     manager._close_at_exit()
 
 
 def test_atexit_cleanup_releases_stale_runtime_without_clearing_active_backend(monkeypatch, manager_module):
-    from isaaclab.physics import PhysicsManager
-
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     events = []
     sentinel_callbacks = {17: object()}
     manager.backend.physx = object()
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=object()))
-    monkeypatch.setattr(PhysicsManager, "_callbacks", sentinel_callbacks)
+    other = type(manager)()
+    other._callbacks = sentinel_callbacks
 
     def release():
         events.append("release")
@@ -250,23 +246,19 @@ def test_atexit_cleanup_releases_stale_runtime_without_clearing_active_backend(m
     manager._close_at_exit()
 
     assert events == ["release"]
-    assert PhysicsManager._callbacks is sentinel_callbacks
+    assert other._callbacks is sentinel_callbacks
 
 
 def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, manager_module, caplog):
-    from isaaclab.physics import PhysicsManager
-
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     events = []
     manager.backend.physx = object()
-    lazy_manager = f"{manager.__module__}:{manager.__qualname__}"
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=lazy_manager))
 
-    def fail_close(cls):
+    def fail_close():
         events.append("close")
         raise RuntimeError("failure")
 
-    monkeypatch.setattr(manager, "close", classmethod(fail_close))
+    monkeypatch.setattr(manager, "close", fail_close)
     monkeypatch.setattr(manager.backend, "close", lambda: events.append("release"))
 
     manager._close_at_exit()
@@ -276,7 +268,7 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
 
 
 def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     events = []
 
     class FakePhysX:
@@ -307,7 +299,7 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module):
 @pytest.mark.parametrize("failure", [None, "query", "write"])
 def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, failure):
     """Scene gravity updates must seal their ordinal and release resources on every path."""
-    manager = manager_module.OvPhysxManager
+    manager = manager_module.manager
     calls = []
 
     class FakePathDictionary:
@@ -433,8 +425,8 @@ def _retained_binding_script() -> str:
         from isaaclab_ov.sim.views import OvPhysxView
 
         sim = SimulationContext(SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0))
-        assert sim.physics_manager == f"{OvPhysxManager.__module__}:{OvPhysxManager.__qualname__}"
-        OvPhysxManager.register_callback(
+        assert isinstance(sim.physics_manager, OvPhysxManager)
+        sim.physics_manager.register_callback(
             lambda _payload: print("OVPHYSX_STOP", flush=True),
             PhysicsEvent.STOP,
             wrap_weak_ref=False,
@@ -447,7 +439,7 @@ def _retained_binding_script() -> str:
         cube_cfg.func("/World/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
         sim.reset()
 
-        view = OvPhysxView(OvPhysxManager.get_physx_instance(), pattern="/World/Cube", device="cpu")
+        view = OvPhysxView(sim.physics_manager.get_physx_instance(), pattern="/World/Cube", device="cpu")
         binding = view.binding_for("rigid_body_pose")
         buffer = wp.zeros(tuple(binding.shape), dtype=wp.float32, device="cpu")
         binding.read(buffer)
@@ -556,15 +548,13 @@ def test_scene_settings(monkeypatch, manager_module, device, rate, override, exp
 
     from pxr import Usd
 
-    from isaaclab.physics import PhysicsManager
-
     cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
     assert cfg.enable_external_forces_every_iteration is expected
     sim_cfg = SimpleNamespace(dt=1.0 / rate, enable_scene_query_support=device == "gpu")
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(cfg=sim_cfg))
+    monkeypatch.setattr(manager_module.manager, "_sim", SimpleNamespace(cfg=sim_cfg))
     stage = Usd.Stage.CreateInMemory()
     prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
-    manager_module.OvPhysxManager._configure_physx_scene_prim(prim, cfg, device)
+    manager_module.manager._configure_physx_scene_prim(prim, cfg, device)
     assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
     assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
     assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
@@ -577,17 +567,17 @@ def test_scenes_author_device_dynamics_and_broadphase(monkeypatch, manager_modul
 
     from pxr import Sdf, Usd, UsdPhysics
 
-    from isaaclab.physics import PhysicsManager
-
     monkeypatch.setattr(
-        PhysicsManager, "_sim", SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False))
+        manager_module.manager,
+        "_sim",
+        SimpleNamespace(cfg=SimpleNamespace(dt=1.0 / 60.0, enable_scene_query_support=False)),
     )
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     # An asset's own scene, authored for the other device.
     asset_scene = UsdPhysics.Scene.Define(stage, "/World/Asset/PhysicsScene").GetPrim()
     asset_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(not gpu_dynamics)
-    manager_module.OvPhysxManager._configure_physics_scenes(stage, "/World/PhysicsScene", OvPhysxCfg(), device)
+    manager_module.manager._configure_physics_scenes(stage, "/World/PhysicsScene", OvPhysxCfg(), device)
     for path in ("/World/PhysicsScene", "/World/Asset/PhysicsScene"):
         prim = stage.GetPrimAtPath(path)
         assert "PhysxSceneAPI" in prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()

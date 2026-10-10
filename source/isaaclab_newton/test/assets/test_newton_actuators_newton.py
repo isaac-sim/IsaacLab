@@ -71,7 +71,7 @@ from isaaclab.test.utils.actuator_equivalence import (
     make_dummy_mlp_checkpoint,
 )
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
-from isaaclab.utils import replace
+from isaaclab.utils import env_mask_from_ids, replace
 
 from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
 
@@ -283,12 +283,9 @@ def _run(
         articulation.reset()
 
     if use_newton_actuators and decimation > 1:
-        SimulationManager.set_decimation(decimation)
+        SimulationContext.instance().physics_manager.set_decimation(decimation)
     handles_dec = (
-        use_newton_actuators
-        and decimation > 1
-        and SimulationManager._is_all_graphable()
-        and SimulationManager._decimation > 1
+        use_newton_actuators and decimation > 1 and SimulationContext.instance().physics_manager.handles_decimation()
     )
 
     results = {}
@@ -501,9 +498,11 @@ def _make_target_mode_builder(
     """Build a zero-gain articulated model builder for target-mode tests."""
     sim = object.__new__(sim_utils.SimulationContext)
     sim.cfg = SimpleNamespace(physics=NewtonCfg())
+    sim.physics_manager = SimulationManager(cfg=sim.cfg.physics, device="cpu")
+    sim.physics_manager._sim = sim
     sim._backend_registry = []
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []
@@ -544,13 +543,13 @@ def test_prepare_native_actuators_activates_only_explicit_groups(monkeypatch, ac
     activation_calls = []
     gain_writes = []
     articulation = SimpleNamespace(
+        _physics_manager=SimpleNamespace(activate_actuators=lambda: activation_calls.append(True)),
         _sim_cfg=SimpleNamespace(use_newton_actuators=True),
         device="cpu",
         find_joints=lambda _: ([0], ["joint"]),
         write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
         write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
     )
-    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
 
     control = NewtonActuatorControl(articulation)
     group_name = "explicit" if expected_native_groups else "implicit"
@@ -615,7 +614,10 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
     builder = _make_target_mode_builder(
         monkeypatch, ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=articulation_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager),
+        None,
+    )
     model = builder.finalize(device="cpu")
     solver = SolverMuJoCo(model, use_mujoco_cpu=True)
     assert model.joint_target_mode.numpy().tolist() == [int(expected_mode), int(expected_mode)]
@@ -633,7 +635,10 @@ def test_actuator_cfg_matches_explicit_descendant_articulation_root(monkeypatch)
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.articulation_label = ["/World/Env_0/Robot/base"]
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=articulation_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager),
+        None,
+    )
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -649,7 +654,10 @@ def test_actuator_cfg_matches_clone_plan_root_expr(monkeypatch):
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.articulation_label = ["/World/envs/env_0/Robot/base"]
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=articulation_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager),
+        None,
+    )
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -663,7 +671,10 @@ def test_actuator_cfg_leaves_excluded_joint_types_imported(monkeypatch, joint_ty
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.joint_type[0] = joint_type
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=articulation_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager),
+        None,
+    )
     assert builder.joint_target_mode == [int(JointTargetMode.NONE)]
 
 
@@ -675,7 +686,10 @@ def test_actuator_cfg_uses_imported_gain_for_none_stiffness(monkeypatch):
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
     )
     builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.EFFORT], [10.0], [0.0])
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=articulation_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager),
+        None,
+    )
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -695,7 +709,9 @@ def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(monkeypat
         [0.0, 0.0],
         [0.0, 2.0],
     )
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=subset_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=subset_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager), None
+    )
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
 
 
@@ -716,7 +732,10 @@ def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(monkeypatch,
     builder = _make_target_mode_builder(
         monkeypatch, ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
-    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
+    Articulation._configure_joint_target_modes(
+        SimpleNamespace(cfg=articulation_cfg, _physics_manager=sim_utils.SimulationContext.instance().physics_manager),
+        None,
+    )
     assert builder.joint_target_mode == [int(mode) for mode in expected_modes]
 
 
@@ -908,7 +927,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert SimulationManager._adapter is not None
+    assert SimulationContext.instance().physics_manager.backend.actuators is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
@@ -927,7 +946,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         term, asset_cfg = build_dr_term(env, name)
         term(
             env,
-            env_ids=torch.tensor([0], device=legs.device, dtype=torch.long),
+            env_mask=env_mask_from_ids([0], env.num_envs, legs.device),
             asset_cfg=asset_cfg,
             stiffness_distribution_params=(100.0, 100.0),
             damping_distribution_params=(7.0, 7.0),
@@ -951,7 +970,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     islands' actuators share its state buffers; their state is not part of this articulation's contract.
     """
     articulation = newton_run.articulations["delayed"]
-    adapter = SimulationManager._adapter
+    adapter = SimulationContext.instance().physics_manager.backend.actuators
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:
@@ -970,14 +989,15 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
 
     articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
 
-    # Map each entry of ``act.indices`` to its env via the adapter's per-env DOF count. The adapter is
-    # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
-    # stride.
+    # Map each entry of ``act.indices`` to its env via the model's per-world DOF count (worlds here share a layout,
+    # including free-joint DOFs on floating-base articulations).
+    model = SimulationContext.instance().physics_manager.get_model()
+    dofs_per_world = model.joint_dof_count // model.world_count
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()
         indices_np = act.indices.numpy()
         for i, global_dof in enumerate(indices_np):
-            env = int(global_dof) // adapter.num_joints
+            env = int(global_dof) // dofs_per_world
             if env == 0:
                 assert int(pushes_after[i]) == 0, f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}"
             else:

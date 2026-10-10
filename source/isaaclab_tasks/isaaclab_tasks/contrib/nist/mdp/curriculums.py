@@ -31,8 +31,13 @@ def _recurse(iv_elem, fv_elem, data_elem, frac):
     return new_val.item()
 
 
-def initial_final_interpolate_fn(env: ManagerBasedRLEnv, env_id, data, initial_value, final_value, difficulty_term_str):
-    """Interpolate scalars in an arbitrarily nested list or tuple."""
+def initial_final_interpolate_fn(
+    env: ManagerBasedRLEnv, env_mask: torch.Tensor, data, initial_value, final_value, difficulty_term_str
+):
+    """Interpolate scalars in an arbitrarily nested list or tuple.
+
+    The difficulty fraction lives on the device, so comparing and interpolating it synchronizes the device.
+    """
     difficulty_term: DifficultyScheduler = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
     frac = difficulty_term.difficulty_frac
     if frac < 0.1:
@@ -61,7 +66,7 @@ class DifficultyScheduler(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int],
+        env_mask: torch.Tensor,
         success_rate_callback: str,
         init_difficulty: int = 0,
         min_difficulty: int = 0,
@@ -74,11 +79,9 @@ class DifficultyScheduler(ManagerTermBase):
         success_rate = success_rates.mean()
 
         move_up = success_rate > 0.8
-        demot = self.current_adr_difficulties[env_ids] if promotion_only else self.current_adr_difficulties[env_ids] - 1
-        self.current_adr_difficulties[env_ids] = torch.where(
-            move_up,
-            self.current_adr_difficulties[env_ids] + 1,
-            demot,
-        ).clamp(min=min_difficulty, max=max_difficulty)
+        current = self.current_adr_difficulties
+        demot = current if promotion_only else current - 1
+        updated = torch.where(move_up, current + 1, demot).clamp(min=min_difficulty, max=max_difficulty)
+        torch.where(env_mask, updated, current, out=self.current_adr_difficulties)
         self.difficulty_frac = torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
         return self.difficulty_frac

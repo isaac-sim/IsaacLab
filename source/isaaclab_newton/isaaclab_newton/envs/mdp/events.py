@@ -20,7 +20,6 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
 from ... import assets
-from ...physics.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -34,7 +33,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     and ``make_consistent`` are ignored.
 
     Kamino shares materials across environments. It samples one value per original
-    ``(mu, restitution)`` group and applies it to every environment, ignoring ``env_ids``.
+    ``(mu, restitution)`` group and applies it to every environment when any environment is selected.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
@@ -68,14 +67,14 @@ class randomize_rigid_body_material(ManagerTermBase):
             body_shapes = asset._root_view.body_shapes  # type: ignore
             backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
             shape_indices_list = [shape_id for body_id in backend_body_ids for shape_id in body_shapes[body_id]]
-            self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
+            self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long, device=env.device)
         else:
-            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)
+            self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long, device=env.device)
 
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: torch.Tensor | slice | None,
+        env_mask: torch.Tensor,
         static_friction_range: tuple[float, float],
         dynamic_friction_range: tuple[float, float],
         restitution_range: tuple[float, float],
@@ -87,8 +86,8 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         Args:
             env: Environment owning this term.
-            env_ids: Environment selection; ignored by Kamino's shared material groups.
-                None selects all environments.
+            env_mask: Boolean mask of the selected environments. Shape is (num_envs,). Kamino's shared material
+                groups are resampled for all environments when any environment is selected.
             static_friction_range: Friction bounds captured at construction.
             dynamic_friction_range: Unused; Newton has a single friction coefficient.
             restitution_range: Restitution bounds captured at construction.
@@ -97,20 +96,16 @@ class randomize_rigid_body_material(ManagerTermBase):
             make_consistent: Unused; Newton has a single friction coefficient.
         """
         device = env.device
-        if env_ids is None:
-            env_ids = slice(None)
-        env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
-
         num_shapes = len(self._shape_indices)
-        shape_idx = self._shape_indices.to(device)
+        shape_idx = self._shape_indices
 
-        friction_range = torch.tensor(self._static_friction_range, device=device)
-        restitution_range_t = torch.tensor(self._restitution_range, device=device)
+        friction_range = self._static_friction_range
+        restitution_range_t = self._restitution_range
         friction_view = wp.to_torch(self._friction_binding)
         restitution_view = wp.to_torch(self._restitution_binding)
 
-        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if isinstance(self._newton_manager._solver, SolverKamino):
+        num_envs = env.num_envs
+        if isinstance(self._newton_manager.get_solver(), SolverKamino):
             # Kamino shares each material group across all environments.
             if self._kamino_group_inverse is None:
                 build_keys = torch.stack((friction_view[0, shape_idx], restitution_view[0, shape_idx]), dim=-1)
@@ -124,8 +119,12 @@ class randomize_rigid_body_material(ManagerTermBase):
             restitution_groups = math_utils.sample_uniform(
                 restitution_range_t[0], restitution_range_t[1], (self._kamino_num_groups,), device=device
             )
-            friction_view[:, shape_idx] = friction_groups[inverse]
-            restitution_view[:, shape_idx] = restitution_groups[inverse]
+            # keep the current materials when no environment is selected
+            selected = env_mask.any()
+            friction_view[:, shape_idx] = torch.where(selected, friction_groups[inverse], friction_view[:, shape_idx])
+            restitution_view[:, shape_idx] = torch.where(
+                selected, restitution_groups[inverse], restitution_view[:, shape_idx]
+            )
         else:
             friction_samples = math_utils.sample_uniform(
                 friction_range[0], friction_range[1], (num_envs, num_shapes), device=device
@@ -133,10 +132,12 @@ class randomize_rigid_body_material(ManagerTermBase):
             restitution_samples = math_utils.sample_uniform(
                 restitution_range_t[0], restitution_range_t[1], (num_envs, num_shapes), device=device
             )
-            friction_view[env_rows, shape_idx] = friction_samples
-            restitution_view[env_rows, shape_idx] = restitution_samples
+            # write the selected environments only
+            env_rows = env_mask[:, None]
+            friction_view[:, shape_idx] = torch.where(env_rows, friction_samples, friction_view[:, shape_idx])
+            restitution_view[:, shape_idx] = torch.where(env_rows, restitution_samples, restitution_view[:, shape_idx])
 
-        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=wp.from_torch(env_mask))
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
@@ -176,7 +177,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: torch.Tensor | slice | None,
+        env_mask: torch.Tensor,
         asset_cfg: SceneEntityCfg,
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
@@ -186,15 +187,13 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
 
         Args:
             env: Environment owning this term.
-            env_ids: Environment selection; None selects all environments.
+            env_mask: Boolean mask of the selected environments. Shape is (num_envs,).
             asset_cfg: Asset selection; collider randomization operates on every body.
             rest_offset_distribution_params: Rest offset distribution parameters [m].
             contact_offset_distribution_params: Contact offset distribution parameters [m].
             distribution: Sampling distribution for the offsets.
         """
-        if env_ids is None:
-            env_ids = slice(None)
-
+        env_rows = env_mask[:, None]
         margin_view = wp.to_torch(self._sim_bind_shape_margin)
 
         if rest_offset_distribution_params is not None:
@@ -207,8 +206,8 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
                 operation="abs",
                 distribution=distribution,
             )
-            self.default_margin[env_ids] = margin[env_ids]
-            margin_view[env_ids] = margin[env_ids]
+            torch.where(env_rows, margin, self.default_margin, out=self.default_margin)
+            margin_view[:] = torch.where(env_rows, margin, margin_view)
         if contact_offset_distribution_params is not None:
             current_margin = self.default_margin
             contact_offset = torch.zeros_like(self.default_gap)
@@ -221,11 +220,11 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
                 distribution=distribution,
             )
             gap = torch.clamp(contact_offset - current_margin, min=0.0)
-            self.default_gap[env_ids] = gap[env_ids]
+            torch.where(env_rows, gap, self.default_gap, out=self.default_gap)
             gap_view = wp.to_torch(self._sim_bind_shape_gap)
-            gap_view[env_ids] = gap[env_ids]
+            gap_view[:] = torch.where(env_rows, gap, gap_view)
         if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
-            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=wp.from_torch(env_mask))
 
 
 class randomize_physics_scene_gravity(_GravityRandomization):
@@ -248,7 +247,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_ids: torch.Tensor | slice | None,
+        env_mask: torch.Tensor,
         gravity_distribution_params: tuple[list[float], list[float]],
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
@@ -257,7 +256,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
 
         Args:
             env: Environment owning this term.
-            env_ids: Environment selection; None selects all environments.
+            env_mask: Boolean mask of the selected environments. Shape is (num_envs,).
             gravity_distribution_params: Distribution parameters [m/s^2] for add/abs, dimensionless for scale.
             operation: Apply absolute values, add to current gravity, or scale current gravity.
             distribution: Sampling distribution; gravity terms cache this at construction.
@@ -267,13 +266,9 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             raise RuntimeError("Newton model is not initialized. Cannot randomize gravity.")
         # The trailing global-world row is not an environment.
         gravity = wp.to_torch(model.gravity)[: env.num_envs]
-        if env_ids is None:
-            env_ids = slice(None)
-        selected = gravity[env_ids]
-        if selected.shape[0] == 0:
-            return
-        gravity[env_ids] = self._sample_gravity(selected, gravity_distribution_params, operation)
-        self._manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        sampled = self._sample_gravity(gravity, gravity_distribution_params, operation)
+        gravity[:] = torch.where(env_mask[:, None], sampled, gravity)
+        self._manager.add_model_change(ModelFlags.MODEL_PROPERTIES, env_mask=wp.from_torch(env_mask))
 
 
 class randomize_visual_shape(ManagerTermBase):
@@ -291,7 +286,7 @@ class randomize_visual_shape(ManagerTermBase):
         else:
             ids = asset_cfg.body_ids
         body_names = tuple(asset.body_names[index] for index in ids)
-        self._writer = NewtonManager.create_visual_shape_color_writer(asset, body_names)
+        self._writer = env.sim.physics_manager.create_visual_shape_color_writer(asset, body_names)
         self._sample = _compile_distribution(channels["color"], env.device)
         self._all_env_ids = torch.arange(env.num_envs, dtype=torch.int32, device=self._writer.device)
 
@@ -306,7 +301,7 @@ class randomize_visual_shape(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
-        model = NewtonManager.get_model()
+        model = env.sim.physics_manager.get_model()
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)

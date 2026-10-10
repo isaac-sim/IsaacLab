@@ -14,13 +14,15 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from ..physics import PhysicsEvent, PhysicsManager
+from ..utils import env_mask_from_ids, env_selection_kwargs, string_to_callable, to_dict
 from ..utils import string as string_utils
-from ..utils import string_to_callable, to_dict
 from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
+    import torch
+
     from ..envs import ManagerBasedEnv
 
 
@@ -90,12 +92,16 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
         """Resets the manager term.
 
+        Managers pass ``env_mask`` to terms whose ``reset`` declares it, and indices otherwise. See
+        :func:`~isaaclab.utils.env_selection_kwargs`.
+
         Args:
-            env_ids: The environment ids. Defaults to None, in which case
-                all environments are considered.
+            env_ids: The environment ids. Defaults to None, in which case all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None, in which
+                case all environments are considered. Takes precedence over ``env_ids``.
         """
         pass
 
@@ -210,17 +216,54 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
 
         Args:
             env_ids: The environment ids for which to log data.
                 Defaults None, which logs data for all environments.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             Dictionary containing the logging information.
         """
         return {}
+
+    def _env_selection(
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: torch.Tensor | None
+    ) -> tuple[torch.Tensor, Sequence[int] | torch.Tensor | slice | None]:
+        """Resolve a reset selection.
+
+        Args:
+            env_ids: Indices or a slice. None selects every environment.
+            env_mask: Boolean mask. Shape is (num_envs,). Takes precedence over ``env_ids``.
+
+        Returns:
+            The boolean mask, and the caller's indices for index-based terms, or None when ``env_mask`` was given.
+        """
+        if env_mask is not None:
+            return env_mask, None
+        env_ids = slice(None) if env_ids is None else env_ids
+        return env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids
+
+    def _reset_term(
+        self, term: Any, env_mask: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | slice | None = None
+    ) -> Any:
+        """Reset a term (or modifier) with the selection its ``reset`` takes.
+
+        See :func:`~isaaclab.utils.env_selection_kwargs`.
+
+        Args:
+            term: Object with a ``reset`` method.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            env_ids: The caller's indices that ``env_mask`` was built from, if any.
+
+        Returns:
+            What ``reset`` returns, or None when it was skipped because no environment was selected.
+        """
+        selection = env_selection_kwargs(term.reset, env_mask, env_ids)
+        return None if selection is None else term.reset(**selection)
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.

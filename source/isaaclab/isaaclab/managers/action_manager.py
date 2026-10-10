@@ -11,7 +11,7 @@ import inspect
 import re
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 from prettytable import PrettyTable
@@ -39,6 +39,16 @@ class ActionTerm(ManagerTermBase):
       responsible for applying the processed actions to the asset managed by the term.
     """
 
+    supports_graph_capture: ClassVar[bool] = False
+    """Whether apply_actions uses device operations with fixed shapes and no host-dependent state."""
+
+    apply_every_physics_step: ClassVar[bool] = True
+    """Whether :meth:`apply_actions` must run before every physics step.
+
+    Terms whose applied command depends only on the processed actions, not on the asset's current state, set this to
+    ``False``. When every term does, a physics backend may fold the whole decimation loop into one step.
+    """
+
     def __init__(self, cfg: ActionTermCfg, env: ManagerBasedEnv):
         """Initialize the action term.
 
@@ -49,6 +59,7 @@ class ActionTerm(ManagerTermBase):
         # call the base class constructor
         super().__init__(cfg, env)
         # parse config to obtain asset to which the term is applied
+        self._physics_manager = env.sim.physics_manager
         self._asset: AssetBase = self._env.scene[self.cfg.asset_name]
         self._IO_descriptor = GenericActionIODescriptor()
         self._export_IO_descriptor = True
@@ -275,6 +286,11 @@ class ActionManager(ManagerBase):
         return self._prev_action
 
     @property
+    def apply_every_physics_step(self) -> bool:
+        """Whether any term must apply its actions before every physics step."""
+        return any(term.apply_every_physics_step for term in self._terms.values())
+
+    @property
     def has_debug_vis_implementation(self) -> bool:
         """Whether the command terms have debug visualization implemented."""
         # check if function raises NotImplementedError
@@ -358,22 +374,27 @@ class ActionManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    def reset(
+        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+    ) -> dict[str, torch.Tensor]:
         """Resets the action history.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
+                ``env_ids``.
 
         Returns:
             An empty dictionary.
         """
+        env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # reset the action history
-        index_fill_(self._prev_action, env_ids, 0.0)
-        index_fill_(self._action, env_ids, 0.0)
+        index_fill_(self._prev_action, env_mask, 0.0)
+        index_fill_(self._action, env_mask, 0.0)
         # reset all action terms
         for term in self._terms.values():
-            term.reset(env_ids=env_ids)
+            self._reset_term(term, env_mask, env_ids)
         # nothing to log here
         return {}
 

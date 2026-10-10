@@ -42,7 +42,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg, StepPhase
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -1086,12 +1086,14 @@ class NewtonVisualizer(BaseVisualizer):
         newton_backend_active = self.physics_backend == "newton"
         sim = SimulationContext.instance()
         physics_manager = sim.physics_manager
-        picking_supported = newton_backend_active and bool(
-            getattr(physics_manager, "_supports_rigid_body_force_input", False)
+        backend = physics_manager.backend if newton_backend_active else None
+        picking_supported = (
+            backend is not None and backend.solver is not None and backend.solver_adapter.supports_body_forces(backend)
         )
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        self._physics_manager = sim.physics_manager
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
@@ -1166,7 +1168,9 @@ class NewtonVisualizer(BaseVisualizer):
         )
         if self._viewer is not None and self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
+            self._physics_manager.register_step_callback(
+                self._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
+            )
         if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
@@ -1212,7 +1216,7 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         self._pre_step()
-        num_envs = self.backend.model.num_envs
+        num_envs = self.backend.model.world_count
 
         try:
             if not self._viewer.is_paused():
@@ -1229,7 +1233,7 @@ class NewtonVisualizer(BaseVisualizer):
                         self._log_pending_meshes()
                         return
                     self._viewer.log_state(state)
-                    contacts = NewtonManager.get_contacts()
+                    contacts = self._physics_manager.get_contacts()
                     if contacts is not None:
                         self._viewer.log_contacts(contacts, state)
                     else:
@@ -1300,6 +1304,10 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.picking_enabled = self._picking_enabled
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
+                # A hard reset discards the Newton backend and its callbacks, so register picking with the new one.
+                self._physics_manager.register_step_callback(
+                    self._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
+                )
 
     def _release_viewer(self) -> None:
         """Release the viewer this visualizer owns and drop the reference to it.
@@ -1554,7 +1562,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._viewer.begin_frame(self._sim_time)
         try:
             self._viewer.log_state(backend.state_0)
-            self._render_markers(backend.model.num_envs)
+            self._render_markers(backend.model.world_count)
             self._log_pending_meshes()
         finally:
             self._viewer.end_frame()

@@ -18,7 +18,6 @@ from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from ..kernels import vec13f
 
@@ -63,13 +62,14 @@ class RigidObjectData(BaseRigidObjectData):
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object data."""
 
-    def __init__(self, root_view: physx.RigidBodyView, device: str):
+    def __init__(self, root_view: physx.RigidBodyView, device: str, *, physics_manager):
         """Initializes the rigid object data.
 
         Args:
             root_view: The root rigid body view.
             device: The device used for processing.
         """
+        self._physics_manager = physics_manager
         super().__init__(root_view, device)
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
@@ -82,7 +82,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_instances = self._root_view.count
 
         # Obtain global physics sim view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)

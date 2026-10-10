@@ -43,6 +43,8 @@ class ImplicitActuator(ActuatorBase):
     solver does not expose the applied joint effort on every backend.
     """
 
+    supports_graph_capture = True
+
     cfg: ImplicitActuatorCfg
     """The configuration for the actuator model."""
 
@@ -190,7 +192,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -272,6 +274,8 @@ class IdealPDActuator(ActuatorBase):
     N·m, depending on joint type].
     """
 
+    supports_graph_capture = True
+
     cfg: IdealPDActuatorCfg
     """The configuration for the actuator model."""
 
@@ -313,7 +317,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
         pass
 
     def compute(
@@ -446,19 +450,37 @@ class DelayedPDActuator(IdealPDActuator):
     to the class.
     """
 
+    supports_graph_capture = False
+
     cfg: DelayedPDActuatorCfg
     """The configuration for the actuator model."""
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
+        # masked resets write the sampled delays without range-checking them on the host
+        if not 0 <= cfg.min_delay <= cfg.max_delay:
+            raise ValueError(f"Expected 0 <= min_delay <= max_delay, received {cfg.min_delay} and {cfg.max_delay}.")
         # instantiate the delay buffers
         self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
-    def reset(self, env_ids: Sequence[int]):
-        super().reset(env_ids)
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
+        super().reset(env_ids, env_mask)
+        if env_mask is not None:
+            # sample a delay for every environment and keep the unselected ones, which avoids a device sync
+            time_lags = torch.randint(
+                low=self.cfg.min_delay,
+                high=self.cfg.max_delay + 1,
+                size=(self._num_envs,),
+                dtype=torch.int,
+                device=self._device,
+            )
+            for delay_buffer in self._delay_buffers:
+                torch.where(env_mask, time_lags, delay_buffer.time_lags, out=delay_buffer.time_lags)
+                delay_buffer.reset(env_mask)
+            return
         # number of environments (since env_ids can be a slice)
         if env_ids is None:
             env_ids = slice(None)

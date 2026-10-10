@@ -25,7 +25,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .kernels import resolve_view_ids_kernel
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -160,23 +159,30 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self,
         env_ids: torch.Tensor | None = None,
         object_ids: slice | torch.Tensor | None = None,
-        env_mask: wp.array | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
         object_mask: wp.array | None = None,
     ) -> None:
         """Resets all internal buffers of selected environments and objects.
 
+        .. caution::
+            If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.
+
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             object_ids: Object indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then the selection follows ``env_ids``. Shape is (num_instances,).
+            object_mask: Object mask. Not used currently.
         """
         # resolve all indices
         if env_ids is None:
             env_ids = self._ALL_ENV_INDICES
         if object_ids is None:
             object_ids = self._ALL_BODY_INDICES
+        if isinstance(env_mask, torch.Tensor):
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -476,7 +482,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._physics_manager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -590,7 +596,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        SimulationManager.invalidate_transforms()
+        self._physics_manager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -1376,7 +1382,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
 
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -1401,7 +1407,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         logger.info(f"Body names: {self.body_names}")
 
         # container for data access
-        self._data = RigidObjectCollectionData(self.root_view, self.num_bodies, self.device)
+        self._data = RigidObjectCollectionData(
+            self.root_view, self.num_bodies, self.device, physics_manager=self._physics_manager
+        )
 
         # create buffers
         self._create_buffers()

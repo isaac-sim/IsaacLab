@@ -22,7 +22,6 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
-from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
 
@@ -127,19 +126,22 @@ class RigidObject(BaseRigidObject):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
         """Reset the rigid object.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+                Takes precedence over ``env_ids``.
         """
         # resolve all indices
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
+        if isinstance(env_mask, torch.Tensor):
+            env_mask = wp.from_torch(env_mask, dtype=wp.bool)
         # reset external wrench
-        self._instantaneous_wrench_composer.reset(env_ids)
-        self._permanent_wrench_composer.reset(env_ids)
+        self._instantaneous_wrench_composer.reset(env_ids, env_mask)
+        self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -371,7 +373,7 @@ class RigidObject(BaseRigidObject):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
-        SimulationManager.invalidate_transforms()
+        self._physics_manager.invalidate_transforms()
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -464,7 +466,7 @@ class RigidObject(BaseRigidObject):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
-        SimulationManager.invalidate_transforms()
+        self._physics_manager.invalidate_transforms()
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -998,7 +1000,7 @@ class RigidObject(BaseRigidObject):
 
     def _initialize_impl(self):
         # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
 
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -1013,7 +1015,7 @@ class RigidObject(BaseRigidObject):
             raise RuntimeError(f"Failed to create rigid body at: {self.cfg.prim_path}. Please check PhysX logs.")
 
         # container for data access
-        self._data = RigidObjectData(self.root_view, self.device)
+        self._data = RigidObjectData(self.root_view, self.device, physics_manager=self._physics_manager)
 
         # create buffers
         self._create_buffers()

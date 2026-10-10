@@ -8,8 +8,10 @@
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Union
+import functools
+import inspect
+from collections.abc import Callable, Sequence
+from typing import Any, Union
 
 import numpy as np
 import torch
@@ -42,6 +44,43 @@ TENSOR_TYPE_CONVERSIONS = {
 The keys of the outer dictionary are the name of target backend ("numpy", "torch", "warp"). The keys of the
 inner dictionary are the source backend (``np.ndarray``, ``torch.Tensor``, ``wp.array``).
 """
+
+
+def env_mask_from_ids(
+    env_ids: Sequence[int] | torch.Tensor | slice | None, num_envs: int, device: torch.device | str
+) -> torch.Tensor:
+    """Return a boolean mask that selects ``env_ids`` without synchronizing the device.
+
+    Args:
+        env_ids: Integer indices, a boolean mask, or a slice. None selects every environment.
+        num_envs: Number of environments.
+        device: Device of the mask.
+
+    Returns:
+        Boolean mask. Shape is (num_envs,).
+    """
+    if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+        return env_ids
+    mask = torch.zeros(num_envs, dtype=torch.bool, device=device)
+    index_fill_(mask, slice(None) if env_ids is None else env_ids, True)
+    return mask
+
+
+def env_ids_from_mask(env_mask: torch.Tensor | None) -> torch.Tensor | slice:
+    """Return the indices selected by ``env_mask``.
+
+    This synchronizes the device, since the number of indices is data dependent. Use it only for consumers that
+    take indices.
+
+    Args:
+        env_mask: Boolean mask. None selects every environment.
+
+    Returns:
+        Long indices on the mask's device, or ``slice(None)`` when ``env_mask`` is None.
+    """
+    if env_mask is None:
+        return slice(None)
+    return env_mask.nonzero().squeeze(-1)
 
 
 def index_fill_(
@@ -126,3 +165,58 @@ def convert_to_torch(
         tensor = tensor.type(dtype)
 
     return tensor
+
+
+def env_selection_kwargs(
+    fn: Callable[..., Any],
+    env_mask: torch.Tensor,
+    env_ids: Sequence[int] | torch.Tensor | slice | None = None,
+) -> dict[str, Any] | None:
+    """Return the keyword argument that selects environments for ``fn``.
+
+    Callables that declare an ``env_mask`` parameter receive the boolean mask and must leave unselected
+    environments unchanged. They run on every reset, so the environment step never waits on the device. Other
+    callables receive indices as ``env_ids``: the caller's ``env_ids`` when given, else the indices selected by
+    ``env_mask``. Computing those synchronizes the device, and the call is skipped when none are selected.
+
+    Args:
+        fn: Term function, term instance, or term method.
+        env_mask: Boolean mask of the selected environments. Shape is (num_envs,).
+        env_ids: The indices or slice the caller selected ``env_mask`` with, if any. Defaults to None.
+
+    Returns:
+        ``{"env_mask": env_mask}`` or ``{"env_ids": indices}``, or None when ``fn`` takes indices and none are
+        selected.
+    """
+    if takes_env_mask(fn):
+        return {"env_mask": env_mask}
+    if env_ids is None:
+        env_ids = env_ids_from_mask(env_mask)
+        if len(env_ids) == 0:
+            return None
+    return {"env_ids": env_ids}
+
+
+def takes_env_mask(fn: Callable[..., Any]) -> bool:
+    """Whether ``fn`` selects environments with an ``env_mask`` parameter.
+
+    Args:
+        fn: Function, class, callable instance, bound method, or :func:`functools.partial`.
+    """
+    if isinstance(fn, functools.partial):
+        return "env_mask" in inspect.signature(fn).parameters
+    return _declares_env_mask(_signature_target(fn))
+
+
+def _signature_target(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Return the plain function whose signature describes calling ``fn``; cached by identity."""
+    if inspect.ismethod(fn):
+        return fn.__func__
+    if inspect.isfunction(fn):
+        return fn
+    return (fn if inspect.isclass(fn) else type(fn)).__call__
+
+
+@functools.cache
+def _declares_env_mask(fn: Callable[..., Any]) -> bool:
+    return "env_mask" in inspect.signature(fn).parameters

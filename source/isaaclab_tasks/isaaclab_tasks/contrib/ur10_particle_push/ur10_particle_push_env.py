@@ -21,7 +21,7 @@ from isaaclab_newton.controllers.ik import (
     NewtonIKSolver,
     NewtonIKSolverCfg,
 )
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import MPMSolverAdapter
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -138,7 +138,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
     def _setup_task_state(self) -> None:
         """Resolve scene assets and allocate state shared by the MDP terms."""
-        NewtonMPMManager.get_model().particle_max_velocity = self._particle_max_velocity
+        MPMSolverAdapter.get_model().particle_max_velocity = self._particle_max_velocity
 
         self._robot = self.scene["robot"]
         self._media = self.scene["media"]
@@ -789,7 +789,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
         index_fill_(world_mask[: self.num_envs], env_ids, True)
-        NewtonMPMManager.reset_solver_state(
+        MPMSolverAdapter.reset_solver_state(
+            MPMSolverAdapter.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

@@ -13,8 +13,6 @@ import warp as wp
 
 from isaaclab.sensors.imu import BaseImu
 
-from isaaclab_newton.physics import NewtonManager
-
 from .imu_data import ImuData
 from .kernels import imu_copy_kernel, imu_reset_kernel
 
@@ -53,12 +51,11 @@ class Imu(BaseImu):
         super().__init__(cfg)
 
         self._data = ImuData()
-        self._sensor_index: int | None = None
         self._newton_sensor: NewtonSensorIMU | None = None
 
         offset_xform = wp.transform(cfg.offset.pos, cfg.offset.rot)
-        self._site_label: str = NewtonManager.cl_register_site(cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")
+        self._site_label: str = self._physics_manager.register_site(cfg.prim_path, offset_xform)
+        self._physics_manager.request_extended_state_attribute("body_qdd")
 
         logger.info(f"IMU '{cfg.prim_path}': site registered (label='{self._site_label}')")
 
@@ -112,13 +109,12 @@ class Imu(BaseImu):
         """PHYSICS_READY callback: resolves site indices and creates the native SensorIMU."""
         super()._initialize_impl()
 
-        site_map = NewtonManager._cl_site_index_map
+        site_map = self._physics_manager.get_site_index_map()
         num_envs = self._num_envs
 
         if self._site_label not in site_map:
             raise ValueError(
-                f"IMU '{self.cfg.prim_path}': site label '{self._site_label}' "
-                "not found in NewtonManager._cl_site_index_map."
+                f"IMU '{self.cfg.prim_path}': site label '{self._site_label}' not found in the Newton site map."
             )
 
         global_idx, per_world = site_map[self._site_label]
@@ -141,12 +137,11 @@ class Imu(BaseImu):
                     )
                 site_indices.append(world_sites[0])
 
-        self._sensor_index = NewtonManager.add_imu_sensor(site_indices)
-        self._newton_sensor = NewtonManager._newton_imu_sensors[self._sensor_index]
+        self._newton_sensor = self._physics_manager.add_imu_sensor(site_indices)
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 
-        logger.info(f"IMU initialized: {num_envs} envs, sensor_index={self._sensor_index}")
+        logger.info(f"IMU initialized: {num_envs} envs")
 
     def _update_buffers_impl(self, env_mask: wp.array):
         """Copies accelerometer/gyroscope data from native Newton sensor into owned buffers."""
@@ -169,24 +164,15 @@ class Imu(BaseImu):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native Newton sensor and re-registers site/attributes.
+        """Clears references to the native Newton sensor.
 
-        Re-registering here ensures the site and ``body_qdd`` attribute survive a
-        non-teardown stop/reinit cycle. During ``NewtonManager.close()``, Newton
-        state is cleared after ``STOP`` so stale registrations from old sensors
-        cannot leak into the next context.
+        The site and ``body_qdd`` request persist on the shared builder, so a hard reset needs no re-registration.
         """
         super()._invalidate_initialize_callback(event)
         self._newton_sensor = None
-        self._sensor_index = None
 
         # Zero out data buffers so stale data is not served between STOP and reinit.
         if self._data._ang_vel_b is not None:
             self._data._ang_vel_b.zero_()
         if self._data._lin_acc_b is not None:
             self._data._lin_acc_b.zero_()
-
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = NewtonManager.cl_register_site(self.cfg.prim_path, offset_xform)
-        NewtonManager.request_extended_state_attribute("body_qdd")

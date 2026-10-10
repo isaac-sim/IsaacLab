@@ -14,8 +14,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source, newton_builder_world_hook
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg
-from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
+from isaaclab_newton.physics import NewtonCfg, NewtonCloneRecord, NewtonManager, VBDSolverCfg
 
 from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
@@ -39,13 +38,14 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
         pass
 
     hooks = [existing]
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks)
+    manager = NewtonManager()
+    manager._world_builder_hooks = hooks
 
     with pytest.raises(ValueError, match="stop"):
-        with newton_builder_world_hook(temporary):
+        with newton_builder_world_hook(temporary, manager=manager):
             assert hooks == [existing, temporary]
             with pytest.raises(RuntimeError, match="already registered"):
-                with newton_builder_world_hook(temporary):
+                with newton_builder_world_hook(temporary, manager=manager):
                     pass
             assert hooks == [existing, temporary]
             hooks.append(added_later)
@@ -54,7 +54,7 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
     assert hooks == [existing, added_later]
 
     with pytest.raises(RuntimeError, match="already registered"):
-        with newton_builder_world_hook(existing):
+        with newton_builder_world_hook(existing, manager=manager):
             pass
     assert hooks == [existing, added_later]
 
@@ -65,9 +65,17 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     body = source.add_body()
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/Source": source})
+    clone = NewtonCloneRecord(
+        world_xforms=None,
+        source_builders={"/World/Source": source},
+        particle_ranges={},
+        cable_bindings={},
+        geometry_batches=[],
+    )
+    manager = NewtonManager()
+    manager._clone = clone
 
-    copied = copy_newton_clone_source("/World/Source")
+    copied = copy_newton_clone_source("/World/Source", manager=manager)
 
     assert copied.shape_source[0] is not source.shape_source[0]
 
@@ -112,40 +120,28 @@ def test_explicit_global_import_uses_global_world(
         return add_usd(builder, *args, **kwargs)
 
     monkeypatch.setattr(newton.ModelBuilder, "add_usd", import_usd)
-    manager = SimpleNamespace(
-        create_builder=newton.ModelBuilder,
-        _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
-        _inject_terrain_heightfields=mock.Mock(return_value=[]),
-    )
+    manager = NewtonManager(cfg=NewtonCfg(load_visual_shapes=load_visual_shapes), device="cpu")
+    terrain_import = mock.Mock(return_value=[])
+    monkeypatch.setattr(replicate_module, "inject_terrain_heightfields", terrain_import)
     sim = SimpleNamespace(
         physics_manager=manager,
         device="cpu",
-        cfg=SimpleNamespace(
-            physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene", device="cpu"
-        ),
+        cfg=SimpleNamespace(physics=manager._cfg, physics_prim_path="/physicsScene", device="cpu"),
         is_rendering=is_rendering,
         can_render_rgb_array=lambda: rgb_array,
         visual_shapes_required=visual_shapes_required,
         _backend_registry=[],
     )
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
-    monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend())
-    monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", ())
-    monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
-    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
-    monkeypatch.setattr(NewtonManager, "_num_envs", 0)
+    manager._sim = sim
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)
     builder, _ = replicate_module.newton_physics_replicate(stage, (), (), env_ids, mapping, global_paths=global_paths)
 
     assert [kwargs["root_path"] for kwargs in imports] == ["/physicsScene", *global_paths]
     assert all(kwargs["load_visual_shapes"] is expected for kwargs in imports[1:])
-    manager._inject_terrain_heightfields.assert_called_once_with(
-        stage, builder, root_paths=("/physicsScene", *global_paths)
-    )
+    terrain_import.assert_called_once_with(stage, builder, root_paths=("/physicsScene", *global_paths), device="cpu")
     model = builder.finalize("cpu")
     ground_index = model.shape_label.index("/World/Ground")
     assert model.shape_world.numpy()[ground_index] == -1
@@ -221,7 +217,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         )
         builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
-        native = NewtonManager.backend
+        native = sim.physics_manager.backend
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 

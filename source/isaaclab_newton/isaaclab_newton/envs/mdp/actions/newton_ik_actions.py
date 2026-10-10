@@ -24,7 +24,6 @@ from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_, instantiate
 
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
-from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -180,7 +179,9 @@ class NewtonInverseKinematicsAction(ActionTerm):
         asset_ids = cloner.path.get_asset_prototypes(plan, self._asset.cfg.prim_path)
         sources = cloner.path.get_asset_prototype_paths(plan)
         self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
-        prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
+        prototype_model = self._physics_manager.get_clone_source_builders()[self._source_path].finalize(
+            device=self._physics_manager.get_model().device
+        )
         prototype_view = ArticulationView(
             prototype_model, self._source_path, verbose=False, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
@@ -210,6 +211,8 @@ class NewtonInverseKinematicsAction(ActionTerm):
 
         self._raw_actions = torch.zeros(self.num_envs, self._action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
+        # The root orientation check reads the device on the host, so it runs on the first step only.
+        self._root_orientations_validated = False
 
         # Warp scratch for the seed -> solve -> gather pipeline.
         num_coords = prototype_model.joint_coord_count
@@ -270,7 +273,9 @@ class NewtonInverseKinematicsAction(ActionTerm):
             )
         # Each pose objective maps its action slice to a prototype-world target,
         # written straight into its Warp target arrays.
-        self._validate_matching_root_orientations()
+        if not self._root_orientations_validated:
+            self._validate_matching_root_orientations()
+            self._root_orientations_validated = True
         action_wp = wp.from_torch(self._processed_actions.contiguous(), dtype=wp.float32)
         body_pos_w = self._asset.data.body_pos_w.warp
         body_quat_w = self._asset.data.body_quat_w.warp
@@ -316,10 +321,10 @@ class NewtonInverseKinematicsAction(ActionTerm):
             inputs=[solved, self._controlled_ids, self._joint_pos_des],
             device=self.device,
         )
-        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
+        self._asset.actuators.target_command.set_position_index(value=self._joint_pos_des, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
 
     def _validate_matching_root_orientations(self) -> None:
         """Guard the prototype-frame IK assumption for replicated fixed-base roots."""

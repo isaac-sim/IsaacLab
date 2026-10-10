@@ -8,19 +8,26 @@
   .. autosummary::
 
     NewtonManager
+    NewtonSolver
+    CapturedGraph
+    NewtonBackend
+    NewtonCloneRecord
+    StepPhase
+    StepCallback
+    StepGraph
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
-    NewtonFeatherstoneManager
-    NewtonKaminoManager
-    NewtonMPMManager
-    NewtonMJWarpManager
-    NewtonVBDManager
+    FeatherstoneSolverAdapter
+    KaminoSolverAdapter
+    MPMSolverAdapter
+    MJWarpSolverAdapter
+    VBDSolverAdapter
     NewtonShapeCfg
     NewtonSolverCfg
-    NewtonXPBDManager
+    XPBDSolverAdapter
     MJWarpSolverCfg
     VBDSolverCfg
     XPBDSolverCfg
@@ -46,6 +53,45 @@ Physics Manager
   :members:
   :inherited-members:
   :show-inheritance:
+
+.. autoclass:: NewtonSolver
+  :members:
+  :show-inheritance:
+
+.. autoclass:: CapturedGraph
+  :members:
+
+.. autoclass:: NewtonBackend
+  :members:
+  :show-inheritance:
+
+.. autoclass:: NewtonCloneRecord
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: StepPhase
+  :members:
+  :show-inheritance:
+
+.. autoclass:: StepCallback
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: StepGraph
+  :members:
+  :show-inheritance:
+
+Backend Functions
+-----------------
+
+.. automodule:: isaaclab_newton.physics.newton_backend
+  :members: init_solver, forward, invalidate_fk, invalidate_body_state, view_row_worlds, mark_model_changed, notify_model_changes,
+    register_step_callback, unregister_step_callback, activate_actuators, add_contact_sensor, add_imu_sensor,
+    build_step_graph, prepare, step, record_step, capture_graph, create_newton_backend
+
+.. currentmodule:: isaaclab_newton.physics
 
 Physics Configuration
 ---------------------
@@ -165,32 +211,32 @@ Physics Configuration
 Solver Managers
 ---------------
 
-.. autoclass:: NewtonMJWarpManager
+.. autoclass:: MJWarpSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:
 
-.. autoclass:: NewtonVBDManager
+.. autoclass:: VBDSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:
 
-.. autoclass:: NewtonXPBDManager
+.. autoclass:: XPBDSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:
 
-.. autoclass:: NewtonFeatherstoneManager
+.. autoclass:: FeatherstoneSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:
 
-.. autoclass:: NewtonKaminoManager
+.. autoclass:: KaminoSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:
 
-.. autoclass:: NewtonMPMManager
+.. autoclass:: MPMSolverAdapter
   :members:
   :inherited-members:
   :show-inheritance:

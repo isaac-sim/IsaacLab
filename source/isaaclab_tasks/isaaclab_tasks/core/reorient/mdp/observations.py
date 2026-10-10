@@ -16,8 +16,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from isaaclab.assets import Articulation, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import Camera
@@ -174,14 +172,14 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         self._shape_probe_pending = True
         self._keypoints_buf = torch.empty(env.num_envs, 8, 3, dtype=torch.float32, device=env.device)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_mask: torch.Tensor) -> None:
         """Finish the shape-probe phase on the first Manager reset.
 
         Args:
-            env_ids: Environment indices being reset. The feature extractor
-                has no per-environment state, so the indices are unused.
+            env_mask: Boolean mask of the environments being reset. Shape is (num_envs,). The feature
+                extractor has no per-environment state, so the mask is unused.
         """
-        del env_ids
+        del env_mask
         if self._shape_probe_pending:
             self._shape_probe_pending = False
 

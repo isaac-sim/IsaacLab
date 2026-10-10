@@ -48,7 +48,7 @@ from isaaclab_ov.assets import Articulation, kernels  # noqa: E402
 from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
@@ -67,7 +67,7 @@ from isaaclab.test.utils.articulation_ordering import (  # noqa: E402
     BRANCHING_PHYSX_BODY_NAMES,
     BRANCHING_PHYSX_JOINT_NAMES,
 )
-from isaaclab.utils import replace  # noqa: E402
+from isaaclab.utils import env_mask_from_ids, replace  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 
 from isaaclab_assets import FRANKA_PANDA_CFG  # noqa: E402
@@ -558,12 +558,12 @@ def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    old_stage_usda = OvPhysxManager._stage_usda
-    OvPhysxManager._stage_usda = stage_usda
+    old_stage_usda = SimulationContext.instance().physics_manager._stage_usda
+    SimulationContext.instance().physics_manager._stage_usda = stage_usda
     try:
         articulation._process_tendons()
     finally:
-        OvPhysxManager._stage_usda = old_stage_usda
+        SimulationContext.instance().physics_manager._stage_usda = old_stage_usda
 
     # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
     # add the identically-named instance from /World/unrelated, giving two entries
@@ -986,7 +986,7 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     randomize = randomize_rigid_body_material(cfg, env)
 
     # Randomize only the last environment; the others keep their materials.
-    randomize(env, torch.tensor([num_articulations - 1], device=device), **cfg.params)
+    randomize(env, env_mask_from_ids([num_articulations - 1], num_articulations, device), **cfg.params)
     scene.step(articulation)
 
     materials = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
@@ -1664,7 +1664,7 @@ def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _
         "distribution": "uniform",
     }
     event = randomize_actuator_gains(EventTermCfg(func=randomize_actuator_gains, params=event_params), env)
-    event(env, env_ids=torch.tensor([0], device=device), **event_params)
+    event(env, env_mask=env_mask_from_ids([0], env.num_envs, device), **event_params)
 
     stiffness = read_group_parameter(articulation.actuators, "joint", "controller", "kp")
     damping = read_group_parameter(articulation.actuators, "joint", "controller", "kd")
@@ -1692,13 +1692,13 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(scene: _Articul
         articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
         articulation.write_joint_position_to_sim_index(position=articulation.data.joint_pos.torch.clone())
         with monkeypatch.context() as patch:
-            physx = Mock(wraps=OvPhysxManager.backend.physx)
-            patch.setattr(OvPhysxManager.backend, "physx", physx)
+            physx = Mock(wraps=SimulationContext.instance().physics_manager.backend.physx)
+            patch.setattr(SimulationContext.instance().physics_manager.backend, "physx", physx)
             if render_first:
-                OvPhysxManager.pre_render()
+                SimulationContext.instance().physics_manager.pre_render()
             articulation.data.root_link_vel_w
             body_com_vel_w = articulation.data.body_com_vel_w.torch
-            OvPhysxManager.pre_render()
+            SimulationContext.instance().physics_manager.pre_render()
             physx.update_articulations_kinematic.assert_called_once()
             assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
 

@@ -12,6 +12,7 @@ from unittest.mock import Mock
 
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
@@ -95,16 +96,17 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
 
 
 def test_external_force_uses_selected_body_count(scene):
-    """A finalized subset must size forces for that subset, rather than every body."""
+    """A finalized subset must write forces for that subset, rather than every body."""
+    wp.init()
     cfg = SceneEntityCfg("robot", body_ids=[3, 1])
     cfg.resolve(scene)
     cfg.finalize("cpu")
     asset = scene["robot"]
     asset.device = "cpu"
-    asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_index=Mock())
+    asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_mask=Mock())
     env = SimpleNamespace(scene=scene, num_envs=2)
-    apply_external_force_torque(env, None, (2.0, 2.0), (3.0, 3.0), cfg)
-    kwargs = asset.permanent_wrench_composer.set_forces_and_torques_index.call_args.kwargs
-    torch.testing.assert_close(kwargs["forces"], torch.full((2, 2, 3), 2.0))
-    torch.testing.assert_close(kwargs["torques"], torch.full((2, 2, 3), 3.0))
-    assert kwargs["body_ids"].tolist() == [3, 1]
+    apply_external_force_torque(env, torch.ones(2, dtype=torch.bool), (2.0, 2.0), (3.0, 3.0), cfg)
+    kwargs = asset.permanent_wrench_composer.set_forces_and_torques_mask.call_args.kwargs
+    torch.testing.assert_close(wp.to_torch(kwargs["forces"]), torch.full((2, 4, 3), 2.0))
+    torch.testing.assert_close(wp.to_torch(kwargs["torques"]), torch.full((2, 4, 3), 3.0))
+    assert wp.to_torch(kwargs["body_mask"]).tolist() == [False, True, False, True]

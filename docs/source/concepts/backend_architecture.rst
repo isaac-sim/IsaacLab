@@ -91,8 +91,8 @@ the entry for retry. After physics shutdown invalidates camera
 render data, simulation teardown closes material writers, renderer instances, visualizers,
 and remaining native resources, in that order, before closing the stage.
 
-Managers and native renderers expose their borrowed resource through ``backend``.
-For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+Managers and native renderers expose their borrowed resource. For example,
+``sim.physics_manager.backend.model`` accesses the finalized native model.
 Closing a renderer releases its bindings, not the shared native resource.
 Exposing native handles does not replace SDP transport.
 
@@ -104,17 +104,18 @@ Newton has two resources with different lifetimes, not two interchangeable backe
 * ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
   requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
   is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
-* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
-  borrow those handles. Closing it releases runtime allocations without closing the builder.
+* ``NewtonBackend`` owns the finalized model and native buffers and, under Newton physics, the
+  solver, contacts, step callbacks, and compiled step graph. Physics and render consumers borrow
+  those handles. Closing it releases runtime allocations without closing the builder.
 
 Both resources use the same registry:
 
 .. code-block:: python
 
-    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
+    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager)
     builder = sim.get_or_create_backend(builder_cfg)
     # Clone/import populates this builder before model allocation.
-    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
     backend = sim.get_or_create_backend(model_cfg)
 
 Both configurations use the selected physics cfg; non-Newton physics selects a render-only

@@ -11,8 +11,6 @@ from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDe
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager as SimulationManager
-
 from .kernels import compute_mean_vec3f_over_particles, compute_particle_state_w, gather_particles_vec3f, vec6f
 
 
@@ -21,7 +19,10 @@ class MPMObjectData(BaseDeformableObjectData):
 
     __backend_name__: str = "newton"
 
-    def __init__(self, particle_offsets: wp.array, particles_per_object: int, num_instances: int, device: str):
+    def __init__(
+        self, particle_offsets: wp.array, particles_per_object: int, num_instances: int, device: str, *, physics_manager
+    ):
+        self._physics_manager = physics_manager
         super().__init__(device)
         self._particle_offsets = particle_offsets
         self._particles_per_object = particles_per_object
@@ -47,7 +48,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_pos_w(self) -> ProxyArray:
         """Particle positions in simulation world frame [m]."""
         if self._particle_pos_w.timestamp < self._sim_timestamp:
-            state = SimulationManager.get_state_0()
+            state = self._physics_manager.get_state_0()
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),
@@ -62,7 +63,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_vel_w(self) -> ProxyArray:
         """Particle velocities in simulation world frame [m/s]."""
         if self._particle_vel_w.timestamp < self._sim_timestamp:
-            state = SimulationManager.get_state_0()
+            state = self._physics_manager.get_state_0()
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),

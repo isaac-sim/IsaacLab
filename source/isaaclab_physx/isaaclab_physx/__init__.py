@@ -91,16 +91,19 @@ def _patch_isaacsim_simulation_manager() -> None:
                 if hasattr(original_class, attr):
                     setattr(original_class, attr, None)
 
-    original_module.SimulationManager = PhysxManager
+    from isaaclab.sim import SimulationContext
+
+    sim = SimulationContext.instance()
+    if sim is None or not isinstance(getattr(sim, "physics_manager", None), PhysxManager):
+        return
+    original_module.SimulationManager = sim.physics_manager
     original_module.IsaacEvents = IsaacEvents
 
 
 def _default_callbacks_disabled_at_startup(original_class: type) -> bool:
     """Return whether Isaac Sim supports and honored its startup callback setting."""
     implementation_module = sys.modules.get("isaacsim.core.simulation_manager.impl.simulation_manager")
-    if implementation_module is None or not hasattr(
-        implementation_module, "_SETTING_ENABLE_DEFAULT_CALLBACKS"
-    ):
+    if implementation_module is None or not hasattr(implementation_module, "_SETTING_ENABLE_DEFAULT_CALLBACKS"):
         return False
 
     try:
@@ -112,7 +115,7 @@ def _default_callbacks_disabled_at_startup(original_class: type) -> bool:
 def _get_original_simulation_manager_class(original_module: ModuleType, physx_manager: type) -> type | None:
     """Return Isaac Sim's implementation class, including after a module-level patch."""
     original_class = getattr(original_module, "SimulationManager", None)
-    if original_class is not physx_manager:
+    if original_class is not physx_manager and not isinstance(original_class, physx_manager):
         return original_class
 
     implementation_module = sys.modules.get("isaacsim.core.simulation_manager.impl.simulation_manager")

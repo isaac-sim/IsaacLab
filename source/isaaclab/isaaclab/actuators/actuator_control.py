@@ -308,11 +308,17 @@ class ActuatorControl(ABC):
         """
         raise NotImplementedError
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(
+        self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None
+    ) -> None:
         """Reset backend-native actuator state.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environments to reset.
+            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Defaults to None.
         """
 
 

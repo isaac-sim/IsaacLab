@@ -50,16 +50,17 @@ class progress_reward(ManagerTermBase):
         self.potentials = torch.zeros(env.num_envs, device=env.device)
         self.prev_potentials = torch.zeros_like(self.potentials)
 
-    def reset(self, env_ids: torch.Tensor):
+    def reset(self, env_mask: torch.Tensor):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = self._env.scene["robot"]
         # compute the planar distance to the target, matching __call__ so the first step scores no progress
-        to_target_pos = obs.walk_target_w(self._env, self.cfg.params["target_pos"])[env_ids]
-        to_target_pos = to_target_pos - asset.data.root_pos_w.torch[env_ids, :3]
+        to_target_pos = obs.walk_target_w(self._env, self.cfg.params["target_pos"])
+        to_target_pos = to_target_pos - asset.data.root_pos_w.torch[:, :3]
         to_target_pos[:, 2] = 0.0
         # reward terms
-        self.potentials[env_ids] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
-        self.prev_potentials[env_ids] = self.potentials[env_ids]
+        potentials = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
+        torch.where(env_mask, potentials, self.potentials, out=self.potentials)
+        torch.where(env_mask, potentials, self.prev_potentials, out=self.prev_potentials)
 
     def __call__(
         self,
