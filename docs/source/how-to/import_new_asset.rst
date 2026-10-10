@@ -264,12 +264,13 @@ is derived automatically from the robot name in the URDF):
 
 .. note::
    The URDF importer auto-deduplicates the per-robot subdirectory when it already exists.
-   If you re-run the converter against the same ``usd_dir`` with a changed configuration
-   (for example, flipping ``fix_base``), the importer writes to a new numbered folder
-   (``anymal_1/``, ``anymal_2/``, …) rather than overwriting the previous output.
-   :attr:`~sim.converters.UrdfConverter.usd_path` reflects whichever folder the importer
-   actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
-   want them to accumulate on disk.
+   A lazy conversion reuses any earlier output of the same asset and configuration in
+   ``usd_dir``; a new configuration (for example, flipping ``fix_base``), or a conversion
+   that this script forces, is written to a new numbered folder (``anymal_1/``,
+   ``anymal_2/``, …) rather than overwriting the previous output.
+   :attr:`~sim.converters.UrdfConverter.usd_path` reflects whichever folder holds the
+   conversion. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not want
+   them to accumulate on disk.
 
 .. _import-new-asset-preview:
 
@@ -418,12 +419,12 @@ Executing the above script will create the USD file inside the
 
 .. note::
    The MJCF importer auto-deduplicates the per-robot subdirectory when it already exists,
-   matching the URDF importer's behavior. If you re-run the converter against the same
-   ``usd_dir`` with a changed configuration, the importer writes to a new numbered folder
-   (``h1_1/``, ``h1_2/``, …) rather than overwriting the previous output.
-   :attr:`~sim.converters.MjcfConverter.usd_path` reflects whichever folder the importer
-   actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
-   want them to accumulate on disk.
+   matching the URDF importer's behavior. A lazy conversion reuses any earlier output of the
+   same asset and configuration in ``usd_dir``; a new configuration, or a conversion that this
+   script forces, is written to a new numbered folder (``h1_1/``, ``h1_2/``, …) rather than
+   overwriting the previous output. :attr:`~sim.converters.MjcfConverter.usd_path` reflects
+   whichever folder holds the conversion. Delete stale subdirectories manually (or wipe
+   ``usd_dir``) if you do not want them to accumulate on disk.
 
 See :ref:`Previewing converted assets <import-new-asset-preview>` for the ``--viz`` options.
 
