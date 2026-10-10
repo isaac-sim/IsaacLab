@@ -50,7 +50,6 @@ runs:
           .dockerignore
           docker/docker-compose.yaml
           docker/scripts/install_carb_env_shim.sh
-          docker/scripts/install_git_lfs.sh
           docker/utils/volume_mounts.py
           isaaclab.sh
           environment.yml
