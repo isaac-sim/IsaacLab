@@ -12,7 +12,8 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ import torch.distributed as dist
 from physicsnemo.distributed import DistributedManager
 from physicsnemo_robotics.data import TransitionWindowReader
 from physicsnemo_robotics.dynamics import FieldNormalizer, TransitionAdapter
+from physicsnemo_robotics.models.parallel_nerd import model as parallel_nerd_model
 from physicsnemo_robotics.training import LoaderOptions, normalize_transition
 from physicsnemo_robotics.training.distributed import build_stock_data_pipeline
 
@@ -70,6 +72,27 @@ class _PredictLast(torch.nn.Module):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         predict_last = getattr(self.network, "predict_last", None)
         return predict_last(inputs) if callable(predict_last) else self.network(inputs)[:, -1]
+
+
+@contextmanager
+def _fp32_parallel_nerd_attention() -> Iterator[None]:
+    """Keep ParallelNeRD attention logits in FP32 under autocast.
+
+    ``_ParallelBlock._full_attention`` casts queries and keys to FP32 for its logits, but autocast casts
+    the matmul back to FP16, where logits beyond 65,504 overflow and the softmax returns NaN. Trained
+    models reach such logits within tens of thousands of updates at FlashNeRD learning rates.
+    """
+    attention = parallel_nerd_model._ParallelBlock._full_attention
+
+    def full_precision_attention(block, query, key, value):
+        with torch.autocast("cuda", enabled=False):
+            return attention(block, query, key, value)
+
+    parallel_nerd_model._ParallelBlock._full_attention = full_precision_attention
+    try:
+        yield
+    finally:
+        parallel_nerd_model._ParallelBlock._full_attention = attention
 
 
 def materialize_windows(
@@ -128,10 +151,10 @@ def fit_resident(
 
     Every rank samples its share of the global batch independently from all training windows. With
     ``compile``, the training forward and backward passes run through :func:`torch.compile`. With
-    ``mixed_precision``, projections run under FP16 autocast while parameters, optimizer state, loss,
-    and metrics stay FP32, and an overflowed batch is retried with a lower loss scale without advancing
-    the sampler or the learning-rate schedule. A checkpoint is written every ``checkpoint_every``
-    updates and at the end; training resumes from it when its ``identity`` matches.
+    ``mixed_precision``, projections run under FP16 autocast while attention logits, parameters, optimizer
+    state, loss, and metrics stay FP32, and a batch whose gradients overflow is retried with a lower loss
+    scale without advancing the sampler or the learning-rate schedule. A checkpoint is written every
+    ``checkpoint_every`` updates and at the end; training resumes from it when its ``identity`` matches.
 
     Args:
         network: Model to train, already on ``device``.
@@ -150,8 +173,34 @@ def fit_resident(
     Raises:
         ValueError: If the global batch is not divisible by the number of ranks, or a checkpoint of a
             different run exists.
-        FloatingPointError: If a batch still overflows after the allowed retries.
+        FloatingPointError: If the loss is not finite, or a batch still overflows after the allowed retries.
     """
+    with _fp32_parallel_nerd_attention():
+        return _fit_resident(
+            network,
+            train,
+            validation,
+            normalizer,
+            options,
+            device=device,
+            checkpoint_path=checkpoint_path,
+            identity=identity,
+            on_checkpoint=on_checkpoint,
+        )
+
+
+def _fit_resident(
+    network: torch.nn.Module,
+    train: ResidentWindows,
+    validation: ResidentWindows,
+    normalizer: FieldNormalizer,
+    options: ResidentOptions,
+    *,
+    device: torch.device,
+    checkpoint_path: Path,
+    identity: Mapping[str, Any],
+    on_checkpoint: Callable[[int], None] | None,
+) -> tuple[int, dict[str, float]]:
     manager = DistributedManager()
     world_size, rank = manager.world_size, manager.rank
     if options.batch_size % world_size:
@@ -224,6 +273,9 @@ def fit_resident(
             with torch.autocast("cuda", dtype=torch.float16, enabled=options.mixed_precision):
                 prediction = model(inputs)
             loss = (prediction.float() - target).square().mean()
+            # A lower loss scale cannot repair a non-finite forward pass, so stop instead of retrying.
+            if not bool(torch.isfinite(loss.detach())):
+                raise FloatingPointError(f"Update {completed + 1} produced a non-finite loss.")
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(network.parameters(), options.gradient_clip_norm)
