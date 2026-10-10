@@ -56,8 +56,12 @@ def random_uniform_terrain(
     width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
     length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     # -- downsampled scale
-    width_downsampled = int(cfg.size[0] / cfg.downsampled_scale)
-    length_downsampled = int(cfg.size[1] / cfg.downsampled_scale)
+    if cfg.downsampled_scale == cfg.horizontal_scale:
+        # sample every pixel instead of dividing the size again, which can land one sample short
+        width_downsampled, length_downsampled = width_pixels, length_pixels
+    else:
+        width_downsampled = int(cfg.size[0] / cfg.downsampled_scale)
+        length_downsampled = int(cfg.size[1] / cfg.downsampled_scale)
     # -- height
     height_min = int(cfg.noise_range[0] / cfg.vertical_scale)
     height_max = int(cfg.noise_range[1] / cfg.vertical_scale)

@@ -176,6 +176,17 @@ def test_height_field_terrain_spans_size_with_border(cfg_class, cfg_kwargs):
     np.testing.assert_allclose(meshes[0].bounds[:, :2], [[0.0, 0.0], [10.0, 10.0]], atol=1e-6)
 
 
+def test_random_uniform_terrain_samples_every_pixel_with_border():
+    """Random uniform terrain without a downsampled scale keeps every height on a noise step for the same size."""
+    # Resampling one sample short onto the pixel grid would interpolate between the noise steps.
+    cfg = HfRandomUniformTerrainCfg(
+        size=(10.0, 10.0), horizontal_scale=0.1, border_width=0.4, noise_range=(0.02, 0.1), noise_step=0.02
+    )
+    meshes, _ = cfg.function(0.5, cfg)
+
+    np.testing.assert_allclose(np.unique(meshes[0].vertices[:, 2].round(6)), [0.0, 0.02, 0.04, 0.06, 0.08, 0.1])
+
+
 @pytest.mark.parametrize("parent_slope_threshold", [0.75, None])
 def test_height_field_sub_terrains_keep_individual_settings(parent_slope_threshold):
     """Children retain numeric settings and inherit parent values only for None fields."""
