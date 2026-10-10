@@ -170,6 +170,8 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     try:
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
+        from ..visualizers import WindowCfg
+
         resolution = getattr(viewer, "resolution", None)
         sim_cfg.default_visualizer_cfg = KitVisualizerCfg(
             eye=tuple(viewer.eye),
@@ -177,7 +179,7 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
             origin_type=new_origin_type,
             origin_env_index=getattr(viewer, "env_index", 0),
             origin_track_path=origin_track_path,
-            **({"window_width": resolution[0], "window_height": resolution[1]} if resolution is not None else {}),
+            **({"window": WindowCfg(size=tuple(resolution))} if resolution is not None else {}),
         )
     except ImportError:
         from ..visualizers import VisualizerCfg

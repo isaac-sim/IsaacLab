@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import sys
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 from unittest.mock import Mock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
@@ -29,6 +29,7 @@ from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.visualizers import WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
@@ -90,8 +91,8 @@ class _FakeVisualizer(BaseVisualizer):
         self.step_calls = []
         self.close_calls = 0
 
-    def initialize(self, provider, *, cameras, stage=None):
-        super().initialize(provider, cameras=cameras, stage=stage)
+    def initialize(self, sim, *, cameras):
+        super().initialize(sim, cameras=cameras)
         self._is_initialized = True
 
     @property
@@ -279,11 +280,12 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     ctx = _make_context_with_settings(
         {}, visualizer_cfgs=[_Cfg("newton_gl", True), _Cfg("newton_rtx", True), _Cfg("rerun")]
     )
+    ctx.get_or_create_backend = Mock(side_effect=AssertionError("Core must not construct viewer backends"))
     ctx._create_visualizers()
     eye, target = (1.0, 2.0, 3.0), (0.0, 0.0, 0.0)
     ctx.set_camera_view(eye, target)
     ctx._prepare_newton_visualizer_for_capture()
-    assert created == ["newton_gl", "newton_rtx"]
+    assert created == ["newton_gl"]
 
     ctx.initialize_visualizers()
     ctx._prepare_newton_visualizer_for_capture()
@@ -294,9 +296,7 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     assert ctx._pending_camera_view is None
     assert reset_calls == [
         ("newton_gl", False),
-        ("newton_rtx", False),
         ("newton_gl", False),
-        ("newton_rtx", False),
     ]
 
 
@@ -304,9 +304,19 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
-    ctx._visualizers = []
+    ctx.cfg = SimpleNamespace(physics=object())
+    ctx._visualizers = [
+        SimpleNamespace(
+            cfg=SimpleNamespace(visualizer_type="newton_rtx"), reset=lambda soft: events.append("viewer_reset")
+        )
+    ]
+    ctx.get_or_create_backend = Mock(side_effect=AssertionError("Core must not rebind viewer backends"))
 
     class _PhysicsManager:
+        @staticmethod
+        def get_device():
+            return "cpu"
+
         @staticmethod
         def reset(soft=False):
             events.append(f"reset:{soft}")
@@ -330,7 +340,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     ctx.reset()
 
-    assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
+    assert events == ["reset:False", "viewer_reset", "initialize_visualizers", "finalize_consumers:1:True", "play"]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 
@@ -359,6 +369,9 @@ def web_backend(monkeypatch):
         cfg=SimpleNamespace(physics=object(), device="cpu"),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
+        vis_marker_registry=VisMarkerRegistry(),
+        stage=None,
+        get_scene_data_provider=Mock(return_value=_DummyViserSceneDataProvider()),
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     return sim
@@ -387,6 +400,7 @@ class _DummyViserViewer:
 
 def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web_backend):
     provider = _DummyViserSceneDataProvider()
+    web_backend.get_scene_data_provider.return_value = provider
     viewer = _DummyViserViewer()
 
     def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
@@ -399,7 +413,7 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
 
     cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
-    visualizer.initialize(cast(Any, provider), cameras=[])
+    visualizer.initialize(web_backend, cameras=[])
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
@@ -484,7 +498,8 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer.backend = SimpleNamespace(model="dummy-model")
-    BaseVisualizer.initialize(visualizer, SimpleNamespace(num_envs=8), cameras=[])
+    sim = Mock(stage=None, get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)))
+    BaseVisualizer.initialize(visualizer, sim, cameras=[])
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
     assert captured["set_model"] == "dummy-model"
@@ -540,7 +555,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         randomly_sample_visible_envs=False,
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
-    visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()), cameras=[])
+    visualizer.initialize(web_backend, cameras=[])
 
     assert captured["streaming_view"] is False
     assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
@@ -720,7 +735,7 @@ class _FakeVisualizerCfg(VisualizerCfg):
 
 
 class _FailingInitVisualizer(_FakeVisualizer):
-    def initialize(self, provider, *, cameras, stage=None):
+    def initialize(self, sim, *, cameras):
         raise RuntimeError("init failed")
 
 
@@ -769,12 +784,12 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         cfg.cameras, cfg.streaming_view = [source, perspective], True
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
-        assert visualizer._camera_choices == [camera, perspective]
+        assert visualizer._cameras == [camera, perspective]
         assert cfg.cameras == [source, perspective]
         assert source.prim_path == "{ENV_REGEX_NS}/Camera"
-        assert not hasattr(visualizer, "_clone_plan")
+        assert not {"_clone_plan", "_scene_stage", "_get_backend"}.intersection(vars(visualizer))
         ctx._scene_data_provider.get_camera_sensors.assert_called_once_with()
-        assert visualizer._scene_stage is ctx.stage
+        assert visualizer._sim is ctx
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]
     assert visualizer.close_calls == 0
@@ -790,12 +805,7 @@ def _make_context_with_settings(
     has_gui: bool = False,
     has_offscreen_render: bool = False,
 ):
-    """Build a minimal SimulationContext suitable for testing is_rendering, _resolve_visualizer_cfgs,
-    and initialize_visualizers.
-
-    Centralises the ``object.__new__`` construction so new internal attributes only need to be added
-    in one place when the production code changes.
-    """
+    """Build a minimal SimulationContext for visualizer construction, initialization, and rendering checks."""
     cfg = type(
         "Cfg",
         (),
@@ -834,16 +844,21 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
         streaming_sensor_prim_path="/World/envs/*/Camera",
+        window=WindowCfg(size=(640, 480), fps=60),
     )
-    visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl"])
+    visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl", "newton_rtx"])
     ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
 
-    cfgs = ctx._resolve_visualizer_cfgs()
+    ctx._create_visualizers()
+    cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
-    assert len(cfgs) == 1
+    assert len(cfgs) == 2
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
     assert cfgs[0].background_color == (0.1, 0.2, 0.3)
     assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
+    assert cfgs[0].window == cfgs[1].window == default_cfg.window
+    cfgs[0].window.fps = 20
+    assert cfgs[1].window.fps == default_cfg.window.fps == 60
 
 
 def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
@@ -868,21 +883,27 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         eye=(8.0, 0.0, 5.0),
         lookat=(0.0, 0.0, 0.5),
         streaming_sensor_prim_path="/World/envs/*/Camera",
+        window=WindowCfg(size=(640, 480), fps=60),
     )
-    # Explicit Newton cfg with only window_width customized; eye/lookat at class defaults.
-    explicit_cfg = NewtonGLVisualizerCfg(window_width=320, window_height=240)
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
+    # Explicit Newton cfg with only the window size customized; eye/lookat at class defaults.
+    explicit_cfg = NewtonGLVisualizerCfg(window=WindowCfg(size=(320, 240)))
+    rtx_cfg = NewtonRTXVisualizerCfg(window=WindowCfg(fps=20))
+    ctx = _make_context_with_settings(
+        settings, visualizer_cfgs=[explicit_cfg, rtx_cfg], default_visualizer_cfg=default_cfg
+    )
 
-    cfgs = ctx._resolve_visualizer_cfgs()
+    ctx._create_visualizers()
+    cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
-    assert len(cfgs) == 1
+    assert len(cfgs) == 2
     # env-level hints applied (were at class defaults on explicit_cfg)
     assert cfgs[0].eye == (8.0, 0.0, 5.0)
     assert cfgs[0].lookat == (0.0, 0.0, 0.5)
     assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
     # user-customized fields preserved
-    assert cfgs[0].window_width == 320
-    assert cfgs[0].window_height == 240
+    assert cfgs[0].window.size == (320, 240)
+    assert cfgs[0].window.fps == 60
+    assert cfgs[1].window == WindowCfg(size=(640, 480), fps=20)
     assert cfgs[0].class_type.__name__ == "NewtonGLVisualizer"
     assert cfgs[0].visualizer_type == "newton_gl"
     assert cfgs[0].cloning_contexts == NewtonGLVisualizerCfg().cloning_contexts
@@ -896,13 +917,14 @@ def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields()
     explicit_cfg = NewtonGLVisualizerCfg(eye=(1.0, 2.0, 3.0))
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
 
-    cfgs = ctx._resolve_visualizer_cfgs()
+    ctx._create_visualizers()
+    cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
     assert cfgs[0].eye == (1.0, 2.0, 3.0)
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "newton_gl"})()
+    cfg_visualizer = VisualizerCfg(visualizer_type="newton_gl")
     settings = {
         "/isaaclab/render/rtx_sensors": False,
     }
@@ -912,7 +934,7 @@ def test_is_rendering_true_when_only_cfg_visualizer_is_set():
 
 def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
     """A capture-only headless visualizer must not trigger continuous rendering."""
-    cfg_visualizer = type("CfgVisualizer", (), {"visualizer_type": "kit", "headless": True})()
+    cfg_visualizer = VisualizerCfg(visualizer_type="kit", headless=True)
     settings = {
         "/isaaclab/render/rtx_sensors": False,
     }

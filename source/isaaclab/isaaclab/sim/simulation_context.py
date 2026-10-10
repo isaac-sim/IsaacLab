@@ -10,6 +10,7 @@ import logging
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -318,10 +319,6 @@ class SimulationContext:
         """Returns whether offscreen rendering is enabled (cached at init)."""
         return self._has_offscreen_render
 
-    def has_active_visualizers(self) -> bool:
-        """Return whether any visualizer path is active for rendering/camera control."""
-        return self._has_continuous_visualizers() or bool(self.get_setting("/isaaclab/video/auto_start_kit"))
-
     def is_running(self) -> bool:
         """Return whether the simulation should keep running.
 
@@ -346,8 +343,11 @@ class SimulationContext:
 
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available, including from a headless visualizer."""
-        return (
-            self.has_gui or self.has_offscreen_render or self.has_active_visualizers() or bool(self.cfg.visualizer_cfgs)
+        return bool(
+            self.has_gui
+            or self.has_offscreen_render
+            or self.cfg.visualizer_cfgs
+            or self.get_setting("/isaaclab/video/auto_start_kit")
         )
 
     @property
@@ -362,7 +362,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or self._has_continuous_visualizers()
+            or any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
             or self._xr_enabled
         )
 
@@ -395,28 +395,19 @@ class SimulationContext:
         default_cfg = self.cfg.default_visualizer_cfg
         if default_cfg is None:
             return
-        source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
-        for field in fields(default_cfg):
-            if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
-                continue
-            default_val = getattr(default_cfg, field.name)
-            if default_val == getattr(source_defaults, field.name):
-                continue
-            if getattr(cfg, field.name) != getattr(target_defaults, field.name):
-                continue
-            setattr(cfg, field.name, default_val)
+        for source, target in ((default_cfg, cfg), (default_cfg.window, cfg.window)):
+            source_defaults, target_defaults = type(source)(), type(target)()
+            for field in fields(source):
+                if field.name in ("class_type", "visualizer_type", "window") or not hasattr(target, field.name):
+                    continue
+                default_val = getattr(source, field.name)
+                if default_val == getattr(source_defaults, field.name):
+                    continue
+                if getattr(target, field.name) == getattr(target_defaults, field.name):
+                    setattr(target, field.name, deepcopy(default_val))
 
-    def resolve_visualizer_types(self) -> list[str]:
-        """Return the types of the visualizers in :attr:`SimulationCfg.visualizer_cfgs`."""
-        return [cfg.visualizer_type for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type]
-
-    def _has_continuous_visualizers(self) -> bool:
-        """Return whether the configured visualizers require per-step updates."""
-        # only the Kit and Newton configs have ``headless``
-        return any(cfg.visualizer_type and not getattr(cfg, "headless", False) for cfg in self.cfg.visualizer_cfgs)
-
-    def _resolve_visualizer_cfgs(self) -> list[Any]:
-        """Return the configured visualizers with the shared defaults applied, plus a Kit visualizer for XR."""
+    def _create_visualizers(self) -> None:
+        """Construct cfg-owned consumers and publish their requirements before scene cloning."""
         resolved = list(self.cfg.visualizer_cfgs)
         for cfg in resolved:
             self._apply_default_visualizer_cfg(cfg)
@@ -440,11 +431,7 @@ class SimulationContext:
                 resolved.append(KitVisualizerCfg())
                 logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
-        return resolved
-
-    def _create_visualizers(self) -> None:
-        """Construct cfg-owned consumers and publish their requirements before scene cloning."""
-        for cfg in self._resolve_visualizer_cfgs():
+        for cfg in resolved:
             if cfg.visualizer_type is not None:
                 requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type]
                 self.requires_usd_stage |= requires_stage
@@ -465,7 +452,7 @@ class SimulationContext:
             camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
             env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
             cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
-            visualizer.initialize(self._scene_data_provider, cameras=cameras, stage=self.stage)
+            visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
             self._visualizers_started = True
@@ -549,7 +536,7 @@ class SimulationContext:
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
         return (
-            cfg.visualizer_type in {"newton_gl", "newton_rtx"}
+            cfg.visualizer_type == "newton_gl"
             and bool(getattr(cfg, "enable_picking", False))
             and not bool(getattr(cfg, "headless", False))
         )

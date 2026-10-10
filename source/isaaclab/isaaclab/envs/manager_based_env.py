@@ -384,7 +384,11 @@ class ManagerBasedEnv:
 
         Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
         """
-        if not self.sim.has_gui and not self.sim.has_active_visualizers():
+        if not (
+            self.sim.has_gui
+            or any(cfg.visualizer_type and not cfg.headless for cfg in self.sim.cfg.visualizer_cfgs)
+            or self.sim.get_setting("/isaaclab/video/auto_start_kit")
+        ):
             self.manager_visualizers = {}
             return
         managers = {
