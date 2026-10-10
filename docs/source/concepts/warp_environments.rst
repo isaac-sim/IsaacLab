@@ -17,6 +17,12 @@ Throughout this page, **stable** refers to the standard Torch-based implementati
 is not passed). Their Warp counterparts live in the ``isaaclab_experimental`` and
 ``isaaclab_tasks_experimental`` packages.
 
+For interactive documentation, see :ref:`interactive-documentation-examples`.
+The browser exporter uses CPU APIC capture. The Warp frontend's CUDA capture
+does not establish browser compatibility: scene writes and actuator operations
+still include Torch execution, and native geometry/rendering resources need
+portable implementations or a running native session.
+
 
 Workflows
 ~~~~~~~~~

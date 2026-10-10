@@ -215,6 +215,7 @@ exclude_patterns = [
     "Thumbs.db",
     ".DS_Store",
     "README.md",
+    "browser_demos/README.md",
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
@@ -333,7 +334,7 @@ html_last_updated_fmt = ""  # to reveal the build date in the pages meta
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["source/_static"]
+html_static_path = ["source/_static", "../contrib/browser_demos/static"]
 html_css_files = [
     "css/custom.css",
     "css/environment-browser.css",

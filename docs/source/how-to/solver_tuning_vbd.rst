@@ -425,11 +425,30 @@ for volume deformables:
     * - ``particle_radius``
       - Default: ``0.008`` [m]. Particle contact radius used by Newton. Increase it when contacts are missed or detected too late. If it is too large relative to the mesh resolution, contacts can start too early.
     * - ``k_mu``
-      - Default: ``1.0e5`` [Pa]. First Lame material parameter. Higher values make the deformable object stiffer and usually require more VBD iterations, more substeps, or a smaller timestep.
+      - Default: ``1.0e5`` [Pa]. Shear modulus (second Lamé parameter). Higher values increase resistance to shear and usually require more VBD iterations, more substeps, or a smaller timestep.
     * - ``k_lambda``
-      - Default: ``1.0e5`` [Pa]. Second Lame material parameter. Higher values make the deformable object stiffer and usually require more VBD iterations, more substeps, or a smaller timestep.
+      - Default: ``1.0e5`` [Pa]. First Lamé parameter. Higher values increase resistance to volume change and usually require more VBD iterations, more substeps, or a smaller timestep.
     * - ``k_damp``
       - Default: ``0.0`` [Pa*s]. Damping for tetrahedral elements. Increase it to reduce oscillations after deformation, but avoid overdamping if the object should rebound.
+
+.. _browser-demo-stiffness:
+
+Try material tuning in the browser
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The three falling cubes below use VBD with eight solver iterations per step.
+Change the middle cube's shear parameter :math:`\mu` (``k_mu``) and first Lamé
+parameter :math:`\lambda` (``k_lambda``) independently. Larger :math:`\mu`
+resists shear; larger :math:`\lambda` resists volume change. You can also
+adjust material damping and gravity. Press **Reset** after changing a value to
+compare the same drop. The first and third cubes keep their original material
+settings as visual references. This small scene illustrates material response.
+The browser simulation source and rebuild instructions are in
+``contrib/browser_demos/``. See the :doc:`interactive examples guide
+</source/developer-tools/interactive_examples>` for the export workflow.
+
+.. isaaclab-browser-demo:: stiffness
+   :title: VBD material tuning
 
 
 Surface Deformable Materials
@@ -459,6 +478,20 @@ for cloth or surface deformables:
       - Default: ``5.0`` [N*m]. Bending stiffness. Increase it for stiffer cloth folds; decrease it for softer draping.
     * - ``edge_kd``
       - Default: ``1.0e-2`` [N*m*s]. Bending damping. Increase it to damp fold oscillations.
+
+.. _browser-demo-cloth-bending:
+
+Try cloth bending in the browser
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Three free cloth sheets fall across pairs of horizontal rollers, adapting the
+bend-stiffness comparison in :doc:`/source/concepts/deformables`. The outer sheets retain
+``edge_ke`` values of 0.001 and 10 N·m; change the middle sheet's bending
+stiffness on the logarithmic slider, or change gravity, then press **Reset**
+to replay the same drop. Roller contact is part of the VBD solve. The slider
+changes the material coefficient, not the 12 solver iterations.
+
+.. isaaclab-browser-demo:: cloth_bending
 
 Tuning Workflow
 ---------------
