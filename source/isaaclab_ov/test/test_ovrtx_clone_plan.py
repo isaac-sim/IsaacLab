@@ -201,7 +201,10 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
         xforms.append(value.copy())
         return "root_xforms"
 
-    monkeypatch.setattr("isaaclab_ov.renderers.ovrtx_renderer.xform_tensor_from_numpy", _record_xforms)
+    monkeypatch.setattr("isaaclab_ov.stage.xform_tensor_from_numpy", _record_xforms)
+    monkeypatch.setattr(
+        "isaaclab_ov.stage.ovstage.PathDictionary", lambda stage: contextlib.nullcontext(renderer.backend.paths)
+    )
 
     renderer._clone_sources()
 

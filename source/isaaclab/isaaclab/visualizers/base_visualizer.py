@@ -27,12 +27,10 @@ from ..utils.images import compose_image
 from .visualizer_cfg import PerspectiveCameraCfg
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
-    from ..scene_data import SceneDataProvider
     from ..sensors import Camera
+    from ..sim import SimulationContext
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -55,9 +53,8 @@ class BaseVisualizer(ABC):
         """
         validate(cfg)
         self.cfg = cfg
-        self._scene_data_provider = None
-        self._scene_stage = None
-        self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
+        self._sim: SimulationContext | None = None
+        self._cameras: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
         self._env_ids: list[int] | None = None
@@ -87,25 +84,18 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
-        """Bind the scene dependencies supplied by SimulationContext.
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
+        """Bind scene inputs and the simulation-owned resource registry.
 
         Args:
-            scene_data_provider: Scene data and scene-owned sensors.
+            sim: Simulation owner that provides the scene and backend resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when the visualizer consumes USD.
         """
+        scene_data_provider = sim.get_scene_data_provider()
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
-        self._scene_data_provider = scene_data_provider
-        self._scene_stage = stage
-        self._camera_choices = list(cameras)
+        self._sim = sim
+        self._cameras = list(cameras)
 
         cfg = self.cfg
         num_envs = scene_data_provider.num_envs
@@ -125,21 +115,19 @@ class BaseVisualizer(ABC):
         *,
         visible_env_ids: list[int] | None = None,
         target_aspect: float = 1.0,
-        select_camera: bool = True,
     ) -> None:
-        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
+        """Configure tiles and bind the first scene camera for display."""
         if not self.cfg.streaming_view:
             return
         self._streaming_aspect = target_aspect
         self._camera_sensor_indices = resolve_streaming_envs(
             num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
         )
-        if select_camera:
-            self._camera_sensor = next(
-                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
-            )
+        self._camera_sensor = next(
+            (camera for camera in self._cameras if not isinstance(camera, PerspectiveCameraCfg)), None
+        )
 
-    def render_tiled_rgba(self) -> wp.array | None:
+    def render_tiled_rgba_array(self) -> wp.array | None:
         """Acquire the selected camera frame and compose a device-resident display image.
 
         Returns:
@@ -205,7 +193,7 @@ class BaseVisualizer(ABC):
         Returns:
             Cached contiguous uint8 RGB image of shape [H, W, 3], or None without a selected camera.
         """
-        image = self.render_tiled_rgba()
+        image = self.render_tiled_rgba_array()
         if image is None:
             return None
         frame = self._streaming_host_frame
@@ -230,13 +218,13 @@ class BaseVisualizer(ABC):
         Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
         """
         self._camera_sensor = None
-        self._camera_choices.clear()
+        self._cameras.clear()
         self._streaming_frame = TimestampedBuffer()
         self._streaming_host_frame = TimestampedBuffer()
         self._streaming_env_ids = self._streaming_depth_colors = None
         self._streaming_layout = self._streaming_view_key = None
         self._streaming_keys = ()
-        self._scene_data_provider = self._scene_stage = None
+        self._sim = None
         self._is_closed = True
 
     @abstractmethod

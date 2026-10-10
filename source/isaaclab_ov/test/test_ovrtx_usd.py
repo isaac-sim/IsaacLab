@@ -498,10 +498,11 @@ def test_export_stage_preserves_authored_scene(settings_path):
 
 
 def test_create_scene_partition_attributes_all_envs():
-    """Scene partition attributes are authored on every env root and camera."""
+    """Scene partition attributes survive repeated preparation after a hard reset."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
 
+    create_scene_partition_attributes(stage, num_envs)
     create_scene_partition_attributes(stage, num_envs)
 
     root_layer = stage.GetRootLayer()

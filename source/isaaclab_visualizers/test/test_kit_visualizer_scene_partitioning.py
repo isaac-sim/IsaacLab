@@ -14,7 +14,7 @@ from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationM
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -24,9 +24,8 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
-    visualizer._scene_data_provider = MagicMock()
-    sim = MagicMock(render_generation=12)
-    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    visualizer._sim = sim = MagicMock(render_generation=12)
+    provider = sim.get_scene_data_provider.return_value
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
@@ -40,16 +39,19 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
         visualizer._fabric.update_transforms.assert_not_called()
         visualizer._fabric.update_geometries.assert_not_called()
     else:
-        visualizer._fabric.update_transforms.assert_called_once_with(visualizer._scene_data_provider)
-        visualizer._fabric.update_geometries.assert_called_once_with(visualizer._scene_data_provider, 12)
+        visualizer._fabric.update_transforms.assert_called_once_with(provider)
+        visualizer._fabric.update_geometries.assert_called_once_with(provider, 12)
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_background_color_applies_to_render_product_session_layer(
+def test_background_color_preserves_scene_lighting(
     color: tuple[float, float, float] | None,
 ) -> None:
     stage = Usd.Stage.CreateInMemory()
     render_product = stage.DefinePrim("/Render/Viewport", "RenderProduct")
+    dome = UsdLux.DomeLight.Define(stage, "/World/Sky")
+    dome.GetTextureFileAttr().Set(Sdf.AssetPath("sky.hdr"))
+    dome.GetIntensityAttr().Set(750.0)
     visualizer = KitVisualizer(KitVisualizerCfg(background_color=color))
 
     visualizer._apply_render_product_background(stage, render_product.GetPath())
@@ -64,6 +66,8 @@ def test_background_color_applies_to_render_product_session_layer(
         assert tuple(source_color.Get()) == pytest.approx(color)
         assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:type") is None
         assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:color") is None
+    assert dome.GetTextureFileAttr().Get().path == "sky.hdr"
+    assert dome.GetIntensityAttr().Get() == 750.0
 
 
 @pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])

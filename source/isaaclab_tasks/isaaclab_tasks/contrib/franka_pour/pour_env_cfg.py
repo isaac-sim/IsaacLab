@@ -809,16 +809,9 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
 
     def play_mode(self) -> None:
         """Configure frozen single-world dataset playback."""
-        from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
         super().play_mode()
         self.scene.num_envs = 1
-        self.sim.default_visualizer_cfg = NewtonRTXVisualizerCfg(
-            eye=(0.9, 0.65, 0.5),
-            lookat=(0.5, 0.0, 0.1),
-            show_particles=True,
-            particle_color=tuple(self.scene.media.spawn.visual_color),
-        )
+        self.sim.default_visualizer_cfg.eye = (0.9, 0.65, 0.5)
         self.curriculum_freeze = True
 
 

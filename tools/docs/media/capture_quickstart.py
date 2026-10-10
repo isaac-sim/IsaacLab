@@ -20,7 +20,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
@@ -151,10 +151,8 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg, focal_length: float):
             eye=default_camera.eye,
             lookat=default_camera.lookat,
             focal_length=focal_length,
-            window_width=320,
-            window_height=240,
+            window=WindowCfg(size=(320, 240)),
             headless=True,
-            rtx_environment="default",
             render_settings={"omni:rtx:quality": ("Int", 100)},
         )
     ]

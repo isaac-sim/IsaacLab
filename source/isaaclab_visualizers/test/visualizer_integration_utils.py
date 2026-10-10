@@ -47,6 +47,8 @@ from isaaclab_visualizers.newton import (
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import (
@@ -56,6 +58,7 @@ from isaaclab.utils.math import (
     quat_from_matrix,
     quat_mul,
 )
+from isaaclab.visualizers import WindowCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
@@ -111,7 +114,7 @@ _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
+"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (``window.size``) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
@@ -316,10 +319,12 @@ def _cartpole_integration_visualizer_camera_kwargs(
         return {
             "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
             "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
+            "background_color": (0.3, 0.55, 0.82),
         }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
+        "background_color": (0.3, 0.55, 0.82),
     }
 
 
@@ -371,8 +376,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         return (
             NewtonGLVisualizerCfg(
                 headless=True,
-                window_width=nw,
-                window_height=nh,
+                window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **tiled_cam,
                 **cam,
@@ -386,8 +390,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         return (
             NewtonRTXVisualizerCfg(
                 headless=True,
-                window_width=nw,
-                window_height=nh,
+                window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **cam,
             ),
@@ -421,8 +424,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         )
     return (
         KitVisualizerCfg(
-            window_width=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-            window_height=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+            window=WindowCfg(size=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION),
             randomly_sample_visible_envs=False,
             **tiled_cam,
             **cam,
@@ -694,7 +696,7 @@ def _select_newton_training_control_button(viewer, target_label: str) -> None:
         def button(self, label):
             return label == target_label
 
-        def slider_int(self, _label, value, _min_value, _max_value, _format):
+        def slider_float(self, _label, value, _min_value, _max_value, _format):
             return False, value
 
         def is_item_hovered(self):
@@ -1023,15 +1025,18 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
 
 def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, case_label: str) -> None:
     """Fail unless a visualization marker shows up in the Newton RTX capture when it is made visible."""
-    from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-
     markers = VisualizationMarkers(
         VisualizationMarkersCfg(
             prim_path="/Visuals/rtx_marker_check",
             markers={
                 "sphere": sim_utils.SphereCfg(
                     radius=0.4, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
-                )
+                ),
+                "bar": sim_utils.CuboidCfg(
+                    size=(1.0, 0.3, 0.3),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+                ),
+                "arrow": GREEN_ARROW_X_MARKER_CFG.markers["arrow"],
             },
         )
     )
@@ -1046,6 +1051,41 @@ def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, ca
     shown_frame = _capture(True)
     _assert_frames_differ(
         hidden_frame, shown_frame, case_label=case_label, phase="marker visible", debug_phase="marker"
+    )
+    red = (shown_frame[..., 0] > 50) & (shown_frame[..., 0] > 1.5 * shown_frame[..., 1])
+    red &= shown_frame[..., 0] > 1.5 * shown_frame[..., 2]
+    assert not red[3 * shown_frame.shape[0] // 4 :].any(), "Marker prototypes must not appear at the origin."
+    markers.visualize(marker_indices=[1])
+    bar_frame = _capture(True)
+    _assert_frames_differ(
+        shown_frame, bar_frame, case_label=case_label, phase="marker prototype changed", debug_phase="marker"
+    )
+    markers.visualize(
+        orientations=torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5]], device=env.device),
+        scales=torch.tensor([[2.0, 1.0, 1.0]], device=env.device),
+    )
+    rotated_frame = _capture(True)
+    widths = []
+    for image in (bar_frame, rotated_frame):
+        green = (image[..., 1] > 50) & (image[..., 1] > 1.5 * image[..., 0])
+        green &= image[..., 1] > 1.5 * image[..., 2]
+        columns = np.nonzero(green)[1]
+        assert columns.size, "The green marker must remain visible."
+        widths.append(np.ptp(columns))
+    assert widths[1] > 2 * widths[0], "Rotating the bar into the image plane must change its visible extent."
+    position = torch.tensor(_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT, device=env.device)
+    positions = position.repeat(2, 1)
+    positions[1, 1] += 0.7
+    markers.visualize(
+        translations=positions,
+        orientations=positions.new_tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(2, 1),
+        scales=torch.ones_like(positions),
+        marker_indices=[0, 2],
+        environment_ids=[0, 0],
+    )
+    resized_frame = _capture(True)
+    _assert_frames_differ(
+        rotated_frame, resized_frame, case_label=case_label, phase="marker count changed", debug_phase="marker"
     )
 
 
@@ -1488,6 +1528,7 @@ def _make_shadow_hand_env(
     env_cfg.viewer.lookat = _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
+    cam["background_color"] = (0.3, 0.55, 0.82)  # Preserve the existing golden's explicit background.
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1505,8 +1546,7 @@ def _make_shadow_hand_env(
             visualizer_cfgs.append(
                 NewtonGLVisualizerCfg(
                     headless=True,
-                    window_width=nw,
-                    window_height=nh,
+                    window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1515,8 +1555,7 @@ def _make_shadow_hand_env(
         else:
             visualizer_cfgs.append(
                 KitVisualizerCfg(
-                    window_width=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    window=WindowCfg(size=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1554,6 +1593,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     env_cfg.viewer.lookat = _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
+    cam["background_color"] = (0.3, 0.55, 0.82)
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1571,8 +1611,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
             visualizer_cfgs.append(
                 NewtonGLVisualizerCfg(
                     headless=True,
-                    window_width=nw,
-                    window_height=nh,
+                    window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1581,8 +1620,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
         else:
             visualizer_cfgs.append(
                 KitVisualizerCfg(
-                    window_width=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    window=WindowCfg(size=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,

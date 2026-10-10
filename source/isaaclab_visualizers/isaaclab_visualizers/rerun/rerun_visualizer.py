@@ -33,9 +33,6 @@ from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scal
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
 
 logger = logging.getLogger(__name__)
@@ -278,26 +275,19 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used to fetch model/state data.
+            sim: Simulation owner used to resolve scene data and native resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when available.
         """
         if self._is_initialized:
             return
 
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
@@ -328,6 +318,7 @@ class RerunVisualizer(BaseVisualizer):
             open_browser=self.cfg.open_browser,
             streaming_view=self._camera_sensor is not None,
         )
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         viewer_host = _normalize_host(bind_address)
@@ -387,7 +378,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = self.backend.model.num_envs
 
         if not self._viewer.is_paused():
-            backend, provider = self.backend, self._scene_data_provider
+            backend, provider = self.backend, self._sim.get_scene_data_provider()
             poses = SceneDataFormat.Transform()
             if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                 backend.state_0.body_q = poses.transforms
@@ -415,12 +406,11 @@ class RerunVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
