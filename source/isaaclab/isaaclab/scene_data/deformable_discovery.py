@@ -280,6 +280,10 @@ def expand_deformable_entries(
     templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
         plan, include_world_indices=True
     )
+    for index in range(starts[0], starts[1]):
+        source = sources[plan.topology.world_prototypes[index]]
+        if imported_sources is None or source in imported_sources:
+            source_instances[Sdf.Path(source)].append((source, templates[index], None))
     for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
         columns = world_ids[world_starts[group] : world_starts[group + 1]]
         for index in range(*starts[group : group + 2]):
@@ -294,16 +298,20 @@ def expand_deformable_entries(
             entries[entry.root_path] = (entry.root_path, entry)
             continue
         for owner in owners:
-            source = source_instances[owner][0][0]
-            match = cloner_path.match(source, plan.env_template)
-            # Match the authored source world; remapped IDs retain the first destination convention.
-            source_world = source_worlds.get(match.instance, source_instances[owner][0][2][0]) if match else None
             for source, template, columns in source_instances[owner]:
-                for column in columns:
-                    target = template.format(int(env_ids[column]))
+                match = cloner_path.match(source, plan.env_template)
+                fallback_world = int(columns[0]) if columns is not None and len(columns) else None
+                # Match the authored source world; remapped IDs retain the first destination convention.
+                source_world = source_worlds.get(match.instance, fallback_world) if match else None
+                destinations = (
+                    ((template, None),)
+                    if columns is None
+                    else tuple((template.format(int(env_ids[column])), int(column)) for column in columns)
+                )
+                for target, column in destinations:
                     offset = (
                         0
-                        if positions is None
+                        if positions is None or column is None
                         else positions[column] - (positions[source_world] if source_world is not None else 0)
                     )
                     cloned = replace(

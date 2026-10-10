@@ -97,6 +97,22 @@ def newton_builder_world_hook(
             hooks.remove(hook)
 
 
+def _alias_nested_source_builders(
+    source_builders: dict[str, ModelBuilder], routed_sources: Sequence[str]
+) -> dict[str, ModelBuilder]:
+    """Map nested source paths to the imported builder that owns their subtree."""
+    prototype_builders = dict(source_builders)
+    for source in routed_sources:
+        if source in prototype_builders:
+            continue
+        owner = next(
+            (str(path) for path in reversed(Sdf.Path(source).GetPrefixes()) if str(path) in source_builders), None
+        )
+        if owner is not None:
+            prototype_builders[source] = source_builders[owner]
+    return prototype_builders
+
+
 def _replicate_newton(
     stage: Usd.Stage,
     env_ids: np.ndarray,
@@ -186,14 +202,15 @@ def _replicate_newton(
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    prototype_builders = _alias_nested_source_builders(source_builders, routed_sources)
     if simulation:
         for entry in entries:
             ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
             owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
             if not owners:
                 raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
-            for source in owners:
-                add_deformable_from_usd(source, stage, entry)
+            for owner_builder in owners:
+                add_deformable_from_usd(owner_builder, stage, entry)
     else:
         add_visual_deformables_to_sources(source_builders, entries)
 
@@ -264,7 +281,7 @@ def _replicate_newton(
         NewtonManager._scene_data_backend._geometry_batches = batches
         NewtonManager._cl_site_index_map = site_index_map
         NewtonManager._world_xforms = world_xforms
-        NewtonManager._cl_protos = source_builders
+        NewtonManager._cl_protos = prototype_builders
         NewtonManager._particle_ranges = particle_ranges
         NewtonManager._num_envs = len(env_ids)
     return builder, stage_info, site_index_map

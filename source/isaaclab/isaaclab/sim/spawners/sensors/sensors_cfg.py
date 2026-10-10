@@ -363,3 +363,19 @@ class FisheyeCameraCfg(PinholeCameraCfg):
 
     fisheye_polynomial_f: float = 0.0
     """Sixth component of fisheye polynomial. Defaults to 0.0."""
+
+
+@configclass
+class SensorFrameCfg(SpawnerCfg):
+    """Spawn a plain USD Xform as a sensor attachment frame.
+
+    .. deprecated:: 3.0
+        Author and track an existing Xform instead. This configuration remains available during
+        the deprecation cycle.
+
+    The spawned prim carries no rigid body or collision API. It serves as a
+    non-physics child under a link so that :class:`~isaaclab.sim.views.FrameView`
+    can track it on all backends (including Newton, which rejects physics body prims).
+    """
+
+    func: Callable | str = "{DIR}.sensors:spawn_sensor_frame"

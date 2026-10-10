@@ -106,8 +106,10 @@ Height scanner
 The height-scanner is implemented as a virtual ray-casting sensor. Through the
 :class:`sensors.RayCasterCfg`, we specify the ray pattern. PhysX-based backends
 cast against the configured meshes, while Newton casts against its live scene
-BVH and ignores the mesh list. The ray caster tracks the existing prim selected by
-:attr:`~sensors.RayCasterCfg.prim_path`; it does not spawn a new USD prim.
+BVH and ignores the mesh list. By default, :attr:`~sensors.RayCasterCfg.spawn` creates
+a plain USD Xform at :attr:`~sensors.RayCasterCfg.prim_path` to serve as the sensor's
+attachment frame. This compatibility behavior is deprecated; new configurations should
+set :attr:`~sensors.RayCasterCfg.spawn` to ``None`` and track an existing frame.
 
 For this tutorial, the ray-cast based height scanner is attached under the base frame of the robot.
 The pattern of rays is specified using the :attr:`~sensors.RayCasterCfg.pattern` attribute. For

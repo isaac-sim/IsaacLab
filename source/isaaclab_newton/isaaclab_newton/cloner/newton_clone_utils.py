@@ -85,7 +85,12 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: D
 def add_visual_deformables_to_sources(
     builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
 ) -> None:
-    """Add each visual deformable to every imported source containing its USD subtree."""
+    """Add each visual deformable to every imported source containing its USD subtree.
+
+    Args:
+        builders: Imported source builders keyed by their USD source paths.
+        entries: Discovered deformable prototypes to add to owning builders.
+    """
     for entry in entries:
         for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
             builder = builders.get(str(path))
