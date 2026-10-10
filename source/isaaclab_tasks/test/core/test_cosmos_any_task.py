@@ -97,10 +97,10 @@ def test_cosmos_preset_accepts_cli_overrides_without_replacing_its_chain(add_arg
     assert chain[1].backend.prompt == "A kitchen."
     assert chain[1].backend.endpoint == "tcp://127.0.0.1:5556"
     assert chain[1].backend.transport == "socket"
-    assert chain[1].backend.max_episode_frames == 101
-    assert camera.update_period == 0.1
+    assert chain[1].backend.max_episode_frames == 601
+    assert camera.update_period == 0.0
     assert env_cfg.feature_extractor.image_update_frames == 4
-    assert "10.000 captures/s, 2.500 generated updates/s" in caplog.text
+    assert "60.000 captures/s, 15.000 generated updates/s" in caplog.text
 
 
 def test_cosmos_preset_keeps_defaults_and_rejects_changing_its_control(monkeypatch):
@@ -135,10 +135,13 @@ def test_several_environments_need_a_compiled_service_that_batches_them(monkeypa
 
 
 def test_the_shadow_hand_preset_batches_several_environments_at_its_camera_rate(monkeypatch):
-    """--num_envs on the preset keeps its 10 Hz camera; each environment's budget counts its own captures."""
+    """--num_envs on the preset keeps its camera rate; each environment's budget counts its own captures."""
     _serve(monkeypatch, partial_resets=True)
     args = _cli(add_common_train_args, ["--num_envs", "2"])
-    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
+    env_cfg = parse_env_cfg(
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
+        overrides=("presets=cosmos", "env.scene.tiled_camera.update_period=0.1"),
+    )
     apply_env_overrides(args, env_cfg)
     env_cfg.validate()
 

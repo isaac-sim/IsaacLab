@@ -215,10 +215,10 @@ _COSMOS_MODEL_CFG = CosmosModelCfg(
     ),
 )
 # The Cosmos presets feed the 640 x 640 generated image to the CNN, so the camera already uses a Cosmos canvas.
-_COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], height=640, width=640, update_period=0.1)
+_COSMOS_BASE_CAMERA_CFG = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"], height=640, width=640)
 
 SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_MODEL_CFG, near=0.1, far=1.5)
-"""Camera rendering depth that Cosmos turns into the published ``rgb``; captures every 0.1 s."""
+"""Camera rendering depth that Cosmos turns into the published ``rgb``; captures every environment step."""
 (_COSMOS_DEPTH_INPUT,) = SHADOW_HAND_COSMOS_CAMERA_CFG.modifiers
 
 
@@ -275,8 +275,8 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
     """Shadow Hand task with depth-guided Cosmos RGB observations.
 
     Start the Cosmos service separately, then select ``presets=cosmos``. The task uses one environment
-    unless ``--num_envs`` sets more. The camera captures at 10 Hz, and Cosmos publishes an initial frame
-    followed by four-frame chunks. The feature extractor trains on the generated RGB; playback requires
+    unless ``--num_envs`` sets more. The camera captures every environment step, and Cosmos publishes an
+    initial frame followed by four-frame chunks. The feature extractor trains on the generated RGB; playback requires
     its checkpoint from a Cosmos run.
     """
 

@@ -137,11 +137,14 @@ Cosmos updates.
 
 The preset selects a `640 x 640` RGB camera and depth controls
 covering `0.1` to `1.5` meters. Its prompt describes a Shadow Hand manipulating a
-cube, and it connects to the default endpoint. The camera captures at 10 Hz of
-simulation time. After the initial generated frame, Cosmos updates every four
-captures, so fresh generated observations arrive at 2.5 Hz of simulation time.
-Generation latency determines the elapsed time needed to run those captures.
-The task keeps its 10-second episode length and requests 101 frames: one capture every 0.1 s, plus the initial capture.
+cube, and it connects to the default endpoint. Like the task's other cameras, it
+captures every environment step, 60 times per second of simulation time. After the
+initial generated frame, Cosmos updates every four captures, so fresh generated
+observations arrive at 15 Hz of simulation time. Generation latency determines the
+elapsed time needed to run those captures.
+The task keeps its 10-second episode length and requests 601 frames: one capture per step, plus the initial capture.
+For fewer Cosmos requests, capture less often, for example `env.scene.tiled_camera.update_period=0.1` (10 Hz,
+101 frames); generated images then change less often.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `scene.tiled_camera.renderer_cfg.async_rendering=False`.
@@ -353,13 +356,13 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   --max_iterations 20 \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench." \
   --cosmos_prompt "A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab." \
-  --viz newton_gl --video viz:newton_gl:streaming_view --video_length 1200 \
+  --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
   presets=cosmos
 ```
 
-The run prints the clip directory when it starts. `--viz newton_gl` keeps the visualizer running every step; a
-visualizer added only for the recording does not advance during headless training, and its streaming view records
-the first frame throughout. On a machine without a screen, such as over SSH, run `unset DISPLAY` first: with
+`--video_length 600` records 600 steps, one 10-second episode. The run prints the clip directory when it starts.
+`--viz newton_gl` keeps the visualizer running every step; a visualizer added only for the recording does not
+advance during headless training, and its streaming view records the first frame throughout. On a machine without a screen, such as over SSH, run `unset DISPLAY` first: with
 `DISPLAY` set, the headless visualizer cannot create its OpenGL context.
 
 Each reset shows black until the environment's next chunk. For a clip without mid-episode resets, add
