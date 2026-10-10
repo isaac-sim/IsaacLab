@@ -11,7 +11,7 @@ from dataclasses import MISSING
 
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import CommandTermCfg, EventTermCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from ...keyboards.keyboard_schema import KEY_ACTUATION_FRACTION
 from .typing_commands import LetterTypingCommand

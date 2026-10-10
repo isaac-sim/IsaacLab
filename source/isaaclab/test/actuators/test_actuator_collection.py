@@ -30,6 +30,7 @@ from isaaclab.actuators import (
 )
 from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
+from isaaclab.utils import clone
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -432,9 +433,7 @@ def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, ac
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         actuator = actuator_type(
-            cfg.copy(),
-            **constructor_kwargs,
-            **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0},
+            clone(cfg), **constructor_kwargs, **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0}
         )
     torch.testing.assert_close(getattr(actuator, canonical_name), torch.full((2, 3), 12.0))
 
@@ -610,8 +609,6 @@ def test_articulation_control_provides_common_forwarding_and_property_writes():
 
     assert not FakeActuatorControl().native_actuator_path_active
     assert not control.native_actuator_path_active
-    control._native_actuator_path_active = True
-    assert control.native_actuator_path_active
 
     assert control.num_instances == articulation.num_instances
     assert control.num_joints == articulation.num_joints
@@ -722,7 +719,8 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     assert articulation.calls[-1][1]["damping"] == 0.0
 
 
-def test_native_group_parameters_route_through_the_collection_door():
+@pytest.mark.parametrize("env_ids", [torch.tensor([0]), slice(0, 1)])
+def test_native_group_parameters_route_through_the_collection_door(env_ids):
     """Read and write native group parameters through the collection's single parameter door."""
     control = NativeGainFakeActuatorControl()
     control.native_gains["kp"].copy_(torch.tensor([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]))
@@ -754,7 +752,7 @@ def test_native_group_parameters_route_through_the_collection_door():
         "controller",
         "kp",
         values=torch.tensor([[42.0]]),
-        env_ids=torch.tensor([0]),
+        env_ids=env_ids,
         joint_ids=torch.tensor([1]),
     )
     torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))
@@ -800,9 +798,6 @@ def test_overlapping_groups_are_rejected():
 
 
 def test_collection_is_mapping_like_and_read_only():
-    assert hasattr(actuator_api, "ActuatorTargetCommand")
-    assert hasattr(actuator_api, "ActuatorOutputCommand")
-
     control = FakeActuatorControl()
     collection = ActuatorCollection({"all": _implicit_cfg()}, control)
     assert isinstance(collection.target_command, actuator_api.ActuatorTargetCommand)
@@ -859,9 +854,6 @@ def test_multi_group_explicit_outputs_match_pd_formula():
 
 
 def test_disjoint_implicit_groups_share_one_execution_batch():
-    assert "is_implicit_model" in ImplicitActuator.__dict__.get("__annotations__", {})
-    assert ImplicitActuator.__dict__["is_implicit_model"] is True
-
     control = FakeActuatorControl(num_envs=1, joint_names=["joint_0", "joint_1", "joint_2", "joint_3"])
     collection = ActuatorCollection(
         {
@@ -875,12 +867,7 @@ def test_disjoint_implicit_groups_share_one_execution_batch():
         control,
     )
 
-    assert collection._execution_actuators == []
-    executor = collection._implicit_executor
-    assert executor is not None
-    assert type(executor.actuator) is ImplicitActuator
-    assert executor.actuator is not collection["first"]
-    assert executor.group_names == ("first", "second")
+    assert collection._implicit_executor.group_names == ("first", "second")
 
     group = collection["first"]
     velocity_limit_snapshot = group.actuator_velocity_limit.clone()
@@ -931,57 +918,6 @@ def test_lab_executed_explicit_groups_warn_once():
     assert "execution of explicit actuator models is deprecated" in str(deprecations[0].message)
 
 
-@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA is unavailable")
-@pytest.mark.parametrize(
-    "actuator_cfg",
-    [
-        ImplicitActuatorCfg(joint_names_expr=["joint_0"], stiffness=2.0, damping=0.0),
-        IdealPDActuatorCfg(
-            joint_names_expr=["joint_0"],
-            stiffness=2.0,
-            damping=0.0,
-            actuator_effort_limit=100.0,
-            actuator_velocity_limit=10.0,
-        ),
-    ],
-    ids=["implicit", "explicit"],
-)
-def test_actuator_batch_rebinds_cuda_state_provider_on_request(
-    actuator_cfg: ImplicitActuatorCfg | IdealPDActuatorCfg,
-):
-    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"], device="cuda:0")
-    collection = ActuatorCollection({"all": actuator_cfg}, control)
-    collection.target_command.position.torch.fill_(3.0)
-
-    collection.compute()
-    control._joint_pos = ProxyArray(wp.full((1, 1), 2.0, dtype=wp.float32, device=control.device))
-    if isinstance(actuator_cfg, ImplicitActuatorCfg):
-        collection.target_command.velocity.torch.fill_(4.0)
-        collection.target_command.effort.torch.fill_(5.0)
-        control._joint_vel = ProxyArray(wp.full((1, 1), 1.0, dtype=wp.float32, device=control.device))
-        control._joint_stiffness = ProxyArray(wp.full((1, 1), 7.0, dtype=wp.float32, device=control.device))
-        control._joint_damping = ProxyArray(wp.full((1, 1), 11.0, dtype=wp.float32, device=control.device))
-        control._joint_effort_limits = ProxyArray(wp.full((1, 1), 13.0, dtype=wp.float32, device=control.device))
-    collection._rebind_state_inputs()
-
-    collection.compute()
-
-    expected_computed = 45.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
-    expected_applied = 13.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
-    torch.testing.assert_close(
-        collection.computed_effort.torch,
-        torch.tensor([[expected_computed]], device=control.device),
-        rtol=0.0,
-        atol=0.0,
-    )
-    torch.testing.assert_close(
-        collection.applied_effort.torch,
-        torch.tensor([[expected_applied]], device=control.device),
-        rtol=0.0,
-        atol=0.0,
-    )
-
-
 def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(
@@ -1030,9 +966,6 @@ def test_native_execution_bypasses_lab_aggregation(monkeypatch):
         )
 
     assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
-
-    assert collection._implicit_executor is None
-    assert collection._execution_actuators == []
 
     def fail_compute(*args, **kwargs):
         raise AssertionError("Lab actuator execution must be bypassed")

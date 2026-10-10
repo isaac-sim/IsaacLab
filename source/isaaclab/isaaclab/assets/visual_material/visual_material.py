@@ -13,11 +13,10 @@ import torch
 
 from pxr import Sdf, UsdShade
 
-from isaaclab import cloner
-from isaaclab.assets.asset_base import AssetBase
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils import find_matching_prim_paths
-
+from ... import cloner
+from ...sim import SimulationContext
+from ...sim.utils import find_matching_prim_paths
+from ..asset_base import AssetBase
 from .visual_material_cfg import VisualMaterialCfg
 
 _PREVIEW_CHANNELS = {
@@ -135,22 +134,22 @@ class VisualMaterial(AssetBase):
         pass
 
     def _initialize_impl(self) -> None:
-        plan = SimulationContext.instance().get_clone_plan()
         if self._is_per_env:
-            assert plan is not None and plan.env_ids is not None
-            plan_env_ids = plan.env_ids
-            columns = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
-            material_paths = [""] * len(plan_env_ids)
-            for source_root, destination, source_path, env_ids in cloner.query.iter_sources(plan, self.cfg.prim_path):
-                for env_id in env_ids:
-                    material_paths[columns[env_id]] = cloner.path.rebase(
-                        source_path, source_root, destination.format(env_id)
-                    )
-            if not all(material_paths):
+            plan = SimulationContext.instance().get_clone_plan()
+            templates, starts = cloner.path.get_world_prototype_asset_templates(plan)
+            # Nested materials inherit their owner's copies without becoming separate prototypes.
+            material_templates = [""] * (len(starts) - 2)
+            for prototype, (start, end) in enumerate(zip(starts[1:-1], starts[2:], strict=True)):
+                for template in templates[start:end]:
+                    if (matched := cloner.path.match(self.cfg.prim_path, template)) is not None:
+                        material_templates[prototype] = template + matched.suffix
+                        break
+            worlds = enumerate(plan.topology.world_prototype_layout)
+            self._material_paths = tuple(material_templates[prototype].format(world) for world, prototype in worlds)
+            if not all(self._material_paths):
                 raise ValueError(
                     f"Per-environment material {self._source_material_path!r} must populate every environment."
                 )
-            self._material_paths = tuple(material_paths)
             shader_suffix = self._source_shader_path.removeprefix(self._source_material_path)
             self._shader_paths = tuple(path + shader_suffix for path in self._material_paths)
         else:

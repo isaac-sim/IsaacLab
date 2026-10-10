@@ -13,9 +13,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.wrench_composer import WrenchComposer
-
+from ...utils.warp import ProxyArray
+from ...utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
@@ -49,14 +48,6 @@ class BaseRigidObject(AssetBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the rigid object."""
-
-    def __init__(self, cfg: RigidObjectCfg):
-        """Initialize the rigid object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
 
     """
     Properties

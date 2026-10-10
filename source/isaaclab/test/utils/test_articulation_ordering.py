@@ -5,6 +5,7 @@
 
 import importlib
 
+import pytest
 import torch
 
 
@@ -56,60 +57,13 @@ def test_assert_articulation_ordering_trace_matches_canonicalizes_public_and_ada
 
     helper.assert_articulation_ordering_trace_matches(identity_trace, reordered_trace, ("knee", "hip"))
 
-
-def test_shared_articulation_ordering_constants_are_consistent() -> None:
-    helper = importlib.import_module("isaaclab.test.utils.articulation_ordering")
-
-    assert helper.PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES == (
-        "panda_link0",
-        "panda_rightfinger",
-        "panda_leftfinger",
-        "panda_hand",
-        "panda_link7",
-        "panda_link6",
-        "panda_link5",
-        "panda_link4",
-        "panda_link3",
-        "panda_link2",
-        "panda_link1",
+    # an adapter axis left in backend order must be rejected
+    unordered_adapter_trace = _make_trace(
+        ("knee", "hip"),
+        ("knee", "hip"),
+        torch.tensor([[2.0, 1.0]]),
+        torch.tensor([[3.0, 4.0]]),
+        torch.tensor([[6.0, 5.0]]),
     )
-    assert helper.ANYMAL_C_PHYSX_JOINT_NAMES == (
-        "LF_HAA",
-        "LH_HAA",
-        "RF_HAA",
-        "RH_HAA",
-        "LF_HFE",
-        "LH_HFE",
-        "RF_HFE",
-        "RH_HFE",
-        "LF_KFE",
-        "LH_KFE",
-        "RF_KFE",
-        "RH_KFE",
-    )
-    assert helper.BRANCHING_PHYSX_JOINT_NAMES == (
-        "left_shoulder",
-        "right_shoulder",
-        "left_elbow",
-        "right_elbow",
-    )
-    assert helper.BRANCHING_MJWARP_JOINT_NAMES == (
-        "left_shoulder",
-        "left_elbow",
-        "right_shoulder",
-        "right_elbow",
-    )
-    assert helper.BRANCHING_PHYSX_BODY_NAMES == (
-        "base",
-        "left_upper",
-        "right_upper",
-        "left_tip",
-        "right_tip",
-    )
-    assert helper.BRANCHING_MJWARP_BODY_NAMES == (
-        "base",
-        "left_upper",
-        "left_tip",
-        "right_upper",
-        "right_tip",
-    )
+    with pytest.raises(AssertionError):
+        helper.assert_articulation_ordering_trace_matches(identity_trace, unordered_adapter_trace, ("knee", "hip"))

@@ -20,7 +20,7 @@ noise applied on top of each segment's start pose.  ``None`` means no noise.
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 from isaaclab_tasks.contrib.nist.assembly_profile import (

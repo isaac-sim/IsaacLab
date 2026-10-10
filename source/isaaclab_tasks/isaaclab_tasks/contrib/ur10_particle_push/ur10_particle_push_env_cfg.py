@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionPropertiesCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -31,10 +31,10 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -44,6 +44,7 @@ from . import mdp
 
 RIGID_ENTRY = "robot"
 MPM_ENTRY = "media"
+GROUND_PLANE_SHAPE_PATTERN = r".*/GroundPlane/CollisionPlane$"
 MPM_VOXEL_SIZE = 0.025
 MPM_COLLIDER_MARGIN = 0.5 * MPM_VOXEL_SIZE
 MPM_PARTICLES_PER_CELL = 2.0
@@ -62,16 +63,15 @@ HEIGHTMAP_VISUALIZER_CFG = VisualizationMarkersCfg(
     },
 )
 
-# Enforce a per-world lower-node minimum and a 32-node total upper minimum.
-SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD = 1 << 6
+# Enforce measured topology floors and amortize the wide upper hierarchy across nearby worlds.
+SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD = 1 << 2
 SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD = 1
 SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT = 1 << 5
+SPARSE_MPM_WORLDS_PER_UPPER_NODE = 1 << 3
 
 # Shared source of truth for the visible MPM and hidden rigid solver geometry.
 WORK_SURFACE_SIZE = (1.28, 0.91, 0.04)
 WORK_SURFACE_POSITION = (0.3939, 0.0, -0.02)
-MPM_GROUND_SIZE = (2.60, 2.60, 0.10)
-MPM_GROUND_POSITION = (0.60, 0.0, -1.10)
 BIN_FLOOR_SIZE = (0.36, 0.56, 0.04)
 BIN_FLOOR_POSITION = (1.2139, 0.0, -0.20)
 BIN_FRONT_SIZE = (0.05, 0.66, 0.20)
@@ -199,6 +199,45 @@ def _spawn_fixed_paddle(
     return _spawn_one(prim_path, cfg, translation=translation, orientation=orientation, **kwargs)
 
 
+def _spawn_ur10_with_paddle(
+    prim_path: str,
+    cfg: UR10WithPaddleCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Author the welded tool inside the robot's clone prototype."""
+    robot_prim = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for root_prim in sim_utils.find_matching_prims(prim_path, stage=robot_prim.GetStage()):
+        paddle_path = f"{root_prim.GetPath()}/ee_link/Paddle"
+        cfg.paddle.func(paddle_path, cfg.paddle, translation=cfg.paddle_offset)
+        cfg.paddle_visual.func(f"{paddle_path}/PaddleVisual", cfg.paddle_visual)
+    return robot_prim
+
+
+@configclass
+class UR10WithPaddleCfg(sim_utils.UsdFileCfg):
+    """Robot and welded paddle imported together, including the tool's visual geometry."""
+
+    func = _spawn_ur10_with_paddle
+    paddle_offset: tuple[float, float, float] = PADDLE_OFFSET
+    paddle = sim_utils.CuboidCfg(
+        func=_spawn_fixed_paddle,
+        size=PADDLE_SIZE,
+        rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+        mass_props=sim_utils.MassCfg(mass=PADDLE_MASS),
+        collision_props=[
+            UsdPhysicsCollisionCfg(collision_enabled=True),
+            NewtonCollisionCfg(contact_margin=PADDLE_CONTACT_MARGIN, contact_gap=0.002),
+        ],
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.8, dynamic_friction=0.7),
+    )
+    paddle_visual = sim_utils.CuboidCfg(
+        size=PADDLE_SIZE,
+        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.18, 0.45, 0.82), metallic=0.25, roughness=0.35),
+    )
+
+
 # Collision-screened nominal pose for PADDLE_RESET_CENTER. The reset IK bank stays on this branch
 # while varying only small upright paddle translations and world-Z yaw.
 UR10_PUSH_HOME = (
@@ -224,7 +263,9 @@ def configure_sparse_mpm_capacities(cfg: UR10ParticlePushEnvCfg) -> None:
 
     Command-line ``--num_envs`` overrides are applied after config construction. The environment
     calls this function once more immediately before simulation creation, so reduced evaluation
-    runs and large distributed jobs reserve proportional memory.
+    runs and large distributed jobs reserve proportional memory. Upper nodes cover a much wider
+    spatial region than a single environment, so their reservation is shared across nearby worlds.
+    A single environment retains two worlds' capacity to cover pile spreading without pooled headroom.
     """
     per_world = {
         "active cells": cfg.mpm_active_cell_count_per_world,
@@ -253,15 +294,15 @@ def configure_sparse_mpm_capacities(cfg: UR10ParticlePushEnvCfg) -> None:
             f"of {SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD} nodes per world."
         )
 
-    world_count = max(1, int(cfg.scene.num_envs))
+    world_count = max(2, int(cfg.scene.num_envs))
     solver_cfg = get_mpm_solver_cfg(cfg)
-    solver_cfg.max_active_cell_count = per_world["active cells"] * world_count
-    solver_cfg.max_leaf_node_count = per_world["leaf nodes"] * world_count
-    solver_cfg.max_lower_node_count = per_world["lower nodes"] * world_count
     solver_cfg.max_upper_node_count = max(
         SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT,
-        per_world["upper nodes"] * world_count,
+        math.ceil(per_world["upper nodes"] * world_count / SPARSE_MPM_WORLDS_PER_UPPER_NODE),
     )
+    solver_cfg.max_lower_node_count = max(per_world["lower nodes"] * world_count, solver_cfg.max_upper_node_count)
+    solver_cfg.max_leaf_node_count = max(per_world["leaf nodes"] * world_count, solver_cfg.max_lower_node_count)
+    solver_cfg.max_active_cell_count = max(per_world["active cells"] * world_count, solver_cfg.max_leaf_node_count)
 
 
 def _kinematic_box(
@@ -282,12 +323,14 @@ def _kinematic_box(
                 rigid_body_enabled=True,
                 kinematic_enabled=True,
             ),
-            collision_props=NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=MPM_COLLIDER_MARGIN,
-                # Implicit MPM consumes shape margin; gap is a rigid-contact parameter.
-                contact_gap=0.0,
-            ),
+            collision_props=[
+                UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(
+                    contact_margin=MPM_COLLIDER_MARGIN,
+                    # Implicit MPM consumes shape margin; gap is a rigid-contact parameter.
+                    contact_gap=0.0,
+                ),
+            ],
             physics_material=RigidBodyMaterialBaseCfg(
                 static_friction=0.8,
                 dynamic_friction=0.7,
@@ -313,11 +356,10 @@ def _static_collision_box(
         init_state=AssetBaseCfg.InitialStateCfg(pos=position),
         spawn=sim_utils.CuboidCfg(
             size=size,
-            collision_props=NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=0.004,
-                contact_gap=0.002,
-            ),
+            collision_props=[
+                UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=0.004, contact_gap=0.002),
+            ],
             physics_material=RigidBodyMaterialBaseCfg(
                 static_friction=0.8,
                 dynamic_friction=0.7,
@@ -354,45 +396,15 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.8, 0.8, 0.8), intensity=2500.0),
     )
 
-    robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn = UR10WithPaddleCfg(**vars(robot.spawn))
+    robot.spawn.func = _spawn_ur10_with_paddle
     robot.init_state.joint_pos = dict(zip(UR10_JOINT_NAMES, UR10_PUSH_HOME, strict=True))
     # Override arm drive gains; preserve the USD inertia, limits, and effort cap.
     robot.actuators["arm"].stiffness = 2400.0
     robot.actuators["arm"].damping = 70.0
     # Enable actuator gravity compensation in MuJoCo; do not add task-level effort commands.
     robot.spawn.joint_drive_props = [MujocoJointCfg(actuatorgravcomp=True)]
-
-    # Weld the paddle to ee_link; separate collision and visual geometry for independent visibility.
-    paddle = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=PADDLE_OFFSET),
-        spawn=sim_utils.CuboidCfg(
-            func=_spawn_fixed_paddle,
-            size=PADDLE_SIZE,
-            rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
-            mass_props=sim_utils.MassCfg(mass=PADDLE_MASS),
-            collision_props=NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=PADDLE_CONTACT_MARGIN,
-                contact_gap=0.002,
-            ),
-            physics_material=RigidBodyMaterialBaseCfg(
-                static_friction=0.8,
-                dynamic_friction=0.7,
-            ),
-        ),
-    )
-    paddle_visual = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/ee_link/Paddle/PaddleVisual",
-        spawn=sim_utils.CuboidCfg(
-            size=PADDLE_SIZE,
-            visual_material=sim_utils.PreviewSurfaceCfg(
-                diffuse_color=(0.18, 0.45, 0.82),
-                metallic=0.25,
-                roughness=0.35,
-            ),
-        ),
-    )
 
     # The official table supplies rigid robot contact. This co-located simple slab belongs only to
     # the MPM entry, avoiding a mesh approximation and keeping particle collision explicit.
@@ -403,16 +415,6 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         color=(0.3, 0.3, 0.3),
         visible=False,
     )
-    # Newton MPM owns a simple per-world mirror of the visible global lab floor. Without it, the
-    # few grains permitted to spill leave the solver entirely and accelerate forever.
-    mpm_ground = _kinematic_box(
-        "{ENV_REGEX_NS}/MPMGround",
-        size=MPM_GROUND_SIZE,
-        position=MPM_GROUND_POSITION,
-        color=(0.18, 0.18, 0.18),
-        visible=False,
-    )
-
     # Catch tote mounted against the +X edge of the workbench. Its front wall ends flush with the
     # tabletop and overlaps the floor, closing the otherwise hidden under-table escape slot without
     # adding a lip above the sweep surface.
@@ -447,8 +449,7 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         color=(0.12, 0.22, 0.34),
     )
 
-    # These static mirrors are automatically owned by the rigid entry together with the official
-    # table and ground. The MPM entry owns only the kinematic copies above, so no shape is shared.
+    # These static mirrors supply rigid contact while MPM uses the kinematic bin collision above.
     rigid_bin_floor = _static_collision_box(
         "{ENV_REGEX_NS}/RigidBinFloor",
         size=BIN_FLOOR_SIZE,
@@ -598,6 +599,8 @@ class CurriculumCfg:
 class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
 
+    class_type: type | str = "{DIR}.ur10_particle_push_env:UR10ParticlePushEnv"
+
     decimation = 2
     # One approach and sweep comfortably fits within this horizon.
     episode_length_s = 12.0
@@ -695,9 +698,9 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     state_bound_max_joint_velocity: float = 20.0
     state_bound_max_ee_linear_velocity: float = 10.0
     state_bound_max_ee_angular_velocity: float = 50.0
-    # Reserve active sparse-grid cells per world, independent of particle count.
-    mpm_active_cell_count_per_world: int = 3072
-    mpm_leaf_node_count_per_world: int = 1 << 9
+    # Bounded capacities permit CUDA graph capture without reserving the conservative grid defaults.
+    mpm_active_cell_count_per_world: int = 1536
+    mpm_leaf_node_count_per_world: int = 48
     mpm_lower_node_count_per_world: int = SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD
     mpm_upper_node_count_per_world: int = SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD
     # Scale only the virtual paddle inertia inside MPM to limit proxy acceleration under granular
@@ -795,8 +798,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         if (
             len(paddle_size) != 3
             or any(not math.isfinite(value) or value <= 0.0 for value in paddle_size)
-            or tuple(self.scene.paddle.spawn.size) != paddle_size
-            or tuple(self.scene.paddle_visual.spawn.size) != paddle_size
+            or tuple(self.scene.robot.spawn.paddle.size) != paddle_size
+            or tuple(self.scene.robot.spawn.paddle_visual.size) != paddle_size
         ):
             raise ValueError("paddle_size must be finite, positive, and match both authored paddle geometries.")
         if any(
@@ -978,7 +981,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                             nconmax=512,
                         ),
                         bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Table"],
-                        include_static_shapes=True,
+                        # Let Newton derive body and global static shape visibility without explicit ownership.
+                        include_body_shapes=False,
                         # Refine rigid integration with three substeps per coupled interval.
                         substeps=3,
                     ),
@@ -1003,13 +1007,13 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
                         ),
                         bodies=[
                             r"/World/envs/env_.*/MPMWorkSurface",
-                            r"/World/envs/env_.*/MPMGround",
                             r"/World/envs/env_.*/MPMBinFloor",
                             r"/World/envs/env_.*/MPMBinFront",
                             r"/World/envs/env_.*/MPMBinBack",
                             r"/World/envs/env_.*/MPMBinLeft",
                             r"/World/envs/env_.*/MPMBinRight",
                         ],
+                        shape_label_patterns=[GROUND_PLANE_SHAPE_PATTERN],
                         all_particles=True,
                         include_static_shapes=False,
                         include_child_joints=False,
@@ -1056,6 +1060,5 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
             show_particles=True,
             particle_color=MPM_VISUAL_COLOR,
         )
-        self.sim.visualizer_cfgs = [NewtonGLVisualizerCfg()]
         self.heightmap_visualizer_cfg = HEIGHTMAP_VISUALIZER_CFG
         configure_sparse_mpm_capacities(self)

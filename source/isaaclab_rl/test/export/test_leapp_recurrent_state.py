@@ -7,158 +7,98 @@
 
 from __future__ import annotations
 
-import contextlib
-import importlib.util
-import sys
-import types
-from collections.abc import Iterator
-from pathlib import Path
+import importlib
 from types import ModuleType
+from typing import Any, Literal
 
 import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
 
-_LEAPP_ROOT = Path(__file__).resolve().parents[4] / "scripts" / "reinforcement_learning" / "leapp"
-_EXPORT_UTILS_SCRIPT = _LEAPP_ROOT / "export_utils.py"
-_EXPORT_UTILS_MODULE_NAME = "_isaaclab_leapp_export_utils"
 
-
-@contextlib.contextmanager
-def _stub_isaaclab_cli_imports(*, fold_preset_tokens: bool = False) -> Iterator[None]:
-    """Stub Isaac Lab CLI imports so export scripts can be loaded without Kit."""
-    original_modules = {
-        name: sys.modules.get(name) for name in ("isaaclab", "isaaclab.app", "isaaclab_tasks", "isaaclab_tasks.utils")
-    }
-    isaaclab_module = types.ModuleType("isaaclab")
-    isaaclab_app_module = types.ModuleType("isaaclab.app")
-    isaaclab_tasks_module = types.ModuleType("isaaclab_tasks")
-    isaaclab_tasks_utils_module = types.ModuleType("isaaclab_tasks.utils")
-
-    class _AppLauncher:
-        @staticmethod
-        def add_app_launcher_args(parser):
-            return None
-
-    setattr(isaaclab_app_module, "AppLauncher", _AppLauncher)
-    if fold_preset_tokens:
-        setattr(isaaclab_tasks_utils_module, "fold_preset_tokens", lambda args: args)
-    setattr(
-        isaaclab_tasks_utils_module,
-        "setup_preset_cli",
-        lambda parser, argv=None, **kwargs: parser.parse_known_args(argv),
-    )
-    sys.modules["isaaclab"] = isaaclab_module
-    sys.modules["isaaclab.app"] = isaaclab_app_module
-    sys.modules["isaaclab_tasks"] = isaaclab_tasks_module
-    sys.modules["isaaclab_tasks.utils"] = isaaclab_tasks_utils_module
-    try:
-        yield
-    finally:
-        for name, original_module in original_modules.items():
-            if original_module is None:
-                sys.modules.pop(name, None)
-            else:
-                sys.modules[name] = original_module
-
-
-def _load_export_utils_module() -> ModuleType:
-    """Load shared LEAPP export helpers from the scripts tree."""
-    sys.modules.pop(_EXPORT_UTILS_MODULE_NAME, None)
-    spec = importlib.util.spec_from_file_location(_EXPORT_UTILS_MODULE_NAME, _EXPORT_UTILS_SCRIPT)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create module spec for {_EXPORT_UTILS_SCRIPT}")
-
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[_EXPORT_UTILS_MODULE_NAME] = module
-    spec.loader.exec_module(module)
-    return module
+def _load_export_common_module() -> ModuleType:
+    """Load shared LEAPP export helpers from the installed package."""
+    return importlib.import_module("isaaclab_rl.entrypoints.backends.export_common")
 
 
 def _load_backend_export_module(backend: str) -> ModuleType:
-    """Load a backend export script without importing Isaac Sim runtime modules."""
-    export_script = _LEAPP_ROOT / backend / "export.py"
-    module_name = f"_isaaclab_{backend}_leapp_export"
-    sys.modules.pop(module_name, None)
-    spec = importlib.util.spec_from_file_location(module_name, export_script)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create module spec for {export_script}")
-
-    module = importlib.util.module_from_spec(spec)
-    with _stub_isaaclab_cli_imports(fold_preset_tokens=backend == "rsl_rl"):
-        sys.modules[module_name] = module
-        spec.loader.exec_module(module)
-
-    if backend in ("rl_games", "skrl"):
-        setattr(module, "is_two_tensor_lstm_state", _load_export_utils_module().is_two_tensor_lstm_state)
-    elif backend == "rsl_rl":
-        setattr(module, "torch", torch)
-    return module
+    """Load an exporter when its optional backend package is installed."""
+    pytest.importorskip(backend)
+    return importlib.import_module(f"isaaclab_rl.entrypoints.backends.export_{backend}")
 
 
 class TestSharedRecurrentState:
     """Tests for recurrent-state helpers shared by the export backends."""
 
     def test_lstm_state_detection_requires_two_tensors(self):
-        """Check that only two-tensor recurrent state is treated as LSTM feedback."""
-        export_utils = _load_export_utils_module()
-        h = torch.zeros(1, 1, 4)
-        c = torch.zeros(1, 1, 4)
+        """Only two-tensor recurrent state is treated as LSTM feedback."""
+        export_common = _load_export_common_module()
+        hidden_state = torch.zeros(1, 1, 4)
+        cell_state = torch.zeros(1, 1, 4)
 
-        assert export_utils.is_two_tensor_lstm_state([h, c])
-        assert export_utils.is_two_tensor_lstm_state((h, c))
-        assert not export_utils.is_two_tensor_lstm_state([h])
-        assert not export_utils.is_two_tensor_lstm_state([h, c, c])
-        assert not export_utils.is_two_tensor_lstm_state([h, object()])
+        assert export_common.is_two_tensor_lstm_state([hidden_state, cell_state])
+        assert export_common.is_two_tensor_lstm_state((hidden_state, cell_state))
+        assert not export_common.is_two_tensor_lstm_state([hidden_state])
+        assert not export_common.is_two_tensor_lstm_state([hidden_state, cell_state, cell_state])
+        assert not export_common.is_two_tensor_lstm_state([hidden_state, object()])
 
     def test_state_sequence_round_trip_from_dict(self):
-        """Check named LEAPP state maps back to framework state order."""
-        export_utils = _load_export_utils_module()
+        """Named LEAPP state maps back to framework state order."""
+        export_common = _load_export_common_module()
         states = [torch.zeros(1, 1, 4), torch.ones(1, 1, 4)]
-        state_dict = export_utils.state_dict_from_sequence(states)
+        state_dict = export_common.state_dict_from_sequence(states)
 
-        restored = export_utils.state_sequence_from_registered(state_dict, list(state_dict.keys()), states)
+        restored = export_common.state_sequence_from_registered(state_dict, list(state_dict.keys()), states)
 
         assert list(state_dict.keys()) == ["actor_state_0", "actor_state_1"]
         assert restored == states
 
 
-class TestRlGamesRecurrentState:
-    """Tests for RL-Games recurrent-state adaptation."""
+@pytest.mark.parametrize("rnn_type", ["lstm", "gru"])
+def test_rl_games_recurrent_state(rnn_type: Literal["lstm", "gru"]) -> None:
+    """RL-Games accepts LSTM feedback and rejects GRU feedback."""
+    pytest.importorskip("rl_games")
+    import gymnasium as gym
+    from rl_games.algos_torch.players import PpoPlayerContinuous
 
-    def test_lstm_feedback_detection(self):
-        """Verify RL-Games LSTM feedback can be detected from player state."""
-        export_module = _load_backend_export_module("rl_games")
-        agent = types.SimpleNamespace(
-            is_rnn=True,
-            states=[torch.zeros(1, 1, 7), torch.zeros(1, 1, 7)],
-        )
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import load_cfg_from_registry
 
-        assert export_module.is_rl_games_lstm_policy(agent)
-        assert [tuple(tensor.shape) for tensor in export_module.get_rl_games_policy_states(agent)] == [
-            (1, 1, 7),
-            (1, 1, 7),
-        ]
-
-    def test_recurrent_non_lstm_is_rejected(self):
-        """Verify recurrent RL-Games policies without two LSTM tensors are rejected."""
-        export_module = _load_backend_export_module("rl_games")
-        agent = types.SimpleNamespace(is_rnn=True, states=[torch.zeros(1, 1, 7)])
-
+    params = load_cfg_from_registry("Isaac-Cartpole", "rl_games_cfg_entry_point")["params"]
+    params["network"]["rnn"] = {"name": rnn_type, "units": 7, "layers": 1}
+    params["config"].update(
+        device_name="cpu",
+        env_info={
+            "observation_space": gym.spaces.Box(-1.0, 1.0, shape=(4,)),
+            "action_space": gym.spaces.Box(-1.0, 1.0, shape=(1,)),
+        },
+    )
+    agent = PpoPlayerContinuous(params)
+    agent.reset()
+    export_module = _load_backend_export_module("rl_games")
+    if rnn_type == "gru":
         assert not export_module.is_rl_games_lstm_policy(agent)
         with pytest.raises(NotImplementedError, match="Only RL-Games LSTM"):
             export_module._validate_rl_games_recurrent_support(agent)
+    else:
+        assert export_module.is_rl_games_lstm_policy(agent)
+        agent.get_action(torch.zeros(4), is_deterministic=True)
+        states = export_module.get_rl_games_policy_states(agent)
+        assert len(states) == 2
+        for actual, expected in zip(states, agent.states):
+            torch.testing.assert_close(actual, expected)
+            assert actual.shape == (1, 1, 7)
 
 
-def _make_skrl_lstm_agent():
+def _make_skrl_recurrent_agent(rnn_type: Literal["lstm", "gru"] = "lstm") -> Any:
     pytest.importorskip("skrl")
     import gymnasium as gym
     from skrl.agents.torch.ppo.ppo_rnn import PPO_RNN
     from skrl.models.torch import GaussianMixin, Model
 
-    class _TinySkrlLstmPolicy(GaussianMixin, Model):
-        """Minimal skrl Gaussian policy with LSTM state specification."""
+    class _TinySkrlRecurrentPolicy(GaussianMixin, Model):
+        """Recurrent Gaussian policy used by the skrl tests."""
 
         def __init__(self, observation_space, action_space, device):
             Model.__init__(self, observation_space=observation_space, action_space=action_space, device=device)
@@ -171,19 +111,22 @@ def _make_skrl_lstm_agent():
                 reduction="sum",
                 role="policy",
             )
-            self.lstm = torch.nn.LSTM(self.num_observations, 5, 1)
+            rnn_cls = torch.nn.LSTM if rnn_type == "lstm" else torch.nn.GRU
+            self.rnn = rnn_cls(self.num_observations, 5, 1)
             self.head = torch.nn.Linear(5, self.num_actions)
             self.log_std_parameter = torch.nn.Parameter(torch.zeros(self.num_actions))
 
         def get_specification(self):
-            return {"rnn": {"sizes": [(1, 1, 5), (1, 1, 5)], "sequence_length": 1}}
+            return {"rnn": {"sizes": [(1, 1, 5)] * (2 if rnn_type == "lstm" else 1), "sequence_length": 1}}
 
         def compute(self, inputs, role):
-            out, rnn = self.lstm(inputs["observations"].unsqueeze(0), tuple(inputs["rnn"]))
-            return self.head(out.squeeze(0)), {"log_std": self.log_std_parameter, "rnn": list(rnn)}
+            state = tuple(inputs["rnn"]) if rnn_type == "lstm" else inputs["rnn"][0]
+            out, state = self.rnn(inputs["observations"].unsqueeze(0), state)
+            states = list(state) if rnn_type == "lstm" else [state]
+            return self.head(out.squeeze(0)), {"log_std": self.log_std_parameter, "rnn": states}
 
     class _TinySkrlValue(Model):
-        """Minimal skrl value model."""
+        """Value model used by the skrl tests."""
 
         def __init__(self, observation_space, action_space, device):
             super().__init__(observation_space=observation_space, action_space=action_space, device=device)
@@ -197,7 +140,7 @@ def _make_skrl_lstm_agent():
 
     obs_space = gym.spaces.Box(-1.0, 1.0, shape=(3,), dtype=np.float32)
     act_space = gym.spaces.Box(-1.0, 1.0, shape=(2,), dtype=np.float32)
-    policy = _TinySkrlLstmPolicy(obs_space, act_space, "cpu")
+    policy = _TinySkrlRecurrentPolicy(obs_space, act_space, "cpu")
     value = _TinySkrlValue(obs_space, act_space, "cpu")
     agent = PPO_RNN(
         models={"policy": policy, "value": value},
@@ -221,9 +164,9 @@ class TestSkrlRecurrentState:
     """Tests for skrl recurrent-state adaptation."""
 
     def test_lstm_feedback_detection_and_output_state(self):
-        """Verify skrl LSTM feedback can be detected and updated from action output."""
+        """skrl LSTM feedback is detected and updated from action output."""
         export_module = _load_backend_export_module("skrl")
-        agent = _make_skrl_lstm_agent()
+        agent = _make_skrl_recurrent_agent()
 
         assert export_module.is_skrl_lstm_policy(agent)
         assert [tuple(tensor.shape) for tensor in export_module.get_skrl_policy_states(agent)] == [
@@ -238,14 +181,10 @@ class TestSkrlRecurrentState:
         assert [tuple(tensor.shape) for tensor in output_states] == [(1, 1, 5), (1, 1, 5)]
 
     def test_recurrent_non_lstm_is_rejected(self):
-        """Verify recurrent skrl policies without two LSTM tensors are rejected."""
+        """skrl recurrent policies without two LSTM tensors are rejected."""
         pytest.importorskip("skrl")
         export_module = _load_backend_export_module("skrl")
-        agent = types.SimpleNamespace(
-            _rnn=True,
-            _rnn_initial_states={"policy": [torch.zeros(1, 1, 5)]},
-            policy=types.SimpleNamespace(get_specification=lambda: {"rnn": {"sizes": [(1, 1, 5)]}}),
-        )
+        agent = _make_skrl_recurrent_agent("gru")
 
         assert not export_module.is_skrl_lstm_policy(agent)
         with pytest.raises(NotImplementedError, match="Only skrl LSTM"):
@@ -256,26 +195,20 @@ class TestRslRlRecurrentState:
     """Tests for RSL-RL recurrent-state adaptation."""
 
     def test_modular_rnn_model_lstm_round_trip(self):
-        """Verify LSTM state registration helpers support RSL-RL 5.x RNNModel."""
-
-        class _Memory(torch.nn.Module):
-            def __init__(self):
-                super().__init__()
-                self.rnn = torch.nn.LSTM(input_size=2, hidden_size=4, num_layers=2)
-                self.hidden_state = None
-
-        class _Policy(torch.nn.Module):
-            is_recurrent = True
-
-            def __init__(self):
-                super().__init__()
-                self.rnn = _Memory()
-
-            def get_hidden_state(self):
-                return self.rnn.hidden_state
+        """LSTM state registration supports the RSL-RL 5.x RNNModel."""
+        from rsl_rl.models import RNNModel
+        from tensordict import TensorDict
 
         export_module = _load_backend_export_module("rsl_rl")
-        policy = _Policy()
+        policy = RNNModel(
+            TensorDict({"policy": torch.zeros(1, 2)}, batch_size=[1]),
+            {"actor": ["policy"]},
+            "actor",
+            output_dim=1,
+            hidden_dims=[4],
+            rnn_hidden_dim=4,
+            rnn_num_layers=2,
+        )
 
         actor_state = export_module.ensure_actor_hidden_state_initialized(
             policy, batch_size=1, device=torch.device("cpu"), dtype=torch.float32

@@ -19,7 +19,7 @@ from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -100,7 +100,7 @@ def main():
     _configure_resolved_sim(env_cfg.sim, focal_length=22.0)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:newton_rtx",
+            source="viz:newton_rtx",
             output_dir=args.output_dir,
             output_filename_prefix=args.policy,
             video_length=args.video_length,
@@ -135,7 +135,7 @@ def _configure_capture(env_cfg: object, focal_length: float):
     if output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="visualizer:newton_rtx",
+                source="viz:newton_rtx",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("QUICKSTART_VIDEO_PREFIX", "clip"),
                 fps=60,

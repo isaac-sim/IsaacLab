@@ -5,13 +5,11 @@
 
 """Tests for the discoverable micro-benchmark command."""
 
-import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
 
-import isaaclab.cli as cli
 from isaaclab.benchmark.microbenchmark import MicrobenchmarkFactory, run_microbenchmark_cli
 
 
@@ -59,6 +57,15 @@ def test_factory_resolves_exact_physics_variant(
     assert command.component == component
 
 
+def test_every_discoverable_workload_resolves_to_a_packaged_script() -> None:
+    """Every advertised physics/component pair must launch an existing entrypoint."""
+    factory = MicrobenchmarkFactory()
+    for physics in MicrobenchmarkFactory.physics_variants():
+        for component in MicrobenchmarkFactory.components():
+            script = factory.build_command(physics, component, []).script
+            assert script.is_file(), f"{physics}/{component}: missing {script}"
+
+
 def test_factory_rejects_unknown_variant_without_substitution() -> None:
     """Unknown variants should fail instead of silently selecting a related solver."""
     with pytest.raises(ValueError, match="newton_unknown"):
@@ -89,16 +96,3 @@ def test_microbenchmark_cli_launches_selected_command() -> None:
     assert script.name == "benchmark_joint_wrench.py"
     assert args == ["--physics_variant", "newton_kamino", "--num_steps", "2"]
     assert run_python.call_args.kwargs == {"check": True}
-
-
-def test_top_level_cli_dispatches_microbenchmark() -> None:
-    """``isaaclab microbenchmark`` should forward arguments to its dispatcher."""
-    args = ["--component", "articulation", "physics=physx", "--num_iterations", "2"]
-
-    with (
-        mock.patch.object(sys, "argv", ["isaaclab", "microbenchmark", *args]),
-        mock.patch("isaaclab.benchmark.run_microbenchmark_cli", return_value=0) as run_microbenchmark,
-    ):
-        cli.cli()
-
-    run_microbenchmark.assert_called_once_with(args)

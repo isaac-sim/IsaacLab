@@ -21,6 +21,8 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpDanceEnvCfg",
+        "default_agent": "skrl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_dance_amp_cfg.yaml",
         "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_dance_amp_cfg.yaml",
     },
 )
@@ -31,6 +33,8 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpRunEnvCfg",
+        "default_agent": "skrl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_run_amp_cfg.yaml",
         "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_run_amp_cfg.yaml",
     },
 )
@@ -41,6 +45,8 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpWalkEnvCfg",
+        "default_agent": "skrl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_walk_amp_cfg.yaml",
         "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_walk_amp_cfg.yaml",
     },
 )

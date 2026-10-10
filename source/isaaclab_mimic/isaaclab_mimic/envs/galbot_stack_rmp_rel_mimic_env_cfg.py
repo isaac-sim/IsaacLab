@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.galbot.stack_rmp_rel_env_cfg import (
     RmpFlowGalbotLeftArmCubeStackEnvCfg,
@@ -18,6 +18,8 @@ class RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg(RmpFlowGalbotLeftArmCub
     """
     Isaac Lab Mimic environment config class for Galbot Gripper Cube Stack IK Rel env.
     """
+
+    class_type: type | str = "{DIR}.galbot_stack_rmp_rel_mimic_env:RmpFlowGalbotCubeStackRelMimicEnv"
 
     def __post_init__(self):
         # post init of parents
@@ -141,6 +143,8 @@ class RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg(RmpFlowGalbotRightArmC
     """
     Isaac Lab Mimic environment config class for Galbot Suction Gripper Cube Stack RmpFlow Rel env.
     """
+
+    class_type: type | str = "{DIR}.galbot_stack_rmp_rel_mimic_env:RmpFlowGalbotCubeStackRelMimicEnv"
 
     def __post_init__(self):
         # post init of parents

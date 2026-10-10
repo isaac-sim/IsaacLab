@@ -6,7 +6,7 @@ isaaclab_physx.sim.schemas
   PhysX-specific schema configuration classes. Each cfg below extends a
   solver-common base in :mod:`isaaclab.sim.schemas` with PhysX-namespaced
   attributes (``physx*:*``) and applies the corresponding ``Physx*API``
-  applied schema. See :doc:`/source/overview/core-concepts/schema_cfgs`
+  applied schema. See :doc:`/source/concepts/schema_cfgs`
   for the design.
 
   .. rubric:: Rigid body and joint drive
@@ -54,6 +54,8 @@ isaaclab_physx.sim.schemas
 
     OmniPhysicsDeformableBodyPropertiesCfg
     PhysxDeformableBodyPropertiesCfg
+    PhysxDeformableBodyCfg
+    PhysxSurfaceDeformableBodyCfg
     DeformableBodyPropertiesCfg
 
   .. rubric:: Functions
@@ -165,6 +167,16 @@ Deformable Body
     :members:
     :show-inheritance:
     :exclude-members: __init__
+
+.. autoclass:: PhysxDeformableBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: PhysxSurfaceDeformableBodyCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: DeformableBodyPropertiesCfg
     :members:

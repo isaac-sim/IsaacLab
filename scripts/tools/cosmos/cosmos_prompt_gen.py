@@ -68,7 +68,6 @@ def generate_prompt(templates_path: str):
 
 
 def main():
-    # Parse command line arguments
     args = parse_args()
 
     prompts = [generate_prompt(args.templates_path) for _ in range(args.num_prompts)]

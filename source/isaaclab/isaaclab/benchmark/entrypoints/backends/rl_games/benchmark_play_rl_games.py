@@ -21,7 +21,7 @@ import sys
 
 from isaaclab.benchmark.entrypoints.backends.rl_games.registry import register_scoped_rl_games_environment
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab_rl.entrypoints import common
 
 
 def _parse_args(argv: list[str]):
@@ -38,13 +38,12 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RL-Games.")
-    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
+    common.add_video_args(parser, action="play")
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
@@ -84,9 +83,10 @@ def _parse_args(argv: list[str]):
         ),
     )
     add_launcher_args(parser)
+    common.add_frontend_args(parser)
 
-    args_cli, remaining_args = setup_preset_cli(parser, argv, agent_library="rl_games")
-    _common.enable_cameras_for_video(args_cli)
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    common.enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args
@@ -105,7 +105,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     import re
     import time
 
-    import gymnasium as gym
     from rl_games.common import env_configurations, vecenv
     from rl_games.common.player import BasePlayer
     from rl_games.torch_runner import Runner
@@ -114,6 +113,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_rl_games as cli_args
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
@@ -128,7 +128,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     args_cli, remaining_args = _parse_args(argv)
 
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
-    _common.pre_launch_video_config(env_cfg, args_cli=args_cli)
+    common.pre_launch_video_config(env_cfg, args_cli=args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -136,18 +136,17 @@ def run(argv: list[str]) -> BenchmarkResult:
     with launch_simulation(env_cfg, args_cli):
         with contextlib.ExitStack() as cleanup:
             app_t1 = time.perf_counter_ns()
-            _common.apply_video_recording(env_cfg, args_cli.output_path, args_cli, subdir="play")
+            common.apply_video_recording(env_cfg, args_cli.output_path, args_cli, subdir="play")
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
-            if args_cli.seed is not None:
-                agent_cfg["params"]["seed"] = args_cli.seed
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["params"]["seed"]
 
             config_name = agent_cfg["params"]["config"]["name"]
             log_root_path = os.path.abspath(os.path.join("logs", "rl_games", config_name))
-            if args_cli.checkpoint in _common.CHECKPOINT_SELECTORS:
-                resume_path = _common.resolve_checkpoint_selector(
+            if args_cli.checkpoint in common.CHECKPOINT_SELECTORS:
+                resume_path = common.resolve_checkpoint_selector(
                     log_root_path,
                     args_cli.checkpoint,
                     library="rl_games",
@@ -158,7 +157,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     metadata={"agent": args_cli.agent},
                 )
             else:
-                resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task, env_cfg)
+                resume_path = common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task, env_cfg)
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
@@ -193,7 +192,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
             env_t0 = time.perf_counter_ns()
-            env = gym.make(args_cli.task, cfg=env_cfg)
+            env = common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 

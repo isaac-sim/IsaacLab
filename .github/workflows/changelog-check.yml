@@ -51,10 +51,16 @@ jobs:
       - name: Verify changelog fragments
         run: python3 tools/changelog/cli.py check ${{ steps.base.outputs.ref }}
 
+      # The unit tests run the real uv and towncrier (via uvx), as the nightly compile does.
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          # Keep equal to the uv in docker/Dockerfile.*.
+          version: "0.12.9"
+
       - name: Run changelog tool unit tests
         # Gates tools/changelog/cli.py itself: regression tests for the
-        # filename rules, fragment parsing, CHANGELOG_HEADER_RE invariant,
-        # and cmd_check / cmd_compile orchestration. Without this, a cli.py
+        # fragment rules, the lock pins, the legacy split, and cmd_check /
+        # cmd_compile orchestration. Without this, a cli.py
         # refactor could silently break the gate above.
         #
         # Skipped when the PR doesn't touch tools/changelog/ — fragment-only

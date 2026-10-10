@@ -7,7 +7,7 @@ import warnings
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.contact_sensor.contact_sensor_cfg import ContactSensorCfg as BaseContactSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .contact_sensor import ContactSensor
@@ -36,6 +36,7 @@ class ContactSensorCfg(BaseContactSensorCfg):
             warnings.warn(
                 "ContactSensorCfg: 'track_contact_points' requires filter objects on the Newton backend. Please set"
                 " 'filter_prim_paths_expr' or 'filter_shape_prim_expr'. Ignoring.",
+                UserWarning,
                 stacklevel=2,
             )
             self.track_contact_points = False
@@ -43,6 +44,7 @@ class ContactSensorCfg(BaseContactSensorCfg):
         if self.max_contact_data_count_per_prim is not None:
             warnings.warn(
                 "ContactSensorCfg: 'max_contact_data_count_per_prim' is not supported by the Newton backend. Ignoring.",
+                UserWarning,
                 stacklevel=2,
             )
             self.max_contact_data_count_per_prim = None

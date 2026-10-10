@@ -6,55 +6,44 @@
 """Unit tests for OvPhysx contact-sensor Warp kernels."""
 
 import numpy as np
+import pytest
 import warp as wp
-from isaaclab_ov.sensors.contact_sensor.kernels import reset_contact_sensor_kernel
+from isaaclab_ov.sensors.contact_sensor.kernels import unpack_contact_buffer_data
+
+from isaaclab.test.utils import DeviceScope, test_devices
 
 
-def test_reset_contact_sensor_kernel_clears_selected_force_matrix_history():
-    """Reset clears filtered-force history only for selected environments."""
-    num_envs = 2
-    num_sensors = 1
-    history_length = 2
-    num_filter_shapes = 1
-    device = "cpu"
-    env_mask = wp.array([True, False], dtype=wp.bool, device=device)
-
-    net_normal_forces_w = wp.zeros((num_envs, num_sensors), dtype=wp.vec3f, device=device)
-    net_normal_forces_w_history = wp.zeros((num_envs, history_length, num_sensors), dtype=wp.vec3f, device=device)
-    normal_force_matrix_w = wp.zeros((num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device)
-    normal_force_matrix_w_history = wp.array(
-        np.ones((num_envs, history_length, num_sensors, num_filter_shapes, 3), dtype=np.float32),
-        dtype=wp.vec3f,
-        device=device,
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("use_mask, capacity", [(False, None), (True, 5)])
+def test_unpack_contact_buffer_data_pattern_major(device: str, use_mask: bool, capacity: int | None):
+    """Preserve body/environment order, masked values and partial or absent contact positions."""
+    num_envs, num_sensors, num_filters = 2, 2, 2
+    positions = np.array(
+        [[1, 2, 3], [3, 4, 5], [5, 6, 7], [7, 8, 9], [9, 10, 11], [11, 12, 13], [13, 14, 15], [15, 16, 17]],
+        dtype=np.float32,
+    )[:capacity]
+    counts = wp.array([[2, 0], [1, 1], [0, 2], [1, 1]], dtype=wp.uint32, device=device)
+    starts = wp.array([[0, 2], [2, 3], [4, 4], [6, 7]], dtype=wp.uint32, device=device)
+    absent = [np.nan, np.nan, np.nan]
+    expected = np.array(
+        [
+            [[[2, 3, 4], absent], [absent, [10, 11, 12]]],
+            [[[5, 6, 7], [7, 8, 9]], [[13, 14, 15], [15, 16, 17]]],
+        ],
+        dtype=np.float32,
     )
-    current_air_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
-    last_air_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
-    current_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
-    last_contact_time = wp.zeros((num_envs, num_sensors), dtype=wp.float32, device=device)
-
+    if capacity is not None:
+        expected[0, 1, 1] = [9, 10, 11]
+        expected[1, 1] = np.nan
+    if use_mask:
+        expected[1] = -1.0
+    mask = wp.array([True, False], dtype=wp.bool, device=device) if use_mask else None
+    output = wp.full((num_envs, num_sensors, num_filters), value=wp.vec3f(-1.0), dtype=wp.vec3f, device=device)
     wp.launch(
-        reset_contact_sensor_kernel,
-        dim=(num_envs, num_sensors),
-        inputs=[
-            history_length,
-            num_filter_shapes,
-            env_mask,
-            net_normal_forces_w,
-            net_normal_forces_w_history,
-            normal_force_matrix_w,
-            normal_force_matrix_w_history,
-        ],
-        outputs=[
-            current_air_time,
-            last_air_time,
-            current_contact_time,
-            last_contact_time,
-            None,
-            None,
-            None,
-        ],
+        unpack_contact_buffer_data,
+        dim=(num_envs, num_sensors, num_filters),
+        inputs=[wp.array(positions, dtype=wp.vec3f, device=device), counts, starts, mask, num_envs],
+        outputs=[output],
         device=device,
     )
-
-    np.testing.assert_array_equal(normal_force_matrix_w_history.numpy()[0], 0.0)
-    np.testing.assert_array_equal(normal_force_matrix_w_history.numpy()[1], 1.0)
+    np.testing.assert_allclose(output.numpy(), expected, equal_nan=True)

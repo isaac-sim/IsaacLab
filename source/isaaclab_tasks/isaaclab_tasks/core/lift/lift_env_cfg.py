@@ -3,14 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the lift and reorient (arm plus hand) environments."""
+
 from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -18,12 +21,11 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialBaseCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
@@ -32,23 +34,29 @@ from isaaclab_tasks.utils import PresetCfg
 from . import mdp
 from .adr_curriculum import CurriculumCfg
 
+##
+# Scene assets
+##
+
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(0.8, 1.5, 0.04),
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
-    collision_props=sim_utils.CollisionPropertiesCfg(),
-    # trick: we let visualizer's color to show the table with success coloring
-    visible=False,
+    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
 )
-
+"""Table the object rests on."""
 
 OBJECT_PHYSICS = {
-    "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
-    "collision_props": sim_utils.CollisionPropertiesCfg(contact_offset=0.002),
+    "physics_material": RigidBodyMaterialBaseCfg(static_friction=0.5),
+    "collision_props": [PhysxCollisionCfg(contact_offset=0.002)],
 }
+"""Physics properties shared by the graspable object shapes."""
 
 
 @configclass
 class ObjectCfg(PresetCfg):
+    """Graspable objects: heterogeneous shapes by default, or an explicit single-cube preset."""
+
     shapes = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
             MeshCuboidCfg(size=(0.05, 0.1, 0.1), **OBJECT_PHYSICS),
@@ -68,34 +76,35 @@ class ObjectCfg(PresetCfg):
             MeshConeCfg(radius=0.05, height=0.1, **OBJECT_PHYSICS),
             MeshConeCfg(radius=0.025, height=0.1, **OBJECT_PHYSICS),
         ],
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=0,
-            disable_gravity=False,
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            mesh_collision_property=sim_utils.MeshCollisionPropertiesCfg(mesh_approximation_name="convexHull")
-        ),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+        collision_props=[
+            sim_utils.UsdPhysicsCollisionCfg(),
+            sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+        ],
+        mass_props=sim_utils.MassCfg(mass=0.2),
     )
     cube = sim_utils.CuboidCfg(
         size=(0.05, 0.05, 0.05),
-        physics_material=RigidBodyMaterialCfg(static_friction=0.5),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=0,
-            disable_gravity=False,
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.5),
+        rigid_props=PhysxRigidBodyCfg(
+            solver_position_iteration_count=16, solver_velocity_iteration_count=0, disable_gravity=False
         ),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
-    ovphysx = cube
+
+
+##
+# Scene definition
+##
 
 
 @configclass
 class SceneCfg(InteractiveSceneCfg):
-    """Lift Scene for multi-objects Lifting"""
+    """Scene with a robot, a table and the graspable object."""
 
     # robot
     robot: ArticulationCfg = MISSING
@@ -112,6 +121,9 @@ class SceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/table",
         spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
+    )
+    table_material: VisualMaterialCfg = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/table/geometry/material", spawn=None
     )
 
     # plane
@@ -132,6 +144,11 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
 
+##
+# MDP settings
+##
+
+
 @configclass
 class CommandsCfg:
     """Command terms for the MDP."""
@@ -148,18 +165,6 @@ class CommandsCfg:
             roll=(-3.14, 3.14),
             pitch=(-3.14, 3.14),
             yaw=(0.0, 0.0),
-        ),
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)), visible=True
-                ),
-                "success": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)), visible=True
-                ),
-            },
         ),
     )
 
@@ -190,13 +195,11 @@ class ObservationsCfg:
         hand_tips_state_b = ObsTerm(
             func=mdp.body_state_b,
             noise=Unoise(n_min=-0.0, n_max=0.0),
-            # good behaving number for position in m, velocity in m/s, rad/s,
-            # and quaternion are unlikely to exceed -2 to 2 range
+            # positions [m] and quaternions stay well within this range
             clip=(-2.0, 2.0),
             params={
-                # pose-only: body velocities are the most engine-sensitive observables
-                # (derivative signals amplify solver differences) and do not transfer
-                # across physics backends; the observation history carries velocity info
+                # pose-only: body velocities are the most solver-sensitive observables and do not transfer
+                # across physics backends; the observation history carries the velocity information
                 "include_vel": False,
                 "body_asset_cfg": SceneEntityCfg("robot"),
                 "base_asset_cfg": SceneEntityCfg("robot"),
@@ -216,8 +219,8 @@ class ObservationsCfg:
         object_point_cloud = ObsTerm(
             func=mdp.object_point_cloud_b,
             noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-2.0, 2.0),  # clamp between -2 m to 2 m
-            params={"num_points": 64, "flatten": True},
+            clip=(-2.0, 2.0),  # [m]
+            params={"num_points": 64, "flatten": True, "visualize": False},
         )
 
         def __post_init__(self):
@@ -235,7 +238,7 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Reset-mode events (shared by all physics backends)."""
+    """Configuration for events."""
 
     robot_physics_material = EventTerm(
         func=mdp.randomize_rigid_body_material,
@@ -303,9 +306,8 @@ class EventCfg:
         },
     )
 
-    # Gravity scheduling is a deliberate curriculum trick — starting with no
-    # gravity (easy) and gradually introducing full gravity (hard) makes learning
-    # smoother and removes the need for a separate "Lift" reward.
+    # gravity curriculum: starting without gravity and gradually introducing full gravity makes
+    # learning smoother and removes the need for a separate lifting reward
     variable_gravity = EventTerm(
         func=mdp.randomize_physics_scene_gravity,
         mode="reset",
@@ -363,10 +365,10 @@ class EventCfg:
                         "asset_cfg": SceneEntityCfg("object"),
                     },
                 ),
-                # spawn-in-hand curriculum: a small share of episodes starts with the
-                # object at the gripper (uniform random orientation, small body-frame
-                # offset); interpenetrating draws are rejected by object_robot_clearance.
-                # Must stay LAST: it reads the gripper pose after the robot reset terms.
+                # spawn-in-hand curriculum: a small share of episodes starts with the object at the
+                # gripper (uniform random orientation, small body-frame offset); interpenetrating draws
+                # are rejected by object_robot_clearance. Must stay last: it reads the gripper pose after
+                # the robot reset terms.
                 "reset_object_to_target": EventTerm(
                     func="isaaclab_tasks.core.lift.mdp.events:reset_to_target",
                     mode="reset",
@@ -417,7 +419,7 @@ class EventCfg:
 
 @configclass
 class ActionsCfg:
-    pass
+    """Action specifications for the MDP, set by the robot-specific configurations."""
 
 
 @configclass
@@ -464,7 +466,7 @@ class RewardsCfg:
         },
     )
 
-    early_termination = RewTerm(func=mdp.is_terminated_term, weight=-50, params={"term_keys": ["abnormal_robot"]})
+    early_termination = RewTerm(func=mdp.is_terminated_term, weight=-50.0, params={"term_keys": ["abnormal_robot"]})
 
 
 @configclass
@@ -484,8 +486,15 @@ class TerminationsCfg:
     abnormal_robot = DoneTerm(func=mdp.joint_vel_out_of_limit)
 
 
+##
+# Physics backend presets
+##
+
+
 @configclass
 class PhysicsCfg(PresetCfg):
+    """Physics backend presets for the lift environments."""
+
     isaacsim_physx = PhysxCfg(
         bounce_threshold_velocity=0.01,
         gpu_max_rigid_patch_count=4 * 5 * 2**15,
@@ -505,7 +514,7 @@ class PhysicsCfg(PresetCfg):
             cone="pyramidal",
             update_data_interval=2,
             iterations=100,
-            ls_iterations=15,
+            ls_iterations=50,
             use_mujoco_contacts=False,
             ccd_iterations=35,
         ),
@@ -518,9 +527,14 @@ class PhysicsCfg(PresetCfg):
     default = newton_mjwarp
 
 
+##
+# Environment configuration
+##
+
+
 @configclass
 class ReorientEnvCfg(ManagerBasedRLEnvCfg):
-    """Lift reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
+    """Object reorientation environment, also the base of the lift environment."""
 
     # Scene settings
     scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
@@ -534,53 +548,27 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
     curriculum: CurriculumCfg | None = CurriculumCfg()
 
-    def validate_config(self):
-        """Check for invalid preset combinations after resolution."""
-
-        warp_supported = {
-            "rgb",
-            "depth",
-            "distance_to_camera",
-            "distance_to_image_plane",
-            "normals",
-            "semantic_segmentation",
-            "instance_segmentation",
-        }
-        for cam_attr in ("base_camera", "wrist_camera"):
-            cam = getattr(self.scene, cam_attr, None)
-            if cam is None:
-                continue
-            renderer_type = getattr(getattr(cam, "renderer_cfg", None), "renderer_type", None)
-            if renderer_type == "newton_warp":
-                unsupported = set(cam.data_types) - warp_supported
-                if unsupported:
-                    raise ValueError(
-                        f"Warp renderer only supports data types {sorted(warp_supported)}, "
-                        f"but '{cam_attr}' is configured with unsupported types: {sorted(unsupported)}. "
-                        "Choose a compatible preset, e.g. presets=newton_renderer,rgb128."
-                    )
-
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.decimation = 4  # 30 Hz
-
-        # *single-goal setup
-        self.commands.object_pose.position_only = False
         self.episode_length_s = 12.0
         self.is_finite_horizon = False
+
+        # commands: track the full pose
+        self.commands.object_pose.position_only = False
 
         # simulation settings
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
+        # visualizer settings
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45))
 
     def play_mode(self):
-        # play-mode overrides of parent
         super().play_mode()
-
         self.commands.object_pose.debug_vis = True
+        self.commands.object_pose.success_vis_material_name = "table_material"
         # the bank shapes what a policy trains on; at play it only has to supply starts for the
         # handful of environments the parent left, so it is harvested small and taken as it comes
         # rather than making the viewer wait through an oversampled prefill and its spread pass
@@ -595,18 +583,18 @@ class ReorientEnvCfg(ManagerBasedRLEnvCfg):
             self.curriculum.disable_observation_noise_terms()
 
 
+@configclass
 class LiftEnvCfg(ReorientEnvCfg):
-    """Lift task definition."""
+    """Object lifting environment: the reorientation environment tracking position only."""
 
     def __post_init__(self):
         super().__post_init__()
-        self.rewards.orientation_tracking = None  # no orientation reward
+        # commands and rewards: track the position only
         self.commands.object_pose.position_only = True
+        self.rewards.orientation_tracking = None
         if self.curriculum is not None:
-            self.rewards.success.params["rot_std"] = None  # make success reward not consider orientation
+            self.rewards.success.params["rot_std"] = None
 
     def play_mode(self):
-        # play-mode overrides of parent
         super().play_mode()
-
         self.commands.object_pose.position_only = True

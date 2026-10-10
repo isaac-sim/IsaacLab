@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import field
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist.utils.sampling.sampler import Sampler
 

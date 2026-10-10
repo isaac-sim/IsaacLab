@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .keyboard_schema import (
     DEFAULT_BUCKET_SIZES,

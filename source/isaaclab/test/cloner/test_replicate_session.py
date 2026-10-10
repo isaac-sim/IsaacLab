@@ -3,107 +3,139 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for clone-plan routing and dispatch without a simulator runtime."""
+"""Clone lifecycle routing, authoring, and dispatch without a simulator runtime."""
 
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
-import isaaclab.cloner.clone_plan as clone_plan
+from pxr import Usd, UsdGeom
+
 import isaaclab.cloner.replicate_session as replicate_session
-from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
-from isaaclab.sim import SimulationContext
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
+from isaaclab.cloner import path as cloner_path
+from isaaclab.renderers import RenderContext, RendererCfg
+from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
+from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 
 
 class _Context:
     replicate_priority = 0
 
-    def __init__(self, calls):
-        self.calls = calls
+    def __init__(self, sim):
+        self.calls = sim.calls
 
-    def replicate(self, plan):
-        self.calls.append((type(self), plan))
-
-
-def _plan(*context_types):
-    return ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.arange(2, dtype=np.int64),
-        positions=np.zeros((2, 3), dtype=np.float32),
-        context_rows={context_type: (0,) for context_type in context_types},
-    )
+    def replicate(self, plan, asset_prototype_ids):
+        self.calls.append((type(self), plan, asset_prototype_ids))
 
 
-def test_make_clone_plan_routes_default_and_explicit_contexts(monkeypatch):
-    """Planning records the rows consumed by default and explicit clone contexts."""
-    calls = []
+class _RenderContext(_Context):
+    pass
 
-    class Unrelated(_Context):
-        pass
 
-    simulation = SimpleNamespace(
+@pytest.fixture
+def simulation(monkeypatch):
+    registry = []
+    sim = SimpleNamespace(
         physics_manager=SimpleNamespace(clone_context_type=_Context),
-        _backend_registry={_Context: _Context(calls), Unrelated: Unrelated(calls)},
-        stage=object(),
+        clone_contexts={},
+        _backend_registry=registry,
+        _render_context=RenderContext(registry),
+        stage=Usd.Stage.CreateInMemory(),
+        plan=None,
+        calls=[],
     )
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
-    monkeypatch.setattr(clone_plan, "has_kit", lambda: False)
-    cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot", spawn=SimpleNamespace(spawn_path=None), cloning_contexts=None
+    sim.render_context = sim._render_context
+    sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
+    sim.clone_contexts[_Context] = _Context(sim)
+    sim.get_clone_plan = lambda: sim.plan
+    sim.set_clone_plan = lambda plan: setattr(sim, "plan", plan)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(replicate_session, "has_kit", lambda: False)
+    return sim
+
+
+@pytest.mark.parametrize("override", [None, (), (_RenderContext,)])
+@pytest.mark.parametrize("replicate_physics", [True, False])
+def test_asset_routing_preserves_explicit_overrides(simulation, override, replicate_physics):
+    """Rendering requirements augment asset policy; disabling physics leaves rendering active."""
+    simulation.render_context.clone_contexts.add(_RenderContext)
+    cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=override)
+    cfg.spawn.spawn_path = "/Previous/Robot"
+    with ReplicateSession((cfg,), 2, 1.0, replicate_physics=replicate_physics) as session:
+        assert simulation.plan is session.plan
+        assert cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
+        assert not simulation.calls
+    expected = {_RenderContext}
+    if override is None and replicate_physics:
+        expected.add(_Context)
+    assert {context for context, _, _ in simulation.calls} == expected
+    assert all(plan is session.plan and ids == (0,) for _, plan, ids in simulation.calls)
+
+
+@pytest.mark.parametrize("shared", [False, True])
+def test_empty_and_shared_only_worlds(simulation, shared):
+    """An empty world is still a valid world; shared assets are routed once, not repeated."""
+    simulation.render_context.clone_contexts.add(_RenderContext)
+    assets = (AssetBaseCfg(prim_path="/World/Ground"),) if shared else ()
+    with ReplicateSession(assets, 3, 2.0) as session:
+        templates, starts = cloner_path.get_world_prototype_asset_templates(session.plan)
+        assert templates[: starts[1]] == (("/World/Ground",) if shared else ())
+        np.testing.assert_array_equal(session.plan.topology.world_prototype_layout, [0, 0, 0])
+        np.testing.assert_array_equal(session.plan.topology.world_prototype_starts, [0, int(shared), int(shared)])
+    assert {context for context, _, _ in simulation.calls} == (
+        {_Context, _RenderContext} if shared else {_RenderContext}
     )
 
-    plan = make_clone_plan((cfg,), 2, 1.0)
 
-    assert plan.context_rows == {_Context: (0,)}
+@pytest.mark.parametrize("from_env_0", [False, True])
+def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_env_0):
+    """Camera requirements enter both workflows; an attached ray caster does not own a clone source."""
+    constructed = []
 
-    class Explicit(_Context):
-        pass
+    def factory(cfg):
+        constructed.append(cfg)
+        return object()
 
-    cfg.cloning_contexts = (Explicit,)
-    assert make_clone_plan((cfg,), 2, 1.0).context_rows == {Explicit: (0,)}
-
-
-def test_queue_collects_only_before_plan_publication(monkeypatch):
-    """Post-construction planning ignores cfgs built after a plan is active."""
-    cfg = object()
-    plan = _plan()
-    published = None
-    simulation = SimpleNamespace(get_clone_plan=lambda: published)
-    replicate_session.REPLICATION_QUEUE.clear()
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
-
-    replicate_session.queue_replication(cfg)
-    assert [cfg] == replicate_session.REPLICATION_QUEUE
-
-    published = plan
-    replicate_session.queue_replication(object())
-    assert [cfg] == replicate_session.REPLICATION_QUEUE
-
-
-@pytest.mark.parametrize("valid_set", [np.asarray([["0"]]), np.asarray([[0 + 1j]])])
-def test_make_clone_plan_rejects_non_integer_combinations(valid_set):
-    """Prototype indices must be integer data rather than values NumPy can coerce to integers."""
-    cfg = SimpleNamespace(
-        prim_path="/World/envs/env_[^/]+/Robot", spawn=SimpleNamespace(spawn_path=None), cloning_contexts=None
+    renderer_cfg = RendererCfg(class_type=factory, renderer_type="test", cloning_contexts=(_RenderContext,))
+    camera = CameraCfg(prim_path="{ENV_REGEX_NS}/Camera", spawn=PinholeCameraCfg(), renderer_cfg=renderer_cfg)
+    ground = AssetBaseCfg(prim_path="/Lab/Ground", spawn=CuboidCfg(size=(1, 1, 1)))
+    prop = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop", spawn=MultiAssetSpawnerCfg(assets_cfg=[SphereCfg(radius=1)]))
+    assets = camera, ground, prop, AssetBaseCfg(prim_path="/Lab/Ground/Material")
+    assets += SensorBaseCfg(prim_path="/Lab/Ground/Frame"), SensorBaseCfg(prim_path=camera.prim_path)
+    assets += (
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop/body"),
+        RayCasterCfg(prim_path="{ENV_REGEX_NS}/Prop", mesh_prim_paths=["/Lab/Ground"]),
     )
+    if from_env_0:
+        plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), assets, 3, 2.0)
+        replicate_session.replicate(plan)
+    else:
+        with ReplicateSession(assets, 3, 2.0, env_template="/Lab/Cell{}") as session:
+            plan = session.plan
+    assert constructed == [camera.renderer_cfg]
+    simulation.get_or_create_backend(camera.renderer_cfg)
+    assert len(constructed) == 1
+    assert plan.asset_cfgs == assets
+    assert camera.prim_path == "/Lab/Cell[^/]+/Camera"
+    assert camera.spawn.spawn_path == "/Lab/Cell0/Camera"
+    assert plan.env_template == "/Lab/Cell{}"
+    assert ground.spawn.spawn_path == "/Lab/Ground"
+    assert prop.spawn.spawn_path is None and prop.spawn.spawn_paths == ["/Lab/Cell0/Prop"]
+    templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
+    shared = templates[: starts[1]]
+    roots = [path for path, parent in zip(shared, cloner_path.get_parent_indices(shared)) if parent == -1]
+    assert roots == ["/Lab/Ground"]
+    np.testing.assert_array_equal(plan.topology.world_prototypes, [1, 0, 2])
+    np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 0])
+    assert {context for context, _, _ in simulation.calls} == {_Context, _RenderContext}
+    assert all(received is plan for _, received, _ in simulation.calls)
 
-    with pytest.raises(ValueError, match="integer prototype indices"):
-        make_clone_plan((cfg,), 2, 1.0, valid_set=valid_set)
 
-
-def test_grid_transforms_always_returns_float32():
-    """NumPy scalar inputs do not widen the public transform arrays."""
-    positions, orientations = clone_plan.grid_transforms(2, np.float64(1.0))
-
-    assert positions.dtype == orientations.dtype == np.float32
-
-
-def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
-    """Registered contexts receive one shared plan in backend priority order."""
-    calls = []
+def test_dispatch_order_and_usd_scope(simulation):
+    """USD clones only declared subtrees; all contexts receive the same topology."""
 
     class Late(_Context):
         replicate_priority = 1
@@ -111,54 +143,56 @@ def test_replicate_dispatches_the_same_plan_in_priority_order(monkeypatch):
     class Early(_Context):
         replicate_priority = -1
 
-    plan = _plan(Late, Early)
-    published = []
-    simulation = SimpleNamespace(
-        physics_manager=SimpleNamespace(clone_context_type=Late),
-        _backend_registry={Late: Late(calls), Early: Early(calls)},
-        get_clone_plan=lambda: None,
-        set_clone_plan=published.append,
-    )
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
-
-    replicate_session.replicate(plan)
-
-    assert calls == [(Early, plan), (Late, plan)]
-    assert published == [plan]
-
-
-def test_replicate_physics_false_runs_only_usd(monkeypatch):
-    """Disabling physics replication preserves only USD authoring."""
-    calls = []
-
-    class Physics(_Context):
-        pass
-
-    class Usd(_Context):
-        pass
-
-    plan = _plan(Physics, UsdReplicateContext)
-    simulation = SimpleNamespace(
-        physics_manager=SimpleNamespace(clone_context_type=Physics),
-        _backend_registry={UsdReplicateContext: Usd(calls)},
-        get_clone_plan=lambda: plan,
-    )
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
-
-    replicate_session.replicate(plan, replicate_physics=False)
-
-    assert calls == [(Usd, plan)]
+    contexts = UsdReplicateContext, Late, Early
+    cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=contexts)
+    with ReplicateSession((cfg,), 2, 1.0) as session:
+        UsdGeom.Xform.Define(simulation.stage, cfg.spawn.spawn_path)
+        UsdGeom.Camera.Define(simulation.stage, "/World/envs/env_0/UndeclaredCamera")
+    assert simulation.calls == [(Early, session.plan, (0,)), (Late, session.plan, (0,))]
+    assert set(vars(simulation.clone_contexts[UsdReplicateContext])) == {"stage"}
+    assert simulation.stage.GetPrimAtPath("/World/envs/env_1/Robot")
+    assert not simulation.stage.GetPrimAtPath("/World/envs/env_1/UndeclaredCamera")
+    np.testing.assert_array_equal(session.plan.positions, grid_transforms(2, 1.0)[0])
+    for world_id, position in enumerate(session.plan.positions):
+        prim = simulation.stage.GetPrimAtPath(f"/World/envs/env_{world_id}")
+        np.testing.assert_array_equal(
+            UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation(), position
+        )
 
 
-def test_replicate_rejects_unregistered_context(monkeypatch):
-    """A routed context must register before dispatch rather than using a fallback."""
-    plan = _plan(_Context)
-    simulation = SimpleNamespace(
-        physics_manager=SimpleNamespace(clone_context_type=_Context),
-        _backend_registry={},
-        get_clone_plan=lambda: plan,
-    )
-    monkeypatch.setattr(SimulationContext, "instance", lambda: simulation)
+def test_grid_transforms_centers_a_float32_grid():
+    positions, orientations = grid_transforms(3, np.float64(2.0))
+    assert positions.dtype == orientations.dtype == np.float32
+    np.testing.assert_array_equal(positions, [[1, -1, 0], [1, 1, 0], [-1, -1, 0]])
+    np.testing.assert_array_equal(orientations, [[0, 0, 0, 1]] * 3)
 
-    with pytest.raises(RuntimeError, match="must be registered"):
-        replicate_session.replicate(plan)
+
+def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
+    """Homogeneous planning rejects variants atomically; a session authors each alternative once."""
+    shapes = [CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]
+    object_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=MultiAssetSpawnerCfg(assets_cfg=shapes))
+    robot = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)))
+    with pytest.raises(ValueError, match="single-variant"):
+        clone_plan_from_env_0(CloneCfg(), (robot, object_cfg), 2, 1.0)
+    assert robot.prim_path == "{ENV_REGEX_NS}/Robot" and robot.spawn.spawn_path is None
+    assert object_cfg.prim_path == "{ENV_REGEX_NS}/Object" and object_cfg.spawn.spawn_paths is None
+    assert simulation.plan is None
+
+    ground = AssetBaseCfg(prim_path="/World/Ground")
+    with ReplicateSession((object_cfg, ground), 4, 2.0) as session:
+        plan = session.plan
+        assert len(plan.asset_cfgs) == 3
+        for cfg, shape in zip(plan.asset_cfgs[:2], object_cfg.spawn.assets_cfg, strict=True):
+            assert cfg.spawn.assets_cfg[0] is shape
+        assert object_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
+        np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0, 1])
+        np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 1, 1])
+
+
+def test_replicate_session_clears_plan_when_asset_init_fails(simulation):
+    """Failed construction releases the plan without dispatching any clone backend."""
+    with pytest.raises(RuntimeError, match="asset boom"):
+        with ReplicateSession((), 2, 1.0) as session:
+            assert simulation.plan is session.plan
+            raise RuntimeError("asset boom")
+    assert simulation.plan is None and not simulation.calls

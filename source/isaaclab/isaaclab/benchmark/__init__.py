@@ -8,6 +8,6 @@
 This package provides the public benchmark framework and workflow API.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

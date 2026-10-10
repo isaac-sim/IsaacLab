@@ -5,11 +5,14 @@
 
 """Misc commands"""
 
+import argparse
+import os
 import platform
 import shutil
 import sys
 from pathlib import Path
 
+from ..prebundles import repoint_prebundle_packages
 from ..utils import (
     ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
@@ -17,7 +20,6 @@ from ..utils import (
     is_windows,
     print_error,
     print_info,
-    print_warning,
     run_command,
     run_python_command,
 )
@@ -29,7 +31,6 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     Args:
         sim_args: Additional arguments passed to the Isaac Sim executable.
     """
-
     isaacsim_exe = extract_isaacsim_exe()
     print_info(f"Running Isaac Sim from: {isaacsim_exe}")
 
@@ -37,7 +38,7 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     isaacsim_exe.append(str(ISAACLAB_ROOT / "source"))
     isaacsim_exe.extend(sim_args)
 
-    run_command(isaacsim_exe, check=False)
+    run_command(isaacsim_exe, check=True)
 
 
 def command_new(new_args: list[str]) -> None:
@@ -49,7 +50,7 @@ def command_new(new_args: list[str]) -> None:
 
     print_info("Running template generator...")
     cli_script = ISAACLAB_ROOT / "tools" / "template" / "cli.py"
-    run_python_command(cli_script, new_args)
+    run_python_command(cli_script, new_args, check=True)
 
 
 def command_test(test_args: list[str]) -> None:
@@ -58,27 +59,37 @@ def command_test(test_args: list[str]) -> None:
     Args:
         test_args: Additional pytest arguments.
     """
-    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args)
+    run_python_command("-m", ["pytest", str(ISAACLAB_ROOT / "tools")] + test_args, check=True)
 
 
-def command_vscode_settings() -> None:
-    """Update the vscode settings from template and Isaac Sim settings"""
+def command_editor(editor_args: list[str], project_dir: Path | None = None) -> None:
+    """Generate editor settings and import paths for a workspace.
 
-    print_info("Setting up vscode settings...")
+    Args:
+        editor_args: Editor setup command arguments.
+        project_dir: Workspace root. Defaults to the current directory.
+    """
+    parser = argparse.ArgumentParser(prog="isaaclab --editor", description="Set up editor paths and settings.")
+    parser.add_argument("--isaac_path", help="Absolute path to the Isaac Sim installation.")
+    parser.add_argument("--verbose", action="store_true", help="Print discovered extension paths.")
+    args = parser.parse_args(editor_args)
 
-    # Path to setup_vscode.py.
-    setup_vscode_script = ISAACLAB_ROOT / ".vscode" / "tools" / "setup_vscode.py"
+    from ...utils.editor import setup_editor
 
-    # Check if the file exists before attempting to run it.
-    if setup_vscode_script.exists():
-        run_python_command(setup_vscode_script, [])
-        print_info("VS Code settings generated successfully.")
-    else:
-        print_warning("Unable to find the script 'setup_vscode.py'. Aborting vscode settings setup.")
+    print_info("Setting up editor paths and settings...")
+    try:
+        setup_editor(project_dir or Path.cwd(), isaac_path=args.isaac_path, verbose=args.verbose)
+    except ValueError as error:
+        parser.error(str(error))
 
 
-def command_build_docs() -> None:
-    """Build the documentation."""
+def command_build_docs(multi_version: bool = False) -> None:
+    """Build the documentation using the repository's uv environment.
+
+    Args:
+        multi_version: Build all selected Git refs and a root redirect instead of the current checkout.
+            ``DOCS_DEFAULT_REF`` selects the redirect target, defaulting to ``v3.0.0-EA``.
+    """
     print_info("Building documentation...")
     docs_dir = ISAACLAB_ROOT / "docs"
 
@@ -88,34 +99,43 @@ def command_build_docs() -> None:
         print_error("https://docs.astral.sh/uv/getting-started/installation/")
         raise SystemExit(1)
 
-    out_dir = docs_dir / "_build" / "current"
-    cmd = [
-        uv_exe,
-        "run",
-        "--isolated",
-        "--extra",
-        "test",
-        "--",
-        "python",
-        "-m",
-        "sphinx",
-        "-W",
-        "--keep-going",
-        "-j",
-        "auto",
-        "-b",
-        "html",
-        "-d",
-        "_build/doctrees",
-        ".",
-        str(out_dir),
-    ]
-    run_command(cmd, cwd=docs_dir)
+    out_dir = docs_dir / "_build"
+    cmd = [uv_exe, "run", "--extra", "dev", "--"]
+    if multi_version:
+        default_ref = os.getenv("DOCS_DEFAULT_REF", "v3.0.0-EA")
+        run_command(cmd + ["sphinx-multiversion", ".", str(out_dir), "--jobs=auto"], cwd=docs_dir)
+        if not (out_dir / default_ref / "index.html").is_file():
+            print_error(f"Default docs ref '{default_ref}' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF.")
+            raise SystemExit(1)
+        template = (docs_dir / "_redirect" / "index.html").read_text(encoding="utf-8")
+        (out_dir / "index.html").write_text(template.replace("__DOCS_DEFAULT_REF__", default_ref), encoding="utf-8")
+    else:
+        out_dir /= "current"
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+        run_command(
+            cmd
+            + [
+                "python",
+                "-m",
+                "sphinx",
+                "-W",
+                "--keep-going",
+                "-j",
+                "auto",
+                "-b",
+                "html",
+                "-d",
+                str(out_dir / ".doctrees"),
+                ".",
+                str(out_dir),
+            ],
+            cwd=docs_dir,
+        )
 
     index_path = out_dir / "index.html"
     print_info(f"Documentation built at {index_path}")
-    if not is_windows():
-        print_info(f"Open with: xdg-open {index_path}")
+    print_info(f"Open {index_path} in a browser.")
 
 
 def command_build_isaacsim(source_path: str) -> None:
@@ -162,7 +182,7 @@ def command_build_isaacsim(source_path: str) -> None:
         raise SystemExit(1) from error
     (release_dir / ISAAC_SIM_SOURCE_BUILD_MARKER).touch()
     print_info(f"Linked {link_path} -> {release_dir}")
-    _repoint_source_build_prebundles()
+    repoint_prebundle_packages()
 
     print_info("Isaac Sim is ready. Python commands now use the live source build through '_isaac_sim'.")
     print_info("Run Isaac Lab against it with:")
@@ -187,15 +207,6 @@ def _resolve_isaacsim_release_dir(isaacsim_root: Path) -> Path:
     return isaacsim_root / "_build" / target / "release"
 
 
-def _repoint_source_build_prebundles() -> None:
-    """Keep Isaac Sim's prebundled packages from shadowing the active environment."""
-    # ``install`` imports ``command_vscode_settings`` from this module, so defer this import until
-    # both command modules are initialized. Reuse the same protection as the legacy installer.
-    from .install import _repoint_prebundle_packages
-
-    _repoint_prebundle_packages()
-
-
 def command_run_docker(args: list[str]) -> None:
     """Run the docker container helper script (docker/container.py).
 
@@ -204,4 +215,4 @@ def command_run_docker(args: list[str]) -> None:
     """
     script_path = ISAACLAB_ROOT / "docker" / "container.py"
     print_info(f"Running docker utility script from: {script_path}")
-    run_python_command(script_path, args)
+    run_python_command(script_path, args, check=True)

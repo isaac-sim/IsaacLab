@@ -278,8 +278,7 @@ def create_primitive_mesh(prim) -> trimesh.Trimesh:
 def prim_to_trimesh(prim, relative_to_world=False) -> trimesh.Trimesh:
     import trimesh
 
-    import omni
-    from pxr import UsdGeom
+    from pxr import Usd, UsdGeom
 
     if prim.GetTypeName() == "Mesh":
         mesh = UsdGeom.Mesh(prim)
@@ -290,14 +289,14 @@ def prim_to_trimesh(prim, relative_to_world=False) -> trimesh.Trimesh:
         mesh_tm = create_primitive_mesh(prim)
 
     if relative_to_world:
-        tf = np.array(omni.usd.get_world_transform_matrix(prim)).T
+        tf = np.array(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())).T
         mesh_tm.apply_transform(tf)
 
     return mesh_tm
 
 
 def prim_to_warp_mesh(prim, device, relative_to_world=False) -> wp.Mesh:
-    from pxr import UsdGeom
+    from pxr import Usd, UsdGeom
 
     if prim.GetTypeName() == "Mesh":
         mesh_prim = UsdGeom.Mesh(prim)
@@ -309,9 +308,7 @@ def prim_to_warp_mesh(prim, device, relative_to_world=False) -> wp.Mesh:
         indices = mesh.faces.astype(np.int32)
 
     if relative_to_world:
-        import omni
-
-        tf = np.array(omni.usd.get_world_transform_matrix(prim)).T
+        tf = np.array(UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())).T
         points = (points @ tf[:3, :3].T) + tf[:3, 3]
 
     wp_mesh = convert_to_warp_mesh(points, indices, device=device)

@@ -37,18 +37,6 @@ class _RecordingApplier:
         return self._reject is None or self._reject not in setting
 
 
-def test_apply_settings_redirects_both_driver_caches():
-    """Both driver cache settings must be pointed at the requested directory."""
-    applier = _RecordingApplier()
-
-    apply_shader_cache_settings(applier, _CACHE_PATH)
-
-    assert applier.applied == [
-        f"--/rtx/shaderDb/driverShaderCachePath={_CACHE_PATH}",
-        f"--/rtx/shaderDb/driverAppShaderCachePath={_CACHE_PATH}",
-    ]
-
-
 @pytest.mark.parametrize("rejected", ["driverShaderCachePath", "driverAppShaderCachePath"])
 def test_apply_settings_raises_when_a_setting_is_rejected(rejected, caplog):
     """A rejected setting must fail loudly, and must not be reported as a working redirect."""
@@ -92,7 +80,10 @@ def test_redirect_applies_settings_with_the_renderer_config(monkeypatch):
     redirect_shader_cache(_CONFIG)
 
     assert seen == [_CONFIG]
-    assert [setting.split("=", 1)[1] for setting in applier.applied] == [_CACHE_PATH, _CACHE_PATH]
+    assert applier.applied == [
+        f"--/rtx/shaderDb/driverShaderCachePath={_CACHE_PATH}",
+        f"--/rtx/shaderDb/driverAppShaderCachePath={_CACHE_PATH}",
+    ]
 
 
 def test_redirect_raises_when_settings_extension_is_unavailable(monkeypatch):

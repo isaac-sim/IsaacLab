@@ -8,7 +8,7 @@ from dataclasses import MISSING
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 
@@ -32,9 +32,12 @@ _SO101_JOINTS = _SO101_ARM_JOINTS + ["gripper"]
 # plugin (or any pusher emitting the same schema) advertises.
 _SO101_LEADER_COLLECTION_ID = "so101_leader"
 
+# Tolerance [rad] below ``SO101_GRIPPER_OPEN`` that still counts as releasing the cube.
+_SUCCESS_GRIPPER_ATOL = 0.5
+
 
 def _build_so101_joint_teleop_pipeline():
-    """Build an IsaacTeleop joint-space pipeline driven by the SO-101 leader arm.
+    """Build an Isaac Capture joint-space pipeline driven by the SO-101 leader arm.
 
     Unlike the XR-controller IK pipeline (see :mod:`.stack_ik_abs_env_cfg`), this path mirrors the
     physical leader arm's joint encoders straight onto the follower robot's joint targets -- no XR
@@ -118,7 +121,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     """SO-101 cube-stack environment teleoperated by the SO-101 leader arm (joint-space control).
 
     Reuses the seated robot, cube workspace, and end-effector frames from the joint-position base
-    env and swaps in an absolute joint-mirror action plus an IsaacTeleop joint-space pipeline. The
+    env and swaps in an absolute joint-mirror action plus an Isaac Capture joint-space pipeline. The
     leader arm's encoders drive the follower's five arm joints and gripper DOF directly, so the
     follower reproduces the operator's pose without any inverse kinematics or XR tracking.
     """
@@ -147,7 +150,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             ),
         )
 
-        # IsaacTeleop joint-space pipeline. Unlike the IK env this needs no ``target_frame_prim_path``
+        # Isaac Capture joint-space pipeline. Unlike the IK env this needs no ``target_frame_prim_path``
         # (there is no pose to rebase into the base frame) and does not read the XR anchor -- the
         # leader plugin streams joint state over the OpenXR tensor transport, which the session still
         # provides. ``xr_cfg`` is forwarded only to satisfy the session's XR bootstrap. Launch the
@@ -159,14 +162,15 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             xr_cfg=self.xr,
         )
 
-        # Relax the gripper-open check in the success termination. The default atol=0.0001 rad
-        # (100 µrad) is reachable when the gripper target is set to exactly SO101_GRIPPER_OPEN
-        # via an affine mapping (as in the IK-Abs env). In joint teleop the leader arm's raw
-        # encoder angle is mirrored 1:1, so the follower gripper may not reach the exact open
-        # value within 100 µrad due to calibration offsets or soft-limit ceilings. Using
-        # gripper_threshold (0.2 rad) as the tolerance matches the threshold already used by
-        # observations to classify the gripper as open vs. closed.
+        # Widen the gripper-open check in the success termination. In joint teleop the follower jaw
+        # mirrors the leader's raw encoder 1:1 and is capped by its own joint limit (1.7453 rad), so
+        # a 0.2 rad tolerance accepts only the top 0.2 rad of a 1.92 rad range and a leader whose
+        # calibrated full-open reading falls short never trips success. 0.5 rad still demands more
+        # opening than freeing a cube needs: the jaw opens by ``2 * L * sin(q / 2)``, so a 0.0477 m
+        # cube is released by q >= 1.245 for any lever arm ``L >= 0.043 m`` (the jaw spans ~0.093 m).
+        # Deliberately not ``gripper_threshold``, which ``object_grasped`` uses to annotate the
+        # grasp subtasks for every SO-101 stack env.
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
-            params={"atol": self.gripper_threshold, "rtol": 0.0},
+            params={"atol": _SUCCESS_GRIPPER_ATOL, "rtol": 0.0},
         )

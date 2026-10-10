@@ -3,25 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Cassie velocity-tracking environment on rough terrain."""
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
-import isaaclab_tasks.core.velocity.mdp as mdp
-from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+from isaaclab_assets.robots.cassie import CASSIE_CFG
+
+from ... import mdp
+from ...velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
 )
 
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.cassie import CASSIE_CFG  # isort: skip
-
 
 @configclass
 class CassieRewardsCfg(RewardsCfg):
+    """Reward terms for the MDP."""
+
     termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
     feet_air_time = RewTerm(
         func=mdp.feet_air_time_positive_biped,
@@ -42,6 +42,15 @@ class CassieRewardsCfg(RewardsCfg):
         weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["toe_joint_.*"])},
     )
+    # fixes the tilted gait
+    air_time_variance = RewTerm(
+        func=mdp.feet_air_time_variance,
+        weight=-5.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
+            "command_name": "base_velocity",
+        },
+    )
     # penalize toe joint limits
     dof_pos_limits = RewTerm(
         func=mdp.joint_pos_limits,
@@ -52,13 +61,15 @@ class CassieRewardsCfg(RewardsCfg):
 
 @configclass
 class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    """Configuration for the Cassie velocity-tracking environment on rough terrain."""
+
     rewards: CassieRewardsCfg = CassieRewardsCfg()
 
     def __post_init__(self):
         super().__post_init__()
 
         # scene
-        self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(CASSIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
         # actions
         self.actions.joint_pos.scale = 0.5
@@ -74,7 +85,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # terminations
         self.terminations.base_contact.params["sensor_cfg"].body_names = [".*pelvis"]
         # events
-        # asymmetric pelvis mass scale (1.0, 1.25) — a lighter-than-nominal pelvis destabilizes Cassie
+        # asymmetric pelvis mass scale (1.0, 1.25): a lighter-than-nominal pelvis destabilizes Cassie
         self.events.add_base_mass.params["asset_cfg"].body_names = "pelvis"
         self.events.add_base_mass.params["mass_distribution_params"] = (1.0, 1.25)
         self.events.base_com = None

@@ -9,8 +9,12 @@ from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 
+import gymnasium as gym
 import pytest
 
+from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from scripts.tools.train_and_publish_checkpoints import (
@@ -22,6 +26,35 @@ from scripts.tools.train_and_publish_checkpoints import (
     collect_pretrained_checkpoint,
     publish_pretrained_checkpoint,
 )
+
+
+def test_cartpole_feature_presets_are_in_pretrained_checkpoint_matrix() -> None:
+    """Every Cartpole feature policy for the preferred workflow must receive a distinct checkpoint."""
+    task_spec = gym.spec("Isaac-Cartpole-Camera")
+    workflow = task_spec.kwargs["default_agent"]
+    agent_cfg = load_cfg_from_registry(task_spec.id, f"{workflow}_cfg_entry_point")
+    feature_presets = set(collect_presets(agent_cfg)[""]) - {"default"}
+
+    assert set(task_spec.kwargs["pretrained_checkpoint_preset_compatibility"][workflow]) == feature_presets
+
+
+def test_checkpoint_preset_metadata_references_registered_variants() -> None:
+    """Checkpoint declarations must name registered workflows and domain presets."""
+    for task_spec in gym.registry.values():
+        checkpoint_compatibility = task_spec.kwargs.get("pretrained_checkpoint_preset_compatibility", {})
+        if not checkpoint_compatibility:
+            continue
+
+        preset_map = enumerate_task_presets(task_spec.id) or {}
+        domain_presets = set(preset_map.get(PresetTarget.DOMAIN, ()))
+        for workflow, preset_names in checkpoint_compatibility.items():
+            assert f"{workflow}_cfg_entry_point" in task_spec.kwargs, (
+                f"{task_spec.id}: unregistered {workflow} workflow"
+            )
+            assert len(preset_names) == len(set(preset_names)), (
+                f"{task_spec.id}: duplicate {workflow} checkpoint preset"
+            )
+            assert not set(preset_names) - domain_presets, f"{task_spec.id}: unknown {workflow} checkpoint preset"
 
 
 def test_build_core_jobs_skips_unsupported_preset_without_normalizing_default(

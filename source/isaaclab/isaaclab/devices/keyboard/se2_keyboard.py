@@ -51,9 +51,7 @@ class Se2Keyboard(DeviceBase):
         """Initialize the keyboard layer.
 
         Args:
-            v_x_sensitivity: Magnitude of linear velocity along x-direction scaling. Defaults to 0.8.
-            v_y_sensitivity: Magnitude of linear velocity along y-direction scaling. Defaults to 0.4.
-            omega_z_sensitivity: Magnitude of angular velocity along z-direction scaling. Defaults to 1.0.
+            cfg: Configuration object for keyboard settings.
         """
         # store inputs
         self.v_x_sensitivity = cfg.v_x_sensitivity
@@ -75,7 +73,7 @@ class Se2Keyboard(DeviceBase):
         # command buffers
         self._base_command = np.zeros(3)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
 
     def __del__(self):
         """Release the keyboard interface."""

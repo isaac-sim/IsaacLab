@@ -1,6 +1,6 @@
 # Newton/MJWarp Asset Migration Reference
 
-This reference follows the sections in the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst).
+This reference follows the sections in the [asset migration guide](../../../docs/source/how-to/prepare_asset_for_newton.rst).
 
 ## Contents
 
@@ -91,10 +91,10 @@ These are starting budgets, not fidelity guarantees. Use MuJoCo contacts by defa
 ### Task-Level Smoke And Reset Validation
 
 ```bash
-uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=physx
-uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
-uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 --viz none physics=physx
-uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=physx
+uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
+uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 physics=physx
+uv run --extra isaacsim python scripts/environments/random_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
 ```
 
 Let each agent run through multiple resets. Reject robot-object and robot-support penetration, impossible mimic states, and invalid geometry before stepping. For cached valid states, inspect explicit colliders, cover each heterogeneous group, exclude fixed bases from ground-clearance tests, use positions relative to environment origins, and rebuild after topology or geometry changes.
@@ -116,4 +116,4 @@ convergence work only after the model, reset, controller, contact path, and capa
 
 - Cables are authored fresh as Newton deformables (`CableCfg` + `CableMaterialCfg`, or an external USD via `UsdFileCfg`), not converted from a PhysX rigid asset, so nothing in this migration reference applies to them.
 - They are Newton + VBD only.
-- For the authoring contract, material fields, and collision behavior, see the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
+- For the authoring contract, material fields, and collision behavior, see the [Deformables guide](../../../docs/source/concepts/deformables.rst).

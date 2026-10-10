@@ -66,10 +66,11 @@ import isaaclab_tasks  # noqa: E402, F401
 from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
 
-def test_is_training_task_filters_inference_variants():
+def test_is_training_task_filters_non_training_variants():
     assert is_training_task("Isaac-Cartpole")
     assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
+    assert not is_training_task("Isaac-RenderBenchmark-Franka-Cabinet")
 
 
 def test_get_workflow_detects_custom_manager_based_subclass():
@@ -114,15 +115,30 @@ def test_parse_rl_libraries_from_kwargs_handles_multi_agent_and_amp():
     assert agents["skrl"] == ["PPO", "AMP", "IPPO", "MAPPO"]
 
 
-def test_parse_rl_libraries_detects_vision_config_from_filename():
+def test_parse_rl_libraries_does_not_label_canonical_amp_alias_as_ppo():
+    kwargs = {
+        "env_cfg_entry_point": "ignored",
+        "skrl_cfg_entry_point": "agents:skrl_amp_cfg.yaml",
+        "skrl_amp_cfg_entry_point": "agents:skrl_amp_cfg.yaml",
+    }
+
+    assert parse_rl_libraries_from_kwargs(kwargs) == {"skrl": ["AMP"]}
+
+
+def test_parse_rl_libraries_does_not_treat_recipe_names_as_algorithms():
     kwargs = {
         "env_cfg_entry_point": "ignored",
         "rl_games_cfg_entry_point": "agents:rl_games_ppo_vision_cfg.yaml",
+        "rl_games_recurrent_cfg_entry_point": "agents:rl_games_recurrent_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": "agents.rsl_rl_ppo_cfg:RunnerCfg",
+        "rsl_rl_recurrent_cfg_entry_point": "agents.rsl_rl_ppo_cfg:RecurrentRunnerCfg",
+        "skrl_cfg_entry_point": "agents:skrl_ppo_cfg.yaml",
+        "skrl_recurrent_cfg_entry_point": "agents:skrl_recurrent_ppo_cfg.yaml",
     }
     agents = parse_rl_libraries_from_kwargs(kwargs)
-    assert agents["rl_games"] == ["VISION"]
+    assert agents["rl_games"] == ["PPO"]
     assert agents["rsl_rl"] == ["PPO"]
+    assert agents["skrl"] == ["PPO"]
 
 
 def test_apply_rl_library_overrides_supplements_registry_gaps():
@@ -267,32 +283,6 @@ def test_collect_environment_doc_rows_from_mock_specs():
     assert "sb3" in rows[0].rl_libraries
 
 
-def test_collect_environment_doc_rows_includes_registered_agent_preset_compatibility():
-    specs = [
-        EnvSpec(
-            id="Isaac-Camera",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
-            kwargs={
-                "env_cfg_entry_point": "cfg:CameraEnvCfg",
-                "rsl_rl_cfg_entry_point": "agents:state_cfg",
-                "rsl_rl_feature_cfg_entry_point": "agents:feature_cfg",
-                "agent_preset_compatibility": {
-                    "rsl_rl_cfg_entry_point": ("rgb",),
-                    "rsl_rl_feature_cfg_entry_point": ("resnet18",),
-                    "missing_cfg_entry_point": ("unused",),
-                },
-            },
-        )
-    ]
-
-    rows = collect_environment_doc_rows(specs)
-
-    assert rows[0].agent_preset_compatibility == {
-        "rsl_rl_cfg_entry_point": ("rgb",),
-        "rsl_rl_feature_cfg_entry_point": ("resnet18",),
-    }
-
-
 def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility():
     """Checkpoint preset availability must be carried into generated browser rows."""
     row = collect_environment_doc_rows([gym.spec("Isaac-Cartpole-Camera-Direct")])[0]
@@ -301,6 +291,13 @@ def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility()
         "*": ("rgb",),
         "rl_games": ("depth",),
     }
+
+
+@pytest.mark.parametrize("task_name", ["Isaac-Lift-Soft-Franka", "Isaac-Lift-Soft-Franka-Camera"])
+def test_collect_environment_doc_rows_includes_required_extras(task_name: str):
+    row = collect_environment_doc_rows([gym.spec(task_name)])[0]
+
+    assert row.required_extras == ("tetrahedralization",)
 
 
 def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
@@ -429,10 +426,6 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
                 PresetTarget.RENDERER: ["isaacsim_rtx", "ovrtx"],
                 PresetTarget.DOMAIN: ["rgb"],
             },
-            agent_preset_compatibility={
-                "rsl_rl_cfg_entry_point": ("rgb",),
-                "rsl_rl_feature_cfg_entry_point": ("resnet18", "theia_tiny"),
-            },
             supports_warp_frontend=True,
             pretrained_checkpoint_preset_compatibility={"*": ("rgb",), "rsl_rl": ("depth",)},
         ),
@@ -465,7 +458,6 @@ def test_environment_browser_rows_include_concrete_core_and_contributed_selector
     assert '"isaacsim_physx,newton_mjwarp"' in updated
     assert '"isaacsim_rtx,ovrtx"' in updated
     assert '"rgb"' in updated
-    assert '"rsl_rl_feature_cfg_entry_point": ["resnet18", "theia_tiny"]' in updated
     assert '"IsaacContrib-Cartpole"' in updated
     assert '"ovphysx"' in updated
     assert '"tasks/classic/cartpole.jpg"' in updated
@@ -489,13 +481,29 @@ def test_environment_browser_rows_include_mappo_as_the_skrl_default():
 
     rendered = render_environment_browser_task_rows(rows)
 
-    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", {}, "", false, {}, {"skrl": "MAPPO"}]' in rendered
+    assert '["Isaac-Multi-Agent-Direct", "skrl", "", "", "", "", false, {}, {"skrl": "MAPPO"}]' in rendered
+
+
+def test_environment_browser_rows_include_required_extras():
+    rows = [
+        EnvironmentDocRow(
+            task_name="Isaac-Lift-Soft-Franka",
+            workflow="Manager Based",
+            rl_libraries={"rsl_rl": ["PPO"]},
+            presets=None,
+            required_extras=("tetrahedralization",),
+        )
+    ]
+
+    rendered = render_environment_browser_task_rows(rows)
+
+    assert rendered.count('"tetrahedralization"') == 1
 
 
 def test_collect_environment_browser_preview_images_preserves_generated_assignments():
     content = (
         f"{ENVIRONMENT_BROWSER_TASKS_START_MARKER}\n"
-        'const taskRows = [\n    ["Isaac-Cartpole", "rsl_rl", "newton_mjwarp", "", "", {}, '
+        'const taskRows = [\n    ["Isaac-Cartpole", "rsl_rl", "newton_mjwarp", "", "", '
         '"tasks/classic/cartpole.jpg"],\n];\n'
         f"{ENVIRONMENT_BROWSER_TASKS_END_MARKER}\n"
     )

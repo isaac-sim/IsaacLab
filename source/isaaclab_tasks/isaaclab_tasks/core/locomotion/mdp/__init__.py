@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""This sub-module contains the MDP functions shared by the locomotion (ant and humanoid) environments."""
+"""MDP terms shared by the locomotion (ant and humanoid) environments."""
 
 from isaaclab.utils.module import lazy_export
 

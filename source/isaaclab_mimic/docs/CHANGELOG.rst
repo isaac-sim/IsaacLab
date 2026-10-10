@@ -1,6 +1,90 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.1.2 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed warnings in the locomanipulation SDG path utilities and the cuRobo planner helpers to use
+  :mod:`logging` instead of ``print``.
+
+
+2.1.1 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Excluded the robot subtree from cuRobo world obstacles even when custom world ignore substrings were configured.
+
+
+2.1.0 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``env_cfg`` argument to :func:`~isaaclab_mimic.datagen.generation.setup_env_config` to configure the
+  environment config passed to :func:`~isaaclab.app.launch_simulation` instead of parsing a new one.
+
+
+2.0.11 (2026-09-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--max_num_failures`` to the Mimic dataset generation script to bound unsuccessful generation attempts.
+* Added ``class_type`` to the environment configs that use a custom environment class, naming that class.
+
+
+2.0.10 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision obstacle poses for robots away from the world origin.
+
+
+2.0.9 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the locomanipulation SDG scene configurations to author rigid-body properties with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` instead of the deprecated
+  :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg`. The authored USD attributes are
+  unchanged.
+
+
+2.0.8 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation SDG generation with NuRec backgrounds by enabling camera capture, applying Isaac RTX
+  Gaussian renderer settings, syncing randomized fixture poses, and recording the projected scene state after
+  placement. ``--high_res_video`` now records RGB observations at 512x320 instead of 960x540; update MP4
+  conversion dimensions and model input shapes accordingly.
+
+
+2.0.7 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Enabled contact reporting for the G1 locomanipulation SDG environment so its inherited hand
+  contact sensors initialize correctly.
+
+
 2.0.6 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~
 

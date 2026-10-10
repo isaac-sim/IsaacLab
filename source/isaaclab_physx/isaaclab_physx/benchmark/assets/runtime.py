@@ -122,8 +122,8 @@ def create_test_articulation(
     object.__setattr__(articulation, "_data", data)
 
     # Create mock wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -279,7 +279,6 @@ def create_test_collection(
 
 def _refresh_articulation_data(data, _config) -> None:
     data._sim_timestamp += 1.0
-    data._fk_timestamp = data._sim_timestamp
 
 
 def _refresh_rigid_object_data(mock_view, data, config) -> None:

@@ -169,7 +169,9 @@ defaultCamPos.x = 5
 defaultCamPos.y = 5
 defaultCamPos.z = 5
 defaults.fillViewport = false # default to not fill viewport
-grid.enabled = true
+defaults.guide.axis.visible = false
+defaults.guide.grid.visible = false
+grid.enabled = false # keep legacy viewports consistent
 outline.enabled = true
 boundingBoxes.enabled = false
 show.camera=false
@@ -202,8 +204,6 @@ renderer.startupMessageDisplayed = true # hides the IOMMU popup window
 resourcemonitor.timeBetweenQueries = 100 # improves performance
 simulation.defaultMetersPerUnit = 1.0 # Meters default
 omni.replicator.captureOnPlay = true
-UJITSO.geometry = true
-UJITSO.enabled = true
 
 [settings]
 ### async rendering settings
@@ -212,7 +212,7 @@ app.asyncRendering = false
 app.asyncRenderingLowLatency = false
 
 # Use one renderer GPU by default. Applications that need single-process multi-GPU rendering can override these
-# settings through AppLauncher's ``kit_args``.
+# settings through the Kit launcher's ``kit_args``.
 renderer.multiGpu.enabled = false
 renderer.multiGpu.autoEnable = false
 renderer.multiGpu.maxGpuCount = 1
@@ -273,6 +273,6 @@ fabricUseGPUInterop = true
 # set the S3 directory manually to the latest published S3
 # note: this is done to ensure prior versions of Isaac Sim still use the latest assets
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2"

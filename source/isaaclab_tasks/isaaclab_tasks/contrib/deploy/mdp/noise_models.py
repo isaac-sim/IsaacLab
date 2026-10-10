@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_from_euler_xyz, quat_mul
 from isaaclab.utils.noise import ConstantNoiseCfg, NoiseModel, NoiseModelCfg
 
@@ -48,7 +48,7 @@ class ResetSampledConstantNoiseModel(NoiseModel):
         self._sampled_noise = torch.zeros((num_envs, 1), device=self._device)
         self._num_components: int | None = None
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None):
         """Reset the noise model by sampling NEW noise values.
 
         This method samples new noise for the specified environments using the configured noise function.
@@ -65,7 +65,8 @@ class ResetSampledConstantNoiseModel(NoiseModel):
         # Use the existing noise function to sample new noise
         # Create dummy data to sample from the noise function
         dummy_data = torch.zeros(
-            (env_ids.stop - env_ids.start if isinstance(env_ids, slice) else len(env_ids), 1), device=self._device
+            (len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids), 1),
+            device=self._device,
         )
 
         # Sample noise using the configured noise function
@@ -135,7 +136,7 @@ class ResetSampledQuaternionNoiseModel(NoiseModel):
         self._perturbation_quat = torch.zeros((num_envs, 4), device=device)
         self._perturbation_quat[:, 3] = 1.0
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None):
         """Sample new rotation perturbations for the specified environments.
 
         Args:
@@ -144,7 +145,7 @@ class ResetSampledQuaternionNoiseModel(NoiseModel):
         if env_ids is None:
             env_ids = slice(None)
 
-        num_resets = env_ids.stop - env_ids.start if isinstance(env_ids, slice) else len(env_ids)
+        num_resets = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
 
         roll = torch.empty(num_resets, device=self._device).uniform_(*self._roll_range)
         pitch = torch.empty(num_resets, device=self._device).uniform_(*self._pitch_range)

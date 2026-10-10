@@ -18,11 +18,14 @@ __all__ = [
     "MPMSolverCfg",
     "MJWarpSolverCfg",
     "NewtonCfg",
+    "NewtonBackendCfg",
+    "NewtonBuilderCfg",
     "NewtonCollisionPipelineCfg",
     "NewtonFeatherstoneManager",
     "NewtonKaminoManager",
     "NewtonMPMManager",
     "NewtonManager",
+    "NewtonQueries",
     "NewtonMJWarpManager",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
@@ -31,6 +34,7 @@ __all__ = [
     "VBDSolverCfg",
     "NewtonXPBDManager",
     "XPBDSolverCfg",
+    "create_newton_builder",
 ]
 
 from .featherstone_manager import NewtonFeatherstoneManager
@@ -52,8 +56,10 @@ from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mpm_manager import NewtonMPMManager
 from .mpm_manager_cfg import MPMSolverCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
-from .newton_manager import NewtonManager
+from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
 from .newton_manager_cfg import (
+    NewtonBackendCfg,
+    NewtonBuilderCfg,
     NewtonCfg,
     NewtonShapeCfg,
     NewtonSoftContactCfg,

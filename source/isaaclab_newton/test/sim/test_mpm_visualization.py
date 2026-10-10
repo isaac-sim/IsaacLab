@@ -44,7 +44,10 @@ def _create_visualization(monkeypatch, visual_material=None):
 
 
 def test_each_environment_renders_its_own_particle_slice(monkeypatch):
-    """Every environment gets a points prim carrying its own positions, plus the shared widths and color."""
+    """Every environment gets a world-frame points prim with its own positions, plus the shared widths and color.
+
+    Points are authored in the world frame, so the prims must reset the environment's xform stack.
+    """
     stage, prim_paths = _create_visualization(monkeypatch)
 
     assert prim_paths == _PRIM_PATHS
@@ -53,14 +56,7 @@ def test_each_environment_renders_its_own_particle_slice(monkeypatch):
         np.testing.assert_array_equal(np.asarray(points.GetPointsAttr().Get()), _POSITIONS[env_idx])
         np.testing.assert_array_equal(np.asarray(points.GetWidthsAttr().Get()), _WIDTHS)
         assert points.GetDisplayColorAttr().Get() == [Gf.Vec3f(*_COLOR)]
-
-
-def test_particle_clouds_ignore_the_inherited_environment_transform(monkeypatch):
-    """Points are authored in the world frame, so the prims must reset the environment's xform stack."""
-    stage, prim_paths = _create_visualization(monkeypatch)
-
-    for prim_path in prim_paths:
-        assert UsdGeom.Points(stage.GetPrimAtPath(prim_path)).GetResetXformStack()
+        assert points.GetResetXformStack()
 
 
 def test_prim_path_count_must_match_environment_count(monkeypatch):

@@ -7,39 +7,44 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib
-import runpy
+import os
+import signal
 import subprocess
 import sys
 import types
+from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from hydra.core.global_hydra import GlobalHydra
+from omegaconf import OmegaConf
 
-from isaaclab_rl.entrypoints import PlaybackRequest, TrainingRequest, api, dispatch
-from isaaclab_rl.entrypoints import simple_agents as _simple_agents
-from isaaclab_rl.entrypoints.simple_agents import _create_zero_action_policy
+from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
+from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
+from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
 
 
 @pytest.mark.parametrize(
     ("statement", "unexpected_modules"),
     [
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
-        ("import isaaclab_rl.entrypoints", ["isaaclab_rl.entrypoints.multigpu", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        ("import isaaclab_rl.entrypoints.common", ["isaaclab.envs.direct_marl_env", "moviepy"]),
+        # the LEAPP runtime must only load once the simulation has launched
+        ("import isaaclab_rl.entrypoints.backends.export_rsl_rl", ["leapp", "isaaclab.utils.leapp"]),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
         ("import isaaclab_rl.rl_games.pbt", ["isaaclab_rl.rl_games.pbt.pbt", "rl_games", "torch"]),
         ("import isaaclab_rl.rsl_rl", ["isaaclab_rl.rsl_rl.vecenv_wrapper", "rsl_rl", "torch"]),
         ("import isaaclab_rl.utils", ["torch"]),
+        # resolves through isaaclab_rl.entrypoints, so it also covers importing that package directly
         (
             "from isaaclab_rl import run_play_cli",
-            ["isaaclab_rl.entrypoints.multigpu", "torch"],
-        ),
-        (
-            "from isaaclab_rl.entrypoints import run_play_cli",
             ["isaaclab_rl.entrypoints.multigpu", "torch"],
         ),
     ],
@@ -70,6 +75,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.tensor([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0])
+        _offset = torch.tensor([0.2, -0.4, 0.6, 0.0, 0.0, 0.0, 0.0])
 
         def _compute_frame_pose(self):
             return torch.tensor([[2.0, 4.0, 6.0]]), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -140,14 +146,14 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
         scene=SimpleNamespace(env_origins=torch.tensor([[1.0, 1.0, 1.0]])),
     )
 
-    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     expected_pink_poses = torch.tensor(
         [[[3.0, 4.0, 5.0, 0.0, 0.0, 1.0, 0.0], [0.0, 1.0, 2.0, 0.0, 0.0, 0.0, 1.0]]]
     ).flatten(start_dim=1)
     expected = torch.cat(
         (
-            torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]),
+            torch.tensor([[0.9, 2.2, 2.7, 0.0, 0.0, 0.0, 1.0]]),
             torch.tensor([[3.0, 2.0, 1.0, 0.0, 0.0, 1.0, 0.0]]),
             expected_pink_poses,
             torch.tensor([[0.2, 0.4]]),
@@ -168,6 +174,7 @@ def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.ones(7)
+        _offset = torch.zeros(7)
 
         def _compute_frame_pose(self):
             return torch.full((1, 3), torch.nan), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -179,7 +186,7 @@ def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
         get_term=lambda name: term,
     )
     unwrapped = SimpleNamespace(action_manager=manager)
-    policy = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))
+    policy = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))
 
     with pytest.raises(RuntimeError, match="inferred non-finite actions"):
         policy()
@@ -200,7 +207,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
         num_envs=2,
     )
 
-    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     assert torch.equal(actions["continuous"], torch.zeros(2, 2))
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
@@ -218,41 +225,33 @@ def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
         num_envs=3,
     )
 
-    actions = _create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
+    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
 
     assert torch.equal(actions["robot"], torch.zeros(3, 2))
     assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
 
 
-@pytest.mark.parametrize("policy", ["zero", "random"])
-def test_simple_agents_default_to_newton_visualizer(
-    policy: _simple_agents.PolicyName,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Checkpoint-free agents default to Newton visualization."""
+def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Checkpoint-free agents run without a visualizer by default and retain an explicit CLI device."""
     monkeypatch.setattr(sys, "argv", ["pytest"])
 
-    args = _simple_agents._parse_args([], policy)
+    args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == ["newton_gl"]
+    assert args.visualizer is None
 
-
-@pytest.mark.parametrize("policy", ["zero", "random"])
-def test_simple_agents_accept_explicit_device(
-    policy: _simple_agents.PolicyName,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Checkpoint-free agents should retain an explicit CLI device."""
-    monkeypatch.setattr(sys, "argv", ["pytest"])
-
-    args = _simple_agents._parse_args(["--device", "cuda:1"], policy)
+    args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 
     assert args.device == "cuda:1"
 
 
-def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Checkpoint-free agents should not replace a task-required device with the CLI default."""
+@pytest.mark.parametrize(("cli_device", "policy"), [(None, "zero"), ("cuda:1", "random")])
+def test_simple_agents_leave_the_device_to_the_launch(
+    cli_device: str | None,
+    policy: simple_agents.PolicyName,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Checkpoint-free agents pass the CLI device, or None to keep the task's, to the launch that resolves it."""
 
     class _ExpectedStop(Exception):
         pass
@@ -266,55 +265,22 @@ def test_simple_agents_preserve_task_device_default(monkeypatch: pytest.MonkeyPa
 
     args = SimpleNamespace(
         num_envs=None,
-        device=None,
+        device=cli_device,
         disable_fabric=False,
         task="Cpu-Task",
     )
 
     def launch_simulation(cfg, launcher_args):
         assert cfg.sim.device == "cpu"
-        assert launcher_args.device == "cpu"
+        assert launcher_args.device == cli_device
         raise _ExpectedStop
 
-    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
-    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", launch_simulation)
 
     with pytest.raises(_ExpectedStop):
-        _simple_agents.run([], policy="zero")
-
-
-def test_simple_agents_apply_explicit_device_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Checkpoint-free agents should continue to honor an explicit CLI device."""
-
-    class _ExpectedStop(Exception):
-        pass
-
-    class _Cfg:
-        scene = SimpleNamespace(num_envs=1)
-        sim = SimpleNamespace(device="cpu", use_fabric=True)
-
-        def validate(self) -> None:
-            pass
-
-    args = SimpleNamespace(
-        num_envs=None,
-        device="cuda:1",
-        disable_fabric=False,
-        task="Cpu-Task",
-    )
-
-    def launch_simulation(cfg, launcher_args):
-        assert cfg.sim.device == "cuda:1"
-        assert launcher_args.device == "cuda:1"
-        raise _ExpectedStop
-
-    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_Cfg(), None))
-    monkeypatch.setattr(_simple_agents, "launch_simulation", launch_simulation)
-
-    with pytest.raises(_ExpectedStop):
-        _simple_agents.run([], policy="random")
+        simple_agents.run([], policy=policy)
 
 
 def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -328,16 +294,124 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
             raise ValueError("unsupported physics backend")
 
     args = SimpleNamespace(num_envs=None, device=None, disable_fabric=False, task="Invalid-Task")
-    monkeypatch.setattr(_simple_agents, "_parse_args", lambda argv, policy: args)
-    monkeypatch.setattr(_simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (_InvalidCfg(), None))
     monkeypatch.setattr(
-        _simple_agents,
+        simple_agents,
         "launch_simulation",
         lambda *args, **kwargs: pytest.fail("simulation launched before config validation"),
     )
 
     with pytest.raises(SystemExit, match="Invalid environment configuration: unsupported physics backend"):
-        _simple_agents.run([], policy="zero")
+        simple_agents.run([], policy="zero")
+
+
+@pytest.mark.parametrize("interrupted_operation", ["reset", "step"])
+def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, interrupted_operation) -> None:
+    """An interrupt during setup or playback closes the env despite further Ctrl+C presses."""
+    closed = []
+    previous_handler = signal.getsignal(signal.SIGINT)
+
+    def close():
+        signal.raise_signal(signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
+        closed.append(True)
+
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        validate=lambda: None,
+    )
+    env = SimpleNamespace(
+        observation_space="observations",
+        action_space=SimpleNamespace(shape=(1, 1)),
+        unwrapped=SimpleNamespace(
+            sim=SimpleNamespace(is_running=lambda: True),
+            device="cpu",
+        ),
+        reset=mock.Mock(),
+        step=mock.Mock(),
+        close=close,
+    )
+    getattr(env, interrupted_operation).side_effect = KeyboardInterrupt
+    args = SimpleNamespace(max_steps=None, task="Example", device=None, num_envs=None)
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
+    monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
+    monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
+
+    with pytest.raises(KeyboardInterrupt):
+        simple_agents.run([], policy="random")
+
+    assert closed == [True]
+    assert signal.getsignal(signal.SIGINT) is previous_handler
+
+
+@pytest.mark.parametrize(
+    ("video_length", "max_steps", "expected_steps"),
+    [(None, None, 55), (None, 40, 40)],
+    ids=["last_recorder_clip", "max_steps_caps_clip"],
+)
+def test_simple_agent_video_step_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    video_length: int | None,
+    max_steps: int | None,
+    expected_steps: int,
+) -> None:
+    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``."""
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    recorders = [
+        VideoRecorderCfg(output_dir=str(tmp_path), video_length=20),
+        VideoRecorderCfg(output_dir=str(tmp_path), video_length=30, step_offset=25),
+    ]
+    cfg = SimpleNamespace(
+        scene=SimpleNamespace(num_envs=1),
+        sim=SimpleNamespace(device="cpu", use_fabric=True),
+        video_recorders=recorders,
+        validate=lambda: [recorder.validate() for recorder in recorders],
+    )
+    env = SimpleNamespace(
+        observation_space="observations",
+        action_space=SimpleNamespace(shape=(1, 1)),
+        unwrapped=SimpleNamespace(
+            sim=SimpleNamespace(is_running=lambda: True),
+            device="cpu",
+        ),
+        reset=lambda: None,
+        step=mock.Mock(),
+        close=mock.Mock(),
+    )
+    args = SimpleNamespace(
+        max_steps=max_steps,
+        task="Example",
+        device=None,
+        num_envs=None,
+        video=True,
+        video_length=video_length,
+        video_interval=None,
+    )
+    launched = mock.Mock(return_value=contextlib.nullcontext())
+    monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
+    monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
+    monkeypatch.setattr(simple_agents, "launch_simulation", launched)
+    monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
+    monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
+
+    simple_agents.run([], policy="random")
+    assert env.step.call_count == expected_steps
+
+
+def test_simple_agent_request_forwards_video(monkeypatch) -> None:
+    """Checkpoint-free requests forward the video flag to the agent CLI."""
+    received: list[str] = []
+    monkeypatch.setattr(api, "run_zero_agent_cli", lambda argv: received.extend(argv) or 0)
+
+    api.zero_agent(SimpleAgentRequest(task="Isaac-Task", max_steps=5, video=True))
+
+    assert received == ["--task", "Isaac-Task", "--max_steps", "5", "--video"]
 
 
 def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
@@ -354,6 +428,7 @@ def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
         TrainingRequest(
             backend="rsl_rl",
             task="Isaac-Cartpole",
+            checkpoint="latest",
             num_envs=32,
             max_iterations=10,
             distributed=True,
@@ -367,6 +442,8 @@ def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
         "rsl_rl",
         "--task",
         "Isaac-Cartpole",
+        "--checkpoint",
+        "latest",
         "--num_envs",
         "32",
         "--max_iterations",
@@ -376,40 +453,82 @@ def test_train_request_adapts_typed_parameters_to_cli(monkeypatch) -> None:
     ]
 
 
-def test_train_request_maps_checkpoint_to_backend_argument(monkeypatch) -> None:
-    """Training requests forward a checkpoint so training can resume from it."""
-    received: list[str] = []
-
-    def fake_run_train_cli(argv: list[str]) -> int:
-        received.extend(argv)
-        return 0
-
-    monkeypatch.setattr(api, "run_train_cli", fake_run_train_cli)
-
-    api.train(TrainingRequest(backend="rsl_rl", task="Isaac-Cartpole", checkpoint="latest"))
-    assert received == ["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole", "--checkpoint", "latest"]
-
-    received.clear()
-    api.train(TrainingRequest(backend="rlinf", task="Isaac-Task", checkpoint="model"))
-    assert received == ["--rl_library", "rlinf", "--task", "Isaac-Task", "--checkpoint", "model"]
-
-
 def test_rlinf_parser_uses_unified_checkpoint_and_iteration_flags() -> None:
     """RLinf accepts the public checkpoint and iteration option names."""
-    from isaaclab_rl.entrypoints.backends import train_rlinf
-
     args = train_rlinf._parse_args(["--config_name", "ppo", "--checkpoint", "latest", "--max_iterations", "10"])
 
     assert args.checkpoint == "latest"
     assert args.max_iterations == 10
 
 
+def test_torchrl_parser_accepts_run_name(monkeypatch) -> None:
+    """TorchRL accepts the same run-name option exposed by the other training frontends."""
+    from isaaclab_rl.entrypoints.backends import train_torchrl
+
+    monkeypatch.setattr(sys, "argv", ["pytest"])
+    args = train_torchrl._parse_args(["--task", "Isaac-Cartpole", "--run_name", "named-run"])
+
+    assert args.run_name == "named-run"
+
+
 def test_rlinf_rejects_pretrained_checkpoint() -> None:
     """RLinf has no published pre-trained checkpoint."""
-    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import _resolve_rlinf_checkpoint
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import resolve_rlinf_checkpoint
 
     with pytest.raises(ValueError, match="Pre-trained checkpoints are not available for RLinf"):
-        _resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+        resolve_rlinf_checkpoint("pretrained", log_root_path="logs/rlinf", task="Isaac-Task", config_name="ppo")
+
+
+@pytest.mark.parametrize("backend", [train_rlinf, play_rlinf], ids=["train", "play"])
+def test_rlinf_launch_passes_checkpoint_and_model_config_to_workers(tmp_path: Path, monkeypatch, backend) -> None:
+    """Real CLI composition supplies the native RLinf weight/resume hooks before workers start."""
+    validate = mock.Mock(side_effect=RuntimeError("worker boundary"))
+    modules = {
+        "rlinf": {},
+        "rlinf.config": {"validate_cfg": validate},
+        "rlinf.runners.embodied_runner": {"EmbodiedRunner": mock.Mock()},
+        "rlinf.runners.embodied_eval_runner": {"EmbodiedEvalRunner": mock.Mock()},
+        "rlinf.scheduler": {"Cluster": mock.Mock()},
+        "rlinf.utils.placement": {"HybridComponentPlacement": mock.Mock()},
+        "rlinf.workers.env.env_worker": {"EnvWorker": mock.Mock()},
+        "rlinf.workers.rollout.hf.huggingface_worker": {"MultiStepRolloutWorker": mock.Mock()},
+    }
+    for name, attributes in modules.items():
+        module = types.ModuleType(name)
+        vars(module).update(attributes)
+        monkeypatch.setitem(sys.modules, name, module)
+    monkeypatch.setattr(torch.multiprocessing, "set_start_method", lambda *args, **kwargs: None)
+    monkeypatch.chdir(tmp_path)
+    for variable in ("PYTHONPATH", "RLINF_CONFIG_FILE", "RLINF_EXT_MODULE", "RAY_ENABLE_UV_RUN_RUNTIME_ENV"):
+        monkeypatch.delenv(variable, raising=False)
+    step_dir = tmp_path / "checkpoints" / "global_step_400"
+    weights = step_dir / "actor" / "model_state_dict" / "full_weights.pt"
+    weights.parent.mkdir(parents=True)
+    weights.touch()
+    cfg = OmegaConf.create(
+        {
+            "runner": {"logger": {"log_path": "unused"}},
+            "actor": {
+                "model": {"model_path": "./base", "model_type": "gr00t", "rl_head_config": {"add_value_head": True}}
+            },
+            "rollout": {"model": {"model_path": "./rollout", "rl_head_config": {"disable_dropout": True}}},
+            "env": {"train": {"init_params": {"id": "Test"}}, "eval": {"init_params": {"id": "Test"}}},
+        }
+    )
+    OmegaConf.save(cfg, tmp_path / "ppo.yaml")
+    checkpoint = step_dir if backend is train_rlinf else weights
+    args = ["--config_path", str(tmp_path), "--config_name", "ppo"]
+    args += ["--checkpoint", str(checkpoint.relative_to(tmp_path))]
+    with pytest.raises(RuntimeError, match="worker boundary"):
+        backend.run(args)
+    GlobalHydra.instance().clear()
+    assert os.environ["RAY_ENABLE_UV_RUN_RUNTIME_ENV"] == "0"
+    resolved = validate.call_args.args[0]
+    assert resolved.runner["resume_dir" if backend is train_rlinf else "ckpt_path"] == str(checkpoint)
+    assert resolved.actor.model.model_path == str(tmp_path / "base")
+    assert resolved.rollout.model.model_path == str(tmp_path / "rollout")
+    assert resolved.rollout.model.model_type == "gr00t"
+    assert dict(resolved.rollout.model.rl_head_config) == {"add_value_head": True, "disable_dropout": True}
 
 
 def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
@@ -424,13 +543,13 @@ def test_run_backend_restores_sys_argv_after_training(monkeypatch) -> None:
     monkeypatch.setattr(importlib, "import_module", lambda name: module)
 
     original_argv = list(sys.argv)
-    dispatch._run_backend("fake_train_backend", ["physics=newton_mjwarp"], run_as_script=False)
+    dispatch._run_backend("fake_train_backend", ["physics=newton_mjwarp"])
 
     assert sys.argv == original_argv
 
 
 def test_play_request_uses_unified_checkpoint_argument(monkeypatch) -> None:
-    """RLinf requests map shared fields to its focused backend arguments."""
+    """Playback requests map shared fields, including the checkpoint, to CLI arguments."""
     received: list[str] = []
 
     def fake_run_play_cli(argv: list[str]) -> int:
@@ -456,8 +575,8 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     """The unified training dispatcher forwards only backend arguments."""
     received: dict[str, object] = {}
 
-    def _fake_run_backend(module_name: str, argv: list[str], *, run_as_script: bool) -> None:
-        received.update(module_name=module_name, argv=argv, run_as_script=run_as_script)
+    def _fake_run_backend(module_name: str, argv: list[str]) -> None:
+        received.update(module_name=module_name, argv=argv)
 
     monkeypatch.setattr(dispatch, "_run_backend", _fake_run_backend)
 
@@ -465,7 +584,23 @@ def test_train_dispatches_selected_backend(monkeypatch) -> None:
     assert received == {
         "module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
         "argv": ["--task", "Isaac-Cartpole"],
-        "run_as_script": False,
+    }
+
+
+def test_export_dispatches_selected_backend(monkeypatch) -> None:
+    """The unified export dispatcher forwards backend arguments and its status."""
+    received: dict[str, object] = {}
+
+    def _fake_run_backend(module_name: str, argv: list[str]) -> int:
+        received.update(module_name=module_name, argv=argv)
+        return 1
+
+    monkeypatch.setattr(dispatch, "_run_backend", _fake_run_backend)
+
+    assert dispatch.run_export_cli(["--rl_library", "rsl_rl", "--task", "Isaac-Cartpole"]) == 1
+    assert received == {
+        "module_name": "isaaclab_rl.entrypoints.backends.export_rsl_rl",
+        "argv": ["--task", "Isaac-Cartpole"],
     }
 
 
@@ -476,11 +611,7 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "isaaclab_tasks", types.ModuleType("isaaclab_tasks"))
     received: dict[str, object] = {}
     monkeypatch.setattr(
-        dispatch,
-        "_run_backend",
-        lambda module_name, argv, *, run_as_script: received.update(
-            module_name=module_name, argv=argv, run_as_script=run_as_script
-        ),
+        dispatch, "_run_backend", lambda module_name, argv: received.update(module_name=module_name, argv=argv)
     )
 
     try:
@@ -488,19 +619,13 @@ def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     finally:
         gym.registry.pop(task_name, None)
 
-    assert received == {
-        "module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl",
-        "argv": ["--task", task_name],
-        "run_as_script": False,
-    }
+    assert received == {"module_name": "isaaclab_rl.entrypoints.backends.train_rsl_rl", "argv": ["--task", task_name]}
 
 
 def test_dispatch_fuses_option_like_kit_args(monkeypatch) -> None:
     """Space-separated option-like Kit arguments are fused before backend parsing."""
     received: dict[str, object] = {}
-    monkeypatch.setattr(
-        dispatch, "_run_backend", lambda module_name, argv, *, run_as_script: received.update(argv=argv)
-    )
+    monkeypatch.setattr(dispatch, "_run_backend", lambda module_name, argv: received.update(argv=argv))
 
     dispatch.run_train_cli(["--rl_library", "rsl_rl", "--kit_args", "--foo=/bar"])
 
@@ -563,7 +688,7 @@ def test_rejected_rsl_training_preserves_torch_backend_state(monkeypatch) -> Non
         monkeypatch.setattr(target, name, value)
 
     with pytest.raises(SystemExit):
-        dispatch._run_backend("isaaclab_rl.entrypoints.backends.train_rsl_rl", ["--help"], run_as_script=False)
+        dispatch._run_backend("isaaclab_rl.entrypoints.backends.train_rsl_rl", ["--help"])
 
     assert _torch_backend_state() == caller_state
 
@@ -574,7 +699,7 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
 
     from isaaclab_rl.entrypoints.backends import train_rsl_rl
 
-    caller_state = (False, False, True, True)
+    caller_state = (False, False, True, False)
     settings = (
         (torch.backends.cuda.matmul, "allow_tf32"),
         (torch.backends.cudnn, "allow_tf32"),
@@ -587,7 +712,7 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     monkeypatch.setattr(train_rsl_rl, "_parse_args", lambda argv: types.SimpleNamespace())
 
     def fail_after_mutation(_args_cli) -> None:
-        assert _torch_backend_state() == (True, True, False, False)
+        assert _torch_backend_state() == (True, True, False, True)
         raise RuntimeError("failed")
 
     monkeypatch.setattr(train_rsl_rl, "_run", fail_after_mutation)
@@ -651,21 +776,72 @@ def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
     assert not hasattr(skrl.config.jax, "backend")
 
 
-def test_skrl_play_main_restores_jax_backend(monkeypatch) -> None:
-    """Direct SKRL play calls remove the JAX backend setting they created."""
-    pytest.importorskip("skrl")
-    monkeypatch.setattr(sys, "argv", ["play_skrl.py"])
-    namespace = runpy.run_module("isaaclab_rl.entrypoints.backends.play_skrl", run_name="test_play_skrl")
-    skrl = namespace["skrl"]
-    namespace["args_cli"].ml_framework = "jax"
-    monkeypatch.delattr(skrl.config.jax, "backend", raising=False)
+def test_skrl_agent_config_selection_is_explicit() -> None:
+    """SKRL uses the canonical task config unless the user explicitly selects another source."""
+    from isaaclab_rl.skrl import resolve_skrl_agent_cfg_entry_point as resolve
 
-    def fail_after_mutation() -> None:
+    assert resolve(None, None) == resolve(None, "PPO") == "skrl_cfg_entry_point"
+    assert resolve(None, "AMP") == "skrl_amp_cfg_entry_point"
+    assert resolve("skrl_custom_cfg_entry_point", None) == "skrl_custom_cfg_entry_point"
+
+
+def test_skrl_algorithm_comes_from_resolved_config() -> None:
+    """The resolved agent class, rather than the registry-key spelling, owns algorithm identity."""
+    from isaaclab_rl.skrl import resolve_skrl_algorithm
+
+    assert resolve_skrl_algorithm({"agent": {"class": "AMP"}}) == "amp"
+    assert resolve_skrl_algorithm({"agent": {"class": "PPO"}}, "PPO") == "ppo"
+    with pytest.raises(ValueError, match="does not match the resolved agent.class"):
+        resolve_skrl_algorithm({"agent": {"class": "AMP"}}, "PPO")
+    with pytest.raises(ValueError, match="must define a non-empty 'agent.class'"):
+        resolve_skrl_algorithm({})
+
+
+def test_skrl_training_parser_leaves_algorithm_implicit(monkeypatch) -> None:
+    """The canonical task config decides the algorithm when the CLI omits both selectors."""
+    from isaaclab_rl.entrypoints.backends import train_skrl
+
+    monkeypatch.setattr(sys, "argv", ["train_skrl.py"])
+    args = train_skrl._parse_args(["--task", "Isaac-Cartpole"])
+
+    assert args.agent is None
+    assert args.algorithm is None
+
+
+@pytest.mark.parametrize("motion", ["Dance", "Run", "Walk"])
+def test_humanoid_amp_tasks_register_canonical_skrl_config(motion) -> None:
+    """SKRL-only AMP tasks work through the same canonical entry point as other tasks."""
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import load_cfg_from_registry
+
+    spec = gym.spec(f"IsaacContrib-Humanoid-AMP-{motion}-Direct")
+
+    assert spec.kwargs["default_agent"] == "skrl"
+    assert spec.kwargs["skrl_cfg_entry_point"] == spec.kwargs["skrl_amp_cfg_entry_point"]
+    assert load_cfg_from_registry(spec.id, "skrl_cfg_entry_point")["agent"]["class"] == "AMP"
+
+
+def test_skrl_play_restores_jax_backend(monkeypatch) -> None:
+    """SKRL playback removes the JAX backend setting it created after an exception."""
+    skrl = pytest.importorskip("skrl")
+
+    from isaaclab_rl.entrypoints.backends import play_skrl
+
+    monkeypatch.setattr(sys, "argv", ["play_skrl.py"])
+    args = play_skrl._parse_args(["--task", "Isaac-Cartpole"])
+    assert args.agent is None
+    assert args.algorithm is None
+
+    monkeypatch.delattr(skrl.config.jax, "backend", raising=False)
+    monkeypatch.setattr(play_skrl, "_parse_args", lambda argv: types.SimpleNamespace(ml_framework="jax"))
+
+    def fail_after_mutation(_args_cli) -> None:
+        assert skrl.config.jax.backend == "jax"
         skrl.config.jax.backend = "mutated"
         raise RuntimeError("failed")
 
-    namespace["main"].__globals__["_main"] = fail_after_mutation
+    monkeypatch.setattr(play_skrl, "_run", fail_after_mutation)
     with pytest.raises(RuntimeError, match="failed"):
-        namespace["main"]()
+        play_skrl.run([])
 
     assert not hasattr(skrl.config.jax, "backend")

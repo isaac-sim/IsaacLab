@@ -28,13 +28,10 @@ optional arguments:
 
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Utility to convert a URDF or mesh into an Instanceable asset.")
 parser.add_argument("input", type=str, help="The path to the input directory.")
 parser.add_argument("output", type=str, help="The path to directory to store converted instanceable files.")
@@ -71,24 +68,21 @@ parser.add_argument(
     help="The mass (in kg) to assign to the converted asset. If not provided, then no mass is added.",
 )
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+# the URDF importer and mesh asset converter are Kit extensions
+args_cli.require_kit = True
 
 import os
 
-from isaaclab.sim.converters import MeshConverter, MeshConverterCfg, UrdfConverter, UrdfConverterCfg
+from isaaclab.sim.converters import MeshConverterCfg, UrdfConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 
 
 def main():
+    # the mesh converter imports Kit modules, so load it after Kit starts
+    from isaaclab.sim.converters import MeshConverter, UrdfConverter
+
     # Define conversion time given
     conversion_type = args_cli.conversion_type.lower()
     # Warning if conversion type input is not valid
@@ -126,14 +120,14 @@ def main():
             ):
                 # Mass properties
                 if args_cli.mass is not None:
-                    mass_props = schemas_cfg.MassPropertiesCfg(mass=args_cli.mass)
-                    rigid_props = schemas_cfg.RigidBodyPropertiesCfg()
+                    mass_props = schemas_cfg.MassCfg(mass=args_cli.mass)
+                    rigid_props = schemas_cfg.UsdPhysicsRigidBodyCfg()
                 else:
                     mass_props = None
                     rigid_props = None
 
                 # Collision properties
-                collision_props = schemas_cfg.CollisionPropertiesCfg(
+                collision_props = schemas_cfg.UsdPhysicsCollisionCfg(
                     collision_enabled=args_cli.collision_approximation != "none"
                 )
                 # Mesh converter call
@@ -154,7 +148,5 @@ def main():
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    with launch_simulation(None, args_cli):
+        main()

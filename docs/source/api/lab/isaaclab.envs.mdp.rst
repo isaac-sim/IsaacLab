@@ -195,3 +195,47 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
 
 .. autoclass:: UniformVelocityCommand
    :show-inheritance:
+
+Physics event backend selection
+-------------------------------
+
+Configure physics randomization through the shared ``isaaclab.envs.mdp`` terms:
+
+.. code-block:: python
+
+    import isaaclab.envs.mdp as mdp
+    from isaaclab.managers import EventTermCfg
+
+    gravity = EventTermCfg(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="startup",
+        params={
+            "gravity_distribution_params": ((0.0, 0.0, -10.0), (0.0, 0.0, -9.0)),
+            "operation": "abs",
+        },
+    )
+
+Material, collider-offset, and gravity terms select the backend at construction from
+the simulation's resolved physics configuration, including the ``physx`` auto selector.
+Use the same terms for Newton, Isaac Sim PhysX, and OVPhysX; parameter translation is
+handled internally.
+
+See the shared terms for backend limits: scene-wide versus per-environment gravity,
+PhysX material buckets, Newton's single friction coefficient, and Kamino's shared materials.
+
+Backend handling in other terms
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* ``randomize_visual_color`` and ``randomize_visual_texture_material`` use the
+  Isaac Sim Replicator implementation independently of the physics configuration.
+  They require Kit and update all matched USD prims; ``env_ids`` does not restrict
+  these updates. Kitless runtimes report this requirement at construction.
+* ``randomize_visual_shape`` selects its implementation from the active renderers
+  and visualizers. ``randomize_visual_material`` writes through ``RenderContext``.
+* ``randomize_actuator_gains`` follows each actuator group's owner. Newton
+  controllers can run with PhysX, so physics selection does not determine gain storage.
+* Mass, inertia, center-of-mass, joint, tendon, reset, and wrench terms use shared
+  asset APIs. Observations, rewards, terminations, and actions use shared asset and
+  sensor APIs. Their backend handling stays in those APIs.
+* ``randomize_rigid_body_scale`` edits USD before simulation starts. The USD stage
+  is shared across physics backends.

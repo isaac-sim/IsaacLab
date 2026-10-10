@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import os
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -21,8 +20,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
-from isaaclab.cloner import queue_replication
-from isaaclab.physics import PhysicsEvent
+from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -71,14 +69,13 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs
-        self.cfg = cfg.copy()
+        self.cfg = clone(cfg)
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        source_rigid_object_cfgs = cfg.rigid_objects
-        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
+        for rigid_body_cfg in self.cfg.rigid_objects.values():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 spawn_path = rigid_body_cfg.spawn.spawn_path or rigid_body_cfg.prim_path
@@ -92,7 +89,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
-            queue_replication(source_rigid_object_cfgs[rigid_body_name])
         # stores object names
         self._body_names_list = []
 
@@ -197,14 +193,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_b, torque_b, _ = composer.get_forces_and_torques()
             wp.launch(
                 shared_kernels.update_wrench_array_with_force_and_torque,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    force_b,
+                    torque_b,
                     self._data.body_link_pose_w.warp,
                     self._wrench_buffer,
                     self._ALL_ENV_MASK,
@@ -978,12 +974,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Write to consolidated buffer
         wp.launch(
@@ -1026,6 +1025,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -1034,6 +1035,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
@@ -1203,33 +1205,23 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             root_prim_path_exprs.append(sim_utils.path_expr_to_glob(root_expr))
             self._body_names_list.append(name)
 
-        # Build a single pattern that matches ALL body types by wildcarding the differing path segment.
-        combined_pattern = self._build_combined_pattern(root_prim_path_exprs)
-
-        # Create a single ArticulationView matching all body types.
+        # Create a single ArticulationView matching exactly the configured bodies.
         # The 2nd dimension (matches per world) corresponds to the body types.
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
-            combined_pattern,
+            root_prim_path_exprs,
             verbose=False,
         )
+        # Newton matches each body once, so members whose prim paths alias the same prim come up short here.
         if self._root_view.count_per_world != self.num_bodies:
             raise RuntimeError(
-                f"Rigid object collection pattern {combined_pattern!r} matched "
+                f"Rigid object collection patterns {root_prim_path_exprs} matched "
                 f"{self._root_view.count_per_world} objects per world, but the collection config contains "
-                f"{self.num_bodies}. Ensure collection prim paths share a prefix or suffix that distinguishes them "
-                "from other rigid objects."
+                f"{self.num_bodies}."
             )
 
         # container for data access
         self._data = RigidObjectCollectionData(self._root_view, self.num_bodies, self.device)
-
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"rigid_object_collection_rebind_{self.cfg.rigid_objects}",
-        )
 
         # create buffers
         self._create_buffers()
@@ -1294,6 +1286,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
@@ -1338,49 +1332,6 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids
-
-    @staticmethod
-    def _build_combined_pattern(prim_path_exprs: list[str]) -> str:
-        """Build a single fnmatch pattern that matches all body types.
-
-        Compares path segments across all expressions and wildcards only the differing portion of each segment.
-        For example, given::
-
-            ["/World/Env_*/Object_A", "/World/Env_*/Object_B"]
-
-        produces ``"/World/Env_*/Object_*"``. Retaining common prefixes and suffixes avoids selecting
-        unrelated sibling articulations from the same world.
-
-        Args:
-            prim_path_exprs: List of prim path expressions, one per body type.
-
-        Returns:
-            A single fnmatch pattern string.
-
-        Raises:
-            ValueError: If the expressions have different numbers of path segments.
-        """
-        if len(prim_path_exprs) == 1:
-            return prim_path_exprs[0]
-
-        split_paths = [p.split("/") for p in prim_path_exprs]
-        lengths = {len(s) for s in split_paths}
-        if len(lengths) != 1:
-            raise ValueError(
-                f"Cannot build combined pattern: path expressions have different segment counts: {prim_path_exprs}"
-            )
-
-        combined_segments = []
-        for segments in zip(*split_paths):
-            unique = set(segments)
-            if len(unique) == 1:
-                combined_segments.append(segments[0])
-            else:
-                common_prefix = os.path.commonprefix(segments)
-                remaining_segments = [segment[len(common_prefix) :] for segment in segments]
-                common_suffix = os.path.commonprefix([segment[::-1] for segment in remaining_segments])[::-1]
-                combined_segments.append(f"{common_prefix}*{common_suffix}")
-        return "/".join(combined_segments)
 
     """
     Internal simulation callbacks.

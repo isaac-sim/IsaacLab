@@ -27,7 +27,7 @@ Describe the versions where you are observing the missing feature in:
 
 <!-- Please complete the following description. -->
 - Isaac Lab Version: [e.g. 3.0.0]
-- Isaac Sim Version: [e.g. 6.0, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
+- Isaac Sim Version: [e.g. 6.1, this can be obtained by `cat ${ISAACSIM_PATH}/VERSION`]
 
 ### Additional context
 

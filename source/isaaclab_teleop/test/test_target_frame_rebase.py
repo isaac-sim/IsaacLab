@@ -7,24 +7,23 @@
 
 """Tests for the target-frame rebase logic, _to_numpy_4x4 helper, and config-driven auto-selection.
 
-These tests exercise pure math (no Omniverse/Isaac Sim stack required).
+These tests need no Omniverse/Isaac Sim stack.
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 import torch
-from isaaclab_teleop.session_lifecycle import _to_numpy_4x4
+from isaaclab_teleop.isaac_teleop_device import IsaacTeleopDevice
+from isaaclab_teleop.session_lifecycle import TeleopSessionLifecycle, _to_numpy_4x4
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def identity_4x4() -> np.ndarray:
-    return np.eye(4, dtype=np.float32)
 
 
 @pytest.fixture
@@ -52,12 +51,6 @@ def rotation_90z_matrix() -> np.ndarray:
 
 
 class TestToNumpy4x4:
-    def test_from_ndarray_float32(self, identity_4x4: np.ndarray):
-        result = _to_numpy_4x4(identity_4x4)
-        assert isinstance(result, np.ndarray)
-        assert result.dtype == np.float32
-        np.testing.assert_array_equal(result, identity_4x4)
-
     def test_from_ndarray_float64_casts(self):
         mat = np.eye(4, dtype=np.float64)
         result = _to_numpy_4x4(mat)
@@ -104,161 +97,81 @@ class TestToNumpy4x4:
 
 
 # ---------------------------------------------------------------------------
-# Matrix multiplication (rebase) tests
+# Rebase of the world_T_anchor external input
 # ---------------------------------------------------------------------------
 
 
-class TestRebaseMultiplication:
-    def test_rebase_identity_is_noop(self, translation_matrix: np.ndarray):
-        """target_T_world = I should leave anchor_matrix unchanged."""
-        identity = np.eye(4, dtype=np.float32)
-        result = _to_numpy_4x4(identity) @ translation_matrix
-        np.testing.assert_array_almost_equal(result, translation_matrix)
+def _world_T_anchor_input(target_T_world) -> np.ndarray:
+    """Run ``_build_external_inputs`` for a session that only consumes ``world_T_anchor``."""
+    ValueInput = pytest.importorskip("isaacteleop.retargeting_engine.interface").ValueInput
 
-    def test_rebase_translation(self, identity_4x4: np.ndarray):
-        """Rebasing by a pure translation offsets the origin."""
-        target_T_world = np.eye(4, dtype=np.float32)
-        target_T_world[:3, 3] = [10.0, 20.0, 30.0]
+    lifecycle = object.__new__(TeleopSessionLifecycle)
+    lifecycle._session = MagicMock()
+    lifecycle._session.has_external_inputs.return_value = True
+    lifecycle._session.get_external_input_specs.return_value = [TeleopSessionLifecycle.WORLD_T_ANCHOR_INPUT_NAME]
 
-        world_T_anchor = np.eye(4, dtype=np.float32)
-        world_T_anchor[:3, 3] = [1.0, 2.0, 3.0]
+    world_T_anchor = np.eye(4, dtype=np.float32)
+    world_T_anchor[:3, 3] = [1.0, 0.0, 0.0]
 
-        result = _to_numpy_4x4(target_T_world) @ world_T_anchor
-        np.testing.assert_array_almost_equal(result[:3, 3], [11.0, 22.0, 33.0])
+    external_inputs = lifecycle._build_external_inputs(lambda: world_T_anchor, target_T_world)
+    return np.asarray(external_inputs[TeleopSessionLifecycle.WORLD_T_ANCHOR_INPUT_NAME][ValueInput.VALUE][0])
 
-    def test_rebase_rotation(self, rotation_90z_matrix: np.ndarray):
-        """A 90-deg Z rotation rebase should rotate the anchor translation."""
-        world_T_anchor = np.eye(4, dtype=np.float32)
-        world_T_anchor[:3, 3] = [1.0, 0.0, 0.0]
 
-        result = _to_numpy_4x4(rotation_90z_matrix) @ world_T_anchor
+class TestBuildExternalInputsRebase:
+    def test_target_T_world_left_multiplies_the_anchor(self, rotation_90z_matrix: np.ndarray):
+        """The anchor input becomes ``target_T_world @ world_T_anchor`` (order matters for rotation + translation)."""
+        target_T_world = rotation_90z_matrix.copy()
+        target_T_world[:3, 3] = [10.0, 0.0, 0.0]
 
-        # After 90-deg Z rotation: (1,0,0) -> (0,1,0)
-        np.testing.assert_array_almost_equal(result[:3, 3], [0.0, 1.0, 0.0])
-        # Rotation part should match the 90-deg Z rotation
-        np.testing.assert_array_almost_equal(result[:3, :3], rotation_90z_matrix[:3, :3])
-
-    def test_rebase_with_torch_tensor(self, translation_matrix: np.ndarray):
-        """target_T_world as a torch.Tensor should work identically."""
-        target_T_world = torch.eye(4, dtype=torch.float32)
-        target_T_world[:3, 3] = torch.tensor([5.0, 5.0, 5.0])
-
-        result = _to_numpy_4x4(target_T_world) @ translation_matrix
-
-        expected = np.eye(4, dtype=np.float32)
-        expected[:3, 3] = [6.0, 7.0, 8.0]
-        np.testing.assert_array_almost_equal(result, expected)
-
-    def test_none_target_leaves_anchor_unchanged(self, translation_matrix: np.ndarray):
-        """When target_T_world is None, the calling code should skip multiplication."""
-        target_T_world = None
-        anchor_matrix = translation_matrix.copy()
-
-        if target_T_world is not None:
-            anchor_matrix = _to_numpy_4x4(target_T_world) @ anchor_matrix
-
-        np.testing.assert_array_equal(anchor_matrix, translation_matrix)
-
-    def test_inverse_rebase_recovers_identity(self):
-        """target_T_world = inv(world_T_anchor) should yield identity."""
-        world_T_anchor = np.array(
+        # Rotating the anchor offset (1, 0, 0) by 90 deg about Z gives (0, 1, 0), then the target translation applies.
+        expected = np.array(
             [
-                [0.0, -1.0, 0.0, 3.0],
-                [1.0, 0.0, 0.0, -1.0],
-                [0.0, 0.0, 1.0, 2.0],
+                [0.0, -1.0, 0.0, 10.0],
+                [1.0, 0.0, 0.0, 1.0],
+                [0.0, 0.0, 1.0, 0.0],
                 [0.0, 0.0, 0.0, 1.0],
             ],
             dtype=np.float32,
         )
-        target_T_world = np.linalg.inv(world_T_anchor).astype(np.float32)
+        np.testing.assert_array_almost_equal(_world_T_anchor_input(target_T_world), expected)
 
-        result = _to_numpy_4x4(target_T_world) @ world_T_anchor
-        np.testing.assert_array_almost_equal(result, np.eye(4, dtype=np.float32), decimal=5)
+    def test_none_target_leaves_anchor_unchanged(self):
+        expected = np.eye(4, dtype=np.float32)
+        expected[:3, 3] = [1.0, 0.0, 0.0]
+        np.testing.assert_array_equal(_world_T_anchor_input(None), expected)
 
 
 # ---------------------------------------------------------------------------
-# Config-driven auto-selection tests
+# Config-driven auto-selection in IsaacTeleopDevice.advance()
 # ---------------------------------------------------------------------------
 
-
-def _simulate_advance_selection(
-    target_T_world: np.ndarray | None,
-    target_frame_prim_path: str | None,
-    auto_read_result: np.ndarray | None = None,
-) -> tuple[np.ndarray | None, bool]:
-    """Replicate the auto-selection logic from IsaacTeleopDevice.advance().
-
-    Returns the target_T_world that would be passed to step(), and whether
-    _get_target_frame_T_world would have been called.
-    """
-    auto_read_called = False
-
-    def fake_get_target_frame_T_world():
-        nonlocal auto_read_called
-        auto_read_called = True
-        return auto_read_result
-
-    if target_T_world is None and target_frame_prim_path is not None:
-        target_T_world = fake_get_target_frame_T_world()
-
-    return target_T_world, auto_read_called
+_EXPLICIT = np.diag([2.0, 2.0, 2.0, 1.0]).astype(np.float32)
+_AUTO = np.diag([3.0, 3.0, 3.0, 1.0]).astype(np.float32)
 
 
-class TestConfigDrivenAutoSelection:
-    """Tests for the advance() auto-selection logic between explicit target_T_world
-    and config-driven target_frame_prim_path.
+@pytest.mark.parametrize(
+    ("prim_path", "explicit", "auto_result", "expected", "expect_auto_read"),
+    [
+        pytest.param(None, None, _AUTO, None, False, id="no-config-no-explicit"),
+        pytest.param(None, _EXPLICIT, _AUTO, _EXPLICIT, False, id="explicit-only"),
+        pytest.param("/World/Robot/base_link", None, _AUTO, _AUTO, True, id="config-auto-read"),
+        pytest.param("/World/Robot/base_link", _EXPLICIT, _AUTO, _EXPLICIT, False, id="explicit-overrides-config"),
+        pytest.param("/World/Robot/base_link", None, None, None, True, id="config-read-fails"),
+    ],
+)
+def test_advance_selects_target_frame(prim_path, explicit, auto_result, expected, expect_auto_read):
+    """advance() passes an explicit target_T_world through, else reads the configured prim."""
+    device = object.__new__(IsaacTeleopDevice)
+    device._cfg = SimpleNamespace(target_frame_prim_path=prim_path)
+    device._session_lifecycle = MagicMock()
+    device._session_lifecycle.step.return_value = None
+    device._anchor_manager = MagicMock()
+    device._get_target_frame_T_world = MagicMock(return_value=auto_result)
+    device._dispatch_control_callbacks = lambda: None
 
-    These tests replicate the branching logic from advance() without importing
-    the full IsaacTeleopDevice (which requires Isaac Sim runtime dependencies).
-    """
+    device.advance(target_T_world=explicit)
 
-    def test_no_config_no_explicit_passes_none(self):
-        """When neither config nor explicit target_T_world is set, step() receives None."""
-        result, called = _simulate_advance_selection(target_T_world=None, target_frame_prim_path=None)
-        assert result is None
-        assert not called
-
-    def test_explicit_target_is_passed_through(self):
-        """An explicit target_T_world should be passed directly to step()."""
-        explicit = np.eye(4, dtype=np.float32)
-        explicit[:3, 3] = [1.0, 2.0, 3.0]
-
-        result, called = _simulate_advance_selection(target_T_world=explicit, target_frame_prim_path=None)
-        np.testing.assert_array_equal(result, explicit)
-        assert not called
-
-    def test_config_prim_triggers_auto_read(self):
-        """When target_frame_prim_path is set, _get_target_frame_T_world is called."""
-        auto_matrix = np.eye(4, dtype=np.float32)
-        auto_matrix[:3, 3] = [9.0, 8.0, 7.0]
-
-        result, called = _simulate_advance_selection(
-            target_T_world=None,
-            target_frame_prim_path="/World/Robot/base_link",
-            auto_read_result=auto_matrix,
-        )
-        assert called
-        np.testing.assert_array_equal(result, auto_matrix)
-
-    def test_explicit_overrides_config(self):
-        """An explicit target_T_world takes precedence over config prim path."""
-        explicit = np.eye(4, dtype=np.float32)
-        explicit[:3, 3] = [42.0, 0.0, 0.0]
-
-        result, called = _simulate_advance_selection(
-            target_T_world=explicit,
-            target_frame_prim_path="/World/Robot/base_link",
-            auto_read_result=np.eye(4, dtype=np.float32),
-        )
-        assert not called
-        np.testing.assert_array_equal(result, explicit)
-
-    def test_config_prim_returns_none_passes_none(self):
-        """If the prim read fails (returns None), step() receives None."""
-        result, called = _simulate_advance_selection(
-            target_T_world=None,
-            target_frame_prim_path="/World/Robot/base_link",
-            auto_read_result=None,
-        )
-        assert called
-        assert result is None
+    assert device._get_target_frame_T_world.called is expect_auto_read
+    step_kwargs = device._session_lifecycle.step.call_args.kwargs
+    assert step_kwargs["anchor_world_matrix_fn"] is device._anchor_manager.get_world_matrix
+    assert step_kwargs["target_T_world"] is expected

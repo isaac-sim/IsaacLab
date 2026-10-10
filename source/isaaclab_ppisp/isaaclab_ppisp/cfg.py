@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import field
 from typing import Any
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
 """Namespace prefix for authoritative PPISP attributes authored on a USD camera."""

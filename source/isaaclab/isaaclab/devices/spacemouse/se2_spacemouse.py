@@ -16,8 +16,7 @@ import hid
 import numpy as np
 import torch
 
-from isaaclab.utils.array import convert_to_torch
-
+from ...utils.array import convert_to_torch
 from ..device_base import DeviceBase
 from .utils import convert_buffer, describe_open_failure, device_not_found_message, resolve_device_name
 
@@ -53,6 +52,8 @@ class Se2SpaceMouse(DeviceBase):
         Args:
             cfg: Configuration for the spacemouse device.
         """
+        # listener thread, started once the device is found
+        self._thread = None
         # store inputs
         self.v_x_sensitivity = cfg.v_x_sensitivity
         self.v_y_sensitivity = cfg.v_y_sensitivity
@@ -64,7 +65,7 @@ class Se2SpaceMouse(DeviceBase):
         # command buffers
         self._base_command = np.zeros(3)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
         # run a thread for listening to device updates
         self._thread = threading.Thread(target=self._run_device)
         self._thread.daemon = True
@@ -72,7 +73,8 @@ class Se2SpaceMouse(DeviceBase):
 
     def __del__(self):
         """Destructor for the class."""
-        self._thread.join()
+        if self._thread is not None:
+            self._thread.join()
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""

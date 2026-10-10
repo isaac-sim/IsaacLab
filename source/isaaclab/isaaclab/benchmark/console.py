@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from isaaclab.benchmark.schema import MeanStd, RuntimeBundle, StartupBundle, TrainingBundle
+    from .schema import MeanStd, RuntimeBundle, StartupBundle, TrainingBundle
 
 _WIDTH = 64
 """Total width of the report block."""

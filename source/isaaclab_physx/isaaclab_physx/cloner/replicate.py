@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -14,6 +14,7 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab import cloner
+from isaaclab.sim import SimulationContext
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -24,121 +25,30 @@ class PhysxReplicateContext:
 
     replicate_priority = 0
 
-    def __init__(self, stage: Usd.Stage):
-        """Initialize the context.
+    def __init__(self, sim: SimulationContext):
+        self.stage = sim.stage
 
-        Args:
-            stage: USD stage to register with the PhysX replicator.
-        """
-        self.stage = stage
-        cache = UsdUtils.StageCache.Get()
-        cached_id = cache.GetId(stage)
-        self._stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
-
-    def replicate(self, plan: ClonePlan) -> None:
-        """Register the PhysX replicator for this context's plan rows.
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Register the PhysX replicator for this context's source declarations.
 
         Args:
             plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to PhysX.
         """
-        if plan.env_ids is None:
-            raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
-        native_rows = set(rows)
-        other_rows = {
-            row for context, routed in plan.context_rows.items() if context is not type(self) for row in routed
-        }
-        self._replicate_mapping(
-            sources=tuple(plan.sources[row] for row in rows),
-            destinations=tuple(plan.destinations[row] for row in rows),
-            env_ids=plan.env_ids,
-            mapping=plan.clone_mask[list(rows)],
-            has_usd_only_rows=bool(other_rows - native_rows),
-            exclude_self_replication=True,
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
         )
-
-    def _replicate_mapping(
-        self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
-        env_ids: np.ndarray,
-        mapping: np.ndarray,
-        has_usd_only_rows: bool,
-        exclude_self_replication: bool,
-    ) -> None:
-        """Register one raw source-to-environment mapping with PhysX."""
-        physx_queue: list[tuple[str, str, tuple[int, ...]]] = []
-
-        expected_shape = (len(sources), len(env_ids))
-        if mapping.shape != expected_shape:
-            raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
-        if mapping.shape[1] <= 1:
-            return
-
-        native_paths: list[str] = []
-
-        for i, src in enumerate(sources):
-            worlds = tuple(map(int, env_ids[np.flatnonzero(mapping[i])]))
-            if has_usd_only_rows:
-                native_paths.append(src)
-                native_paths.extend(destinations[i].format(world) for world in worlds)
-            if exclude_self_replication:
-                matched = cloner.path.match(src, destinations[i])
-                if matched is not None and matched.instance.isdigit():
-                    filtered = tuple(world for world in worlds if world != int(matched.instance))
-                    worlds = filtered if filtered else worlds
-            physx_queue.append((src, destinations[i], worlds))
-
-        # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
-        # environment (no cross-env replication needed). Calling rep.replicate() once
-        # per source with a single self-target is known to trigger intermittent native
-        # heap corruption (double-free / SIGABRT) under mGPU, likely due to per-call
-        # PhysX-internal allocations summing to a problematic total across processes.
-        # For these layouts the source prims are already in their correct env positions
-        # and PhysX can parse them from the stage without any replicator registration.
-        if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
-            return
-
-        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
-        if physics_scene_prim.IsValid():
-            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-
-        current_worlds: list[int] = []
-        current_template: str = ""
-        prefixes = [cloner.path.split(destination)[0] for destination in destinations]
-        env_namespaces = [
-            prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes
-        ]
-        excluded_paths = (
-            list(dict.fromkeys(native_paths))
-            if has_usd_only_rows
-            else list(dict.fromkeys(("/World/template", *env_namespaces)))
-        )
-
-        def attach_fn(_stage_id: int):
-            return excluded_paths
-
-        def rename_fn(_replicate_path: str, i: int):
-            return current_template.format(current_worlds[i])
-
-        def attach_end_fn(_stage_id: int):
-            nonlocal current_template
-            replicator = get_physx_replicator_interface()
-            for src, destination, target_envs in physx_queue:
-                current_template = destination
-                current_worlds[:] = target_envs
-                if not current_worlds:
-                    continue
-                replicator.replicate(
-                    _stage_id,
-                    src,
-                    len(current_worlds),
-                    useEnvIds=False,
-                    useFabricForReplication=False,
-                )
-            replicator.unregister_replicator(_stage_id)
-
-        get_physx_replicator_interface().register_replicator(self._stage_id, attach_fn, attach_end_fn, rename_fn)
+        copies = {}
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            for index in range(*starts[group : group + 2]):
+                if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                    copies.setdefault((sources[asset], templates[index]), []).append(targets)
+        copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
+        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        usd_only = any(i not in asset_prototype_ids for i, source in enumerate(sources) if source is not None)
+        _replicate_instances(self.stage, copies, env_ids, usd_only, exclude_self_replication=True)
 
 
 def physx_replicate(
@@ -164,12 +74,75 @@ def physx_replicate(
         exclude_self_replication: Whether to omit a source environment from its own targets.
     """
     del positions, quaternions
-    context = PhysxReplicateContext(stage)
-    context._replicate_mapping(
-        sources=sources,
-        destinations=destinations,
-        env_ids=env_ids,
-        mapping=mapping,
-        has_usd_only_rows=False,
-        exclude_self_replication=exclude_self_replication,
+    expected_shape = (len(sources), len(env_ids))
+    if mapping.shape != expected_shape:
+        raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
+    pairs = zip(sources, destinations, strict=True)
+    copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
+    options = dict(has_usd_only_sources=False, exclude_self_replication=exclude_self_replication)
+    _replicate_instances(stage, copies, env_ids, **options)
+
+
+def _replicate_instances(
+    stage: Usd.Stage,
+    copies: Iterable[tuple[tuple[str, str], np.ndarray]],
+    env_ids: np.ndarray,
+    has_usd_only_sources: bool,
+    exclude_self_replication: bool,
+) -> None:
+    """Register the selected native instance groups with PhysX."""
+    cache = UsdUtils.StageCache.Get()
+    cached_id = cache.GetId(stage)
+    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
+    physx_queue: list[tuple[str, str, tuple[int, ...]]] = []
+    if len(env_ids) <= 1:
+        return
+
+    native_paths: list[str] = []
+
+    for (src, destination), world_ids in copies:
+        if not len(world_ids) or world_ids[0] == -1:
+            continue
+        worlds = tuple(map(int, env_ids[world_ids]))
+        if has_usd_only_sources:
+            native_paths.append(src)
+            native_paths.extend(destination.format(world) for world in worlds)
+        if exclude_self_replication:
+            matched = cloner.path.match(src, destination)
+            if matched is not None and matched.instance.isdigit():
+                worlds = tuple(world for world in worlds if world != int(matched.instance)) or worlds
+        physx_queue.append((src, destination, worlds))
+
+    # Self-only layouts already exist in USD. Skip registration: one native self-copy per
+    # source has triggered intermittent heap corruption in multi-GPU runs.
+    if all(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
+        return
+
+    physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
+    if physics_scene_prim.IsValid():
+        physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
+
+    current_worlds: tuple[int, ...] = ()
+    current_template: str = ""
+    prefixes = [destination.partition("{}")[0] for _, destination, _ in physx_queue]
+    env_namespaces = [prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes]
+    excluded_paths = (
+        list(dict.fromkeys(native_paths))
+        if has_usd_only_sources
+        else list(dict.fromkeys(("/World/template", *env_namespaces)))
     )
+
+    def attach_fn(_stage_id: int):
+        return excluded_paths
+
+    def rename_fn(_replicate_path: str, i: int):
+        return current_template.format(current_worlds[i])
+
+    def attach_end_fn(_stage_id: int):
+        nonlocal current_template, current_worlds
+        replicator = get_physx_replicator_interface()
+        for src, current_template, current_worlds in physx_queue:
+            replicator.replicate(_stage_id, src, len(current_worlds), useEnvIds=False, useFabricForReplication=False)
+        replicator.unregister_replicator(_stage_id)
+
+    get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)

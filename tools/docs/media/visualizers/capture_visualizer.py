@@ -53,6 +53,11 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
+from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.rerun import RerunVisualizerCfg
+from isaaclab_visualizers.viser import ViserVisualizerCfg
+from PIL import Image
 
 from pxr import Gf, Sdf, UsdShade
 
@@ -64,7 +69,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -97,6 +102,11 @@ _HEADLESS_FALLBACK_ARGS = [
 ]
 
 _CROPDETECT_RE = re.compile(r"crop=(\d+):(\d+):(\d+):(\d+)")
+
+
+def _private_work_dir(prefix: str) -> Path:
+    """Create a caller-private temporary work directory."""
+    return Path(tempfile.mkdtemp(prefix=f"{prefix}-"))
 
 
 def headless(windowed_env_var: str) -> bool:
@@ -297,8 +307,7 @@ def record_windowed(
 
     out_mp4_path = Path(out_mp4)
     out_mp4_path.parent.mkdir(parents=True, exist_ok=True)
-    work_dir = Path("/tmp/capture_window") / viz
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_window")
     log_path = work_dir / "play.log"
 
     cmd = [
@@ -452,16 +461,22 @@ def record_windowed(
 _HERO_TASK = "Isaac-Velocity-Flat-AnymalD"
 
 # Streaming/tiled follow-camera (Kit): same offset/target as the tiled-camera tutorial
-# (scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py), zoomed in further.
+# (scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py), zoomed in further, then
+# pulled back another 25% (matching the 1/0.8 pull-back below) since Kit's streaming-camera FOV
+# renders the robot noticeably larger than Newton GL/RTX at the same eye distance.
 _HERO_STREAMING_TARGET_PRIM = "/World/envs/*/Robot/base"
-_HERO_STREAMING_EYE = (1.98, 1.98, 1.8)
-# Per-step follow-camera (Kit windowed, Newton GL): same offset as the streaming clip.
-_HERO_FOLLOW_EYE_OFFSET = _HERO_STREAMING_EYE
+_HERO_KIT_EYE_OFFSET = (2.48, 2.48, 2.25)
+# Per-step follow-camera (Newton GL only -- Kit uses _HERO_KIT_EYE_OFFSET for both its headless
+# streaming-view and windowed capture paths, since its streaming-camera FOV needs a different
+# distance than Newton GL to frame the same apparent robot size).
+_HERO_FOLLOW_EYE_OFFSET = (1.98, 1.98, 1.8)
 # Newton RTX/Rerun/Viser framed closer than Kit/Newton GL: their panels leave more empty
 # space around the robot at the shared offset above. Newton RTX framed a bit further back
-# than Rerun/Viser, whose tighter framing looked too tight for RTX at the same offset.
-_HERO_RTX_FOLLOW_EYE_OFFSET = (1.4, 1.4, 1.28)
-_HERO_BROWSER_FOLLOW_EYE_OFFSET = (1.0, 1.0, 0.91)
+# than Rerun/Viser, whose tighter framing looked too tight for RTX at the same offset. Newton
+# RTX and Rerun are then pulled back another 25% (~1/0.8) to shrink their apparent robot size by
+# ~20%, matching Newton GL/Viser -- Kit gets the same treatment via _HERO_KIT_EYE_OFFSET above.
+_HERO_RTX_FOLLOW_EYE_OFFSET = (1.75, 1.75, 1.6)
+_HERO_BROWSER_FOLLOW_EYE_OFFSET = (1.25, 1.25, 1.14)
 _HERO_VISER_FOLLOW_EYE_OFFSET = (0.8, 0.8, 0.73)
 # Narrows Newton GL/RTX's FOV to match Kit's streaming-camera framing at this eye distance;
 # no effect on Rerun (no FOV field) or Viser (already matches at the default 12mm).
@@ -478,9 +493,9 @@ _HERO_SKY_LOWER_COLOR = (0.15, 0.80, 0.65)
 # Kit/Newton GL/Newton RTX sources for the standard VideoRecorderCfg path (see
 # _hero_configure_capture); Rerun/Viser are captured separately via headless-browser recording.
 _HERO_SOURCE_BY_VISUALIZER = {
-    "kit": "visualizer:kit:streaming_view",
-    "newton_gl": "visualizer:newton_gl",
-    "newton_rtx": "visualizer:newton_rtx",
+    "kit": "viz:kit:streaming_view",
+    "newton_gl": "viz:newton_gl",
+    "newton_rtx": "viz:newton_rtx",
 }
 
 # Driven by the per-step _follow_camera event rather than streaming_cam_target_prim_path.
@@ -589,6 +604,8 @@ def _follow_camera(env, env_ids) -> None:
             offset = _HERO_VISER_FOLLOW_EYE_OFFSET
         elif visualizer_name == "NewtonRTXVisualizer":
             offset = _HERO_RTX_FOLLOW_EYE_OFFSET
+        elif visualizer_name == "KitVisualizer":
+            offset = _HERO_KIT_EYE_OFFSET
         else:
             offset = _HERO_FOLLOW_EYE_OFFSET
         eye = (target[0] + offset[0], target[1] + offset[1], target[2] + offset[2])
@@ -601,8 +618,6 @@ def _hero_headless() -> bool:
 
 
 def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
     if _hero_headless():
         # streaming_cam_target_prim_path follows the robot via a separate "Streaming View"
         # panel, captured through the standard VideoRecorderCfg path.
@@ -613,7 +628,7 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
             streaming_view=True,
             streaming_envs=1,
             streaming_cam_target_prim_path=_HERO_STREAMING_TARGET_PRIM,
-            streaming_cam_eye=_HERO_STREAMING_EYE,
+            streaming_cam_eye=_HERO_KIT_EYE_OFFSET,
             enable_markers=True,
         )
     # Windowed capture records the "Viewport" tab, not "Streaming View", so it follows via
@@ -623,15 +638,13 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
         window_width=_HERO_WINDOW_WIDTH,
         window_height=_HERO_WINDOW_HEIGHT,
         streaming_view=False,
-        eye=_HERO_FOLLOW_EYE_OFFSET,
+        eye=_HERO_KIT_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         enable_markers=True,
     )
 
 
 def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
     # No streaming_view: markers aren't drawn into that camera sensor (see module docstring).
     # eye/lookat seed the initial pose before _follow_camera takes over.
     return NewtonGLVisualizerCfg(
@@ -648,8 +661,6 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
     # No streaming_view: unusable for kitless RTX (see module docstring). Markers are
     # unsupported on this backend regardless of enable_markers (hard-blocked for the kitless
     # viewer).
@@ -667,15 +678,11 @@ def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_rerun_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.rerun import RerunVisualizerCfg
-
     # No streaming_view: captures its own native 3D view (see module docstring).
     return RerunVisualizerCfg(eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True)
 
 
 def _hero_make_viser_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.viser import ViserVisualizerCfg
-
     # Same switch to native-view capture as Rerun; see _hero_make_rerun_visualizer_cfg().
     return ViserVisualizerCfg(eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True)
 
@@ -719,7 +726,7 @@ def configure_playback_hero() -> list[str]:
 def _hero_configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
     """Attach the requested visualizer and video recorder to the AnymalD flat config."""
     # Read the visualizer selection from HERO_VISUALIZER, not --viz off sys.argv: by the time
-    # __post_init__ runs, rsl_rl has already rewritten sys.argv and AppLauncher's parser has
+    # __post_init__ runs, rsl_rl has already rewritten sys.argv and the launcher's parser has
     # consumed --viz.
     visualizer = os.environ.get("HERO_VISUALIZER")
     if visualizer != "combined" and visualizer not in _HERO_VISUALIZER_BUILDERS:
@@ -836,8 +843,7 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
     if "DISPLAY" not in os.environ and not args.force_headless:
         os.environ["DISPLAY"] = ":0"
 
-    work_dir = Path("/tmp/capture_tile_combined")
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_tile_combined")
     log_path = work_dir / "play.log"
     video_dir = work_dir / "video"
     video_dir.mkdir(exist_ok=True)
@@ -859,8 +865,8 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
         args.task,
         "--checkpoint",
         "pretrained",
-        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: SimulationContext
-        # ._resolve_visualizer_cfgs() filters to only the CLI-requested types otherwise.
+        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: launch_simulation
+        # keeps only the CLI-requested types otherwise.
         "--num_envs",
         "1",
         "--viz",
@@ -1191,7 +1197,7 @@ def _hero_calibrate_combined(script_dir: Path, repo_root: Path, work_dir: Path, 
     window close to the real production duration (settle + record) captures the same
     sustained-load behavior.
     """
-    log = Path("/tmp/capture_tile_combined/play.log")
+    log = work_dir / "play.log"
     log.unlink(missing_ok=True)
     combined_cli_args = [
         str(repo_root),
@@ -1323,7 +1329,12 @@ def _main_hero(seed: int = 42) -> None:
                 "-i",
                 str(newton_gl_raw),
                 "-filter:v",
-                f"setpts=PTS/{newton_gl_speedup}",
+                # Matches the crop=iw:ih-20:0:10 the other 4 hero clips already get in
+                # _hero_record_visualizer()/_run_combined_capture() -- a small fixed trim, not
+                # the full robot-framing zoom (that lives in the .viz-crop-newton-gl CSS rule in
+                # visualization.rst). Without even this much, Newton GL's raw capture is 20px
+                # taller than the rest, throwing off that CSS crop's framing.
+                f"setpts=PTS/{newton_gl_speedup},crop=iw:ih-20:0:10",
                 "-c:v",
                 "libx264",
                 "-preset",
@@ -1404,8 +1415,6 @@ def _showcase_headless() -> bool:
 
 
 def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
     return KitVisualizerCfg(
         headless=_showcase_headless(),
         window_width=_SHOWCASE_WINDOW_WIDTH,
@@ -1417,8 +1426,6 @@ def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
     # streaming_view defaults to True; this showcase only wants the interactive camera.
     return NewtonGLVisualizerCfg(
         headless=_showcase_headless(),
@@ -1432,8 +1439,6 @@ def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
-
     # Markers are hard-blocked in NewtonRTXVisualizer for the kitless viewer.
     return NewtonRTXVisualizerCfg(
         headless=_showcase_headless(),
@@ -1446,8 +1451,6 @@ def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_rerun_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.rerun import RerunVisualizerCfg
-
     # Live plots disabled: not useful in a short clip, and adds overhead to an already
     # browser-bottlenecked capture.
     return RerunVisualizerCfg(
@@ -1456,8 +1459,6 @@ def _showcase_make_rerun_visualizer_cfg() -> VisualizerCfg:
 
 
 def _showcase_make_viser_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.viser import ViserVisualizerCfg
-
     return ViserVisualizerCfg(
         eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE, lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT, enable_markers=True
     )
@@ -1472,9 +1473,9 @@ _SHOWCASE_VISUALIZER_BUILDERS = {
 }
 
 _SHOWCASE_SOURCE_BY_VISUALIZER = {
-    "kit": "visualizer:kit",
-    "newton_gl": "visualizer:newton_gl",
-    "newton_rtx": "visualizer:newton_rtx",
+    "kit": "viz:kit",
+    "newton_gl": "viz:newton_gl",
+    "newton_rtx": "viz:newton_rtx",
 }
 
 
@@ -1896,8 +1897,7 @@ def record_showcase_browser(
         os.environ["DISPLAY"] = ":0"
 
     out_mp4 = output_dir / filename
-    work_dir = Path("/tmp/capture_browser") / visualizer
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_browser")
     log_path = work_dir / "play.log"
     video_dir = work_dir / "video"
     video_dir.mkdir(exist_ok=True)
@@ -2012,8 +2012,6 @@ def record_showcase_browser(
 
 
 def _showcase_open_image(png_bytes: bytes):
-    from PIL import Image
-
     return Image.open(io.BytesIO(png_bytes))
 
 
@@ -2024,8 +2022,7 @@ def _main_showcase(num_envs: int = 512, skip: list[str] | None = None) -> None:
     script_dir = str(Path(__file__).resolve().parent)
     repo_root = str(Path(script_dir).parents[3])
     output_dir = Path(repo_root) / "docs/source/_static/visualizers"
-    work_dir = Path("/tmp/capture_visualizer_showcase_work")
-    work_dir.mkdir(parents=True, exist_ok=True)
+    work_dir = _private_work_dir("capture_visualizer_showcase_work")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2215,8 +2212,6 @@ def _streaming_headless() -> bool:
 
 
 def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
-    from isaaclab_visualizers.kit import KitVisualizerCfg
-
     return KitVisualizerCfg(
         headless=_streaming_headless(),
         window_width=_STREAMING_WINDOW_WIDTH,
@@ -2299,8 +2294,6 @@ def _streaming_resolve_env_regex_path(prim_path: str) -> str:
 
 def _streaming_make_newton_gl_visualizer_cfg(env_cfg):
     """Matches run_tiled_camera_visualizer.py's _make_newton_visualizer_cfg for this task."""
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
     cfg = NewtonGLVisualizerCfg()
     cfg.streaming_view = True
     cfg.streaming_envs = _STREAMING_NEWTON_GL_STREAMING_ENVS
@@ -2462,8 +2455,7 @@ def _streaming_newton_gl_worker_main(argv: list[str]) -> None:
         print("settle complete", flush=True)
         window_id = find_window(disp, args_cli.window_title, args_cli.find_timeout_s)
 
-        work_dir = Path("/tmp/capture_visualizer_streaming_newton_gl")
-        work_dir.mkdir(parents=True, exist_ok=True)
+        work_dir = _private_work_dir("capture_visualizer_streaming_newton_gl")
 
         # Streaming panel left hidden for the interactive segment.
         interactive_webm = work_dir / "interactive.webm"

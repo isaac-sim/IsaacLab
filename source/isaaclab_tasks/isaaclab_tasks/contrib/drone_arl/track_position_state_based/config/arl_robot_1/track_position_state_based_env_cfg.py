@@ -18,8 +18,8 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 from isaaclab_contrib.assets import MultirotorCfg
@@ -229,10 +229,12 @@ class TrackPositionNoObstaclesEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.01
         self.sim.render_interval = self.decimation
-        self.sim.physics_material = sim_utils.RigidBodyMaterialCfg(
+        self.sim.physics_material = sim_utils.PhysxRigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
         )
         self.sim.physics = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+        # ThrusterCfg is implemented in Isaac Lab and has no Newton-native execution path.
+        self.sim.use_newton_actuators = False

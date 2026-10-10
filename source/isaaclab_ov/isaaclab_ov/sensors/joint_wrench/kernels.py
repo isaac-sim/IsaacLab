@@ -11,20 +11,17 @@ def joint_wrench_split_kernel(
     # inputs
     env_mask: wp.array(dtype=wp.bool),
     incoming_joint_wrench: wp.array(dtype=wp.spatial_vectorf, ndim=2),
-    joint_pos_b: wp.array(dtype=wp.vec3f),
-    joint_quat_b: wp.array(dtype=wp.quatf),
     timestamp: wp.array(dtype=wp.float32),
     # outputs
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
     out_torque: wp.array(dtype=wp.vec3f, ndim=2),
 ):
-    """Convert OVPhysX incoming joint spatial wrenches into the child-side joint frame.
+    """Split OVPhysX wrenches, already expressed at the child-side joint anchor in its frame.
 
     Args:
         env_mask: Boolean mask selecting which environments to update.
-        incoming_joint_wrench: Incoming joint spatial wrenches in child body frame ``(num_envs, num_bodies)``.
-        joint_pos_b: Child-side joint anchor positions in child body frame [m] ``(num_bodies,)``.
-        joint_quat_b: Child-side joint frame orientations in child body frame ``(num_bodies,)``.
+        incoming_joint_wrench: Incoming joint spatial wrenches in the child-side joint frame, referenced at the
+            joint anchor ``(num_envs, num_bodies)``.
         timestamp: Current sensor timestamp per environment [s] ``(num_envs,)``.
         out_force: Output force in child-side joint frame [N] ``(num_envs, num_bodies)``.
         out_torque: Output torque in child-side joint frame [N·m] ``(num_envs, num_bodies)``.
@@ -39,15 +36,8 @@ def joint_wrench_split_kernel(
         return
 
     wrench = incoming_joint_wrench[env, body]
-    force_b = wp.spatial_top(wrench)
-    torque_b = wp.spatial_bottom(wrench)
-
-    # OVPhysX wraps PhysX and reports the wrench in body1's frame, referenced at body1's origin.
-    # Shift torque to the child-side joint anchor and rotate both components
-    # into the child-side joint frame.
-    torque_joint_anchor_b = torque_b - wp.cross(joint_pos_b[body], force_b)
-    out_force[env, body] = wp.quat_rotate_inv(joint_quat_b[body], force_b)
-    out_torque[env, body] = wp.quat_rotate_inv(joint_quat_b[body], torque_joint_anchor_b)
+    out_force[env, body] = wp.spatial_top(wrench)
+    out_torque[env, body] = wp.spatial_bottom(wrench)
 
 
 @wp.kernel

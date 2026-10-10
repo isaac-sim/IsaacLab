@@ -55,8 +55,6 @@ def start_stop_docker(profile, suffix):
     [
         ("base", ""),
         ("base", "test"),
-        ("ros2", ""),
-        ("ros2", "test"),
     ],
 )
 def test_docker_profiles(profile, suffix):

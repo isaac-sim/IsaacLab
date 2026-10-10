@@ -7,15 +7,20 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import pkgutil
 import subprocess
 import sys
 import textwrap
+import types
 from pathlib import Path
 
 import gymnasium as gym
 import pytest
 import tomllib
+import torch
+
+from isaaclab.utils import editor as editor_utils
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 TEMPLATE_TOOL_DIR = ROOT_DIR / "tools" / "template"
@@ -169,6 +174,12 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
 
     generate(specification)
 
+    if not external:
+        # generated internal task families are importable packages
+        task_family = _task_folder(project_name, "single-agent")
+        discovered = {info.name for info in pkgutil.iter_modules([str(root_dir)]) if info.ispkg}
+        assert {task_family, f"{task_family}_direct"} <= discovered
+
     for workflow_name in ["manager-based", "direct"]:
         workflow_type = "single-agent"
         task_id = _task_id(project_name, workflow_name, workflow_type, external)
@@ -184,10 +195,7 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         env_filename = "env" if external else f"{task_folder}_env"
         env_cfg_filename = "env_cfg" if external else f"{task_folder}_env_cfg"
 
-        if workflow_name == "direct":
-            assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
-        else:
-            assert spec.entry_point == "isaaclab.envs:ManagerBasedRLEnv"
+        assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
 
         assert spec.kwargs["env_cfg_entry_point"] == f"{module_name}.{env_cfg_filename}:{task_class}EnvCfg"
         assert spec.kwargs["rl_games_cfg_entry_point"] == f"{agents_module}:rl_games_ppo_cfg.yaml"
@@ -201,12 +209,78 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         assert spec.kwargs["sb3_cfg_entry_point"] == f"{agents_module}:sb3_ppo_cfg.yaml"
         assert "skrl_ppo_cfg_entry_point" not in spec.kwargs
 
+        if workflow_name == "manager-based":
+            env_source = (task_dir / f"{env_filename}.py").read_text()
+            env_cfg_source = (task_dir / f"{env_cfg_filename}.py").read_text()
+            assert "self.amp_observation_space = spaces.Box" in env_source
+            assert "def collect_reference_motions(" in env_source
+            assert "compute_final_obs = True" in env_cfg_source
+
         _unregister(task_id)
+
+
+@pytest.mark.parametrize("initial_content", ["cartpole", "stubbed"])
+def test_generated_manager_amp_environment_preserves_terminal_observations(tmp_path, initial_content):
+    """AMP transitions must end with the terminal observation before same-step autoreset."""
+    specification = {
+        "external": True,
+        "name": "test",
+        "task_name": "test",
+        "initial_content": initial_content,
+        "workflows": [{"name": "manager-based", "type": "single-agent"}],
+        "rl_libraries": [{"name": "skrl", "algorithms": ["amp"]}],
+    }
+    generated = generator._generate_tasks(specification, str(tmp_path))
+    task = generated[0]["task"]
+    env_source = (Path(task["dir"]) / f"{task['env_filename']}.py").read_text()
+    module = ast.parse(env_source)
+    env_class_node = next(node for node in module.body if isinstance(node, ast.ClassDef))
+
+    class FakeManagerBasedRLEnv:
+        def step(self, action):
+            return self.step_return
+
+    namespace = {
+        "ManagerBasedRLEnv": FakeManagerBasedRLEnv,
+        "torch": torch,
+    }
+    future_import = next(
+        node for node in module.body if isinstance(node, ast.ImportFrom) and node.module == "__future__"
+    )
+    exec(
+        compile(ast.Module(body=[future_import, env_class_node], type_ignores=[]), "<generated-env>", "exec"),
+        namespace,
+    )
+    env_class = namespace["TestEnv"]
+    env = object.__new__(env_class)
+    env.cfg = types.SimpleNamespace(num_amp_observations=2)
+    env.num_envs = 2
+    env.amp_observation_size = 4
+    env.amp_observation_buffer = torch.tensor([[[1.0, 10.0], [0.0, 9.0]], [[2.0, 20.0], [0.0, 19.0]]])
+    observations = {"policy": torch.tensor([[100.0, 1000.0], [4.0, 40.0]])}
+    extras = {"final_obs": {"policy": torch.tensor([[3.0, 30.0], [4.0, 40.0]])}}
+    env.step_return = (
+        observations,
+        torch.zeros(2),
+        torch.tensor([True, False]),
+        torch.tensor([False, False]),
+        extras,
+    )
+
+    _, _, _, _, returned_extras = env.step(torch.zeros((2, 1)))
+
+    torch.testing.assert_close(
+        returned_extras["amp_obs"], torch.tensor([[3.0, 30.0, 1.0, 10.0], [4.0, 40.0, 2.0, 20.0]])
+    )
+    torch.testing.assert_close(
+        env.amp_observation_buffer,
+        torch.tensor([[[100.0, 1000.0], [100.0, 1000.0]], [[4.0, 40.0], [2.0, 20.0]]]),
+    )
 
 
 @pytest.mark.parametrize("external", [False, True])
 def test_generator_registers_multi_agent_skrl_config_entry_points(tmp_path, monkeypatch, external):
-    """Generate a multi-agent task and verify skrl IPPO/MAPPO registry keys."""
+    """Mixed projects must register only the SKRL algorithms valid for each workflow."""
     project_name = f"template_multi_{'external' if external else 'internal'}"
     root_dir = tmp_path / ("external_root" if external else "internal_tasks")
     monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
@@ -216,13 +290,40 @@ def test_generator_registers_multi_agent_skrl_config_entry_points(tmp_path, monk
     specification = {
         "external": external,
         "name": project_name,
-        "workflows": [{"name": "direct", "type": "multi-agent"}],
-        "rl_libraries": _MULTI_AGENT_RL_LIBRARIES,
+        "workflows": [
+            {"name": "direct", "type": "single-agent"},
+            {"name": "direct", "type": "multi-agent"},
+        ],
+        "rl_libraries": [{"name": "skrl", "algorithms": ["amp", "ppo", "ippo", "mappo"]}],
     }
     if external:
         specification["path"] = str(root_dir)
 
     generate(specification)
+
+    if external:
+        # generated VS Code launch configs select the matching skrl algorithm
+        launch_config = (root_dir / project_name / ".vscode" / "tools" / "launch.template.json").read_text()
+        assert '"module": "isaaclab"' in launch_config
+        assert "scripts/skrl" not in launch_config
+        for algorithm in ["AMP", "PPO", "IPPO", "MAPPO"]:
+            assert f'"--algorithm", "{algorithm}"' in launch_config
+
+    single_task_id = _task_id(project_name, "direct", "single-agent", external)
+    single_task_dir = _task_dir(root_dir, project_name, "direct", "single-agent", external)
+    _unregister(single_task_id)
+    _load_registration_module(single_task_dir, f"_template_test_{project_name}_single")
+    single_spec = gym.spec(single_task_id)
+    assert single_spec.kwargs["default_agent"] == "skrl"
+    assert single_spec.kwargs["skrl_cfg_entry_point"].endswith(":skrl_ppo_cfg.yaml")
+    assert single_spec.kwargs["skrl_amp_cfg_entry_point"].endswith(":skrl_amp_cfg.yaml")
+    assert "skrl_ippo_cfg_entry_point" not in single_spec.kwargs
+    assert "skrl_mappo_cfg_entry_point" not in single_spec.kwargs
+    assert {path.name for path in (single_task_dir / "agents").glob("skrl_*_cfg.yaml")} == {
+        "skrl_amp_cfg.yaml",
+        "skrl_ppo_cfg.yaml",
+    }
+    _unregister(single_task_id)
 
     task_id = _task_id(project_name, "direct", "multi-agent", external)
     task_dir = _task_dir(root_dir, project_name, "direct", "multi-agent", external)
@@ -239,39 +340,75 @@ def test_generator_registers_multi_agent_skrl_config_entry_points(tmp_path, monk
 
     assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
     assert spec.kwargs["env_cfg_entry_point"] == f"{module_name}.{env_cfg_filename}:{task_class}EnvCfg"
+    assert spec.kwargs["default_agent"] == "skrl"
     assert spec.kwargs["skrl_ippo_cfg_entry_point"] == f"{agents_module}:skrl_ippo_cfg.yaml"
     assert spec.kwargs["skrl_mappo_cfg_entry_point"] == f"{agents_module}:skrl_mappo_cfg.yaml"
-    assert "skrl_cfg_entry_point" not in spec.kwargs
+    assert spec.kwargs["skrl_cfg_entry_point"] == spec.kwargs["skrl_mappo_cfg_entry_point"]
+    assert "skrl_amp_cfg_entry_point" not in spec.kwargs
+    assert {path.name for path in (task_dir / "agents").glob("skrl_*_cfg.yaml")} == {
+        "skrl_ippo_cfg.yaml",
+        "skrl_mappo_cfg.yaml",
+    }
 
     _unregister(task_id)
 
 
-def test_external_launch_configs_pass_skrl_algorithm_for_every_generated_skrl_agent(tmp_path, monkeypatch):
-    """Verify generated VS Code launch configs select the matching skrl algorithm."""
-    project_name = "template_launch_external"
-    root_dir = tmp_path / "external_root"
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-
+@pytest.mark.parametrize(
+    ("library", "requested_algorithm", "algorithm", "workflow_type"),
+    [
+        ("skrl", "AMP", "amp", "single-agent"),
+        ("rsl_rl", "distillation", "distillation", "single-agent"),
+        ("skrl", "ippo", "ippo", "multi-agent"),
+    ],
+)
+def test_generator_registers_sole_non_ppo_algorithm_as_canonical(
+    tmp_path, monkeypatch, library, requested_algorithm, algorithm, workflow_type
+):
+    """A generated task must remain runnable without an explicit algorithm selector."""
+    project_name = f"template_canonical_{algorithm}"
+    root_dir = tmp_path / "internal_tasks"
+    monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
     generate(
         {
-            "external": True,
-            "path": str(root_dir),
+            "external": False,
             "name": project_name,
-            "workflows": [
-                {"name": "direct", "type": "single-agent"},
-                {"name": "direct", "type": "multi-agent"},
-            ],
-            "rl_libraries": [
-                {"name": "skrl", "algorithms": ["amp", "ppo", "ippo", "mappo"]},
-            ],
+            "workflows": [{"name": "direct", "type": workflow_type}],
+            "rl_libraries": [{"name": library, "algorithms": [requested_algorithm]}],
         }
     )
 
-    launch_config = (root_dir / project_name / ".vscode" / "tools" / "launch.template.json").read_text()
-    assert '"module": "isaaclab"' in launch_config
-    assert "scripts/skrl" not in launch_config
-    for algorithm in ["AMP", "PPO", "IPPO", "MAPPO"]:
-        assert f'"--algorithm", "{algorithm}"' in launch_config
+    task_id = _task_id(project_name, "direct", workflow_type, external=False)
+    task_dir = _task_dir(root_dir, project_name, "direct", workflow_type, external=False)
+    _unregister(task_id)
+    _load_registration_module(task_dir, f"_template_test_{project_name}")
+    kwargs = gym.spec(task_id).kwargs
+    assert kwargs["default_agent"] == library
+    assert kwargs[f"{library}_cfg_entry_point"] == kwargs[f"{library}_{algorithm}_cfg_entry_point"]
+    _unregister(task_id)
+
+
+@pytest.mark.parametrize(
+    ("workflow", "algorithm", "error"),
+    [
+        ("direct:single-agent", "bogus", "not supported by the selected workflows"),
+        ("direct:single-agent", "ippo", "not supported by the selected workflows"),
+        ("manager-based:multi-agent", "mappo", "Manager-based workflows only support single-agent tasks"),
+    ],
+)
+def test_generator_rejects_unsupported_workflows_and_algorithms(tmp_path, monkeypatch, workflow, algorithm, error):
+    """Unsupported selections must fail before generating unusable task files."""
+    monkeypatch.setattr(generator, "TASKS_DIR", str(tmp_path))
+    workflow_name, workflow_type = workflow.split(":")
+    with pytest.raises(ValueError, match=error):
+        generate(
+            {
+                "external": False,
+                "name": "template_invalid_algorithm",
+                "workflows": [{"name": workflow_name, "type": workflow_type}],
+                "rl_libraries": [{"name": "skrl", "algorithms": [algorithm]}],
+            }
+        )
+    assert not list(tmp_path.iterdir())
 
 
 def test_external_project_uses_src_layout_and_installed_isaaclab_commands(tmp_path, monkeypatch):
@@ -302,11 +439,87 @@ def test_external_project_uses_src_layout_and_installed_isaaclab_commands(tmp_pa
         "build-backend": "uv_build",
     }
     assert package["project"]["dependencies"] == ["isaaclab[rsl-rl,skrl]"]
+    assert package["tool"]["pyright"] == {
+        "include": ["src", "scripts", "tests"],
+        "exclude": ["**/__pycache__", "**/logs", ".git", ".venv", ".vscode"],
+        "typeCheckingMode": "basic",
+    }
     assert package["project"]["entry-points"]["isaaclab.tasks"] == {project_name: f"{project_name}.tasks"}
     assert package["tool"]["uv"]["build-backend"]["module-name"] == project_name
     assert (project_dir / "src" / project_name / "__init__.py").is_file()
     assert not (project_dir / "source").exists()
     assert {path.name for path in (project_dir / "scripts").iterdir()} == {"list_envs.py"}
+    assert "pyrightconfig.json" in (project_dir / ".gitignore").read_text()
+    assert (
+        "python.analysis.extraPaths" not in (project_dir / ".vscode" / "tools" / "settings.template.json").read_text()
+    )
+    assert not (project_dir / ".vscode" / "tools" / "setup_vscode.py").exists()
+    assert "uv run isaaclab --editor" in (project_dir / ".vscode" / "tasks.json").read_text()
+
+
+def test_editor_setup_combines_simulator_local_and_installed_paths(tmp_path, monkeypatch):
+    """The generated Pyright child config must preserve project policy and cover every installation mode."""
+    project_dir = tmp_path / "project"
+    (project_dir / "source" / "local_package").mkdir(parents=True)
+    (project_dir / "src" / "generated_project").mkdir(parents=True)
+    (project_dir / "pyproject.toml").write_text('[tool.pyright]\ntypeCheckingMode = "basic"\n')
+    isaacsim_dir = tmp_path / "isaacsim"
+    (isaacsim_dir / ".vscode").mkdir(parents=True)
+    (isaacsim_dir / ".vscode" / "settings.json").write_text(
+        '{"python.analysis.extraPaths": ["exts/isaacsim.core.api", "extscache/omni.kit.foo"]}'
+    )
+    installed_root = tmp_path / "editable" / "isaaclab"
+    installed_root.mkdir(parents=True)
+
+    monkeypatch.setattr(editor_utils, "find_isaaclab_package_paths", lambda: [installed_root])
+
+    extra_paths = editor_utils.build_extra_paths(project_dir, isaacsim_dir)
+    editor_utils.write_pyright_config(project_dir, extra_paths)
+    config = json.loads((project_dir / "pyrightconfig.json").read_text())
+
+    assert config["extends"] == "./pyproject.toml"
+    assert config["extraPaths"] == [
+        (isaacsim_dir / "exts" / "isaacsim.core.api").as_posix(),
+        (isaacsim_dir / "extscache" / "omni.kit.foo").as_posix(),
+        "source/local_package",
+        "src",
+        installed_root.as_posix(),
+    ]
+
+
+@pytest.mark.parametrize("interpreter", [sys.executable, r"C:\Users\me\.venv\Scripts\python.exe"])
+def test_editor_setup_uses_workspace_templates(tmp_path, monkeypatch, interpreter):
+    """Editor setup must generate valid workspace files without a project-local Python wrapper."""
+    monkeypatch.setattr(sys, "executable", interpreter)
+    project_dir = tmp_path / "project"
+    tools_dir = project_dir / ".vscode" / "tools"
+    tools_dir.mkdir(parents=True)
+    (tools_dir / "settings.template.json").write_text('{"python.defaultInterpreterPath": ""}\n')
+    (tools_dir / "launch.template.json").write_text('{"version": "0.2.0", "configurations": []}\n')
+    isaacsim_dir = tmp_path / "isaacsim"
+    (isaacsim_dir / ".vscode").mkdir(parents=True)
+    (isaacsim_dir / ".vscode" / "settings.json").write_text('{"python.analysis.extraPaths": []}')
+    monkeypatch.setattr(editor_utils, "find_isaaclab_package_paths", lambda: [])
+
+    editor_utils.setup_editor(project_dir, isaac_path=str(isaacsim_dir))
+
+    settings = (project_dir / ".vscode" / "settings.json").read_text()
+    assert "automatically generated by `isaaclab --editor`" in settings
+    settings_json = json.loads("".join(line for line in settings.splitlines() if not line.startswith("//")))
+    assert settings_json["python.defaultInterpreterPath"] == Path(interpreter).as_posix()
+    assert (project_dir / ".vscode" / "launch.json").is_file()
+    assert not (tools_dir / "setup_vscode.py").exists()
+    assert json.loads((project_dir / "pyrightconfig.json").read_text()) == {"extraPaths": []}
+
+
+@pytest.mark.parametrize("path_exists", [False, True])
+def test_editor_setup_rejects_invalid_explicit_isaac_sim_path(tmp_path, path_exists):
+    """An invalid user-selected installation must not silently select a different Isaac Sim."""
+    invalid_path = tmp_path / "invalid"
+    if path_exists:
+        invalid_path.mkdir()
+    with pytest.raises(ValueError, match="Not an Isaac Sim directory"):
+        editor_utils.resolve_isaacsim_dir(tmp_path, str(invalid_path))
 
 
 def _all_libraries() -> list[dict]:
@@ -320,10 +533,9 @@ _FORBIDDEN_RUNTIME_MODULES = {"pxr", "omni", "carb", "isaacsim", "usdrt"}
 
 
 def _top_level_imported_roots(source: str) -> set[str]:
-    """Return the root package names imported UNCONDITIONALLY at module scope.
+    """Return root package names imported directly at module scope.
 
-    Only statements directly in the module body are inspected, so deferred (in-function) and
-    ``if TYPE_CHECKING:`` imports -- the sanctioned way to reference backend modules -- are ignored.
+    Imports inside functions and ``TYPE_CHECKING`` blocks are ignored.
     """
     roots: set[str] = set()
     for node in ast.parse(source).body:
@@ -334,13 +546,22 @@ def _top_level_imported_roots(source: str) -> set[str]:
     return roots
 
 
-@pytest.mark.parametrize("external", [True, False])
-def test_generated_env_modules_have_no_forbidden_top_level_imports(tmp_path, monkeypatch, external):
-    """Generated ``*_env.py`` / ``*_env_cfg.py`` must not import backend runtime modules at module scope.
+@pytest.mark.parametrize(
+    ("external", "initial_content", "amp_selected"),
+    [
+        (True, "cartpole", True),
+        (False, "cartpole", True),
+        (True, "stubbed", True),
+        (True, "stubbed", False),
+    ],
+)
+def test_generated_files_cover_requested_agents_and_compile(
+    tmp_path, monkeypatch, external, initial_content, amp_selected
+):
+    """Generated workflows contain valid agent files and defer runtime imports.
 
-    Config loading runs before ``SimulationApp``; a top-level ``pxr``/``omni``/``carb``/``isaacsim`` import there
-    causes the pre-SimulationApp crashes (e.g. ``free(): invalid pointer``, ``TfNotice`` wrapper not created). This
-    catches such an import being (re)introduced into the env templates; deferred / ``TYPE_CHECKING`` imports are fine.
+    The external Cartpole case is also imported with ``omni``/``pxr`` blocked (NVBug 6251247): the generated package
+    ``__init__`` must stay passive, including when the omni-dependent example UI extension is generated.
     """
     project_name = f"template_imports_{'external' if external else 'internal'}"
     root_dir = tmp_path / ("external_root" if external else "internal_tasks")
@@ -348,178 +569,80 @@ def test_generated_env_modules_have_no_forbidden_top_level_imports(tmp_path, mon
     if not external:
         monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
 
+    robot_name = "so101" if initial_content == "stubbed" else "cartpole"
+    rl_libraries = _all_libraries()
+    if not amp_selected:
+        for library in rl_libraries:
+            library["algorithms"] = [algorithm for algorithm in library["algorithms"] if algorithm != "amp"]
+
     specification = {
         "external": external,
         "name": project_name,
+        "initial_content": initial_content,
         "workflows": [
             {"name": "direct", "type": "single-agent"},
             {"name": "manager-based", "type": "single-agent"},
             {"name": "direct", "type": "multi-agent"},
         ],
-        "rl_libraries": _all_libraries(),
+        "rl_libraries": rl_libraries,
     }
     if external:
         specification["path"] = str(root_dir)
-
-    generate(specification)
-
-    env_modules = [
-        path
-        for path in root_dir.rglob("*.py")
-        if path.name in {"env.py", "env_cfg.py"} or path.name.endswith(("_env.py", "_env_cfg.py"))
-    ]
-    assert env_modules, "generator produced no env modules"
-    for module_file in env_modules:
-        forbidden = _top_level_imported_roots(module_file.read_text()) & _FORBIDDEN_RUNTIME_MODULES
-        assert not forbidden, (
-            f"{module_file} imports {sorted(forbidden)} at module top level (load before SimulationApp)"
-        )
-
-
-def test_each_requested_agent_cfg_file_is_generated(tmp_path, monkeypatch):
-    """Every requested (RL library, algorithm) agent config is generated; a missing template raises, not skips."""
-    project_name = "template_agents"
-    root_dir = tmp_path / "external_root"
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-
-    workflows = [
-        {"name": "direct", "type": "single-agent"},
-        {"name": "manager-based", "type": "single-agent"},
-        {"name": "direct", "type": "multi-agent"},
-    ]
-    generate(
-        {
-            "external": True,
-            "path": str(root_dir),
-            "name": project_name,
-            "workflows": workflows,
-            "rl_libraries": _all_libraries(),
-        }
-    )
-
-    single_libraries = {lib["name"]: lib["algorithms"] for lib in _SINGLE_AGENT_RL_LIBRARIES}
-    multi_libraries = {lib["name"]: lib["algorithms"] for lib in _MULTI_AGENT_RL_LIBRARIES}
-    for workflow in workflows:
-        libraries = multi_libraries if workflow["type"] == "multi-agent" else single_libraries
-        agents_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external=True) / "agents"
-        for library, algorithms in libraries.items():
-            for algorithm in algorithms:
-                extension = ".py" if library == "rsl_rl" else ".yaml"
-                cfg_file = agents_dir / f"{library}_{algorithm}_cfg{extension}"
-                assert cfg_file.exists(), f"missing generated agent config: {cfg_file}"
-
-
-@pytest.mark.parametrize("external", [True, False])
-def test_generated_python_is_syntactically_valid(tmp_path, monkeypatch, external):
-    """Every generated ``.py`` must parse and compile, catching template edits that emit broken Python."""
-    project_name = f"template_syntax_{'external' if external else 'internal'}"
-    root_dir = tmp_path / ("external_root" if external else "internal_tasks")
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-    if not external:
-        monkeypatch.setattr(generator, "TASKS_DIR", str(root_dir))
-
-    specification = {
-        "external": external,
-        "name": project_name,
-        "workflows": [
-            {"name": "direct", "type": "single-agent"},
-            {"name": "manager-based", "type": "single-agent"},
-            {"name": "direct", "type": "multi-agent"},
-        ],
-        "rl_libraries": _all_libraries(),
-    }
-    if external:
-        specification["path"] = str(root_dir)
+        specification["robot_name"] = robot_name
+        specification["include_ui_extension"] = True
 
     generate(specification)
 
     python_files = list(root_dir.rglob("*.py"))
     assert python_files, "generator produced no Python files"
-    for python_file in python_files:
-        source = python_file.read_text()
-        ast.parse(source, filename=str(python_file))
-        compile(source, str(python_file), "exec")
+    for path in python_files:
+        source = path.read_text(encoding="utf-8")
+        compile(source, str(path), "exec")
+        if path.name in {"env.py", "env_cfg.py"} or path.name.endswith(("_env.py", "_env_cfg.py")):
+            forbidden = _top_level_imported_roots(source) & _FORBIDDEN_RUNTIME_MODULES
+            assert not forbidden, f"{path} imports {sorted(forbidden)} before SimulationApp"
 
+    for workflow in specification["workflows"]:
+        libraries = _MULTI_AGENT_RL_LIBRARIES if workflow["type"] == "multi-agent" else _SINGLE_AGENT_RL_LIBRARIES
+        task_dir = _task_dir(root_dir, project_name, workflow["name"], workflow["type"], external).parent / robot_name
+        filename = _task_folder(project_name, workflow["type"], external)
+        env_cfg_filename = "env_cfg.py" if external else f"{filename}_env_cfg.py"
+        env_filename = "env.py" if external else f"{filename}_env.py"
+        assert (task_dir / "__init__.py").is_file()
+        assert (task_dir / env_cfg_filename).is_file()
+        assert (task_dir / env_filename).is_file() == (workflow["name"] == "direct" or amp_selected)
+        if initial_content == "stubbed" and workflow["name"] == "manager-based":
+            mdp_dir = task_dir.parents[1] / "mdp"
+            assert all(
+                (mdp_dir / f"{term}.py").is_file() for term in ("observations", "events", "rewards", "terminations")
+            )
+        agents_dir = task_dir / "agents"
+        expected_files = set()
+        for library in libraries:
+            for algorithm in library["algorithms"]:
+                if algorithm == "amp" and not amp_selected:
+                    continue
+                extension = ".py" if library["name"] == "rsl_rl" else ".yaml"
+                expected_files.add(f"{library['name']}_{algorithm}_cfg{extension}")
+        assert {path.name for path in agents_dir.glob("*_cfg.*")} == expected_files
 
-def test_generated_direct_env_type_checking_import_resolves(tmp_path, monkeypatch):
-    """Generated external direct environments must reference their generated config module for type checking."""
-    project_name = "template_direct_type_checking"
-    root_dir = tmp_path / "external_root"
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-    generate(
-        {
-            "external": True,
-            "path": str(root_dir),
-            "name": project_name,
-            "workflows": [{"name": "direct", "type": "single-agent"}],
-            "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
-        }
-    )
+    if not external or initial_content == "stubbed":
+        return
 
-    env_file = (
-        root_dir / project_name / "src" / project_name / "tasks" / "balance_direct" / "config" / "cartpole" / "env.py"
-    )
-    tree = ast.parse(env_file.read_text())
+    project_dir = root_dir / project_name
+    # external direct environments reference their generated config module for type checking
+    env_file = project_dir / "src" / project_name / "tasks" / "balance_direct" / "config" / "cartpole" / "env.py"
     type_checking_imports = [
         node.module
-        for node in ast.walk(tree)
+        for node in ast.walk(ast.parse(env_file.read_text()))
         if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module is not None
     ]
-
     assert "env_cfg" in type_checking_imports
     assert (env_file.parent / "env_cfg.py").is_file()
 
-
-def test_extension_toml_registers_ui_extension_as_separate_module(tmp_path, monkeypatch):
-    """The UI extension must stay loadable by Kit via its own ``[[python.module]]`` entry now that the package
-    ``__init__`` no longer imports it (so ``import <project>`` stays omni-free). Locks both halves of the fix."""
-    project_name = "template_ui_module"
-    root_dir = tmp_path / "external_root"
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-    generate(
-        {
-            "external": True,
-            "path": str(root_dir),
-            "name": project_name,
-            "include_ui_extension": True,
-            "workflows": [{"name": "direct", "type": "single-agent"}],
-            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo"]}],
-        }
-    )
-    package_dir = root_dir / project_name / "src" / project_name
-    extension_toml = (package_dir.parent.parent / "config" / "extension.toml").read_text()
+    # the UI extension stays loadable by Kit through its own ``[[python.module]]`` entry
+    extension_toml = (project_dir / "config" / "extension.toml").read_text()
     assert f'name = "{project_name}.ui_extension_example"' in extension_toml
-    # the package __init__ must not eagerly import the omni-dependent UI module (a comment mentioning it is fine)
-    init_tree = ast.parse((package_dir / "__init__.py").read_text())
-    imported = [node.module for node in ast.walk(init_tree) if isinstance(node, ast.ImportFrom)]
-    imported += [alias.name for node in ast.walk(init_tree) if isinstance(node, ast.Import) for alias in node.names]
-    assert not any(module and "ui_extension_example" in module for module in imported)
-
-
-def test_generated_package_import_is_omni_and_pxr_free(tmp_path, monkeypatch):
-    """NVBug 6251247: importing a generated project must not pull ``omni``/``pxr`` (headless / pre-SimulationApp).
-
-    The generated package ``__init__`` stays passive; if it imports the example UI extension (``omni.ext``) or any
-    pxr-loading module, ``import <project>`` crashes before Isaac Sim starts. We import it with
-    ``omni``/``pxr`` blocked.
-    """
-    project_name = "template_import_safe"
-    root_dir = tmp_path / "external_root"
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-    generate(
-        {
-            "external": True,
-            "path": str(root_dir),
-            "name": project_name,
-            "workflows": [
-                {"name": "direct", "type": "single-agent"},
-                {"name": "manager-based", "type": "single-agent"},
-                {"name": "direct", "type": "multi-agent"},
-            ],
-            "rl_libraries": _all_libraries(),
-        }
-    )
-    source_dir = root_dir / project_name / "src"
 
     program = textwrap.dedent(
         f"""
@@ -531,7 +654,7 @@ def test_generated_package_import_is_omni_and_pxr_free(tmp_path, monkeypatch):
                     raise ImportError(f"BLOCKED eager import of {{name!r}} at package import time")
                 return None
 
-        sys.path.insert(0, {str(source_dir)!r})
+        sys.path.insert(0, {str(project_dir / "src")!r})
         sys.meta_path.insert(0, _Blocker())
         import {project_name}  # noqa: F401
         print("OK")
@@ -595,30 +718,8 @@ def test_generated_manager_based_env_cfg_resolution_is_omni_and_pxr_free(tmp_pat
     )
 
 
-def test_generated_internal_task_families_are_importable_packages(tmp_path, monkeypatch):
-    """Generated tasks use importable task-family and robot-config packages."""
-    tasks_dir = tmp_path / "isaaclab_tasks"
-    tasks_dir.mkdir()
-    monkeypatch.setattr(generator, "_setup_git_repo", lambda project_dir: None)
-    monkeypatch.setattr(generator, "TASKS_DIR", str(tasks_dir))
-    generate(
-        {
-            "external": False,
-            "name": "template_internal_reg",
-            "workflows": [
-                {"name": "manager-based", "type": "single-agent"},
-                {"name": "direct", "type": "single-agent"},
-            ],
-            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo"]}],
-        }
-    )
-    task_family = _task_folder("template_internal_reg", "single-agent")
-    direct_family = f"{task_family}_direct"
-    discovered = {info.name for info in pkgutil.iter_modules([str(tasks_dir)]) if info.ispkg}
-    assert {task_family, direct_family} <= discovered
-
-
-def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, monkeypatch):
+@pytest.mark.parametrize("initial_content", ["cartpole", "stubbed"])
+def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, monkeypatch, initial_content):
     """A freshly generated external project must register all tasks when its task package is imported.
 
     The project root is intentionally passive; importing its task entry point performs registration.
@@ -631,12 +732,13 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
             "external": True,
             "path": str(root_dir),
             "name": project_name,
+            "initial_content": initial_content,
             "workflows": [
                 {"name": "manager-based", "type": "single-agent"},
                 {"name": "direct", "type": "single-agent"},
                 {"name": "direct", "type": "multi-agent"},
             ],
-            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "ippo", "mappo"]}],
+            "rl_libraries": [{"name": "skrl", "algorithms": ["ppo", "amp", "ippo", "mappo"]}],
         }
     )
     source_dir = root_dir / project_name / "src"
@@ -647,6 +749,7 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
             _task_id(project_name, "direct", "multi-agent", external=True),
         }
     )
+    multi_task = _task_id(project_name, "direct", "multi-agent", external=True)
     program = textwrap.dedent(
         f"""
         import sys
@@ -654,14 +757,35 @@ def test_generated_external_project_registers_tasks_on_tasks_import(tmp_path, mo
         sys.path.insert(0, {str(source_dir)!r})
         import {project_name}.tasks  # noqa: F401  (registration runs through the task entry point)
         import gymnasium as gym
+        import importlib
+        import pytest
+        from isaaclab_tasks.utils import load_cfg_from_registry
 
         want = {expected!r}
         missing = [task_id for task_id in want if task_id not in gym.registry]
         assert not missing, f"not registered on import: {{missing}}"
+        for task_id in want:
+            spec = gym.spec(task_id)
+            assert callable(gym.envs.registration.load_env_creator(spec.entry_point))
+            if {initial_content!r} == "stubbed":
+                with pytest.raises(NotImplementedError, match="Configure simulation"):
+                    load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        if {initial_content!r} == "stubbed":
+            from {project_name}.tasks.balance import mdp
+            from isaaclab.envs.mdp import time_out
+
+            assert mdp.time_out is time_out
+            with pytest.raises(NotImplementedError, match="Implement the reward term"):
+                mdp.reward(None)
+        assert load_cfg_from_registry({multi_task!r}, "skrl_cfg_entry_point")["agent"]["class"] == "MAPPO"
+        registration_tests = importlib.import_module("test_registration")
+        registration_tests.test_task_registrations()
         print("OK")
         """
     )
-    result = subprocess.run([sys.executable, "-c", program], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, "-c", program], capture_output=True, text=True, cwd=root_dir / project_name / "tests"
+    )
     assert result.returncode == 0, (
         f"external project did not register tasks on import:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
     )

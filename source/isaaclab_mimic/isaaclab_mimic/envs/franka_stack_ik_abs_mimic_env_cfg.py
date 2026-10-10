@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.franka.stack_ik_abs_env_cfg import FrankaCubeStackEnvCfg
 
@@ -14,6 +14,8 @@ class FrankaCubeStackIKAbsMimicEnvCfg(FrankaCubeStackEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Franka Cube Stack IK Abs env.
     """
+
+    class_type: type | str = "{DIR}.franka_stack_ik_abs_mimic_env:FrankaCubeStackIKAbsMimicEnv"
 
     def __post_init__(self):
         # post init of parents

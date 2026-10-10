@@ -1,0 +1,110 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Scene selections resolve on the host, then finalize to device indices used without synchronization."""
+
+import copy
+from functools import partial
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+import torch
+
+from isaaclab.envs.mdp.events import apply_external_force_torque
+from isaaclab.envs.mdp.observations import joint_pos
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.string import resolve_matching_names
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def scene():
+    names = ["part_0", "part_1", "part_2", "part_3"]
+    find = partial(resolve_matching_names, list_of_strings=names)
+    return dict(
+        robot=SimpleNamespace(
+            joint_names=names,
+            body_names=names,
+            object_names=names,
+            num_joints=4,
+            num_bodies=4,
+            find_joints=find,
+            find_bodies=find,
+        )
+    )
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_finalize_moves_resolved_selections_to_device(scene, device):
+    """Ordering, slices, and empty selections survive finalization and copies."""
+    cfg = SceneEntityCfg(
+        "robot",
+        joint_names=["part_2", "part_0"],
+        preserve_order=True,
+        body_ids=[3, 1],
+        object_collection_ids=[],
+    )
+    cfg.resolve(scene)
+    # class-based terms read host selections before finalization
+    assert cfg.joint_ids == [2, 0]
+    assert cfg.body_ids == [3, 1]
+
+    cfg.finalize(device)
+    joint_ids = cfg.joint_ids
+    cfg.finalize(device)
+    assert cfg.joint_ids is joint_ids
+    assert isinstance(cfg.body_ids, torch.Tensor)
+    assert cfg.body_ids.dtype == torch.long
+    assert cfg.body_ids.device == torch.device(device)
+    assert cfg.fixed_tendon_ids == slice(None)
+    values = torch.arange(4, device=device)
+    assert values[cfg.joint_ids].tolist() == [2, 0]
+    assert values[cfg.body_ids].tolist() == [3, 1]
+    assert values[cfg.fixed_tendon_ids].tolist() == [0, 1, 2, 3]
+    assert values[cfg.object_collection_ids].numel() == 0
+
+    for copied in (cfg.copy(), copy.deepcopy(cfg)):
+        assert values[copied.body_ids].tolist() == [3, 1]
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_finalized_indices_do_not_upload_or_read_back(scene, device):
+    """A real MDP consumer and a device gather for one selected joint run without CUDA synchronization."""
+    cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
+    cfg.resolve(scene)
+    cfg.finalize(device)
+    values = torch.arange(16, dtype=torch.float, device=device).reshape(4, 4)
+    scene["robot"].data = SimpleNamespace(joint_pos=SimpleNamespace(torch=values))
+    env = SimpleNamespace(scene=scene)
+    previous = torch.cuda.get_sync_debug_mode()
+    torch.cuda.synchronize(device)
+    torch.cuda.set_sync_debug_mode("error")
+    try:
+        observed = joint_pos(env, cfg)
+        first = values[:, cfg.joint_ids][:, 0]
+    finally:
+        torch.cuda.set_sync_debug_mode(previous)
+    expected = torch.tensor([[2.0, 0.0], [6.0, 4.0], [10.0, 8.0], [14.0, 12.0]], device=device)
+    torch.testing.assert_close(observed, expected)
+    torch.testing.assert_close(first, expected[:, 0])
+
+
+def test_external_force_uses_selected_body_count(scene):
+    """A finalized subset must size forces for that subset, rather than every body."""
+    cfg = SceneEntityCfg("robot", body_ids=[3, 1])
+    cfg.resolve(scene)
+    cfg.finalize("cpu")
+    asset = scene["robot"]
+    asset.device = "cpu"
+    asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_index=Mock())
+    env = SimpleNamespace(scene=scene, num_envs=2)
+    apply_external_force_torque(env, None, (2.0, 2.0), (3.0, 3.0), cfg)
+    kwargs = asset.permanent_wrench_composer.set_forces_and_torques_index.call_args.kwargs
+    torch.testing.assert_close(kwargs["forces"], torch.full((2, 2, 3), 2.0))
+    torch.testing.assert_close(kwargs["torques"], torch.full((2, 2, 3), 3.0))
+    assert kwargs["body_ids"].tolist() == [3, 1]

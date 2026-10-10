@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""CNN feature extractor regressing cube keypoints from the Shadow Hand tiled camera."""
+
+from __future__ import annotations
+
 import glob
+import logging
 import os
 
 import torch
@@ -11,7 +16,10 @@ import torch.nn as nn
 import torchvision
 
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
+
+logger = logging.getLogger(__name__)
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
@@ -35,11 +43,6 @@ _IMAGENET_NORM_TYPES: frozenset[str] = frozenset(
         "simple_shading_full_mdl",
     }
 )
-
-
-def _conv_out(size: int, kernel: int, stride: int, padding: int = 0) -> int:
-    """Compute the spatial output size of a single convolutional layer."""
-    return (size + 2 * padding - kernel) // stride + 1
 
 
 class FeatureExtractorNetwork(nn.Module):
@@ -109,7 +112,7 @@ class FeatureExtractorNetwork(nn.Module):
                 self._imagenet_norm_ranges.append((channel_idx, channel_idx + n_ch))
             channel_idx += n_ch
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.permute(0, 3, 1, 2).clone()
         for start, end in self._imagenet_norm_ranges:
             x[:, start:end, :, :] = self.data_transforms(x[:, start:end, :, :])
@@ -136,6 +139,14 @@ class FeatureExtractorCfg:
 
     Set to False to bypass the network entirely and return zero embeddings. This is useful
     for benchmarking rendering throughput without CNN inference overhead. Default is True.
+    """
+
+    pretrained_checkpoint: str | None = None
+    """Fallback feature-extractor checkpoint to load when no local checkpoint exists.
+
+    This may be a local or remote path. :class:`FeatureExtractor` first looks for the latest
+    local ``*.pth`` checkpoint in the log directory, then retrieves this checkpoint when configured.
+    Default is None.
     """
 
 
@@ -200,10 +211,8 @@ class FeatureExtractor:
             os.makedirs(self.log_dir)
 
         if self.cfg.load_checkpoint:
-            list_of_files = glob.glob(self.log_dir + "/*.pth")
-            latest_file = max(list_of_files, key=os.path.getctime)
-            checkpoint = os.path.join(self.log_dir, latest_file)
-            print(f"[INFO]: Loading feature extractor checkpoint from {checkpoint}")
+            checkpoint = self._resolve_checkpoint_path()
+            logger.info("Loading feature extractor checkpoint from %s", checkpoint)
             self.feature_extractor.load_state_dict(torch.load(checkpoint, weights_only=True))
 
         if self.cfg.train:
@@ -216,8 +225,8 @@ class FeatureExtractor:
     def _preprocess_images(self, camera_output: dict[str, torch.Tensor]) -> torch.Tensor:
         """Preprocesses and concatenates camera images into a single tensor.
 
-        Each data type in :attr:`FeatureExtractorCfg.data_types` is extracted from
-        ``camera_output``, normalized, and concatenated along the channel dimension.
+        Each data type in :attr:`data_types` is extracted from ``camera_output``, normalized, and
+        concatenated along the channel dimension.
 
         Args:
             camera_output: Dictionary mapping data type names to image tensors.
@@ -323,3 +332,18 @@ class FeatureExtractor:
         else:
             predicted_pose = self.feature_extractor(img_input)
             return None, predicted_pose
+
+    def _resolve_checkpoint_path(self) -> str:
+        """Resolve the local feature-extractor checkpoint to load."""
+        local_checkpoints = glob.glob(os.path.join(self.log_dir, "*.pth"))
+        if local_checkpoints:
+            return max(local_checkpoints, key=os.path.getctime)
+        if self.cfg.pretrained_checkpoint is not None:
+            logger.info("Fetching pretrained feature extractor checkpoint from %s", self.cfg.pretrained_checkpoint)
+            return retrieve_file_path(self.cfg.pretrained_checkpoint)
+        raise FileNotFoundError(f"No feature-extractor checkpoint found in '{self.log_dir}'.")
+
+
+def _conv_out(size: int, kernel: int, stride: int, padding: int = 0) -> int:
+    """Compute the spatial output size of a single convolutional layer."""
+    return (size + 2 * padding - kernel) // stride + 1

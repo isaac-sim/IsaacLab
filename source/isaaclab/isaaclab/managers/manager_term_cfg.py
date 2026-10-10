@@ -9,14 +9,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.modifiers import ModifierCfg
-from isaaclab.utils.noise import NoiseCfg, NoiseModelCfg
-
+from ..utils import configclass
+from ..utils.modifiers import ModifierCfg
+from ..utils.noise import NoiseCfg, NoiseModelCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -43,8 +42,13 @@ class ManagerTermBaseCfg:
     .. _`callable classes`: https://docs.python.org/3/reference/datamodel.html#object.__call__
     """
 
-    params: dict[str, Any | SceneEntityCfg] = dict()
+    params: dict[str, Any | SceneEntityCfg] = {}
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
+
+    During preparation, omitted keyword parameters are filled from the callable's signature.
+    Mutable defaults are copied per term before scene entities are resolved. Explicit values,
+    including None, take precedence. Class terms can read these defaults after calling
+    :meth:`ManagerTermBase.__init__`.
 
     .. note::
         If the value is a :class:`SceneEntityCfg` object, the manager will query the scene entity
@@ -133,10 +137,12 @@ class CommandTermCfg:
 class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
-    func: Callable[..., float | dict[str, float] | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., float | dict[str, float] | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object, environment indices
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object,
+    an environment slice or device-resident indices
     and any other parameters as input and return the curriculum state for
     logging purposes. If the function returns None, the curriculum state
     is not logged.
@@ -152,10 +158,11 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object and any other parameters
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the observation signal as torch float tensors of
     shape (num_envs, obs_term_dim).
     """
@@ -186,6 +193,33 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     please make sure the length of the tuple matches the dimensions of the tensor outputted from the term.
     """
 
+    delay_min_lag: int = 0
+    """Minimum observation delay, counted in recorded samples. Defaults to zero.
+
+    Each environment samples an integer lag uniformly from ``[delay_min_lag, delay_max_lag]`` at
+    initialization and reset. With the default :attr:`delay_hold_prob` of 1.0, it keeps that lag until
+    its next reset, as with :class:`~isaaclab.actuators.DelayedPDActuator`.
+    Observation samples advance with ``ObservationManager.compute(update_history=True)``; actuator delays
+    instead count physics steps. Extra observation reads do not advance the delay.
+    """
+
+    delay_max_lag: int = 0
+    """Maximum observation delay, counted in recorded samples. Zero disables delay.
+
+    Set both lag bounds equal for a constant delay. Delay is applied after modifiers, noise, clipping, and
+    scaling, before observation history. Until enough samples have been recorded, the oldest available
+    sample is returned. After reset, no data from the previous episode is returned.
+    """
+
+    delay_hold_prob: float = 1.0
+    """Probability of retaining the current lag on each recorded observation sample.
+
+    Defaults to 1.0, keeping the reset-sampled lag for the episode. Zero redraws the lag on every recorded
+    sample. Intermediate values retain the lag independently per environment with this probability,
+    otherwise sampling uniformly from the configured bounds. Holding the lag keeps the latency constant
+    while observation frames continue to advance. Extra reads do not resample the lag.
+    """
+
     history_length: int = 0
     """Number of past observations to store in the observation buffers. Defaults to 0, meaning no history.
 
@@ -198,6 +232,15 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     flatten_history_dim: bool = True
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
+
+    def validate_config(self):
+        """Validate observation delay bounds."""
+        if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:
+            raise TypeError("Observation delay bounds must be integers.")
+        if not 0 <= self.delay_min_lag <= self.delay_max_lag:
+            raise ValueError("Observation delay requires 0 <= delay_min_lag <= delay_max_lag.")
+        if not 0.0 <= self.delay_hold_prob <= 1.0:
+            raise ValueError("delay_hold_prob must be in [0, 1].")
 
 
 @configclass
@@ -246,6 +289,15 @@ class ObservationGroupCfg:
     ObservationGroupCfg.history_length is set.
     """
 
+    history_order: Literal["term", "time"] = "term"
+    """Order of a flattened, concatenated group history. Defaults to ``"term"``.
+
+    ``"term"`` keeps each term's full history together. ``"time"`` groups all terms by time step, so
+    the flattened output can be reshaped to ``(num_envs, history_length, combined_term_dim)``.
+    The ``"time"`` option applies when :attr:`history_length` is positive, :attr:`flatten_history_dim` and
+    :attr:`concatenate_terms` are true, and :attr:`concatenate_dim` is ``-1``.
+    """
+
 
 ##
 # Event manager
@@ -256,10 +308,12 @@ class ObservationGroupCfg:
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
 
-    func: Callable[..., None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object, environment indices
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object,
+    an environment slice or device-resident indices
     and any other parameters as input.
     """
 
@@ -335,10 +389,11 @@ class EventTermCfg(ManagerTermBaseCfg):
 class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object and any other parameters
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the reward signals as torch float tensors of
     shape (num_envs,).
     """
@@ -363,10 +418,11 @@ class RewardTermCfg(ManagerTermBaseCfg):
 class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
-    """The name of the function to be called.
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
+    """The function or :class:`ManagerTermBase` subclass to be called.
 
-    This function should take the environment object and any other parameters
+    The manager instantiates class-based terms before calling them.
+    The function or the class's ``__call__`` method should take the environment object and any other parameters
     as input and return the termination signals as torch boolean tensors of
     shape (num_envs,).
     """

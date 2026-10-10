@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, to_dict
 
 from .newton_manager_cfg import NewtonSolverCfg
 
@@ -21,13 +21,13 @@ if TYPE_CHECKING:
 
 
 def _non_none_kwargs(cfg: Any) -> dict[str, Any]:
-    """Return ``cfg.to_dict()`` entries with ``None`` values omitted."""
-    return {key: value for key, value in cfg.to_dict().items() if value is not None}
+    """Return serialized configuration fields with ``None`` values omitted."""
+    return {key: value for key, value in to_dict(cfg).items() if value is not None}
 
 
 def _cfg_to_dict(cfg: Any) -> dict[str, Any]:
     """Return a configclass mapping with a type-checker-friendly interface."""
-    return cfg.to_dict()
+    return to_dict(cfg)
 
 
 @configclass

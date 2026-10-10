@@ -3,14 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Unitree G1 velocity-tracking environment on flat terrain."""
+
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .rough_env_cfg import G1RoughEnvCfg
 
 
 @configclass
 class G1FlatEnvCfg(G1RoughEnvCfg):
+    """Configuration for the Unitree G1 velocity-tracking environment on flat terrain."""
+
     def __post_init__(self):
         super().__post_init__()
 

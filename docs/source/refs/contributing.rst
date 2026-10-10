@@ -8,8 +8,8 @@ Contribution Guidelines
    (`skills/developer/coding-style/ <../../../skills/developer/coding-style/SKILL.md>`__,
    `skills/developer/pr-workflow/ <../../../skills/developer/pr-workflow/SKILL.md>`__,
    `skills/developer/changelog-fragments/ <../../../skills/developer/changelog-fragments/SKILL.md>`__).
-   When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   When shared guidance changes, update affected skill workflows and examples without copying the rules. See
+   :doc:`/source/developer-tools/agent_skills`.
 
 We wholeheartedly welcome contributions to the project to make the framework more mature
 and useful for everyone. These may happen in forms of:
@@ -50,12 +50,13 @@ follow the following steps to contribute code:
 3. Create a new branch for your changes.
 4. Make your changes and commit them.
 5. Push your changes to your fork.
-6. Submit a pull request to the `main branch <https://github.com/isaac-sim/IsaacLab/compare>`__.
+6. Submit a pull request to the `develop branch <https://github.com/isaac-sim/IsaacLab/compare/develop...>`__.
 7. Ensure all the checks on the pull request template are performed.
 
 After sending a pull request, the maintainers will review your code and provide feedback.
 
-Please ensure that your code is well-formatted, documented and passes all the tests.
+Ensure that your code is formatted and documented, and run the relevant tests and required CI checks
+as described in `Unit Testing`_ and `Tools`_.
 
 .. tip::
 
@@ -65,6 +66,54 @@ Please ensure that your code is well-formatted, documented and passes all the te
 
 
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
+
+
+Agent Development
+-----------------
+
+Read the contribution sections and skills that apply to the current task. Reuse guidance already
+loaded in the conversation while it remains current; reread when relevant files change or needed
+context is lost. Native skill discovery already supplies descriptions, so do not load the whole
+catalog or every linked reference. Load PR preparation guidance when preparing the final change.
+
+Before editing, identify the behavior's owner, the closest reusable implementation, and the smallest
+change that fixes the problem. For changes that span packages or add work to a hot path, briefly
+state the affected boundaries and runtime cost. Distinguish requested scope changes from unrelated
+improvements and record the latter as follow-ups.
+
+Use bounded searches and read relevant functions and callers instead of dumping unrelated files or
+tool inventories. Batch independent reads, keeping their combined output small enough to inspect.
+When delegation is requested or an applicable workflow calls for it, give each agent a bounded
+question and clear file ownership; serialize edits to shared infrastructure.
+
+Worktrees and environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use a separate worktree when the current checkout has unrelated changes. Run commands from the
+worktree and give it its own uv environment; uv can reuse downloaded packages from its cache.
+If an existing environment must be reused, verify the interpreter and imported source paths before
+validation. The CLI resolves its repository root from the imported package, not the shell's working
+directory. Check that root with:
+
+.. code-block:: bash
+
+   uv run python -c "import sys; from isaaclab.paths import ISAACLAB_ROOT; print(sys.executable); print(ISAACLAB_ROOT)"
+
+Also verify the imported locations of packages touched by the change. Avoid concurrent environment
+synchronization or documentation builds against the same environment or output directory.
+
+Validation and long-running jobs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Run the narrowest relevant checks during editing, then the required final checks. Record the tested
+revision or relevant diff, command, and result in the task notes. Reuse successful results until a
+relevant source, dependency, configuration, or test change invalidates them. Diagnose failed checks
+before retrying; keep environmental failures distinct from regressions introduced by the change.
+
+Launch long-running checks once and retain their process or CI run IDs and logs. Use a local watch
+command or longer polling intervals while continuing independent work, and report meaningful state
+changes rather than repeatedly reading unchanged logs. If the request only requires starting CI,
+hand off the run link after confirming it started. Await completion when the result is required.
 
 
 Contributing Documentation
@@ -78,6 +127,10 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 `Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
 
+API ``[source]`` links open the implementation on GitHub, using the published documentation's
+branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+Python source pages; viewing the implementation requires internet access.
+
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
@@ -88,37 +141,46 @@ the externally hosted file from the documentation.
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
-  the documentation. The build command creates a temporary environment for the
-  ``test`` extra, which combines test and documentation requirements, leaving the
-  repository's ``.venv`` unchanged.
+  the documentation. The build command syncs the ``dev`` extra, which includes
+  documentation requirements, into the repository's ``.venv``.
 
 
-To build the documentation, run the following command from the repository root. It installs
+Choose documentation validation according to the changed behavior:
+
+* Skip Sphinx when rendered docs are unaffected, including standalone ``AGENTS.md`` and ``skills/``
+  edits. Run the relevant code or skill checks instead.
+* Use the incremental HTML preview while editing documentation pages.
+* Use a clean build for API signatures or docstrings, Sphinx configuration or extensions, and
+  theme changes. Sphinx's cache does not reliably detect Python source changes.
+* Run one clean, warning-free build of final documentation-affecting changes before submitting
+  a PR. Repeat it only after further relevant changes or a failure. CI also runs the clean build.
+
+For an incremental HTML preview, run this command from the repository root on Linux or Windows:
+
+.. code:: bash
+
+   uv run --extra dev --directory docs python -m sphinx -W --keep-going -j auto . _build/incremental
+
+On systems with Make, the equivalent command is:
+
+.. code:: bash
+
+   uv run --extra dev make -C docs incremental-docs
+
+Open ``docs/_build/incremental/index.html`` to inspect the preview. Subsequent runs reuse the cache
+and treat new warnings as errors, but can omit old warnings and retain deleted pages. Use a clean
+build for final validation, and avoid concurrent builds in the same output directory.
+
+For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
 
 .. code:: bash
 
-   ./isaaclab.sh --docs  # or "./isaaclab.sh -d"
+   uv run --extra dev isaaclab --docs
 
-The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
-the ``index.html`` file in the ``html`` directory. This can be done by running the following command
-in the terminal:
-
-.. code:: bash
-
-   xdg-open docs/_build/current/index.html
-
-.. hint::
-
-   The ``xdg-open`` command is used to open the ``index.html`` file in the default browser. If you are
-   using a different operating system, you can use the appropriate command to open the file in the browser.
-
-
-To do a clean build, run the following command in the terminal:
-
-.. code:: bash
-
-   rm -rf docs/_build && ./isaaclab.sh --docs
+The documentation is generated in ``docs/_build/current``. Open
+``docs/_build/current/index.html`` in a browser to view it. Each build clears the current
+HTML output and its Sphinx cache so deleted pages and cached warnings cannot be carried over.
 
 
 Contributing assets
@@ -157,15 +219,16 @@ package version.
 
 .. note::
 
-   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled by CI from per-PR **fragment
-   files** — contributors do not edit them directly. For every package your PR touches
-   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
-   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
+   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled nightly by CI from
+   per-PR `towncrier <https://towncrier.readthedocs.io/>`__ **fragment files** — contributors do not
+   edit them directly. For every package your PR touches in ``source/<pkg>/`` (outside
+   ``changelog.d/``), add fragments under ``source/<pkg>/changelog.d/``:
 
-   * ``<slug>.rst`` — patch bump
-   * ``<slug>.minor.rst`` — minor bump (new public API)
-   * ``<slug>.major.rst`` — major bump (breaking change)
-   * ``<slug>.skip`` — no entry, no bump (CI / docs / test-only PRs)
+   * ``<slug>.<type>.rst`` — one file per entry type, where ``<type>`` is ``added``, ``changed``,
+     ``deprecated``, ``removed`` or ``fixed``; the file holds that section's bullets.
+   * ``<slug>.minor`` or ``<slug>.major`` — an empty file that raises the version bump from patch
+     to minor (new public API) or major (breaking change).
+   * ``<slug>.skip`` — an empty file for no entry and no bump (CI / docs / test-only PRs).
 
    ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
    is the recommended default. Within a batch the highest tier wins for the package.
@@ -178,15 +241,17 @@ been made between each release of a package. This is a *MUST* for every release-
 
 For each fragment, please follow the following guidelines:
 
-* Each fragment is divided into subsections based on the type of changes made.
+* Each fragment's ``<type>`` names the changelog section its bullets appear under.
 
-  * ``Added``: For new features.
-  * ``Changed``: For changes in existing functionality.
-  * ``Deprecated``: For soon-to-be removed features.
-  * ``Removed``: For now removed features.
-  * ``Fixed``: For any bug fixes.
+  * ``added``: For new features.
+  * ``changed``: For changes in existing functionality.
+  * ``deprecated``: For soon-to-be removed features.
+  * ``removed``: For now removed features.
+  * ``fixed``: For any bug fixes.
 
-* Each change is described in its corresponding sub-section with a bullet point.
+* Each change is described with a ``*`` bullet point; continuation lines are indented.
+* Prefix breaking changes with **Breaking:** and provide migration guidance for deprecated, changed,
+  or removed behavior that requires callers to adapt.
 * The bullet points are written in the **past tense**.
 
   * This means that the change is described as if it has already happened.
@@ -198,37 +263,22 @@ For each fragment, please follow the following guidelines:
 
    When in doubt, please check the style in the existing changelog files and follow the same style.
 
-For example, ``source/isaaclab/changelog.d/<slug>.minor.rst``:
+For example, ``source/isaaclab/changelog.d/fix-partial-reset.fixed.rst``:
 
 .. code:: rst
 
-    Added
-    ^^^^^
+    * Fixed contact sensor reset behavior when only a subset of environments was reset.
 
-    * Added a new feature that helps in a 10x speedup.
+Validate against the PR's base without creating temporary remote-tracking refs:
 
-    Changed
-    ^^^^^^^
+.. code-block:: bash
 
-    * Changed an existing feature. Earlier, we were using :meth:`torch.bmm` to perform the matrix multiplication.
-      However, this was slow for large matrices. We have now switched to using :meth:`torch.einsum` which is
-      significantly faster.
+   uv run python tools/changelog/cli.py check upstream/develop --include-worktree
 
-    Deprecated
-    ^^^^^^^^^^
-
-    * Deprecated an existing feature in favor of a new feature.
-
-    Removed
-    ^^^^^^^
-
-    * Removed an existing feature. This was done to simplify the codebase and reduce the complexity.
-
-    Fixed
-    ^^^^^
-
-    * Fixed crashing of the :meth:`my_function` when the input was too large.
-      We now use :meth:`torch.einsum` that is able to handle larger inputs.
+The checker accepts remote-qualified refs, full refs, and commit SHAs. Branch shorthand such as
+``develop`` continues to prefer ``origin/develop`` when it exists; use ``refs/heads/develop`` to
+select a local branch explicitly. The pre-commit hook uses ``ISAACLAB_CHANGELOG_BASE_REF`` when
+set, otherwise ``develop``. Fetch the intended base before validation.
 
 
 Coding Style
@@ -247,11 +297,116 @@ For documentation, we adopt the `Google Style Guide <https://sphinxcontrib-napol
 for docstrings. We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for generating the documentation.
 Please make sure that your code is well-documented and follows the guidelines.
 
+Refactoring and API Design
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Make the smallest change that solves the problem. Read surrounding code, callers, tests, and documentation
+before changing an interface. Apply these rules when adding code or cleaning up existing implementations:
+
+* Preserve observable behavior unless the change explicitly requires otherwise. Check ordering, shapes,
+  dtype, device, input mutation, and failure behavior as well as return values. Public API removals and
+  renames require a deprecation and migration path.
+* Prefer a functional approach for stateless computations and transformations: use plain functions with
+  explicit inputs and outputs, keeping side effects at clear boundaries. Use classes when they own
+  meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
+  by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
+  calls to another object. Preserve established public contracts when simplifying existing designs.
+* Place shared operations in the existing module that owns their contract before adding a new file.
+  Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
+  shared logic when it has the same contract; keep helpers private unless callers need a public API.
+  Prefer direct control flow and early returns when they remove unnecessary nesting.
+* Use predicates or optional lookup results for expected incompatibility, such as filtering available
+  camera channels. Do not raise and catch exceptions for routine selection or capability checks.
+* Inline simple expressions and operations when a helper would only add indirection. Do not extract
+  a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
+  duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
+  need to jump to another definition to understand the caller.
+  When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
+* Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
+  and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
+  determined at runtime. Do not use them for known attributes or use default values to hide a missing
+  required attribute; express optional fields explicitly in the interface.
+* Give each piece of state and validation one owner. Consumers should use the owner's contract instead
+  of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
+  invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Resolve selections once at initialization; backends should consume the final selection without a second
+  filtering pass or cache.
+  Before adding a parameter record and preparation helper for one consumer, check which values already
+  exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
+  the buffers or calculations that need reuse.
+* Pass scene dependencies from the composition root into consumers. Do not retrieve the simulation
+  singleton to resolve a dependency the caller already owns. Resolve references at initialization,
+  then retain the resolved objects instead of copying paths between configuration fields. Give consumers
+  resolved resources rather than a broader construction plan used only to discover those resources;
+  visualizers receive bound camera choices, while cloning and renderer scene preparation retain ``ClonePlan``.
+* Put common configuration in the shared owner and document backend capabilities explicitly. Name
+  collections in the plural. Remove empty hooks and expired compatibility aliases during their
+  announced removal release instead of maintaining unused extension points.
+* Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
+  capability contracts instead of inferring behavior from class-name strings.
+* Keep physics and rendering responsibilities separate and resolve construction requirements before
+  finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
+  :doc:`/source/developer-tools/add_physics_backend` for backend integration.
+* Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
+  clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
+* Keep nested physics bodies in their owning source import. A second declaration only requires a
+  separate native copy when its source-to-destination mapping is not already covered by the parent.
+* Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
+  layers for hypothetical future uses.
+
+Array Operations and Runtime Cost
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Review allocations, copies, synchronization, and recomputation in code that runs per step, reset, or
+environment. Costs that are small for one environment can dominate a large batch.
+
+* Preserve slices through APIs that support them. Materialize indices only at a consumer that requires
+  them, reusing cached device indices when available. Preserve the selector's ordering and device contract.
+* Allocate arrays directly with the required value, dtype, and device. Prefer ``torch.full`` or ``wp.full``
+  over filling through Python lists, arithmetic on temporary arrays, or a round trip through another library.
+* Keep operations on Warp-owned arrays in Warp. Use ``ProxyArray`` when consumers need multiple
+  array interfaces; do not convert to Torch and back merely to mutate a Warp buffer.
+* Keep per-step control flow direct, with one call to each lifecycle operation. Perform optional
+  work only for the active consumer and preserve the configured update cadence.
+* Remove redundant copies and ``contiguous()`` calls only after checking layout and ownership requirements.
+  Do not mutate caller-owned inputs unless the API explicitly promises an in-place operation.
+* Batch operations when supported. Avoid Python loops over environments and unnecessary host/device
+  transfers or scalar reads that synchronize the device in hot paths.
+* Allocate expensive optional buffers on first use when their lifecycle permits it. Account for graph
+  capture: any required allocation must happen before capture when the allocator requires it.
+
+Naming and Documentation
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Use ``snake_case`` for functions, methods, and CLI arguments. Keep related public symbols discoverable
+  through consistent prefixes and use existing API vocabulary.
+* Use concrete types where practical, built-in collection annotations such as ``list[str]``, and
+  ``X | None`` for optional values. Keep argument and return types in signatures, without repeating them
+  in docstrings.
+* Document public APIs with Google-style docstrings. State physical units inline, for example
+  ``Particle positions [m], shape [N, 3]``. Use ``[m or rad, depending on joint type]`` for mixed joint
+  quantities. Document coordinate frames and array shapes where relevant; indices, counts, and flags
+  do not need physical units.
+* Keep comments brief and selective. Explain intent, non-obvious constraints, or edge cases that the code
+  alone cannot make clear. Avoid narrating implementation steps or repeating what an expression does.
+  Readability comments, section markers, and headings that help organize a file are welcome.
+* Describe the current contract in code comments. Put migration instructions and descriptions of old
+  behavior in public migration documentation or changelog entries, rather than leaving a history of
+  refactoring in the implementation. Retain historical context only when it explains a constraint that
+  still affects correctness.
+* Update public documentation with API changes and verify technical claims against the implementation.
+
 Code Structure
 ^^^^^^^^^^^^^^
 
 We follow a specific structure for the codebase. This helps in maintaining the codebase and makes it easier to
 understand.
+
+Keep short expressions on one line within the configured limit and break longer expressions at
+meaningful boundaries. Keep loop headers focused on iteration; unpack bulky nested records in the body.
+Prefer descriptive names to new acronyms. Reuse matching sequences or mappings with ``*``/``**`` instead
+of unpacking and rebuilding them; do not introduce packing containers or reflective assignment just
+to shorten code.
 
 In a Python file, we follow the following structure:
 
@@ -264,13 +419,28 @@ In a Python file, we follow the following structure:
    # _Functions (private)
    # _Classes (private)
 
-Imports are sorted by the pre-commit hooks. Unless there is a good reason to do otherwise, please do not
-import the modules inside functions or classes. To deal with circular imports, we use the
+Imports are sorted by Ruff through ``uv run isaaclab -f``. The groups are ``__future__``, standard library,
+third-party packages, Omniverse runtime packages, Isaac Lab packages, and local relative imports; the
+exact package groups are configured in ``pyproject.toml``. Let the formatter apply this order.
+Use relative imports within the same package when the target is at most three leading dots away
+(for example, ``from ...utils import math as math_utils``). Use absolute imports for deeper targets,
+other packages, and modules that run as scripts with an ``if __name__ == "__main__":`` block.
+
+Prefer module-level imports. A local import is appropriate when it defers an optional backend or simulator
+dependency until the selected runtime path needs it. Keep configuration imports usable before simulator
+startup and avoid repeating runtime initialization already owned by the package. To deal with circular imports, use the
 :obj:`typing.TYPE_CHECKING` variable. Please refer to the `Circular Imports`_ section for more details.
 
-Note that ``__init__.py`` files are an exception to the above: they use
+Public export modules in ``__init__.py`` are an exception to the above: they use
 :func:`~isaaclab.utils.module.lazy_export` instead of traditional imports.
 See the `Lazy Loading & Module Exports`_ section for details.
+
+Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
+parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
+``data``. Use explicit native access only where the receiving API requires it.
+When a kernel operation is known before launch, specialize it with dedicated kernels or static Warp
+branches instead of a runtime mode switch. Keep shared indexing in one implementation and benchmark
+the generated kernels against the original path.
 
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
@@ -279,13 +449,13 @@ functions and classes are the ones that are intended to be used internally in th
 Irrespective of the public or private nature of the functions and classes, we follow the Style Guide
 for the code and make sure that the code and documentation are consistent.
 
-Similarly, within Python classes, we follow the following structure:
+When a class is warranted, order its members as follows:
 
 .. code:: python
 
    # Constants
    # Class variables (public or private): Must have the type hint ClassVar[type]
-   # Dunder methods: __init__, __del__
+   # Dunder methods, when needed: __init__, __del__
    # Representation: __repr__, __str__
    # Properties: @property
    # Instance methods (public)
@@ -301,7 +471,10 @@ expect to use them. For instance, if the class contains the method :meth:`initia
 The same applies for private functions in the class. Their order is based on the order of call inside the
 class.
 
-.. dropdown:: Code skeleton
+Include only the members a class needs; this ordering is not a checklist of methods to implement.
+For classes that own resources, expose explicit cleanup through ``close()`` or a context manager.
+
+.. dropdown:: Minimal function example
    :icon: code
 
    .. literalinclude:: snippets/code_skeleton.py
@@ -327,7 +500,8 @@ To address this, we use two complementary techniques:
 1. **Resolvable strings** — Store ``class_type`` and ``func`` as ``{DIR}``-based strings
    (e.g. ``"{DIR}.sensor:Sensor"``) so the implementation module is never imported at config
    construction time. The string is resolved to the actual class (via :class:`~isaaclab.utils.string.ResolvableString`)
-   after ``SimulationApp`` launches.
+   on invocation or attribute access that needs the implementation. Initialize any required runtime
+   before triggering resolution.
 2. **TYPE_CHECKING guards** — Import the implementation class under `typing.TYPE_CHECKING
    <https://docs.python.org/3/library/typing.html#typing.TYPE_CHECKING>`_ so that IDEs and type
    checkers can provide autocomplete on the type annotation without triggering a runtime import.
@@ -335,10 +509,38 @@ To address this, we use two complementary techniques:
 See the `Resolvable Strings`_ and `Lazy Loading & Module Exports`_ sections for full
 examples of both patterns.
 
+Configuration Operations
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
+
+.. code-block:: python
+
+   from isaaclab.utils import clone, instantiate, replace, to_dict, update_from_dict, validate
+
+   robot_cfg = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+   other_cfg = clone(robot_cfg)
+   update_from_dict(other_cfg, {"init_state": {"pos": (1.0, 0.0, 0.0)}})
+   validate(other_cfg)
+   settings = to_dict(other_cfg)
+   robot = instantiate(robot_cfg)
+   action = instantiate(action_cfg, env)
+
+``instantiate`` passes the config as the first constructor argument, followed by any additional
+arguments. It does not copy configs, construct nested configs, or cache instances. Resource
+sharing remains the responsibility of ``SimulationContext.get_or_create_backend``.
+
+``clone`` and ``replace`` return new configurations, preserving fields explicitly marked as borrowed.
+``update_from_dict`` updates an existing configuration in place. ``validate`` checks required
+fields and runs nested ``validate_config`` hooks. Prefer these functions in new code; the existing
+``cfg.copy()``, ``cfg.replace(...)``, ``cfg.validate()``, ``cfg.to_dict()``, ``cfg.from_dict(...)``, and
+``cfg.class_type(cfg, ...)`` calls remain supported without deprecation.
+The longer function names ``class_to_dict`` and ``update_class_from_dict`` also remain supported.
+
 Lazy Loading & Module Exports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Every ``__init__.py`` in Isaac Lab uses **lazy loading** so that importing a top-level package
+Use **lazy loading** for public package exports so that importing a top-level package
 (e.g. ``import isaaclab.sensors``) does not eagerly pull in heavyweight dependencies like
 ``pxr``, ``omni``, or ``scipy``. This is critical because config classes must be constructable
 *before* ``SimulationApp`` is launched.
@@ -349,7 +551,7 @@ We follow `SPEC 1 — Lazy Loading of Submodules and Functions
 scikit-learn, NetworkX) with ``.pyi`` type-stub files. The stub is the **single source of
 truth** for both IDE autocomplete and runtime lazy loading.
 
-**Standard pattern** — the vast majority of ``__init__.py`` files:
+**Standard pattern for public export modules:**
 
 .. code:: python
 
@@ -410,8 +612,7 @@ checkers and IDEs full visibility into the re-exported symbols.
 
 **Relative wildcard re-exports** — the stub can also use ``from .submodule import *``
 to eagerly export all public names from a local submodule. This is resolved at
-import time (not lazily) and is useful when a submodule's public API is large or
-changes frequently.
+import time (not lazily). A large or frequently changing API alone does not justify eager imports.
 
 .. note::
 
@@ -430,8 +631,14 @@ changes frequently.
 
 **Ensuring .pyi stubs are distributed**
 
-The ``setup.py`` for each package includes ``package_data={"": ["*.pyi"]}`` so that stub
-files are included in sdist and wheel distributions. The pre-commit ``insert-license`` hook
+Declare stub files in the package's ``pyproject.toml`` so they are included in distributions:
+
+.. code:: toml
+
+   [tool.setuptools.package-data]
+   "*" = ["*.pyi"]
+
+Keep this configuration in packages that provide lazy export stubs. The pre-commit ``insert-license`` hook
 is configured to add license headers to ``.pyi`` files automatically (``\.(pyi?|ya?ml)$``).
 
 Resolvable Strings
@@ -440,8 +647,9 @@ Resolvable Strings
 When a config field needs to reference a class or callable that depends on the simulator
 runtime, store it as a :class:`~isaaclab.utils.string.ResolvableString` rather than a
 direct reference. This avoids eagerly importing heavyweight modules (``omni``, ``pxr``,
-etc.) at config construction time — the string is resolved to the actual callable only
-after ``SimulationApp`` has been initialized.
+etc.) at config construction time. Invocation or attribute access that needs the implementation triggers
+resolution; the caller must initialize any required runtime first. Resolution does not itself wait for
+``SimulationApp``, and workflows without Kit need not launch it.
 
 You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
 
@@ -457,8 +665,8 @@ You can use either the ``{DIR}`` shorthand or a fully-qualified module path:
    from .sensor import Sensor
    class_type: type = Sensor
 
-The ``{DIR}`` placeholder is resolved at runtime to the fully-qualified package name of the
-directory containing the config file (e.g. ``isaaclab.sensors.my_sensor``). Prefer ``{DIR}``
+The config machinery expands ``{DIR}`` to the package of the field's defining class
+(e.g. ``isaaclab.sensors.my_sensor``), without importing the referenced implementation. Prefer ``{DIR}``
 for references within the same package since it stays correct across renames and moves.
 
 For the type annotation (``type[Sensor]``), import the class under a ``TYPE_CHECKING`` guard
@@ -475,8 +683,9 @@ so that the IDE can still provide autocomplete without triggering a runtime impo
 Config + Implementation File Split
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Classes and their configuration objects live in separate files. This keeps config classes
-free of heavy runtime imports:
+For components with configuration classes, keep the configuration and runtime implementation in
+separate files so importing configuration does not load heavy runtime dependencies. This pattern does
+not require introducing a class or configuration object for a stateless function:
 
 .. code:: text
 
@@ -514,7 +723,7 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
 
    if typing.TYPE_CHECKING:
        from .sensor import Sensor
@@ -523,246 +732,179 @@ to avoid importing it:
    class SensorCfg:
        class_type: type[Sensor] | str = "{DIR}.sensor:Sensor"
 
-``sensor.py`` — the implementation; may freely import heavyweight dependencies:
+``sensor.py`` — the implementation; imports runtime dependencies only when needed:
 
 .. code:: python
 
    # my_sensor/sensor.py
-   import omni.isaac.core  # heavy — only loaded when this module is accessed
+   from pxr import Usd
 
    from .sensor_cfg import SensorCfg
 
    class Sensor:
-       def __init__(self, cfg: SensorCfg):
-           ...
+       def __init__(self, cfg: SensorCfg, stage: Usd.Stage) -> None:
+           self.cfg = cfg
+           self.stage = stage
 
 Type-hinting
 ^^^^^^^^^^^^
 
-To make the code more readable, we use `type hints <https://docs.python.org/3/library/typing.html>`__ for
-all the functions and classes. This helps in understanding the code and makes it easier to maintain. Following
-this practice also helps in catching bugs early with static type checkers like `mypy <https://mypy.readthedocs.io/en/stable/>`__.
-
-**Type-hinting only in the function signature**
-
-To avoid duplication of efforts, we do not specify type hints for the arguments and return values in the docstrings.
-
-For instance, the following are bad examples for various reasons:
+Use specific type hints in function signatures and class attributes. Describe meaning, units, shapes,
+and constraints in docstrings without repeating the annotated types:
 
 .. code:: python
 
-   def my_function(a, b):
-      """Adds two numbers.
+   def add(a: int, b: int) -> int:
+       """Add two integers.
 
-      This function is a bad example. Reason: No type hints anywhere.
+       Args:
+           a: The first operand.
+           b: The second operand.
 
-      Args:
-         a: The first argument.
-         b: The second argument.
+       Returns:
+           The sum of the operands.
+       """
+       return a + b
 
-      Returns:
-         The sum of the two arguments.
-      """
-      return a + b
+* Prefer built-in collection types such as ``list[str]`` and ``dict[str, int]``.
+* Use ``X | None`` for optional values.
+* Use ``TYPE_CHECKING`` and deferred annotations when types require runtime-only imports.
 
-.. code:: python
+* Annotate functions that return no value with ``-> None``. Omit an unnecessary ``Returns:`` section
+  from their docstrings.
 
-   def my_function(a, b):
-      """Adds two numbers.
+Warnings and Logging
+^^^^^^^^^^^^^^^^^^^^
 
-      This function is a bad example. Reason: Type hints in the docstring and not in the
-      function signature.
+Choose the mechanism by who has to act on the message, following the Python
+`logging HOWTO <https://docs.python.org/3/howto/logging.html#when-to-use-logging>`__:
 
-      Args:
-         a (int): The first argument.
-         b (int): The second argument.
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
 
-      Returns:
-         int: The sum of the two arguments.
-      """
-      return a + b
+   * - Situation
+     - Mechanism
+   * - The **caller should change their code or config**: a deprecated API or parameter, an ignored or
+       conflicting setting, or misuse.
+     - ``warnings.warn(message, <Category>, stacklevel=...)``
+   * - A **runtime event** that the caller cannot avoid by changing their code: a fallback was taken, an
+       optional dependency or feature is unavailable, or performance is degraded.
+     - ``logger.warning(message)`` with a module-level ``logger = logging.getLogger(__name__)``
+   * - User-facing notices in scripts and command-line tools.
+     - ``logger.warning(message)``, as above
+   * - **Progress and status** from library code and entry points: the parsed task configuration, the log
+       directory, environment and manager summaries.
+     - ``logger.info(message)``
+   * - A **failure reported before exiting** a command-line tool.
+     - ``logger.error(message)``
 
-.. code:: python
+* Always pass an explicit category to ``warnings.warn``:
 
-   def my_function(a: int, b: int) -> int:
-      """Adds two numbers.
+  * ``DeprecationWarning`` for deprecated Python APIs that callers use from their own code.
+  * ``FutureWarning`` for deprecated configuration values, presets, or command-line options that end users
+    reach through Isaac Lab entry points. Python shows these by default even when they are raised from
+    library code.
+  * ``UserWarning`` for misuse or for settings that are ignored.
 
-      This function is a bad example. Reason: Type hints in the docstring and in the function
-      signature. Redundancy.
-
-      Args:
-         a (int): The first argument.
-         b (int): The second argument.
-
-      Returns:
-         int: The sum of the two arguments.
-      """
-      return a + b
-
-The following is how we expect you to write the docstrings and type hints:
-
-.. code:: python
-
-   def my_function(a: int, b: int) -> int:
-      """Adds two numbers.
-
-      This function is a good example. Reason: Type hints in the function signature and not in the
-      docstring.
-
-      Args:
-         a: The first argument.
-         b: The second argument.
-
-      Returns:
-         The sum of the two arguments.
-      """
-      return a + b
-
-**No type-hinting for None**
-
-We do not specify the return type of :obj:`None` in the docstrings. This is because
-it is not necessary and can be inferred from the function signature.
-
-For instance, the following is a bad example:
+* Set ``stacklevel`` so that the warning points at the caller's line, not at Isaac Lab internals.
+* Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
+  ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
+  and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains
+  the right tool for a program's actual output, such as command results, a ``--dry_run`` command line, or
+  the tables a tutorial walks through.
+* Isaac Lab entry points and :func:`~isaaclab.app.launch_simulation` call
+  ``isaaclab.app.logging_utils.configure_console_logging``, which prints INFO records from ``isaaclab*``
+  loggers on stdout as ``[INFO]: <message>`` and warnings on stderr. Call it first in a new command-line
+  entry point so that messages logged before the simulation runtime starts are shown.
+* In tests, assert ``warnings.warn`` with ``pytest.warns`` and ``logger.warning`` with ``caplog``.
 
 .. code:: python
 
-   def my_function(x: int | None) -> None:
-      pass
+   import logging
+   import warnings
 
-Instead, we recommend the following:
+   logger = logging.getLogger(__name__)
 
-.. code:: python
 
-   def my_function(x: int | None):
-      pass
+   def set_gains(stiffness: float, damping: float | None = None, kd: float | None = None) -> None:
+       if kd is not None:
+           warnings.warn("'kd' is deprecated. Use 'damping' instead.", DeprecationWarning, stacklevel=2)
+           damping = kd
+       ...
+
+
+   def capture_graph() -> None:
+       try:
+           ...
+       except RuntimeError as exc:
+           logger.warning(f"CUDA graph capture failed; falling back to eager launches. Reason: {exc}")
 
 Documenting the code
 ^^^^^^^^^^^^^^^^^^^^
 
-The code documentation is as important as the code itself. It helps in understanding the code and makes
-it easier to maintain. However, more often than not, the documentation is an afterthought or gets rushed
-to keep up with the development pace.
+Write documentation that lets a caller use the API without reading its implementation.
 
-**What is considered as a bad documentation?**
-
-* If someone else wants to use the code, they cannot understand the code just by reading the documentation.
-
-  What this means is that the documentation is not complete or is not written in a way that is easy to understand.
-  The next time someone wants to use the code, they will have to spend time understanding the code (in the best
-  case scenario), or scrap the code and start from scratch (in the worst case scenario).
-
-* Certain design subtleties are not documented and are only apparent from the code.
-
-  Often certain design decisions are made to address specific use cases. These use cases are not
-  obvious to someone who wants to use the code. They may change the code in a way that is not intuitive
-  and unintentionally break the code.
-
-* The documentation is not updated when the code is updated.
-
-  This means that the documentation is not kept up to date with the code. It is important to update the
-  documentation when the code is updated. This helps in keeping the documentation up to date and in sync
-  with the code.
-
-**What is considered good documentation?**
-
-We recommend thinking of the code documentation as a living document that helps the reader understand
-the *what, why and how* of the code. Often we see documentation that only explains the
-what but not the how or why. This is not helpful in the long run.
-
-We suggest always thinking of the documentation from a new user's perspective. They should be able to directly
-check the documentation and have a good understanding of the code.
-
-For information on how to write good documentation, please check the notes on
-`Dart's effective documentation <https://dart.dev/effective-dart/documentation>`__
-and `technical writing <https://en.wikiversity.org/wiki/Technical_writing/Style>`__.
-We summarize the key points below:
-
-* Inform (educate the reader) and persuade (convince the reader).
-  * Have a clear aim in mind, and make sure everything you write is towards that aim alone.
-  * Use examples and analogies before introducing abstract concepts.
-* Use the right tone for the audience.
-* Compose simple sentences in active voice.
-* Avoid unnecessary jargon and repetition. Use plain English.
-* Avoid ambiguous phrases such as 'kind of', 'sort of', 'a bit', etc.
-* State important information at the beginning of the sentence.
-* Say exactly what you mean. Don't avoid writing the uncomfortable truth.
+* State the behavior first, then explain constraints, defaults, and relevant failure modes.
+* Document units, coordinate frames, shapes, and ownership or mutation of inputs and returned data.
+* Explain non-obvious design constraints in brief comments near the relevant code.
+* Use a small example when it clarifies usage. Avoid repeating the signature or narrating each operation.
+* Use plain language and active voice; remove repetition and vague qualifiers.
+* Update documentation when behavior changes and check examples against the current implementation.
 
 
 Unit Testing
 ------------
 
-We use `pytest <https://docs.pytest.org>`__ for unit testing.
-Good tests not only cover the basic functionality of the code but also the edge cases.
-They should be able to catch regressions and ensure that the code is working as expected.
-Please make sure that you add tests for your changes.
+We use `pytest <https://docs.pytest.org>`__ for unit testing. Keep coverage lean and fast by giving each
+contract one primary test owner at the strongest observable boundary. Start with existing coverage at
+that boundary and extend it when it can clearly cover the changed behavior.
 
-.. tab-set::
-   :sync-group: os
+Apply the authoring gate and retention criteria in the
+`test-audit skill <../../../skills/developer/test-audit/SKILL.md>`__ when adding, changing, reviewing,
+or pruning tests. It maintains the detailed criteria for deciding whether a test earns its cost.
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+* Add a test only for a distinct behavior, regression, boundary, or failure mode that existing coverage
+  does not already exercise. Formatting and mechanical cleanup do not automatically require new tests.
+  Before adding it, identify the protected contract, a credible regression, and why existing coverage
+  would miss that regression. Do not add production exports, flags, wrappers, or injection hooks solely
+  to support a test; exercise the real boundary instead.
+* Test observable behavior and public contracts. Avoid assertions tied to private implementation details
+  or expected values computed by repeating the production algorithm. Avoid assertion-free smoke tests,
+  self-comparisons, and mocks or fixtures that supply the very behavior the test claims to verify.
+* Verify that regression tests fail without the fix for the intended reason and pass with it. Cover the
+  bug at its owning boundary; another layer or backend needs a distinct risk to justify replaying it.
+* Keep parameter matrices and simulation fixtures focused on distinct execution paths. Consolidate
+  redundant coverage instead of adding overlapping cases or rebuilding the same scene unnecessarily.
+  Avoid Cartesian products of devices, shapes, and environment counts when the axes do not exercise
+  distinct paths. Reuse the fixture that already establishes the contract.
+* Before removing or merging coverage, identify the proof that remains and demonstrate that it fails
+  when the contract is broken, using a focused mutation of the production owner where appropriate.
+  Preserve distinct edge cases and independent API, physical, backend-parity, and packaging contracts.
+  A slow test or similar-looking assertions alone are not evidence of duplication.
+* Run the narrowest relevant test first. If an optional dependency is missing, identify its project extra
+  and retry with ``uv run --extra <extra> python -m pytest ...``.
+  For changes intended to reduce test time, measure before and after on the same machine and separate
+  kernel compilation from execution time.
 
-      .. tab-set::
+Use the same commands on Linux and Windows:
 
-         .. tab-item:: uv (Recommended)
+.. code-block:: bash
 
-            .. code-block:: bash
+   # Run a particular test
+   uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
-               # Run all tests
-               ./isaaclab.sh --test  # or "./isaaclab.sh -t"
+   # Run all tests in a particular file
+   uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
-               # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+   # Run source-package tests through the repository test runner
+   uv run python tools/run_all_tests.py
 
-               # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+   # Run tooling tests under tools/
+   uv run isaaclab --test
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               # Run all tests
-               ./isaaclab.sh --test  # or "./isaaclab.sh -t"
-
-               # Run all tests in a particular file
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
-
-               # Run a particular test
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. tab-set::
-
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               # Run all tests
-               isaaclab.bat --test  # or "isaaclab.bat -t"
-
-               # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
-
-               # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
-
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               # Run all tests
-               isaaclab.bat --test  # or "isaaclab.bat -t"
-
-               # Run all tests in a particular file
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
-
-               # Run a particular test
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
-
+All of these commands exit with a nonzero code when tests fail, so a test
+failure fails the invoking shell or CI step as well.
 
 Tools
 -----
@@ -772,23 +914,19 @@ We use the following tools for maintaining code quality:
 * `pre-commit <https://pre-commit.com/>`__: Runs a list of formatters and linters over the codebase.
 * `ruff <https://github.com/astral-sh/ruff/>`__: An extremely fast Python linter and formatter.
 
-Please check `here <https://pre-commit.com/#install>`__ for instructions
-to set these up. To run over the entire repository, please execute the
-following command in the terminal:
+Run the repository formatting and lint checks from the uv-managed environment on Linux or Windows:
 
-.. tab-set::
-   :sync-group: os
+.. code-block:: bash
 
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
+   uv run isaaclab --format
 
-      .. code-block:: bash
+During editing, pass repository-relative file paths to restrict file-based hooks:
 
-         ./isaaclab.sh --format  # or "./isaaclab.sh -f"
+.. code-block:: bash
 
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
+   uv run isaaclab --format source/isaaclab/isaaclab/cli/commands/format.py
 
-      .. code-block:: bash
-
-         isaaclab.bat --format  # or "isaaclab.bat -f"
+Repository-wide hooks such as the changelog gate still run. The command runs pre-commit once and
+returns its failure status, including when hooks modify files. Inspect those edits and rerun after
+resolving failures; it does not automatically replay all hooks. Run the full command on the final
+changes before committing.

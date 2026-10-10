@@ -15,12 +15,15 @@ The following configuration is available:
   12 actuated joints and zero-PD on the 18 passive linkage joints.
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import NEWTON_ASSET_DIR, retrieve_git_asset_path
+from isaaclab.utils.assets import NEWTON_ASSET_DIR
 
-_DR_LEGS_USD_PATH = retrieve_git_asset_path(NEWTON_ASSET_DIR, "disneyresearch/dr_legs/usd/dr_legs.usda")
+_DR_LEGS_USD_PATH = f"{NEWTON_ASSET_DIR}/disneyresearch/dr_legs/usd/dr_legs.usda"
 
 DR_LEGS_JOINT_ORDER: list[str] = [
     "j1_l_i",
@@ -81,12 +84,10 @@ DR_LEGS_IMPLICIT_PD_CFG = ArticulationCfg(
         usd_path=_DR_LEGS_USD_PATH,
         activate_contact_sensors=True,
         collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=10.0,
-            enable_gyroscopic_forces=True,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=False, max_depenetration_velocity=10.0, enable_gyroscopic_forces=True
         ),
-        articulation_props=sim_utils.NewtonArticulationRootPropertiesCfg(self_collision_enabled=True),
+        articulation_props=NewtonArticulationCfg(self_collision_enabled=True),
         copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(

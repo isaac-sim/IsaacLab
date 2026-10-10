@@ -11,10 +11,9 @@ from dataclasses import MISSING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.core.handover.handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
-
+from ..handover_common import GOAL_MARKER_CFG, GOAL_POSITION_OFFSET
 from .commands import HandoverCommand
 
 
@@ -29,4 +28,4 @@ class HandoverCommandCfg(CommandTermCfg):
     """Goal-position offset from the object's default position [m]."""
     success_distance_threshold: float = 0.1
     """Object-to-goal distance below which an episode counts as successful [m]."""
-    goal_visualizer_cfg: VisualizationMarkersCfg = GOAL_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_marker")
+    goal_visualizer_cfg: VisualizationMarkersCfg = replace(GOAL_MARKER_CFG, prim_path="/Visuals/Command/goal_marker")

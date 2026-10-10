@@ -40,7 +40,7 @@ Given a reset event named `variable_gravity`, add a task-owned scheduler and int
 
 ```python
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from . import mdp
 
@@ -111,7 +111,7 @@ Pattern:
 import isaaclab.envs.mdp as mdp
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab_tasks.utils import PresetCfg
 
 

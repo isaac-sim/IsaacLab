@@ -24,12 +24,10 @@ variable remains a legacy construction-time override.
 Launch Isaac Sim Simulator first.
 """
 
-from isaaclab.app import AppLauncher
+# Cameras are required to read back per-env RGB tiles.
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app — cameras are required to read back per-env RGB tiles.
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import os
 
@@ -38,6 +36,7 @@ import torch
 import warp as wp
 from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacRtxRendererCfg
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -45,7 +44,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
@@ -55,50 +54,44 @@ _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 def _isolation_renderer_cfg() -> IsaacRtxRendererCfg:
     """Disable spectator world-space layout for intentionally overlapping test environments.
 
-    The visualizer goldens cover AppLauncher's spectator configuration with spatially separated environments.
+    The visualizer goldens cover the Kit launcher's spectator configuration with spatially separated environments.
     """
     return IsaacRtxRendererCfg(global_settings=IsaacRtxRendererGlobalSettingsCfg(show_all_partitions_by_default=False))
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_enabled_by_default(monkeypatch):
-    """``primvars:omni:scenePartition`` must be authored when the environment variable is absent."""
+@pytest.mark.parametrize(
+    ("cfg_enabled", "environment_value", "expected"),
+    [(True, "0", True), (False, "1", False), (None, None, True)],
+    ids=["cfg-enabled", "cfg-disabled", "default"],
+)
+def test_partitioning_cfg_overrides_legacy_environment_variable(
+    monkeypatch, cfg_enabled: bool | None, environment_value: str | None, expected: bool
+):
+    """The renderer configuration should take precedence over the legacy environment variable.
+
+    Without either, ``primvars:omni:scenePartition`` is authored by default.
+    """
     from pxr import Usd
 
-    monkeypatch.delenv(_ENV_VAR, raising=False)
+    if environment_value is None:
+        monkeypatch.delenv(_ENV_VAR, raising=False)
+    else:
+        monkeypatch.setenv(_ENV_VAR, environment_value)
 
     stage = Usd.Stage.CreateInMemory()
     world = stage.DefinePrim("/World", "Xform")  # noqa: F841
     env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
 
     renderer = object.__new__(IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg()
+    if cfg_enabled is None:
+        renderer.cfg = IsaacRtxRendererCfg()
+    else:
+        renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
     renderer.prepare_stage(stage, num_envs=1)
 
     prim = stage.GetPrimAtPath("/World/envs/env_0")
-    assert prim.HasAttribute("primvars:omni:scenePartition"), (
-        "primvars:omni:scenePartition must be authored when partitioning uses its default."
-    )
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.parametrize(("cfg_enabled", "environment_value"), [(True, "0"), (False, "1")])
-def test_partitioning_cfg_overrides_legacy_environment_variable(monkeypatch, cfg_enabled: bool, environment_value: str):
-    """The renderer configuration should take precedence over the legacy environment variable."""
-    from pxr import Usd
-
-    monkeypatch.setenv(_ENV_VAR, environment_value)
-
-    stage = Usd.Stage.CreateInMemory()
-    world = stage.DefinePrim("/World", "Xform")  # noqa: F841
-    env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
-
-    renderer = object.__new__(IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
-    renderer.prepare_stage(stage, num_envs=1)
-
-    prim = stage.GetPrimAtPath("/World/envs/env_0")
-    assert prim.HasAttribute("primvars:omni:scenePartition") is cfg_enabled
+    assert prim.HasAttribute("primvars:omni:scenePartition") is expected
 
 
 @pytest.mark.isaacsim_ci
@@ -118,9 +111,9 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             spawn=sim_utils.CuboidCfg(
                 size=(0.25, 0.25, 0.25),
                 visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.9, 0.2, 0.2)),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=0.2),
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                mass_props=sim_utils.MassCfg(mass=0.2),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(2.0, 0.0, 1.0)),
         )
@@ -213,7 +206,10 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
             (
                 (green > 1.5 * red) & (green > 1.5 * blue) & (green > 80.0),
                 (blue > 1.5 * red) & (blue > 1.5 * green) & (blue > 80.0),
-                (red > 80.0) & (green > 80.0) & (blue < 0.6 * torch.minimum(red, green)),
+                (red > 80.0)
+                & (green > 80.0)
+                & (blue < 0.6 * torch.minimum(red, green))
+                & (torch.minimum(red, green) > 0.95 * torch.maximum(red, green)),
                 (red > 80.0) & (blue > 80.0) & (green < 0.6 * torch.minimum(red, blue)),
             ),
             dim=1,
@@ -244,7 +240,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
         light = AssetBaseCfg(
             prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.9, 0.9, 0.9))
         )
-        robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         camera = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Camera",
             update_period=0.0,

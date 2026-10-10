@@ -9,12 +9,13 @@ from collections.abc import Callable, Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+from .. import materials
+from ..spawner_cfg import RigidObjectSpawnerCfg, SpawnerCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim import schemas
+    from ... import schemas
 
 
 @configclass

@@ -8,7 +8,7 @@
 import argparse
 from collections.abc import Sequence
 
-from .._cli import parse_non_negative_int, parse_positive_int
+from ..cli import parse_non_negative_int, parse_positive_int
 
 
 def add_sensor_benchmark_args(

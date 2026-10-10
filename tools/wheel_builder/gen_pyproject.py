@@ -13,6 +13,7 @@ requirements end up in the wheel metadata.
 
 import re
 import sys
+from pathlib import Path
 
 import tomllib
 
@@ -44,6 +45,11 @@ _project_name = _requirement_name(project["name"])
 _optional = project.get("optional-dependencies", {})
 _self_ref_pattern = re.compile(r"^\s*([A-Za-z0-9._-]+)\s*\[([^\]]+)\]\s*$")
 
+# These integrations are installed from Git in source checkouts. Keep them out of the published
+# PyPI wheel metadata until their pinned versions are available as wheels from a package index.
+_WHEEL_EXCLUDED_EXTRAS = {"rl-games"}
+_WHEEL_EXCLUDED_DEPENDENCIES = {"rl-games", "robomimic"}
+
 
 def _self_ref_extras(requirement: str) -> list[str] | None:
     """Return the referenced extra names for a bare self-reference.
@@ -68,7 +74,7 @@ def _expand_self_refs(requirements: list[str], seen: set[str] | None = None) -> 
             expanded.append(requirement)
             continue
         for extra in extras:
-            if extra in seen:
+            if extra in seen or extra in _WHEEL_EXCLUDED_EXTRAS:
                 continue
             seen.add(extra)
             expanded.extend(_expand_self_refs(_optional.get(extra, []), seen))
@@ -87,13 +93,56 @@ def _dedup(requirements: list[str]) -> list[str]:
     return result
 
 
-# Required dependencies: third-party only (strip workspace members), deduped.
-deps = _dedup([d for d in _expand_self_refs(project["dependencies"]) if not _is_workspace_member(d)])
+# Required dependencies: publishable third-party packages only, deduped.
+deps = _dedup(
+    [
+        d
+        for d in _expand_self_refs(project["dependencies"])
+        if not _is_workspace_member(d) and _requirement_name(d) not in _WHEEL_EXCLUDED_DEPENDENCIES
+    ]
+)
 
-# Optional dependencies: per extra, strip workspace members and dedup.
+# Index settings are not part of wheel metadata. Use the locked CUDA wheel URLs so
+# uvx and pip cannot silently resolve CPU builds from PyPI (especially on Windows).
+with Path(root_pyproject_path).with_name("uv.lock").open("rb") as f:
+    lock = tomllib.load(f)
+_torch_platforms = {
+    "manylinux_2_28_x86_64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "manylinux_2_28_aarch64": "sys_platform == 'linux' and platform_machine == 'aarch64'",
+    "win_amd64": "sys_platform == 'win32' and platform_machine == 'AMD64'",
+}
+wheel_deps = []
+for requirement in deps:
+    name = _requirement_name(requirement)
+    if name not in {"torch", "torchvision"}:
+        wheel_deps.append(requirement)
+        continue
+    packages = [package for package in lock["package"] if package["name"] == name]
+    if len(packages) != 1 or requirement != f"{name}=={packages[0]['version'].split('+')[0]}":
+        raise ValueError(f"Regenerate uv.lock before building: {requirement} does not match the locked package")
+    package = packages[0]
+    if "+cu" not in package["version"]:
+        raise ValueError(f"The locked {name} package must be CUDA-enabled")
+    for platform, marker in _torch_platforms.items():
+        wheels = [wheel for wheel in package["wheels"] if wheel["url"].endswith(f"-cp312-cp312-{platform}.whl")]
+        if len(wheels) != 1:
+            raise ValueError(f"Expected one Python 3.12 CUDA wheel for {name} on {platform}")
+        wheel = wheels[0]
+        wheel_deps.append(f"{name} @ {wheel['url']}#{wheel['hash'].replace(':', '=', 1)} ; {marker}")
+deps = wheel_deps
+
+# Optional dependencies: per extra, strip workspace members and unpublished integrations, then dedup.
 opt_deps = {}
 for name, dep_list in project.get("optional-dependencies", {}).items():
-    opt_deps[name] = _dedup([d for d in _expand_self_refs(dep_list) if not _is_workspace_member(d)])
+    if name in _WHEEL_EXCLUDED_EXTRAS:
+        continue
+    opt_deps[name] = _dedup(
+        [
+            d
+            for d in _expand_self_refs(dep_list)
+            if not _is_workspace_member(d) and _requirement_name(d) not in _WHEEL_EXCLUDED_DEPENDENCIES
+        ]
+    )
 
 # Write pyproject.toml
 lines = []
@@ -115,7 +164,7 @@ lines.append("")
 lines.append("[project]")
 lines.append('name = "isaaclab"')
 lines.append(f'version = "{version}"')
-lines.append('requires-python = ">=3.12"')
+lines.append(f'requires-python = "{project["requires-python"]}"')
 lines.append('description = "Isaac Lab"')
 lines.append('license = {text = "BSD-3-Clause"}')
 lines.append("dependencies = [")

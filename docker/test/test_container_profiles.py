@@ -25,7 +25,7 @@ def container_context(tmp_path: Path) -> Path:
         "\n".join(
             (
                 "ISAACSIM_BASE_IMAGE=nvcr.io/nvidia/isaac-sim",
-                "ISAACSIM_VERSION=6.0.0",
+                "ISAACSIM_VERSION=6.1.0",
                 "DOCKER_ISAACSIM_ROOT_PATH=/isaac-sim",
                 "DOCKER_ISAACLAB_PATH=/workspace/isaaclab",
                 "DOCKER_USER_HOME=/root",
@@ -33,7 +33,6 @@ def container_context(tmp_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
-    (tmp_path / ".env.ros2").write_text("ROS2_APT_PACKAGE=ros-base\n", encoding="utf-8")
     (tmp_path / ".env.kitless").write_text(
         "\n".join(
             (
@@ -58,117 +57,32 @@ def make_interface(container_context: Path) -> Callable[[str], ContainerInterfac
     return _make
 
 
-@pytest.mark.parametrize(
-    ("profile", "expected_env_files"),
-    (
-        ("base", ["--env-file", ".env.base"]),
-        ("ros2", ["--env-file", ".env.base", "--env-file", ".env.ros2"]),
-        ("kitless", ["--env-file", ".env.kitless"]),
-    ),
-)
-def test_profile_environment_inheritance(
-    make_interface: Callable[[str], ContainerInterface], profile: str, expected_env_files: list[str]
-):
-    """Each profile loads only its intended environment-file chain."""
-    interface = make_interface(profile)
-
-    assert interface.add_env_files == expected_env_files
-    if profile == "kitless":
-        assert "ISAACSIM_BASE_IMAGE" not in interface.dot_vars
-        assert interface.dot_vars["DOCKER_USER_HOME"] == "/home/isaaclab"
-
-
-def test_profile_capabilities(make_interface: Callable[[str], ContainerInterface]):
-    """Only profiles derived from the Isaac Sim base image require it to be built first."""
-    assert not make_interface("base").requires_base_image
-    assert make_interface("ros2").requires_base_image
-    assert not make_interface("kitless").requires_base_image
-
-
-@pytest.mark.parametrize(
-    ("profile", "expected_commands"),
-    (
-        (
-            "base",
-            [
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "base",
-                    "--env-file",
-                    ".env.base",
-                    "build",
-                    "isaac-lab-base",
-                ]
-            ],
-        ),
-        (
-            "ros2",
-            [
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "base",
-                    "--env-file",
-                    ".env.base",
-                    "build",
-                    "isaac-lab-base",
-                ],
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "ros2",
-                    "--env-file",
-                    ".env.base",
-                    "--env-file",
-                    ".env.ros2",
-                    "build",
-                    "isaac-lab-ros2",
-                ],
-            ],
-        ),
-        (
-            "kitless",
-            [
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "kitless",
-                    "--env-file",
-                    ".env.kitless",
-                    "build",
-                    "isaac-lab-kitless",
-                ]
-            ],
-        ),
-    ),
-)
+@pytest.mark.parametrize(("profile", "pull"), [("base", False), ("kitless", True)])
 def test_build_uses_profile_dependency_chain(
     make_interface: Callable[[str], ContainerInterface],
     monkeypatch: pytest.MonkeyPatch,
     profile: str,
-    expected_commands: list[list[str]],
+    pull: bool,
 ):
-    """Build only the services required by the selected profile."""
-    run = MagicMock()
-    run.return_value.returncode = 0
+    """Build the selected profile with its environment and optional parent refresh."""
+    run = MagicMock(return_value=Namespace(returncode=0))
     monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+    interface = make_interface(profile)
 
-    make_interface(profile).build()
+    interface.build(pull=pull)
 
-    assert [call.args[0] for call in run.call_args_list] == expected_commands
+    expected_env_files = ["--env-file", f".env.{profile}"]
+    assert interface.add_env_files == expected_env_files
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["docker", "compose", "--file", "docker-compose.yaml", "--profile", profile]
+        + expected_env_files
+        + ["build"]
+        + (["--pull"] if pull else [])
+        + [f"isaac-lab-{profile}"]
+    ]
+    if profile == "kitless":
+        assert "ISAACSIM_BASE_IMAGE" not in interface.dot_vars
+        assert interface.dot_vars["DOCKER_USER_HOME"] == "/home/isaaclab"
 
 
 def test_kitless_start_does_not_build_base(
@@ -213,28 +127,49 @@ def test_kitless_enter_and_stop_target_profile_container(
     interface.enter()
     interface.stop()
 
+    stop_command = [
+        "docker",
+        "compose",
+        "--file",
+        "docker-compose.yaml",
+        "--profile",
+        "kitless",
+        "--env-file",
+        ".env.kitless",
+        "down",
+    ]
     assert [call.args[0] for call in run.call_args_list] == [
         ["docker", "exec", "--interactive", "--tty", "-e", "DISPLAY=:99", "isaac-lab-kitless", "bash"],
-        [
-            "docker",
-            "compose",
-            "--file",
-            "docker-compose.yaml",
-            "--profile",
-            "kitless",
-            "--env-file",
-            ".env.kitless",
-            "down",
-            "--volumes",
-        ],
+        stop_command,
     ]
+
+
+@pytest.mark.parametrize(
+    "containers",
+    [[], ["isaac-lab-kitless"], ["isaac-lab-kitless", "isaac-lab-base"], ["isaac-lab-base"]],
+)
+def test_volume_cleanup_requires_exclusive_project_container(make_interface, monkeypatch, containers):
+    """An absent profile cannot delete another profile's stopped data; shared containers block cleanup."""
+    run = MagicMock(return_value=Namespace(returncode=0, stdout="\n".join(containers)))
+    monkeypatch.setattr("docker.utils.container_interface.subprocess.run", run)
+    interface = make_interface("kitless")
+
+    if len(containers) > 1:
+        with pytest.raises(RuntimeError, match="Refusing project-wide volume cleanup"):
+            interface.stop(remove_volumes=True)
+    else:
+        interface.stop(remove_volumes=True)
+
+    commands = [call.args[0] for call in run.call_args_list]
+    cleanup = [command for command in commands if "--volumes" in command]
+    assert len(cleanup) == (1 if containers == ["isaac-lab-kitless"] else 0)
 
 
 def test_x11_overlay_covers_every_profile():
     """Compose merges the X11 override by service name, so each profile needs an entry."""
     overlay = yaml.safe_load((DOCKER_DIR / "x11.yaml").read_text(encoding="utf-8"))
 
-    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-ros2", "isaac-lab-kitless"}
+    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-kitless"}
     for name, service in overlay["services"].items():
         assert "DISPLAY" in service["environment"], name
         assert any("X11-unix" in mount["source"] for mount in service["volumes"]), name
@@ -308,20 +243,6 @@ def test_image_is_verified_before_it_is_published():
     ]
 
     assert base_build["with"]["verify-test-path"] == "docker/test/test_image_invariants.py"
-
-
-def test_run_tests_links_isaac_sim_only_where_kit_is_installed():
-    """The kit-less image has no Kit under ``/isaac-sim``, which the runtime mounts create anyway.
-
-    Linking it as ``_isaac_sim`` there reads as a downloaded Isaac Sim, which ``isaaclab.sh``
-    refuses to combine with the image's ``VIRTUAL_ENV``.
-    """
-    script = (REPO_ROOT / ".github" / "actions" / "run-tests" / "run_tests.sh").read_text(encoding="utf-8")
-
-    link_lines = [line.strip() for line in script.splitlines() if "ln -s /isaac-sim _isaac_sim" in line]
-
-    assert link_lines
-    assert all("/isaac-sim/python.sh" in line for line in link_lines), link_lines
 
 
 def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.MonkeyPatch):

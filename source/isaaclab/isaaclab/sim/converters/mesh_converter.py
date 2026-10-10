@@ -11,14 +11,13 @@ import omni
 import omni.kit.commands
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
-from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
-from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
-from isaaclab.sim.schemas import schemas
-from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
-from isaaclab.sim.spawners._utils import fragment_mapping, props_expr
-from isaaclab.sim.utils import delete_prim, enable_extension, export_prim_to_file
+from ..schemas import schemas
+from ..schemas.schemas_cfg import SchemaFragment
+from ..spawners.utils import apply_schema_props
+from ..utils import delete_prim, enable_extension, export_prim_to_file
+from .asset_converter_base import AssetConverterBase
+from .mesh_converter_cfg import MeshConverterCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -83,8 +82,7 @@ class MeshConverter(AssetConverterBase):
             RuntimeError: If the conversion using the Omniverse asset converter fails.
         """
         # resolve mesh name and format
-        mesh_file_basename, mesh_file_format = os.path.basename(cfg.asset_path).split(".")
-        mesh_file_format = mesh_file_format.lower()
+        mesh_file_basename = os.path.splitext(os.path.basename(cfg.asset_path))[0]
 
         # Check if mesh_file_basename is a valid USD identifier
         if not Tf.IsValidIdentifier(mesh_file_basename):
@@ -124,25 +122,15 @@ class MeshConverter(AssetConverterBase):
         # Move all meshes to underneath new Xform
         for child_mesh_prim in geom_prim.GetChildren():
             if child_mesh_prim.GetTypeName() == "Mesh":
-                # Apply collider properties to mesh
+                # Collider properties such as offset, scale, etc. anchor at this mesh prim.
                 if cfg.collision_props is not None:
-                    # -- Collider properties such as offset, scale, etc.
-                    # fragment path: mapping entries anchor at this mesh prim, so ``""`` preserves
-                    # the legacy placement; entries apply in insertion order. Otherwise a legacy
-                    # cfg routes to the legacy writer.
-                    collision_props_mapping = fragment_mapping(cfg.collision_props)
-                    if collision_props_mapping is not None:
-                        for pattern, fragments in collision_props_mapping.items():
-                            schemas.apply_collision_properties(
-                                props_expr(str(child_mesh_prim.GetPath()), pattern),
-                                fragments,
-                                create_if_missing=True,
-                                stage=stage,
-                            )
-                    else:
-                        schemas.define_collision_properties(
-                            prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
-                        )
+                    apply_schema_props(
+                        cfg.collision_props,
+                        str(child_mesh_prim.GetPath()),
+                        schemas.apply_collision_properties,
+                        schemas.define_collision_properties,
+                        stage,
+                    )
                 # Add collision mesh
                 if cfg.mesh_collision_props is not None:
                     # Transition bridge: route a fragment (or list of fragments) through the new
@@ -206,32 +194,21 @@ class MeshConverter(AssetConverterBase):
             geom_undef_prim.GetReferences().AddReference(self.usd_instanceable_meshes_path, primPath=geom_prim_path)
             geom_undef_prim.SetInstanceable(True)
 
-        # Apply mass and rigid body properties after everything else
-        # Properties are applied to the top level prim to avoid the case where all instances of this
-        #   asset unintentionally share the same rigid body properties
-        # fragment path: mapping entries anchor at the root Xform prim, so ``""`` preserves the
-        # legacy placement; entries apply in insertion order. Otherwise a legacy cfg routes to the
-        # legacy writer.
-        # apply mass properties
+        # Mass and rigid body properties go on the top-level prim after everything else so that
+        # instances of this asset do not unintentionally share them.
+        xform_prim_path = str(xform_prim.GetPath())
         if cfg.mass_props is not None:
-            mass_props_mapping = fragment_mapping(cfg.mass_props)
-            if mass_props_mapping is not None:
-                for pattern, fragments in mass_props_mapping.items():
-                    schemas.apply_mass_properties(
-                        props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
-                    )
-            else:
-                schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
-        # apply rigid body properties
+            apply_schema_props(
+                cfg.mass_props, xform_prim_path, schemas.apply_mass_properties, schemas.define_mass_properties, stage
+            )
         if cfg.rigid_props is not None:
-            rigid_props_mapping = fragment_mapping(cfg.rigid_props)
-            if rigid_props_mapping is not None:
-                for pattern, fragments in rigid_props_mapping.items():
-                    schemas.apply_rigid_body_properties(
-                        props_expr(str(xform_prim.GetPath()), pattern), fragments, create_if_missing=True, stage=stage
-                    )
-            else:
-                schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
+            apply_schema_props(
+                cfg.rigid_props,
+                xform_prim_path,
+                schemas.apply_rigid_body_properties,
+                schemas.define_rigid_body_properties,
+                stage,
+            )
 
         # Save changes to USD stage
         stage.Save()

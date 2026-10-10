@@ -25,42 +25,30 @@ This page covers:
    .viz-grid > div { flex:1 1 0; min-width:0; }
    .viz-grid video, .viz-grid img { display:block; width:100%; border-radius:0 !important; padding:0 !important; background:none !important; }
    .viz-grid-stretch video, .viz-grid-stretch img { height:260px; object-fit:cover; }
-   .viz-grid-stretch.viz-grid-hero-tiles video { height:286px; }
+   .viz-grid-stretch.viz-grid-hero-tiles video { height:315px; }
    .viz-grid-fit { justify-content:center; }
    .viz-grid-fit > div { flex:0 0 auto; }
    .viz-grid-fit video, .viz-grid-fit img { width:auto; height:488px; }
-   .viz-grid-natural { justify-content:center; }
-   .viz-grid-natural > div { flex:0 0 auto; }
-   .viz-grid-natural img { width:auto; height:260px; }
-   /* video (unlike img above) sizes by flexing to share the row instead of a fixed height:
-      these clips are much wider (near 16:9) than the marker screenshots img was tuned for, so
-      a fixed height risks overflowing the page width when 2 sit side by side. */
-   .viz-grid-natural > div:has(video) { flex:1 1 0; min-width:0; }
-   .viz-grid-natural video { width:100%; height:auto; max-height:260px; }
    .viz-grid-stretch video.viz-no-crop { object-fit:contain; background:#000; }
-   .viz-grid-stretch video.viz-crop-bottom { object-position:center bottom; }
-   .viz-grid-stretch video.viz-crop-kit-bottom { object-position:center 76%; }
    .viz-grid-stretch video.viz-crop-x8 { width:calc(100% + 16px); margin-left:-8px; }
    .viz-grid-stretch img.viz-crop-top { object-position:center 25%; }
-   .viz-hero-wrap.viz-hero-newton-gl { aspect-ratio:960/397; }
-   .viz-hero-wrap.viz-hero-newton-gl video.viz-crop-newton-hero { width:calc(100% + 2px); height:calc(100% + 55px);
-                margin-left:-1px; margin-top:-40px; object-fit:cover; object-position:center 55.3%; }
-   .viz-label.viz-label-raise { bottom:10px; }
-   /* Trims pixels off each hero tile on top of whatever object-position crop is already
-      applied, so the tile itself is shorter rather than just repositioning the existing crop.
-      Both classes crop to the same final 241px height so the 2x2 tile grid stays even, split
-      differently per tile: Kit/Rerun/Newton RTX crop 35px off the top and 10px off the bottom;
-      Viser crops 25px off the top and 20px off the bottom (its object-position framing already
-      leaves more headroom at the bottom, so it can take a heavier bottom crop). */
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:276px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { margin-top:-10px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-top25 video { margin-top:-35px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed { height:241px; }
-   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-mixed video { margin-top:-25px; }
+   /* Per-tile crop windows: each video's (taller) height sets the zoom and its negative
+      margin-top picks which slice of the 265px wrap is shown, matching robot size within each
+      row. Tuned against the currently hosted clips, not capture_visualizer.py's own (much
+      smaller) fixed trim -- re-check if the clips are ever regenerated. Rerun/Viser cap how far
+      they can zoom out before their own baked-in UI chrome reappears; Viser is already at that
+      limit. */
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap { height:265px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap video { object-position:center center; height:265px; margin-top:0; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-newton-gl video { height:480px; margin-top:-105px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-viser video { height:314px; margin-top:-49px; }
+   .viz-grid-stretch.viz-grid-hero-tiles .viz-hero-wrap.viz-crop-rerun video { height:293px; margin-top:-19px; }
    .viz-grid-record { justify-content:center; align-items:flex-start; }
    .viz-grid-record > div { flex:0 0 auto; }
    .viz-grid-record video { display:block; width:auto; height:300px; }
+   .viz-stack-centered { display:flex; flex-direction:column; align-items:center; gap:1em; margin: 0.5em 0; }
+   .viz-stack-centered > div { width:65%; }
+   .viz-stack-centered video { display:block; width:100%; height:auto; }
    .viz-cap { text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em; }
    .viz-hero-wrap { position:relative; overflow:hidden; }
    .viz-label { position:absolute; bottom:8px; right:8px; max-width:35%; background:rgba(32,32,32,0.85);
@@ -72,42 +60,55 @@ This page covers:
    Green arrow: commanded velocity. Blue arrow: current velocity.</p>
 
    <div class="viz-hero-stack">
-   <div class="viz-hero-wrap viz-hero-newton-gl">
-     <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-newton-hero">
-       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
-     </video>
-     <div class="viz-label viz-label-raise">Newton GL</div>
-   </div>
-
    <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
-     <div class="viz-hero-wrap viz-crop-mixed">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
+     <div class="viz-hero-wrap viz-crop-newton-gl">
+       <video autoplay loop muted playsinline preload="auto">
+         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_gl.mp4" type="video/mp4">
+       </video>
+       <div class="viz-label">Newton GL</div>
+     </div>
+     <div class="viz-hero-wrap viz-crop-viser">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_viser.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Viser</div>
      </div>
-     <div class="viz-hero-wrap viz-crop-top25">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
+   </div>
+   <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
+     <div class="viz-hero-wrap viz-crop-newton-rtx">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_newton_rtx.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Newton RTX</div>
      </div>
-   </div>
-   <div class="viz-grid viz-grid-stretch viz-grid-hero-tiles">
-     <div class="viz-hero-wrap viz-crop-top25">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-bottom">
-         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
-       </video>
-       <div class="viz-label">Rerun</div>
-     </div>
-     <div class="viz-hero-wrap viz-crop-top25">
-       <video autoplay loop muted playsinline controls preload="auto" class="viz-crop-kit-bottom viz-crop-x8">
+     <div class="viz-hero-wrap viz-crop-kit">
+       <video autoplay loop muted playsinline preload="auto" class="viz-crop-x8 viz-hero-speedup">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_kit.mp4" type="video/mp4">
        </video>
        <div class="viz-label">Kit</div>
      </div>
+     <div class="viz-hero-wrap viz-crop-rerun">
+       <video autoplay loop muted playsinline preload="auto" class="viz-hero-start-1s">
+         <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/hero_rerun.mp4" type="video/mp4">
+       </video>
+       <div class="viz-label">Rerun</div>
+     </div>
    </div>
    </div>
+
+   <script>
+   // Kit/Newton RTX are encoded 10% slower than the other 3 (output_speed_factor in
+   // capture_visualizer.py); undo that so all 5 independently-looping clips stay in phase.
+   document.querySelectorAll(".viz-hero-speedup").forEach(function (v) {
+     v.playbackRate = 1 / 0.9;
+   });
+   // Start Viser/Rerun 1.2s into their clip instead of at 0; native loop still wraps to 0 as usual.
+   document.querySelectorAll(".viz-hero-start-1s").forEach(function (v) {
+     var seek = function () { v.currentTime = 1.2; };
+     if (v.readyState >= 1) seek();
+     else v.addEventListener("loadedmetadata", seek, { once: true });
+   });
+   </script>
 
    <p class="viz-cap">Note: Newton RTX has no velocity arrows, since it doesn't yet support visualization markers.</p>
 
@@ -135,15 +136,6 @@ alias.
 
           # Multiple visualizers simultaneously (comma-separated, no spaces)
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton_rtx
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz viser
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun,newton_rtx
 
 .. note::
 
@@ -207,7 +199,7 @@ Visualizer Overview
              <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
                <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_gl_dominoes.mp4" type="video/mp4">
              </video>
-             <p class="viz-cap">newton_viewer_dominoes demo<br>Right-click dragging the first domino
+             <p class="viz-cap">newton-dominoes example<br>Right-click dragging the first domino
              triggers the cascade across an NVIDIA-logo domino layout</p>
            </div>
          </div>
@@ -375,10 +367,11 @@ Visualizer Overview
 
       .. warning::
 
-         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as the Kit
-         visualizer or PhysX. This rules out ``presets=ovphysx`` and ``presets=isaacsim_physx``; use
-         ``presets=newton_mjwarp,ovrtx`` with ``--viz newton_rtx``, or switch to ``--viz newton_gl``,
-         ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible physics backend.
+         Newton RTX (OVRTX) is a kitless renderer and cannot be used in the same process as Kit
+         (``presets=isaacsim_physx``). ``presets=ovphysx`` is itself kitless and works fine with
+         Newton RTX. Use ``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with
+         ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
+         or ``--viz kit`` with a Kit-compatible physics backend.
 
    .. tab-item:: Rerun
 
@@ -467,6 +460,14 @@ Visualizer Overview
       - Direct access to the Isaac Sim USD stage for inspecting and editing prims at runtime
       - Full Isaac Sim GUI tooling (Property, Layers, and Stage panels)
 
+      .. note::
+
+         Kit's ImGui-based UI writes an ``imgui.ini`` file, recording window layout (panel
+         positions, docking, collapsed state), to the process working directory. If that is the
+         repository root, it shows up as an untracked file. ``imgui.ini`` is already listed in
+         ``.gitignore``; delete it or launch from outside the repository if you would rather it
+         not appear at all.
+
       **Core configuration:**
 
       .. code-block:: python
@@ -509,7 +510,7 @@ updates every step.
 
 .. raw:: html
 
-   <div class="viz-grid viz-grid-natural">
+   <div class="viz-stack-centered">
      <div>
        <video autoplay loop muted playsinline controls preload="auto">
          <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/streaming_newton_galbot_interactive.mp4" type="video/mp4">
@@ -527,9 +528,9 @@ updates every step.
 The streaming panel supports RGB, depth, segmentation, and surface normals, with a configurable
 number of environments shown.
 
-Streams can come from auto-created cameras that track and follow robot bodies, or from existing
-scene camera sensors, letting you toggle between different views, such as the Galbot task's
-wrist-mounted and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
+Streams come from camera sensors declared in the scene before cloning. Attach a camera to a robot
+body to follow its motion, and select between existing views such as the Galbot task's wrist-mounted
+and ego cameras. Supported on Kit, Newton GL, Rerun, and Viser; not yet
 supported on Newton RTX (experimental).
 
 See :doc:`/source/features/visualizer_tiled_camera` for the full guide and tutorial.
@@ -545,11 +546,11 @@ Visualization markers draw debug geometry over the scene via
 
    <div class="viz-grid viz-grid-stretch">
      <div>
-       <img src="../../_static/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
+       <img src="../../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot">
        <p class="viz-cap">Large green/blue arrow markers showing target and base velocity for an AnymalD robot</p>
      </div>
      <div>
-       <img src="../../_static/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
+       <img src="../../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" class="viz-crop-top">
        <p class="viz-cap">Arrow markers on the Franka arm's joints, with contact sensor markers on the cube</p>
      </div>
    </div>
@@ -636,13 +637,30 @@ streaming views, and renderer-based sensor data capture.
      </div>
    </div>
 
-Pass ``--video`` on the command line for a quick recording from the default visualizer, or
-define multiple ``VideoRecorderCfg`` entries to record multiple sources at once. Kit, Newton
-GL, and Newton RTX visualizers can be recorded while in headless mode, to reduce overhead or
-in case no display is available.
+Pass ``--video [SOURCE]`` on the command line for a quick recording, or define multiple
+``VideoRecorderCfg`` entries to record multiple sources at once. ``--viz`` still decides which
+visualizers open a window; a visualizer that only records runs headless:
 
-Not currently supported by the web-based visualizers Viser and Rerun; add a headless
-visualizer as a capture source alongside them to record video.
+.. list-table::
+   :widths: 40 60
+   :header-rows: 1
+
+   * - Command line
+     - Records from
+   * - ``--video`` (same as ``--video viz``)
+     - the first capture-capable visualizer ``--viz`` selected, in its window; if none is selected, or only
+       streaming ones such as ``viser`` or ``rerun``, a headless ``newton_gl``
+   * - ``--video viz:newton_rtx``
+     - a ``newton_rtx``: the ``--viz``-selected one if selected, else an extra headless one
+   * - ``--video --viz newton_rtx``
+     - the selected ``newton_rtx`` window
+   * - ``--video viz:newton_gl --viz viser``
+     - ``viser`` runs; an extra headless ``newton_gl`` is added only for recording
+   * - ``--video sensor:wrist_camera[:rgb|depth|...]``
+     - that scene sensor; no visualizer is added
+
+Kit, Newton GL, and Newton RTX visualizers can be recorded from; the web-based visualizers Viser and
+Rerun cannot.
 
 See :doc:`/source/features/record_video` for the full guide and tutorial.
 
@@ -657,8 +675,8 @@ Common Recipes
 
 **Headless training with video recording**
 
-Run without a window and record clips from a Newton GL or Kit visualizer kept alive as the
-capture source:
+Run without a window and record clips from a headless Newton GL visualizer, or name another
+capture source, e.g. ``--video viz:kit``:
 
 .. tab-set::
 
@@ -666,21 +684,14 @@ capture source:
 
       .. code-block:: bash
 
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
-              --viz newton_gl --headless --video
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole \
-              --viz newton_gl --headless --video
+          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
 See :doc:`/source/features/record_video` for clip length, interval, and multi-source options.
 
 **Combining an interactive view with a headless recording source**
 
-Watch training live in Kit while recording from a separate headless Newton GL angle:
+Watch training live in Kit while recording from a separate headless Newton GL angle, running with
+``--viz kit --video viz:newton_gl``:
 
 .. code-block:: python
 
@@ -689,7 +700,7 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 
     sim_cfg.visualizer_cfgs = [
         KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0), headless=True),
+        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),  # recorded headless, as --viz does not select it
     ]
 
 See the "Recording from an independent camera angle" section of
@@ -698,7 +709,7 @@ See the "Recording from an independent camera angle" section of
 **Following a moving robot (Kit)**
 
 Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step:
+step, running with ``--viz kit``:
 
 .. code-block:: python
 
@@ -715,7 +726,7 @@ step:
 **Sharing a live view with a remote teammate**
 
 Viser can request a public share URL for the running session, useful for remote pairing
-without screen-sharing:
+without screen-sharing, running with ``--viz viser``:
 
 .. code-block:: python
 
@@ -729,16 +740,16 @@ share button in the native UI.
 Resolution Rules
 ~~~~~~~~~~~~~~~~
 
-Visualizers are resolved from ``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) or
-``SimulationCfg.visualizer_cfgs`` in code. If ``--viz`` is omitted, the config value is used;
-``--viz none`` always disables all visualizers, regardless of config.
+``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) selects which visualizers run, and
+``SimulationCfg.visualizer_cfgs`` configures them. Exactly the listed types are launched: each uses
+the configured visualizer of its type, with its settings, or else that type's default config. If
+``--viz`` is omitted, no visualizer runs, even if ``visualizer_cfgs`` lists some.
 
-Add ``--headless`` alongside ``--viz kit`` or ``--viz newton_gl`` to keep that visualizer
-running without an on-screen window, e.g. as a ``--video`` recording source on a machine
-without a display.
+Isaac Sim opens a window only when ``--viz`` selects ``kit``, and never with ``HEADLESS=1`` or
+livestreaming. A visualizer a ``--video`` source adds for recording always runs headless.
 
 To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
-``SimulationCfg``:
+``SimulationCfg``; they take effect for the types ``--viz`` selects:
 
 .. code-block:: python
 
@@ -768,20 +779,35 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
    * - ``--viz kit,newton_gl``
      - ``[]``
      - Launch default Kit and Newton GL visualizers.
-   * - ``--viz newton_gl --headless``
+   * - ``--video`` without ``--viz``
      - ``[]``
-     - Launch Newton GL without a window, e.g. as a ``--video`` recording source.
+     - Launch Newton GL without a window, only as the ``--video`` recording source.
    * - ``--viz kit,newton_gl``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Launch default Kit and custom Newton GL; Rerun is not launched.
    * - no ``--viz``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - Launch custom Newton GL and Rerun from config.
-   * - ``--viz none``
+     - No visualizer launches; the configs only apply when ``--viz`` selects their types.
+   * - ``--viz newton_gl,rerun``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - All visualizers disabled; no window, no capture source.
+     - Launch custom Newton GL and Rerun from config.
 
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
+
+
+Scene Background
+~~~~~~~~~~~~~~~~
+
+Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
+``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
+lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
+color directly, or set the field to ``None`` to preserve the backend's native background:
+
+.. code-block:: python
+
+    from isaaclab.visualizers import VisualizerCfg
+
+    env_cfg.sim.default_visualizer_cfg = VisualizerCfg(background_color=(0.1, 0.2, 0.3))
 
 
 Performance
@@ -859,11 +885,33 @@ Limitations
      - ✓
      - ✓
 
+**Lighting differences across visualizers**
+
+Each backend lights the scene differently, so the same environment can look noticeably
+different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
+uses a fixed sky-gradient and single directional light color
+(:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
+``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX supports
+only 3 lighting-environment presets
+(:attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.rtx_environment`: ``"default"``,
+``"studio"``, ``"none"``) and does not use any scene-authored USD lights. Viser uses a single
+ambient light with no directional key light, so scenes tend to look darker and flatter than
+the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
+
 **Kit: incompatible with ovphysx / ovrtx presets**
 
 ``--viz kit`` cannot be used with ``presets=ovphysx`` or ``presets=ovrtx`` in the same process.
 Use ``--viz newton_gl``, ``--viz rerun``, or ``--viz viser`` with those presets, or omit
 ``--viz`` for headless execution.
+
+**Newton RTX: incompatible with Kit**
+
+``--viz newton_rtx`` raises a ``RuntimeError`` at startup if the active physics backend is
+``isaacsim_physx`` (i.e. ``presets=isaacsim_physx``), since OVRTX is a kitless renderer and cannot share
+a process with Kit. ``presets=ovphysx`` is itself kitless and remains supported. Use
+``presets=newton_mjwarp,ovrtx`` or ``presets=ovphysx,ovrtx`` with ``--viz newton_rtx``, or switch
+to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``, or ``--viz kit`` with a Kit-compatible
+physics backend.
 
 **Rerun: large environment performance**
 
@@ -878,11 +926,13 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+**Rerun: blank page until the first payload loads**
 
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz rerun --num_envs 512
+The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
+depending on scene size) before the scene and live plots appear. This is expected -- it's the
+time for the web viewer to connect to the local Rerun server and receive its first batch of
+logged data -- but the page gives no loading indicator in the meantime, so it can look stuck.
+No action is needed; wait for the first frame to arrive.
 
 **Newton GL: CUDA/OpenGL interoperability warnings**
 
@@ -905,21 +955,6 @@ process is running without a GPU-backed display context (for example, in a servi
 a remote desktop without GPU acceleration). Run from a GPU-backed interactive display session,
 or omit ``--viz newton_gl`` for headless execution.
 
-**Newton GL: Spark + conda**
-
-Conda-installed X11 libraries may conflict with pyglet on Spark, producing:
-
-.. code-block:: text
-
-    pyglet.window.xlib.XlibException: Could not create UTF8 text property
-
-Remove the conflicting conda packages to use the system libraries instead:
-
-.. code-block:: bash
-
-    conda remove --force xorg-libx11 libxcb
-
-
 See Also
 --------
 
@@ -927,7 +962,7 @@ See Also
 - :doc:`/source/features/record_video`: recording MP4 clips from a visualizer or sensor
 - :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
-- :doc:`/source/overview/core-concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
-- :doc:`/source/overview/core-concepts/physical-backends/newton/index`: Newton backend guide
+- :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
+- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows to visualizers
+- :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference

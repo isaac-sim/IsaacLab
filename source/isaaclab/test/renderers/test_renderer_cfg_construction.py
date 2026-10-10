@@ -7,8 +7,7 @@
 
 import pytest
 
-import isaaclab.renderers as renderers
-from isaaclab.renderers import RendererCfg
+from isaaclab.renderers import RenderBufferKind
 from isaaclab.utils.string import ResolvableString
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -23,13 +22,27 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
     ],
 )
 def test_renderer_cfg_names_its_implementation(module_name, cfg_name, implementation):
-    """Every concrete renderer cfg resolves the class used by ``cfg.class_type(cfg)``."""
+    """Every concrete renderer cfg resolves the class used by ``instantiate(cfg)``."""
     cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
     class_type = cfg_type().class_type
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
 
 
-def test_renderer_construction_has_no_factory_api():
-    assert not hasattr(renderers, "Renderer")
-    assert not any(hasattr(RendererCfg, name) for name in ("build", "build_renderer", "clone_context"))
+@pytest.mark.parametrize(
+    "module_name,cfg_name,required_output",
+    [
+        ("isaaclab_physx.renderers", "IsaacRtxRendererCfg", RenderBufferKind.SIMPLE_SHADING_FULL_MDL),
+        ("isaaclab_newton.renderers", "NewtonWarpRendererCfg", RenderBufferKind.ALBEDO),
+        ("isaaclab_ov.renderers", "OVRTXRendererCfg", RenderBufferKind.SIMPLE_SHADING_FULL_MDL),
+    ],
+)
+def test_renderer_cfg_publishes_output_contract(module_name, cfg_name, required_output):
+    """Concrete renderer configs expose capabilities without resolving implementation classes."""
+    cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
+    cfg = cfg_type()
+
+    specs = cfg.supported_output_types()
+
+    assert specs is not None
+    assert required_output in specs

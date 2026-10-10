@@ -7,17 +7,15 @@
 
 from __future__ import annotations
 
-import importlib.util
+import random
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
-import torch
 
-import isaaclab.visualizers as visualizers
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -38,31 +36,37 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 )
 def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
     cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
-    class_type = cfg_type().class_type
+    cfg = cfg_type()
+    class_type = cfg.class_type
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
+    assert cfg.streaming_sensor_prim_path is None
+    assert "cameras" in vars(cfg) and "camera" not in vars(cfg)
+    assert not any(name.startswith(("streaming_cam_", "tiled_cam_")) for name in vars(cfg))
 
 
-def test_visualizer_construction_has_no_factory_api():
-    assert not hasattr(visualizers, "Visualizer")
-    assert not any(
-        hasattr(VisualizerCfg, name)
-        for name in ("build", "build_visualizer", "clone_context", "create_visualizer", "get_visualizer_type")
-    )
-
-
-def test_visualizer_cfg_streaming_view_is_opt_in():
+def test_visualizer_cfg_camera_sources():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
+    assert cfg.background_color == (0.30, 0.55, 0.82)
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
+    assert cfg.streaming_sensor_prim_path is None
+    cfg = VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")])
+    assert cfg.streaming_view
+    # Resolve the source at initialization instead of copying its path between config fields.
+    assert cfg.streaming_sensor_prim_path is None
+    cfg = VisualizerCfg(cameras=[PerspectiveCameraCfg(eye=(1.0, 2.0, 3.0), focal_length=24.0)])
+    assert (cfg.eye, cfg.focal_length, cfg.streaming_view) == ((1.0, 2.0, 3.0), 24.0, False)
+    with pytest.raises(ValueError, match="at least one display source"):
+        VisualizerCfg(cameras=[])
 
 
-def test_streaming_cfg_fields_on_visualizer_cfg():
-    """streaming_view is opt-in (False) and streaming_cam_renderer defaults to None."""
-    cfg = VisualizerCfg()
-    assert cfg.streaming_view is False
-    assert cfg.streaming_cam_renderer is None
+def test_visualizer_cfg_validates_background_color():
+    assert VisualizerCfg(background_color=None).background_color is None
+    assert VisualizerCfg(background_color=[0, 0.5, 1]).background_color == (0.0, 0.5, 1.0)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        VisualizerCfg(background_color=(0.0, 0.5, 1.1))
 
 
 #
@@ -71,8 +75,8 @@ def test_streaming_cfg_fields_on_visualizer_cfg():
 
 
 class _DummyVisualizer(BaseVisualizer):
-    def initialize(self, scene_data_provider) -> None:
-        self._scene_data_provider = scene_data_provider
+    def initialize(self, scene_data_provider, *, cameras, stage=None) -> None:
+        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -85,164 +89,50 @@ class _DummyVisualizer(BaseVisualizer):
         return True
 
 
-def _make_cfg(**kwargs):
-    cfg = {
-        "max_visible_envs": None,
-        "visible_env_indices": None,
-        # Default off in tests: contiguous cap-only path matches historical assertions.
-        "randomly_sample_visible_envs": False,
-    }
-    cfg.update(kwargs)
-    return SimpleNamespace(**cfg)
-
-
-_HAS_ISAACLAB_VIZ = importlib.util.find_spec("isaaclab_visualizers") is not None
-
-
-class _FakeProvider:
-    def __init__(self, num_envs: int = 0, transforms: dict | None = None):
-        self._num_envs = num_envs
-        self._transforms = transforms
-
-    @property
-    def num_envs(self) -> int:
-        return self._num_envs
-
-    def get_metadata(self) -> dict:
-        return {"num_envs": self._num_envs}
-
-    def get_camera_transforms(self):
-        return self._transforms
-
-
-class _FakeCamera:
-    device = "cpu"
-
-    def __init__(self):
-        self.set_world_poses_from_view_calls = []
-        self.update_poses_calls = []
-
-    def set_world_poses_from_view(self, eyes, targets, env_ids=None):
-        self.set_world_poses_from_view_calls.append((eyes.clone(), targets.clone(), env_ids))
-
-    def _update_poses(self, dt):
-        self.update_poses_calls.append(dt)
-
-
-def test_apply_camera_view_from_origins_forwards_env_ids():
-    camera = _FakeCamera()
-    origins = torch.tensor([[1.0, 2.0, 3.0]])
-
-    apply_camera_view_from_origins(camera, origins, eye=(0.5, 0.0, 1.0), lookat=(0.0, 0.0, 0.0), env_ids=[2])
-
-    eyes, targets, env_ids = camera.set_world_poses_from_view_calls[0]
-    assert eyes.tolist() == [[1.5, 2.0, 4.0]]
-    assert targets.tolist() == [[1.0, 2.0, 3.0]]
-    assert env_ids == [2]
-    assert camera.update_poses_calls == [None]
-
-
-def test_prim_world_positions_prefers_scene_articulation_state():
-    body_pos_w = torch.tensor(
-        [
-            [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]],
-            [[4.0, 5.0, 6.0], [40.0, 50.0, 60.0]],
-        ]
-    )
-    articulation = SimpleNamespace(
-        cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot"),
-        body_names=["base", "foot"],
-        data=SimpleNamespace(
-            root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
-            body_pos_w=SimpleNamespace(torch=body_pos_w),
-        ),
-        find_bodies=lambda name, **_: ([0], [name]),
-    )
-    scene = SimpleNamespace(articulations={"robot": articulation})
-
-    positions = prim_world_positions(None, "/World/envs/*/Robot/base", [1, 0], scene=scene)
-
-    assert torch.equal(positions, torch.tensor([[4.0, 5.0, 6.0], [1.0, 2.0, 3.0]]))
-
-
-def test_compute_visualized_env_ids_cap_only_returns_none():
-    """Cap-only path: :meth:`_compute_visualized_env_ids` is ``None``.
-
-    The cap is applied later by ``resolve_visible_env_indices``.
-    """
-    viz = _DummyVisualizer(_make_cfg(visible_env_indices=None))
-    viz._scene_data_provider = _FakeProvider(num_envs=8)
-    assert viz._compute_visualized_env_ids() is None
-
-
-def test_compute_visualized_env_ids_from_visible_indices_filters_out_of_range():
-    viz = _DummyVisualizer(_make_cfg(visible_env_indices=[-1, 0, 3, 99]))
-    viz._scene_data_provider = _FakeProvider(num_envs=4)
-    assert viz._compute_visualized_env_ids() == [0, 3]
-
-
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_partial_visualization_cap_only_uses_resolver():
-    """With ``visible_env_indices`` unset, :func:`resolve_visible_env_indices` applies ``max_visible_envs``."""
-    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
-
-    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None)
+@pytest.mark.parametrize(
+    "env_ids, cap, num_envs, expected",
+    [
+        (None, None, 10, None),
+        (None, 3, 10, [0, 1, 2]),
+        (None, 0, 10, []),
+        (None, -1, 10, []),
+        (None, 20, 3, [0, 1, 2]),
+        (None, 5, 0, None),
+        ([], 2, 10, []),
+        ([5, -1, 3, 3, 99, 1], 3, 10, [5, 3, 1]),
+        ([1, 3, 5], 2, 10, [1, 3]),
+        ([1, 3], None, 10, [1, 3]),
+    ],
+)
+def test_visualizer_initialization_resolves_visible_envs(env_ids, cap, num_envs, expected):
+    cfg = VisualizerCfg(visible_env_indices=env_ids, max_visible_envs=cap, randomly_sample_visible_envs=False)
     viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz._compute_visualized_env_ids() is None
-    assert resolve_visible_env_indices(None, cfg.max_visible_envs, 10) == [0, 1, 2]
-    assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
+    viz.initialize(SimpleNamespace(num_envs=num_envs), cameras=[])
+    assert viz.get_visualized_env_ids() == expected
 
 
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_compute_visualized_env_ids_random_cap_only_sorted_once():
-    """Cap-only random mode returns a sorted sample; explicit indices ignore the flag."""
-    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None, randomly_sample_visible_envs=True)
+def test_visualizer_initialization_samples_visible_envs_once(monkeypatch):
+    sample = Mock(wraps=random.sample)
+    monkeypatch.setattr(random, "sample", sample)
+    cfg = VisualizerCfg(max_visible_envs=3, randomly_sample_visible_envs=True)
     viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    sampled = viz._compute_visualized_env_ids()
+    viz.initialize(SimpleNamespace(num_envs=10), cameras=[])
+    sampled = viz.get_visualized_env_ids()
     assert sampled is not None and len(sampled) == 3
     assert sampled == sorted(sampled)
     assert len(set(sampled)) == 3
     assert all(0 <= i < 10 for i in sampled)
 
-    cfg_explicit = _make_cfg(
-        visible_env_indices=[1, 5],
-        max_visible_envs=1,
-        randomly_sample_visible_envs=True,
-    )
-    viz2 = _DummyVisualizer(cfg_explicit)
-    viz2._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz2._compute_visualized_env_ids() == [1, 5]
+    viz.reset(soft=True)
+    assert viz.get_visualized_env_ids() == sampled
 
-
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_explicit_visible_env_indices_truncated_by_max_visible_envs():
-    """Explicit indices from :meth:`_compute_visualized_env_ids`; ``max_visible_envs`` truncates from the end."""
-    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
-
-    cfg = _make_cfg(visible_env_indices=[0, 2, 4], max_visible_envs=1)
-    viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    ids = viz._compute_visualized_env_ids()
-    assert ids == [0, 2, 4]
-    assert resolve_visible_env_indices(ids, cfg.max_visible_envs, 10) == [0]
-
-
-def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():
-    transforms = {
-        "order": ["/World/envs/env_%d/Camera"],
-        "positions": [[[1.0, 2.0, 3.0]]],
-        "orientations": [[[0.0, 0.0, 0.0, 1.0]]],
-    }
-    viz = _DummyVisualizer(_make_cfg())
-    viz._scene_data_provider = _FakeProvider(num_envs=1, transforms=transforms)
-    pos, target = viz._resolve_camera_pose_from_usd_path("/World/envs/env_0/Camera")
-    assert pos == (1.0, 2.0, 3.0)
-    assert target == pytest.approx((1.0, 2.0, 2.0))
+    cfg.visible_env_indices, cfg.max_visible_envs = [1, 5], 1
+    viz.initialize(SimpleNamespace(num_envs=10), cameras=[])
+    assert viz.get_visualized_env_ids() == [1]
+    assert sample.call_count == 1
 
 
 def test_physics_backend_returns_none_without_simulation_context():
     """physics_backend is None when no SimulationContext is active."""
-    viz = _DummyVisualizer(_make_cfg())
+    viz = _DummyVisualizer(VisualizerCfg())
     assert viz.physics_backend is None

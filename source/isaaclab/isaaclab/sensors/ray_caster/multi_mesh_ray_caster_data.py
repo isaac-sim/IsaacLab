@@ -6,8 +6,7 @@
 
 """Data container for the multi-mesh ray-cast sensor."""
 
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from .ray_caster_data import RayCasterData
 
 

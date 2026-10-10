@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 import tomllib
+from packaging.requirements import Requirement
+from packaging.version import Version
 
 pytestmark = pytest.mark.unit
 
@@ -44,6 +46,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "sb3",
         "skrl",
         "rl-games",
+        "wandb",
         "rsl-rl",
         "viser",
         "rerun",
@@ -64,16 +67,12 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
-    # ``ov`` installs both Omniverse backends; ``ovphysx`` / ``ovrtx`` select one.
-    # Every Omniverse extra carries ``ovstage``, which both backends need.
+    # ``ov`` installs both Omniverse backends and ``ovstage``, which both backends need.
+    # The single-backend ``ovphysx`` / ``ovrtx`` extras are checked against the pinned versions below.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
-    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ovphysx"])
-    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovphysx"])
-    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ovrtx"])
-    assert any(dep.startswith("ovstage") for dep in optional_dependencies["ovrtx"])
 
 
 def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkout_root: Path):
@@ -88,6 +87,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
 
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
+        "torchrl",
         "isaacsim",
         "importers",
         "mimic",
@@ -95,6 +95,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
         "tetrahedralization",
         "video",
         "leapp",
+        "wandb",
         "test",
         "dev",
     }
@@ -127,9 +128,6 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    assert versions["ovphysx"] == "0.5.11"
-    assert "omniverseclient==2.72.3" in dependencies
-
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
@@ -149,20 +147,25 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     # either by carrying the literal range, or by referencing the ``resolve-ov-pins``
     # action output, which reads the pin from this same table. Never a bare ``ovrtx``.
     build_workflow = (source_checkout_root / ".github/workflows/build.yaml").read_text(encoding="utf-8")
-    assert "ovphysx==0.4.13" not in build_workflow
+    assert all(pin == spec("ovphysx") for pin in re.findall(r"ovphysx==[\w.+]+", build_workflow))
     ovrtx_install_lines = [
         line.strip() for line in build_workflow.splitlines() if "extra-pip-packages:" in line and "ovrtx" in line
     ]
     assert ovrtx_install_lines
     assert all(spec("ovrtx") in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines)
 
-    # uv torch-stack overrides mirror the table.
-    for package in ("torch", "torchvision", "torchaudio"):
-        assert f"{package}=={versions[package]}" in overrides
+    # Direct torch-stack pins apply to both source and wheel installations.
+    for package in ("torch", "torchvision"):
+        assert f"{package}=={versions[package]}" in dependencies
 
-    # The Newton uv override is its single pin and may select a release or Git revision.
-    newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
-    assert "==" in newton_spec or " @ git+" in newton_spec
+    # Newton source and wheel installations use the locked commit until its next release.
+    lock = tomllib.loads((source_checkout_root / "uv.lock").read_text(encoding="utf-8"))
+    newton = next(package for package in lock["package"] if package["name"] == "newton")
+    assert newton["version"] == versions["newton"]
+    commit = newton["source"]["git"].rsplit("#", 1)[1]
+    newton_spec = f"newton[sim] @ git+https://github.com/newton-physics/newton.git@{commit}"
+    assert newton_spec in dependencies
+    assert newton_spec in overrides
 
     # warp-lang is a core dependency whose table value may be an exact pin
     # ("1.2.3" -> ``==``) or a range (">=1.2.3" -> mirrored verbatim).
@@ -190,16 +193,23 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from the standalone importers. The overrides below reconcile the last of
-    those pins -- ``packaging`` for ovphysx, WebSockets for Viser, coverage for ``test``. The
-    importers install beside Isaac Sim without displacing it: the two distributions share no
-    files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
+    and briefly away from the standalone importers. The remaining ``packaging`` override reconciles
+    ovphysx. The importers install beside Isaac Sim without displacing it: the two distributions share
+    no files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
-    for override in ("packaging>=20,<27", "websockets>=14.0,<17.0.0", "coverage>=7.6.1"):
-        assert override in tool_uv["override-dependencies"]
+    assert "packaging>=20,<27" in tool_uv["override-dependencies"]
+
+
+def test_rl_games_aiohttp_requirement_accepts_isaacsim_kernel_versions(source_checkout_root: Path):
+    """The aggregate RL extra must coexist with supported Isaac Sim kernels."""
+    optional = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
+    aiohttp = next(Requirement(dependency) for dependency in optional["rl-games"] if dependency.startswith("aiohttp"))
+
+    assert Version("3.14.1") in aiohttp.specifier
+    assert Version("3.14.3") in aiohttp.specifier
 
 
 def test_uv_run_isaacsim_is_an_opt_in_extra(source_checkout_root: Path):

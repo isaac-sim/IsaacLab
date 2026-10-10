@@ -3,13 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+"""Configuration for the Cassie velocity-tracking environment on flat terrain."""
+
+from isaaclab.utils import configclass
 
 from .rough_env_cfg import CassieRoughEnvCfg
 
 
 @configclass
 class CassieFlatEnvCfg(CassieRoughEnvCfg):
+    """Configuration for the Cassie velocity-tracking environment on flat terrain."""
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -27,6 +31,7 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         # rewards
         self.rewards.flat_orientation_l2.weight = -2.5
         self.rewards.feet_air_time.weight = 5.0
+        self.rewards.air_time_variance.weight = -10.0
         self.rewards.joint_deviation_hip.params["asset_cfg"].joint_names = ["hip_rotation_.*"]
         # curriculum
         self.curriculum.terrain_levels = None

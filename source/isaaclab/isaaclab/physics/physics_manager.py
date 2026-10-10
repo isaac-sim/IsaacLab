@@ -14,12 +14,11 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils._device import set_cuda_device
+from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
-    from isaaclab.scene_data import SceneDataBackend
-    from isaaclab.sim.simulation_context import SimulationContext
+    from ..scene_data import SceneDataBackend
+    from ..sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +123,8 @@ class PhysicsManager(ABC):
         # managers.manager_base before the simulation app starts.
         from pxr import UsdPhysics  # noqa: PLC0415
 
-        from isaaclab.sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
-        from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
+        from ..sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
+        from ..sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
 
         if stage is None:
             stage = get_current_stage()
@@ -139,6 +138,32 @@ class PhysicsManager(ABC):
 
         create_world_fixed_joint(articulation_prim, stage)
         return articulation_prim
+
+    @classmethod
+    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+        """Apply the backend's deformable anchor schemas to a prepared deformable body.
+
+        Called by the deformable family writers after the backend-neutral mesh setup: the
+        simulation mesh already exists (a ``UsdGeom.TetMesh`` for volume, a triangle
+        ``UsdGeom.Mesh`` for surface) with collision enabled. The backend applies its sim and
+        body anchor schemas and any backend-specific authoring (rest state, pose bindings,
+        visual-mesh synchronization).
+
+        The base raises: backends with deformable support override.
+
+        Args:
+            prim: The deformable-body prim to anchor.
+            deformable_type: The deformable type, ``"volume"`` or ``"surface"``.
+            sim_mesh_prim: The prepared simulation-mesh prim.
+            vis_mesh_prim: The visual-mesh prim.
+
+        Raises:
+            NotImplementedError: If the backend does not implement deformable fragment setup.
+        """
+        raise NotImplementedError(
+            f"Physics backend '{cls.__name__}' does not implement deformable fragment setup, so the"
+            " 'volume_deformable_props' and 'surface_deformable_props' slots cannot be used with it."
+        )
 
     @staticmethod
     def _relocate_articulation_root(
@@ -159,14 +184,14 @@ class PhysicsManager(ABC):
             )
 
         # Keep this import local for the same reason as the pxr imports above.
-        from isaaclab.sim.schemas._backend_hooks import _articulation_root_companion_namespace  # noqa: PLC0415
+        from ..sim.schemas.backend_hooks import articulation_root_companion_namespace  # noqa: PLC0415
 
         registry = Usd.SchemaRegistry()
         root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
         schemas_to_move = []
         for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
             definition = registry.FindAppliedAPIPrimDefinition(schema_name)
-            companion_namespace_override = _articulation_root_companion_namespace(schema_name)
+            companion_namespace_override = articulation_root_companion_namespace(schema_name)
             if schema_name == companion_schema:
                 properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
             elif companion_namespace_override is not None:
@@ -378,12 +403,6 @@ class PhysicsManager(ABC):
         PhysicsManager._cfg = sim_context.cfg.physics
         PhysicsManager._device = sim_context.cfg.device
         PhysicsManager._sim_time = 0.0
-
-        # Synchronize the process-wide CUDA device before backend-specific
-        # initialization allocates state. PyTorch must select the device before
-        # Warp so that both runtimes retain the same primary CUDA context.
-        if "cuda" in PhysicsManager._device:
-            set_cuda_device(PhysicsManager._device)
 
         # The OVD Recorder (omni.physx.pvd) only records PhysX simulations. On other backends the
         # recording would silently never start, so the process would run until manually killed

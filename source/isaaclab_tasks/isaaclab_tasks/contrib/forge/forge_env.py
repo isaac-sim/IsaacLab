@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     euler_xyz_from_quat,
@@ -82,7 +83,7 @@ class ForgeEnv(FactoryEnv):
         self.noisy_fingertip_quat = quat_mul(
             self.fingertip_midpoint_quat, quat_from_angle_axis(rot_noise_angle, rot_noise_axis)
         )
-        self.noisy_fingertip_quat[:, [0, 3]] = 0.0
+        self.noisy_fingertip_quat[:, ::3].zero_()
         self.noisy_fingertip_quat = self.noisy_fingertip_quat * self.flip_quats.unsqueeze(-1)
 
         # Repeat finite differencing with noisy fingertip positions.
@@ -351,7 +352,7 @@ class ForgeEnv(FactoryEnv):
         super()._reset_buffers(env_ids)
         # Reset success pred metrics.
         for thresh in [0.5, 0.6, 0.7, 0.8, 0.9]:
-            self.first_pred_success_tx[thresh][env_ids] = 0
+            index_fill_(self.first_pred_success_tx[thresh], env_ids, 0)
 
     def _log_forge_metrics(self, rew_dict, policy_success_pred):
         """Log metrics to evaluate success prediction performance."""

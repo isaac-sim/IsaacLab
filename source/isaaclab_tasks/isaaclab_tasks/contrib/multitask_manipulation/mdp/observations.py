@@ -14,7 +14,7 @@ import torch
 from isaaclab.utils import math as math_utils
 
 from ..selection_utils import SceneEntitySelectionCfg
-from .utils import _offset_body_pose
+from .utils import offset_body_pose
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -101,8 +101,8 @@ def cabinet_ee_to_handle(
     cabinet_cfg: SceneEntitySelectionCfg,
 ) -> torch.Tensor:
     """Return the vector [m] from the cabinet Franka TCP to the drawer handle."""
-    env_ids, ee_pos_w, _ = _offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.1034))
-    _, handle_pos_w, _ = _offset_body_pose(
+    env_ids, ee_pos_w, _ = offset_body_pose(env, robot_cfg, (0.0, 0.0, 0.1034))
+    _, handle_pos_w, _ = offset_body_pose(
         env,
         cabinet_cfg,
         (0.305, 0.0, 0.01),

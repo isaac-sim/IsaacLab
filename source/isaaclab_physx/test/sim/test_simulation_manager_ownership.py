@@ -9,11 +9,10 @@ import sys
 
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device
+from isaaclab.test.utils import launch_test_simulation
 
 # Launch Kit only after importing the PhysX config to reproduce normal entry-point config resolution.
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+launch_test_simulation()
 
 import pytest
 from isaaclab_physx.physics import PhysxManager

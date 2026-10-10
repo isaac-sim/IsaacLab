@@ -9,19 +9,30 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import random
-import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+import numpy as np
+import warp as wp
+
+from ..envs.utils.camera_colorizer import sensor_key_for_gt_type
+from ..envs.utils.camera_view import image_grid_columns, resolve_streaming_envs
+from ..utils import validate
+from ..utils.buffers import TimestampedBuffer
+from ..utils.images import compose_image
+from .visualizer_cfg import PerspectiveCameraCfg
+
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from pxr import Usd
 
-    from isaaclab.managers import ManagerBase
-    from isaaclab.renderers.base_renderer import VisualMaterialBatch
-    from isaaclab.scene_data import SceneDataProvider
-
+    from ..managers import ManagerBase
+    from ..renderers.base_renderer import VisualMaterialBatch
+    from ..scene_data import SceneDataProvider
+    from ..sensors import Camera
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -42,8 +53,11 @@ class BaseVisualizer(ABC):
         Args:
             cfg: Visualizer configuration.
         """
+        validate(cfg)
         self.cfg = cfg
         self._scene_data_provider = None
+        self._scene_stage = None
+        self._camera_choices: list[PerspectiveCameraCfg | Camera] = []
         self._is_initialized = False
         self._is_closed = False
         self._env_ids: list[int] | None = None
@@ -52,6 +66,17 @@ class BaseVisualizer(ABC):
         self._live_plot_env_idx: int = 0
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
+        self._sim_time = 0.0
+        self._camera_sensor: Camera | None = None
+        self._camera_sensor_indices: list[int] = []
+        self._streaming_aspect = 1.0
+        self._streaming_frame = TimestampedBuffer()
+        self._streaming_host_frame = TimestampedBuffer()
+        self._streaming_env_ids: wp.array | None = None
+        self._streaming_depth_colors: wp.array | None = None
+        self._streaming_layout: tuple | None = None
+        self._streaming_view_key: tuple | None = None
+        self._streaming_keys: tuple[str, ...] = ()
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -62,21 +87,132 @@ class BaseVisualizer(ABC):
         """
         return None
 
-    @abstractmethod
-    def initialize(self, scene_data_provider: SceneDataProvider) -> None:
-        """Initialize visualizer resources.
+    def initialize(
+        self,
+        scene_data_provider: SceneDataProvider,
+        *,
+        cameras: list[PerspectiveCameraCfg | Camera],
+        stage: Usd.Stage | None = None,
+    ) -> None:
+        """Bind the scene dependencies supplied by SimulationContext.
 
         Args:
-            scene_data_provider: Scene data provider used by the visualizer.
+            scene_data_provider: Scene data and scene-owned sensors.
+            cameras: Resolved perspective settings and borrowed scene sensors, in display order.
+            stage: Authored scene stage, when the visualizer consumes USD.
         """
-        raise NotImplementedError
-
-    def _set_scene_data_provider(self, scene_data_provider: SceneDataProvider) -> SceneDataProvider:
-        """Store the scene data provider shared by all visualizer backends."""
         if scene_data_provider is None:
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
-        return scene_data_provider
+        self._scene_stage = stage
+        self._camera_choices = list(cameras)
+
+        cfg = self.cfg
+        num_envs = scene_data_provider.num_envs
+        self._env_ids = None
+        if num_envs > 0:
+            count = num_envs if cfg.max_visible_envs is None else max(0, min(int(cfg.max_visible_envs), num_envs))
+            if cfg.visible_env_indices is not None:
+                self._env_ids = list(dict.fromkeys(i for i in cfg.visible_env_indices if 0 <= i < num_envs))[:count]
+            elif cfg.max_visible_envs is not None and cfg.randomly_sample_visible_envs:
+                self._env_ids = sorted(random.sample(range(num_envs), count))
+            elif cfg.max_visible_envs is not None:
+                self._env_ids = list(range(count))
+
+    def _setup_streaming_view(
+        self,
+        num_envs: int,
+        *,
+        visible_env_ids: list[int] | None = None,
+        target_aspect: float = 1.0,
+        select_camera: bool = True,
+    ) -> None:
+        """Configure tiles and optionally select a camera; interactive selectors can defer binding."""
+        if not self.cfg.streaming_view:
+            return
+        self._streaming_aspect = target_aspect
+        self._camera_sensor_indices = resolve_streaming_envs(
+            num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
+        )
+        if select_camera:
+            self._camera_sensor = next(
+                (camera for camera in self._camera_choices if not isinstance(camera, PerspectiveCameraCfg)), None
+            )
+
+    def render_tiled_rgba(self) -> wp.array | None:
+        """Acquire the selected camera frame and compose a device-resident display image.
+
+        Returns:
+            Reused uint8 RGBA storage of shape [H, W, 4], or None without a selected camera.
+            Acquisition uses the sensor's normal lazy update. Composition itself only reads published arrays.
+        """
+        camera, env_ids, cfg = self._camera_sensor, self._camera_sensor_indices, self.cfg
+        if camera is None or not env_ids:
+            return None
+        gt_types = tuple(cfg.streaming_gt_types)
+        aspect, depth_min, depth_max = self._streaming_aspect, cfg.streaming_depth_min, cfg.streaming_depth_max
+        view_key = (camera, tuple(env_ids), gt_types, aspect, depth_min, depth_max)
+        frame = self._streaming_frame
+        if view_key != self._streaming_view_key:
+            available = frozenset(camera.cfg.data_types)
+            self._streaming_keys = tuple(sensor_key_for_gt_type(gt, available) for gt in gt_types)
+            self._streaming_layout = None
+            self._streaming_view_key = view_key
+            frame.timestamp = -1.0
+        if frame.timestamp == self._sim_time:
+            return frame.data
+
+        outputs = camera.data.output
+        sources = tuple(outputs[key].warp for key in self._streaming_keys)
+        layout = tuple((source.shape, source.dtype, source.device) for source in sources)
+        if self._streaming_layout != layout:
+            if not sources:
+                raise ValueError("Image composition requires at least one display channel.")
+            for source, gt in zip(sources, gt_types, strict=True):
+                channels = 3 if gt in ("rgb", "normals") else 1
+                if source.ndim != 4 or min(source.shape) < 1 or source.shape[3] < channels:
+                    raise ValueError(
+                        f"Channel {gt!r} requires nonempty [N, H, W, C] arrays with at least {channels} channels."
+                    )
+            device = sources[0].device
+            n, height, width, _ = sources[0].shape
+            if any(source.device != device or source.shape[:3] != (n, height, width) for source in sources):
+                raise ValueError("Image channels must have the same batch size, resolution, and device.")
+            if min(env_ids) < 0 or max(env_ids) >= n:
+                raise ValueError(f"Image row selection is outside the source batch of {n} rows.")
+            columns = image_grid_columns(len(env_ids), len(sources), height, width, aspect)
+            shape = (math.ceil(len(env_ids) / columns) * height, columns * len(sources) * width, 4)
+            colors = np.empty((0, 3), dtype=np.uint8)
+            if "depth" in gt_types:
+                from matplotlib import colormaps
+
+                colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
+            self._streaming_env_ids = wp.array(env_ids, dtype=wp.int32, device=device)
+            self._streaming_depth_colors = wp.array(colors, dtype=wp.uint8, device=device)
+            frame.data = wp.empty(shape, dtype=wp.uint8, device=device)
+            self._streaming_layout = layout
+        compose_image(
+            frame.data, sources, self._streaming_env_ids, gt_types, self._streaming_depth_colors,
+            depth_min=depth_min, depth_max=depth_max,
+        )  # fmt: skip
+        frame.timestamp = self._sim_time
+        self._streaming_host_frame.timestamp = -1.0
+        return frame.data
+
+    def render_tiled_rgb_array(self) -> np.ndarray | None:
+        """Read back the tiled image for CPU consumers such as recording and web transports.
+
+        Returns:
+            Cached contiguous uint8 RGB image of shape [H, W, 3], or None without a selected camera.
+        """
+        image = self.render_tiled_rgba()
+        if image is None:
+            return None
+        frame = self._streaming_host_frame
+        if frame.timestamp != self._streaming_frame.timestamp:
+            frame.data = np.ascontiguousarray(image.numpy()[..., :3])
+            frame.timestamp = self._streaming_frame.timestamp
+        return frame.data
 
     @abstractmethod
     def step(self, dt: float) -> None:
@@ -89,8 +225,19 @@ class BaseVisualizer(ABC):
 
     @abstractmethod
     def close(self) -> None:
-        """Clean up resources."""
-        raise NotImplementedError
+        """Release borrowed scene references after the backend releases its native resources.
+
+        Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
+        """
+        self._camera_sensor = None
+        self._camera_choices.clear()
+        self._streaming_frame = TimestampedBuffer()
+        self._streaming_host_frame = TimestampedBuffer()
+        self._streaming_env_ids = self._streaming_depth_colors = None
+        self._streaming_layout = self._streaming_view_key = None
+        self._streaming_keys = ()
+        self._scene_data_provider = self._scene_stage = None
+        self._is_closed = True
 
     @abstractmethod
     def is_running(self) -> bool:
@@ -153,8 +300,8 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         try:
-            from isaaclab.sim.simulation_context import SimulationContext
-            from isaaclab.utils.backend_utils import FactoryBase
+            from ..sim.simulation_context import SimulationContext
+            from ..utils.backend_utils import FactoryBase
 
             if SimulationContext.instance() is None:
                 return None
@@ -205,24 +352,20 @@ class BaseVisualizer(ABC):
             return
         if not getattr(self.cfg, "enable_live_plots", True):
             return
-        import os
 
         if os.environ.get("ISAACLAB_DISABLE_LIVE_PLOTS", "0") == "1":
             return
-        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
+        from ..ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 
         # Scalar groups (e.g. episode metrics) are placed first so they appear at
         # the top of every visualizer's plot list regardless of backend ordering.
-        self._live_plot_sources = []
-        if scalars:
-            for group_name, scalar_dict in scalars.items():
-                self._live_plot_sources.append(DirectScalarLivePlots(group_name, scalar_dict))
+        self._live_plot_sources = [DirectScalarLivePlots(name, group) for name, group in (scalars or {}).items()]
         for name, mgr in managers.items():
             # Skip managers that have no active terms — they contribute nothing to plots
             # and would create empty panels in Rerun, Viser, and the Kit live-plot window.
             active = getattr(mgr, "active_terms", None)
             if active is not None:
-                has_terms = bool(active) if not isinstance(active, dict) else any(v for v in active.values())
+                has_terms = any(active.values()) if isinstance(active, dict) else bool(active)
                 if not has_terms:
                     continue
             self._live_plot_sources.append(ManagerLivePlots(name, mgr, (term_names or {}).get(name)))
@@ -263,31 +406,6 @@ class BaseVisualizer(ABC):
         """
         return self._env_ids
 
-    def _compute_visualized_env_ids(self) -> list[int] | None:
-        """Compute which environment indices to visualize from config.
-
-        Returns:
-            Selected environment ids, or ``None`` to visualize all environments.
-        """
-        if self._scene_data_provider is None:
-            return None
-        cfg = self.cfg
-        num_envs = self._scene_data_provider.num_envs
-        if num_envs <= 0:
-            logger.debug("[Visualizer] num_envs is 0 or missing from provider; env selection disabled.")
-            return None
-        # Explicit list wins; never combine with random cap-only mode.
-        if cfg.visible_env_indices is not None:
-            return [i for i in cfg.visible_env_indices if 0 <= i < num_envs]
-
-        max_visible = getattr(cfg, "max_visible_envs", None)
-        # Random subset only for cap-only mode: needs a cap and no explicit indices (see VisualizerCfg).
-        if max_visible is not None and getattr(cfg, "randomly_sample_visible_envs", True) and int(max_visible) >= 0:
-            k = min(int(max_visible), num_envs)
-            # k == 0: sample(range(n), 0) is []; contiguous resolver used the same convention.
-            return sorted(random.sample(range(num_envs), k))
-        return None
-
     def get_rendering_dt(self) -> float | None:
         """Get rendering time step.
 
@@ -305,14 +423,6 @@ class BaseVisualizer(ABC):
         """
         pass
 
-    def _resolve_cfg_camera_pose(
-        self, _visualizer_name: str
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve camera pose from cfg eye/lookat fields."""
-        eye = tuple(float(v) for v in self.cfg.eye)
-        lookat = tuple(float(v) for v in self.cfg.lookat)
-        return eye, lookat
-
     def _focal_length_to_vertical_fov_degrees(self) -> float:
         """Convert cfg focal length to vertical FOV using USD's default aperture."""
         focal_length = float(self.cfg.focal_length)
@@ -320,108 +430,14 @@ class BaseVisualizer(ABC):
             raise ValueError("VisualizerCfg.focal_length must be positive.")
         return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
 
-    def _resolve_camera_pose_from_usd_path(
-        self, usd_path: str
-    ) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-        """Resolve camera pose/target from provider camera transforms.
-
-        Args:
-            usd_path: Concrete USD camera path.
-
-        Returns:
-            Eye/target tuple when available, otherwise ``None``.
-        """
-        if self._scene_data_provider is None:
-            return None
-        transforms = self._scene_data_provider.get_camera_transforms()
-        if not transforms:
-            return None
-
-        env_id, template_path = self._resolve_template_camera_path(usd_path)
-        camera_transform = self._lookup_camera_transform(transforms, template_path, env_id)
-        if camera_transform is None:
-            return None
-        pos, ori = camera_transform
-
-        pos_t = (float(pos[0]), float(pos[1]), float(pos[2]))
-        ori_t = (float(ori[0]), float(ori[1]), float(ori[2]), float(ori[3]))
-        forward = self._quat_rotate_vec(ori_t, (0.0, 0.0, -1.0))
-        target = (pos_t[0] + forward[0], pos_t[1] + forward[1], pos_t[2] + forward[2])
-        return pos_t, target
-
-    def _resolve_template_camera_path(self, usd_path: str) -> tuple[int, str]:
-        """Normalize concrete env camera path to templated camera path.
-
-        Args:
-            usd_path: Concrete USD camera path.
-
-        Returns:
-            Tuple of environment id and templated camera path.
-        """
-        env_pattern = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
-        if match := env_pattern.match(usd_path):
-            return int(match.group("id")), match.group("root") + "%d" + match.group("path")
-        return 0, usd_path
-
-    def _lookup_camera_transform(
-        self, transforms: dict[str, Any], template_path: str, env_id: int
-    ) -> tuple[list[float], list[float]] | None:
-        """Fetch camera position/orientation for a templated path and environment.
-
-        Args:
-            transforms: Camera transform dictionary from provider.
-            template_path: Templated camera path.
-            env_id: Environment id to query.
-
-        Returns:
-            Position/orientation tuple when available, otherwise ``None``.
-        """
-        order = transforms.get("order", [])
-        positions = transforms.get("positions", [])
-        orientations = transforms.get("orientations", [])
-
-        if template_path not in order:
-            return None
-        idx = order.index(template_path)
-        if idx >= len(positions) or idx >= len(orientations):
-            return None
-        if env_id < 0 or env_id >= len(positions[idx]):
-            return None
-        pos = positions[idx][env_id]
-        ori = orientations[idx][env_id]
-        if pos is None or ori is None:
-            return None
-        return pos, ori
-
-    @staticmethod
-    def _quat_rotate_vec(
-        quat_xyzw: tuple[float, float, float, float], vec: tuple[float, float, float]
-    ) -> tuple[float, float, float]:
-        """Rotate a vector by a quaternion.
-
-        Args:
-            quat_xyzw: Quaternion in xyzw order.
-            vec: Input vector.
-
-        Returns:
-            Rotated vector.
-        """
-        import torch
-
-        from isaaclab.utils.math import quat_apply
-
-        quat = torch.tensor(quat_xyzw, dtype=torch.float32).unsqueeze(0)
-        vector = torch.tensor(vec, dtype=torch.float32).unsqueeze(0)
-        rotated = quat_apply(quat, vector)[0]
-        return (float(rotated[0]), float(rotated[1]), float(rotated[2]))
-
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state.
 
         Args:
             soft: Whether to perform a soft reset.
         """
-        pass
+        self._streaming_frame.timestamp = -1.0
+        self._streaming_host_frame.timestamp = -1.0
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.

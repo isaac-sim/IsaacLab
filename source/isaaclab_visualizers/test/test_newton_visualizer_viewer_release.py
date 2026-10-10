@@ -28,6 +28,8 @@ an unusable viewer disables itself instead of aborting training.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizer
@@ -85,54 +87,11 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     visualizer._viewer_picking_binding = NewtonVisualizer._ViewerPickingBinding()
     visualizer._viewer = viewer
     visualizer._camera_sensor = None
-    visualizer._camera_is_owned = False
+    visualizer._camera_choices = []
+    visualizer._pending_mesh_submissions = {}
     if viewer is not None:
         viewer.owner = visualizer
     return visualizer
-
-
-def test_release_viewer_closes_before_clearing_reference() -> None:
-    """The viewer must be closed while the visualizer still references it."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-    assert viewer.referenced_by_owner_at_close == [True]
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_propagates_failure_and_still_clears_reference() -> None:
-    """A teardown failure must reach the caller, but must not retain the viewer."""
-    viewer = _SpyRTXViewer(raises=True)
-    visualizer = _make_visualizer(viewer)
-
-    with pytest.raises(RuntimeError, match="Failed to create window"):
-        visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_without_viewer_is_a_no_op() -> None:
-    """Releasing when no viewer is held must be harmless."""
-    visualizer = _make_visualizer(None)
-
-    visualizer._release_viewer()
-
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_is_idempotent() -> None:
-    """Releasing twice must not close the viewer twice."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
 
 
 def test_release_viewer_does_not_close_gl_viewer() -> None:
@@ -146,16 +105,34 @@ def test_release_viewer_does_not_close_gl_viewer() -> None:
     assert visualizer._viewer is None
 
 
+@pytest.mark.parametrize("requested", [False, True])
+def test_gl_close_request_closes_after_frame(monkeypatch: pytest.MonkeyPatch, requested: bool) -> None:
+    """A close request must not destroy the GL context inside the UI render callback."""
+    events: list[str] = []
+    monkeypatch.setattr(newton_visualizer.ViewerGL, "end_frame", lambda self: events.append("frame"))
+    viewer = object.__new__(newton_visualizer.NewtonViewerGL)
+    viewer._close_requested = False
+    if requested:
+        viewer.request_close()
+    viewer.renderer = type("Renderer", (), {"close": lambda self: events.append("close")})()
+
+    viewer.end_frame()
+
+    assert events == (["frame", "close"] if requested else ["frame"])
+
+
 def test_close_releases_the_viewer() -> None:
     """``close()`` must release the viewer through the shared path."""
     viewer = _SpyRTXViewer()
     visualizer = _make_visualizer(viewer)
+    visualizer._pending_mesh_submissions["/surface"] = object()
 
     visualizer.close()
 
     assert viewer.close_calls == 1
     assert viewer.referenced_by_owner_at_close == [True]
     assert visualizer._viewer is None
+    assert visualizer._pending_mesh_submissions == {}
     assert visualizer._is_closed is True
 
 
@@ -170,33 +147,24 @@ def test_close_is_idempotent() -> None:
     assert viewer.close_calls == 1
 
 
-def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A failing viewer must not strand the owned camera or the closed flag.
-
-    ``SimulationContext`` already logs an exception raised by ``close()``, so
-    it is allowed to propagate -- but the rest of the teardown still has to
-    run, otherwise a viewer failure silently leaks the generated camera prims.
-    """
-    evicted: list[object] = []
-    removed: list[object] = []
-    monkeypatch.setattr(newton_visualizer, "evict_visualizer_camera", evicted.append, raising=False)
-    monkeypatch.setattr(newton_visualizer, "remove_generated_prims", removed.append, raising=False)
-
+def test_close_completes_cleanup_when_viewer_teardown_fails() -> None:
+    """Release borrowed references even on failure, without closing the scene's camera."""
     viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
-    visualizer._camera_sensor = object()
-    visualizer._camera_is_owned = True
-    visualizer._streaming_camera_key = "camera-key"
-    visualizer._generated_camera_prim_paths = ["/World/generated"]
+    camera = SimpleNamespace(close=lambda: pytest.fail("A visualizer must not close a scene camera"))
+    visualizer._camera_sensor = camera
+    visualizer._camera_choices = [camera]
+    visualizer._scene_stage = object()
 
     with pytest.raises(RuntimeError, match="Failed to create window"):
         visualizer.close()
 
+    assert viewer.close_calls == 1
     assert visualizer._viewer is None
     assert visualizer._camera_sensor is None
+    assert not visualizer._camera_choices
+    assert visualizer._scene_stage is None
     assert visualizer._is_closed is True
-    assert evicted == ["camera-key"]
-    assert removed == [["/World/generated"]]
 
 
 def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -> None:
@@ -206,7 +174,7 @@ def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -
     visualizer._disable_viewer_on_step_exception = True
     visualizer._sim_time = 0.0
     visualizer._step_counter = 0
-    visualizer._state = None
+    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
     visualizer._scene_data_provider = None
     visualizer._update_frequency = 1
     viewer._update_frequency = 1
@@ -230,7 +198,6 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     visualizer._picking_enabled = True
     visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 
@@ -244,6 +211,10 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     visualizer._viewer_picking_binding.apply(None)  # type: ignore[arg-type]
     assert viewer.apply_forces_calls == 0
 
+    # The later ``close()`` must not close the already-released viewer again.
+    visualizer.close()
+    assert viewer.close_calls == 1
+
 
 def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
     """A viewer that fails to close must not abort training from ``step()``.
@@ -256,7 +227,6 @@ def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch
     viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 

@@ -15,8 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-
-from isaaclab.managers import SceneEntityCfg
+from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -138,6 +137,56 @@ def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, 
     )
 
 
+@wp.kernel
+def _feet_air_time_variance_kernel(
+    air_time: wp.array(dtype=wp.float32, ndim=2),
+    contact_time: wp.array(dtype=wp.float32, ndim=2),
+    body_ids: wp.array(dtype=wp.int32),
+    command: wp.array(dtype=wp.float32, ndim=2),
+    max_time: float,
+    out: wp.array(dtype=wp.float32),
+):
+    i = wp.tid()
+    mean = wp.vec2f()
+    for foot in range(body_ids.shape[0]):
+        body = body_ids[foot]
+        mean += wp.vec2f(wp.min(air_time[i, body], max_time), wp.min(contact_time[i, body], max_time))
+    mean /= float(body_ids.shape[0])
+    variance = float(0.0)
+    for foot in range(body_ids.shape[0]):
+        body = body_ids[foot]
+        times = wp.vec2f(wp.min(air_time[i, body], max_time), wp.min(contact_time[i, body], max_time))
+        variance += wp.length_sq(times - mean)
+    moving = wp.length(wp.vec2f(command[i, 0], command[i, 1])) > 0.1
+    out[i] = wp.where(moving, variance / float(body_ids.shape[0] - 1), 0.0)
+
+
+def feet_air_time_variance(
+    env: ManagerBasedRLEnv,
+    out: wp.array(dtype=wp.float32),
+    command_name: str,
+    sensor_cfg: SceneEntityCfg,
+    max_time: float = 0.5,
+) -> None:
+    """Penalize sample variance of foot air/contact durations, capped at ``max_time`` [s], while moving."""
+    if sensor_cfg.body_ids_wp.shape[0] < 2:
+        raise RuntimeError("'feet_air_time_variance' needs at least two bodies to take a variance across feet.")
+    data = env.scene.sensors[sensor_cfg.name].data
+    wp.launch(
+        _feet_air_time_variance_kernel,
+        dim=env.num_envs,
+        inputs=[
+            data.last_air_time,
+            data.last_contact_time,
+            sensor_cfg.body_ids_wp,
+            wp.from_torch(env.command_manager.get_command(command_name)),
+            max_time,
+            out,
+        ],
+        device=env.device,
+    )
+
+
 # ---------------------------------------------------------------------------
 # feet_slide
 # ---------------------------------------------------------------------------
@@ -147,15 +196,16 @@ def feet_air_time_positive_biped(env, out, command_name: str, threshold: float, 
 def _feet_slide_kernel(
     body_lin_vel_w: wp.array(dtype=wp.vec3f, ndim=2),
     net_normal_forces_w: wp.array(dtype=wp.vec3f, ndim=3),
-    body_ids: wp.array(dtype=wp.int32),
+    asset_body_ids: wp.array(dtype=wp.int32),
+    sensor_body_ids: wp.array(dtype=wp.int32),
     n_history: int,
     out: wp.array(dtype=wp.float32),
 ):
     """Accumulate each foot's planar velocity while it is in contact into the sliding penalty output."""
     i = wp.tid()
     s = float(0.0)
-    for k in range(body_ids.shape[0]):
-        b = body_ids[k]
+    for k in range(sensor_body_ids.shape[0]):
+        b = sensor_body_ids[k]
         # check if in contact: max force norm over history > 1.0
         max_force = float(0.0)
         for h in range(n_history):
@@ -164,8 +214,9 @@ def _feet_slide_kernel(
             max_force = wp.max(max_force, f_norm)
         in_contact = wp.where(max_force > 1.0, 1.0, 0.0)
         # planar velocity norm
-        vx = body_lin_vel_w[i, b][0]
-        vy = body_lin_vel_w[i, b][1]
+        a = asset_body_ids[k]
+        vx = body_lin_vel_w[i, a][0]
+        vy = body_lin_vel_w[i, a][1]
         vel_norm = wp.sqrt(vx * vx + vy * vy)
         s += vel_norm * in_contact
     out[i] = s
@@ -173,6 +224,8 @@ def _feet_slide_kernel(
 
 def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> None:
     """Penalize feet sliding."""
+    if asset_cfg.body_ids_wp.shape[0] != sensor_cfg.body_ids_wp.shape[0]:
+        raise RuntimeError("'feet_slide' needs the asset and the sensor to select the same number of bodies.")
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     asset = env.scene[asset_cfg.name]
     wp.launch(
@@ -181,6 +234,7 @@ def feet_slide(env, out, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg =
         inputs=[
             asset.data.body_lin_vel_w.warp,
             contact_sensor.data.net_normal_forces_w_history.warp,
+            asset_cfg.body_ids_wp,
             sensor_cfg.body_ids_wp,
             contact_sensor.data.net_normal_forces_w_history.warp.shape[1],
             out,

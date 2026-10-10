@@ -1,6 +1,71 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.10.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``uv run --extra teleop`` failing to build ``isaacteleop==1.4.98rc1`` when an index that
+  mirrors PyPI was searched before ``https://pypi.nvidia.com``. The ``teleop`` extra now requires
+  ``isaacteleop~=1.4.145``, which installs from a prebuilt wheel on every index.
+
+
+0.10.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed isolated XR camera PiP startup by acquiring the global scene-partition setting at bind,
+  after renderer initialization and before creating panels. Camera configuration remained prepared
+  before environment construction, while the global setting was restored to its bind-time value
+  after the last bound session closed.
+
+
+0.10.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added opt-in ``XrCameraFeedLayoutCfg.use_scene_partition`` to exclude shared SceneUI
+  from robot cameras. Preparation disabled environment partitioning and all-partitions
+  rendering before camera initialization, keeping the single environment shared while
+  the XR camera and SceneUI used a dedicated PiP partition. Prior camera, renderer, and
+  session-layer settings were restored after the final owner closed, including failures
+  during environment construction.
+
+Fixed
+^^^^^
+
+* Fixed head-locked XR camera panels to follow the complete display pose.
+* Hid panels during tracking loss or partition conflicts and restored them after recovery.
+* Fixed first-panel startup to establish the SceneUI partition before waiting for panel visibility.
+* Refreshed partition inheritance when SceneUI children appeared, preventing recursive camera feeds after startup
+  or stage replacement without rewriting the partition every frame.
+* Preserved positional construction of ``XrCameraFeedLayoutCfg``.
+* Preserved requested PiP denoising settings without importing Isaac Sim during configuration preparation.
+
+
+0.9.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAACLAB_CXR_ACCEPT_EULA=1`` environment variable, which accepts the NVIDIA
+  CloudXR license up front wherever Isaac Lab launches the CloudXR runtime -- both the teleop
+  session lifecycle and the process-scoped launcher in ``teleop_replay_agent.py``, which share
+  one :func:`~isaaclab_teleop.cloudxr_eula_accepted` helper. The license is separate from the
+  Omniverse one and was otherwise only ever prompted for on stdin, so headless, container and
+  CI runs aborted with
+  ``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``.
+
+
 0.8.4 (2026-09-05)
 ~~~~~~~~~~~~~~~~~~
 

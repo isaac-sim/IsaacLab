@@ -5,6 +5,7 @@
 
 __all__ = [
     "MeshBoxTerrainCfg",
+    "MeshFileTerrainCfg",
     "MeshFloatingRingTerrainCfg",
     "MeshGapTerrainCfg",
     "MeshInvertedPyramidStairsTerrainCfg",
@@ -21,6 +22,7 @@ __all__ = [
 
 from .mesh_terrains_cfg import (
     MeshBoxTerrainCfg,
+    MeshFileTerrainCfg,
     MeshFloatingRingTerrainCfg,
     MeshGapTerrainCfg,
     MeshInvertedPyramidStairsTerrainCfg,

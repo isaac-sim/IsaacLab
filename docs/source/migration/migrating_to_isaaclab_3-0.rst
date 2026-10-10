@@ -37,43 +37,24 @@ your project does not use that feature.
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
    When you change it, update the skill so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 Installation
 ------------
 
-Start from a fresh Isaac Lab 3.0 checkout and Python 3.12 environment instead of upgrading the
-packages inside an existing 2.x environment. The recommended workflow now uses ``uv`` to resolve the
-project environment and optional integrations when a command runs. The ``isaaclab.sh`` installer is
-still available for manually managed environments, but it is no longer the default path.
+Start from a fresh Isaac Lab 3.0 checkout. uv is the only supported installation method;
+create a new environment instead of upgrading an existing 2.x environment.
 
-.. grid:: 2
-   :gutter: 2
+Isaac Lab 3.0 removes ``isaaclab.sh``, ``isaaclab.bat``, and the CLI installation and
+environment-creation options (``--install``, ``--conda``, and ``--uv``, including their short forms).
+Replace installation commands with ``uv sync`` and launcher commands with ``uv run isaaclab``.
 
-   .. grid-item-card:: Isaac Lab 2.x
+.. code-block:: bash
 
-      Create and activate an environment, install every extension, then launch a library-specific script.
-
-      .. code-block:: bash
-
-         conda create -n env_isaaclab python=3.11
-         conda activate env_isaaclab
-         ./isaaclab.sh --install rsl_rl
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-            --task Isaac-Cartpole
-
-   .. grid-item-card:: Isaac Lab 3.0
-
-      Install ``uv`` once; ``uv run`` creates or synchronizes the project environment and launches the
-      unified command. Select optional runtimes with ``--extra`` before ``isaaclab``.
-
-      .. code-block:: bash
-
-         curl -LsSf https://astral.sh/uv/install.sh | sh
-         uv run --extra isaacsim isaaclab train \
-            --rl_library rsl_rl --task Isaac-Cartpole \
-            physics=isaacsim_physx
+   uv sync --extra isaacsim
+   uv run --extra isaacsim isaaclab train \
+      --rl_library rsl_rl --task Isaac-Cartpole physics=isaacsim_physx
 
 Use ``uv run isaaclab ...`` for Newton-only workflows, ``--extra ovphysx`` for OV PhysX, and
 ``--extra isaacsim`` for full Isaac Sim support. See :ref:`installation-method-uv` for platform-specific
@@ -106,7 +87,7 @@ Understand the new package boundaries first, then make environment configuration
 
       .. code-block:: python
 
-         from isaaclab.utils.configclass import configclass
+         from isaaclab.utils import configclass
          from isaaclab_physx.physics import PhysxCfg
          from isaaclab_tasks.utils import PresetCfg
 
@@ -142,8 +123,9 @@ The concrete default remains task-specific so launching without an override stay
 Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
-For a comprehensive overview of the factory pattern, backend selection, and how to add a new
-backend, see :doc:`/source/overview/core-concepts/multi_backend_architecture`.
+For a comprehensive overview of the factory pattern and backend selection,
+see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+:doc:`/source/developer-tools/add_physics_backend`.
 
 
 .. rubric:: New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
@@ -264,8 +246,16 @@ For the full design, see :ref:`schema-cfgs`.
 
 **Class moves and renames**
 
+.. important::
+
+   The ``*BaseCfg`` / ``*PropertiesCfg`` classes in this subsection are themselves
+   now deprecated in favor of schema fragments, and will be removed in 3.2. Read
+   this subsection to understand where a 2.x name went, then migrate to the
+   fragments as described in :ref:`schema fragments <schema-fragments-migration>`. The code samples
+   below show the intermediate step, not the recommended end state.
+
 The following 2.x class names are kept as deprecated aliases. They forward to
-the new location and will be removed in 4.0.
+the new location and will be removed in 3.2.
 
 .. list-table::
    :header-rows: 1
@@ -300,7 +290,7 @@ the new location and will be removed in 4.0.
 **Code migration**
 
 Existing 2.x code continues to work via the deprecation aliases (with a
-``DeprecationWarning``; removed in 4.0):
+``DeprecationWarning``; removed in 3.2):
 
 .. code-block:: python
 
@@ -349,7 +339,7 @@ scheduled for removal in 4.0.
      - :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.max_force`
      - ``drive:<axis>:physics:maxForce``
 
-Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 4.0):
+Isaac Lab 2.x style still works (emits ``DeprecationWarning``; removed in 3.2):
 
 .. code-block:: python
 
@@ -397,6 +387,267 @@ available under :mod:`isaaclab_newton.sim.schemas`:
 The MuJoCo cfgs subclass their Newton parent because MuJoCo is one of Newton's
 solver options.
 
+.. _schema-fragments-migration:
+
+**Schema fragments supersede the whole** ``*PropertiesCfg`` / ``*BaseCfg`` **layer**
+
+The split above kept the inheritance-based shape of the 2.x cfgs: one class per
+backend, each carrying fields from several USD namespaces. Isaac Lab now
+replaces that layer with **schema fragments** — one ``@configclass`` per USD
+applied schema, each writing exactly one attribute namespace. A spawner slot
+takes a *list* of fragments, so you compose the namespaces you actually want
+instead of picking a class that bundles them.
+
+Every class in the table below is deprecated: instantiating one emits a
+``DeprecationWarning`` naming its replacement, and the class will be removed in
+3.2. Nothing is removed in 3.0 — both APIs work side by side.
+
+The replacement column lists **every** fragment needed to cover the deprecated
+class's fields, including the fields it inherits from a legacy base. A legacy
+class usually bundles more than one USD namespace, so replacing it with only the
+backend-specific fragment silently drops the inherited properties.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Deprecated class
+     - Fragment replacement (complete set)
+   * - ``MassPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.MassCfg`
+   * - ``RigidBodyBaseCfg``, ``PhysxRigidBodyPropertiesCfg``,
+       ``RigidBodyPropertiesCfg``, ``NewtonRigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`
+   * - ``MujocoRigidBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` +
+       :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`
+   * - ``CollisionBaseCfg``, ``PhysxCollisionPropertiesCfg``,
+       ``CollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg`
+   * - ``JointDriveBaseCfg``, ``PhysxJointDrivePropertiesCfg``,
+       ``JointDrivePropertiesCfg``, ``NewtonJointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg`
+   * - ``MujocoJointDrivePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` +
+       :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg`
+   * - ``ArticulationRootBaseCfg``, ``PhysxArticulationRootPropertiesCfg``,
+       ``ArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg`
+   * - ``NewtonArticulationRootPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxArticulationCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg`
+   * - ``MeshCollisionBaseCfg``, ``MeshCollisionPropertiesCfg``,
+       ``BoundingCubePropertiesCfg``, ``BoundingSpherePropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg`
+   * - ``Physx*MeshPropertiesCfg`` cooking family (``PhysxConvexHullPropertiesCfg``,
+       ``PhysxConvexDecompositionPropertiesCfg``, ``PhysxTriangleMeshPropertiesCfg``,
+       ``PhysxTriangleMeshSimplificationPropertiesCfg``, ``PhysxSDFMeshPropertiesCfg``)
+     - ``Physx*Cfg`` cooking fragments (:class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`,
+       :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`)
+   * - ``NewtonCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+   * - ``NewtonMeshCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
+       :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg`
+   * - ``NewtonSDFCollisionPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg` +
+       :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+   * - ``DeformableBodyPropertiesBaseCfg``
+     - None: the class has no fields. Pass
+       :class:`~isaaclab.sim.schemas.DeformableBodyFragment` subclasses in a deformable slot, and
+       subclass :class:`~isaaclab.sim.schemas.DeformableBodyFragment` for a custom cfg
+   * - ``OmniPhysicsDeformableBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
+   * - ``PhysXDeformableBodyPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
+   * - ``PhysxDeformableBodyPropertiesCfg``, ``DeformableBodyPropertiesCfg``
+     - :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` +
+       :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` (surface only)
+   * - ``NewtonDeformableBodyPropertiesCfg``
+     - None: the class has no fields. Set the matching deformable slot to an empty list,
+       for example ``volume_deformable_props=[]``
+
+.. note::
+
+   PhysX fragments appear in the Newton rows because several universally honored
+   properties have no other USD home today: ``disable_gravity`` is only
+   ``physxRigidBody:disableGravity``, ``max_joint_velocity`` only
+   ``physxJoint:maxJointVelocity``, ``contact_offset`` / ``rest_offset`` only
+   ``physxCollision:*``, and ``articulation_enabled`` only
+   ``physxArticulation:articulationEnabled``. Newton's USD importer reads those
+   attributes, so the fragment that writes them is the PhysX one regardless of
+   which backend consumes it.
+
+**Deformable bodies: pick the slot**
+
+The slot now selects the deformable type. Replace ``deformable_props`` with
+``surface_deformable_props`` when its physics material is a surface deformable material;
+otherwise use ``volume_deformable_props``. An empty slot creates a body with backend defaults,
+including on Newton. Add only the fragments whose values you need to set. The active backend
+chooses the deformable schemas, whereas the legacy cfg type chose them previously.
+
+PhysX properties split into :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`
+for ``omniphysics:*``, :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` for
+solver properties, and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`
+for surface-only properties. Legacy PhysX cfgs explicitly authored
+``kinematic_enabled=False`` and ``solver_position_iteration_count=16``; the fragment API
+uses the same schema defaults without authoring them. Set those values explicitly only
+when preserving authored USD on a pre-authored asset matters.
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyCfg
+   from isaaclab_physx.sim.spawners.materials import PhysxSurfaceDeformableBodyMaterialCfg
+
+   cloth = sim_utils.MeshRectangleCfg(
+       size=(0.2, 0.2),
+       surface_deformable_props=PhysxDeformableBodyCfg(self_collision=True),
+       collision_props=[PhysxCollisionCfg(rest_offset=0.002, contact_offset=0.01)],
+       physics_material=PhysxSurfaceDeformableBodyMaterialCfg(),
+   )
+
+**Code migration**
+
+.. code-block:: python
+
+   # Deprecated: one class bundling the physics:* and physxRigidBody:* namespaces
+   import isaaclab.sim as sim_utils
+   rigid_props = sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=False, linear_damping=0.1)
+
+.. code-block:: python
+
+   # Recommended: one fragment per USD namespace, composed in the spawner slot
+   from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+   from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
+   rigid_props = [
+       UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
+       PhysxRigidBodyCfg(linear_damping=0.1),
+   ]
+
+A slot also accepts a mapping from a prim-path pattern to a fragment list, which
+lets one spawner cfg target different prims with different properties:
+
+.. code-block:: python
+
+   rigid_props = {"/.*": [UsdPhysicsRigidBodyCfg(kinematic_enabled=False)]}
+
+Three legacy fields are not USD attributes and therefore have no fragment. They
+move to the spawner cfg instead — no fragment covers them, so a migration that
+only swaps cfg classes drops them:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Deprecated cfg field
+     - Fragment-API replacement
+   * - ``ArticulationRootBaseCfg.fix_root_link``
+     - ``fix_root_link`` on the spawner cfg, forwarded as the ``fix_root_link``
+       argument of
+       :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+   * - ``JointDriveBaseCfg.ensure_drives_exist``
+     - ``ensure_drives_exist`` on the spawner cfg, forwarded as the
+       ``ensure_drives_exist`` argument of
+       :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+   * - ``CollisionBaseCfg.mesh_collision_property``
+     - the spawner's ``mesh_collision_props`` slot, which takes the
+       mesh-collision fragments directly
+
+The renamed joint-drive fields keep working on the fragments as well:
+``max_effort`` is a deprecated alias of
+:attr:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg.max_force`, and ``max_velocity``
+of :attr:`~isaaclab_physx.sim.schemas.PhysxJointCfg.max_joint_velocity`.
+
+**Schema writers**
+
+The ``define_*`` and ``modify_*`` writers are deprecated alongside the cfgs and
+will be removed in 3.2. Each has an ``apply_*`` counterpart that takes a
+prim-path *expression* (a regular expression over whole prim paths) and a list
+of fragments, so one call can author a whole subtree:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 55 45
+
+   * - Deprecated writer
+     - Replacement
+   * - ``define_rigid_body_properties``, ``modify_rigid_body_properties``
+     - :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`
+   * - ``define_collision_properties``, ``modify_collision_properties``
+     - :func:`~isaaclab.sim.schemas.apply_collision_properties`
+   * - ``define_mass_properties``, ``modify_mass_properties``
+     - :func:`~isaaclab.sim.schemas.apply_mass_properties`
+   * - ``define_articulation_root_properties``, ``modify_articulation_root_properties``
+     - :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`
+   * - ``modify_joint_drive_properties``
+     - :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`
+   * - ``define_mesh_collision_properties``, ``modify_mesh_collision_properties``
+     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`
+   * - ``modify_fixed_tendon_properties``, ``modify_spatial_tendon_properties``
+     - :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`,
+       :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`
+   * - ``define_deformable_body_properties``, ``modify_deformable_body_properties``
+     - :func:`~isaaclab.sim.schemas.apply_volume_deformable_properties` or
+       :func:`~isaaclab.sim.schemas.apply_surface_deformable_properties`, matching the
+       deformable type; pass ``create_if_missing=True`` to replace ``define_*``
+
+.. code-block:: python
+
+   # Deprecated: authors one prim, takes a single bundled cfg
+   sim_utils.modify_rigid_body_properties("/World/Robot/base", RigidBodyPropertiesCfg(linear_damping=0.1))
+
+   # Recommended: authors every matching prim, takes a fragment list
+   sim_utils.apply_rigid_body_properties("/World/Robot/.*", [PhysxRigidBodyCfg(linear_damping=0.1)])
+
+``define_deformable_curve_properties`` is not deprecated: there is no curve
+fragment family to replace it.
+
+**Silencing the warnings while you migrate**
+
+The warnings are standard ``DeprecationWarning``\ s. Filter them by *message*
+while a migration is in progress:
+
+.. code-block:: python
+
+   import warnings
+
+   # Silence one legacy symbol.
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"RigidBodyPropertiesCfg is deprecated")
+
+   # Silence every legacy schema cfg and writer at once.
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"\w+ is deprecated\. Use ")
+
+   # Silence the renamed joint-drive field aliases (``max_effort``, ``max_velocity``).
+   warnings.filterwarnings("ignore", category=DeprecationWarning, message=r"'\w+' is deprecated; use ")
+
+.. warning::
+
+   Do not filter these with ``module="isaaclab.sim.schemas.*"``. ``module`` is
+   matched against the ``__name__`` of the frame selected by the warning's
+   ``stacklevel``, and these warnings deliberately point at *your* call site, so
+   they are attributed to the module that constructed the cfg or called the
+   writer — never ``isaaclab.sim.schemas``. A ``module=`` filter silences
+   nothing here.
+
 .. note::
 
    Spawners auto-enable body-level gravity compensation when joint-level
@@ -427,7 +678,7 @@ when no CLI override is given. Other fields are named presets selectable with
 .. code-block:: python
 
    from isaaclab.physics import PhysxAutoCfg
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
    from isaaclab_ov.physics import OvPhysxCfg
    from isaaclab_tasks.utils import PresetCfg
 
@@ -612,7 +863,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
    * - ``isaacsim.core.utils.stage``
      - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
        ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
-       ``clear_stage``, ``update_stage``, ``use_stage``)
+       ``clear_stage``, ``use_stage``)
    * - ``isaacsim.core.utils.prims``
      - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
        ``change_prim_property``, ``bind_visual_material``,
@@ -823,7 +1074,7 @@ removed in a future release.
 
 Actuator configurations now use joint-qualified names for solver limits. Update active
 configurations to the canonical fields below. The former names remain accepted with a
-``DeprecationWarning`` through the 3.x release line and will be removed in 4.0.
+``DeprecationWarning`` and will be removed in 3.1.
 
 .. list-table:: Actuator limit migration
    :header-rows: 1
@@ -845,7 +1096,7 @@ configurations to the canonical fields below. The former names remain accepted w
 ``actuator_effort_limit`` clips explicit actuator-model output. ``joint_effort_limit`` and
 ``joint_velocity_limit`` are construction-time joint-property overrides selected by an actuator
 group's joint expression. The deprecated aliases ``effort_limit``, ``velocity_limit``,
-``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted through 3.x. ``effort_limit``
+``effort_limit_sim``, and ``velocity_limit_sim`` remain accepted until 3.1. ``effort_limit``
 resolves to the rated ``actuator_effort_limit`` for every actuator type. For an implicit group
 without a separately configured solver clamp, the rated value also populates
 ``joint_effort_limit`` for backward compatibility; configure both fields to author distinct
@@ -1205,7 +1456,7 @@ The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
 and OvPhysX bindings use different access methods. See
-:doc:`/source/overview/core-concepts/physical-backends/direct-api-access/index`
+:doc:`/source/concepts/native-physics-api/index`
 before using ``root_view`` in backend-portable code.
 
 
@@ -1320,22 +1571,23 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
 .. rubric:: Contact force property names
 
 Contact sensor force properties now state whether they contain aggregate or filtered normal and
-friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton reports
-this quantity directly. PhysX and OVPhysX cannot compute a total force, so they return the
-corresponding normal-force quantity and warn. ``friction_forces_w`` is the aggregate friction
-force. Newton reports it as ``net_friction_forces_w``; PhysX and OVPhysX only provide filtered
-friction, so they return ``friction_force_matrix_w`` and warn.
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton and
+OVPhysX report this quantity even when ``track_friction_forces=False``. The Isaac Sim PhysX backend
+currently returns the corresponding normal-force quantity and warns.
+``friction_forces_w`` is the aggregate friction force. Newton and OVPhysX report it as
+``net_friction_forces_w``; Isaac Sim PhysX only provides filtered friction, so it returns
+``friction_force_matrix_w`` and warns.
 
 .. list-table::
    :header-rows: 1
 
    * - Property
      - Meaning
-     - PhysX / OVPhysX
-     - Newton
+     - Isaac Sim PhysX
+     - Newton / OVPhysX
    * - ``net_forces_w``
      - Total contact force
-     - Returns ``net_normal_forces_w`` (cannot compute total force)
+     - Returns ``net_normal_forces_w`` with a warning
      - Total force (``normal + friction``)
    * - ``net_forces_w_history``
      - Total contact-force history
@@ -1356,10 +1608,16 @@ friction, so they return ``friction_force_matrix_w`` and warn.
 
 Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
 ``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
-when the normal / friction split matters. Newton also exposes ``net_friction_forces_w_history``
-and ``friction_force_matrix_w_history``. PhysX cannot report an unfiltered aggregate friction
-force and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
+when the normal / friction split matters. Newton and OVPhysX also expose ``net_friction_forces_w_history``
+and ``friction_force_matrix_w_history``. The Isaac Sim PhysX backend does not expose aggregate friction
+and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
 ``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
+
+On OVPhysX, ``track_friction_forces=True`` enables separate friction buffers and histories without
+requiring contact filters. Force matrices still require filters. Aggregate and filtered forces do
+not depend on ``max_contact_data_count_per_prim``; a positive capacity is required only when
+``track_contact_points=True``. Total-force buffers always include friction, whether or not its
+separate buffers are enabled.
 
 
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
@@ -1386,9 +1644,10 @@ For configuration and data access examples, see the :ref:`overview_sensors_joint
    import torch
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    sensor = env.scene.sensors["joint_wrench"]
@@ -1416,9 +1675,10 @@ depend on the joint-wrench sensor instead:
    from isaaclab.managers import ObservationTermCfg as ObsTerm
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    feet_body_forces = ObsTerm(
@@ -1468,7 +1728,7 @@ pattern as the general ProxyArray backend migration described above.
 **Ray Alignment Configuration**
 
 The ``attach_yaw_only`` boolean parameter on :class:`~isaaclab.sensors.RayCasterCfg` has been
-deprecated in favor of the new ``ray_alignment`` parameter, which accepts one of three string
+removed in favor of the new ``ray_alignment`` parameter, which accepts one of three string
 values:
 
 .. list-table::
@@ -1576,7 +1836,7 @@ Migrate tensor access, indexed writes, buffers, and quaternion conventions befor
 
          identity = (0.0, 0.0, 0.0, 1.0)
          root_pos = robot.data.root_pos_w.torch
-         robot.write_root_pose_to_sim_index(pose, env_ids)
+         robot.write_root_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
 
 
 .. rubric:: Quaternion Format
@@ -1806,13 +2066,6 @@ Enable it by setting an environment variable before launching your script:
          export WARN_ON_TORCH_QUATF_ACCESS=1
          uv run python my_script.py
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         export WARN_ON_TORCH_QUATF_ACCESS=1
-         ./isaaclab.sh -p my_script.py
-
 Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
 dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
 
@@ -1846,9 +2099,9 @@ by the convention change.
 
 .. rubric:: Quaternion Utility API Changes
 
-**The ``convert_quat`` function has been removed**
+**The convert_quat function is no longer needed**
 
-Previously, IsaacLab had a utility function to convert between quaternion formats:
+IsaacLab provides a utility function to convert between quaternion formats:
 
 .. code-block:: python
 
@@ -1856,8 +2109,9 @@ Previously, IsaacLab had a utility function to convert between quaternion format
    from isaaclab.utils.math import convert_quat
    quat_xyzw = convert_quat(quat_wxyz, "xyzw")
 
-Since everything now uses XYZW natively, this function is no longer needed.
-If you were using it, simply remove the conversion calls.
+Since everything now uses XYZW natively, this function is no longer needed for Isaac Lab data.
+If you were using it, simply remove the conversion calls. Keep it only to convert external
+data that still uses WXYZ order.
 
 
 **Math utility functions now expect XYZW**
@@ -2048,7 +2302,8 @@ All asset write methods have been split into two explicit variants:
   boolean mask selecting which environments to update. The ``data`` tensor has shape
   ``(num_envs, ...)``.
 
-The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
+The previous ``write_*_to_sim(data, env_ids)`` methods are deprecated and forward to the
+``_index`` variants.
 
 .. code-block:: python
 
@@ -2125,25 +2380,22 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
      - ``write_body_link_velocity_to_sim_index`` / ``write_body_link_velocity_to_sim_mask``
 
 
-.. rubric:: TimestampedBufferWarp
+.. rubric:: Timestamped buffers
 
-If you have custom asset or sensor data classes that subclass the Isaac Lab base data classes,
-note that internal buffers have changed from :class:`~isaaclab.utils.buffers.TimestampedBuffer`
-to :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`. The new class takes ``(shape, device,
-wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
+Custom asset and sensor data classes use :class:`~isaaclab.utils.buffers.TimestampedBuffer`
+with explicitly allocated Torch or Warp storage. The separate ``TimestampedBufferWarp``
+allocator was removed; replace it with ``TimestampedBuffer(wp.zeros(...))``.
 
 .. code-block:: python
 
    import warp as wp
-   from isaaclab.utils.buffers import TimestampedBufferWarp
+   from isaaclab.utils.buffers import TimestampedBuffer
 
    # Before (Isaac Lab 2.x)
    self._data.root_pos_w = TimestampedBuffer(torch.zeros(num_envs, 3, device=device))
 
    # After (Isaac Lab 3.x)
-   self._data.root_pos_w = TimestampedBufferWarp(
-       shape=(num_envs,), device=device, wp_dtype=wp.vec3f
-   )
+   self._data.root_pos_w = TimestampedBuffer(wp.zeros(num_envs, dtype=wp.vec3f, device=device))
 
 
 Reinforcement Learning
@@ -2189,13 +2441,6 @@ and play. Instead of launching library-specific scripts under
          # Isaac Lab 3.0
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Isaac Lab 3.0
-         ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
-
 The same pattern applies to the play workflow:
 
 .. tab-set::
@@ -2205,12 +2450,6 @@ The same pattern applies to the play workflow:
       .. code-block:: bash
 
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
 ``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
@@ -2309,24 +2548,20 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
   ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
-- If omitted, visualizers are resolved from ``SimulationCfg.visualizer_cfgs``.
-- ``--viz none`` explicitly disables all visualizers, including config-defined ones.
+- If omitted, no visualizer runs. ``SimulationCfg.visualizer_cfgs`` only configures the visualizers
+  ``--viz`` selects: a selected type uses the configured visualizer of that type, with its settings, or
+  else its default config.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
 
-**Breaking change — ``--headless`` no longer suppresses visualizers.**
+**Breaking change — ``--headless`` is removed.**
 
 In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
-In Isaac Lab 3.0, ``--headless`` and ``--viz`` are independent:
-
-- ``--headless`` controls the simulation rendering pipeline (Kit app mode, GPU context).
-- ``--viz <type>`` controls which visualizer backends to launch.
-
-Passing ``--viz kit --headless`` now launches a Kit visualizer in headless mode using the
-Replicator offscreen renderer (no display window required).  Passing ``--viz newton_gl --headless``
-launches a Newton GL visualizer using pyglet's EGL headless backend.  To disable all visualizers
-explicitly, use ``--viz none``.
+In Isaac Lab 3.0 the flag is removed: a run opens windows only for the visualizers ``--viz`` selects,
+and runs without visualizers when ``--viz`` is omitted. To keep a selected visualizer windowless, e.g. on a
+machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
+renderer and ``--viz newton_gl`` through pyglet's EGL backend.
 
 .. list-table:: Headless visualizer requirements
    :header-rows: 1
@@ -2349,23 +2584,15 @@ explicitly, use ``--viz none``.
 **Headless video recording (``--video`` without ``--viz``).**
 
 In Isaac Lab 2.x, ``--video`` alone would use the Kit Replicator pipeline implicitly.
-In Isaac Lab 3.0, the equivalent is:
+In Isaac Lab 3.0, ``--video`` alone records from a headless Newton GL visualizer. The equivalent of the
+2.x behavior records from a headless Kit visualizer, configured by the Kit visualizer of the task config
+if it lists one:
 
 .. code-block:: bash
 
-   # Record from Kit viewport headlessly (equivalent to 2.x --video behaviour)
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
-       --viz kit --enable_cameras --headless --video
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --video viz:kit
 
-As a convenience, passing ``--video`` without ``--viz`` still works: Isaac Lab
-auto-creates a headless Kit visualizer (falling back to Newton GL if Kit is unavailable)
-and sets ``source="visualizer:kit"`` on the default recorder, printing:
-
-.. code-block:: text
-
-   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
-   for video recording. Pass --viz <type> to choose a different visualizer, or
-   set video_recorders in your env config to record from a scene sensor instead.
+See :ref:`the --video sources <record_video_cli>`.
 
 
 .. rubric:: Viewport Camera Configuration (``ViewerCfg`` deprecated)
@@ -2405,19 +2632,33 @@ For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body
 
    # After (Isaac Lab 3.x)
    from isaaclab_visualizers.kit import KitVisualizerCfg
-   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]
+   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]  # --viz kit
 
 The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
+
+
+Custom visualizers now receive resolved ``cameras`` and the optional USD ``stage`` in ``initialize()``.
+Accept these arguments and forward them to ``super().initialize(scene_data_provider, cameras=cameras,
+stage=stage)``. ``SimulationContext`` resolves scene-camera references before initialization;
+visualizers consume those borrowed sensors without a clone plan or a simulation lookup.
+Code that initializes a visualizer directly must supply ordered ``PerspectiveCameraCfg`` objects
+and existing ``Camera`` sensors through ``cameras``. Use ``resolve_camera_sources`` from
+``isaaclab.envs.utils.camera_view`` to bind configured path references against a camera registry.
+Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
+The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
+to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
+``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already
+applies bounds, duplicate removal, the visibility cap, and optional sampling.
 
 
 .. rubric:: Streaming Camera View (``tiled_cam_*`` fields removed)
 
 The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
 ``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
-``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
-shim forwards each removed field to its ``streaming_*`` equivalent and emits
-:class:`DeprecationWarning`; the shim will be removed in the next major release.
+``streaming_*`` API and shared ``cameras`` source list. The deprecated forwarding shim has also
+been removed; update old field names using the table below.
+Renderer selection now takes a configuration directly, without a nickname compatibility path.
 
 .. list-table:: Field rename reference
    :header-rows: 1
@@ -2434,13 +2675,27 @@ shim forwards each removed field to its ``streaming_*`` equivalent and emits
      - Accepts ``int`` or ``list[int]``
    * - ``tiled_cam_prim_path``
      - ``streaming_sensor_prim_path``
-     - Existing sensor path; takes priority over auto-created camera
+     - Scene-declared sensor path
    * - ``tiled_cam_eye``
-     - ``streaming_cam_eye``
-     -
+     - ``CameraCfg.offset``
+     - Scene camera pose
    * - ``tiled_cam_renderer``
-     - ``streaming_cam_renderer``
-     - Accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or ``None``
+     - ``CameraCfg.renderer_cfg``
+     - Renderer configuration on the scene camera
+
+Streaming cameras must now be declared in the scene before cloning. Move
+``streaming_cam_renderer_cfg`` to the scene camera's ``CameraCfg.renderer_cfg``, and replace
+``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
+The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
+Visualizers only display the selected sensor's output; they no longer create a renderer or
+camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+
+The generated-camera helpers ``resolve_tiled_env_indices``, ``resolve_mono_env_index``,
+``compute_tile_resolution``, ``apply_camera_view_from_origins``, and ``sensor_keys_for_gt_types``
+have also been removed. Declare resolution, output channels, and initial pose in ``CameraCfg``.
+Use ``resolve_streaming_envs`` for display tile selection and ``Camera.set_world_poses_from_view``
+for explicit sensor pose updates.
+
 
 .. code-block:: python
 
@@ -2508,9 +2763,9 @@ Similarly, when importing the config class directly:
    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
    cfg = NewtonGLVisualizerCfg()
 
-The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
-continues to work as a backward-compatible alias for ``"visualizer:newton_gl"``, but
-``"visualizer:newton_gl"`` and ``"visualizer:newton_rtx"`` are now the canonical source strings.
+The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
+``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
+``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)
@@ -2528,14 +2783,13 @@ environment config, sourcing frames from the active visualizer or a scene sensor
    # After (Isaac Lab 3.x)
    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
    env_cfg.video_recorders = [
-       VideoRecorderCfg(source="visualizer", output_dir="videos/", video_length=200)
+       VideoRecorderCfg(source="viz", output_dir="videos/", video_length=200)
    ]
    env = gym.make(task, cfg=env_cfg)
 
-Available sources: ``"visualizer"`` (auto-pick), ``"visualizer:kit"``, ``"visualizer:newton_gl"``,
-``"visualizer:newton_rtx"``, ``"visualizer:newton_gl:tiled"``, ``"sensor:<name>"``.
-``"visualizer:newton"`` and ``"visualizer:newton:tiled"`` remain as deprecated backward-compatible
-aliases for ``"visualizer:newton_gl"`` and ``"visualizer:newton_gl:tiled"`` respectively.
+Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton_gl"``, ``"viz:newton_rtx"``,
+``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. ``visualizer`` is accepted as the long
+form of ``viz``; the ``newton`` type remains a deprecated alias of ``newton_gl``.
 The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
 camera via ``sim.default_visualizer_cfg`` instead.
 
@@ -2638,16 +2892,6 @@ automatically by the importer based on the robot name and cannot be overridden.
            --fix-base \
            --merge-joints
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir/robot.usd \
-           --fix-base \
-           --merge-joints
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -2657,18 +2901,6 @@ automatically by the importer based on the robot name and cannot be overridden.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir \
-           --fix-base \
-           --joint-stiffness 100.0 \
-           --joint-damping 1.0 \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
            robot.urdf \
            /output/dir \
            --fix-base \
@@ -2758,8 +2990,6 @@ and ``MJCFImporterConfig`` dataclass.
 The following :class:`~sim.converters.MjcfConverterCfg` settings have been **removed** because
 the new converter handles them automatically based on the MJCF file content:
 
-- ``fix_base`` — base fixedness is now inferred from the MJCF ``<freejoint>`` tag.
-- ``link_density`` — density is now read directly from the MJCF model.
 - ``import_inertia_tensor`` — inertia tensors are always imported.
 - ``import_sites`` — sites are always imported.
 
@@ -2778,8 +3008,8 @@ The following new settings were added to :class:`~sim.converters.MjcfConverterCf
 +-----------------------------------------------------------------+------------------------------------------------------+
 | :attr:`~sim.converters.MjcfConverterCfg.collision_from_visuals` | Generate collision geometry from visuals.            |
 +-----------------------------------------------------------------+------------------------------------------------------+
-| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"default"``,      |
-|                                                                 | ``"Convex Hull"``, ``"Convex Decomposition"``).      |
+| :attr:`~sim.converters.MjcfConverterCfg.collision_type`         | Type of collision geometry (e.g. ``"Convex Hull"``,  |
+|                                                                 | ``"Convex Decomposition"``, ``"Bounding Cube"``).    |
 +-----------------------------------------------------------------+------------------------------------------------------+
 
 
@@ -2818,16 +3048,6 @@ are no longer available.
            --import-sites \
            --make-instanceable
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --import-sites \
-           --make-instanceable
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -2837,17 +3057,6 @@ are no longer available.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --merge-mesh \
-           --self-collision \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --merge-mesh \
@@ -2931,7 +3140,7 @@ module and unified command.
    ``benchmark_rigid_object.py``, and friends) are unchanged — only the
    ``run_physx_benchmarks.sh`` wrapper that invoked them was removed, so run those scripts
    directly. The other standalone benchmark scripts under ``scripts/benchmarks/`` —
-   ``benchmark_cameras.py``, ``benchmark_load_robot.py``, ``benchmark_view_comparison.py``,
+   ``benchmark_load_robot.py``, ``benchmark_view_comparison.py``,
    ``benchmark_xform_prim_view.py``, ``benchmark_lazy_export.py``, and
    ``benchmark_hydra_resolve.py`` — are independent of the unified suite and likewise
    unaffected.
@@ -2976,21 +3185,7 @@ exactly as for the training workflow. There is no ``--physics`` or ``--render`` 
 
 .. tab-set::
 
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-         # Non-RL (random-action) runtime benchmark
-         uv run python scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
-
-         # Training benchmark (RSL-RL)
-         uv run python scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
-
-         # Wrapper shell runners
-         ./scripts/benchmarks/run_non_rl_benchmarks.sh
-         ./scripts/benchmarks/run_training_benchmarks.sh
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
+   .. tab-item:: Isaac Lab launcher
 
       .. code-block:: bash
 
@@ -3068,23 +3263,24 @@ For a complete guide to multi-backend support, see the "Multi-Backend Support: P
 Pattern" section above.
 
 
-.. rubric:: XR Teleoperation: Isaac Teleop Integration
+.. rubric:: XR Teleoperation: Isaac Capture Integration
 
 The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
-by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+by `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_, integrated via the ``isaaclab_teleop``
 extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
-plugin support is now in Isaac Teleop.
+plugin support is now in Isaac Capture.
 
 For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
 
 
 **Installation Requirement**
 
-Isaac Teleop must now be installed in your Isaac Lab environment:
+Isaac Capture must now be installed in your Isaac Lab environment. It ships with the ``teleop``
+extra:
 
 .. code-block:: bash
 
-   pip install isaacteleop~=1.0 --extra-index-url https://pypi.nvidia.com
+   uv sync --extra teleop --extra isaacsim
 
 See :ref:`install-isaac-teleop` for complete installation instructions.
 
@@ -3106,7 +3302,7 @@ See :ref:`install-isaac-teleop` for complete installation instructions.
    * - ``from isaaclab.devices.openxr import ManusVive``
      - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
    * - ``from isaaclab.devices import RetargeterBase``
-     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+     - Use Isaac Capture ``BaseRetargeter`` and pipeline builder pattern
    * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
      - ``from isaacteleop.retargeters import Se3AbsRetargeter``
 

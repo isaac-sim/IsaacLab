@@ -10,13 +10,11 @@ import warp as wp
 def joint_wrench_split_kernel(
     env_mask: wp.array(dtype=wp.bool),
     incoming_joint_wrench: wp.array(dtype=wp.spatial_vectorf, ndim=2),
-    joint_pos_b: wp.array(dtype=wp.vec3f),
-    joint_quat_b: wp.array(dtype=wp.quatf),
     timestamp: wp.array(dtype=wp.float32),
     out_force: wp.array(dtype=wp.vec3f, ndim=2),
     out_torque: wp.array(dtype=wp.vec3f, ndim=2),
 ):
-    """Convert PhysX incoming joint spatial wrenches into the child-side joint frame."""
+    """Split PhysX wrenches, already expressed at the child-side joint anchor in its frame."""
     env, body = wp.tid()
     if not env_mask[env]:
         return
@@ -27,15 +25,8 @@ def joint_wrench_split_kernel(
         return
 
     wrench = incoming_joint_wrench[env, body]
-    force_b = wp.spatial_top(wrench)
-    torque_b = wp.spatial_bottom(wrench)
-
-    # PhysX reports the wrench in body1's frame, referenced at body1's origin.
-    # Shift torque to the child-side joint anchor and rotate both components
-    # into the child-side joint frame.
-    torque_joint_anchor_b = torque_b - wp.cross(joint_pos_b[body], force_b)
-    out_force[env, body] = wp.quat_rotate_inv(joint_quat_b[body], force_b)
-    out_torque[env, body] = wp.quat_rotate_inv(joint_quat_b[body], torque_joint_anchor_b)
+    out_force[env, body] = wp.spatial_top(wrench)
+    out_torque[env, body] = wp.spatial_bottom(wrench)
 
 
 @wp.kernel

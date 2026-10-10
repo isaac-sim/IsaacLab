@@ -3,116 +3,37 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import importlib.util
 import re
 from pathlib import Path
 
 import pytest
 import tomllib
 
+from docker.utils import volume_mounts
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOCKER_DIR = REPO_ROOT / "docker"
 
 
-def _load_module(name: str, path: Path):
-    """Import a module by file path (``docker`` is not an importable package here)."""
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec is not None and spec.loader is not None, f"cannot load module at {path}"
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-# Collect every Dockerfile.* from the entire repository tree.
-DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
-
-ROOT_USERS = {"root", "0"}
+# Source Dockerfiles only; generated wheel staging trees may contain duplicate copies.
+DOCKERFILES = sorted(
+    [*REPO_ROOT.glob("docker/Dockerfile.*"), REPO_ROOT / "source/isaaclab/test/install_ci/Dockerfile.installci"]
+)
 
 # Pinned by digest so a uv release cannot silently change how the lock resolves. Matches the uv
 # that regenerated ``uv.lock``; a mismatch reintroduces the marker churn that refresh removed.
 UV_PIN = "ghcr.io/astral-sh/uv:0.12.9@sha256:8b940d3a9d65bed080436972241af2e21c84b5e8c9193f7014ed71479ee795ff"
 
 
-# Keep every Dockerfile in this map so new containers must make an explicit
-# runtime-user decision instead of silently escaping this regression test.
-# Keys are Dockerfile *names* (unique across the repo); values are the
-# expected final USER directive (None = not yet migrated, test skipped).
-DOCKERFILE_RUNTIME_USERS = {
-    "Dockerfile.base": "isaaclab",
-    "Dockerfile.curobo": "isaaclab",
-    "Dockerfile.installci": "isaaclab",
-    "Dockerfile.kitless": "isaaclab",
-    "Dockerfile.ros2": "isaaclab",
-}
-
-# Dockerfiles that are expected to *create* the non-root runtime user
-# (i.e. contain groupadd/useradd/USER isaaclab).
-DOCKERFILES_CREATING_RUNTIME_USER = {
-    "Dockerfile.base",
-    "Dockerfile.curobo",
-    "Dockerfile.installci",
-    "Dockerfile.kitless",
-}
-
-USER_DIRECTIVE_RE = re.compile(r"^USER\s+(\S+)\s*$")
-
-
-def _user_directives(dockerfile_text: str) -> list[str]:
-    users = []
-    for raw_line in dockerfile_text.splitlines():
-        line = raw_line.strip()
-        if line.startswith("#"):
-            continue
-        match = USER_DIRECTIVE_RE.match(line)
-        if match:
-            users.append(match.group(1))
-    return users
-
-
-def _final_user(dockerfile_path: Path) -> str | None:
-    users = _user_directives(dockerfile_path.read_text(encoding="utf-8"))
-    return users[-1] if users else None
-
-
-def _find_dockerfile(name: str) -> Path:
-    """Return the path of the unique Dockerfile with the given name."""
-    matches = [p for p in DOCKERFILES if p.name == name]
-    assert len(matches) == 1, f"Expected exactly one {name}, found: {matches}"
-    return matches[0]
-
-
-def test_all_dockerfiles_have_runtime_user_expectations():
-    expected_dockerfiles = set(DOCKERFILE_RUNTIME_USERS)
-    actual_dockerfiles = {dockerfile.name for dockerfile in DOCKERFILES}
-
-    assert actual_dockerfiles == expected_dockerfiles
-
-
 @pytest.mark.parametrize("dockerfile", DOCKERFILES, ids=lambda path: path.name)
-def test_non_root_runtime_dockerfiles(dockerfile: Path):
-    expected_user = DOCKERFILE_RUNTIME_USERS[dockerfile.name]
+def test_dockerfile_creates_and_uses_non_root_user(dockerfile: Path):
+    """Every image creates uid/gid 1000 and finishes as the unprivileged user."""
+    text = dockerfile.read_text(encoding="utf-8")
+    users = re.findall(r"^\s*USER\s+(\S+)\s*$", text, re.MULTILINE)
 
-    if expected_user is None:
-        pytest.skip(f"{dockerfile.name} has not been migrated to a non-root runtime user.")
-
-    final_user = _final_user(dockerfile)
-    assert final_user == expected_user
-    assert final_user not in ROOT_USERS
-
-
-@pytest.mark.parametrize("dockerfile_name", sorted(DOCKERFILES_CREATING_RUNTIME_USER))
-def test_dockerfile_creates_non_root_runtime_user(dockerfile_name: str):
-    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
-
-    assert re.search(r"\bgroupadd\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
-    assert re.search(r"\buseradd\b.*--uid\s+1000\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
-    assert "USER isaaclab" in dockerfile_text
-
-
-def test_ros2_dockerfile_restores_non_root_runtime_user():
-    dockerfile_text = (DOCKER_DIR / "Dockerfile.ros2").read_text(encoding="utf-8")
-
-    assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
+    assert users and users[-1] == "isaaclab"
+    assert re.search(r"\bgroupadd\b.*--gid\s+1000\b.*\bisaaclab\b", text, re.DOTALL)
+    assert re.search(r"\buseradd\b.*--uid\s+1000\b.*--gid\s+1000\b.*\bisaaclab\b", text, re.DOTALL)
 
 
 def test_images_share_one_pinned_uv():
@@ -130,21 +51,35 @@ def test_images_share_one_pinned_uv():
     assert not offenders, f"every image must pin {UV_PIN}; got {offenders}"
 
 
+def test_curobo_compiler_matches_torch_without_replacing_runtime_libraries():
+    """CUDA extensions use Torch's CUDA version while uv owns its runtime libraries."""
+    text = (DOCKER_DIR / "Dockerfile.curobo").read_text(encoding="utf-8")
+    with (REPO_ROOT / "uv.lock").open("rb") as file:
+        torch_versions = {package["version"] for package in tomllib.load(file)["package"] if package["name"] == "torch"}
+
+    toolkit = re.search(r"\bcuda-toolkit-(\d+)-(\d+)\b", text)
+    assert toolkit is not None
+    major, minor = toolkit.groups()
+    assert {version.partition("+cu")[2] for version in torch_versions} == {f"{major}{minor}"}
+    assert f"ENV CUDA_HOME=/usr/local/cuda-{major}.{minor}" in text
+    assert "ENV PATH=${CUDA_HOME}/bin:${PATH}" in text
+    # System CUDA libraries must not replace Kit's libraries or shadow the locked wheels.
+    assert not re.search(r"^ENV LD_LIBRARY_PATH=.*\$\{CUDA_HOME\}", text, re.MULTILINE)
+    assert not re.search(r"^\s+(?:libcudnn|libcusparselt|libnccl|libnvjitlink)\S*\s", text, re.MULTILINE)
+
+
 def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
     """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")
     with (REPO_ROOT / "pyproject.toml").open("rb") as file:
         extras = tomllib.load(file)["project"]["optional-dependencies"]
 
-    # Installed from the lock rather than through isaaclab.sh: only the lock applies
-    # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
-    # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
     assert "uv sync --frozen --inexact --extra all --extra importers" in dockerfile_text
     assert "importers" in extras
     # ``all`` must not drag in the Isaac Sim runtime, or the kit-less image means nothing.
     assert "isaacsim" not in "".join(extras["all"])
     # The interpreter must sit outside ISAACLAB_PATH. CI bind-mounts the checkout over that path,
-    # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
+    # so a venv beneath it is masked and uv run isaaclab execs a missing interpreter (exit 127).
     assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
     assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
     # ``uv sync`` honours the project's ``only-managed`` preference and would rebuild the venv
@@ -152,7 +87,6 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # dangling. The image must pin uv to the system interpreter.
     assert "ENV UV_PYTHON=/usr/bin/python3.12" in dockerfile_text
     assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
-    assert "COPY isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'isaacsim-asset-isolated' in names" in dockerfile_text
     assert "'ovphysx' in names" in dockerfile_text
@@ -178,19 +112,6 @@ def test_container_test_runner_only_links_an_actual_isaac_sim_runtime():
     assert runner_text.count("ln -s /isaac-sim _isaac_sim") == 1
 
 
-# --------------------------------------------------------------------------- #
-# Volume mount-point writability
-#
-# A fresh Docker named volume inherits ownership from the image directory at its
-# mount path on first mount. If that directory is missing or root-owned, the
-# volume comes up root-owned and the non-root ``isaaclab`` runtime user cannot
-# write it (e.g. ``PermissionError`` creating ``logs/`` or ``omni.datastore``
-# lock failures under ``kit/cache``). The image build therefore pre-creates and
-# chowns every named-volume mount point, driven by a single source of truth:
-# docker-compose.yaml, parsed by docker/utils/volume_mounts.py. These tests
-# validate the parser and that each non-root Dockerfile wires it in.
-# --------------------------------------------------------------------------- #
-
 NONROOT_VOLUME_DOCKERFILES = {
     "Dockerfile.base": "x-default-isaac-lab-volumes",
     "Dockerfile.curobo": "x-default-isaac-lab-volumes",
@@ -198,23 +119,13 @@ NONROOT_VOLUME_DOCKERFILES = {
 }
 
 
-def _volume_mounts_module():
-    """Load the parser the image build uses; skip the test if PyYAML is unavailable.
-
-    The Docker image build exercises this parser for real, so a test environment
-    without PyYAML simply skips the parser unit tests rather than failing.
-    """
-    pytest.importorskip("yaml")
-    return _load_module("volume_mounts", DOCKER_DIR / "utils" / "volume_mounts.py")
-
-
-def test_compose_volume_targets_parse():
+def test_compose_volume_targets_parse(monkeypatch):
     """The parser returns every ``type: volume`` mount point from docker-compose.yaml.
 
     Includes the directories that triggered the original regression so a compose
     edit that drops them is caught here.
     """
-    targets = _volume_mounts_module().named_volume_targets(DOCKER_DIR / "docker-compose.yaml")
+    targets = volume_mounts.named_volume_targets(DOCKER_DIR / "docker-compose.yaml")
 
     assert targets, "no named-volume targets parsed from docker-compose.yaml"
     for required in (
@@ -225,14 +136,11 @@ def test_compose_volume_targets_parse():
     ):
         assert required in targets, f"{required} missing from parsed volume targets: {targets}"
 
-
-def test_resolved_targets_are_absolute_paths(monkeypatch):
-    """With the build's environment, every target resolves to an absolute path."""
     monkeypatch.setenv("DOCKER_ISAACSIM_ROOT_PATH", "/isaac-sim")
     monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
     monkeypatch.setenv("DOCKER_USER_HOME", "/root")
 
-    resolved = _volume_mounts_module().resolved_targets(DOCKER_DIR / "docker-compose.yaml")
+    resolved = volume_mounts.resolved_targets(DOCKER_DIR / "docker-compose.yaml")
 
     assert resolved, "no resolved targets"
     assert all(p.startswith("/") and "$" not in p for p in resolved), resolved
@@ -248,7 +156,7 @@ def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str, vo
     ``set -o pipefail`` (so a parse failure aborts the build) rather than
     re-hardcoding the list or silently skipping preparation.
     """
-    text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+    text = (DOCKER_DIR / dockerfile_name).read_text(encoding="utf-8")
 
     assert "set -o pipefail" in text
     assert "docker/utils/volume_mounts.py" in text
@@ -258,28 +166,13 @@ def test_dockerfile_prepares_volume_mounts_from_compose(dockerfile_name: str, vo
 
 
 @pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
-def test_isaac_sim_dockerfiles_chown_the_omnihub_cache(dockerfile_name: str):
-    """OmniHub's cache belongs to the isaac-sim user, so the runtime user must be given it.
-
-    Without this, OmniHub cannot write the cache it is pointed at once it is allowed to
-    start.
-    """
-    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
+def test_isaac_sim_dockerfiles_configure_writable_omnihub(dockerfile_name: str):
+    """OmniHub can start and write its cache as the runtime user."""
+    dockerfile_text = (DOCKER_DIR / dockerfile_name).read_text(encoding="utf-8")
 
     chown_block = re.search(r"chown -R isaaclab:isaaclab((?:\s*\\\s*\S+)+)", dockerfile_text)
     assert chown_block, f"{dockerfile_name} has no 'chown -R isaaclab:isaaclab' block"
     assert "/var/cache/hub" in chown_block.group(1)
-
-
-@pytest.mark.parametrize("dockerfile_name", ["Dockerfile.base", "Dockerfile.curobo"])
-def test_isaac_sim_dockerfiles_let_omnihub_start(dockerfile_name: str):
-    """The Isaac Sim image sets ``HUB__ARGS__DETECT_ONLY=true``, forbidding OmniHub to start.
-
-    omni.client asks it to launch anyway, so every Kit startup retries ~39 times. The value
-    must be exactly ``false``: ``--detect-only`` takes a value, so clearing it with
-    ``ENV HUB__ARGS__DETECT_ONLY=`` aborts hub with "a value is required" instead.
-    """
-    dockerfile_text = _find_dockerfile(dockerfile_name).read_text(encoding="utf-8")
 
     assert re.search(r"^ENV HUB__ARGS__DETECT_ONLY=false$", dockerfile_text, re.MULTILINE), (
         f"{dockerfile_name} must set 'ENV HUB__ARGS__DETECT_ONLY=false' exactly"

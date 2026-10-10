@@ -7,8 +7,7 @@ import warnings
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 """
@@ -187,6 +186,19 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
 
 
 @configclass
+class MeshFileTerrainCfg(SubTerrainBaseCfg):
+    """Configuration for a terrain loaded from a mesh file."""
+
+    function: str = "{DIR}.mesh_terrains:mesh_file_terrain"
+
+    mesh_path: str = MISSING
+    """The path to the mesh file, in any format that ``trimesh`` can load (for example, OBJ, STL, or PLY).
+
+    The mesh must be Z-up with coordinates in meters, and its footprint should fit within :attr:`size`.
+    """
+
+
+@configclass
 class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
     """Base configuration for a terrain with repeated objects."""
 
@@ -241,7 +253,9 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
         if self.max_height_noise is not None:
             warnings.warn(
                 "MeshRepeatedObjectsTerrainCfg: max_height_noise:float is deprecated and support will be removed in the"
-                " future. Use abs_height_noise:list[float] instead."
+                " future. Use abs_height_noise:list[float] instead.",
+                FutureWarning,
+                stacklevel=2,
             )
             self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 

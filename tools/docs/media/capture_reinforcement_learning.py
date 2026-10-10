@@ -16,7 +16,7 @@ from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
@@ -66,7 +66,7 @@ def _configure_capture(env_cfg: object):
     if output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="visualizer:newton_rtx",
+                source="viz:newton_rtx",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("RL_PROGRESS_VIDEO_PREFIX", "progress"),
                 fps=50,

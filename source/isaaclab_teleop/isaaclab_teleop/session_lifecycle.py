@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""IsaacTeleop session lifecycle management."""
+"""Isaac Capture session lifecycle management."""
 
 from __future__ import annotations
 
@@ -25,9 +25,37 @@ if TYPE_CHECKING:
     from isaacteleop.retargeting_engine_ui import MultiRetargeterTuningUIImGui
     from isaacteleop.teleop_session_manager import TeleopSession
 
+    from .teleop_message_processor import TeleopMessageProcessor
+
 from .control_events import _NO_OP_EVENTS, ControlEvents
 from .isaac_teleop_cfg import IsaacTeleopCfg
-from .teleop_message_processor import TeleopMessageProcessor
+
+# Opt-in acceptance of the NVIDIA CloudXR license, mirroring the ``OMNI_KIT_ACCEPT_EULA``
+# escape hatch Kit offers for the Omniverse license.
+_CXR_ACCEPT_EULA_ENV = "ISAACLAB_CXR_ACCEPT_EULA"
+# The spellings ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both accept.
+_CXR_ACCEPT_EULA_VALUES = frozenset({"y", "yes", "1"})
+
+
+def cloudxr_eula_accepted() -> bool:
+    """Whether ``ISAACLAB_CXR_ACCEPT_EULA`` opts into the NVIDIA CloudXR license.
+
+    The CloudXR license is separate from the Omniverse one. Without this opt-in the
+    runtime prompts for it on stdin, which fails outright when no terminal is attached,
+    so headless, container and CI runs cannot start. ``y``, ``yes`` and ``1`` accept it,
+    case-insensitively and ignoring surrounding whitespace -- the spellings
+    ``OMNI_KIT_ACCEPT_EULA`` and the CloudXR prompt itself both take. Leaving the
+    variable unset, or setting any other value, keeps the interactive prompt.
+
+    Every CloudXR launch path shares this helper -- the session lifecycle here and the
+    process-scoped launcher in ``teleop_replay_agent.py`` -- so the variable behaves the
+    same whichever script starts the runtime.
+
+    Returns:
+        Whether the CloudXR license has been accepted up front.
+    """
+    return os.environ.get(_CXR_ACCEPT_EULA_ENV, "").strip().lower() in _CXR_ACCEPT_EULA_VALUES
+
 
 # The CloudXR runtime accepts at most one of these; setting both is rejected outright.
 _CXR_GPU_INDEX_ENV_VARS = ("NV_CXR_GPU_INDEX_CUDA", "NV_CXR_GPU_INDEX_VULKAN")
@@ -150,7 +178,7 @@ def _execution_events_to_control(ee: ExecutionEvents) -> ControlEvents:
 
 
 class TeleopSessionLifecycle:
-    """Manages the IsaacTeleop session lifecycle.
+    """Manages the Isaac Capture session lifecycle.
 
     This class is responsible for:
 
@@ -213,7 +241,7 @@ class TeleopSessionLifecycle:
         """Initialize the session lifecycle manager.
 
         Args:
-            cfg: Configuration for IsaacTeleop settings.
+            cfg: Configuration for Isaac Capture settings.
             cloudxr_env_file: Optional path to a CloudXR ``.env`` file.
                 When provided, the CloudXR runtime is launched automatically
                 during :meth:`start` (unless *auto_launch_cloudxr* is
@@ -332,7 +360,7 @@ class TeleopSessionLifecycle:
                     )
             except (ImportError, ModuleNotFoundError):
                 logger.info(
-                    "isaacsim.kit.xr.teleop.bridge not available; IsaacTeleop will create its own OpenXR session"
+                    "isaacsim.kit.xr.teleop.bridge not available; Isaac Capture will create its own OpenXR session"
                 )
 
             try:
@@ -344,7 +372,7 @@ class TeleopSessionLifecycle:
                     self._on_xr_enabled_changed,
                 )
             except (ImportError, ModuleNotFoundError):
-                logger.info("carb.settings not available; IsaacTeleop will not be able to detect XR enabled state")
+                logger.info("carb.settings not available; Isaac Capture will not be able to detect XR enabled state")
 
         # Pre-shutdown is still wanted in replay mode so the MCAP writer/reader
         # gets a chance to flush before Kit tears down its event loop.
@@ -359,7 +387,7 @@ class TeleopSessionLifecycle:
             # app, and calling observe_event() on None aborts construction.
             dispatcher = get_eventdispatcher()
             if dispatcher is None:
-                logger.info("No Kit event dispatcher; IsaacTeleop will not clean up on Kit close")
+                logger.info("No Kit event dispatcher; Isaac Capture will not clean up on Kit close")
             else:
                 # Subscribe to Kit pre-shutdown so we tear down our session before XRCore
                 # tears down the OpenXR instance/session (XRCore uses order=0; lowest runs first).
@@ -367,11 +395,11 @@ class TeleopSessionLifecycle:
                 self._pre_shutdown_subscription = dispatcher.observe_event(
                     event_name=omni.kit.app.GLOBAL_EVENT_PRE_SHUTDOWN,
                     on_event=self._on_pre_shutdown,
-                    observer_name="IsaacTeleop session lifecycle",
+                    observer_name="Isaac Capture session lifecycle",
                     order=-100,
                 )
         except (ImportError, ModuleNotFoundError):
-            logger.info("omni.kit.app/carb.eventdispatcher not available; IsaacTeleop will not clean up on Kit close")
+            logger.info("omni.kit.app/carb.eventdispatcher not available; Isaac Capture will not clean up on Kit close")
 
     @property
     def is_active(self) -> bool:
@@ -511,6 +539,10 @@ class TeleopSessionLifecycle:
         if not self._is_replay:
             self._run_system_check()
 
+        # Silence the OpenXR runtime's per-call error messages in this process; set
+        # OXR_NO_PRINTING=false to see them again. Must be set before Kit loads the runtime.
+        os.environ.setdefault("OXR_NO_PRINTING", "true")
+
         # CloudXR is per-run, not per-mode: when the caller passes a profile
         # we spawn the runtime so a real client has something to attach to.
         # This is true for live recording (operator wears the headset) and
@@ -589,7 +621,7 @@ class TeleopSessionLifecycle:
                 # (e.g. user clicked "Stop AR"), so destroying spaces/action
                 # sets will fail with XR_ERROR_HANDLE_INVALID.  This is
                 # expected and safe to suppress.
-                logger.debug(f"Suppressed error during IsaacTeleop session cleanup: {e}")
+                logger.debug(f"Suppressed error during Isaac Capture session cleanup: {e}")
             self._session = None
 
         # Always clear pipeline state (session may never have been created if
@@ -614,7 +646,7 @@ class TeleopSessionLifecycle:
                 self._cloudxr_launcher = None
                 logger.info("CloudXR runtime stopped")
 
-        logger.info("IsaacTeleop session ended")
+        logger.info("Isaac Capture session ended")
 
     # ------------------------------------------------------------------
     # Pipeline construction and hand debug outputs
@@ -703,6 +735,8 @@ class TeleopSessionLifecycle:
         import isaacteleop.deviceio as deviceio
         from isaacteleop.retargeting_engine.deviceio_source_nodes import MessageChannelSource
         from isaacteleop.teleop_session_manager import DefaultTeleopStateManager
+
+        from .teleop_message_processor import TeleopMessageProcessor
 
         # Build the source directly rather than via ``message_channel_config``:
         # the factory owns the outbound queue internally, and the lifecycle needs
@@ -934,12 +968,12 @@ class TeleopSessionLifecycle:
     def _on_pre_shutdown(self, _event):
         """Called when Kit is closing; tear down the session but leave the
         pipeline intact so the main loop can exit via its own control flow
-        (``simulation_app.is_running()`` will go ``False``).
+        (the Kit app stops running).
 
         Full resource cleanup happens later when the context manager's
         ``__exit__`` calls :meth:`stop`.
         """
-        logger.info("Shutting down IsaacTeleop session due to Kit close")
+        logger.info("Shutting down Isaac Capture session due to Kit close")
         self._pre_shutdown_subscription = None
         self._teardown_dead_session()
 
@@ -956,7 +990,7 @@ class TeleopSessionLifecycle:
         return self._try_start_session()
 
     def _resolved_retargeting_execution(self):
-        """Return the retargeting execution settings for the IsaacTeleop session.
+        """Return the retargeting execution settings for the Isaac Capture session.
 
         :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` defaults to
         ``None`` so that constructing the config never requires the optional
@@ -971,7 +1005,7 @@ class TeleopSessionLifecycle:
         return RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))
 
     def _try_start_session(self) -> bool:
-        """Attempt to create and start the IsaacTeleop session.
+        """Attempt to create and start the Isaac Capture session.
 
         In live mode with :attr:`_use_kit_xr_bridge` set, tries to acquire
         OpenXR handles from Kit's XR bridge.  If the handles are available,
@@ -1012,12 +1046,13 @@ class TeleopSessionLifecycle:
                 if not self._session_start_deferred_logged:
                     if self._kit_xr_session_is_active():
                         logger.info(
-                            "Kit XR session active but bridge handles incomplete; IsaacTeleop session creation deferred"
+                            "Kit XR session active but bridge handles incomplete; Isaac Capture session creation"
+                            " deferred"
                         )
                     else:
                         logger.info(
                             "OpenXR handles not yet available (waiting for XR session); "
-                            "IsaacTeleop session creation deferred"
+                            "Isaac Capture session creation deferred"
                         )
                     self._session_start_deferred_logged = True
                 return False
@@ -1055,9 +1090,9 @@ class TeleopSessionLifecycle:
         self._session.__enter__()
 
         if self._mcap_record_path is not None:
-            logger.info(f"IsaacTeleop session started: {self._cfg.app_name} (recording to {self._mcap_record_path})")
+            logger.info(f"Isaac Capture session started: {self._cfg.app_name} (recording to {self._mcap_record_path})")
         else:
-            logger.info(f"IsaacTeleop session started: {self._cfg.app_name}")
+            logger.info(f"Isaac Capture session started: {self._cfg.app_name}")
         return True
 
     def _start_replay_session(self) -> bool:
@@ -1104,7 +1139,7 @@ class TeleopSessionLifecycle:
         self._session = TeleopSession(session_config)
         self._session.__enter__()
 
-        logger.info(f"IsaacTeleop replay session started: {self._cfg.app_name} (replaying {self._mcap_replay_path})")
+        logger.info(f"Isaac Capture replay session started: {self._cfg.app_name} (replaying {self._mcap_replay_path})")
         return True
 
     # ------------------------------------------------------------------
@@ -1191,12 +1226,12 @@ class TeleopSessionLifecycle:
             # what differs is the cause and the restart pacing.
             if not self._is_replay and self._kit_xr_session_is_active():
                 logger.warning(
-                    "IsaacTeleop retargeting step failed (pipeline error, XR session still active); "
+                    "Isaac Capture retargeting step failed (pipeline error, XR session still active); "
                     f"restarting the teleop session in {self._STEP_FAILURE_RESTART_COOLDOWN_S:.0f}s: {e}"
                 )
                 self._restart_holdoff_until = time.monotonic() + self._STEP_FAILURE_RESTART_COOLDOWN_S
             else:
-                logger.warning(f"IsaacTeleop session step failed (XR session likely torn down): {e}")
+                logger.warning(f"Isaac Capture session step failed (XR session likely torn down): {e}")
             self._teardown_dead_session()
             return None
 
@@ -1237,7 +1272,7 @@ class TeleopSessionLifecycle:
             self._session = None
         self._session_start_deferred_logged = False
         self._last_step_result = None
-        logger.info("IsaacTeleop session torn down after external XR shutdown")
+        logger.info("Isaac Capture session torn down after external XR shutdown")
 
     # ------------------------------------------------------------------
     # External input building
@@ -1323,6 +1358,11 @@ class TeleopSessionLifecycle:
         Auto-launch is skipped when ``auto_launch_cloudxr`` is ``False``
         or the ``ISAACLAB_CXR_SKIP_AUTOLAUNCH=1`` environment variable is
         set (the env var takes precedence).
+
+        The NVIDIA CloudXR license is separate from the Omniverse one and is
+        otherwise prompted for on stdin, which fails outright when no terminal
+        is attached. ``ISAACLAB_CXR_ACCEPT_EULA=1`` accepts it up front so
+        headless, container and CI runs can start.
         """
         if self._cloudxr_launcher is not None:
             return
@@ -1344,7 +1384,7 @@ class TeleopSessionLifecycle:
         self._cloudxr_launcher = _CloudXRLauncher(
             install_dir=str(Path.home() / ".cloudxr"),
             env_config=self._cloudxr_env_file,
-            accept_eula=False,
+            accept_eula=cloudxr_eula_accepted(),
         )
         logger.info("CloudXR runtime auto-launched")
 
@@ -1395,7 +1435,7 @@ class TeleopSessionLifecycle:
         tick, which is why handle acquisition may be deferred by one frame.
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
-        setting which the :class:`~isaaclab.app.AppLauncher` stores after
+        setting which the :class:`~isaaclab_physx.app.KitLauncher` stores after
         resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.
@@ -1454,7 +1494,7 @@ class TeleopSessionLifecycle:
         try:
             import omni.kit.xr.system.openxr as openxr
         except (ImportError, ModuleNotFoundError):
-            logger.info("omni.kit.xr.system.openxr not available; IsaacTeleop will create its own OpenXR session")
+            logger.info("omni.kit.xr.system.openxr not available; Isaac Capture will create its own OpenXR session")
             return None
 
         instance = openxr.get_instance_handle()
