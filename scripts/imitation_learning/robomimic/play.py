@@ -53,6 +53,8 @@ import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 import torch
 
+from isaaclab.envs.utils._manual_success import _prepare_success_term
+
 from isaaclab_tasks.utils import parse_env_cfg
 
 
@@ -142,8 +144,7 @@ def main():
     env_cfg.recorders = None
 
     # Extract success checking function
-    success_term = env_cfg.terminations.success
-    env_cfg.terminations.success = None
+    success_term = _prepare_success_term(env_cfg)
 
     # Launch the runtime the task needs. Camera rendering is only enabled for tasks that declare Kit
     # camera sensors, so policies trained on low-dimensional observations do not pay for the RTX renderer.
