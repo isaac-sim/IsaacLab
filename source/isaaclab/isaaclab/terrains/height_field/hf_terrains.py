@@ -53,8 +53,8 @@ def random_uniform_terrain(
 
     # switch parameters to discrete units
     # -- horizontal scale
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     # -- downsampled scale
     width_downsampled = int(cfg.size[0] / cfg.downsampled_scale)
     length_downsampled = int(cfg.size[1] / cfg.downsampled_scale)
@@ -115,8 +115,8 @@ def pyramid_sloped_terrain(
 
     # switch parameters to discrete units
     # -- horizontal scale
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     # -- height
     # we want the height to be 1/2 of the width since the terrain is a pyramid
     height_max = int(slope * cfg.size[0] / 2 / cfg.vertical_scale)
@@ -181,8 +181,8 @@ def pyramid_stairs_terrain(
         step_height *= -1
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     # -- stairs
     step_width = int(cfg.step_width / cfg.horizontal_scale)
     step_height = int(step_height / cfg.vertical_scale)
@@ -242,8 +242,8 @@ def discrete_obstacles_terrain(
 
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     # -- obstacles
     obs_height = int(obs_height / cfg.vertical_scale)
     obs_width_min = int(cfg.obstacle_width_range[0] / cfg.horizontal_scale)
@@ -330,8 +330,8 @@ def wave_terrain(difficulty: float, cfg: hf_terrains_cfg.HfWaveTerrainCfg) -> tu
     amplitude = cfg.amplitude_range[0] + difficulty * (cfg.amplitude_range[1] - cfg.amplitude_range[0])
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     amplitude_pixels = int(0.5 * amplitude / cfg.vertical_scale)
 
     # compute the wave number: nu = 2 * pi / lambda
@@ -380,8 +380,8 @@ def stepping_stones_terrain(
 
     # switch parameters to discrete units
     # -- terrain
-    width_pixels = int(cfg.size[0] / cfg.horizontal_scale)
-    length_pixels = int(cfg.size[1] / cfg.horizontal_scale)
+    width_pixels = round(cfg.size[0] / cfg.horizontal_scale)
+    length_pixels = round(cfg.size[1] / cfg.horizontal_scale)
     # -- stones
     stone_distance = int(stone_distance / cfg.horizontal_scale)
     stone_width = int(stone_width / cfg.horizontal_scale)
