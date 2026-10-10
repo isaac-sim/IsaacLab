@@ -24,7 +24,10 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _MAX_BATCH_LATENT_FRAMES = 1 << 30
-"""Maximum latent frames in a batched session. Each view's episode ends at its own cap, so the batch need not stop."""
+"""Maximum latent frames in a batched session.
+
+Each view's episode ends at its own frame budget, so the batch need not stop.
+"""
 
 
 class CosmosInferenceModel:
