@@ -409,7 +409,7 @@ class TestEnsureCudaTorch:
         """A matching CUDA 13.0 build does not trigger an install."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.12.0+cu130\n"
+        pip_show_out = "Name: torch\nVersion: 2.11.0+cu130\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
@@ -452,7 +452,7 @@ class TestEnsureCudaTorch:
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.12.0+cu126\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.11.0+cu126\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
