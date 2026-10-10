@@ -384,14 +384,19 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
+name = "omniverse-internal"
+url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
+explicit = true
+
+[[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
-# unsafe-best-match resolves NVIDIA deps with versions mismatched across
-# pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
+# Prefer compatible public releases before falling back to the QA-only internal index.
+# prerelease=allow covers prerelease-only packages.
 [tool.uv]
-index-strategy = "unsafe-best-match"
+index-strategy = "unsafe-first-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
@@ -410,6 +415,10 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",
+    # QA-only package overrides replace the release branch's published OV pins.
+    "ovphysx==0.6.4.72118723",
+    "ovrtx>=0.5.1,<0.6",
+    "ovstage>=0.2.1,<0.3",
     "newton[sim]==1.6.1",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
@@ -431,9 +440,9 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-ovphysx = { index = "pypi-public" }
-ovrtx = { index = "pypi-public" }
-ovstage = { index = "pypi-public" }
+ovphysx = { index = "omniverse-internal" }
+ovrtx = { index = "omniverse-internal" }
+ovstage = { index = "omniverse-internal" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
