@@ -530,6 +530,7 @@ class image_normals(CameraImageBase):
         normalize: Whether to normalize the image. Defaults to True.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        data_type: The surface-normal camera data type. Defaults to "normals".
 
     Returns:
         The normals image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
@@ -548,8 +549,10 @@ class image_normals(CameraImageBase):
         normalize: bool = True,
         channel_first: bool = False,
         frame_stack: int = 1,
+        *,
+        data_type: str = "normals",
     ) -> torch.Tensor:
-        images = _read_camera_output(env, sensor_cfg, "normals")
+        images = _read_camera_output(env, sensor_cfg, data_type)
         return self._frames(images, normalize_normals if normalize else None)
 
 
