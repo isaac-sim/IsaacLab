@@ -279,16 +279,7 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._last_render_wall_time: float | None = None
-
-    def _is_render_due(self) -> bool:
-        """Return whether enough wall time elapsed for another Rerun update."""
-        if self.cfg.max_fps is None:
-            return True
-        now = time.monotonic()
-        if self._last_render_wall_time is not None and now - self._last_render_wall_time < 1.0 / self.cfg.max_fps:
-            return False
-        self._last_render_wall_time = now
-        return True
+        self._live_plots_pending = False
 
     def initialize(
         self,
@@ -396,14 +387,18 @@ class RerunVisualizer(BaseVisualizer):
         self._sim_time += dt
         self._step_counter += 1
 
-        # Training can advance much faster than the web viewer can ingest frames. Drop
-        # intermediate visualization updates to reduce viewer load.
-        if not self._is_render_due():
-            return
+        if self._live_plot_sources:
+            self._live_plots_step_counter += 1
+            interval = max(1, getattr(self.cfg, "live_plots_update_interval", 10))
+            self._live_plots_pending |= self._live_plots_step_counter % interval == 0
+
+        # Recordings retain every simulation frame. Interactive publication is capped while
+        # local streaming composition continues at the simulation render cadence.
+        publish_due = self.cfg.record_to_rrd is not None or self._is_render_due()
 
         num_envs = self.backend.model.num_envs
 
-        if not self._viewer.is_paused():
+        if publish_due and not self._viewer.is_paused():
             backend, provider = self.backend, self._scene_data_provider
             poses = SceneDataFormat.Transform()
             if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
@@ -418,13 +413,15 @@ class RerunVisualizer(BaseVisualizer):
                     self._viewer.log_state(backend.state_0)
                     if self.cfg.enable_markers:
                         render_newton_visualization_markers(self._viewer, self._env_ids, num_envs=num_envs)
-                self._render_live_plots()
+                if self._live_plots_pending:
+                    self._render_live_plots()
+                    self._live_plots_pending = False
             finally:
                 self._viewer.end_frame()
 
         # Compose outside the viewer frame context; paused viewers keep their last logged image.
         composite = self.render_tiled_rgb_array()
-        if composite is not None and not self._viewer.is_paused():
+        if publish_due and composite is not None and not self._viewer.is_paused():
             rr.log("streaming/view", rr.Image(composite))
 
     def reset(self, soft: bool = False) -> None:
@@ -581,9 +578,6 @@ class RerunVisualizer(BaseVisualizer):
         """Push manager-term scalars to Rerun as time-series scalars."""
         if self._viewer is None or not self._live_plot_sources:
             return
-        self._live_plots_step_counter += 1
-        if self._live_plots_step_counter % max(1, getattr(self.cfg, "live_plots_update_interval", 10)) != 0:
-            return
         for source in self._live_plot_sources:
             for term_name, values in source.collect(self._live_plot_env_idx).items():
                 if len(values) == 1:
@@ -616,3 +610,13 @@ class RerunVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.consume_reset_request()
+
+    def _is_render_due(self) -> bool:
+        """Return whether enough wall time elapsed for another Rerun update."""
+        if self.cfg.max_fps is None:
+            return True
+        now = time.monotonic()
+        if self._last_render_wall_time is not None and now - self._last_render_wall_time < 1.0 / self.cfg.max_fps:
+            return False
+        self._last_render_wall_time = now
+        return True

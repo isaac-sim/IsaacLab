@@ -868,7 +868,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
-        if self.ui.is_capturing():
+        if self.gui is not None and self.gui.should_ignore_keyboard_input():
             return
         super().on_key_press(symbol, modifiers)
 

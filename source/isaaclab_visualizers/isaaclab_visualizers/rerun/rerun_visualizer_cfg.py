@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
@@ -82,5 +83,5 @@ class RerunVisualizerCfg(VisualizerCfg):
 
     def __post_init__(self) -> None:
         super().__post_init__()
-        if self.max_fps is not None and self.max_fps <= 0.0:
-            raise ValueError("max_fps must be positive or None.")
+        if self.max_fps is not None and (not math.isfinite(self.max_fps) or self.max_fps <= 0.0):
+            raise ValueError("max_fps must be finite and positive or None.")
