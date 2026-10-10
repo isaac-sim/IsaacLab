@@ -3,54 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# region help
-# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
-# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
-# GitHub treats skipped required jobs as successful status checks.
-#
-# GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
-# other label events queue behind it so that a triage label cannot cancel a
-# build whose required checks have already been reported.
-#
-# Pushes to protected branches still run the post-merge integration tests.
-#
-# =============================================================================
-# CI DEBUGGING TIPS
-# =============================================================================
-#
-# 1. DISABLE A TEST JOB (to isolate a specific job):
-#    Change the job's `if:` clause to `if: false`
-#    Example:
-#      test-isaaclab-tasks:
-#        ...
-#        if: false  # TEMP: Disabled for debugging
-#
-# 2. RUN ONLY SPECIFIC TEST FILES (within a job):
-#    Add `include-files:` parameter to run-package-tests action
-#    Example:
-#      - uses: ./.github/actions/run-package-tests
-#        with:
-#          ...
-#          include-files: "test_rigid_object_collection.py"  # Comma-separated
-#
-# 3. SKIP CONCURRENCY WAIT (run immediately without waiting for other runs):
-#    Comment out the concurrency block:
-#      # concurrency:
-#      #   group: ${{ github.workflow }}-${{ github.ref }}
-#      #   cancel-in-progress: true
-#
-# 4. TEST LOCALLY LIKE CI:
-#    docker run -it --rm --gpus all --network=host --entrypoint bash \
-#      -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y -e ISAAC_SIM_HEADLESS=1 \
-#      -e TEST_FILTER_PATTERN="isaaclab_physx" \
-#      -e TEST_INCLUDE_FILES="test_rigid_object_collection.py" \
-#      -v "$PWD":/workspace/isaaclab isaac-lab-base:latest \
-#      -c 'cd /workspace/isaaclab && uv run --no-sync isaaclab -p -m pytest tools -v'
-#
-# Remember to REVERT all temporary changes before merging!
-# =============================================================================
-#endregion
+# Any label starts a run because GitHub cannot filter label names at trigger time.
 
 name: Docker + Tests
 
@@ -61,22 +14,21 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
     branches:
       - main
       - develop
       - 'release/**'
   workflow_dispatch:
 
-# Concurrency control to prevent parallel runs on the same PR
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  # Push and workflow_dispatch events carry no label, so this stays false for them and
-  # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
+  # Pushes, manual runs, and unrelated labels leave the current run in progress.
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
+  actions: read
   pull-requests: write
   checks: write
   issues: read
@@ -91,9 +43,40 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: read
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
+      activated: ${{ steps.activation.outputs.activated }}
     steps:
+    - name: Check PR update activation
+      id: activation
+      continue-on-error: true
+      timeout-minutes: 5
+      uses: actions/github-script@v9
+      with:
+        script: |
+          // Label history preserves activation after run-ci removes its triggering label.
+          core.setOutput('activated', 'false');
+          if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
+            core.setOutput('activated', 'true');
+            return;
+          }
+          try {
+            for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+              ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+              request: {timeout: 60000},
+            })) {
+              // GITHUB_TOKEN labeler events cannot trigger another workflow.
+              if (response.data.some(event => event.event === 'labeled'
+                  && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+                core.setOutput('activated', 'true');
+                return;
+              }
+            }
+            core.notice('Docker CI has not been activated for this PR. Apply a label or use the existing run-ci command.');
+          } catch (error) {
+            core.warning(`Could not verify prior PR activation (HTTP ${error.status || 'unavailable'}). Apply a label or use run-ci to start CI explicitly.`);
+          }
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -104,8 +87,7 @@ jobs:
       with:
         triggered-jobs-push: "Docker base build job + rendering-correctness + rendering-correctness-kitless + warp-cache-warm + ovrtx-cache-warm"
         triggered-jobs-pr: "Docker build jobs + all test-* matrix jobs"
-        # config.yaml is included because it controls the base image names and tags
-        # consumed by the Docker build jobs.
+        # config.yaml changes can change the Docker base image.
         patterns: |
           ^source/ :: Library source code
           ^docker/ :: Container build inputs
@@ -130,11 +112,18 @@ jobs:
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
       ovphysx_wheelhouse_image: ${{ steps.load.outputs.ovphysx_wheelhouse_image }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
+      base_isaacsim_image_name: ${{ steps.base_load.outputs.name }}
+      base_isaacsim_image_tag: ${{ steps.base_load.outputs.version }}
+      base_image_config_outcome: ${{ steps.base_load.outcome }}
+      paired_base_commit: ${{ steps.perf_pair.outputs.base_commit }}
+      paired_base_error: ${{ steps.perf_pair.outputs.reason }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout: |
+          .github/workflows/config.yaml
+          tools/perf_smoke/
         sparse-checkout-cone-mode: false
     - id: load
       run: |
@@ -144,9 +133,7 @@ jobs:
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "ovphysx_wheelhouse_image=$(yq -r '.ovphysx_wheelhouse_image // ""' "$f")" >> "$GITHUB_OUTPUT"
-    # NOTE: this ci_image_tag formula is intentionally duplicated in arm-ci.yml's
-    # config job — the two images are independent (x86 here vs -arm64 there), so
-    # they are not shared. Keep the two formulas in sync if either changes.
+    # arm-ci.yml repeats this formula for its separate ARM image.
     - id: image_tag
       shell: bash
       env:
@@ -163,14 +150,39 @@ jobs:
           ref_component="$REF_NAME"
         fi
 
-        # Sanitize the ref name for use as a Docker tag suffix.
         sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
         echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
         echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
+    - name: Resolve the base parent of the tested PR merge
+      id: perf_pair
+      if: github.event_name == 'pull_request'
+      continue-on-error: true
+      run: python3 -m tools.perf_smoke.paired resolve --checkout-root "$GITHUB_WORKSPACE"
+
+    - name: Check out the PR base image configuration
+      id: base_config_checkout
+      if: github.event_name == 'pull_request' && steps.perf_pair.outcome == 'success'
+      continue-on-error: true
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ steps.perf_pair.outputs.base_commit }}
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - name: Read the PR base image configuration
+      id: base_load
+      if: github.event_name == 'pull_request' && steps.base_config_checkout.outcome == 'success'
+      continue-on-error: true
+      run: |
+        set -euo pipefail
+        name=$(yq -er .isaacsim_image_name .github/workflows/config.yaml)
+        version=$(yq -er .isaacsim_image_tag .github/workflows/config.yaml)
+        echo "name=$name" >> "$GITHUB_OUTPUT"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
   test-dockerfile-contract:
     name: dockerfile-contract
-    # Static analysis of the Dockerfile text: no image, no GPU, no Isaac Sim.
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -192,28 +204,32 @@ jobs:
         "${contract_env}/bin/python" -m pytest -q \
           docker/test/test_dockerfile_nonroot.py docker/test/test_security_dependencies.py
 
-  #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    # Skipping every required check would let an untested PR merge.
+    runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     steps:
+    - name: Explain missing PR activation
+      if: needs.changes.outputs.activated != 'true'
+      run: |
+        echo '::error::Docker CI has not been activated, or prior activation could not be verified. Apply a label or use the existing run-ci command. No GPU build or benchmark was started.'
+        exit 1
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
 
-    # The GPU runners have no uv on PATH; the invariant check below needs it.
+    # GPU runners need uv installed for the image checks.
     - name: Set up uv
       uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         enable-cache: true
 
-    # #6329 aborts the pip install when it strands a prebundled package's __init__.py
-    # (nvbugs 6343978: 14 Isaac Sim extensions fail to load). The images install with
-    # ``uv sync``, which never runs that guard, so assert the same invariant on the image.
+    # uv sync skips the pip check from #6329, so verify package files in the built image.
+    # Old bundled __init__.py files can break Isaac Sim imports (nvbugs 6343978).
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -230,6 +246,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
+      needs.changes.outputs.activated == 'true' &&
       needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
@@ -247,9 +264,6 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
 
-  #endregion
-
-  #region test jobs
   test-isaaclab-tasks:
     name: isaaclab_tasks [1/3]
     runs-on: [self-hosted, gpu]
@@ -415,10 +429,7 @@ jobs:
         test-jobs: "4"
         container-name: isaac-lab-core-3-test
 
-  # Kit and non-Kit are written out rather than expressed as a matrix: these job
-  # names are required status checks, and a skipped matrix job publishes its
-  # check run with the matrix expression unexpanded, so the required context
-  # never appears and branch protection blocks the pull request.
+  # Separate jobs preserve required check names when skipped; a matrix leaves the names unexpanded.
   test-standalone-demos-kit:
     name: standalone demos (headless, Kit)
     runs-on: [self-hosted, gpu]
@@ -441,7 +452,7 @@ jobs:
         standalone-script-scope: "demos"
         standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
-        # Dedicated sensor tests cover raycasting; keep these example launches available for manual runs.
+        # Dedicated sensor tests already cover these raycasting examples.
         test-k-expr: "not (multi_mesh_raycaster or newton_raycast or raycaster_sensor)"
         warp-cache: restore
         ovrtx-shader-cache: restore
@@ -729,9 +740,7 @@ jobs:
         test-jobs: "4"
         container-name: isaac-lab-ov-test
 
-    # Folded from the former standalone verify-base-non-root job: reuses the
-    # base image already pulled by run-package-tests to keep the regression
-    # check without burning a separate runner.
+    # Reuse the image already pulled for tests to avoid another runner.
     - name: Verify Base runtime user is non-root
       shell: bash
       run: |
@@ -770,9 +779,7 @@ jobs:
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
 
-    # Folded from the former standalone verify-curobo-non-root job: reuses
-    # the curobo image already pulled by run-package-tests to keep the
-    # regression check without burning a separate runner.
+    # Reuse the image already pulled for tests to avoid another runner.
     - name: Verify cuRobo runtime user is non-root
       shell: bash
       run: |
@@ -877,11 +884,7 @@ jobs:
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
-  # Written out per variant rather than as a matrix: `rendering-correctness-kitless
-  # (legacy)` is a required status check, and a skipped matrix job publishes its
-  # check run with the matrix expression unexpanded. Writing the variants out also
-  # lets ovstage carry its own `if:`, which a matrix could only express through a
-  # synthetic event_name axis plus an exclude entry.
+  # Separate jobs preserve the required legacy check name when skipped and let ovstage use its own trigger.
   test-rendering-correctness-kitless-legacy:
     name: "rendering-correctness-kitless (legacy)"
     runs-on: [self-hosted, gpu]
@@ -926,7 +929,6 @@ jobs:
         container-name: "isaac-lab-rendering-correctness-kitless-legacy-test"
         omni-github-test-type: "rendering-correctness-kitless-legacy"
 
-  # ovstage is post-merge only; it never ran on pull requests.
   test-rendering-correctness-kitless-ovstage:
     name: "rendering-correctness-kitless (ovstage)"
     runs-on: [self-hosted, gpu]
@@ -975,11 +977,13 @@ jobs:
   performance-smoke:
     name: performance-smoke-benchmarks
     runs-on: [self-hosted, gpu]
-    # Four legs x three samples, including one retry each: 372 minutes + setup/comparison buffer.
+    # Configured paired attempts total 372 minutes, leaving 78 minutes for setup and reporting.
     timeout-minutes: 450
     needs: [build, config]
-    # Pull requests and manual dispatches run in gate mode. A push runs only on develop,
-    # where it also records a baseline; pushes to main and release/** skip this job.
+    env:
+      PERF_BASE_COMMIT: ${{ needs.config.outputs.paired_base_commit }}
+      PERF_PAIR_ERROR: ${{ needs.config.outputs.paired_base_error }}
+    # develop pushes refresh the rolling-history baseline used by the gate.
     if: >-
       (github.event_name != 'push' || github.ref == 'refs/heads/develop') &&
       needs.build.result == 'success'
@@ -987,16 +991,8 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-    - name: Pull pull-request image
-      uses: ./.github/actions/ecr-build-push-pull
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        dockerfile-path: docker/Dockerfile.base
-        cache-tag: cache-base
-
-    # Kit-free combinations only: name|task|num_envs|bench_timeout_s|args
+        lfs: true
+    # Row format: name|task|num_envs|bench_timeout_s|args
     - name: Define benchmark matrix
       run: |
         cat > benchmark-legs.tsv <<'EOF'
@@ -1025,90 +1021,181 @@ jobs:
         restore-keys: |
           perf-jit-warp${{ steps.warp_version.outputs.value }}-
 
-    - name: Run runtime benchmarks
+    # Switching revisions cleans the checkout, so store the controller and results outside it.
+    - name: Preserve benchmark controller and restored JIT cache
+      run: |
+        set -euo pipefail
+        controller="${RUNNER_TEMP}/perf-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+        mkdir -p "$controller/tools" "$controller/baseline-output"
+        cp -a tools/perf_smoke "$controller/tools/"
+        cp benchmark-legs.tsv "$controller/benchmark-legs.tsv"
+        if [ -d jit-cache ]; then
+          mv jit-cache "$controller/jit-cache"
+        else
+          mkdir -p "$controller/jit-cache"
+        fi
+        echo "PERF_CONTROLLER=$controller" >> "$GITHUB_ENV"
+        echo "PERF_BASELINE_OUTPUT=$controller/baseline-output" >> "$GITHUB_ENV"
+        if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+          echo "PERF_MEASUREMENT_ROOT=$controller/measurement" >> "$GITHUB_ENV"
+          echo "PERF_MEASUREMENT_MANIFEST=$controller/measurement/measurement-manifest.json" >> "$GITHUB_ENV"
+        fi
+
+    - name: Preserve the tested PR measurement implementation
+      if: github.event_name == 'pull_request'
+      run: |
+        python3 "$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" snapshot \
+          --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_MEASUREMENT_ROOT"
+
+    - name: Check out the PR base revision
+      id: base_checkout
+      continue-on-error: true
+      if: github.event_name == 'pull_request' && needs.config.outputs.paired_base_commit != ''
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ needs.config.outputs.paired_base_commit }}
+        fetch-depth: 1
+        lfs: true
+
+    - name: Restore this PR's verified base measurement
+      id: pr_baseline
+      timeout-minutes: 5
+      if: steps.base_checkout.outcome == 'success'
+      continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        cd "$PERF_CONTROLLER"
+        python3 -m tools.perf_smoke.paired restore \
+          --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
+          --selection "$PERF_CONTROLLER/selection.json" --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
+
+    - name: Resolve the base revision's dependency image
+      id: base_dependencies
+      continue-on-error: true
+      if: steps.base_checkout.outcome == 'success' && steps.pr_baseline.outputs.reused != 'true' && needs.config.outputs.base_image_config_outcome == 'success'
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: isaac-lab-perf-base:${{ needs.config.outputs.paired_base_commit }}
+        isaacsim-base-image: ${{ needs.config.outputs.base_isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.base_isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+        pull-on-deps-hit: 'true'
+
+    - name: Benchmark the PR base on this runner
+      id: measure_base
+      if: steps.base_dependencies.outcome == 'success'
+      continue-on-error: true
+      env:
+        CI_IMAGE_TAG: isaac-lab-perf-base:${{ needs.config.outputs.paired_base_commit }}
+      run: |
+        set -euo pipefail
+        cd "$PERF_CONTROLLER"
+        # Remove any error report from a failed check for reusable results in earlier CI runs
+        # to keep it out of the new benchmark results.
+        rm -rf -- "$PERF_BASELINE_OUTPUT"
+        mkdir -p "$PERF_BASELINE_OUTPUT"
+        python3 -m tools.perf_smoke.paired capture \
+          --checkout-root "$GITHUB_WORKSPACE" --output-dir "$PERF_BASELINE_OUTPUT" \
+          --image "$CI_IMAGE_TAG" --role baseline --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
+        CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$PERF_BASELINE_OUTPUT" \
+        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
+        SOURCE_MANIFEST="$PERF_BASELINE_OUTPUT/source-manifest.json" \
+        BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
+        BENCHMARK_ROLE=BASELINE bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+
+    - name: Archive the PR base measurement
+      id: base_artifact
+      if: always() && github.event_name == 'pull_request' && steps.pr_baseline.outputs.reused != 'true'
+      continue-on-error: true
+      uses: actions/upload-artifact@v7
+      with:
+        name: performance-pr-baseline-${{ github.event.pull_request.number }}-${{ needs.config.outputs.paired_base_commit }}-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/perf-smoke-${{ github.run_id }}-${{ github.run_attempt }}/baseline-output/
+        if-no-files-found: warn
+
+    - name: Restore the tested PR revision
+      if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull pull-request image
+      if: ${{ !cancelled() }}
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+        pull-on-deps-hit: 'true'
+
+    - name: Pin the base comparison for this tested PR revision
+      if: always() && github.event_name == 'pull_request'
+      continue-on-error: true
+      env:
+        BASE_ARTIFACT_ID: ${{ steps.base_artifact.outputs.artifact-id }}
+        PERF_BASELINE_REUSED: ${{ steps.pr_baseline.outputs.reused }}
+        BASE_CHECKOUT: ${{ steps.base_checkout.outcome }}
+        BASE_RESTORE: ${{ steps.pr_baseline.outcome }}
+        BASE_CONFIG: ${{ needs.config.outputs.base_image_config_outcome }}
+        BASE_IMAGE: ${{ steps.base_dependencies.outcome }}
+        BASE_MEASUREMENT: ${{ steps.measure_base.outcome }}
+        BASE_ARCHIVE: ${{ steps.base_artifact.outcome }}
+      run: |
+        baseline_issue=""
+        if { [ "$BASE_RESTORE" = failure ] || [ "$BASE_MEASUREMENT" = failure ]; } && \
+           [ -f "$PERF_BASELINE_OUTPUT/paired-failure.json" ]; then
+          mkdir -p "$GITHUB_WORKSPACE/benchmark-output"
+          cp "$PERF_BASELINE_OUTPUT/paired-failure.json" "$GITHUB_WORKSPACE/benchmark-output/"
+        fi
+        if [ "$BASE_CHECKOUT" != success ]; then
+          baseline_issue="The base source checkout failed; baseline FPS is unavailable."
+        elif [ "$BASE_CONFIG" != success ]; then
+          baseline_issue="The base image configuration could not be read; the base benchmark did not run."
+        elif [ "$BASE_IMAGE" = failure ]; then
+          baseline_issue="The base dependency image could not be prepared; the base benchmark did not run."
+        elif [ "$BASE_MEASUREMENT" = failure ]; then
+          baseline_issue="The base benchmark failed; baseline results are incomplete or unavailable."
+        elif [ "$BASE_ARCHIVE" = failure ]; then
+          baseline_issue="The base results could not be uploaded; baseline FPS is unavailable."
+        elif [ "$BASE_RESTORE" != success ] && [ "$BASE_MEASUREMENT" != success ]; then
+          baseline_issue="The base measurement setup failed; baseline FPS is unavailable."
+        fi
+        cd "$PERF_CONTROLLER"
+        python3 -m tools.perf_smoke.paired bind \
+          --selection "$PERF_CONTROLLER/selection.json" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
+          --artifact-id "$BASE_ARTIFACT_ID" --baseline-issue "$baseline_issue"
+
+    - name: Capture performance build provenance and source evidence
+      id: source_capture
+      if: always()
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
-        set -uo pipefail
-        install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
-        # Restored version directories and kernels must also be writable by the container user.
-        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
+        cd "$PERF_CONTROLLER"
+        python3 -m tools.perf_smoke.paired capture \
+          --checkout-root "$GITHUB_WORKSPACE" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
+          --image "$CI_IMAGE_TAG" --role current --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
-        container=""
-        cleanup_container() {
-          if [ -n "$container" ]; then
-            docker rm -f "$container" >/dev/null 2>&1 || true
-          fi
-        }
-        trap cleanup_container EXIT
-        trap 'exit 130' INT
-        trap 'exit 143' TERM
+    - name: Run runtime benchmarks
+      if: ${{ !cancelled() && steps.source_capture.outcome == 'success' }}
+      env:
+        CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
+      run: |
+        CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$GITHUB_WORKSPACE/benchmark-output" \
+        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
+        SOURCE_MANIFEST="$GITHUB_WORKSPACE/benchmark-output/source-manifest.json" \
+        BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
+        BENCHMARK_ROLE=CURRENT bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
 
-        run_attempt() {
-          local attempt="$1"
-          container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${leg}-${sample}-${attempt}"
-          cleanup_container
-          timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
-            -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
-            -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
-            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
-            --entrypoint bash "$CI_IMAGE_TAG" -lc \
-            "set -euo pipefail
-            mkdir -p /tmp/benchmark-output
-            uv run --no-sync isaaclab benchmark runtime \
-              --task '$task' \
-              --num_envs '$num_envs' \
-              --num_steps 200 \
-              --warmup_steps 100 \
-              --seed 42 \
-              --benchmark_formatter schema \
-              --output_path /tmp/benchmark-output \
-              $args"
-          local status=$?
-          docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
-          cleanup_container
-          container=""
-          local -a bundles
-          mapfile -t bundles < <(find "benchmark-output/${leg}/sample-${sample}" -maxdepth 1 -type f -name 'benchmark_runtime_*.json')
-          if [ "$status" -eq 0 ] && [ "${#bundles[@]}" -ne 1 ]; then
-            echo "::error::${leg} exited 0 but did not produce exactly one benchmark JSON"
-            return 1
-          fi
-          return $status
-        }
-
-        failed_legs=()
-        while IFS='|' read -r leg task num_envs bench_timeout_s args; do
-          echo "::group::performance-smoke: ${leg}"
-          install -d -m 0777 "benchmark-output/${leg}"
-          leg_ok=true
-          # ASV needs repeated independent runs on both sides for significance tests.
-          # Per-frame samples within one simulation are not independent CI runs.
-          for sample in 1 2 3; do
-            mkdir -p "benchmark-output/${leg}/sample-${sample}"
-            if ! run_attempt 1; then
-              echo "::warning::${leg} sample ${sample} failed; retrying once"
-              rm -f "benchmark-output/${leg}/sample-${sample}/"benchmark_runtime_*.json
-              if ! run_attempt 2; then
-                echo "::error::${leg} sample ${sample} failed on both attempts"
-                leg_ok=false
-                break
-              fi
-            fi
-          done
-          if [ "$leg_ok" = true ]; then
-            echo ok > "benchmark-output/${leg}/status"
-          else
-            echo failed > "benchmark-output/${leg}/status"
-            failed_legs+=("$leg")
-          fi
-          echo "::endgroup::"
-        done < benchmark-legs.tsv
-
-        if [ "${#failed_legs[@]}" -gt 0 ]; then
-          echo "::error::performance-smoke: failed combination(s): ${failed_legs[*]}"
-          exit 1
-        fi
+    - name: Restore the JIT archive path
+      if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
+      run: mv "$PERF_CONTROLLER/jit-cache" "$GITHUB_WORKSPACE/jit-cache"
 
     - name: Save warm JIT cache
       if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
@@ -1123,12 +1210,10 @@ jobs:
       with:
         enable-cache: false
 
-    # The gate runs on the runner host, not inside the Isaac Sim container, so
-    # ASV and the baseline store's SDK go in a throwaway uv environment.
+    # The gate runs on the host, so install its dependencies in a temporary environment.
     - name: Set up ASV and the baseline store client
       if: always()
-      # Job status answers "did the benchmarks run", the check answers "did they regress".
-      # A transient PyPI failure means the gate could not run, degrading to ERROR instead of a failure.
+      # Dependency failures report a gate ERROR without failing a successful benchmark job.
       continue-on-error: true
       id: store_venv
       run: |
@@ -1139,40 +1224,37 @@ jobs:
           -r tools/perf_smoke/requirements.txt
         echo "python=$venv/bin/python" >> "$GITHUB_OUTPUT"
 
-    # Read-only. Runs PR-checkout code (tools.perf_smoke), so it must use a separate
-    # list/read-only SAS, never the write-capable credential below
+    # This step runs PR code, so it receives only read access to stored baselines.
     - name: Compare against baseline history
-      # The exit code carries the verdict to the summary job through the uploaded
-      # artifact, so it must not also redden this job: job status answers "did the
-      # benchmarks run", the check answers "did performance regress". Each leg is
-      # compared independently, so one leg's fault does not skip the rest.
+      # The summary job reports regressions; this job's status tracks benchmark execution.
+      # Continue after a comparison error so the remaining workloads still get results.
       continue-on-error: true
       if: always()
       timeout-minutes: 30
       env:
-        # The SAS URL is strictly only read from the environment for security.
         ISAACLAB_BLOB_URL: ${{ secrets.ISAACLAB_BLOB_READ_URL }}
         PERF_PYTHON: ${{ steps.store_venv.outputs.python }}
       run: |
         set -uo pipefail
         while IFS='|' read -r leg task num_envs bench_timeout_s args; do
+          gate_report="$GITHUB_STEP_SUMMARY"
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            mkdir -p "benchmark-output/${leg}"
+            gate_report="benchmark-output/${leg}/rolling-history.md"
+          fi
           mapfile -t results < <(find "benchmark-output/${leg}" -type f -name 'benchmark_runtime_*.json' | sort)
           if [ "$(cat "benchmark-output/${leg}/status" 2>/dev/null)" != "ok" ] || [ "${#results[@]}" -ne 3 ]; then
             echo "::warning::${leg}: expected three runtime benchmark JSONs, found ${#results[@]}"
             results=("benchmark-output/${leg}/benchmark_runtime_MISSING.json")
           fi
-          # A missing credential yields SKIP, a gate fault yields ERROR; neither fails.
           uv run --no-project --python "${PERF_PYTHON:-python3}" python -m tools.perf_smoke.cli compare \
             --benchmark_result "${results[@]}" \
             --label "$leg" \
             --output_json "benchmark-output/${leg}/comparison.json" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
-        done < benchmark-legs.tsv
+            | tee -a "$gate_report"
+        done < "$PERF_CONTROLLER/benchmark-legs.tsv"
 
-    # Only develop records baselines, so the gate always compares a pull request
-    # against the branch it will merge into rather than against a stale snapshot.
-    # Writes are create-only under a name derived from the commit and run id. Each
-    # leg is gated on its own status, so one leg's fault does not skip the rest.
+    # Unique commit/run names keep new measurements from overwriting earlier history.
     - name: Record baseline
       if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
       timeout-minutes: 30
@@ -1202,7 +1284,7 @@ jobs:
               --timestamp "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
               --run_id "${GITHUB_RUN_ID}-${leg}-sample-${index}"
           done
-        done < benchmark-legs.tsv
+        done < "$PERF_CONTROLLER/benchmark-legs.tsv"
     - name: Upload performance results
       if: always()
       uses: actions/upload-artifact@v7
@@ -1212,11 +1294,14 @@ jobs:
         if-no-files-found: warn
         retention-days: 7
 
-  # Centralized summary; the performance-smoke job itself already fails on any
-  # leg whose benchmark could not be run at all.
+  # Benchmark execution failures are reported by performance-smoke-benchmarks.
   performance-smoke-summary:
     name: performance-smoke
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      checks: write
     needs: [performance-smoke]
     if: always() && needs.performance-smoke.result != 'skipped'
     steps:
@@ -1231,29 +1316,118 @@ jobs:
         name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
         path: comparisons
       continue-on-error: true
+    - name: Compare the tested build with its selected baseline
+      if: always() && github.event_name == 'pull_request'
+      continue-on-error: true
+      timeout-minutes: 5
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: uv run --no-project python -m tools.perf_smoke.build_compare --output_dir build-comparison
+
+    - name: Upload the automatic build comparison
+      id: build_comparison_artifact
+      if: always() && github.event_name == 'pull_request'
+      continue-on-error: true
+      uses: actions/upload-artifact@v7
+      with:
+        name: performance-build-comparison-${{ github.run_id }}-${{ github.run_attempt }}
+        path: build-comparison/
+        if-no-files-found: warn
+
     - name: Summarise performance comparisons
+      if: always()
+      env:
+        COMPARISON_ARTIFACT_URL: ${{ steps.build_comparison_artifact.outputs.artifact-url }}
       run: |
         set -euo pipefail
+        gate_exit=0
         uv run --no-project python -m tools.perf_smoke.cli aggregate \
-          --comparison_dir comparisons \
-          | tee -a "$GITHUB_STEP_SUMMARY"
+          --comparison_dir comparisons > rolling-history.md || gate_exit=$?
+        if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+          cat rolling-history.md >> "$GITHUB_STEP_SUMMARY"
+          exit "$gate_exit"
+        fi
+        {
+          printf '## Performance smoke\n\n'
+          if [ -s build-comparison/build-comparison.md ]; then
+            cat build-comparison/build-comparison.md
+          else
+            printf '### Automatic build comparison\n\n'
+            printf '**Build comparison: SKIPPED.** The comparison report was not produced; baseline selection and A/B results are unavailable. See the "Compare the tested build with its selected baseline" step for the error.\n\n'
+            printf '**B — current build:** [%s](%s/%s/commit/%s) · [run %s, attempt %s](%s/%s/actions/runs/%s/attempts/%s).\n\n' \
+              "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" \
+              "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf '**A — baseline build:** unavailable because report generation did not complete.\n'
+          fi
+          printf '\n'
+          cat rolling-history.md
+          if [ -n "$COMPARISON_ARTIFACT_URL" ]; then
+            printf '\n[Download optional comparison evidence and provenance](%s)\n' "$COMPARISON_ARTIFACT_URL"
+          else
+            printf '\nThe optional comparison artifact was not uploaded; available source-result links are shown above.\n'
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+        echo "Performance comparison rendered in the GitHub Actions Summary."
+        exit "$gate_exit"
 
-  # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
-  # own job because a cache written from a PR is readable only by that PR, and
-  # no solver-heavy test job runs on push. Restores the newest compatible
-  # snapshot so coverage accumulates, but only publishes when its contents
-  # change to avoid filling the repository quota with duplicate snapshots.
+    - name: Link the rendered comparison from PR Checks
+      if: always() && github.event_name == 'pull_request'
+      continue-on-error: true
+      timeout-minutes: 5
+      uses: actions/github-script@v9
+      with:
+        script: |
+          const fs = require('node:fs');
+          const attempt = Number(process.env.GITHUB_RUN_ATTEMPT);
+          const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt, {
+            ...context.repo,
+            run_id: context.runId,
+            attempt_number: attempt,
+            per_page: 100,
+            request: {timeout: 60000},
+          });
+          const summaryJob = jobs.find(job => job.name === 'performance-smoke');
+          if (!summaryJob) throw new Error('The Performance smoke Summary job could not be located.');
+          const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
+            + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
+          // Native checks open logs; the report check opens rendered output.
+          // Also link the Summary here because GitHub may group the report under another suite.
+          core.notice(summaryUrl, {title: 'Open rendered Performance smoke Summary'});
+          const reportPath = 'build-comparison/build-comparison.md';
+          const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';
+          const result = report.match(/^\*\*(.+)\*\*$/m)?.[0]
+            || '**Comparison unavailable. Open the Summary for the reason and available evidence.**';
+          const {data: check} = await github.rest.checks.create({
+            ...context.repo,
+            name: 'Performance smoke comparison',
+            head_sha: context.payload.pull_request.head.sha,
+            status: 'completed',
+            conclusion: 'neutral',
+            external_id: `performance-smoke-comparison:${context.runId}:${attempt}`,
+            details_url: summaryUrl,
+            output: {
+              title: 'Performance smoke comparison',
+              summary: [
+                `## [Open rendered Performance smoke Summary](${summaryUrl})`,
+                result,
+                'View baseline and PR FPS, percentage changes, and results for every workload. '
+                  + 'Builds, source runs, samples, and diagnostics are in the collapsed details.',
+                'This report is informational. The existing `performance-smoke` check retains the rolling-history CI gate.',
+              ].join('\n\n'),
+            },
+          });
+          core.info(`PR comparison check: ${check.html_url}`);
+
+  # PR-created caches are scoped to that PR, and pushes run no solver-heavy tests to warm a shared cache.
+  # This job extends the shared cache and saves only changed contents to avoid duplicate snapshots.
   warm-warp-cache:
     name: "warp-cache-warm"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    # A failed warm leaves the previous cache in place, which is a stale cache
-    # rather than a broken build. Never fail the push build over it.
+    # A failed warm leaves the previous cache usable.
     continue-on-error: true
     needs: [build, config]
-    # One writer per branch. Two concurrent warmers would restore the same
-    # predecessor, add different kernels, and publish competing successors -
-    # whichever landed second would silently drop the other's additions.
+    # Concurrent writers could each publish a cache missing the other's additions.
     concurrency:
       group: warp-cache-write-${{ github.ref }}
       cancel-in-progress: false
@@ -1261,10 +1435,7 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
       needs.build.result == 'success'
     env:
-      # Caches are branch-scoped: publishing only helps from a PR base branch
-      # (the on.push.branches list). A dispatch from elsewhere runs as a dry run
-      # instead of burning quota in a scope no PR can read. Not
-      # default_branch - that is a release/* branch upstream, excluding main.
+      # PRs can restore these caches from their base branch; publishing on other branches wastes quota.
       PUBLISHES_WARP_CACHE: ${{ github.ref_name == 'main' || github.ref_name == 'develop' || startsWith(github.ref_name, 'release/') }}
     steps:
     - uses: actions/checkout@v6
@@ -1277,22 +1448,17 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # Warm every supported rigid core environment on Newton. MJWarp
-        # specializes kernels per model config, so a small representative task
-        # set leaves most of the cache to be compiled again by each PR test
-        # shard. The multi-agent suite supplies Handover.
+        # MJWarp compiles kernels per model, so a small task sample would leave most PR tests with a cold cache.
+        # The multi-agent suite includes Handover.
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py
-        # Keep this warmer focused on rigid environments.
         test-k-expr: "test_environments and not (Soft or Cloth or Cable)"
         warp-cache: ${{ env.PUBLISHES_WARP_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-warp-cache-warm
         omni-github-test-type: warp-cache-warm
 
-  # Publishes the shared OVRTX shader cache (nv_shadercache PSO blobs) that
-  # rendering test jobs restore. Mirrors warm-warp-cache: runs post-merge so
-  # PR code never publishes a cache that later jobs on main would inherit.
+  # Publish outside PR runs so base-branch jobs do not inherit caches written by PR code.
   warm-ovrtx-cache:
     name: "ovrtx-cache-warm"
     runs-on: [self-hosted, gpu]
@@ -1320,45 +1486,15 @@ jobs:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        # One combined job covers both sub-trees: Kit cartpole rendering warms
-        # kit/, kitless ovrtx cartpole rendering warms kitless/.
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_cartpole_kitless.py
-        # Only the two RTX paths compile PSO blobs: isaacsim_rtx fills kit/ and
-        # ovrtx fills kitless/. newton_warp would exercise the Warp rasterizer,
-        # which populates neither tree. The nodes are pinned by exact ID rather
-        # than a -k expression, so a parametrize-ID rename fails collection here
-        # instead of quietly leaving the warmer with nothing to run.
+        # Only isaacsim_rtx and ovrtx fill the Kit and kitless shader caches.
+        # Exact test IDs make a rename fail visibly instead of silently warming nothing.
         test-node-ids-file: .github/test-subsets/postmerge-rendering.toml
         test-node-ids-key: ovrtx-cache-warm
         ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}
         container-name: isaac-lab-ovrtx-cache-warm
         omni-github-test-type: ovrtx-cache-warm
-  #endregion
-
-#region disabled quarantined tests
-# test-quarantined:
-#   name: "Quarantined Tests"
-#   runs-on: [self-hosted, gpu]
-#   timeout-minutes: 180
-#   continue-on-error: true
-#   needs: [build, config]
-#   if: >-
-#     needs.build.result == 'success' &&
-#     vars.RUN_QUARANTINED_TESTS == 'true'
-#   steps:
-#   - uses: actions/checkout@v6
-#     with:
-#       fetch-depth: 1
-#       lfs: true
-#   - uses: ./.github/actions/run-package-tests
-#     with:
-#       image-tag: ${{ needs.config.outputs.ci_image_tag }}
-#       isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-#       isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-#       quarantined-only: "true"
-#       container-name: isaac-lab-quarantined-test
-#endregion
