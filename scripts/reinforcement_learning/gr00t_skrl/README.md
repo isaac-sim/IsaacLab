@@ -4,6 +4,23 @@ This local runner fine-tunes the **complete original N1.7 action head** from the
 
 The simulator and model run in separate uv environments and processes. The simulator uses Isaac Sim 6.1 / PhysX, one Franka and the task's table/wrist RGB cameras. This is an engineering smoke test with a local approach reward; it does not establish stacking ability or PPO convergence. Shared task definitions and Isaac-GR00T source are unchanged.
 
+## Debugging and learning
+
+Open the Isaac Lab root in VS Code with the Python and Python Debugger extensions installed on
+the remote host. Select **GR00T PPO: 两步训练（自动调试模型与仿真）** in
+[launch.json](../../../.vscode/launch.json) and press F5. The configuration automatically attaches
+both Python children, runs one two-step rollout and extends RPC deadlines to two hours for
+breakpoints. Resume and inference configurations prompt for a native checkpoint's absolute path.
+Each launch creates a fresh output directory.
+
+The debug-only `--debug_subprocesses` option invokes each project's existing `.venv/bin/python`
+directly, allowing VS Code's `subProcess` injection to reach both environments without following
+uv's Rust process. It does not install dependencies or change the training loop. Normal launches
+still use `uv run --no-sync`. Child output remains in `train.log` and `simulation.log`.
+
+See the Chinese [RL pipeline learning guide](../../../docs/RL_PIPELINE_GUIDE.md) for the theory,
+code map, breakpoint walkthrough, tensor shapes and checkpoint workflow.
+
 ## Installation
 
 Run from the Isaac Lab checkout. The existing environments are `.venv` and `../Isaac-GR00T/.venv`. Preserve the existing model dependencies when adding skrl:

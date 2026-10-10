@@ -7,3 +7,4 @@
 # Ignore all other files
 .python.env
 *.json
+!launch.json

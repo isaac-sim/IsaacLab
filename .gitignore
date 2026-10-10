@@ -46,6 +46,7 @@ docker/.container.cfg
 docker/artifacts/
 *.tmp
 **/__tracked_surface.stl
+tmp/
 
 # Doc Outputs
 **/docs/_build/*

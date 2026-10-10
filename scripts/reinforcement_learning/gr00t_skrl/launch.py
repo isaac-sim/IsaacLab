@@ -64,12 +64,21 @@ def main() -> None:
     parser.add_argument("--max_tokens", type=int, default=1024)
     parser.add_argument("--episode_steps", type=int)
     parser.add_argument("--rpc_timeout", type=float, default=300)
+    parser.add_argument(
+        "--debug_subprocesses",
+        action="store_true",
+        help="Launch .venv Python interpreters directly so VS Code can automatically debug both children",
+    )
     args = parser.parse_args()
     for path in (args.model_path, args.backbone_path, args.model_project):
         if not Path(path).is_dir():
             parser.error(f"Missing directory: {path}")
     if args.resume is not None and not Path(args.resume).is_file():
         parser.error(f"Missing checkpoint: {args.resume}")
+    if args.debug_subprocesses:
+        for project in (REPO_ROOT, Path(args.model_project).absolute()):
+            if not (project / ".venv/bin/python").is_file():
+                parser.error(f"Missing debug interpreter: {project / '.venv/bin/python'}")
     run_dir = Path(
         args.run_dir or REPO_ROOT / "logs/gr00t_skrl" / datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     ).absolute()
@@ -81,6 +90,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="gr00t-skrl-") as socket_dir, ExitStack() as stack:
         values = vars(args).copy()
         model_project = values.pop("model_project")
+        debug_subprocesses = values.pop("debug_subprocesses")
         values["run_dir"] = str(run_dir)
         values["socket_path"] = str(Path(socket_dir) / "simulation.sock")
         # absolute(), rather than resolve(), preserves the model-family symlink name.
@@ -108,14 +118,15 @@ def main() -> None:
         try:
             for child, project in (("simulation", str(REPO_ROOT)), ("train", model_project)):
                 log = stack.enter_context((run_dir / f"{child}.log").open("w"))
+                # The debugger can inject into Python, but cannot follow uv's Rust process into Python.
+                command = (
+                    [str(Path(project).absolute() / ".venv/bin/python")]
+                    if debug_subprocesses
+                    else ["uv", "run", "--project", project, "--no-sync", "python"]
+                )
                 process = subprocess.Popen(
                     [
-                        "uv",
-                        "run",
-                        "--project",
-                        project,
-                        "--no-sync",
-                        "python",
+                        *command,
                         "-u",
                         "-m",
                         f"scripts.reinforcement_learning.gr00t_skrl.{child}",

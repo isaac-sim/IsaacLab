@@ -1,0 +1,90 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "GR00T PPO: 两步训练（自动调试模型与仿真）",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "module": "scripts.reinforcement_learning.gr00t_skrl.launch",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "subProcess": true,
+            "stopOnEntry": true,
+            "env": {
+                "PATH": "${env:HOME}/.local/bin:${env:PATH}",
+                "CUDA_VISIBLE_DEVICES": "0",
+                "PYTHONUNBUFFERED": "1"
+            },
+            "args": [
+                "--debug_subprocesses",
+                "--timesteps", "2",
+                "--rollouts", "2",
+                "--learning_epochs", "2",
+                "--episode_steps", "2",
+                "--rpc_timeout", "7200"
+            ]
+        },
+        {
+            "name": "GR00T PPO: 恢复训练（选择 native checkpoint）",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "module": "scripts.reinforcement_learning.gr00t_skrl.launch",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "subProcess": true,
+            "stopOnEntry": true,
+            "env": {
+                "PATH": "${env:HOME}/.local/bin:${env:PATH}",
+                "CUDA_VISIBLE_DEVICES": "0",
+                "PYTHONUNBUFFERED": "1"
+            },
+            "args": [
+                "--debug_subprocesses",
+                "--timesteps", "2",
+                "--rollouts", "2",
+                "--learning_epochs", "2",
+                "--episode_steps", "2",
+                "--rpc_timeout", "7200",
+                "--resume", "${input:gr00t_checkpoint}"
+            ]
+        },
+        {
+            "name": "GR00T PPO: 推理（选择 native checkpoint）",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "module": "scripts.reinforcement_learning.gr00t_skrl.launch",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "subProcess": true,
+            "stopOnEntry": true,
+            "env": {
+                "PATH": "${env:HOME}/.local/bin:${env:PATH}",
+                "CUDA_VISIBLE_DEVICES": "0",
+                "PYTHONUNBUFFERED": "1"
+            },
+            "args": [
+                "--debug_subprocesses",
+                "--timesteps", "2",
+                "--rollouts", "2",
+                "--learning_epochs", "2",
+                "--episode_steps", "2",
+                "--rpc_timeout", "7200",
+                "--mode", "inference",
+                "--resume", "${input:gr00t_checkpoint}"
+            ]
+        }
+    ],
+    "inputs": [
+        {
+            "id": "gr00t_checkpoint",
+            "type": "promptString",
+            "description": "native skrl checkpoint 的绝对路径，例如 /data/IsaacLab/logs/gr00t_skrl/<运行目录>/native/checkpoints/agent_2.pt"
+        }
+    ]
+}
