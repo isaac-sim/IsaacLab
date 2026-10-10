@@ -261,7 +261,7 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
 def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint_playback():
     """The training task composes depth-guided RGB, and playback retains its own trained CNN."""
     task_name = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
-    env_cfg = parse_env_cfg(task_name, overrides=("presets=cosmos", "env.episode_length_s=20.0"))
+    env_cfg = parse_env_cfg(task_name, overrides=("presets=cosmos", "env.episode_length_s=30.0"))
     env_cfg.validate()
     camera = env_cfg.scene.tiled_camera
     transfer = camera.modifiers["distance_to_image_plane"][-1]
@@ -269,6 +269,8 @@ def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint
     assert env_cfg.scene.num_envs == 1
     assert camera.data_types == ["rgb"] and transfer.output == "rgb"
     assert transfer.backend.modality == "depth"
+    assert transfer.backend.max_episode_frames == 1801
+    assert camera.update_period == 0.0
     assert env_cfg.feature_extractor.enabled and env_cfg.feature_extractor.train
     assert env_cfg.feature_extractor.pretrained_checkpoint is None
 
@@ -281,13 +283,82 @@ def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint
     assert play_cfg.feature_extractor.pretrained_checkpoint is None
 
 
+def test_manager_camera_term_steps_the_feature_extractor_and_resets_held_images(monkeypatch):
+    """The Manager term feeds the camera output to the feature extractor and forwards resets."""
+    from isaaclab_tasks.core.reorient import mdp
+
+    calls = []
+
+    class RecordingExtractor:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def reset(self, env_ids=None):
+            calls.append(("reset", env_ids))
+
+        def step(self, camera_output, gt_pose):
+            calls.append(("step", camera_output["rgb"]))
+            return None, torch.zeros(gt_pose.shape[0], 27)
+
+    monkeypatch.setattr(feature_extractor_module, "FeatureExtractor", RecordingExtractor)
+    rgb = torch.zeros(1, 4, 4, 3)
+    camera = types.SimpleNamespace(
+        cfg=types.SimpleNamespace(data_types=["rgb"], height=4, width=4),
+        data=types.SimpleNamespace(output={"rgb": rgb}),
+    )
+    cube = types.SimpleNamespace(
+        data=types.SimpleNamespace(
+            root_pos_w=types.SimpleNamespace(torch=torch.zeros(1, 3)),
+            root_quat_w=types.SimpleNamespace(torch=torch.tensor([[1.0, 0.0, 0.0, 0.0]])),
+        )
+    )
+
+    class Scene(types.SimpleNamespace):
+        def __getitem__(self, name):
+            return cube
+
+    env = types.SimpleNamespace(
+        device="cpu",
+        num_envs=1,
+        cfg=types.SimpleNamespace(log_dir=None),
+        extras={},
+        scene=Scene(sensors={"tiled_camera": camera}, env_origins=torch.zeros(1, 3)),
+    )
+    params = {"feature_extractor_cfg": FeatureExtractorCfg(), "sensor_cfg": types.SimpleNamespace(name="tiled_camera")}
+    term = mdp.ShadowHandCameraFeatures(types.SimpleNamespace(params=params), env)
+    term.reset([0])
+    term(env, params["feature_extractor_cfg"], params["sensor_cfg"], types.SimpleNamespace(name="object"))
+
+    assert calls[0] == ("reset", [0])
+    assert calls[1][0] == "step" and calls[1][1] is rgb
+
+
+def test_manager_cosmos_preset_feeds_generated_rgb_to_the_camera_observation_term():
+    """The Manager task uses the Direct task's Cosmos camera; its observation term reads the generated rgb."""
+    env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera", overrides=("presets=cosmos",))
+    env_cfg.validate()
+    camera = env_cfg.scene.tiled_camera
+
+    assert env_cfg.scene.num_envs == 1 and (camera.width, camera.height) == (640, 640)
+    assert camera.modifier_outputs() == {"distance_to_image_plane": "rgb"}
+    assert env_cfg.observations.policy.camera_features.params["feature_extractor_cfg"] == env_cfg.feature_extractor
+    assert env_cfg.feature_extractor.image_update_frames == 4
+    assert env_cfg.feature_extractor.pretrained_checkpoint is None
+
+
+@pytest.mark.parametrize("task", ["Isaac-Reorient-Cube-Shadow-Camera-Direct", "Isaac-Reorient-Cube-Shadow-Camera"])
+def test_cosmos_presets_accept_several_environments(task):
+    """Both Shadow Hand Cosmos presets run several environments, one Cosmos view each."""
+    env_cfg = parse_env_cfg(task, overrides=("presets=cosmos", "env.scene.num_envs=2"))
+    env_cfg.validate()
+
+    assert env_cfg.scene.num_envs == 2
+
+
 @pytest.mark.parametrize(
     "overrides,error",
     [
-        (("env.scene.num_envs=2",), "requires one environment"),
         (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
-        (("env.episode_length_s=20.1",), "camera captures per episode.*frame budget"),
-        (("env.scene.tiled_camera.update_period=0.01",), "camera captures per episode.*frame budget"),
         (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
         (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
         (("env.feature_extractor.image_update_frames=1",), "image_update_frames"),
@@ -301,36 +372,72 @@ def test_cosmos_task_rejects_overrides_exceeding_service_limits_before_simulatio
         env_cfg.validate()
 
 
-def test_feature_extractor_holds_capture_target_until_new_rgb_and_invalidates_it_on_reset(tmp_path):
-    """Real CNN loss uses the held image's target, including when frame one repeats after reset."""
+def _held_image_extractor(log_dir) -> FeatureExtractor:
+    """Return a real feature extractor that holds image targets and never changes its weights."""
     extractor = FeatureExtractor(
         FeatureExtractorCfg(train=True, image_update_frames=4),
         device="cpu",
         data_types=["rgb"],
-        log_dir=str(tmp_path),
+        log_dir=str(log_dir),
         height=64,
         width=64,
     )
     for group in extractor.optimizer.param_groups:
         group["lr"] = 0.0
-    rgb = {"rgb": torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)}
-    pose = torch.zeros(1, 27)
-    first_loss, _ = extractor.step(rgb, pose, camera_frame=torch.tensor([1]))
+    return extractor
 
-    for frame in (1, 2, 3, 4):
-        held_loss, _ = extractor.step(rgb, torch.full_like(pose, 10.0), camera_frame=torch.tensor([frame]))
+
+def test_feature_extractor_holds_target_until_the_image_changes_and_after_reset(tmp_path):
+    """Real CNN loss uses the pose of the step each image appeared, including a repeated image after reset."""
+    extractor = _held_image_extractor(tmp_path)
+    first = {"rgb": torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)}
+    pose = torch.zeros(1, 27)
+    first_loss, _ = extractor.step(first, pose)
+
+    for _ in range(3):
+        held_loss, _ = extractor.step(first, torch.full_like(pose, 10.0))
         torch.testing.assert_close(held_loss, first_loss)
 
-    updated_loss, _ = extractor.step(rgb, torch.full_like(pose, 10.0), camera_frame=torch.tensor([5]))
-    assert updated_loss > first_loss
+    second = {"rgb": torch.full((1, 64, 64, 3), 120, dtype=torch.uint8)}
+    updated_loss, _ = extractor.step(second, torch.full_like(pose, 10.0))
+    reference = _held_image_extractor(tmp_path)
+    reference.feature_extractor.load_state_dict(extractor.feature_extractor.state_dict())
+    expected_loss, _ = reference.step(second, torch.full_like(pose, 10.0))
+    torch.testing.assert_close(updated_loss, expected_loss)
 
     extractor.reset(torch.tensor([0]))
-    reset_loss, _ = extractor.step(rgb, torch.full_like(pose, 20.0), camera_frame=torch.tensor([1]))
+    reset_loss, _ = extractor.step(second, torch.full_like(pose, 20.0))
     assert reset_loss > updated_loss
 
-    extractor.reset(torch.tensor([0]))
-    repeated_frame_loss, _ = extractor.step(rgb, torch.full_like(pose, 30.0), camera_frame=torch.tensor([1]))
-    assert repeated_frame_loss > reset_loss
+
+def test_feature_extractor_pairs_each_view_with_its_own_image_update_and_skips_black_views(tmp_path):
+    """With two views, a view that resets mid-chunk shows black, is skipped, and takes its pose on its next image."""
+    extractor = _held_image_extractor(tmp_path)
+    reference = _held_image_extractor(tmp_path)
+    reference.feature_extractor.load_state_dict(extractor.feature_extractor.state_dict())
+    lit = torch.full((1, 64, 64, 3), 90, dtype=torch.uint8)
+    black = torch.zeros_like(lit)
+    pose = torch.zeros(1, 27)
+
+    # Both views publish their first image with pose 0.
+    extractor.step({"rgb": torch.cat((lit, lit))}, torch.cat((pose, pose)))
+    # View 1 resets mid-chunk and shows black; only view 0 trains, still on its held pose 0.
+    extractor.reset(torch.tensor([1]))
+    black_loss, _ = extractor.step({"rgb": torch.cat((lit, black))}, torch.cat((pose + 5.0, pose + 5.0)))
+    expected_black_loss, _ = reference.step({"rgb": lit}, pose)
+    torch.testing.assert_close(black_loss, expected_black_loss)
+
+    # View 1 gets its new episode's image with pose 7; view 0 still holds pose 0.
+    loss, _ = extractor.step({"rgb": torch.cat((lit, lit + 1))}, torch.cat((pose + 7.0, pose + 7.0)))
+    pair = _held_image_extractor(tmp_path)
+    pair.feature_extractor.load_state_dict(extractor.feature_extractor.state_dict())
+    expected_loss, _ = pair.step({"rgb": torch.cat((lit, lit + 1))}, torch.cat((pose, pose + 7.0)))
+    torch.testing.assert_close(loss, expected_loss)
+
+    # When every view is black there is nothing to train on.
+    extractor.reset()
+    none_loss, embeddings = extractor.step({"rgb": torch.cat((black, black))}, torch.cat((pose, pose)))
+    assert none_loss is None and embeddings.shape == (2, 27)
 
 
 @pytest.fixture

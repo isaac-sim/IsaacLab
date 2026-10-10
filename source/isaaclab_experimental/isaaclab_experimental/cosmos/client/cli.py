@@ -11,9 +11,7 @@ import argparse
 import json
 import sys
 
-from isaaclab_experimental.cosmos._protocol import request
-
-DEFAULT_ENDPOINT = "tcp://127.0.0.1:5555"
+from isaaclab_experimental.cosmos._protocol import DEFAULT_ENDPOINT, request
 
 
 def main(args: list[str] | None = None) -> int:
@@ -21,7 +19,9 @@ def main(args: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, prog="isaaclab cosmos")
     commands = parser.add_subparsers(dest="command", required=True)
     status = commands.add_parser("status", help="Inspect the service.")
-    status.add_argument("--endpoint", default=DEFAULT_ENDPOINT)
+    status.add_argument(
+        "--endpoint", default=DEFAULT_ENDPOINT, help=f"unix:///path or tcp://host:port (default {DEFAULT_ENDPOINT})."
+    )
     status.add_argument("--timeout", type=float, default=5.0, help="Connection and response timeout [s].")
     options = parser.parse_args(args)
     try:

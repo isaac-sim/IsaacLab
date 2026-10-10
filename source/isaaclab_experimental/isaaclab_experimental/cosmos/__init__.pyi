@@ -4,12 +4,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "COSMOS_CANVASES",
+    "DEFAULT_ENDPOINT",
     "CosmosModel",
     "CosmosModelCfg",
     "CosmosTransferModifier",
     "CosmosTransferModifierCfg",
     "RegionalEdgeControl",
     "RegionalEdgeControlCfg",
+    "apply_cosmos",
+    "blur_processor",
+    "cosmos_camera",
     "depth_processor",
     "edge_control",
     "edge_processor",
@@ -17,15 +22,21 @@ __all__ = [
     "regional_edge_processor",
     "regional_edges",
     "segmentation_processor",
+    "service_capabilities",
 ]
 
+from ._protocol import DEFAULT_ENDPOINT
 from .client import (
+    COSMOS_CANVASES,
     CosmosModel,
     CosmosModelCfg,
     CosmosTransferModifier,
     CosmosTransferModifierCfg,
     RegionalEdgeControl,
     RegionalEdgeControlCfg,
+    apply_cosmos,
+    blur_processor,
+    cosmos_camera,
     depth_processor,
     edge_control,
     edge_processor,
@@ -33,4 +44,5 @@ from .client import (
     regional_edge_processor,
     regional_edges,
     segmentation_processor,
+    service_capabilities,
 )
