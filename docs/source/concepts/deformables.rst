@@ -48,7 +48,7 @@ use a separate asset and solver; see :doc:`/source/concepts/using_mpm`.
 
 .. note::
     All three kinds are under active development. On Newton, deformables are implemented in
-    :mod:`isaaclab_contrib.deformable` and re-exported through :mod:`isaaclab_newton.assets`.
+    :mod:`isaaclab_newton.assets`, alongside rigid objects and articulations.
     Cable support in particular is experimental: its spawner cfg, asset class, and material
     defaults may still change.
 
@@ -80,7 +80,7 @@ Backend support
 On Newton, deformables of every kind are simulated by the VBD solver, so a scene containing them
 must select a physics cfg whose solver is VBD. For the solver parameters, for running a rigid robot
 and a deformable in one scene, and for the tuning workflow, see
-:doc:`/source/concepts/solver-tuning/tune_vbd` and :doc:`/source/concepts/coupled_solvers`.
+:doc:`/source/how-to/solver_tuning_vbd` and :doc:`/source/concepts/coupled_solvers`.
 
 OvPhysX deformables carry further restrictions on node counts and startup cost. See
 :doc:`/source/concepts/ovphysx`.
@@ -94,9 +94,18 @@ Authoring
 
 A deformable is a mesh spawner with two extra fields:
 
-* ``deformable_props``, a backend-specific ``*DeformableBodyPropertiesCfg``. Setting it is what
-  turns the mesh into a deformable at all.
-* ``physics_material``, a deformable material cfg. Its type selects volume or surface.
+* ``volume_deformable_props`` or ``surface_deformable_props``, the deformable-body schema fragments.
+  Setting one of the two slots is what turns the mesh into a deformable at all, and the slot
+  selects volume or surface. An empty list still creates the deformable, with default properties.
+* ``physics_material``, a deformable material cfg of the matching kind.
+
+Each fragment writes one USD namespace, so a backend's properties are split across fragments:
+:class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` carries the ``omniphysics:*`` body
+attributes (``mass``, ``kinematic_enabled``, ``deformable_body_enabled``),
+:class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg` the PhysX solver attributes, and
+:class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg` the PhysX surface-only ones.
+An empty slot creates the body with the active backend's defaults; add fragments only for
+properties you want to set. The backend applies its own deformable anchor schemas.
 
 Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a runtime asset.
 
@@ -104,34 +113,32 @@ Wrap the spawner in a :class:`~isaaclab.assets.DeformableObjectCfg` to get a run
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import DeformableObjectCfg
-    from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
     from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
     cfg = DeformableObjectCfg(
         prim_path="/World/env_.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=PhysxDeformableBodyPropertiesCfg(),
+            volume_deformable_props=[],
             physics_material=PhysxDeformableBodyMaterialCfg(
                 youngs_modulus=1.0e5, poissons_ratio=0.4, density=1000.0
             ),
         ),
     )
 
-The same object on Newton swaps the two backend cfgs:
+The same object on Newton swaps the material:
 
 .. code-block:: python
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import DeformableObjectCfg
-    from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
     cfg = DeformableObjectCfg(
         prim_path="/World/env_.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            volume_deformable_props=[],
             physics_material=NewtonDeformableBodyMaterialCfg(
                 k_mu=3.5714e4, k_lambda=1.4286e5, density=1000.0
             ),
@@ -143,7 +150,8 @@ The two backends parameterize elasticity differently: PhysX takes ``youngs_modul
 are the same material, converted with ``k_mu = E / (2 * (1 + nu))`` and
 ``k_lambda = E * nu / ((1 + nu) * (1 - 2 * nu))``.
 
-A surface deformable is authored the same way, with a 2D mesh spawner and a surface material:
+A surface deformable is authored the same way, with a 2D mesh spawner, the surface slot, and a
+surface material:
 
 .. code-block:: python
 
@@ -154,7 +162,7 @@ A surface deformable is authored the same way, with a 2D mesh spawner and a surf
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             edge_refinement=8,
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            surface_deformable_props=[],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.85, 0.1)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
                 density=1.0, particle_radius=0.002, tri_ke=5e2, tri_ka=5e2, edge_ke=0.5
@@ -165,7 +173,7 @@ A surface deformable is authored the same way, with a 2D mesh spawner and a surf
 
 The material values above are the tuned ones from ``Isaac-Lift-Cloth-Franka`` rather than the
 defaults. For what each parameter does and what it defaults to, see
-:doc:`/source/concepts/solver-tuning/tune_vbd`, which also covers cloth self-contact. Self-contact
+:doc:`/source/how-to/solver_tuning_vbd`, which also covers cloth self-contact. Self-contact
 is off by default, so cloth passes through itself until it is enabled.
 
 ``edge_refinement`` sets the simulation resolution for both kinds: the maximum surface edge length
@@ -173,22 +181,29 @@ is the bounding-box diagonal divided by this value, and volume deformables reuse
 tetrahedralization target. It defaults to ``4.0`` and must be at least ``1.0``. Values near ``1.0``
 make tetrahedralization significantly slower.
 
-The mesh spawner rejects combinations that cannot work: ``deformable_props`` together with
-``rigid_props`` or ``mass_props``, or with a ``physics_material`` that is not a deformable
-material, raise a :exc:`ValueError` at spawn time.
+The mesh spawner rejects combinations that cannot work: more than one deformable slot, or a
+deformable slot together with ``rigid_props`` or ``mass_props``, raises a :exc:`ValueError` at spawn
+time. A deformable collides through its simulation mesh, so ``collision_props`` must be collision
+fragments; they are applied to that mesh.
 
 Loading from USD
 ^^^^^^^^^^^^^^^^
 
-A deformable can also come from a pre-authored asset. Pass ``deformable_props`` and
+A deformable can also come from a pre-authored asset. Pass a deformable slot and
 ``physics_material`` to :class:`~isaaclab.sim.spawners.from_files.UsdFileCfg`; the spawner applies
 the deformable schema to the loaded prim, or modifies it in place if the prim already carries one.
 
 .. code-block:: python
 
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg
+
     cfg_usd = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Objects/Teddy_Bear/teddy_bear.usd",
-        deformable_props=PhysxDeformableBodyPropertiesCfg(),
+        volume_deformable_props=[
+            OmniPhysicsDeformableBodyCfg(kinematic_enabled=False),
+            PhysxDeformableBodyCfg(solver_position_iteration_count=16),
+        ],
         physics_material=PhysxDeformableBodyMaterialCfg(),
         scale=[0.05, 0.05, 0.05],
     )
@@ -196,20 +211,22 @@ the deformable schema to the loaded prim, or modifies it in place if the prim al
 Volume or surface
 ^^^^^^^^^^^^^^^^^
 
-There is no explicit type field, and no separate cloth asset class. At authoring time the kind
-follows from the material cfg: a material deriving from
-:class:`~isaaclab.sim.spawners.materials.SurfaceDeformableBodyMaterialBaseCfg` produces a surface
-deformable, and anything else produces a volume deformable. That choice decides what USD is
-authored, a ``UsdGeom.TetMesh`` simulation mesh for volume and a triangle ``UsdGeom.Mesh`` copy of
-the visual mesh for surface.
+There is no separate cloth asset class. At authoring time the slot sets the kind:
+``volume_deformable_props`` authors a volume deformable and ``surface_deformable_props`` a surface
+one. That choice decides what USD is authored, a ``UsdGeom.TetMesh`` simulation mesh for volume
+and a triangle ``UsdGeom.Mesh`` copy of the visual mesh for surface. The legacy
+``deformable_props`` field has no type of its own, so it derives the kind from the material cfg: a
+material deriving from :class:`~isaaclab.sim.spawners.materials.SurfaceDeformableBodyMaterialBaseCfg`
+produces a surface deformable, and anything else produces a volume deformable.
 
 At initialization the asset re-derives the kind from the stage. PhysX and OvPhysX read the applied
 schema on the bound physics material, falling back to mesh topology when that is inconclusive;
 Newton uses topology alone, treating a ``UsdGeom.TetMesh`` under the prim as volume and a plain
 ``UsdGeom.Mesh`` as surface.
 
-So the material cfg is load-bearing: pairing a volume material with a cloth-shaped mesh authors a
-tetrahedralized solid, not a sheet.
+With the legacy ``deformable_props`` field the material cfg is therefore load-bearing: pairing a
+volume material with a cloth-shaped mesh authors a tetrahedralized solid, not a sheet. The slots do
+not depend on the material for the kind.
 
 Tetrahedralization
 ^^^^^^^^^^^^^^^^^^
@@ -221,9 +238,6 @@ contain a ``UsdGeom.TetMesh``, Isaac Lab generates one, which requires the optio
 .. code-block:: bash
 
     uv sync --inexact --extra tetrahedralization
-
-    # With the legacy installer.
-    ./isaaclab.sh -i tetrahedralization
 
 Surface deformables never need it, and neither do volume deformables loaded from a USD that already
 ships a pre-tetrahedralized ``UsdGeom.TetMesh`` under the deformable prim.
@@ -387,7 +401,7 @@ where ``L_parent`` and ``L_child`` are the rest lengths of the two segments it s
     Lab authors has no attribute for it.
 
 To target a specific axial ``E * A`` or bending ``E * I``, invert these relations to pick the
-modulus; ``scripts/demos/cables.py`` does this from a target stiffness and the segment geometry.
+modulus; ``examples/cables.py`` does this from a target stiffness and the segment geometry.
 
 Cable collision
 ^^^^^^^^^^^^^^^
@@ -475,8 +489,6 @@ Cable limitations
   and end fittings that must transfer orientation are not representable.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping counterparts are not.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
-* **Culled by Isaac RTX scene partitioning** once the cable deforms beyond its initial extent
-  (OMPE-105749). See :ref:`known-issues-animated-curve-scene-partition`.
 
 .. note::
     An attachment joint is created only when the attachment stiffness is unauthored or infinite. A
@@ -571,38 +583,38 @@ Cable
     winding, since leaving it unset falls back to the bend value as described above.
 
 
-Demos and tasks
----------------
+Examples and tasks
+------------------
 
-Run a demo first to confirm that the spawner, solver, and visualizer all work in your environment.
+Run an example first to confirm that the spawner, solver, and visualizer all work in your environment.
 
 .. list-table::
     :header-rows: 1
     :widths: 20 44 36
 
     * - Kind
-      - Demo
+      - Example
       - Tasks
     * - Volume
-      - ``scripts/demos/deformables.py``
+      - ``deformables``
       - ``Isaac-Lift-Soft-Franka``, ``Isaac-Lift-Soft-Franka-Camera``
     * - Surface
-      - ``scripts/demos/deformables.py``
+      - ``deformables``
       - ``Isaac-Lift-Cloth-Franka``, ``Isaac-Lift-Cloth-Franka-Camera``
     * - Cable
-      - ``scripts/demos/cables.py``
+      - ``cables``
       - ``Isaac-Lift-Cable-Franka``, ``Isaac-Lift-Cable-Franka-Camera``
 
 .. code-block:: bash
 
     # Volume and surface deformables falling onto a ground plane.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
+    uv run --extra tetrahedralization isaaclab example deformables
 
     # A pile of cables that collide and settle. Newton VBD only.
-    uv run --extra isaacsim python scripts/demos/cables.py
+    uv run isaaclab example cables
 
-    # A larger cable pile, without a visualizer, stopping after a fixed number of steps.
-    uv run python scripts/demos/cables.py --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
+    # A larger cable pile, stopping after a fixed number of steps.
+    uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.
@@ -612,7 +624,7 @@ Related
 -------
 
 * :ref:`tutorial-interact-deformable-object` walks through a volume deformable step by step.
-* :doc:`/source/concepts/solver-tuning/tune_vbd` covers the VBD solver parameters, the Newton
+* :doc:`/source/how-to/solver_tuning_vbd` covers the VBD solver parameters, the Newton
   material tables, cloth self-contact, and the tuning workflow.
 * :doc:`/source/concepts/coupled_solvers` covers running a rigid robot and a deformable in one
   scene.

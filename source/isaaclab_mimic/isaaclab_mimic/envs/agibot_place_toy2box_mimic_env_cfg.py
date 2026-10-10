@@ -21,6 +21,8 @@ class RmpFlowAgibotPlaceToy2BoxMimicEnvCfg(RmpFlowAgibotPlaceToy2BoxEnvCfg, Mimi
     Isaac Lab Mimic environment config class for Agibot Place Toy2Box env.
     """
 
+    class_type: type | str = "{DIR}.pick_place_mimic_env:PickPlaceRelMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()

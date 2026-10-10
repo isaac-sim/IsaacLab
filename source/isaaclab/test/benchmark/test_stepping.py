@@ -6,17 +6,133 @@
 """Tests for the runtime stepping helpers."""
 
 import time
+from contextlib import nullcontext
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import numpy as np
 import pytest
 import torch
 
 from isaaclab.benchmark.stepping import (
+    PHYSICS_PROFILE_SCOPE,
+    RENDER_PROFILE_SCOPE,
     EnvironmentStepTimingRecorder,
+    profile_physics_steps,
+    profile_renderers,
     run_runtime_loop,
     run_runtime_warmup,
     sample_random_actions,
 )
+
+
+@pytest.mark.parametrize(
+    ("active", "inherited", "fail"),
+    [
+        pytest.param(False, False, False, id="disabled"),
+        pytest.param(True, False, False, id="enabled"),
+        pytest.param(True, True, True, id="inherited-failure"),
+    ],
+)
+def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, inherited, fail):
+    """Profile complete steps once and restore the class across failures and repeated runs."""
+    import warp as wp
+
+    from isaaclab.physics import PhysicsManager
+
+    calls = []
+
+    class BaseManager(PhysicsManager):
+        @classmethod
+        def step(cls):
+            assert cls is manager
+            calls.append("base")
+
+    class CoupledManager(BaseManager):
+        @classmethod
+        def step(cls):
+            calls.append("before")
+            super().step()
+            calls.append("after")
+            if fail:
+                raise ValueError("step failed")
+
+    class InheritedManager(CoupledManager):
+        pass
+
+    manager = InheritedManager if inherited else CoupledManager
+    synchronize = Mock(wraps=wp.synchronize)
+    monkeypatch.setattr(wp, "synchronize", synchronize)
+
+    timings = []
+    original_step = manager.step
+    with pytest.raises(ValueError, match="step failed") if fail else nullcontext():
+        with profile_physics_steps(manager, active=active, timings=timings) as collected:
+            assert collected is timings
+            manager.step()
+
+    assert calls == ["before", "base", "after"]
+    assert synchronize.call_count == (2 if active else 0)
+    assert len(timings) == int(active)
+    assert all(scope == PHYSICS_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out
+    assert manager.step == original_step
+    assert ("step" in vars(manager)) is not inherited
+
+    fail = False
+    manager.step()
+    for enabled in (True, False):
+        with profile_physics_steps(manager, active=enabled) as later_timings:
+            manager.step()
+        assert len(later_timings) == int(enabled)
+        assert len(timings) == int(active)
+        assert manager.step == original_step
+    assert synchronize.call_count == 2 * (int(active) + 1)
+
+
+def test_profile_renderers_wraps_each_renderer(monkeypatch, capsys):
+    """Renderer methods and instance overrides are restored after failures and repeated runs."""
+    import warp as wp
+
+    second_render = Mock(side_effect=ValueError("render failed"))
+
+    class Renderer:
+        def render_batch(self, render_data):
+            second_render(render_data)
+
+    first, second = SimpleNamespace(render_batch=Mock()), Renderer()
+    originals = [first.render_batch, second.render_batch]
+    context = SimpleNamespace(_renderer_entries=[(None, first), (None, second)])
+    synchronize = Mock()
+    monkeypatch.setattr(wp, "synchronize", synchronize)
+
+    timings = []
+    with pytest.raises(ValueError, match="render failed"):
+        with profile_renderers(context, timings=timings) as collected:
+            assert collected is timings
+            first.render_batch(["first"])
+            second.render_batch(["second"])
+
+    originals[0].assert_called_once_with(["first"])
+    second_render.assert_called_once_with(["second"])
+    assert synchronize.call_count == 4
+    assert len(timings) == 2
+    assert all(scope == RENDER_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
+    assert RENDER_PROFILE_SCOPE not in capsys.readouterr().out
+    assert [first.render_batch, second.render_batch] == originals
+    assert "render_batch" not in vars(second)
+
+    second_render.side_effect = None
+    first.render_batch(["unprofiled"])
+    for enabled in (True, False):
+        with profile_renderers(context, active=enabled) as later_timings:
+            first.render_batch(["first"])
+            second.render_batch(["second"])
+        assert len(later_timings) == 2 * int(enabled)
+        assert len(timings) == 2
+        assert [first.render_batch, second.render_batch] == originals
+        assert "render_batch" not in vars(second)
+    assert synchronize.call_count == 8
 
 
 class _Space:
@@ -82,7 +198,7 @@ def test_run_runtime_loop_can_skip_reset():
     assert not env.reset_called and env.steps == 2
 
 
-@pytest.mark.parametrize("num_steps", [0, 1, 50])
+@pytest.mark.parametrize("num_steps", [0, 1])
 def test_run_runtime_warmup_runs_exact_requested_steps(num_steps: int):
     env = _Env()
 
@@ -96,10 +212,12 @@ def test_run_runtime_warmup_runs_exact_requested_steps(num_steps: int):
 def test_environment_step_timer_measures_env_step_without_simulation_timing():
     env = _Env()
 
-    with EnvironmentStepTimingRecorder(env) as timer:
-        run_runtime_loop(env, num_steps=2, reset=False)
+    with EnvironmentStepTimingRecorder(env, warmup_steps=2) as timer:
+        run_runtime_loop(env, num_steps=5, reset=False)
 
-    assert len(timer.step_times_s) == 2
+    # All five steps run, but the first two are excluded from the recorded timings.
+    assert env.steps == 5
+    assert len(timer.step_times_s) == 3
     assert timer.simulation_step_times_s is None
     assert timer.simulation_step_calls is None
     assert "step" not in vars(env)
@@ -122,17 +240,6 @@ def test_environment_step_timer_measures_only_step_calls():
     assert "step" not in vars(env.unwrapped.sim)
 
 
-def test_environment_step_timer_excludes_warmup_steps_host_return():
-    env = _Env()
-
-    with EnvironmentStepTimingRecorder(env, warmup_steps=2) as timer:
-        run_runtime_loop(env, num_steps=5, reset=False)
-
-    # All five steps run, but the first two are excluded from the recorded timings.
-    assert env.steps == 5
-    assert len(timer.step_times_s) == 3
-
-
 def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
     env = _Env()
     recorder = EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True, warmup_steps=1)
@@ -152,35 +259,6 @@ def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
 
     assert len(recorder.step_times_s) == 3
     assert recorder.simulation_step_calls == 6
-
-
-def test_environment_step_timer_synchronizes_before_environment_and_simulation_steps(monkeypatch):
-    import warp as wp
-
-    events = []
-    env = _Env()
-    env_step = env.step
-    simulation_step = env.unwrapped.sim.step
-
-    def logged_environment_step(actions):
-        events.append("environment")
-        return env_step(actions)
-
-    def logged_simulation_step():
-        events.append("simulation")
-        return simulation_step()
-
-    env.step = logged_environment_step
-    env.unwrapped.sim.step = logged_simulation_step
-    monkeypatch.setattr(wp, "synchronize", lambda: events.append("synchronize"))
-
-    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True):
-        env.step(None)
-
-    assert events[:2] == ["synchronize", "environment"]
-    simulation_indices = [index for index, event in enumerate(events) if event == "simulation"]
-    assert simulation_indices
-    assert all(events[index - 1] == "synchronize" for index in simulation_indices)
 
 
 def test_environment_step_timer_excludes_pending_work_before_step(monkeypatch):

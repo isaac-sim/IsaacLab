@@ -10,7 +10,7 @@ manager owns, when its hooks run, and what a subclass must provide.
 
 If you only need to select and configure a shipped solver, use the user-facing
 pages instead: :doc:`/source/concepts/backends_and_presets` for backend and
-preset selection, :doc:`/source/concepts/solver-tuning/index` for the per-solver guides, and
+preset selection, the :ref:`solver tuning guides <solver-tuning>` for shipped solvers, and
 :ref:`newton-coupled-solvers` for choosing a coupling approach.
 
 
@@ -91,16 +91,13 @@ class invokes them.
      - Stores the simulation context, reads gravity from the simulation
        configuration, and creates the scene data backend.
      - none
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`,
-       :meth:`~isaaclab_newton.physics.NewtonManager.set_builder`, or
-       :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`
-     - Creates or imports the ``ModelBuilder``.
-     - ``_register_builder_attributes()`` (not called by ``set_builder()``)
+   * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))``
+     - Acquires the shared builder through the active manager's ``create_builder()`` factory.
+       The cloner imports declared prototypes and composes worlds into it.
+     - ``_register_builder_attributes()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
-     - Finalizes the model, then allocates states, reset masks, and Fabric
-       prims.
-     - ``_register_builder_attributes()``,
-       ``_prepare_builder_for_finalize()``
+     - Finalizes the model, then allocates states and reset masks.
+     - ``_prepare_builder_for_finalize()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver`
      - Builds the solver, checks that it was assigned, and allocates contacts.
      - ``_build_solver()``, ``_initialize_contacts()``
@@ -108,8 +105,7 @@ class invokes them.
      - A hard reset re-runs ``start_simulation()`` and ``initialize_solver()``
        against a re-finalized model; a soft reset reuses the existing model,
        solver, contacts, and graph.
-     - ``_register_builder_attributes()``,
-       ``_prepare_builder_for_finalize()``, ``_build_solver()``,
+     - ``_prepare_builder_for_finalize()``, ``_build_solver()``,
        ``_initialize_contacts()`` (hard reset only)
    * - :meth:`~isaaclab_newton.physics.NewtonManager.step`
      - Runs one actuator pass plus ``num_substeps`` solver substeps, then

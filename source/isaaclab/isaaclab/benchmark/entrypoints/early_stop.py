@@ -8,11 +8,12 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import TYPE_CHECKING
 
-from isaaclab.benchmark import SingleMeasurement
-from isaaclab.benchmark.metrics import SuccessRateTracker, get_success_rate_log
+from .. import SingleMeasurement
+from ..metrics import SuccessRateTracker, get_success_rate_log
 
 if TYPE_CHECKING:
     from types import TracebackType
@@ -21,6 +22,8 @@ if TYPE_CHECKING:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SUCCESS_THRESHOLD = 0.3
 DEFAULT_SUCCESS_WINDOW = 20
@@ -71,8 +74,8 @@ class RslRlEarlyStopWrapper:
         self.env.step = self._orig_step
         if exc_type is EarlyStopConverged:
             self._runner_cleanup()
-            print(
-                f"[INFO] Early stop: success rate converged at iteration "
+            logger.info(
+                f"Early stop: success rate converged at iteration "
                 f"{self.tracker.current_iteration} (tail mean {self.tracker.tail_mean:.4f})"
             )
             return True
@@ -82,6 +85,8 @@ class RslRlEarlyStopWrapper:
         result = self._orig_step(actions)
         self.tracker.record_step(result[3])  # rsl_rl: (obs, rew, dones, extras)
         if self.tracker.at_iteration_boundary:
+            # Ranks must agree on convergence, or a rank that stops alone deadlocks the others.
+            self.tracker.all_reduce_iteration(self.runner.device)
             self.tracker.end_iteration()
             if self.stop_on_convergence and self.tracker.converged:
                 raise EarlyStopConverged()
@@ -185,10 +190,11 @@ class RlGamesEarlyStopObserver:
         self._base.after_steps()
         if self.tracker is None:
             return
+        self.tracker.all_reduce_iteration(self.algo.ppo_device)
         self.tracker.end_iteration()
         if self.stop_on_convergence and self.tracker.converged and self.algo is not None:
-            print(
-                f"[INFO] Early stop: success rate converged at iteration "
+            logger.info(
+                f"Early stop: success rate converged at iteration "
                 f"{self.tracker.current_iteration} (tail mean {self.tracker.tail_mean:.4f})"
             )
             self.algo.max_epochs = self.tracker.current_iteration

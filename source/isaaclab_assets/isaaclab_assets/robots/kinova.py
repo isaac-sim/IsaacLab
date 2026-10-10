@@ -14,6 +14,9 @@ The following configuration parameters are available:
 Reference: https://github.com/Kinovarobotics/kinova-ros
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -26,13 +29,13 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 KINOVA_JACO2_N7S300_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Kinova/Jaco2/J2N7S300/j2n7s300_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -79,13 +82,13 @@ KINOVA_JACO2_N7S300_CFG = ArticulationCfg(
 KINOVA_JACO2_N6S300_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Kinova/Jaco2/J2N6S300/j2n6s300_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -131,13 +134,13 @@ KINOVA_JACO2_N6S300_CFG = ArticulationCfg(
 KINOVA_GEN3_N7_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Kinova/Gen3/gen3n7_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(

@@ -199,7 +199,6 @@ def get_num_demos(hdf5_file):
 
 def main():
     """Main function to convert all demonstrations to MP4 videos."""
-    # Parse command line arguments
     args = parse_args()
 
     # Create output directory if it doesn't exist

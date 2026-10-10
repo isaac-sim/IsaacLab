@@ -30,7 +30,7 @@ adaptability, and support for running in the cloud.
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. Browse the registered tasks and build a command in the
-`environment browser <source/setup/environments>`_.
+:doc:`environment browser <source/setup/environments>`.
 
 Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
@@ -95,6 +95,7 @@ Table of Contents
    source/setup/tutorial
    source/setup/demos
    source/how-to/index
+   source/workflows/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -106,7 +107,6 @@ Table of Contents
    source/concepts/backend_architecture
    source/concepts/physics_backends
    source/concepts/solver_differences
-   source/concepts/solver-tuning/index
    source/concepts/native-physics-api/index
    source/concepts/renderers
    source/concepts/actuators
@@ -127,7 +127,6 @@ Table of Contents
 
    source/features/imitation-learning/index
    source/features/isaac_teleop
-   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training

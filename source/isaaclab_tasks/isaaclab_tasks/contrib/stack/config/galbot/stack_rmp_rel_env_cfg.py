@@ -16,7 +16,7 @@ from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.rmpflow_actions_cfg import RMPFlowActionCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils.presets import (
@@ -223,7 +223,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             offset=CameraCfg.OffsetCfg(pos=(1.0, 0.0, 0.6), rot=(0.5963, 0.5963, -0.3799, -0.3799), convention="ros"),
         )
 
-        marker_right_camera_cfg = FRAME_MARKER_CFG.copy()
+        marker_right_camera_cfg = clone(FRAME_MARKER_CFG)
         marker_right_camera_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_right_camera_cfg.prim_path = "/Visuals/FrameTransformerRightCamera"
 
@@ -243,7 +243,7 @@ class RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg(RmpFlowGalbotLeftArmCubeStac
             ],
         )
 
-        marker_left_camera_cfg = FRAME_MARKER_CFG.copy()
+        marker_left_camera_cfg = clone(FRAME_MARKER_CFG)
         marker_left_camera_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_left_camera_cfg.prim_path = "/Visuals/FrameTransformerLeftCamera"
 

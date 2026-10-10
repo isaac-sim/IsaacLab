@@ -19,6 +19,7 @@ import warp as wp
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers import CommandTerm, ManagerTermBase
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     quat_apply,
@@ -28,9 +29,8 @@ from isaaclab.utils.math import (
     skew_symmetric_matrix,
 )
 
-from isaaclab_tasks.core.lift.mdp.events import SuccessMonitor
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
 from isaaclab_tasks.core.lift.mdp.utils import get_reset_state, set_reset_state
+from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 from . import typing_vis
 
@@ -351,7 +351,7 @@ class LetterTypingCommand(CommandTerm):
             return
         if not self._buffer_built:
             self._build_buffer()
-        env_ids_t = torch.as_tensor(env_ids, device=self.device)
+        env_ids_t = self._env.scene._ALL_INDICES[env_ids]
         k = int(env_ids_t.numel())
         if k == 0:
             return
@@ -504,7 +504,7 @@ class LetterTypingCommand(CommandTerm):
                 bucket_survivors = bucket_survivors[subset]
             elif bucket_survivors.numel() < cap:
                 survivor_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
-                survivor_mask[bucket_survivors] = True
+                index_fill_(survivor_mask, bucket_survivors, True)
                 remaining_indices = (~survivor_mask).nonzero(as_tuple=False).squeeze(-1)
                 needed = cap - bucket_survivors.numel()
                 subset = torch.randperm(remaining_indices.numel(), device=self.device)[:needed]
@@ -532,13 +532,14 @@ class LetterTypingCommand(CommandTerm):
         with tqdm(total=cap, desc="[typing] building reset-curriculum buffer (IK)", unit="snap") as pbar:
             for start in range(0, cap, self.num_envs):
                 n = min(self.num_envs, cap - start)
-                ids = all_ids[:n]
+                # Partial batches must not favor the first clone variants when envs are grouped.
+                ids = all_ids if n == self.num_envs else torch.randperm(self.num_envs, device=self.device)[:n]
                 # Load this batch's cached command into the live state so the reset-IK aims at the right key.
-                self.target[:n] = tgt[start : start + n]
-                self.typed[:n] = typd[start : start + n]
-                self.target_len[:n] = tlen[start : start + n]
-                self.typed_len[:n] = typlen[start : start + n]
-                self.prefix_len[:n] = self._prefix_len()[:n]
+                self.target[ids] = tgt[start : start + n]
+                self.typed[ids] = typd[start : start + n]
+                self.target_len[ids] = tlen[start : start + n]
+                self.typed_len[ids] = typlen[start : start + n]
+                self.prefix_len[ids] = self._prefix_len()[ids]
                 self._solve_reset_pose(ids)
                 state = get_reset_state(self._env, ids, self._cur_reset_assets, is_relative=True)
                 if self._buf_state is None:
@@ -549,7 +550,7 @@ class LetterTypingCommand(CommandTerm):
                 ee_quat = self.robot.data.body_quat_w.torch[:, self._ik_body_idx]
                 tip = ee_pos + quat_apply(ee_quat, self._ik_offset)
                 reach = torch.linalg.norm(tip - (self.target_key_pos_w() + self._ik_hover), dim=-1)
-                self._buf_reach[start : start + n] = reach[:n]
+                self._buf_reach[start : start + n] = reach[ids]
                 pbar.update(n)
         self._buffer_built = True
         self._log_buffer_stats()
@@ -638,22 +639,22 @@ class LetterTypingCommand(CommandTerm):
         self.typed[env_ids] = self._buf_typed[snap]
         self.target_len[env_ids] = self._buf_target_len[snap]
         self.typed_len[env_ids] = self._buf_typed_len[snap]
-        self._prev_pressed[env_ids] = False
-        self._just_reset[env_ids] = True
+        index_fill_(self._prev_pressed, env_ids, False)
+        index_fill_(self._just_reset, env_ids, True)
         prefix = self._prefix_len()[env_ids]
         self.prefix_len[env_ids] = prefix
         self.distance[env_ids] = (self.target_len[env_ids] + self.typed_len[env_ids] - 2 * prefix).float()
         self.max_prefix[env_ids] = prefix
         self.min_prefix[env_ids] = prefix
-        self.new_high[env_ids] = False
-        self.new_low[env_ids] = False
+        index_fill_(self.new_high, env_ids, False)
+        index_fill_(self.new_low, env_ids, False)
 
     def _resample_normal(self, env_ids: Sequence[int] | torch.Tensor):
         # Normal (random) reset path: draw the target word + a match_prob-typed start buffer, guard against an
         # instant success, and seed the typing metrics + progress water marks - one Warp thread per resetting
         # env, so the ragged fill reads as a per-thread loop instead of padded-matrix masking, with no sum(t)
         # host sync (see :func:`_resample_reset_kernel`). Non-ragged per-env bookkeeping stays in torch.
-        env_ids_t = torch.as_tensor(env_ids, device=self.device)
+        env_ids_t = self._env.scene._ALL_INDICES[env_ids]
         k = int(env_ids_t.numel())
         if k == 0:
             return
@@ -682,10 +683,10 @@ class LetterTypingCommand(CommandTerm):
             ],
             device=str(self.device),
         )
-        self._prev_pressed[env_ids_t] = False
-        self._just_reset[env_ids_t] = True
-        self.new_high[env_ids_t] = False
-        self.new_low[env_ids_t] = False
+        index_fill_(self._prev_pressed, env_ids_t, False)
+        index_fill_(self._just_reset, env_ids_t, True)
+        index_fill_(self.new_high, env_ids_t, False)
+        index_fill_(self.new_low, env_ids_t, False)
 
     def _update_command(self):
         if self._press_level is None:
@@ -766,10 +767,9 @@ class LetterTypingCommand(CommandTerm):
         Runs only on episode reset (not on the mid-episode resampling timer), so the IK snap never
         teleports the arm while the agent is mid-word.
         """
-        if env_ids is None or isinstance(env_ids, slice):
-            ids = torch.arange(self.num_envs, device=self.device)
-        else:
-            ids = torch.as_tensor(env_ids, device=self.device)
+        if env_ids is None:
+            env_ids = slice(None)
+        ids = self._env.scene._ALL_INDICES[env_ids]
 
         # Terminal success (read BEFORE super().reset() resamples the word) of the ending episodes, plus the
         # STARTING distance-to-success each began at (captured at its previous reset).
@@ -952,7 +952,7 @@ class LetterTypingCommand(CommandTerm):
         position, so it need not be exactly reachable on the 5-DoF arm.
 
         Args:
-            ee_quat_w: Current moving-jaw link orientation (w, x, y, z), shape ``(num_envs, 4)``.
+            ee_quat_w: Current moving-jaw link orientation (x, y, z, w), shape ``(num_envs, 4)``.
         """
         finger = quat_apply(ee_quat_w, self._ik_finger_axis)  # current finger axis in world
         heading = finger[:, :2] / torch.linalg.norm(finger[:, :2], dim=-1, keepdim=True).clamp_min(1.0e-6)

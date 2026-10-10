@@ -9,11 +9,11 @@ from typing import TYPE_CHECKING
 
 from isaaclab.utils.math import saturate, unscale_transform
 
-from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
-from isaaclab_tasks.core.reorient.utils import resolve_actuated_tendons
+from ...reorient_direct_env import ReorientDirectEnv
+from ...utils import resolve_actuated_tendons
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+    from .shadow_hand_direct_env_cfg import ShadowHandEnvCfg
 
 
 class ShadowHandDirectEnv(ReorientDirectEnv):

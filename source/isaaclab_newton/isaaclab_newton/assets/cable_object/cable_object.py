@@ -16,8 +16,6 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.cloner import queue_replication
-from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
@@ -44,15 +42,6 @@ class CableObject(BaseCableObject):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
 
-    def __init__(self, cfg: CableObjectCfg) -> None:
-        """Initialize the cable object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
-        queue_replication(cfg)
-
     @property
     def data(self) -> CableObjectData:
         return self._data
@@ -64,7 +53,7 @@ class CableObject(BaseCableObject):
     @property
     def num_segments(self) -> int:
         """Number of rigid segments per cable."""
-        return self.root_view.link_count + 1
+        return self.root_view.link_count
 
     @property
     def root_view(self) -> ArticulationView:
@@ -200,13 +189,13 @@ class CableObject(BaseCableObject):
             verbose=False,
         )
         topology_error = "CableObject requires one standalone, unwelded cable articulation per simulation world."
-        expected_joint_count = num_segments - 1
         joint_types = self.root_view.get_attribute("joint_type", model).numpy()
         valid_topology = (
             self.root_view.count_per_world == 1
-            and self.root_view.joint_count == expected_joint_count
-            and self.root_view.link_count == expected_joint_count
-            and bool((joint_types == int(JointType.CABLE)).all())
+            and self.root_view.joint_count == num_segments
+            and self.root_view.link_count == num_segments
+            and bool((joint_types[..., 0] == int(JointType.FREE)).all())
+            and bool((joint_types[..., 1:] == int(JointType.ROD)).all())
         )
         if not valid_topology:
             raise RuntimeError(topology_error)
@@ -215,11 +204,6 @@ class CableObject(BaseCableObject):
         self._ALL_ENV_MASK = wp.ones((self.num_instances,), dtype=wp.bool, device=self.device)
 
         self._data = CableObjectData(self.root_view, self.device)
-        self._physics_ready_handle = SimulationManager.register_callback(
-            self._rebind,
-            PhysicsEvent.PHYSICS_READY,
-            name=f"cable_object_rebind_{self.cfg.prim_path}",
-        )
 
     def _resolve_env_ids(self, env_ids: Sequence[int] | torch.Tensor | wp.array(dtype=wp.int32) | None) -> wp.array(
         dtype=wp.int32
@@ -227,6 +211,8 @@ class CableObject(BaseCableObject):
         """Resolve environment indices to a Warp array."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         if isinstance(env_ids, Sequence):
@@ -250,7 +236,7 @@ class CableObject(BaseCableObject):
             wp.launch(
                 kernel,
                 dim=(selector.shape[0], self.num_segments),
-                inputs=[value, selector, self.data._sim_bind_root_body_ids, self.data._sim_bind_link_body_ids],
+                inputs=[value, selector, self.data._sim_bind_body_ids],
                 outputs=[getattr(state, state_attribute)],
                 device=self.device,
             )
@@ -267,14 +253,3 @@ class CableObject(BaseCableObject):
         yield state_0
         if state_1 is not None and state_1 is not state_0:
             yield state_1
-
-    def _rebind(self, _: object) -> None:
-        """Rebind simulation arrays after a Newton model rebuild."""
-        self._data._create_simulation_bindings()
-
-    def _clear_callbacks(self) -> None:
-        """Clear all registered callbacks."""
-        super()._clear_callbacks()
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None

@@ -22,6 +22,12 @@ sensor derives from :class:`~isaaclab.sensors.SensorBase` and follows the same l
   debug visualization is requested.
 * :meth:`~isaaclab.sensors.SensorBase.reset` clears per-environment timestamps and internal state.
 
+With eager sensor updates (``scene.cfg.lazy_sensor_update=False``), ``scene.update(dt)`` refreshes
+sensor data before returning. It advances sensor clocks in scene order, updating ordinary sensors
+individually and collecting sensors that support batch updates. After the loop, it refreshes the
+collected sensors' pending buffers together. Each sensor retains its own update period and reset
+state. Camera sensors use this mechanism to :ref:`batch captures by renderer <renderer-camera-batching>`.
+
 Sensor data is exposed through :class:`~isaaclab.utils.warp.ProxyArray` buffers, including camera
 outputs. Use the ``torch`` property for a cached zero-copy Torch view or ``warp`` for the underlying
 Warp array.

@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "joint_pos_cos",
-    "joint_pos_sin",
-    "pole_upright",
-]
+__all__ = ["joint_pos_cos", "joint_pos_sin", "pole_upright"]
 
-from .rewards import (
-    joint_pos_cos,
-    joint_pos_sin,
-    pole_upright,
-)
+from .observations import joint_pos_cos, joint_pos_sin
+from .rewards import pole_upright
+
 from isaaclab.envs.mdp import *

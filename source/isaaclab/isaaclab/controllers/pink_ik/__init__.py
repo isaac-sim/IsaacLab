@@ -8,6 +8,6 @@
 This package provides integration between Pink inverse kinematics solver and IsaacLab.
 """
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

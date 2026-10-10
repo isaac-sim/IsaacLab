@@ -6,16 +6,16 @@
 """Shared core-only environment configurations for Isaac Lab tests.
 
 The configuration classes and factories in this module are safe to import, construct, and
-validate without starting :class:`isaaclab.app.AppLauncher`. Creating environments from the
+validate without starting :class:`~isaaclab_physx.app.KitLauncher`. Creating environments from the
 resulting configurations still requires a running simulator.
 """
 
 from __future__ import annotations
 
-import isaaclab.sim as sim_utils
-from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from .. import sim as sim_utils
+from ..envs import DirectMARLEnvCfg, ManagerBasedEnvCfg, ManagerBasedRLEnvCfg
+from ..scene import InteractiveSceneCfg
+from ..utils import configclass
 
 _DEFAULT_DECIMATION = 4
 _DEFAULT_EPISODE_LENGTH_S = 5.0

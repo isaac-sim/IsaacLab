@@ -11,12 +11,25 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
-from typing import Literal
+from collections.abc import Callable
+from dataclasses import MISSING
+from typing import Any, Literal
 
-from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
+from ..physics import PhysicsCfg
+from ..utils import configclass
+from ..visualizers import VisualizerCfg
+from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+
+@configclass
+class BackendCfg:
+    """Declarative settings and value identity for a simulation-owned resource.
+
+    Finalize all fields before registration and treat them as read-only afterward.
+    """
+
+    class_type: Callable[[BackendCfg], Any] = MISSING
+    """Constructor called through ``instantiate(cfg)``; the returned resource must implement ``close()``."""
 
 
 @configclass
@@ -33,7 +46,7 @@ class SimulationCfg:
     Valid options are:
 
     - ``"cpu"``: Use CPU.
-    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab.app.AppLauncher`'s config.
+    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab_physx.app.KitLauncher`'s config.
     - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
     """
 
@@ -125,10 +138,15 @@ class SimulationCfg:
     """
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
-    """The visualizer configuration(s). Default is an empty list."""
+    """The visualizer configuration(s). Default is an empty list.
+
+    A launch (:func:`~isaaclab.app.launch_simulation`) runs exactly the visualizer types ``--visualizer``
+    selects, none without it: each uses the configured visualizer of its type, with its settings, or else that
+    type's default config. A simulation built without a launch runs the configured visualizers as given.
+    """
 
     default_visualizer_cfg: VisualizerCfg | None = None
-    """Default visualizer settings applied to any visualizer that is selected at runtime.
+    """Default visualizer settings applied to any visualizer that is selected at runtime, e.g. with ``--visualizer``.
 
     This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
     Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and

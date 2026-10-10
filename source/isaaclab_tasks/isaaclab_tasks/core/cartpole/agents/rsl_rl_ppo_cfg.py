@@ -13,8 +13,9 @@ from isaaclab_rl.rsl_rl import (
     RslRlSymmetryCfg,
 )
 
-import isaaclab_tasks.core.cartpole.mdp.symmetry as symmetry
 from isaaclab_tasks.utils import PresetCfg
+
+from ..mdp import symmetry
 
 
 @configclass

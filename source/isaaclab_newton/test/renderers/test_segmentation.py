@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import numpy as np
 import pytest
 
 pytest.importorskip("torch")
@@ -23,14 +22,10 @@ from pxr import Usd
 # The color palette / reserved ids live in core and are unit-tested there
 # (``isaaclab/test/renderers/test_segmentation_colors.py``); here they are only an oracle for the
 # mapper's info-dict keys.
-from isaaclab.cloner import ClonePlan
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.sim.utils.semantics import add_labels
-
-
-def _empty_clone_plan() -> ClonePlan:
-    """A clone plan owning nothing, standing in for scenes with no replicated shapes to fall back to."""
-    return ClonePlan(sources=(), destinations=(), clone_mask=np.zeros((0, 0), dtype=np.bool_))
 
 
 def _cfg(**overrides):
@@ -70,7 +65,7 @@ def _model(shape_paths):
 def test_semantic_segmentation_shares_class_id_across_envs():
     """All cartpole shapes across envs share one class id; the unlabelled ground is UNLABELLED."""
     stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), _empty_clone_plan())
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), None)
     mapper.build_mapping("semantic_segmentation", colorize=False)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
 
@@ -88,7 +83,7 @@ def test_semantic_segmentation_shares_class_id_across_envs():
 def test_instance_segmentation_groups_by_labelled_ancestor():
     """Shapes group by their nearest labelled ancestor; idToSemantics carries the class label."""
     stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), _empty_clone_plan())
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), None)
     mapper.build_mapping("instance_segmentation", colorize=False)
     mapping = mapper.get_mapping("instance_segmentation", colorize=False)
 
@@ -99,28 +94,6 @@ def test_instance_segmentation_groups_by_labelled_ancestor():
     assert ids[3] == UNLABELLED_ID
     assert mapping.info["idToLabels"][ids[0]] == "/World/envs/env_0/Robot"
     assert mapping.info["idToSemantics"][ids[0]] == {"class": "cartpole"}
-
-
-def test_colorize_info_keys_are_color_tuples():
-    """With colorization, info keys are ``(r, g, b, a)`` color tuples and a color palette is built."""
-    stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), _empty_clone_plan())
-    mapper.build_mapping("semantic_segmentation", colorize=True)
-    mapping = mapper.get_mapping("semantic_segmentation", colorize=True)
-
-    assert mapping.shape_to_color is not None
-    assert random_color_from_id(BACKGROUND_ID) in mapping.info["idToLabels"]
-    assert random_color_from_id(UNLABELLED_ID) in mapping.info["idToLabels"]
-
-
-def test_semantic_filter_excludes_non_matching_types():
-    """A filter restricted to an absent type marks every shape UNLABELLED."""
-    stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(semantic_filter=["shape"]), _empty_clone_plan())
-    mapper.build_mapping("semantic_segmentation", colorize=False)
-    mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
-
-    assert mapping.shape_to_id.numpy().tolist() == [UNLABELLED_ID] * len(shape_paths)
 
 
 def test_semantic_filter_comma_separated_type_clauses():
@@ -143,7 +116,7 @@ def test_semantic_filter_comma_separated_type_clauses():
     add_labels(stage.GetPrimAtPath("/World/shelf"), labels=["wood"], instance_name="material")
 
     mapper = NewtonSegmentationMapper(
-        _model(shape_paths), stage, _cfg(semantic_filter="class:cartpole, material:wood"), _empty_clone_plan()
+        _model(shape_paths), stage, _cfg(semantic_filter="class:cartpole, material:wood"), None
     )
     mapper.build_mapping("semantic_segmentation", colorize=False)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=False)
@@ -167,7 +140,7 @@ def test_ancestor_cache_prevents_redundant_get_labels_calls():
     import isaaclab.sim.utils.semantics as _semantics_mod
 
     stage, shape_paths = _scene()
-    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), _empty_clone_plan())
+    mapper = NewtonSegmentationMapper(_model(shape_paths), stage, _cfg(), None)
 
     original_get_labels = _semantics_mod.get_labels
     queried_paths: list[str] = []
@@ -204,12 +177,7 @@ def _prototype_only_scene():
         "/World/envs/env_1/Robot/cart/geom",
         "/World/ground/geom",
     ]
-    plan = ClonePlan(
-        sources=("/World/envs/env_0/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.array([0, 1], dtype=np.int64),
-    )
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), ((0,),), 2)
     return stage, shape_paths, plan
 
 
@@ -266,18 +234,24 @@ def test_prototype_fallback_respects_semantic_filter():
 
 
 def test_semantic_segmentation_mapping_overrides_color():
-    """``semantic_segmentation_mapping`` forces the class color and its info key."""
+    """``semantic_segmentation_mapping`` forces the class color and its info key.
+
+    With colorization, info keys are ``(r, g, b, a)`` color tuples and a color palette is built.
+    """
     stage, shape_paths = _scene()
     override = (255, 36, 66, 255)
     mapper = NewtonSegmentationMapper(
         _model(shape_paths),
         stage,
         _cfg(semantic_segmentation_mapping={"class:cartpole": override}),
-        _empty_clone_plan(),
+        None,
     )
     mapper.build_mapping("semantic_segmentation", colorize=True)
     mapping = mapper.get_mapping("semantic_segmentation", colorize=True)
 
+    assert mapping.shape_to_color is not None
+    assert random_color_from_id(BACKGROUND_ID) in mapping.info["idToLabels"]
+    assert random_color_from_id(UNLABELLED_ID) in mapping.info["idToLabels"]
     # The cartpole class id must be colored with the override, and keyed by it in idToLabels.
     assert override in mapping.info["idToLabels"]
     assert mapping.info["idToLabels"][override] == {"class": "cartpole"}

@@ -14,7 +14,6 @@ import warp as wp
 from isaaclab.renderers.segmentation_colors import (
     BACKGROUND_ID,
     UNLABELLED_ID,
-    color_hash,
     pack_rgba,
     random_color_from_id,
     random_color_from_id_wp,
@@ -43,12 +42,6 @@ def test_pack_rgba_is_little_endian():
 def test_unpack_rgba_is_inverse_of_pack():
     for color in [(0, 0, 0, 0), (255, 255, 255, 255), (1, 2, 3, 4), (0, 0, 0, 255)]:
         assert unpack_rgba(pack_rgba(color)) == color
-
-
-def test_color_hash_is_uint32():
-    for seed in (0, 1, 2, 12345, 0xFFFFFFFF):
-        h = color_hash(seed)
-        assert 0 <= h <= 0xFFFFFFFF
 
 
 @pytest.mark.parametrize("device", ["cpu"])

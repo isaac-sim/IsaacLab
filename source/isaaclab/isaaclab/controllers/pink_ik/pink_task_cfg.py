@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import MISSING, field
 from typing import Any
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 
 @configclass

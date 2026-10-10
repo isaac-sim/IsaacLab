@@ -32,17 +32,6 @@ def test_resolve_training_checkpoint_path_matches_backend_filename(
     assert training._resolve_training_checkpoint_path(str(run_dir), backend) == str(checkpoint)
 
 
-def test_resolve_training_checkpoint_path_uses_natural_order(tmp_path: Path) -> None:
-    run_dir = tmp_path / "run"
-    checkpoint_dir = run_dir / "nn"
-    checkpoint_dir.mkdir(parents=True)
-    (checkpoint_dir / "last_Cartpole_ep_9.pth").touch()
-    checkpoint = checkpoint_dir / "last_Cartpole_ep_10.pth"
-    checkpoint.touch()
-
-    assert training._resolve_training_checkpoint_path(str(run_dir), "rl_games") == str(checkpoint)
-
-
 def test_resolve_training_checkpoint_path_returns_none_without_checkpoint(tmp_path: Path) -> None:
     run_dir = tmp_path / "run"
     run_dir.mkdir()

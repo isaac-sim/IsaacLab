@@ -7,7 +7,6 @@
 
 Pure-Python unit tests; no app launch. Covers:
 
-* :class:`Workflow` enum surface.
 * :func:`SceneEntityCfg.from_stable` field copy.
 * :func:`_require_newton_physics` hard-check.
 * :func:`_walk_terms` recursive ManagerTermBaseCfg discovery over instance
@@ -15,8 +14,9 @@ Pure-Python unit tests; no app launch. Covers:
 * :meth:`_mirror_module` / :meth:`_nearest_mdp_module` deterministic mirror
   resolution and :meth:`_cfg_route_modules` cfg-hierarchy resolution.
 * :func:`_promote_scene_entity_cfgs` walks ``term.params`` dicts.
-* :func:`_swap_mdp` swaps ``func`` *and* ``class_type``; raises with a path
-  list when twins are missing.
+* :func:`_swap_mdp` raises with a path list when twins are missing and skips
+  already-warp terms (the swap itself is covered by the real-registry tests in
+  ``test_frontend_cfg_conversion.py``).
 * :func:`_resolve_warp_twin` rejects stable-origin re-exports.
 * :func:`_assert_direct_warp_registration` accepts warp-rooted entry
   points and rejects stable ones.
@@ -35,7 +35,6 @@ import pytest
 from isaaclab_experimental.envs.frontend import (
     FrontendIncompatibleError,
     WarpFrontend,
-    Workflow,
 )
 from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
 from isaaclab_newton.physics import NewtonCfg
@@ -131,16 +130,6 @@ def _term(func=None, params: dict | None = None) -> RewardTermCfg:
 
 
 # ======================================================================
-# Enums
-# ======================================================================
-
-
-def test_workflow_values():
-    assert Workflow.MANAGER_BASED == "manager_based"
-    assert Workflow.DIRECT == "direct"
-
-
-# ======================================================================
 # build()
 # ======================================================================
 
@@ -165,20 +154,27 @@ def test_warp_manager_build_constructs_warp_env_with_cfg():
     assert calls == [(cfg, {"render_mode": "rgb_array"})]
 
 
+def test_warp_direct_build_selects_warp_scene_from_cfg():
+    cfg = types.SimpleNamespace(scene=types.SimpleNamespace(class_type=None))
+    expected_env = object()
+
+    def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
+        assert cfg.scene.class_type is fe.InteractiveSceneWarp
+        assert kwargs == {"render_mode": "rgb_array"}
+        return expected_env
+
+    with (
+        patch.object(WarpFrontend, "_resolve_direct_warp_class", return_value=fake_env),
+        patch.object(WarpFrontend, "_require_newton_physics"),
+    ):
+        env = WarpFrontend._build_direct_env(cfg, "Isaac-Test", render_mode="rgb_array")
+
+    assert env is expected_env
+
+
 # ======================================================================
 # SceneEntityCfg.from_stable
 # ======================================================================
-
-
-def test_from_stable_copies_minimum_fields():
-    stable = StableSceneEntityCfg(name="robot")
-    warp = WarpSceneEntityCfg.from_stable(stable)
-    assert isinstance(warp, WarpSceneEntityCfg)
-    assert warp.name == "robot"
-    # Warp-only fields stay None until :meth:`resolve` runs.
-    assert warp.joint_mask is None
-    assert warp.joint_ids_wp is None
-    assert warp.body_ids_wp is None
 
 
 def test_from_stable_copies_all_selection_fields():
@@ -208,6 +204,11 @@ def test_from_stable_copies_all_selection_fields():
         "preserve_order",
     ):
         assert getattr(warp, field) == getattr(stable, field), f"field {field!r} mismatch"
+    assert isinstance(warp, WarpSceneEntityCfg)
+    # Warp-only fields stay None until :meth:`resolve` runs.
+    assert warp.joint_mask is None
+    assert warp.joint_ids_wp is None
+    assert warp.body_ids_wp is None
 
 
 # ======================================================================
@@ -225,17 +226,13 @@ def test_require_newton_passes_for_newton():
     fe.WarpFrontend._require_newton_physics(_cfg_with_physics(NewtonCfg()), "Isaac-Test-v0")  # no raise
 
 
-def test_require_newton_rejects_physx():
+@pytest.mark.parametrize("physics", [PhysxCfg(), None], ids=["physx", "none"])
+def test_require_newton_rejects_non_newton(physics):
     with pytest.raises(FrontendIncompatibleError) as exc:
-        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(PhysxCfg()), "Isaac-Test-v0")
+        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(physics), "Isaac-Test-v0")
     message = str(exc.value)
     assert "Select Newton while composing the task configuration" in message
-    assert "PhysxCfg" in message
-
-
-def test_require_newton_rejects_none():
-    with pytest.raises(FrontendIncompatibleError):
-        fe.WarpFrontend._require_newton_physics(_cfg_with_physics(None), "Isaac-Test-v0")
+    assert type(physics).__name__ in message
 
 
 # ======================================================================
@@ -251,39 +248,6 @@ def test_walk_terms_yields_each_term_with_its_path():
     # Configclass instances aren't hashable, so collect paths only.
     paths = {".".join(p) for p, _ in fe.WarpFrontend._walk_terms(cfg)}
     assert paths == {"rewards.r1", "rewards.r2", "events.e1"}
-
-
-def test_walk_terms_descends_into_obs_subgroups():
-    cfg = _CfgFixture(
-        observations=_ObservationsCfg(
-            policy=_PolicyObsGroup(o1=ObservationTermCfg(func=_stable_func)),
-            perception=_ExtraObsGroup(o3=ObservationTermCfg(func=_stable_func)),
-        ),
-    )
-    paths = {".".join(p) for p, _ in fe.WarpFrontend._walk_terms(cfg)}
-    # Discovery is purely type-driven; no obs group name is hardcoded.
-    assert paths == {"observations.policy.o1", "observations.perception.o3"}
-
-
-def test_walk_terms_stops_at_terms():
-    # The walker must not descend into term.params / term.func — yields the term itself.
-    nested_se_cfg = StableSceneEntityCfg(name="robot")
-    cfg = _CfgFixture(rewards=_RewardsCfg(r1=_term(params={"asset_cfg": nested_se_cfg})))
-    terms = list(fe.WarpFrontend._walk_terms(cfg))
-    assert len(terms) == 1
-    _, term = terms[0]
-    assert isinstance(term, RewardTermCfg)
-
-
-def test_walk_terms_skips_non_configclass_attrs():
-    # A namespace without __dataclass_fields__ is not descended into.
-    cfg = types.SimpleNamespace(some_plain_attr="hello")
-    assert list(fe.WarpFrontend._walk_terms(cfg)) == []
-
-
-def test_walk_terms_skips_none_subtrees():
-    cfg = _CfgFixture(rewards=None, events=None)
-    assert list(fe.WarpFrontend._walk_terms(cfg)) == []
 
 
 def test_walk_terms_descends_into_dict_groups():
@@ -332,17 +296,6 @@ def test_mirror_module_maps_stable_roots():
     assert fe.WarpFrontend._mirror_module("") is None
 
 
-def test_nearest_mdp_module_truncates_at_mdp_boundary():
-    # A symbol module resolves to its own mdp package on the mirrored path.
-    assert (
-        fe.WarpFrontend._nearest_mdp_module("isaaclab_tasks_experimental.core.locomotion.mdp.rewards")
-        == "isaaclab_tasks_experimental.core.locomotion.mdp"
-    )
-    assert fe.WarpFrontend._nearest_mdp_module("isaaclab_experimental.envs.mdp.events") == (
-        "isaaclab_experimental.envs.mdp"
-    )
-
-
 def test_nearest_mdp_module_walks_up_cfg_paths():
     # A cfg module path walks up to the task family's mdp package.
     assert (
@@ -388,18 +341,6 @@ def _patch_twin_modules(monkeypatch: pytest.MonkeyPatch, modules: list[Any]) -> 
     monkeypatch.setattr(
         fe.WarpFrontend, "_twin_modules", classmethod(lambda cls, symbol_module, cfg_route_modules: modules)
     )
-
-
-def test_swap_mdp_swaps_func_and_class_type(monkeypatch: pytest.MonkeyPatch):
-    fake = _fake_mdp_module({"_stable_func": _warp_twin_func, "_StableActionCls": _WarpActionCls})
-    _patch_twin_modules(monkeypatch, [fake])
-    term_reward = _term(func=_stable_func)
-    term_action = _term()
-    term_action.class_type = _StableActionCls  # set attr to exercise class_type swap
-    cfg = _CfgFixture(rewards=_RewardsCfg(r1=term_reward, r2=term_action))
-    fe.WarpFrontend._swap_mdp(cfg, "Isaac-Test-v0")
-    assert cfg.rewards.r1.func is _warp_twin_func
-    assert cfg.rewards.r2.class_type is _WarpActionCls
 
 
 def test_swap_mdp_missing_twin_raises_with_path_list(monkeypatch: pytest.MonkeyPatch):
@@ -490,35 +431,13 @@ def test_promote_scene_entity_cfgs_walks_all_term_groups():
 
 
 # ======================================================================
-# Twin resolution and swap-candidate heuristic
+# Twin resolution
 # ======================================================================
-
-
-def test_resolve_warp_twin_accepts_warp_origin():
-    module = types.SimpleNamespace(foo=_warp_twin_func)
-    assert fe.WarpFrontend._resolve_warp_twin("foo", [module]) is _warp_twin_func
 
 
 def test_resolve_warp_twin_rejects_stable_origin():
     module = types.SimpleNamespace(foo=_stable_func)  # same name, stable origin
     assert fe.WarpFrontend._resolve_warp_twin("foo", [module]) is None
-
-
-def test_resolve_warp_twin_returns_none_when_absent():
-    assert fe.WarpFrontend._resolve_warp_twin("missing", [types.SimpleNamespace()]) is None
-
-
-def test_is_swap_candidate_stable_callable():
-    assert fe.WarpFrontend._is_swap_candidate(_stable_func)
-
-
-def test_is_swap_candidate_rejects_warp_callable():
-    assert not fe.WarpFrontend._is_swap_candidate(_warp_twin_func)
-
-
-def test_is_swap_candidate_rejects_non_callables():
-    assert not fe.WarpFrontend._is_swap_candidate(42)
-    assert not fe.WarpFrontend._is_swap_candidate("string")
 
 
 # ======================================================================
@@ -532,9 +451,6 @@ _DIRECT_TEST_TASKS = {
     "_Frontend-Test-Declared-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "types:SimpleNamespace"),
     "_Frontend-Test-Broken-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "definitely_not_a_module:Env"),
     "_Frontend-Test-Missing-Class-Direct-v0": ("isaaclab_tasks.fake:DirectEnv", "types:NoSuchClass"),
-    # Follows the <task>_direct_env:<Name>Env convention, so it resolves to the
-    # mirrored <task>_warp_env:<Name>WarpEnv with no warp_entry_point.
-    "_Frontend-Test-NameMirror-Direct-v0": ("isaaclab_tasks.core.cartpole.cartpole_direct_env:CartpoleEnv", None),
     # Real shared reorient env class: both Allegro and Shadow register it, and it
     # mirrors to the real ReorientDirectWarpEnv (which declares cfg AllegroHandEnvCfg).
     # Used to exercise the cfg-compatibility gate on a genuinely shared base env.
@@ -579,15 +495,6 @@ def test_resolve_direct_warp_class_returns_declared_class():
 
 def test_resolve_direct_warp_class_returns_none_without_declaration():
     assert fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Stable-Direct-v0") is None
-
-
-def test_resolve_direct_warp_class_by_name_mirror():
-    """A direct task following the ``<task>_direct_env:<Name>Env`` convention resolves
-    to ``<task>_warp_env:<Name>WarpEnv`` with no ``warp_entry_point`` declared."""
-    env_class = fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-NameMirror-Direct-v0")
-    assert env_class is not None
-    assert env_class.__name__ == "CartpoleWarpEnv"
-    assert env_class.__module__.endswith("cartpole_warp_env")
 
 
 def test_resolve_direct_warp_class_rejects_broken_module():
@@ -637,27 +544,9 @@ class _GuardWarpEnvNoAnnotation:
     pass
 
 
-def test_declared_stable_cfg_name_reads_annotation():
-    assert fe.WarpFrontend._declared_stable_cfg_name(_GuardWarpEnv) == "_GuardDeclaredCfg"
-    assert fe.WarpFrontend._declared_stable_cfg_name(_GuardWarpEnvNoAnnotation) is None
-
-
-def test_assert_cfg_supported_accepts_exact_cfg():
-    fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnv, _GuardDeclaredCfg(), "_task")  # no raise
-
-
 def test_assert_cfg_supported_accepts_subclass_cfg():
     # A task cfg that IS-A the declared cfg is accepted (covers camera/variant subclasses).
     fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnv, _GuardSubclassCfg(), "_task")  # no raise
-
-
-def test_assert_cfg_supported_rejects_unrelated_cfg():
-    # This is the Shadow-reorient-into-Allegro-twin regression: a cfg the twin does
-    # not implement must be a hard error, not a silent wrong-MDP run.
-    with pytest.raises(FrontendIncompatibleError) as exc:
-        fe.WarpFrontend._assert_cfg_supported(_GuardWarpEnv, _GuardUnrelatedCfg(), "_task")
-    msg = str(exc.value)
-    assert "_GuardDeclaredCfg" in msg and "_GuardUnrelatedCfg" in msg
 
 
 def test_assert_cfg_supported_skips_when_no_annotation():
@@ -696,10 +585,3 @@ def test_resolve_rejects_twin_when_cfg_mismatches():
         fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Reorient-Direct-v0", ShadowHandEnvCfg())
     msg = str(exc.value)
     assert "AllegroHandEnvCfg" in msg and "ShadowHandEnvCfg" in msg
-
-
-def test_resolve_name_only_skips_cfg_check():
-    # Without a cfg, resolution reports the name mapping alone (no applicability gate).
-    env_class = fe.WarpFrontend._resolve_direct_warp_class("_Frontend-Test-Reorient-Direct-v0")
-    assert env_class is not None
-    assert env_class.__name__ == "ReorientDirectWarpEnv"

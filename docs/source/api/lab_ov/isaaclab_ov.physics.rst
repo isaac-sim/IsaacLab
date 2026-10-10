@@ -9,6 +9,7 @@
 
     OvPhysxManager
     OvPhysxCfg
+    OvPhysxBackendCfg
 
 .. currentmodule:: isaaclab_ov.physics
 
@@ -24,6 +25,11 @@ Physics Configuration
 ---------------------
 
 .. autoclass:: OvPhysxCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: OvPhysxBackendCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

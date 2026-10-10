@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING
 
 from pxr import Gf, Sdf, Usd
 
-from isaaclab.sim.utils import change_prim_property, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
+
+from ...utils import change_prim_property, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
     from . import sensors_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 CUSTOM_PINHOLE_CAMERA_ATTRIBUTES = {
@@ -50,7 +50,7 @@ The dictionary maps the attribute name in the configuration to the attribute nam
 
 # OpenCV lens-distortion models authored as the ``omni:lensdistortion:*`` USD API. The RTX/OVRTX
 # renderer honors these attributes natively; they are read back into ``camera.data.intrinsic_matrices``
-# by :meth:`~isaaclab.sensors.camera.Camera._update_intrinsic_matrices`.
+# when :class:`~isaaclab.sensors.camera.Camera` imports its initial calibration.
 _OPENCV_DISTORTION_API_SCHEMAS = {
     "opencvPinhole": "OmniLensDistortionOpenCvPinholeAPI",
     "opencvFisheye": "OmniLensDistortionOpenCvFisheyeAPI",
@@ -99,8 +99,8 @@ def _author_opencv_distortion(prim: Usd.Prim, cfg: sensors_cfg.OpenCvDistortionC
         Sdf.ValueTypeNames.Int2,
         Gf.Vec2i(int(cfg.image_size[0]), int(cfg.image_size[1])),
     )
-    for name in ("fx", "fy", "cx", "cy"):
-        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(getattr(cfg, name)))
+    for name, value in (("fx", cfg.fx), ("fy", cfg.fy), ("cx", cfg.cx), ("cy", cfg.cy)):
+        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(value))
     # coefficients are muted (authored as zero) unless apply_lens_distortion is set
     for name in _OPENCV_DISTORTION_COEFFS[cfg.model]:
         value = float(getattr(cfg, name)) if cfg.apply_lens_distortion else 0.0
@@ -141,14 +141,8 @@ def spawn_camera(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
     stage = get_current_stage()
-
-    # spawn camera if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+    prim = create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
 
     # lock camera from viewport (this disables viewport movement for camera)
     if cfg.lock_camera:
@@ -180,74 +174,19 @@ def spawn_camera(
         "spawn_path",
         "distortion",
     ]
-    # get camera prim
-    prim = stage.GetPrimAtPath(prim_path)
-    # create attributes for the fisheye camera model
-    # note: for pinhole those are already part of the USD camera prim
+    # custom camera-model attributes are not part of the USD camera schema and must be created first
     for attr_name, attr_type in attribute_types.values():
-        # check if attribute does not exist
         if prim.GetAttribute(attr_name).Get() is None:
-            # create attribute based on type
             prim.CreateAttribute(attr_name, attr_type)
-    # set attribute values
     for param_name, param_value in cfg.__dict__.items():
-        # check if value is valid
         if param_value is None or param_name in non_usd_cfg_param_names:
             continue
-        # obtain prim property name
         if param_name in attribute_types:
-            # check custom attributes
             prim_prop_name = attribute_types[param_name][0]
         else:
-            # convert attribute name in prim to cfg name
             prim_prop_name = to_camel_case(param_name, to="cC")
-        # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
-    # author the OpenCV lens-distortion model (renderer-agnostic; RTX/OVRTX honors it natively)
+    # the OpenCV lens-distortion model is renderer-agnostic; RTX/OVRTX honors it natively
     if cfg.distortion is not None:
         _author_opencv_distortion(prim, cfg.distortion)
-    # return the prim
-    return prim
-
-
-@clone
-def spawn_sensor_frame(
-    prim_path: str,
-    cfg: sensors_cfg.SensorFrameCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-) -> Usd.Prim:
-    """Create a plain USD Xform prim as a sensor attachment frame.
-
-    .. note::
-        This function is decorated with :func:`clone` that resolves prim path into list of paths
-        if the input prim path is a regex pattern.
-
-    Args:
-        prim_path: The prim path or pattern to spawn the asset at.
-        cfg: The configuration instance.
-        translation: Local translation (x, y, z) [m] w.r.t. the parent prim. Defaults to None
-            (origin).
-        orientation: Local orientation as quaternion (x, y, z, w) w.r.t. the parent prim.
-            Defaults to None (identity).
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
-
-    Returns:
-        The created USD prim.
-
-    Raises:
-        ValueError: If a prim already exists at the given path.
-    """
-    stage = get_current_stage()
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        prim = create_prim(
-            prim_path,
-            "Xform",
-            translation=translation,
-            orientation=orientation,
-            stage=stage,
-        )
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
     return prim

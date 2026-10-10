@@ -12,31 +12,27 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.reorient.mdp as mdp
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
+from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
+
+from ... import mdp
+from ...reorient_manager_env_cfg import (
+    ActionsCfg,
+    ReorientFullStateObsCfg,
+    ReorientManagerEnvBaseCfg,
+    ReorientSceneBaseCfg,
+)
+from .shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
     ShadowHandManagerEventPresetCfg,
     ShadowHandRobotCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_manager_env_cfg import (
-    ActionsCfg,
-    ReorientFullStateObsCfg,
-    ReorientManagerEnvBaseCfg,
-    ReorientSceneBaseCfg,
-)
-from isaaclab_tasks.utils import PresetCfg
-
-from isaaclab_assets.robots.shadow_hand import (
-    FINGERTIP_NAMES,
-    JOINT_NAMES,
-    TENDON_NAMES,
-    TENDON_POSITION_LIMITS,
-)
 
 ##
-# Default: full-state actor.
+# Full-state actor (default)
 ##
 
 
@@ -85,11 +81,12 @@ class ShadowHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        # simulation settings
         self.sim.physics = PhysicsCfg()
 
 
 ##
-# ``presets=asymmetric``: reduced actor, privileged critic.
+# Reduced actor with privileged critic (``presets=asymmetric``)
 ##
 
 

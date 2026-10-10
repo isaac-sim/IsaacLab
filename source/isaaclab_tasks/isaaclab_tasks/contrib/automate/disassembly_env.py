@@ -10,12 +10,9 @@ import numpy as np
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils import index_fill_
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     combine_frame_transforms,
@@ -39,9 +36,14 @@ class DisassemblyEnv(DirectRLEnv):
         cfg.observation_space = sum([OBS_DIM_CFG[obs] for obs in cfg.obs_order])
         cfg.state_space = sum([STATE_DIM_CFG[state] for state in cfg.state_order])
         self.cfg_task = cfg.tasks[cfg.task_name]
+        cfg.scene.fixed_asset = self.cfg_task.fixed_asset
+        cfg.scene.held_asset = self.cfg_task.held_asset
 
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._robot, self._fixed_asset, self._held_asset = [
+            self.scene[name] for name in ("robot", "fixed_asset", "held_asset")
+        ]
         self._set_body_inertias()
         self._init_tensors()
         self._set_default_dynamics_parameters()
@@ -169,39 +171,6 @@ class DisassemblyEnv(DirectRLEnv):
 
         return torch.as_tensor(plug_grasps).to(self.device), torch.as_tensor(disassembly_dists).to(self.device)
 
-    def _setup_scene(self):
-        """Initialize simulation scene."""
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg(), translation=(0.0, 0.0, -0.4))
-
-        # spawn a usd file of a table into the scene
-        cfg = sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd")
-        cfg.func(
-            "/World/envs/env_[^/]+/Table", cfg, translation=(0.55, 0.0, 0.0), orientation=(0.0, 0.0, 0.70711, 0.70711)
-        )
-
-        self._robot = Articulation(self.cfg.robot)
-        self._fixed_asset = Articulation(self.cfg_task.fixed_asset)
-        # self._held_asset = Articulation(self.cfg_task.held_asset)
-        # self._fixed_asset = RigidObject(self.cfg_task.fixed_asset)
-        self._held_asset = RigidObject(self.cfg_task.held_asset)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-
-        self.scene.filter_collisions()
-
-        self.scene.articulations["robot"] = self._robot
-        self.scene.articulations["fixed_asset"] = self._fixed_asset
-        # self.scene.articulations["held_asset"] = self._held_asset
-        # self.scene.rigid_objects["fixed_asset"] = self._fixed_asset
-        self.scene.rigid_objects["held_asset"] = self._held_asset
-
-        # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
-
     def _compute_intermediate_values(self, dt):
         """Get values computed from raw tensors. This includes adding noise."""
         # TODO: A lot of these can probably only be set once?
@@ -304,7 +273,7 @@ class DisassemblyEnv(DirectRLEnv):
 
     def _reset_buffers(self, env_ids):
         """Reset buffers."""
-        self.ep_succeeded[env_ids] = 0
+        index_fill_(self.ep_succeeded, env_ids, 0)
 
     def _pre_physics_step(self, action):
         """Apply policy actions with smoothing."""
@@ -552,7 +521,7 @@ class DisassemblyEnv(DirectRLEnv):
             delta_hand_pose = torch.cat((pos_error, axis_angle_error), dim=-1)
 
             # Solve DLS problem.
-            delta_dof_pos = fc._get_delta_dof_pos(
+            delta_dof_pos = fc.get_delta_dof_pos(
                 delta_pose=delta_hand_pose,
                 ik_method="dls",
                 jacobian=self.fingertip_midpoint_jacobian[env_ids],
@@ -690,7 +659,7 @@ class DisassemblyEnv(DirectRLEnv):
         ).clone()
         held_state[env_ids, 0:3] = self.fixed_pos[env_ids].clone() + self.scene.env_origins[env_ids]
         held_state[env_ids, 3:7] = self.fixed_quat[env_ids].clone()
-        held_state[env_ids, 7:] = 0.0
+        index_fill_(held_state[:, 7:], env_ids, 0.0)
 
         self._held_asset.write_root_pose_to_sim_index(root_pose=held_state[:, 0:7])
         self._held_asset.write_root_velocity_to_sim_index(root_velocity=held_state[:, 7:])
@@ -711,7 +680,7 @@ class DisassemblyEnv(DirectRLEnv):
 
         grasp_time = 0.0
         while grasp_time < 0.25:
-            self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
+            index_fill_(self.ctrl_target_joint_pos[:, 7:], env_ids, 0.0)  # Close gripper.
             self.ctrl_target_gripper_dof_pos = 0.0
             self.move_gripper_in_place(ctrl_target_gripper_dof_pos=0.0)
             self.step_sim_no_action()
@@ -719,11 +688,8 @@ class DisassemblyEnv(DirectRLEnv):
 
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
-        import carb
-
         # Disable gravity.
-        physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
-        physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))
+        self.sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
 
         self.randomize_fixed_initial_state(env_ids)
 
@@ -762,9 +728,7 @@ class DisassemblyEnv(DirectRLEnv):
         # Set initial gains for the episode.
         self._set_gains(self.default_gains)
 
-        import carb
-
-        physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
+        self.sim.physics_manager.set_gravity(tuple(self.cfg.sim.gravity))
 
     def _disassemble_plug_from_socket(self):
         """Lift plug from socket till disassembly and then randomize end-effector pose."""

@@ -5,7 +5,6 @@
         "**/*.egg-info": true
     },
     "files.associations": {
-        "*.tpp": "cpp",
         "*.kit": "toml",
         "*.rst": "restructuredtext"
     },
@@ -19,59 +18,14 @@
         "**/_isaac_sim/**": true,
         "**/_compiler/**": true
     },
-    // Configuration for spelling checker
-    "spellright.language": [
-        "en-US-10-1."
-    ],
-    "spellright.documentTypes": [
-        "markdown",
-        "latex",
-        "plaintext",
-        "cpp",
-        "asciidoc",
-        "python",
-        "restructuredtext"
-    ],
-    "cSpell.words": [
-        "literalinclude",
-        "linenos",
-        "instanceable",
-        "isaacSim",
-        "jacobians",
-        "pointcloud",
-        "ridgeback",
-        "rllib",
-        "robomimic",
-        "teleoperation",
-        "xform",
-        "numpy",
-        "flatcache",
-        "physx",
-        "dpad",
-        "gamepad",
-        "linspace",
-        "upsampled",
-        "downsampled",
-        "arange",
-        "discretization",
-        "trimesh",
-        "uninstanceable",
-        "coeff",
-        "prestartup"
-    ],
     // This enables python language server. Seems to work slightly better than jedi:
     "python.languageServer": "Pylance",
     // Use ruff as a formatter and linter
     "ruff.configuration": "${workspaceFolder}/pyproject.toml",
-    // Use docstring generator
-    "autoDocstring.docstringFormat": "google",
-    "autoDocstring.guessTypes": true,
     // Python environment path
     // note: the default interpreter is overridden when user selects a workspace interpreter
     //     in the status bar. For example, the virtual environment python interpreter
     "python.defaultInterpreterPath": "${workspaceFolder}/_isaac_sim/python.sh",
-    // ROS distribution
-    "ros.distro": "noetic",
     // Language specific settings
     "[python]": {
         "editor.tabSize": 4

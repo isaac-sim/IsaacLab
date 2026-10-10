@@ -19,7 +19,7 @@ from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
+from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 from isaaclab.sim.utils.queries import find_first_matching_prim
 from isaaclab.sim.utils.stage import get_current_stage
 
@@ -53,7 +53,7 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         if not use_newton_actuators:
             return set()
 
-        _validate_newton_native_actuator_cfgs(actuator_cfgs)
+        validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
@@ -128,13 +128,13 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
 
     def submit_commands(self, collection: ActuatorCollection) -> None:
         articulation = self._articulation
-        # Native telemetry contains the local implicit-drive shadow. Submit raw runtime effort
-        # instead, so OVPhysX evaluates each implicit PD drive exactly once.
+        # Submit the processed effort command, not telemetry that includes the implicit PD estimate.
+        # The native runtime similarly provides effort without the implicit-drive estimate.
         write_effort = articulation._can_write_effort
         # position and velocity targets only for implicit actuators.
         write_pos = articulation._has_implicit_actuators and articulation._can_write_pos_target
         write_vel = articulation._has_implicit_actuators and articulation._can_write_vel_target
-        user_effort = collection._applied_effort
+        user_effort = collection._joint_effort_target_sim
         if self._actuator_runtime is not None:
             user_effort = self._actuator_runtime.wrapper.joint_f_2d
         if articulation.data.has_joint_ordering:

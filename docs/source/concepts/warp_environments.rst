@@ -69,10 +69,18 @@ MDP term for its warp twin). Select the Newton solver explicitly with
 - ``Isaac-Velocity-Flat-H1``
 - ``Isaac-Velocity-Flat-UnitreeGo2``
 
+The following contributed tasks also have full twin coverage:
+
+- ``IsaacContrib-Velocity-Flat-AnymalB``
+- ``IsaacContrib-Velocity-Flat-AnymalC``
+- ``IsaacContrib-Velocity-Flat-UnitreeA1``
+- ``IsaacContrib-Velocity-Flat-UnitreeGo1``
+
 A missing twin is a hard error listing the affected terms, so a partially
 covered task fails at build time rather than silently changing behavior.
-Rough-terrain velocity tasks remain unsupported until
-:class:`~isaaclab.terrains.TerrainImporter` gains Warp APIs.
+Rough-terrain velocity configurations that use ``height_scan`` cannot currently be
+adapted: that observation term has no Warp twin. Check the terms used by a task rather
+than assuming that every terrain configuration has the same limitation.
 
 
 Quick Start
@@ -101,14 +109,19 @@ Stable-Baselines3.
 
    ``--video`` is rejected on the warp path, for both ``train`` and ``play``: video
    recording requires the standard torch frontend. To record a rollout, replay the same
-   checkpoint with ``--frontend torch``.
+   checkpoint with ``--frontend torch``; see :ref:`how_to_record_video`.
 
 
 Performance Comparison
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Step time comparison between the stable (torch/manager) and warp (CUDA graph captured) variants,
+Historical step time comparison between the stable (torch/manager) and warp (CUDA graph captured) variants,
 both running on the Newton physics backend. Measured over 300 iterations with 4096 environments.
+The table covers the measured tasks, not every currently supported task.
+These figures are retained as the original benchmark record, not a measurement of the latest
+``develop`` revision. For updated results, record the hardware and Isaac Lab, Newton, and Warp
+revisions, and compare both frontends on those same revisions. Improvements in shared base
+libraries can benefit both frontends and must not be attributed solely to the Warp frontend.
 
 .. note::
 

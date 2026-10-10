@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 import torch
 import warp as wp
 
+from ...utils import index_fill_
 from ..method_benchmark import MethodBenchmarkDefinition, MethodBenchmarkRunnerConfig
 from .types import InputGenerator
 
@@ -172,7 +173,7 @@ def _make_mask_fill_generator(base_generator: InputGenerator, fill_ratio: float)
         count = max(1, int(config.num_instances * fill_ratio))
         permutation = torch.randperm(config.num_instances, device=config.device)
         mask = torch.zeros(config.num_instances, dtype=torch.bool, device=config.device)
-        mask[permutation[:count]] = True
+        index_fill_(mask, permutation[:count], True)
         inputs["env_mask"] = wp.from_torch(mask, dtype=wp.bool)
         return inputs
 

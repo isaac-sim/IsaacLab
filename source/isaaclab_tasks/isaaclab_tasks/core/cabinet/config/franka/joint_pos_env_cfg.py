@@ -3,42 +3,47 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the manager-based Franka cabinet-opening environment."""
+
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
-import isaaclab_tasks.core.cabinet.mdp as mdp
-from isaaclab_tasks.core.cabinet.cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
+from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+from ... import mdp
+from ...cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
 
 
 @configclass
 class FrankaCabinetSceneCfg(CabinetSceneCfg):
     """Cabinet scene configured for the Franka robot."""
 
-    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.spawn.variants["Physics"] = preset(default="mujoco", isaacsim_physx="physx", physx="physx", ovphysx="physx")
     ee_frame = FrameTransformerCfg(
-        prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+        prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
         debug_vis=False,
-        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+        visualizer_cfg=replace(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/EndEffectorFrameTransformer"),
         target_frames=[
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand",
                 name="ee_tcp",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.1034),
                 ),
             ),
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_leftfinger",
+                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_leftfinger",
                 name="tool_leftfinger",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.046),
                 ),
             ),
             FrameTransformerCfg.FrameCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/panda_rightfinger",
+                prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_rightfinger",
                 name="tool_rightfinger",
                 offset=OffsetCfg(
                     pos=(0.0, 0.0, 0.046),
@@ -50,6 +55,8 @@ class FrankaCabinetSceneCfg(CabinetSceneCfg):
 
 @configclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
+    """Cabinet-opening environment with a Franka Panda arm driven by joint position targets."""
+
     scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
 
     def __post_init__(self):
@@ -76,6 +83,5 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
 
     def play_mode(self):
         super().play_mode()
-
         # make a smaller scene for play
         self.scene.env_spacing = 2.5

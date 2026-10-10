@@ -1,14 +1,20 @@
 :orphan:
 
+.. _isaac-lab-robots:
+.. _tutorial-add-new-robot:
 .. _how-to-write-articulation-config:
+.. _writing-an-asset-configuration:
+.. _robot-configurations:
+.. _adding-a-new-robot-to-isaac-lab:
 
 
-Writing an Asset Configuration
-==============================
+Robot and articulation configuration
+====================================
 
 .. currentmodule:: isaaclab
 
-This guide walks through the process of creating an :class:`~assets.ArticulationCfg`.
+A jointed robot is represented as an articulation in Isaac Lab. This guide covers reusing
+an existing robot configuration and authoring a new :class:`~assets.ArticulationCfg`.
 The :class:`~assets.ArticulationCfg` is a configuration object that defines the
 properties of an :class:`~assets.Articulation` in Isaac Lab.
 
@@ -16,6 +22,20 @@ properties of an :class:`~assets.Articulation` in Isaac Lab.
 
    While we only cover the creation of an :class:`~assets.ArticulationCfg` in this guide,
    the process is similar for creating any other asset configuration object.
+
+Reusing a robot configuration
+-----------------------------
+
+Maintained robot configurations live in ``source/isaaclab_assets/isaaclab_assets/robots``.
+Import a configuration from ``isaaclab_assets`` and copy it before changing its spawn
+properties, initial state, or actuators. Keep project-specific configurations in a Python
+module in your own project; they do not need to be added to Isaac Lab.
+
+Import ``clone`` and ``replace`` from ``isaaclab.utils``. For example,
+``robot_cfg = clone(CARTPOLE_CFG)`` creates an independent configuration.
+Use ``replace(robot_cfg, prim_path="{ENV_REGEX_NS}/Robot")`` when adding it to an
+:class:`~scene.InteractiveSceneCfg`. The physics backend is selected separately from
+this robot configuration, as explained below.
 
 We will use the Cartpole example to demonstrate how to create an :class:`~assets.ArticulationCfg`.
 The Cartpole is a simple robot that consists of a cart with a pole attached to it. The cart
@@ -30,6 +50,38 @@ is free to move along a rail, and the pole is free to rotate about the cart. The
       :linenos:
 
 
+.. _asset-config-backends:
+
+Choosing shared and backend-specific settings
+---------------------------------------------
+
+Use the shared :class:`~assets.ArticulationCfg` for the robot's initial state and actuators.
+The simulation selects the physics backend separately.
+
+For common USD properties, use the solver-common fragments from ``isaaclab.sim.schemas``, such as
+:class:`~sim.schemas.UsdPhysicsRigidBodyCfg` and :class:`~sim.schemas.UsdPhysicsDriveCfg`. Pass
+a backend's fragments from ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
+``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
+settings alongside them in the same spawner field. See :doc:`../concepts/schema_fragments` for
+the fragment API. The Cartpole below already has both PhysX and Newton articulation fragments;
+its PhysX solver settings do not configure Newton's solver. To change Newton's self-collision setting:
+
+.. code-block:: python
+
+   from isaaclab_assets import CARTPOLE_CFG
+   from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+
+   from isaaclab.utils import clone
+
+   robot_cfg = clone(CARTPOLE_CFG)
+   newton_props = next(cfg for cfg in robot_cfg.spawn.articulation_props if isinstance(cfg, NewtonArticulationCfg))
+   newton_props.self_collision_enabled = True
+
+See :doc:`solver_tuning_mjwarp` for solver settings,
+:doc:`prepare_asset_for_newton`
+for asset tuning, and :ref:`import-new-asset-multi-backend` for converted USD variants.
+
+
 Defining the spawn configuration
 --------------------------------
 
@@ -42,14 +94,15 @@ When spawning an asset from a USD file, we define its :class:`~sim.spawners.from
 This configuration object takes in the following parameters:
 
 * :class:`~sim.spawners.from_files.UsdFileCfg.usd_path`: The USD file path to spawn from
-* :class:`~sim.spawners.from_files.UsdFileCfg.rigid_props`: The properties of the articulation's root
-* :class:`~sim.spawners.from_files.UsdFileCfg.articulation_props`: The properties of all the articulation's links
+* :class:`~sim.spawners.from_files.UsdFileCfg.rigid_props`: The properties of the articulation's rigid-body links
+* :class:`~sim.spawners.from_files.UsdFileCfg.articulation_props`: The properties of the articulation root
 
 The last two parameters are optional. If not specified, they are kept at their default values in the USD file.
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :lines: 19-35
+   :start-at:     spawn=sim_utils.UsdFileCfg(
+   :end-before:     init_state=
    :dedent:
 
 To import articulation from a URDF file instead of a USD file, you can replace the
@@ -77,7 +130,8 @@ Meanwhile, the joint positions and velocities are set to 0.0.
 
 .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
    :language: python
-   :lines: 36-38
+   :start-at:     init_state=
+   :end-before:     actuators=
    :dedent:
 
 Defining the actuator configuration
@@ -99,7 +153,8 @@ to combine them into a single actuator model.
 
    .. literalinclude:: ../../../source/isaaclab_assets/isaaclab_assets/robots/cartpole.py
       :language: python
-      :lines: 39-49
+      :start-at:     actuators=
+      :end-at:     },
       :dedent:
 
 
@@ -126,7 +181,7 @@ to combine them into a single actuator model.
    ``None`` retains the imported USD value; explicit actuator configurations use
    effort mode. Zero-gain USD drives therefore need no placeholder solely for a
    configured actuator. See :ref:`import-new-asset-ensure-drives-exist` for when
-   :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist`
    remains useful.
 
 
@@ -253,3 +308,63 @@ Here's an example of what you'll see::
 
 To keep the cleaniness of logging, :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print`
 default to False, remember to turn it on when wishes.
+
+
+.. _robot-configuration-example:
+.. _the-code:
+.. _the-code-explained:
+
+Example: configure and run two robots
+-------------------------------------
+
+The runnable example ``scripts/tutorials/01_assets/add_new_robot.py`` contrasts a minimal
+Jetbot configuration with a more detailed Dofbot configuration. Start with an imported USD
+asset (see :doc:`import_new_asset`) and define its spawn properties and actuators. Jetbot
+retains the joint gains authored in the USD by setting stiffness and damping to ``None``.
+Both fields must be specified, even when using these USD defaults:
+
+.. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
+   :language: python
+   :start-at: JETBOT_CONFIG =
+   :end-before: DOFBOT_CONFIG =
+
+Dofbot additionally sets initial joint positions, groups joints by name, and specifies
+actuator gains and limits. Its solver iterations and maximum depenetration velocity are
+PhysX-specific; use :ref:`asset-config-backends` when adapting these properties to Newton.
+The keys in ``init_state.joint_pos`` identify USD joints, not actuator groups. Joint names can
+be matched with regular expressions; for example, ``.*`` selects all joints.
+
+.. dropdown:: Expanded Dofbot configuration from the runnable example
+   :icon: code
+
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
+      :language: python
+      :start-at: DOFBOT_CONFIG =
+      :end-before: class NewRobotsSceneCfg
+
+The example adds both configurations to an ``InteractiveSceneCfg``, assigns each robot a
+path under every environment, and constructs the scene. Its loop resets root and joint
+states, sets joint targets, writes commands, steps physics, and updates the scene buffers.
+See :ref:`tutorial-interactive-scene` for scene construction and
+:ref:`tutorial-interact-articulation` for the reset and control loop.
+
+.. dropdown:: Complete runnable example
+   :icon: code
+
+   .. literalinclude:: ../../../scripts/tutorials/01_assets/add_new_robot.py
+      :language: python
+      :linenos:
+
+Run the example in the Isaac Sim viewport:
+
+.. code-block:: bash
+
+   uv run isaaclab -p scripts/tutorials/01_assets/add_new_robot.py --viz kit
+
+This example uses PhysX physics and requires Isaac Sim. The Dofbot gripper is not actuated
+in this example, so a warning about unconfigured joints is expected. Stop the example with ``Ctrl+C``.
+
+.. figure:: ../_static/tutorials/tutorial_add_new_robot_result.jpg
+   :align: center
+   :figwidth: 100%
+   :alt: Jetbot and Dofbot running in the example scene.

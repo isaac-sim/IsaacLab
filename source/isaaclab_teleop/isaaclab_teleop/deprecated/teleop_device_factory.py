@@ -16,10 +16,10 @@ import inspect
 import logging
 import warnings
 from collections.abc import Callable
-from typing import cast
 
 from isaaclab.devices import DeviceBase, DeviceCfg
 from isaaclab.devices.retargeter_base import RetargeterBase
+from isaaclab.utils import instantiate
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -92,10 +92,10 @@ def create_teleop_device(
 
     # Build constructor kwargs based on signature
     constructor_params = inspect.signature(device_constructor).parameters
-    params: dict = {"cfg": device_cfg}
+    params: dict = {}
     if "retargeters" in constructor_params:
         params["retargeters"] = retargeters
-    device = cast(DeviceBase, device_constructor(**params))
+    device = instantiate(device_cfg, **params)
 
     # Register callbacks
     for key, callback in callbacks.items():

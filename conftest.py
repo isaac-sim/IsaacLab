@@ -51,9 +51,18 @@ def _journal_write(record: dict) -> None:
     The per-record flush is the whole point: it puts the data in the OS page cache before the
     next test starts, so a process killed by a signal cannot take down verdicts it had already
     reported. Journaling failures are swallowed — losing debug context must never fail a run.
+
+    Under ``pytest-xdist`` the controller receives every worker's start, report and finish, so only
+    it journals those; each worker journaling too would record every event twice and leave a
+    worker crash that xdist recovered from looking like an in-flight test. The controller never
+    collects, so the ``collected`` record comes from the first worker instead (every worker
+    collects the same items).
     """
     path = os.environ.get(JOURNAL_ENV_VAR)
     if not path:
+        return
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker and (record["event"] != "collected" or worker != "gw0"):
         return
     try:
         with open(path, "a", encoding="utf-8") as handle:

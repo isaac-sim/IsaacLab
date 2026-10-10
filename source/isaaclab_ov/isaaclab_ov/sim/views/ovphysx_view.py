@@ -46,10 +46,14 @@ from __future__ import annotations
 
 import logging
 import math
+from fnmatch import fnmatchcase
 from typing import Any, ClassVar, Protocol
 
 import warp as wp
 
+from isaaclab import cloner
+
+from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
 
@@ -57,6 +61,28 @@ logger = logging.getLogger(__name__)
 
 # Pure-Python enum (no native dependency); safe to import regardless of USD state.
 TensorType = import_ovphysx("ovphysx.types").TensorType
+
+
+def _expand_env_pattern(pattern: str, plan: cloner.ClonePlan | None) -> list[str]:
+    """Expand planned world instances in world order; leave other native globs unchanged."""
+    if plan is None:
+        return [pattern]
+    templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    paths = []
+    for group in range(1, len(starts) - 1):
+        env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+        for template in templates[starts[group] : starts[group + 1]]:
+            matched = cloner.path.match(pattern, template)
+            if matched is not None:
+                paths.extend(
+                    (int(env_id), template.format(env_id) + matched.suffix)
+                    for env_id in env_ids
+                    if fnmatchcase(str(env_id), matched.instance)
+                )
+    return list(dict.fromkeys(path for _, path in sorted(paths))) if paths else [pattern]
+
 
 # Tensor types that cannot be written. The first group is read-only by PhysX
 # convention (accelerations, inverse mass/inertia, projected joint force); the
@@ -631,7 +657,14 @@ class OvPhysxView:
             return binding
         create_type = self._key_aliases.get(tensor_type, tensor_type)
         kwargs: dict[str, Any] = {"tensor_type": create_type}
-        if self._prim_paths is not None:
+        # Reuse resolved paths within each native family; rigid bodies and articulations may differ.
+        prefix = create_type.name.partition("_")[0] + "_"
+        previous = None
+        if prefix in ("RIGID_", "ARTICULATION_"):
+            previous = next((b for b in self._bindings.values() if b.tensor_type.name.startswith(prefix)), None)
+        if previous is not None:
+            kwargs["prim_paths"] = previous.prim_paths
+        elif self._prim_paths is not None:
             kwargs["prim_paths"] = self._prim_paths
         else:
             kwargs["pattern"] = self._pattern
@@ -658,6 +691,15 @@ class OvPhysxView:
                 f"Attribute {tensor_type_name(tensor_type)!r} is not available for {self._target_repr()} "
                 "(no matching prims)."
             )
+        # Variant batches are discovered in clone order, not environment order.
+        # Rebind only when needed; explicit path lists also preserve collection body order.
+        patterns = kwargs.get("prim_paths", [self._pattern])
+        paths = list(binding.prim_paths) if create_type.name.startswith(("RIGID_BODY_", "ARTICULATION_")) else []
+
+        ordered_paths = ordered_clone_paths(paths, patterns)
+        if ordered_paths != paths:
+            binding.destroy()
+            binding = self._physx.create_tensor_binding(prim_paths=ordered_paths, tensor_type=create_type)
         self._bindings[tensor_type] = binding
         self._live_views.add(self)
         return binding

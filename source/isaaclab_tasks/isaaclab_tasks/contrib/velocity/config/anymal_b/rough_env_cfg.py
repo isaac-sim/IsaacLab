@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
 
@@ -20,4 +20,4 @@ class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(ANYMAL_B_CFG, prim_path="{ENV_REGEX_NS}/Robot")

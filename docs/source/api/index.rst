@@ -87,7 +87,6 @@ The following modules are available in the ``isaaclab_contrib`` extension:
    controllers
    coupling
    custom_coupling
-   deformable
    mdp
    rl
    sensors
@@ -129,6 +128,7 @@ The following modules are available in the ``isaaclab_physx`` extension:
 .. autosummary::
    :toctree: lab_physx
 
+   app
    assets
    cloner
    physics
@@ -153,6 +153,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
 
    assets
    cloner
+   controllers
    physics
    renderers
    sensors
@@ -173,6 +174,7 @@ The following modules are available in the ``isaaclab_ov`` extension:
 .. autosummary::
    :toctree: lab_ov
 
+   app
    assets
    cloner
    physics
@@ -246,9 +248,10 @@ The following public modules provide additional specialized APIs:
    lab/isaaclab.utils.leapp
    lab_experimental/isaaclab_experimental.envs.mdp.actions
    lab_newton/isaaclab_newton.envs.mdp
-   lab_newton/isaaclab_newton.ik
    lab_newton/isaaclab_newton.sim.views
+   lab_ov/isaaclab_ov.envs.mdp
    lab_ov/isaaclab_ov.sensors
    lab_ov/isaaclab_ov.sensors.ray_caster
+   lab_physx/isaaclab_physx.envs.mdp
    lab_physx/isaaclab_physx.sim.views
    lab_ppisp/isaaclab_ppisp

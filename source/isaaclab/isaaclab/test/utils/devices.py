@@ -9,7 +9,9 @@ Intended use::
 
     from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 
-    simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+from isaaclab.test.utils import launch_test_simulation
+
+    launch_test_simulation(device=resolve_test_sim_device())
 
 
     @pytest.mark.parametrize("device", test_devices())  # cpu + cuda:0 + a non-default GPU
@@ -25,7 +27,7 @@ A test runs on ``scope ∩ runtime``:
 * **runtime** — the ``ISAACLAB_TEST_DEVICES`` env var: the devices the *run*
   may use. The operator / CI owns this; defaults to ``"110"`` (cpu + cuda:0).
   The multi-GPU workflow sets it to one device per shard. Kit-backed tests use
-  :func:`resolve_test_sim_device` to derive their AppLauncher boot device from
+  :func:`resolve_test_sim_device` to derive their Kit boot device from
   the same mask.
 
 A test author never names the shard's GPU; the operator never inspects a
@@ -119,10 +121,10 @@ class DeviceScope(Flag):
 
 
 def resolve_test_sim_device() -> str:
-    """Resolve the AppLauncher device from the test runtime device mask.
+    """Resolve the Kit launch device from the test runtime device mask.
 
     This function intentionally parses the mask without enumerating devices so
-    it can run before AppLauncher without importing torch or initializing Warp.
+    it can run before Kit launches without importing torch or initializing Warp.
     A Kit-backed test process can boot on only one GPU, so an explicitly set
     runtime must select at most one CUDA device. The CPU bit may accompany that
     GPU because the default single-GPU runtime covers both CPU and CUDA tests.
@@ -142,7 +144,7 @@ def resolve_test_sim_device() -> str:
         raise ValueError(f"Invalid {_RUNTIME_DEVICES_ENV_VAR} mask: {runtime!r}")
     if runtime.endswith("X"):
         raise ValueError(
-            f"{_RUNTIME_DEVICES_ENV_VAR}={runtime!r} is ambiguous for AppLauncher; use a concrete runtime mask"
+            f"{_RUNTIME_DEVICES_ENV_VAR}={runtime!r} is ambiguous for a Kit launch; use a concrete runtime mask"
         )
 
     cuda_positions = [position for position, included in enumerate(runtime[1:], start=1) if included == "1"]
@@ -241,7 +243,7 @@ def _list_available_devices() -> list[str]:
     Returns:
         Ordered list of device strings as torch addresses them.
     """
-    # Keep the import local so importing this test helper before AppLauncher
+    # Keep the import local so importing this test helper before Kit launches
     # does not import torch (and its transitive native libraries) before Kit.
     import torch
 

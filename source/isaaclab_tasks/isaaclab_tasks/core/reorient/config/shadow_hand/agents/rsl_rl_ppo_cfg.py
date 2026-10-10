@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
@@ -48,7 +48,7 @@ class ShadowHandManagerPPORunnerCfg(PresetCfg):
     """``presets=asymmetric`` feeds the critic the privileged observation group."""
 
     default = ShadowHandPPORunnerCfg()
-    asymmetric = ShadowHandPPORunnerCfg().replace(obs_groups={"actor": ["policy"], "critic": ["critic"]})
+    asymmetric = replace(ShadowHandPPORunnerCfg(), obs_groups={"actor": ["policy"], "critic": ["critic"]})
 
 
 @configclass

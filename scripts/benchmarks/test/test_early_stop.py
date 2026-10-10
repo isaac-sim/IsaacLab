@@ -40,6 +40,7 @@ class _FakeLogger:
 class _FakeRunner:
     def __init__(self, has_writer: bool = True):
         self.logger = _FakeLogger(has_writer=has_writer)
+        self.device = "cpu"
         self.current_learning_iteration = 7
         self.saved: list[str] = []
 
@@ -96,6 +97,7 @@ class _FakeAlgo:
     def __init__(self, horizon_length: int | None = None, config_horizon: int | None = 16, epoch_num: int = 0):
         self.max_epochs = 999
         self.epoch_num = epoch_num
+        self.ppo_device = "cpu"
         if horizon_length is not None:
             self.horizon_length = horizon_length
         self.config = {"horizon_length": config_horizon} if config_horizon is not None else {}

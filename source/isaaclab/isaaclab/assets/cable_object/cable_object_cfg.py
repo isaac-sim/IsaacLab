@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.assets.asset_base_cfg import AssetBaseCfg
-from isaaclab.utils import configclass
+from ...utils import configclass
+from ..asset_base_cfg import AssetBaseCfg
 
 if TYPE_CHECKING:
     from .cable_object import CableObject

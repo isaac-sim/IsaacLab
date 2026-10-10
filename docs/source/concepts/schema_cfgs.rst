@@ -3,6 +3,11 @@
 Schema Configuration Classes
 ============================
 
+.. important::
+
+   This page documents the deprecated single-cfg API, scheduled for removal in 3.2.
+   For new assets, use :doc:`schema fragments <schema_fragments>`.
+
 Isaac Lab's spawners author USD physics attributes onto prims via a layered set of
 configuration classes. The layering separates **universal-physics** parameters
 from **backend-specific** parameters, so the same asset cfg can be authored once
@@ -16,7 +21,7 @@ Migrating from 2.x? See :ref:`schemas-cfg-refactor` in the 3.0 migration guide.
 Quick example
 -------------
 
-Add MuJoCo (MJC) gravity compensation to an articulated asset:
+Legacy example: add MuJoCo (MJC) gravity compensation to an articulated asset:
 
 .. code-block:: python
 
@@ -381,7 +386,7 @@ aliases live on ``JointDriveBaseCfg`` today:
 
 The old names remain as real dataclass fields (so ``dataclasses.fields()``
 sees them), defaulting to ``None``. ``__post_init__`` runs
-``_deprecate_field_alias`` which, when the old field is set: emits a
+``deprecate_field_alias`` which, when the old field is set: emits a
 ``DeprecationWarning``, copies the value into the canonical field if the
 canonical is ``None``, then nulls the old field. Setting **both** in the same
 constructor is silent — the canonical wins; the old name's value is discarded.

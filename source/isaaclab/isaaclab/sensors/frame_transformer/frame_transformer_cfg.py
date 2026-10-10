@@ -8,9 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import configclass
-
+from ...markers.config import FRAME_MARKER_CFG, VisualizationMarkersCfg
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
@@ -73,7 +72,7 @@ class FrameTransformerCfg(SensorBaseCfg):
     frame using four frame offsets.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer")
+    visualizer_cfg: VisualizationMarkersCfg = replace(FRAME_MARKER_CFG, prim_path="/Visuals/FrameTransformer")
     """The configuration object for the visualization markers. Defaults to FRAME_MARKER_CFG.
 
     .. note::

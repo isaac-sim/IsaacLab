@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ActionTerm
+from isaaclab.utils import index_fill_
 
 from ..selection_utils import SceneEntitySelectionCfg
 
@@ -53,7 +54,7 @@ class _SelectedJointAction(ActionTerm):
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Clear raw actions for the reset global environments."""
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
 
 class SelectedJointPositionAction(_SelectedJointAction):

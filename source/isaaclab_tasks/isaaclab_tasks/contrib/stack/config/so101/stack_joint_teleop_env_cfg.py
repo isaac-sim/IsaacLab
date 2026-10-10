@@ -37,7 +37,7 @@ _SUCCESS_GRIPPER_ATOL = 0.5
 
 
 def _build_so101_joint_teleop_pipeline():
-    """Build an IsaacTeleop joint-space pipeline driven by the SO-101 leader arm.
+    """Build an Isaac Capture joint-space pipeline driven by the SO-101 leader arm.
 
     Unlike the XR-controller IK pipeline (see :mod:`.stack_ik_abs_env_cfg`), this path mirrors the
     physical leader arm's joint encoders straight onto the follower robot's joint targets -- no XR
@@ -121,7 +121,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     """SO-101 cube-stack environment teleoperated by the SO-101 leader arm (joint-space control).
 
     Reuses the seated robot, cube workspace, and end-effector frames from the joint-position base
-    env and swaps in an absolute joint-mirror action plus an IsaacTeleop joint-space pipeline. The
+    env and swaps in an absolute joint-mirror action plus an Isaac Capture joint-space pipeline. The
     leader arm's encoders drive the follower's five arm joints and gripper DOF directly, so the
     follower reproduces the operator's pose without any inverse kinematics or XR tracking.
     """
@@ -150,7 +150,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
             ),
         )
 
-        # IsaacTeleop joint-space pipeline. Unlike the IK env this needs no ``target_frame_prim_path``
+        # Isaac Capture joint-space pipeline. Unlike the IK env this needs no ``target_frame_prim_path``
         # (there is no pose to rebase into the base frame) and does not read the XR anchor -- the
         # leader plugin streams joint state over the OpenXR tensor transport, which the session still
         # provides. ``xr_cfg`` is forwarded only to satisfy the session's XR bootstrap. Launch the

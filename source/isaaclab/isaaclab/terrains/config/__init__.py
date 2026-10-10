@@ -5,6 +5,6 @@
 
 """Pre-defined terrain configurations for the terrain generator."""
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

@@ -12,7 +12,8 @@ from typing import Literal
 
 from .dispatch import run_play_cli, run_random_agent_cli, run_train_cli, run_zero_agent_cli
 
-BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl"]
+BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl"]
+"""Backends of the unified entrypoints."""
 
 MULTI_GPU_BACKENDS: tuple[BackendName, ...] = ("rl_games", "rsl_rl", "skrl")
 """Backends the multi-GPU launcher can drive."""
@@ -31,7 +32,7 @@ class TrainingRequest:
         seed: Environment and agent seed.
         max_iterations: Maximum training iterations.
         device: Simulation device identifier.
-        video: Whether to record training video.
+        video: Whether to record training video; a string names the ``--video`` source, e.g. ``"viz:kit"``.
         distributed: Whether to enable distributed training.
         backend_args: Backend-specific command-line arguments.
         hydra_args: Hydra overrides and typed preset selectors.
@@ -45,7 +46,7 @@ class TrainingRequest:
     seed: int | None = None
     max_iterations: int | None = None
     device: str | None = None
-    video: bool = False
+    video: bool | str = False
     distributed: bool = False
     backend_args: tuple[str, ...] = field(default_factory=tuple)
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
@@ -63,7 +64,7 @@ class PlaybackRequest:
         num_envs: Number of environments to simulate.
         seed: Environment and agent seed.
         device: Simulation device identifier.
-        video: Whether to record playback video.
+        video: Whether to record playback video; a string names the ``--video`` source, e.g. ``"viz:kit"``.
         backend_args: Backend-specific command-line arguments.
         hydra_args: Hydra overrides and typed preset selectors.
     """
@@ -75,7 +76,7 @@ class PlaybackRequest:
     num_envs: int | None = None
     seed: int | None = None
     device: str | None = None
-    video: bool = False
+    video: bool | str = False
     backend_args: tuple[str, ...] = field(default_factory=tuple)
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
 
@@ -89,6 +90,8 @@ class SimpleAgentRequest:
         num_envs: Number of environments to simulate.
         device: Simulation device identifier.
         max_steps: Number of environment steps to run. Runs unbounded when omitted.
+        video: Whether to record video; a string names the ``--video`` source, e.g. ``"viz:kit"``. The run
+            stops once every recorder finishes its first clip.
         hydra_args: Hydra overrides and typed preset selectors.
     """
 
@@ -96,6 +99,7 @@ class SimpleAgentRequest:
     num_envs: int | None = None
     device: str | None = None
     max_steps: int | None = None
+    video: bool | str = False
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -155,8 +159,7 @@ def _training_argv(request: TrainingRequest) -> list[str]:
     _append_value(argv, "--seed", request.seed)
     _append_value(argv, "--max_iterations", request.max_iterations)
     _append_value(argv, "--device", request.device)
-    if request.video:
-        argv.append("--video")
+    _append_video(argv, request.video)
     # SB3 does not support distributed training; skip the flag for that backend.
     if request.distributed and request.backend != "sb3":
         argv.append("--distributed")
@@ -170,8 +173,7 @@ def _playback_argv(request: PlaybackRequest) -> list[str]:
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--seed", request.seed)
     _append_value(argv, "--device", request.device)
-    if request.video:
-        argv.append("--video")
+    _append_video(argv, request.video)
     return argv + list(request.backend_args) + list(request.hydra_args)
 
 
@@ -180,7 +182,14 @@ def _simple_agent_argv(request: SimpleAgentRequest) -> list[str]:
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--device", request.device)
     _append_value(argv, "--max_steps", request.max_steps)
+    _append_video(argv, request.video)
     return argv + list(request.hydra_args)
+
+
+def _append_video(argv: list[str], video: bool | str) -> None:
+    """Append ``--video`` when recording, with its source attached when one was given."""
+    if video:
+        argv.append("--video" if video is True else f"--video={video}")
 
 
 def _append_value(argv: list[str], option: str, value: str | int | None) -> None:

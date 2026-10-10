@@ -17,24 +17,27 @@ from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
+from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.managers import EventTermCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 
-def test_gravity_event_changes_rigid_body_motion():
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_gravity_event_changes_rigid_body_motion(device):
     """The gravity event must dispatch through OvStage and change motion in OvPhysX."""
-    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0)
-    with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
+    sim_cfg = SimulationCfg(physics=PhysxAutoCfg(ovphysx=OvPhysxCfg()), device=device, dt=1.0 / 60.0)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
         cube = RigidObject(
             RigidObjectCfg(
                 prim_path="/World/Cube",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 10.0)),
                 spawn=sim_utils.CuboidCfg(
                     size=(0.5, 0.5, 0.5),
-                    rigid_props=sim_utils.RigidBodyBaseCfg(),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionBaseCfg(),
+                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
+                    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
                 ),
             )
         )
@@ -45,7 +48,11 @@ def test_gravity_event_changes_rigid_body_motion():
         env = SimpleNamespace(device=sim.device, sim=sim)
         event_cfg = EventTermCfg(
             func=randomize_physics_scene_gravity,
-            params={"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"},
+            params={
+                "gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+                "operation": "abs",
+                "distribution": "gaussian",
+            },
         )
         gravity_event = randomize_physics_scene_gravity(event_cfg, env)
 
@@ -59,7 +66,7 @@ def test_gravity_event_changes_rigid_body_motion():
             gravity_event(
                 env,
                 env_ids=None,
-                gravity_distribution_params=(gravity, gravity),
+                gravity_distribution_params=(gravity, (0.0, 0.0, 0.0)),
                 operation="abs",
             )
 
@@ -79,3 +86,4 @@ def test_gravity_event_changes_rigid_body_motion():
 
         assert zero_gravity_height == pytest.approx(initial_height, abs=1.0e-4)
         assert earth_gravity_height - zero_gravity_height < -0.5
+        assert cube.data.root_lin_vel_w.torch[0, 2].item() == pytest.approx(0.001 - 9.81 * 30 * dt, abs=0.02)

@@ -108,7 +108,7 @@ def test_a_view_without_the_actuator_frequency_resolves_to_nothing():
 
 
 def test_a_tendon_no_actuator_drives_gets_no_column():
-    """A passive tendon keeps column -1; the other tendons still find their actuators."""
+    """A passive tendon gets no column; the other tendons still find their actuators."""
     view, model = _make_view_and_model(tendon_count=3)
 
     columns, tendon_ids = resolve_fixed_tendon_actuator_columns(view, model)
@@ -140,7 +140,7 @@ def test_tendons_no_actuator_transmits_to_are_named_once(caplog):
     with caplog.at_level(logging.WARNING):
         MjWarpTendonControl(articulation, _pair([1, 2], [0, 2]), articulation.root_view)
 
-    assert "passive" in caplog.text
+    assert caplog.text.count("passive") == 1
     assert "rh_FFJ0" not in caplog.text
 
 

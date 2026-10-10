@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for multi-GPU launcher shutdown, which used to leave worker processes behind.
-
-The launcher ran torchrun inside its own process group, so a terminal Ctrl-C reached torchrun and
-every worker at the same moment the launcher forwarded a signal of its own. The extra signal landed
-inside torchelastic's shutdown handler, which aborted before reaping the workers it had spawned.
-"""
+"""Tests for multi-GPU launcher process isolation and shutdown."""
 
 from __future__ import annotations
 
@@ -18,6 +13,8 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -25,8 +22,7 @@ from isaaclab.cli import multigpu
 
 pytestmark = pytest.mark.skipif(not hasattr(os, "killpg"), reason="process groups are POSIX-only")
 
-# A parent that spawns a child and sleeps, standing in for torchrun and its workers. The child pid is
-# printed so the test can watch it independently of the parent.
+# Model the torchrun process and one worker in a separate child process.
 _PARENT_WITH_CHILD = (
     "import subprocess, sys, time\n"
     "child = subprocess.Popen([sys.executable, '-c', {child!r}])\n"
@@ -50,15 +46,14 @@ def _pid_is_alive(pid: int) -> bool:
     return True
 
 
-def _wait_until(predicate, timeout: float) -> bool:
+def _wait_until(predicate: Callable[[], bool], timeout: float) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline and not predicate():
         time.sleep(0.05)
     return predicate()
 
 
-def _run_and_interrupt(monkeypatch, child_source: str) -> int:
-    """Run a fake worker tree through the launcher, interrupt it, and return the grandchild pid."""
+def _run_and_interrupt(monkeypatch: pytest.MonkeyPatch, child_source: str) -> int:
     grandchild: dict[str, int] = {}
     real_popen = subprocess.Popen
 
@@ -73,37 +68,30 @@ def _run_and_interrupt(monkeypatch, child_source: str) -> int:
     return grandchild["pid"]
 
 
-def test_child_runs_in_its_own_process_group():
-    """The terminal must not be able to signal the worker tree directly."""
-    recorded: dict[str, object] = {}
-    real_popen = subprocess.Popen
-
-    def _record(command, **kwargs):
-        recorded["new_session"] = kwargs.get("start_new_session")
-        return real_popen(command, **kwargs)
-
-    subprocess.Popen = _record
-    try:
-        assert multigpu.run_launch_command([sys.executable, "-c", "pass"]) == 0
-    finally:
-        subprocess.Popen = real_popen
-    assert recorded["new_session"] is True
+def test_child_session_and_exit_status(tmp_path: Path) -> None:
+    """The child runs in an isolated session and returns its exit status."""
+    result_file = tmp_path / "session"
+    source = (
+        "import os, pathlib; "
+        f"pathlib.Path({str(result_file)!r}).write_text(f'{{os.getpid()}} {{os.getpgrp()}} {{os.getsid(0)}}'); "
+        "raise SystemExit(7)"
+    )
+    assert multigpu.run_launch_command([sys.executable, "-c", source]) == 7
+    pid, group, session = map(int, result_file.read_text(encoding="utf-8").split())
+    assert pid == group == session
+    assert group != os.getpgrp()
 
 
-def test_interrupt_reaps_grandchildren(monkeypatch):
-    """Workers are torchrun's children, so signalling only the direct child leaves them behind."""
+def test_interrupt_reaps_grandchildren(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Interrupting the launcher reaps descendant worker processes."""
     grandchild = _run_and_interrupt(monkeypatch, _PLAIN_CHILD)
     assert _wait_until(lambda: not _pid_is_alive(grandchild), timeout=15.0)
 
 
-def test_worker_ignoring_signals_is_killed(monkeypatch):
-    """A worker wedged in a native call never observes a signal, so escalation has to end it."""
+def test_worker_ignoring_signals_is_killed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Shutdown escalates when a worker ignores termination signals."""
     monkeypatch.setattr(multigpu, "_GRACEFUL_SHUTDOWN_S", 1.0)
     monkeypatch.setattr(multigpu, "_FORCED_SHUTDOWN_S", 1.0)
     monkeypatch.setattr(multigpu, "_STRAGGLER_GRACE_S", 2.0)
     grandchild = _run_and_interrupt(monkeypatch, _DEAF_CHILD)
     assert _wait_until(lambda: not _pid_is_alive(grandchild), timeout=20.0)
-
-
-def test_successful_run_returns_its_exit_code():
-    assert multigpu.run_launch_command([sys.executable, "-c", "raise SystemExit(7)"]) == 7

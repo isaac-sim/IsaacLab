@@ -96,6 +96,20 @@ def _candidate_lattice(vertices: np.ndarray, spacing: float, inset: float, jitte
     return grid
 
 
+def _prepare_lattice_query(
+    vertices: np.ndarray, faces: np.ndarray, grid: np.ndarray, device: str
+) -> tuple[wp.Mesh, wp.array, wp.array]:
+    """Create the winding-number mesh and candidate and result buffers on the selected device."""
+    mesh = wp.Mesh(
+        points=wp.array(vertices, dtype=wp.vec3, device=device),
+        indices=wp.array(faces.reshape(-1), dtype=wp.int32, device=device),
+        support_winding_number=True,
+    )
+    candidates = wp.array(grid, dtype=wp.vec3, device=device)
+    inside = wp.empty(grid.shape[0], dtype=wp.float32, device=device)
+    return mesh, candidates, inside
+
+
 @wp.kernel
 def mark_points_in_mesh_kernel(
     points: wp.array(dtype=wp.vec3),
@@ -178,14 +192,7 @@ def sample_particles_in_mesh(
     grid = _candidate_lattice(vertices, spacing, inset, jitter, seed)
     if grid.shape[0] == 0:
         return np.empty((0, 3), dtype=np.float32)
-
-    mesh = wp.Mesh(
-        points=wp.array(vertices, dtype=wp.vec3, device=device),
-        indices=wp.array(faces.reshape(-1), dtype=wp.int32, device=device),
-        support_winding_number=True,
-    )
-    candidates = wp.array(grid, dtype=wp.vec3, device=device)
-    inside = wp.empty(grid.shape[0], dtype=wp.float32, device=device)
+    mesh, candidates, inside = _prepare_lattice_query(vertices, faces, grid, device)
     wp.launch(
         mark_points_in_mesh_kernel,
         dim=grid.shape[0],
@@ -193,8 +200,7 @@ def sample_particles_in_mesh(
         outputs=[inside],
         device=device,
     )
-    mask = inside.numpy() > 0.5
-    return np.ascontiguousarray(grid[mask], dtype=np.float32)
+    return np.ascontiguousarray(grid[inside.numpy() > 0.5], dtype=np.float32)
 
 
 @wp.kernel
@@ -327,14 +333,7 @@ def sample_particles_in_cavity(
         if max_ray_dist <= 0.0:
             raise ValueError("The mesh AABB diagonal must be positive when `max_ray_dist` is None.")
     level = float(water_level) if water_level is not None else 1.0e30
-
-    mesh = wp.Mesh(
-        points=wp.array(vertices, dtype=wp.vec3, device=device),
-        indices=wp.array(faces.reshape(-1), dtype=wp.int32, device=device),
-        support_winding_number=True,
-    )
-    candidates = wp.array(grid, dtype=wp.vec3, device=device)
-    inside = wp.empty(grid.shape[0], dtype=wp.float32, device=device)
+    mesh, candidates, inside = _prepare_lattice_query(vertices, faces, grid, device)
     wp.launch(
         mark_cavity_points_kernel,
         dim=grid.shape[0],
@@ -350,5 +349,4 @@ def sample_particles_in_cavity(
         outputs=[inside],
         device=device,
     )
-    mask = inside.numpy() > 0.5
-    return np.ascontiguousarray(grid[mask], dtype=np.float32)
+    return np.ascontiguousarray(grid[inside.numpy() > 0.5], dtype=np.float32)

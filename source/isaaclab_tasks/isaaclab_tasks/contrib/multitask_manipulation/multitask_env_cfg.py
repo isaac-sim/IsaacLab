@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import FRAME_MARKER_CFG, SPHERE_MARKER_CFG, VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as add_scene
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.lift.config.openarm.joint_pos_env_cfg import OpenArmCubeLiftEnvCfg
@@ -86,14 +86,14 @@ def _reach_robot_cfg() -> SceneEntitySelectionCfg:
 
 def _frame_marker_cfg(prim_path: str) -> VisualizationMarkersCfg:
     """Create a compact frame marker at a task-unique path."""
-    cfg = FRAME_MARKER_CFG.replace(prim_path=prim_path)
+    cfg = replace(FRAME_MARKER_CFG, prim_path=prim_path)
     cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     return cfg
 
 
 def _sphere_marker_cfg(prim_path: str, color: tuple[float, float, float]) -> VisualizationMarkersCfg:
     """Create a compact sphere marker at a task-unique path."""
-    cfg = SPHERE_MARKER_CFG.replace(prim_path=prim_path)
+    cfg = replace(SPHERE_MARKER_CFG, prim_path=prim_path)
     cfg.markers["sphere"].radius = 0.025
     cfg.markers["sphere"].visual_material.diffuse_color = color
     return cfg
@@ -115,8 +115,8 @@ def _make_scene_cfg() -> InteractiveSceneCfg:
     scene.num_envs = 4096
     scene.env_spacing = 2.0
     scene.replicate_physics = True
-    scene.plane = PLANE_CFG.copy()
-    scene.light = LIGHT_CFG.copy()
+    scene.plane = clone(PLANE_CFG)
+    scene.light = clone(LIGHT_CFG)
     return scene
 
 
@@ -465,6 +465,8 @@ class CurriculumCfg:
 @configclass
 class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based heterogeneous manipulation training environment."""
+
+    class_type: type | str = "{DIR}.multitask_env:MultitaskManipulationEnv"
 
     scene: InteractiveSceneCfg = _make_scene_cfg()
     observations: ObservationsCfg = ObservationsCfg()

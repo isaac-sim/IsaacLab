@@ -23,11 +23,12 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.fourbar_pole.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
 
 ##
 # Pre-defined configs
@@ -84,7 +85,7 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
     )
 
     # fourbar-pole
-    robot: ArticulationCfg = FOURBAR_POLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(FOURBAR_POLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
     dome_light = AssetBaseCfg(

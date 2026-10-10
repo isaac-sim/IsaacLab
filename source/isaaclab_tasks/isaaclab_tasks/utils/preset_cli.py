@@ -22,7 +22,7 @@ against a config of that type). Callers simply assign the remainder to
 No argparse arguments are registered for the typed selectors -- their
 discoverability lives in the ``argument_group`` description, so the parsed
 Namespace gains no preset attributes and cannot shadow
-:class:`~isaaclab.app.AppLauncher` SimulationApp config keys (``renderer``
+:class:`~isaaclab_physx.app.KitLauncher` SimulationApp config keys (``renderer``
 notably).
 
 Typical script setup::
@@ -43,7 +43,7 @@ vocabulary::
         remaining = list_intersection(remaining, external_callback_function())
     sys.argv = [sys.argv[0]] + remaining
 
-``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
+``setup_preset_cli`` does NOT add launcher flags itself -- callers add them
 explicitly via :func:`isaaclab.app.add_launcher_args` before calling.
 """
 
@@ -64,7 +64,7 @@ def setup_preset_cli(
 ) -> tuple[argparse.Namespace, list[str]]:
     """Register the preset-selection help description and parse argv.
 
-    Must be called *after* AppLauncher flags and script-specific arguments are
+    Must be called *after* launcher flags and script-specific arguments are
     registered on ``parser`` -- otherwise those unknown tokens land in
     ``parse_known_args``'s remainder.
 
@@ -87,6 +87,12 @@ def setup_preset_cli(
             argv. Help-time variant enumeration always reads ``sys.argv`` --
             the user's interactive command line is the only argv that
             triggers ``--help`` rendering.
+    A Hydra override is never the value of an option whose value is optional
+    (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
+    option's default source and passes the override on. Overrides always
+    contain ``=``, so such an option followed by a token with ``=`` takes its
+    ``const`` instead.
+
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
         ``parser.parse_known_args(argv)``, ready to hand to Hydra via
@@ -111,7 +117,7 @@ def setup_preset_cli(
         parser.formatter_class = _PresetHelpFormatter
 
     # Help-only group: no add_argument() calls means no preset attributes on
-    # the Namespace, so AppLauncher can't accidentally forward one (notably
+    # the Namespace, so the Kit launcher can't accidentally forward one (notably
     # ``renderer``) into SimulationApp config.
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
@@ -120,6 +126,16 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
+    optional_value_consts = {
+        option: action.const
+        for action in parser._actions
+        if action.nargs == argparse.OPTIONAL
+        for option in action.option_strings
+    }
+    args_to_parse = [
+        f"{token}={optional_value_consts[token]}" if token in optional_value_consts and "=" in next_token else token
+        for token, next_token in zip(args_to_parse, [*args_to_parse[1:], ""])
+    ]
     return parser.parse_known_args(args_to_parse)
 
 
@@ -135,7 +151,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     using the same logic that the CLI help-text renderer uses, so the returned
     view matches what ``--task=<name> --help`` shows at the command line.
 
-    This function is safe to call after :class:`~isaaclab.app.AppLauncher` has
+    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
@@ -291,7 +307,7 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
     """Load env_cfg for *task_name* and bucket its variants by target.
 
     Uses the same walker hydra's resolver runs so help and resolve see one
-    view of the cfg tree. The env_cfg load is safe before AppLauncher boots
+    view of the cfg tree. The env_cfg load is safe before the simulation runtime starts
     because ``test_env_cfg_no_forbidden_imports`` blocks Kit-only imports at
     the top level of cfg modules. Exceptions from the loader propagate
     verbatim -- they surface as the natural error, not a buried help string.

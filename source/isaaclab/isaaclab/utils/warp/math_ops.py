@@ -21,14 +21,16 @@ def transform_to_vec_quat(
 
     Raises:
         TypeError: If *t* does not have dtype ``wp.transformf``.
+        ValueError: If *t* has more than 3 dimensions.
     """
     if t.dtype != wp.transformf:
         raise TypeError(f"Expected wp.transformf array, got dtype={t.dtype}")
+    # Check before viewing: the float view adds a dimension, which Warp rejects for a 4D input.
+    if t.ndim > 3:
+        raise ValueError(f"Expected 1D, 2D, or 3D transform array, got ndim={t.ndim}")
     floats = t.view(wp.float32)
     if t.ndim == 1:
         return floats[:, :3].view(wp.vec3f), floats[:, 3:].view(wp.quatf)
     if t.ndim == 2:
         return floats[:, :, :3].view(wp.vec3f), floats[:, :, 3:].view(wp.quatf)
-    if t.ndim == 3:
-        return floats[:, :, :, :3].view(wp.vec3f), floats[:, :, :, 3:].view(wp.quatf)
-    raise ValueError(f"Expected 1D, 2D, or 3D transform array, got ndim={t.ndim}")
+    return floats[:, :, :, :3].view(wp.vec3f), floats[:, :, :, 3:].view(wp.quatf)

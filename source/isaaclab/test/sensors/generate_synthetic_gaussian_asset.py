@@ -631,10 +631,9 @@ class SyntheticGaussianSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Anchor",
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.001),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),

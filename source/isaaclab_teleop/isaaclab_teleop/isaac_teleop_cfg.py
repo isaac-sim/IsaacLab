@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration class for IsaacTeleop-based teleoperation."""
+"""Configuration class for Isaac Capture-based teleoperation."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ CLOUDXR_JS_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxrjs-cloudxr.env")
 CLOUDXR_STANDALONE_ENV: str = str(_CLOUDXR_ENV_DIR / "cloudxr-standalone.env")
 """Absolute path to the standalone (headless, no XR client) CloudXR ``.env`` profile.
 
-Default profile for teleop scripts run without ``--xr``, where IsaacTeleop is a
+Default profile for teleop scripts run without ``--xr``, where Isaac Capture is a
 pure input/output transport and creates its own OpenXR session. It forces a
 ``quest3`` device profile so the CloudXR runtime advertises an OpenXR system with
 no client connected, working around ``XR_ERROR_FORM_FACTOR_UNAVAILABLE`` (``-35``).
@@ -57,9 +57,9 @@ class XrCameraFeedCfg:
     enable_dlss_ray_reconstruction: bool | None = None
     """Enable DLSS Ray Reconstruction on this feed's RTX render product.
 
-    ``None`` preserves the render-product default. On Isaac Sim versions before
-    6.1, ``True`` falls back to classic DLSS because responsive denoising is
-    unavailable. The private PiP adapter applies this setting on a best-effort
+    ``None`` preserves the render-product default. When ``True``, the teleoperation
+    and recording scripts also enable responsive denoising before environment
+    construction. The private PiP adapter applies this setting on a best-effort
     basis when binding to a compatible render product. Backends without one keep
     using the Camera-buffer fallback.
     """
@@ -139,15 +139,27 @@ class XrCameraFeedLayoutCfg:
     applied in the resulting local XY plane.
     """
 
+    use_scene_partition: bool = False
+    """Isolate the entire SceneUI root from robot cameras. Defaults to False.
+
+    Preparation disables selected Isaac RTX cameras' environment partitioning before
+    environment construction. Binding sets ``showAllPartitionsByDefault=False`` after renderer
+    initialization and before creating panels. Other scene cameras must also disable partitioning.
+    Geometry starts as shared background; the presenter assigns
+    XR and ``/ui`` to the PiP partition and refreshes inheritance when SceneUI children appear.
+    Camera configuration is restored after the last prepared session closes; the global setting's
+    bind-time value is restored after the last bound session closes, unless changed externally.
+    """
+
 
 @configclass
 class IsaacTeleopCfg:
-    """Configuration for IsaacTeleop-based teleoperation.
+    """Configuration for Isaac Capture-based teleoperation.
 
-    This configuration class defines the parameters needed to create a IsaacTeleop
+    This configuration class defines the parameters needed to create an Isaac Capture
     teleoperation session integrated with Isaac Lab environments.
 
-    The pipeline_builder is a callable that constructs the IsaacTeleop retargeting
+    The pipeline_builder is a callable that constructs the Isaac Capture retargeting
     pipeline. It should return an OutputCombiner with a single "action" output
     that contains the flattened action tensor (typically via TensorReorderer).
 
@@ -193,7 +205,7 @@ class IsaacTeleopCfg:
     """Placement and packing applied to the ordered enabled camera feeds."""
 
     pipeline_builder: Callable[[], OutputCombiner] = MISSING
-    """Callable that builds the IsaacTeleop retargeting pipeline.
+    """Callable that builds the Isaac Capture retargeting pipeline.
 
     The function should return an OutputCombiner with an "action" output
     containing the flattened action tensor matching the Isaac Lab action space.
@@ -205,7 +217,7 @@ class IsaacTeleopCfg:
     """
 
     plugins: list[PluginConfig] = field(default_factory=list)
-    """List of IsaacTeleop plugin configurations.
+    """List of Isaac Capture plugin configurations.
 
     Plugins can provide additional functionality like synthetic hand tracking
     from controller inputs.
@@ -215,12 +227,12 @@ class IsaacTeleopCfg:
     """Torch device string for placing output action tensors."""
 
     retargeting_execution: RetargetingExecutionConfig | None = None
-    """IsaacTeleop retargeting execution settings.
+    """Isaac Capture retargeting execution settings.
 
     Left as ``None`` by default so that importing and constructing this config
     never requires the optional ``isaacteleop`` package (e.g. on platforms where
     it is not installed). When ``None``, Isaac Lab resolves it at session start to
-    IsaacTeleop's pipelined, deadline-paced default
+    Isaac Capture's pipelined, deadline-paced default
     (``RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))``),
     where ``isaacteleop`` is guaranteed to be available. Set this explicitly to
     ``RetargetingExecutionConfig(mode="sync")`` for exact current-frame
@@ -290,4 +302,4 @@ class IsaacTeleopCfg:
     """
 
     app_name: str = "IsaacLabTeleop"
-    """Application name for the IsaacTeleop session."""
+    """Application name for the Isaac Capture session."""

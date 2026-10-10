@@ -12,7 +12,7 @@ from typing import Dict, Literal, TypeVar  # noqa: UP035
 import gymnasium as gym
 import torch
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 ##
 # Deprecated: ViewerCfg
@@ -33,7 +33,8 @@ class ViewerCfg:
     .. deprecated::
         :class:`ViewerCfg` is deprecated and will be removed in a future release.
         Configure the viewport camera via :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`
-        and add it to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead::
+        and add it to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` instead, which applies when
+        ``--visualizer kit`` selects the Kit visualizer::
 
             from isaaclab.sim import SimulationCfg
             from isaaclab_visualizers.kit import KitVisualizerCfg
@@ -169,6 +170,8 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     try:
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
+        from ..visualizers import WindowCfg
+
         resolution = getattr(viewer, "resolution", None)
         sim_cfg.default_visualizer_cfg = KitVisualizerCfg(
             eye=tuple(viewer.eye),
@@ -176,10 +179,10 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
             origin_type=new_origin_type,
             origin_env_index=getattr(viewer, "env_index", 0),
             origin_track_path=origin_track_path,
-            **({"window_width": resolution[0], "window_height": resolution[1]} if resolution is not None else {}),
+            **({"window": WindowCfg(size=tuple(resolution))} if resolution is not None else {}),
         )
     except ImportError:
-        from isaaclab.visualizers import VisualizerCfg
+        from ..visualizers import VisualizerCfg
 
         sim_cfg.default_visualizer_cfg = VisualizerCfg(
             eye=tuple(viewer.eye),

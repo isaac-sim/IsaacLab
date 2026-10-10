@@ -10,8 +10,7 @@ from dataclasses import MISSING
 
 import numpy as np
 
-from isaaclab.utils import configclass
-
+from ..utils import configclass
 from .cloner_strategies import sequential
 
 DEFAULT_ENV_TEMPLATE = "/World/envs/env_{}"
@@ -44,7 +43,7 @@ class InclusionSet:
     assets: list[str] = MISSING
     """Scene asset names active in this clone combination."""
 
-    weight: int = 1
+    weight: float = 1.0
     """Relative sampling weight for this clone combination."""
 
 
@@ -57,7 +56,7 @@ class CloneCfg:
     """
 
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
-    """Function used to build prototype-to-environment mapping. Default is :func:`sequential`."""
+    """Function selecting world-prototype indices from relative weights. Default is :func:`sequential`."""
 
     clone_combinations: list[InclusionSet] = []
     """Legal scene-asset combinations for heterogeneous clone planning.

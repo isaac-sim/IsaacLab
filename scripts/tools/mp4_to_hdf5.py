@@ -132,7 +132,6 @@ def process_video_and_demo(f_in, f_out, video_path, orig_demo_id, new_demo_id):
 
 def main():
     """Main function to create a new dataset with augmented videos."""
-    # Parse command line arguments
     args = parse_args()
 
     # Get list of MP4 videos

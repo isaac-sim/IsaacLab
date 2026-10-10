@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import enum
-import random
 
 import numpy as np
 import pytest
@@ -26,30 +25,20 @@ def _test_lambda_function(x):
     return x**2
 
 
-def test_print_dict():
+def test_print_dict(capsys):
     """Test printing of dictionary."""
     # create a complex nested dictionary
     test_dict = {
         "a": 1,
-        "b": 2,
-        "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
-        "i": 7,
+        "c": {"d": 3, "f": {"g": 5}},
         "j": lambda x: x**2,  # noqa: E731
         "k": dict_utils.class_to_dict,
     }
     # print the dictionary
     dict_utils.print_dict(test_dict)
-
-
-def test_string_callable_function_conversion():
-    """Test string <-> callable conversion for function."""
-
-    # convert function to string
-    test_string = dict_utils.callable_to_string(_test_function)
-    # convert string to function
-    test_function_2 = string_utils.string_to_callable(test_string)
-    # check that functions are the same
-    assert _test_function(2) == test_function_2(2)
+    # nested keys are indented by four spaces and callables are printed as strings
+    expected = "a: 1\nc: \n    d: 3\n    f: \n        g: 5\nj: lambda x: x**2\nk: isaaclab.utils.dict:class_to_dict\n"
+    assert capsys.readouterr().out == expected
 
 
 def test_string_callable_function_with_lambda_in_name_conversion():
@@ -59,8 +48,8 @@ def test_string_callable_function_with_lambda_in_name_conversion():
     test_string = dict_utils.callable_to_string(_test_lambda_function)
     # convert string to function
     test_function_2 = string_utils.string_to_callable(test_string)
-    # check that functions are the same
-    assert _test_function(2) == test_function_2(2)
+    # check that the string resolves to the same function
+    assert test_function_2 is _test_lambda_function
 
 
 def test_string_callable_lambda_conversion():
@@ -84,16 +73,21 @@ def test_dict_to_md5():
         "a": 1,
         "b": 2,
         "c": {"d": 3, "e": 4, "f": {"g": 5, "h": 6}},
-        "i": random.random(),
+        "i": 0.5,
         "k": dict_utils.callable_to_string(dict_utils.class_to_dict),
     }
-    # generate the MD5 hash
-    md5_hash_1 = dict_utils.dict_to_md5_hash(test_dict)
-
-    # check that the hash is correct even after multiple calls
-    for _ in range(200):
-        md5_hash_2 = dict_utils.dict_to_md5_hash(test_dict)
-        assert md5_hash_1 == md5_hash_2
+    # an independently built dictionary with a different key order has the same hash
+    reordered_dict = {
+        "k": "isaaclab.utils.dict:class_to_dict",
+        "i": 0.5,
+        "c": {"f": {"h": 6, "g": 5}, "e": 4, "d": 3},
+        "b": 2,
+        "a": 1,
+    }
+    assert dict_utils.dict_to_md5_hash(test_dict) == dict_utils.dict_to_md5_hash(reordered_dict)
+    # changing a nested value changes the hash
+    reordered_dict["c"]["f"]["g"] = 7
+    assert dict_utils.dict_to_md5_hash(test_dict) != dict_utils.dict_to_md5_hash(reordered_dict)
 
 
 class _CallableCfg:

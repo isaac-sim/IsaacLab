@@ -18,6 +18,6 @@ def test_handover_isaacsim_physx_resolves_physx_assets() -> None:
     env_cfg = resolve_presets(HandoverEnvCfg(), selected=("isaacsim_physx",))
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
-    assert env_cfg.right_robot_cfg.spawn.usd_path == SHADOW_HAND_PHYSX_CFG.spawn.usd_path
-    assert env_cfg.left_robot_cfg.spawn.usd_path == SHADOW_HAND_PHYSX_CFG.spawn.usd_path
-    assert env_cfg.object_cfg == BALL_CFG
+    assert env_cfg.scene.right_robot.spawn.usd_path == SHADOW_HAND_PHYSX_CFG.spawn.usd_path
+    assert env_cfg.scene.left_robot.spawn.usd_path == SHADOW_HAND_PHYSX_CFG.spawn.usd_path
+    assert env_cfg.scene.object == BALL_CFG

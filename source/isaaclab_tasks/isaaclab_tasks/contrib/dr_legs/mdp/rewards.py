@@ -21,6 +21,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -37,7 +38,6 @@ __all__ = [
     "feet_flat",
     "feet_touchdown_vel",
     "root_orientation_exp",
-    "survival_success_rate",
     "walk_success_rate",
 ]
 
@@ -120,10 +120,8 @@ class ActionRate2L2(ManagerTermBase):
         self._prev_prev_action = torch.zeros((env.num_envs, dim), device=env.device)
 
     def reset(self, env_ids: torch.Tensor | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self._prev_action[env_ids] = 0.0
-        self._prev_prev_action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._prev_prev_action, env_ids, 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         current_action = env.action_manager.action
@@ -226,24 +224,10 @@ def root_orientation_exp(
     return _exp_se(torch.sum(torch.square(tilt[:, :3]), dim=1), sigma)
 
 
-class survival_success_rate(ManagerTermBase):
-    """Logs ``Metrics/success_rate`` = fraction of environments that survived the full episode."""
-
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        super().__init__(cfg, env)
-
-    def reset(self, env_ids: torch.Tensor):
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
-
-    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
-        return torch.zeros(env.num_envs, device=env.device)
-
-
 class walk_success_rate(ManagerTermBase):
     """Episode-mean velocity-tracking + gait-contact success metric for the walk task."""
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._err_xy_sum = torch.zeros(env.num_envs, device=env.device)
         self._err_yaw_sum = torch.zeros(env.num_envs, device=env.device)
@@ -270,10 +254,10 @@ class walk_success_rate(ManagerTermBase):
         log["Metrics/error_vel_xy"] = err_xy.mean().item()
         log["Metrics/error_vel_yaw"] = err_yaw.mean().item()
         log["Metrics/contact_match_rate"] = contact.mean().item()
-        self._err_xy_sum[env_ids] = 0.0
-        self._err_yaw_sum[env_ids] = 0.0
-        self._contact_sum[env_ids] = 0.0
-        self._steps[env_ids] = 0.0
+        index_fill_(self._err_xy_sum, env_ids, 0.0)
+        index_fill_(self._err_yaw_sum, env_ids, 0.0)
+        index_fill_(self._contact_sum, env_ids, 0.0)
+        index_fill_(self._steps, env_ids, 0.0)
 
     def __call__(
         self,

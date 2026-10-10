@@ -3,7 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.sim.schemas import (
+    MujocoRigidBodyCfg,
+    NewtonArticulationCfg,
+    NewtonCollisionCfg,
+    NewtonSDFCollisionCfg,
+)
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
@@ -18,30 +25,22 @@ from isaaclab_tasks.utils import PresetCfg, preset
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/Factory"
 
 
-ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG = sim_utils.RigidBodyPropertiesCfg(
-    kinematic_enabled=True,
-    solver_position_iteration_count=192,
-    solver_velocity_iteration_count=1,
-)
+ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG = [
+    sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+    PhysxRigidBodyCfg(solver_position_iteration_count=192, solver_velocity_iteration_count=1),
+]
 
-ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG = sim_utils.RigidBodyPropertiesCfg(
-    solver_position_iteration_count=192,
-    solver_velocity_iteration_count=1,
-)
+ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG = [
+    PhysxRigidBodyCfg(solver_position_iteration_count=192, solver_velocity_iteration_count=1)
+]
 
 
 @configclass
 class _SocketCollisionPropsCfg(PresetCfg):
     """Backend-aware collision props for assembly sockets (bolts, holes, bases)."""
 
-    default = sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0)
-    newton_mjwarp = sim_utils.NewtonSDFCollisionPropertiesCfg(
-        rest_offset=0.0,
-        contact_gap=0.005,
-        sdf_max_resolution=256,
-        sdf_narrow_band_inner=-0.005,
-        sdf_narrow_band_outer=0.005,
-    )
+    default = [PhysxCollisionCfg(contact_offset=0.0025, rest_offset=0.0)]
+    newton_mjwarp = [PhysxCollisionCfg(rest_offset=0.0), NewtonCollisionCfg(contact_gap=0.005)]
     isaacsim_physx = default
     physx = isaacsim_physx
 
@@ -50,15 +49,8 @@ class _SocketCollisionPropsCfg(PresetCfg):
 class _PlugCollisionPropsCfg(PresetCfg):
     """Backend-aware collision props for assembly plugs (nuts, pegs, gears)."""
 
-    default = sim_utils.CollisionPropertiesCfg(contact_offset=0.0025, rest_offset=0.0)
-    newton_mjwarp = sim_utils.NewtonSDFCollisionPropertiesCfg(
-        contact_offset=0.0025,
-        rest_offset=0.0,
-        contact_gap=0.005,
-        sdf_max_resolution=256,
-        sdf_narrow_band_inner=-0.005,
-        sdf_narrow_band_outer=0.005,
-    )
+    default = [PhysxCollisionCfg(contact_offset=0.0025, rest_offset=0.0)]
+    newton_mjwarp = [PhysxCollisionCfg(contact_offset=0.0025, rest_offset=0.0), NewtonCollisionCfg(contact_gap=0.005)]
     isaacsim_physx = default
     physx = isaacsim_physx
 
@@ -66,6 +58,14 @@ class _PlugCollisionPropsCfg(PresetCfg):
 ASSEMBLY_SOCKET_COLLISION_PROPS_CFG = _SocketCollisionPropsCfg()
 
 ASSEMBLY_PLUG_COLLISION_PROPS_CFG = _PlugCollisionPropsCfg()
+
+# Newton builds an SDF for every assembly collider; the PhysX presets keep the asset-authored cooking.
+ASSEMBLY_MESH_COLLISION_PROPS_CFG = preset(
+    default=None,
+    newton_mjwarp=NewtonSDFCollisionCfg(
+        sdf_max_resolution=256, sdf_narrow_band_inner=-0.005, sdf_narrow_band_outer=0.005
+    ),
+)
 
 # Newton materials must author friction; an omitted value resolves to zero and destabilizes contact.
 ASSEMBLY_CONTACT_MATERIAL_CFG = preset(
@@ -150,17 +150,16 @@ FRANKA_PANDA_PHYSX_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            solver_position_iteration_count=192,
-            solver_velocity_iteration_count=1,
+        rigid_props=PhysxRigidBodyCfg(
+            disable_gravity=True, solver_position_iteration_count=192, solver_velocity_iteration_count=1
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=192,
-            solver_velocity_iteration_count=1,
-        ),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=192, solver_velocity_iteration_count=1
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
     ),
     init_state=FRANKA_DEFAULT_STATE_CFG,
     actuators=FRANKA_ACTUATORS_CFG,
@@ -172,15 +171,16 @@ FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
-        collision_props=sim_utils.CollisionPropertiesCfg(
-            contact_offset=0.005,
-            rest_offset=0.0,
-            mesh_collision_property=sim_utils.NewtonMeshCollisionPropertiesCfg(mesh_approximation_name="convexHull"),
-        ),
+        rigid_props=MujocoRigidBodyCfg(gravcomp=1.0),
+        articulation_props=[
+            PhysxArticulationCfg(enabled_self_collisions=False),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+        collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
         physics_material=ROBOT_CONTACT_MATERIAL_CFG,
-        joint_drive_props=sim_utils.JointDrivePropertiesCfg(ensure_drives_exist=True),
+        joint_drive_props=sim_utils.UsdPhysicsDriveCfg(),
+        ensure_drives_exist=True,
     ),
     init_state=FRANKA_DEFAULT_STATE_CFG,
     actuators=FRANKA_ACTUATORS_CFG,
@@ -191,7 +191,7 @@ TABLE_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/Table",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/Mounts/UWPatVention/pat_vention.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, -0.868), rot=(0.0, 0.0, -0.70711, 0.70711)),
 )
@@ -202,7 +202,7 @@ NISTBOARD_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/NistBoard",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/NIST/Taskboard/nistboard.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         scale=(1.0, 1.0, 0.5),
     ),
     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.65 - x, 0.0 - y, 0.0206 - z), rot=(0.0, 1.0, 0.0, 0.0)),
@@ -216,8 +216,9 @@ def _assembly_asset_cfg(name: str, usd_file: str, mass: float, *, is_socket: boo
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/NIST/{usd_file}",
             rigid_props=ASSEMBLY_SOCKET_RIGID_BODY_PROPS_CFG if is_socket else ASSEMBLY_PLUG_RIGID_BODY_PROPS_CFG,
-            mass_props=sim_utils.MassPropertiesCfg(mass=mass),
+            mass_props=sim_utils.MassCfg(mass=mass),
             collision_props=ASSEMBLY_SOCKET_COLLISION_PROPS_CFG if is_socket else ASSEMBLY_PLUG_COLLISION_PROPS_CFG,
+            mesh_collision_props=ASSEMBLY_MESH_COLLISION_PROPS_CFG,
             physics_material=ASSEMBLY_CONTACT_MATERIAL_CFG,
         ),
     )

@@ -15,9 +15,13 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 
    OVRTXRenderer
    OVRTXRendererCfg
+   OVRTXBackendCfg
 
 .. autoclass:: OVRTXRenderer
    :show-inheritance:
 
 .. autoclass:: OVRTXRendererCfg
+   :show-inheritance:
+
+.. autoclass:: OVRTXBackendCfg
    :show-inheritance:

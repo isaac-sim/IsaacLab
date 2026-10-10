@@ -9,9 +9,10 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.sim.spawners import materials
-from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
 from isaaclab.utils import configclass
+
+from .. import materials
+from ..spawner_cfg import DeformableObjectSpawnerCfg, RigidObjectSpawnerCfg
 
 
 @configclass
@@ -26,6 +27,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     - Deformable body properties: Applied to the parent prim: ``{prim_path}``.
     - Collision properties: Applied to the simulation mesh ``{prim_path}/sim_mesh`` for deformable bodies,
       and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
+    - Mesh-collision properties: Applied to the mesh prim ``{prim_path}/geometry/mesh`` of rigid bodies,
+      overriding the default approximation the spawner picks for the shape. Not supported for deformable bodies.
     - Rigid body properties: Applied to the parent prim: ``{prim_path}``.
 
     where ``{prim_path}`` is the path to the prim in the USD stage and ``{prim_path}/geometry/mesh``
@@ -62,14 +65,16 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     physics_material: (
         materials.PhysicsMaterialCfg
         | materials.RigidBodyMaterialFragment
-        | list[materials.RigidBodyMaterialFragment]
+        | materials.DeformableMaterialFragment
+        | list[materials.RigidBodyMaterialFragment | materials.DeformableMaterialFragment]
         | None
     ) = None
     """Physics material properties.
 
     Accepts either a legacy material cfg, a single
-    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
-    single-namespace fragments.
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or
+    :class:`~isaaclab.sim.spawners.materials.DeformableMaterialFragment`, or a list of such
+    single-namespace fragments (rigid and deformable fragments may be mixed in one list).
 
     Note:
         If None, then no physics material will be added.

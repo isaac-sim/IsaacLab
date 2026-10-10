@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs.mdp.actions import RelativeJointPositionAction
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -83,8 +84,7 @@ class ClampedRelativeJointPositionAction(RelativeJointPositionAction):
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         """Clear selected action and validity history without changing reset targets."""
-        selected = slice(None) if env_ids is None else env_ids
-        super().reset(selected)
-        self._processed_actions[selected] = 0.0
-        self._previous_actions[selected] = 0.0
-        self._invalid_actions[selected] = False
+        super().reset(env_ids)
+        index_fill_(self._processed_actions, env_ids, 0.0)
+        index_fill_(self._previous_actions, env_ids, 0.0)
+        index_fill_(self._invalid_actions, env_ids, False)

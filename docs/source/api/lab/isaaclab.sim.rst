@@ -18,6 +18,7 @@ isaaclab.sim
 
     SimulationContext
     SimulationCfg
+    BackendCfg
 
   .. rubric:: Functions
 
@@ -38,6 +39,10 @@ Simulation Configuration
 .. autoclass:: SimulationCfg
   :members:
   :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: BackendCfg
+  :members:
   :exclude-members: __init__
 
 Simulation Context Builder
@@ -65,7 +70,6 @@ The following classes are part of the public :mod:`isaaclab.sim` API.
    MjcfFileCfg
    RigidBodyFragment
    SchemaFragment
-   SensorFrameCfg
    SpatialTendonFragment
    UsdFileWithCompliantContactCfg
    UsdPhysicsCollisionCfg
@@ -110,9 +114,6 @@ The following classes are part of the public :mod:`isaaclab.sim` API.
 
 .. autoclass:: SchemaFragment
    :no-index:
-   :show-inheritance:
-
-.. autoclass:: SensorFrameCfg
    :show-inheritance:
 
 .. autoclass:: SpatialTendonFragment

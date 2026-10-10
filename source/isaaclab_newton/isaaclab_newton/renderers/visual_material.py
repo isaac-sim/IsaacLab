@@ -34,6 +34,9 @@ def import_builder_visual_material_paths(builder: ModelBuilder, stage: Usd.Stage
     paths = builder.custom_attributes["isaaclab:visual_material_path"].values
     for shape_index, shape_path in enumerate(builder.shape_label):
         shape_prim = stage.GetPrimAtPath(shape_path)
+        # Newton preserves an approximated collider's authored mesh as <source>_visual.
+        if not shape_prim and shape_path.endswith("_visual"):
+            shape_prim = stage.GetPrimAtPath(shape_path.removesuffix("_visual"))
         imageable = UsdGeom.Imageable(shape_prim)
         if not shape_prim.IsValid() or (imageable and imageable.ComputePurpose() == UsdGeom.Tokens.guide):
             continue

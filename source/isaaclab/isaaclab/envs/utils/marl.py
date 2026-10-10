@@ -81,8 +81,9 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             )
             self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-            # latest converted observations, refreshed by reset() and step()
+            # latest converted observations and extras, refreshed by reset() and step()
             self._obs_buf: VecEnvObs = {}
+            self._extras: dict = {}
 
         @property
         def episode_length_buf(self) -> torch.Tensor:
@@ -99,6 +100,15 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             """Latest observations from the wrapped multi-agent environment."""
             return self._obs_buf
 
+        @property
+        def extras(self) -> dict:
+            """Latest extras from the wrapped multi-agent environment, keyed by agent.
+
+            Includes the single-agent ``"final_obs"`` entry when terminal observations were captured
+            (see :meth:`_convert_final_obs`).
+            """
+            return self._extras
+
         def _convert_observations(self, obs: dict[AgentID, ObsType]) -> VecEnvObs:
             """Convert multi-agent observations to the single-agent policy observation."""
             # FIXME: This implementation assumes the spaces are fundamental ones. Fix it to support composite spaces
@@ -110,10 +120,27 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
                 )
             }
 
+        def _convert_final_obs(self, extras: dict) -> dict:
+            """Expose the terminal observations captured by the multi-agent environment to single-agent wrappers.
+
+            :class:`DirectMARLEnv` stores them per agent under ``extras[agent]["final_obs"]`` (see
+            :attr:`DirectMARLEnvCfg.compute_final_obs`), whereas single-agent wrappers read the observation
+            dictionary under ``extras["final_obs"]``. The environment state is not captured before a reset, so no
+            terminal observation is exposed in the state-as-observation mode.
+            """
+            if self._state_as_observation or not all(
+                "final_obs" in extras.get(agent, {}) for agent in self.env.possible_agents
+            ):
+                return extras
+            final_obs = {agent: extras[agent]["final_obs"] for agent in self.env.possible_agents}
+            # shallow copy so the per-agent extras of the wrapped environment stay untouched
+            return {**extras, "final_obs": self._convert_observations(final_obs)}
+
         def reset(self, seed: int | None = None, options: dict[str, Any] | None = None) -> tuple[VecEnvObs, dict]:
             obs, extras = self.env.reset(seed, options)
             self._obs_buf = self._convert_observations(obs)
-            return self._obs_buf, extras
+            self._extras = extras
+            return self._obs_buf, self._extras
 
         def step(self, action: torch.Tensor) -> VecEnvStepReturn:
             # split single-agent actions to build the multi-agent ones
@@ -129,13 +156,14 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             obs, rewards, terminated, time_outs, extras = self.env.step(_actions)
 
             self._obs_buf = self._convert_observations(obs)
+            self._extras = self._convert_final_obs(extras)
 
             # process environment outputs to return single-agent data
             rewards = sum(rewards.values())
             terminated = math.prod(terminated.values()).to(dtype=torch.bool)
             time_outs = math.prod(time_outs.values()).to(dtype=torch.bool)
 
-            return self._obs_buf, rewards, terminated, time_outs, extras
+            return self._obs_buf, rewards, terminated, time_outs, self._extras
 
         def render(self, recompute: bool = False) -> np.ndarray | None:
             return self.env.render(recompute)

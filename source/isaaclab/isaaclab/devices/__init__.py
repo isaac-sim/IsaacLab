@@ -20,6 +20,6 @@ to add user-defined callback functions to be called when a particular input is p
 the peripheral device.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

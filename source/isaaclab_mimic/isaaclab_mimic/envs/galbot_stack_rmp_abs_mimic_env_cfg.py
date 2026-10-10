@@ -19,6 +19,8 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
     Isaac Lab Mimic environment config class for Galbot Gripper Cube Stack IK Rel env.
     """
 
+    class_type: type | str = "{DIR}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()
@@ -143,6 +145,8 @@ class RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg(RmpFlowGalbotRightArmC
     """
     Isaac Lab Mimic environment config class for Galbot Suction Gripper Cube Stack RmpFlow Abs env.
     """
+
+    class_type: type | str = "{DIR}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv"
 
     def __post_init__(self):
         # post init of parents

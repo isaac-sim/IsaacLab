@@ -5,6 +5,8 @@
             "name": "Python: Current File",
             "type": "debugpy",
             "request": "launch",
+            // Use the interpreter recorded by `isaaclab --editor`; VS Code skips wrapper scripts such as python.sh
+            "python": "${config:python.defaultInterpreterPath}",
             "program": "${file}",
             "console": "integratedTerminal"
         },
@@ -15,6 +17,7 @@
             "name": "Train {{ specification.task.id }} with {{ rl_library.name }} ({{ rl_algorithm|upper }})",
             "type": "debugpy",
             "request": "launch",
+            "python": "${config:python.defaultInterpreterPath}",
             "module": "isaaclab",
             "args": [
                 "train",
@@ -29,6 +32,7 @@
             "name": "Play {{ specification.task.id }} with {{ rl_library.name }} ({{ rl_algorithm|upper }})",
             "type": "debugpy",
             "request": "launch",
+            "python": "${config:python.defaultInterpreterPath}",
             "module": "isaaclab",
             "args": [
                 "play",

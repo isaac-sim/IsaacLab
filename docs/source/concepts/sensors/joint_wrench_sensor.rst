@@ -17,6 +17,38 @@ The ``incoming_joint_frame`` convention expresses the wrench in the child-side j
 child-side joint anchor. This matches the placement of a six-axis force/torque sensor mounted at the
 joint. Backend implementations convert their native solver output to this common convention.
 
+PhysX's ``get_link_incoming_joint_force()`` already returns the wrench in the child-side joint frame,
+referenced at its anchor, so the PhysX sensor exposes those components directly. Applying the USD
+``localPos1`` and ``localRot1`` again would shift and rotate the wrench twice.
+
+Read through articulation data
+------------------------------
+
+For observations that must follow the articulation's ``body_ordering``, use
+:attr:`~assets.ArticulationData.body_joint_wrench`. The data container applies the
+articulation's existing body map, so indices from ``robot.find_bodies()`` select the same bodies
+in the wrench and other articulation data. No separate sensor is required.
+
+Set ``robot_cfg.enable_joint_wrench = True`` before constructing the articulation when using
+Newton. This requests the extended solver state; it is opt-in because wrench computation adds
+solver work and is incompatible with MJWarp's sensor-disabled deterministic mode. PhysX and
+OVPhysX provide the data on demand without this flag.
+
+.. code-block:: python
+
+   robot = scene["robot"]
+   body_ids, _ = robot.find_bodies([".*foot"])
+   wrench = robot.data.body_joint_wrench.torch[:, body_ids]
+   force = wrench[..., :3]
+   torque = wrench[..., 3:]
+
+The tensor has shape ``(num_envs, num_bodies, 6)`` and uses the same incoming joint frame
+convention as the sensor. Newton fills free and world-fixed root entries with zero and excludes
+loop-closing constraints; PhysX and OVPhysX expose their root reactions. Read after a physics
+step following a reset or state write, since these are solver results from the last step.
+
+The standalone sensor API below retains backend-native entry order and its own update/reset timing.
+
 Configure the sensor
 --------------------
 
@@ -24,8 +56,10 @@ Set :attr:`~sensors.JointWrenchSensorCfg.prim_path` to the articulation root. Re
 depends on the physics backend:
 
 * PhysX and OVPhysX report every articulation link, including the root link.
-* Newton reports the child link of each non-free, non-fixed joint. It therefore excludes the root
-  link and any links connected through free or fixed joints.
+* Newton reports the child link of each non-free joint in the articulation tree, including fixed
+  connections between bodies such as a welded wrist sensor or tool flange. Free joints, fixed joints
+  to the world, and loop-closing constraints are excluded. The reported wrench at a weld includes
+  the loads transmitted by its child subtree, even though the joint has no degrees of freedom.
 
 Use :attr:`~sensors.JointWrenchSensor.body_names` or
 :meth:`~sensors.JointWrenchSensor.find_bodies` instead of assuming that different backends expose
@@ -33,7 +67,8 @@ the same number or order of entries:
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
-   :lines: 78-82
+   :start-at: joint_wrench = JointWrenchSensorCfg
+   :end-at: joint_wrench = JointWrenchSensorCfg
 
 Manager-based environments can select a body subset through
 :class:`~isaaclab.managers.SceneEntityCfg` and use
@@ -41,7 +76,8 @@ Manager-based environments can select a body subset through
 
 .. literalinclude:: ../../../../source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ant_manager_env_cfg.py
    :language: python
-   :lines: 122-131
+   :start-at: feet_body_forces = ObsTerm(
+   :end-at: actions = ObsTerm(func=mdp.last_action)
 
 Read the data
 -------------

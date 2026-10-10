@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from ..selection_utils import SceneEntitySelectionCfg
 
@@ -48,10 +48,12 @@ class SelectedUniformPoseCommandCfg(CommandTermCfg):
     """Entity root or selected body whose current pose is visualized."""
     ranges: Ranges = MISSING
     """Pose sampling ranges."""
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        FRAME_MARKER_CFG, prim_path="/Visuals/Command/goal_pose"
+    )
     """Goal-pose frame marker configuration."""
-    current_pose_visualizer_cfg: VisualizationMarkersCfg = FRAME_MARKER_CFG.replace(
-        prim_path="/Visuals/Command/current_pose"
+    current_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        FRAME_MARKER_CFG, prim_path="/Visuals/Command/current_pose"
     )
     """Tracked-pose frame marker configuration."""
 

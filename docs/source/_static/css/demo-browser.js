@@ -16,15 +16,16 @@
             return;
         }
 
-        const cards = [...browser.querySelectorAll("[data-demo-path]")];
+        const cards = [...browser.querySelectorAll("[data-demo-id]")];
         const fields = Object.fromEntries(
             [...browser.querySelectorAll("[data-demo-field]")].map((field) => [field.dataset.demoField, field])
         );
         const commandOutput = browser.querySelector("[data-command-output]");
         const copyButton = browser.querySelector("[data-copy-command]");
         const copyStatus = browser.querySelector("[data-copy-status]");
-        const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-path])");
-        const selectedDescription = browser.querySelector("[data-demo-description]:not([data-demo-path])");
+        const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-id])");
+        const selectedDescription = browser.querySelector("[data-demo-description]:not([data-demo-id])");
+        const notes = [...browser.querySelectorAll("[data-demo-note], [data-demo-note-visualizers]")];
         let selectedCard = cards[0];
 
         const populateSelect = (select, values, preferredValues) => {
@@ -50,17 +51,20 @@
             if (fields.physics.value === "ovphysx") {
                 requiredExtras.add("ovphysx");
             }
+            if (fields.visualizer.value === "newton_rtx") {
+                requiredExtras.add("ovrtx");
+            }
             if (["rerun", "viser"].includes(fields.visualizer.value)) {
                 requiredExtras.add(fields.visualizer.value);
             }
-            const extraOrder = ["isaacsim", "ovphysx", "tetrahedralization", "teleop", "rerun", "viser"];
+            const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "rerun", "viser"];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
-            const parts = ["uv", "run"];
+            const parts = ["uvx"];
             if (extras.length) {
-                parts.push("--extra", extras.join(","));
+                parts.push("--from", `'isaaclab[${extras.join(",")}]'`);
             }
-            parts.push("python", selectedCard.dataset.demoPath);
+            parts.push("isaaclab", "demo", selectedCard.dataset.demoId);
             if (selectedCard.dataset.demoFixedPhysics !== "true") {
                 parts.push("--physics", fields.physics.value);
             }
@@ -71,12 +75,19 @@
 
         const updateCommand = () => {
             commandOutput.textContent = currentCommand();
+            for (const note of notes) {
+                const visualizers = splitValues(note.dataset.demoNoteVisualizers);
+                note.hidden = Boolean(
+                    (note.dataset.demoNote && note.dataset.demoNote !== selectedCard.dataset.demoId)
+                    || (visualizers.length && !visualizers.includes(fields.visualizer.value))
+                );
+            }
         };
 
         const updateVisualizer = () => {
             const preferredVisualizers = fields.physics.value.startsWith("newton")
-                ? ["newton_gl", "kit", "none"]
-                : fields.physics.value === "ovphysx" ? ["none"] : ["kit", "none"];
+                ? ["newton_gl", "kit"]
+                : ["kit"];
             populateSelect(fields.visualizer, compatibleVisualizers(), preferredVisualizers);
             updateCommand();
         };
@@ -90,7 +101,7 @@
             }
             selectedName.textContent = selectedCard.dataset.demoName;
             selectedDescription.textContent = selectedCard.dataset.demoDescription;
-            populateSelect(fields.physics, splitValues(selectedCard.dataset.demoPhysics), ["isaacsim_physx", "newton_mjwarp"]);
+            populateSelect(fields.physics, splitValues(selectedCard.dataset.demoPhysics), ["newton_mjwarp", "isaacsim_physx"]);
             updateVisualizer();
         };
 

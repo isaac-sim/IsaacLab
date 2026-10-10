@@ -149,10 +149,10 @@ You should see device data streaming from both Inverse3 and VerseGrip.
 
 .. _haply-running-demo:
 
-Running the Demo
-----------------
+Running the Example
+-------------------
 
-The Haply teleoperation demo showcases robot manipulation with force feedback using
+The Haply teleoperation example showcases robot manipulation with force feedback using
 a Franka Panda arm.
 
 Basic Usage
@@ -161,9 +161,9 @@ Basic Usage
 .. code:: bash
 
    # Ensure Haply SDK is running
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
+   isaaclab example haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 1.65
 
-The demo will:
+The example will:
 
 1. Connect to the Haply devices via WebSocket
 2. Spawn a Franka Panda robot and a cube in simulation
@@ -181,18 +181,18 @@ Controls
 Advanced Options
 ~~~~~~~~~~~~~~~~
 
-Customize the demo with command-line arguments:
+Customize the example with command-line arguments:
 
 .. code:: bash
 
    # Use custom WebSocket URI
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://192.168.1.100:10001
+   isaaclab example haply-teleoperation --websocket_uri ws://192.168.1.100:10001
 
    # Adjust position sensitivity (default: 1.0)
-   python scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
+   isaaclab example haply-teleoperation --websocket_uri ws://localhost:10001 --pos_sensitivity 2.0
 
-Demo Features
-~~~~~~~~~~~~~
+Example Features
+~~~~~~~~~~~~~~~~
 
 * **Workspace Mapping**: Haply workspace is mapped to robot reachable space with safety limits
 * **Inverse Kinematics**: Inverse Kinematics (IK) computes joint positions for desired end-effector pose
@@ -219,7 +219,7 @@ Solutions:
 Next Steps
 ----------
 
-* **Customize the demo**: Modify the workspace mapping or add custom button behaviors
+* **Customize the example**: Modify the workspace mapping or add custom button behaviors
 * **Implement your own controller**: Use :class:`~isaaclab.devices.HaplyDevice` in your own scripts
 
 For more information on device APIs, see :class:`~isaaclab.devices.HaplyDevice` in the API documentation.

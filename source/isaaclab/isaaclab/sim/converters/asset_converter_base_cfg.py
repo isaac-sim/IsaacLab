@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from enum import StrEnum
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 
 @configclass

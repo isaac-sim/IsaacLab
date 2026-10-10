@@ -1,6 +1,8 @@
 Motion Generators
 =================
 
+.. currentmodule:: isaaclab.controllers
+
 Robotic tasks are typically defined in task-space in terms of desired
 end-effector trajectory, while control actions are executed in the
 joint-space. This naturally leads to *joint-space* and *task-space*
@@ -159,7 +161,8 @@ It is possible to compute the pseudo-inverse of the Jacobian using different for
 * Tanspose pseudo-inverse: :math:`A^{-} = A^T`.
 * Adaptive singular-vale decomposition (SVD) pseduo-inverse from :cite:t:`buss2004ik`.
 
-These implementations are available through the :class:`DifferentialInverseKinematics` class.
+These implementations are available through the :class:`DifferentialIKController` class.
+See :doc:`../how-to/run_diff_ik` for a runnable example.
 
 Impedance controller
 ~~~~~~~~~~~~~~~~~~~~
@@ -174,7 +177,7 @@ Operational-space controller
 
 Similar to task-space impedance
 control but uses the Equation of Motion (EoM) for computing the
-task-space force
+task-space force. See :doc:`../how-to/run_osc` for a runnable example.
 
 Closed-loop proportional force controller
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -205,7 +208,7 @@ different approaches combine the constraints directly into an
 optimization problem, thereby providing a holistic solution for motion
 generation and control.
 
-We currently support the following planners:
+Examples of reactive planners include:
 
 -  **RMPFlow (lula):** An acceleration-based policy that composes various Reimannian Motion Policies (RMPs) to
    solve a hierarchy of tasks :cite:p:`cheng2021rmpflow`. It is capable of performing dynamic collision
@@ -213,13 +216,14 @@ We currently support the following planners:
 
 -  **MPC (OCS2):** A receding horizon control policy based on sequential linear-quadratic (SLQ) programming.
    It formulates various constraints into a single optimization problem via soft-penalties and uses automatic
-   differentiation to compute derivatives of the system dynamics, constraints and costs. Currently, we support
-   the MPC formulation for end-effector trajectory tracking in fixed-arm and mobile manipulators. The formulation
-   considers a kinematic system model with joint limits and self-collision avoidance :cite:p:`mittal2021articulated`.
+   differentiation to compute derivatives of the system dynamics, constraints and costs. The MPC formulation
+   for end-effector trajectory tracking in fixed-arm and mobile manipulators described in
+   :cite:p:`mittal2021articulated` considers a kinematic system model with joint limits and self-collision avoidance.
+   See the `OCS2 documentation <https://leggedrobotics.github.io/ocs2/>`_ for the external toolbox and examples.
 
 
 .. warning::
 
-    We wrap around the python bindings for these reactive planners to perform a batched computing of
-    robot actions. However, their current implementations are CPU-based which may cause certain
-    slowdown for learning.
+    :class:`RmpFlowController` wraps the CPU-based Lula bindings, so its computation can
+    limit throughput in large batches. It also needs the Lula library and robot description
+    files; these dependencies are separate from the selected physics backend.

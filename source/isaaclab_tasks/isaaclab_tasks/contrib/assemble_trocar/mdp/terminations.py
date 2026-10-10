@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Termination terms for the trocar assembly environment."""
+
 from __future__ import annotations
 
 import logging

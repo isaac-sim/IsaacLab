@@ -198,8 +198,6 @@ class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
     def _get_view_transforms_wp(self) -> wp.array:
         """Refresh the PhysX transform buffer and return its cached typed Warp view."""
         if self._transforms_prefetched:
-            if self._raw_transforms is None:
-                raise RuntimeError("RayCaster transforms were marked prefetched before a buffer was cached.")
             return self._raw_transforms
 
         if self._physx_body_view is None:

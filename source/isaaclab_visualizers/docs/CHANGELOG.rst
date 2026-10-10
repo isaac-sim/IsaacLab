@@ -1,6 +1,184 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+3.0.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Presented Kit camera panels directly from composed device images, avoiding per-frame
+  pixel readback and host colorization for CUDA camera sources.
+* **Breaking:** Switched Kit, Newton, Rerun, and Viser streaming views to scene-owned camera sensors.
+  Moved generated-camera settings to scene ``CameraCfg`` declarations; visualizers selected them with
+  ``streaming_sensor_prim_path``. Removed late camera creation, follow-pose discovery, and camera teardown
+  from visualizers. Closing one viewer no longer affected a camera used by another viewer.
+* Added the shared ``cameras`` list for perspective and existing scene-camera sources.
+* Bound scene camera references before backend initialization and consumed the supplied camera
+  objects without cloning-plan dependencies. Custom visualizers must forward ``cameras`` and
+  ``stage`` to ``super().initialize()``.
+* **Breaking:** Removed ``newton_adapter.resolve_visible_env_indices`` and ``apply_viewer_visible_worlds``.
+  Backends consumed the base visualizer's final selection directly; custom visualizers should pass
+  ``get_visualized_env_ids()`` to their viewer after calling ``super().initialize()``.
+* **Breaking:** Replaced Newton GL's floating camera panel with a selectable main view.
+  Used the first configured ``cameras`` source initially, or perspective mode when none was configured.
+  Selected scene-camera views through the sidebar's Camera View dropdown instead of the old Open/Hide toggle.
+  Navigation applied the same camera-local motion to every copy of the selected sensor;
+  unselected sensors were neither read nor moved by the viewer.
+* Used scene-authored lights in Newton RTX by default, including HDR textures, intensity, initial
+  transforms, and clone placements. An explicit solid background preserved scene illumination.
+* Used Newton's native ``ViewerRTX`` with a simulation-owned OVStage and preserved its debug markers.
+  Added scene-camera selection and device-image presentation to RTX. Window resizing scaled the fixed
+  perspective image; resizing and closing the window left camera sensors unchanged.
+  Backend initialization resolved native resources from the explicitly supplied simulation owner;
+  core initialization and reset no longer passed backend-specific resources.
+  Pinned Newton to the merged borrowed-stage implementation pending its next release.
+* Presented Newton GL and RTX camera views directly from composed device images. Recording and web
+  transports read back only the composed image.
+* Unified Newton GL window and headless frame rendering, and propagated rendering errors after frame
+  cleanup. Kept contact-sensor arrow data on the viewer device during presentation.
+  Corrected PhysX contact arrow origins when displaying a subset of environments and removed
+  wind controls that did not apply forces to the simulation.
+* Read live-plot histories from Newton's plot logger, restoring scalar and array plots with the updated Newton API.
+* **Breaking:** Removed Newton RTX's viewer-only ``rtx_environment`` and ``world_spacing`` overrides
+  and GL model options. Declare lighting, materials, and environment placement in the scene instead.
+  Use Newton GL for rigid-body dragging and model overlays. Environment selection now limited RTX
+  sensor display tiles; its perspective camera viewed the full shared scene.
+* **Breaking:** Replaced ``window_width`` and ``window_height`` with ``window=WindowCfg(size=(width, height))``
+  for Newton and Kit. Replaced Newton's ``update_frequency`` frame skipping with ``window.fps``;
+  the default 30 Hz presentation limit used wall-clock time and did not throttle simulation or headless capture.
+
+Fixed
+^^^^^
+
+* Fixed Newton RTX (OVRTX) recordings stopping when a multi-prototype marker switches prototype mid-run.
+* Updated Newton GL live plots to read scalar and array histories from Newton's plot logger.
+* Fixed Newton GL perspective startup with depth-only scene cameras. The automatic selector offered
+  cameras supporting all requested channels, while explicit choices were validated at initialization.
+* Fixed scene-camera navigation to use live poses after parent-body motion, independently of cached
+  measurement poses and ``CameraCfg.update_latest_camera_pose``.
+* Fixed Newton RTX frame capture with OVRTX 0.5's RenderVar path keys.
+
+
+2.0.2 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL and Newton RTX visualizers failing to open a window on an X server that reports no monitors, such as a GPU-backed virtual display, with ``AttributeError: 'XlibScreen' object has no attribute 'is_primary'``.
+* Fixed the Newton RTX visualizer freezing on Newton 1.6.1 with OVStage 0.2, where body motion was not
+  reflected in rendered frames. The viewer now holds an OVStage stage using Isaac Lab's hierarchy computation
+  model so the stage Newton creates inherits it.
+* Fixed the first asynchronous Newton RTX frame capture failing to find the color output before viewer warm-up.
+* Resolved Newton RTX color-output aliases from the returned render-variable keys without depending on package version metadata.
+* Fixed the Newton RTX visualizer dropping visualization markers, so both the interactive
+  ``--viz newton_rtx`` viewer and videos captured through it now draw the goal poses, command
+  arrows, and other debug markers the GL viewer already showed, sanitizing the marker group
+  ids into valid USD prim paths the RTX stage accepts.
+* Fixed the Newton RTX visualizer showing a black window and failing headless frame capture with
+  ``ovrtx`` 0.5, which keys render outputs by prim path (``/Render/Vars/LdrColor``) while Newton's
+  ``ViewerRTX`` looks up ``LdrColor``. The viewer now aliases the color output as ``LdrColor`` when ``ovrtx`` is 0.5 or newer.
+
+
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer "no display found" notice to use ``logger.warning`` instead of ``print``.
+
+
+2.0.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Acquired Newton viewer models from the simulation's shared backend registry instead of the
+  physics manager. Viewers requested transforms and geometry directly through SDP; headless GL
+  and RTX captures requested current arrays only when a frame was requested.
+* Rebound GL, RTX, Rerun, and Viser resources after hard resets, including when picking was disabled.
+* Shared the selected Newton representation with streaming-camera renderers; initialization acquired
+  the clone-built model through ``get_or_create_backend(cfg)`` without cfg notifications.
+* **Breaking:** Replaced streaming renderer nicknames with ``streaming_cam_renderer_cfg``.
+  Kit defaulted to ``IsaacRtxRendererCfg()``; Newton, Rerun, and Viser defaulted to
+  ``NewtonWarpRendererCfg()``. Explicit renderer failures propagated instead of switching renderer
+  or disabling the stream. Visualizers registered their configured auto-camera renderer before cloning.
+  Pass a renderer configuration to customize construction.
+* Honored explicit auto-camera targets in Rerun and Viser instead of substituting a scene camera.
+  Omitting the target continued to adopt an existing camera, as documented.
+* Consolidated GL/RTX headless and paused frame handling without changing pause behavior or
+  frame readback types.
+
+Fixed
+^^^^^
+
+* Validated changed Kit marker environment IDs during their existing device-to-host transfer,
+  including IDs changed in-place after an earlier visualization call.
+
+
+1.13.1 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Routed Kit deformable, particle, and cable updates through the shared Fabric resource and SDP
+  geometry publications, removing dependence on physics-manager render callbacks.
+* Fixed the Kit, ``newton_gl``, and ``newton_rtx`` visualizer windows showing a generic icon in
+  Linux docks. Opening a visualizer window now writes a hidden desktop entry to
+  ``$XDG_DATA_HOME/applications`` (default ``~/.local/share/applications``) that matches the
+  window to its icon.
+* Fixed the ``newton_rtx`` visualizer window not setting Newton's icon.
+
+
+1.13.0 (2026-09-25)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a clickable demo and example selector to Newton GL for packaged Isaac Lab programs.
+* Added :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.is_key_down` so scripts can read
+  keyboard input from the Newton viewer window.
+* Added :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.register_ui_callback` and
+  :meth:`~isaaclab_visualizers.newton.NewtonGLVisualizer.request_close` so callers can add viewer panels and close
+  the window safely from inside them.
+
+
+1.12.1 (2026-09-24)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Routed Kit viewport transform updates through SDP, sharing a registry-owned Fabric binding with camera
+  renderers and preserving native PhysX Fabric updates. No visualizer configuration changes were required.
+  Headless viewport transforms and asset tracking refreshed only when a frame was requested.
+
+
+1.12.0 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Declared Newton-backed visualizer representations before cloning and initialized viewers afterward. Kit streaming
+  views acquired the renderer for a configured generated camera from the simulation backend registry before cloning.
+  Custom visualizers that pre-register camera renderers should use ``sim.get_or_create_backend(renderer_cfg)``.
+
+Fixed
+^^^^^
+
+* Fixed black or misplaced generated Kit streaming-camera images with Newton physics by removing
+  the redundant USD pose writes that reset the camera transform stack after its Fabric pose was updated.
+  Centered the cartpole golden-test reset pose to keep the tilted poles inside the camera frame.
+
+
 1.11.0 (2026-09-11)
 ~~~~~~~~~~~~~~~~~~~
 

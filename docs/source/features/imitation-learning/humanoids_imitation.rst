@@ -124,7 +124,7 @@ Annotations denote the end of a subtask. For the pick and place task, this means
 Each demo requires a single annotation between the first and second subtask of the right arm. This annotation ("S" button press) should be done when the right robot arm finishes the "idle" subtask and begins to
 move towards the target object. An example of a correct annotation is shown below:
 
-.. figure:: ../../_static/tasks/manipulation/gr-1_pick_place_annotation.jpg
+.. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/tasks/manipulation/gr-1_pick_place_annotation.jpg
    :width: 100%
    :align: center
 
@@ -874,9 +874,11 @@ The key parameters are:
   256×160.
 
 When the run completes successfully, an HDF5 dataset is generated containing camera
-observations. You can convert the ego-centric camera view to MP4:
+observations. Install FFmpeg-enabled OpenCV, then convert the ego-centric camera view to MP4:
 
 .. code:: bash
+
+   uv pip install opencv-python
 
    uv run --extra mimic python scripts/tools/hdf5_to_mp4.py \
       --input_file <DATASET_FOLDER>/generated_dataset_g1_locomanipulation_sdg_nurec.hdf5 \

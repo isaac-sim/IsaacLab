@@ -9,20 +9,19 @@ import copy
 import inspect
 import weakref
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import isaaclab.utils.string as string_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.utils import class_to_dict, string_to_callable
-from isaaclab.utils.modifiers import ModifierCfg
-
+from ..physics import PhysicsEvent, PhysicsManager
+from ..utils import string as string_utils
+from ..utils import string_to_callable, to_dict
+from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
 
 class ManagerTermBase(ABC):
@@ -62,6 +61,8 @@ class ManagerTermBase(ABC):
             cfg: The configuration object.
             env: The environment instance.
         """
+        if isinstance(cfg, ManagerTermBaseCfg):
+            _populate_term_defaults(self.__call__, cfg.params)
         # store the inputs
         self.cfg = cfg
         self._env = env
@@ -100,7 +101,7 @@ class ManagerTermBase(ABC):
 
     def serialize(self) -> dict:
         """General serialization call. Includes the configuration dict."""
-        return {"cfg": class_to_dict(self.cfg)}
+        return {"cfg": to_dict(self.cfg)}
 
     def __call__(self, *args) -> Any:
         """Returns the value of the term required by the manager.
@@ -145,6 +146,8 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
+        # scene entities resolved for the terms; finalized once every term is constructed
+        self._scene_entity_cfgs: list[SceneEntityCfg] = []
 
         # flag for whether the scene entities have been resolved
         # if sim is playing, we resolve the scene entities directly while preparing the terms
@@ -174,6 +177,8 @@ class ManagerBase(ABC):
         # parse config to create terms information
         if self.cfg:
             self._prepare_terms()
+            if self._is_scene_entities_resolved:
+                self._finalize_scene_entities()
 
     def __del__(self):
         """Delete the manager."""
@@ -272,7 +277,6 @@ class ManagerBase(ABC):
 
         Please check the :meth:`_process_term_cfg_at_play` method for more information.
         """
-        # check if scene entities have been resolved
         if self._is_scene_entities_resolved:
             return
         # check if config is dict already
@@ -289,8 +293,7 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
-
-        # set the flag
+        self._finalize_scene_entities()
         self._is_scene_entities_resolved = True
 
     """
@@ -371,6 +374,8 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
+        _populate_term_defaults(func_static, term_cfg.params)
+
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
         if self._env.sim.is_playing():
@@ -392,6 +397,8 @@ class ManagerBase(ABC):
             term_name: The name of the term.
             term_cfg: The term configuration.
         """
+        term_cfg.func = self._resolve_param_value(term_name, "func", term_cfg.func, resolve_callable=True)
+        _populate_term_defaults(term_cfg.func, term_cfg.params)
         for field in fields(term_cfg):
             value = getattr(term_cfg, field.name)
             resolved_value = self._resolve_param_value(
@@ -404,6 +411,15 @@ class ManagerBase(ABC):
         if inspect.isclass(term_cfg.func):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
+    def _finalize_scene_entities(self) -> None:
+        """Finalize resolved scene-entity selections once every term has been constructed.
+
+        Class-based terms read host selections during construction; term calls then receive
+        device selections. See :meth:`SceneEntityCfg.finalize`.
+        """
+        for scene_entity_cfg in self._scene_entity_cfgs:
+            scene_entity_cfg.finalize(self.device)
+
     def _resolve_param_value(
         self, term_name: str, key: str | int, value: Any, *, resolve_callable: bool = False
     ) -> Any:
@@ -415,6 +431,7 @@ class ManagerBase(ABC):
                 value.resolve(self._env.scene)
             except ValueError as e:
                 raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+            self._scene_entity_cfgs.append(value)
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
         elif isinstance(value, ModifierCfg):
@@ -438,3 +455,17 @@ class ManagerBase(ABC):
             if any(resolved is not original for resolved, original in zip(resolved_items, value, strict=True)):
                 value = resolved_items
         return value
+
+
+def _populate_term_defaults(func: Callable[..., Any], params: dict[str, Any]) -> None:
+    """Give each term its own omitted keyword defaults without replacing explicit parameters."""
+    if inspect.isclass(func):
+        func = func.__call__
+    defaults = {
+        name: parameter.default
+        for name, parameter in inspect.signature(func).parameters.items()
+        if parameter.kind in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        and parameter.default is not inspect.Parameter.empty
+        and name not in params
+    }
+    params.update(copy.deepcopy(defaults))
