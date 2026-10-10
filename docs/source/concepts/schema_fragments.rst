@@ -28,10 +28,11 @@ update). Irregular APIs override ``func`` — for example
 :func:`~isaaclab.sim.schemas.apply_drive` to handle the multi-instance
 ``UsdPhysics.DriveAPI``.
 
-Fragments are grouped into *families*, one per spawner slot. Each family has a writer
-that resolves target prims from an expression and dispatches every fragment via its
-``func``. Backend fragments carry backend-specific appliers, so the core package never
-imports a backend:
+Fragments are grouped into *families*, one per spawner slot. Most family writers resolve
+target prims from an expression and dispatch every fragment via its ``func``. The
+``mesh_collision_props`` slot selects existing colliders first, then calls its single-prim
+writer for each. Backend fragments carry backend-specific appliers, so the core package
+never imports a backend:
 
 .. list-table::
    :header-rows: 1
@@ -46,6 +47,9 @@ imports a backend:
    * - ``collision_props``
      - :func:`~isaaclab.sim.schemas.apply_collision_properties`
      - prims with ``UsdPhysics.CollisionAPI``
+   * - ``mesh_collision_props``
+     - :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, once per collider
+     - prims with ``UsdPhysics.CollisionAPI`` (colliders)
    * - ``mass_props``
      - :func:`~isaaclab.sim.schemas.apply_mass_properties`
      - prims with ``UsdPhysics.MassAPI``
@@ -132,7 +136,7 @@ to the legacy writers), or ``None``.
 
 Mapping keys are regular-expression suffixes appended to *the prim the spawner authors
 that family on*: the spawn prim for USD, URDF, and MJCF assets; for shape and mesh
-spawners, the geometry prim for the collision family and the container prim for the
+spawners, the geometry prim for the collision and mesh-collision families and the container prim for the
 rigid-body and mass families. A key therefore carries its own leading ``/`` when it
 targets descendants: ``""`` selects the anchor prim itself, ``"/[^/]+"`` its direct
 children, and ``"/.*"`` everything beneath it. Prefer ``"/.*"`` for a whole-subtree
@@ -148,7 +152,24 @@ prim those spawners author. On the file spawners it targets the spawn prim toget
 its descendants, so it reaches the schema carriers wherever the asset puts them; and when
 the subtree carries no prim with the family's defining API at all — the usual shape of an
 art asset shipped without physics schemas — the file spawners apply that API to the spawn
-prim and author there, turning the asset into a single body.
+prim and author there, turning the asset into a single body. The mesh-collision family
+never creates colliders, so its shorthand only ever reaches the colliders that exist.
+
+The mesh-collision family anchors like the collision family. For example, to cook every
+collider of a USD asset as a convex hull with a PhysX vertex limit:
+
+.. code-block:: python
+
+   import isaaclab.sim as sim_utils
+   from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+
+   spawn = sim_utils.UsdFileCfg(
+       usd_path="/path/to/asset.usd",
+       mesh_collision_props=[
+           sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
+           PhysxConvexHullCfg(hull_vertex_limit=32),
+       ],
+   )
 
 A robot spawned from USD, with a broad rule and a narrowing override:
 
