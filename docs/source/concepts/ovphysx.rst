@@ -117,7 +117,7 @@ cloner.
 Installation
 ------------
 
-The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
+The ``ovphysx`` extra requires OvPhysX 0.6.4.72118723. Install it from the repository root with:
 
 .. code-block:: bash
 
@@ -125,7 +125,7 @@ The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository roo
 
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
+extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
 with this runtime combination. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.

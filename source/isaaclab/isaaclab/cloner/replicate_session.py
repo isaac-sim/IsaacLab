@@ -16,6 +16,7 @@ import numpy as np
 
 from .. import sim as sim_utils
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sensors.ray_caster.ray_caster_cfg import RayCasterCfg
 from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
 from ..utils.version import has_kit
@@ -236,6 +237,10 @@ def _prepare_cloning(
                 else:
                     prototype.spawn.usd_path = spawn.usd_path[variant]
             asset_prototypes.append(prototype)
+        # Ray casters may still spawn deprecated attachment frames, but those frames are
+        # sensor views rather than independently owned clone sources.
+        if isinstance(cfg, RayCasterCfg):
+            continue
         if spawn is None:
             # Views of an authored subtree inherit its copies; different context overrides stay explicit.
             contexts = getattr(cfg, "cloning_contexts", ())
