@@ -218,7 +218,7 @@ class _CosmosStream:
                     reply, generated = self._exchange(request)
                     if generated or reply.get("frames") != frames:
                         raise ProtocolError("Cosmos returned images that do not match the control chunks.")
-                    self._channel.output_ready.wait(control.device)
+                    self._channel.output_ready.wait()
                     # From the service's GPU, the images copy directly to this one.
                     images = [
                         self._channel.output.tensor[view, :count].to(control.device, copy=True)

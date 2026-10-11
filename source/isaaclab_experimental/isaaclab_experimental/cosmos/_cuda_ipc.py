@@ -7,11 +7,12 @@
 
 The two processes use different PyTorch builds, so sharing goes through the CUDA driver API, which only
 depends on the installed driver: each process allocates the buffer it writes and the interprocess event it
-records on its own GPU and exports their handles; the other process opens them on that GPU. Buffers appear in
-both processes as zero-copy uint8 tensors, and events order the producer's and consumer's CUDA streams without
-synchronizing the host. The processes can use different GPUs that access each other's memory directly, over
-NVLink or PCIe; the reader then copies between the GPUs without host memory. CUDA IPC is available on Linux; on
-other platforms :func:`available` returns False and images go through the socket.
+records on its own GPU and exports their handles; the other process maps the buffer on that GPU and imports the
+event on its own GPU, whose stream waits for it. Buffers appear in both processes as zero-copy uint8 tensors, and
+events order the producer's and consumer's CUDA streams without synchronizing the host. The processes can use
+different GPUs that access each other's memory directly, over NVLink or PCIe; the reader then copies between the
+GPUs without host memory. CUDA IPC is available on Linux; on other platforms :func:`available` returns False and
+images go through the socket.
 """
 
 from __future__ import annotations
@@ -251,16 +252,10 @@ class SharedEvent:
         with _Context(self.device.index or 0) as driver:
             _check(driver, driver.cuEventRecord(self._event, _stream_handle(self.device)))
 
-    def wait(self, device: torch.device) -> None:
-        """Make ``device``'s current PyTorch stream wait for the last recorded point, without blocking the host.
-
-        ``device`` can differ from the event's: CUDA lets a stream wait for an event of another device.
-        """
-        import torch
-
-        device = torch.device(device)
-        with _Context(device.index or 0) as driver:
-            _check(driver, driver.cuStreamWaitEvent(_stream_handle(device), self._event, 0))
+    def wait(self) -> None:
+        """Make this device's current PyTorch stream wait for the last recorded point, without blocking the host."""
+        with _Context(self.device.index or 0) as driver:
+            _check(driver, driver.cuStreamWaitEvent(_stream_handle(self.device), self._event, 0))
 
     def close(self) -> None:
         """Destroy this process's event. Repeated calls are safe."""
@@ -274,10 +269,10 @@ class SharedEvent:
 class SharedChannel:
     """The buffers and events of one camera session: controls in, generated images out.
 
-    Each process creates the buffer it writes and the event it records on its own GPU, and opens the other
-    process's on the GPU that holds them: the camera creates ``control`` and ``control_ready``, the service
-    ``output`` and ``output_ready``. CUDA records an event only on the device that created it, so this split also
-    lets the two processes use different GPUs.
+    Each process creates the buffer it writes and the event it records on its own GPU: the camera creates
+    ``control`` and ``control_ready``, the service ``output`` and ``output_ready``. CUDA records an event only on the
+    device that created it, so this split also lets the two processes use different GPUs. Each process maps the
+    other's buffer on the GPU that holds it and imports the other's event on its own GPU, whose stream waits for it.
     """
 
     def __init__(self, device: torch.device, shape: tuple[int, ...], writes: str):
@@ -294,6 +289,7 @@ class SharedChannel:
         if writes not in ("control", "output"):
             raise ValueError("A CUDA IPC channel writes either control or output.")
         self._writes = writes
+        self._device = device
         self._shape = tuple(shape)
         self.control = self.control_ready = self.output = self.output_ready = None
         self._opened = ExitStack()
@@ -313,7 +309,10 @@ class SharedChannel:
         return {self._writes: buffer.handle, f"{self._writes}_ready": event.handle}
 
     def open(self, device: torch.device, handles: dict) -> None:
-        """Open the other process's buffer and event on ``device``, this process's index of the GPU that holds them.
+        """Map the other process's buffer on ``device`` and import its event on this channel's GPU.
+
+        ``device`` is this process's index of the GPU that holds the buffer. The event is imported on the GPU whose
+        stream waits for it: waiting on an event imported on the other GPU crashed the CUDA driver.
 
         Raises:
             ValueError: If the handles do not name the other process's buffer and event.
@@ -328,7 +327,7 @@ class SharedChannel:
         with ExitStack() as opened:
             buffer = SharedBuffer(device, self._shape, handles[reads])
             opened.callback(buffer.close)
-            event = SharedEvent(device, handles[f"{reads}_ready"])
+            event = SharedEvent(self._device, handles[f"{reads}_ready"])
             opened.callback(event.close)
             self._opened = opened.pop_all()
         self._assign(reads, buffer, event)

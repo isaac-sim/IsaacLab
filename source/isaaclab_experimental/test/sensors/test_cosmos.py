@@ -497,14 +497,14 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_f
 
     class Buffer(Resource):
         def __init__(self, device, shape, handle=None):
-            self.handle = handle or "control"
+            self.device, self.handle = device, handle or "control"
             acquired.append(self)
 
     class Event(Resource):
         def __init__(self, device, handle=None):
             if fail == ("opened" if handle else "created"):
                 raise RuntimeError("Cannot get event")
-            self.handle = handle or "control_ready"
+            self.device, self.handle = device, handle or "control_ready"
             acquired.append(self)
 
     monkeypatch.setattr(_cuda_ipc, "SharedBuffer", Buffer)
@@ -524,6 +524,8 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_f
     else:
         channel.open(torch.device("cuda:1"), {"output": "output", "output_ready": "output_ready"})
         assert (channel.output.handle, channel.output_ready.handle) == ("output", "output_ready")
+        # The buffer stays on the GPU that holds it; the event is imported on the GPU whose stream waits for it.
+        assert (channel.output.device, channel.output_ready.device) == (torch.device("cuda:1"), torch.device("cuda:0"))
     channel.close()
     channel.close()
     assert set(released) == set(acquired) and released[-2:] == created[::-1]
