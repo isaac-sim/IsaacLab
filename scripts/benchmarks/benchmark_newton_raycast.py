@@ -35,7 +35,8 @@ import time
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import newton_backend as nb
 from isaaclab_newton.sensors import LegacyRayCaster, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
@@ -151,13 +152,14 @@ def main():
         def run_bvh():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
+        backend = sim.physics_manager.backend
+
         def run_bvh_with_refit():
-            NewtonManager._mark_sensor_state_dirty()
+            nb.refit_bvh(backend)
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            NewtonManager._mark_sensor_state_dirty()
-            NewtonManager._update_sensor_tasks()
+            nb.refit_bvh(backend)
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,
@@ -168,7 +170,7 @@ def main():
 
         print(
             f"\nnum_envs={args_cli.num_envs}, rays/env={num_rays}, total rays={total_rays},"
-            f" shapes in BVH={NewtonManager.get_model().bvh_shape_count_enabled},"
+            f" shapes in BVH={backend.model.bvh_shape_count_enabled},"
             f" iterations={args_cli.num_iterations}, device={device}"
         )
         print(f"{'benchmark':<40} {'ms/call':>10} {'Mrays/s':>10}")

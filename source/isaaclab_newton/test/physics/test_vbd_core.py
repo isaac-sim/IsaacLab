@@ -18,9 +18,9 @@ from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonManager,
     NewtonSoftContactCfg,
-    NewtonSolver,
     newton_backend,
 )
+from isaaclab_newton.physics.newton_solver import solver_kwargs
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -106,7 +106,7 @@ def test_vbd_colors_builder_before_finalization():
         def color(self, *, balance_colors):
             events.append(("color", balance_colors))
 
-    physics.VBDSolverAdapter.prepare_solver_builder(Builder(), physics.VBDSolverCfg())
+    physics.VBDSolverAdapter(physics.VBDSolverCfg()).prepare_solver_builder(Builder())
     assert events == [("color", False)]
 
 
@@ -120,16 +120,14 @@ def test_vbd_solver_force_input_capability():
     solver_cfg = physics.VBDSolverCfg(integrate_with_external_rigid_solver=True)
     backend = SimpleNamespace(cfg=SimpleNamespace(solver_cfg=solver_cfg))
 
-    assert physics.VBDSolverAdapter.supports_body_forces(backend) is False
+    assert physics.VBDSolverAdapter(solver_cfg).supports_body_forces(backend) is False
 
 
 @pytest.mark.parametrize("overrides", [{}, {"rigid_compliant_alm": False}], ids=["defaults", "legacy"])
 def test_vbd_rigid_solver_controls(overrides):
     """VBD preserves the default controls and explicit legacy-mode selection."""
     physics = importlib.import_module("isaaclab_newton.physics")
-    kwargs = NewtonSolver.solver_kwargs(
-        SolverVBD, physics.VBDSolverCfg(**overrides), wp.DeterministicMode.NOT_GUARANTEED
-    )
+    kwargs = solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides), wp.DeterministicMode.NOT_GUARANTEED)
     assert kwargs["rigid_compliant_alm"] is overrides.get("rigid_compliant_alm")
     assert kwargs["rigid_body_contact_buffer_size"] == 64
 
@@ -155,7 +153,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     builder.color()
     model = builder.finalize(device="cpu")
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
-    solver = physics.VBDSolverAdapter.create_solver(model, solver_cfg)
+    solver = physics.VBDSolverAdapter(solver_cfg).create_solver(model)
     assert solver.rigid_compliant_alm is True
     assert solver.body_body_contact_indices.size == model.body_count * 256
 
@@ -194,7 +192,7 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step():
 
     state_0, state_1 = State(), State()
     backend = SimpleNamespace(
-        manager=physics.VBDSolverAdapter,
+        solver_adapter=physics.VBDSolverAdapter(physics.VBDSolverCfg()),
         model=SimpleNamespace(particle_count=1),
         solver=Solver(),
         state_0=state_0,

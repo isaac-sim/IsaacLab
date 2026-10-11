@@ -15,9 +15,8 @@ import warp as wp
 from newton import Contacts, Model, State
 from newton.solvers import SolverMuJoCo
 
-from .mjwarp_manager_cfg import MJWarpSolverCfg
-from .mjwarp_tendon_control import MjWarpTendonControl
-from .newton_solver import NewtonSolver
+from .mjwarp_tendon_control import MjWarpTendonControl, create_mjwarp_tendon_control
+from .newton_solver import NewtonSolver, solver_kwargs
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
@@ -39,26 +38,21 @@ class MJWarpSolverAdapter(NewtonSolver):
     single_state = True
     supports_deterministic = True
 
-    @classmethod
     def create_solver(
-        cls,
-        model: Model,
-        solver_cfg: MJWarpSolverCfg,
-        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+        self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
     ) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver.
 
         A determinism guarantee disables MuJoCo Warp's sensor stage, which cannot honor it.
         """
-        kwargs = cls.solver_kwargs(SolverMuJoCo, solver_cfg, deterministic_mode)
+        kwargs = solver_kwargs(SolverMuJoCo, self.cfg, deterministic_mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
         if deterministic_mode != wp.DeterministicMode.NOT_GUARANTEED:
             kwargs["disable_sensors"] = True
         return SolverMuJoCo(model, **kwargs)
 
-    @classmethod
-    def validate_cfg(cls, backend: NewtonBackend) -> None:
+    def validate_cfg(self, backend: NewtonBackend) -> None:
         """Reject a collision pipeline configuration while MuJoCo detects contacts internally, and determinism while
         sensors read attributes that only MuJoCo's sensor stage fills."""
         super().validate_cfg(backend)
@@ -82,16 +76,13 @@ class MJWarpSolverAdapter(NewtonSolver):
                 f" (deterministic_mode={mode.name})."
             )
 
-    @classmethod
-    def supports_graph_capture(cls, backend: NewtonBackend) -> bool:
+    def supports_graph_capture(self, backend: NewtonBackend) -> bool:
         return not backend.cfg.solver_cfg.use_mujoco_cpu
 
-    @classmethod
-    def uses_collision_pipeline(cls, backend: NewtonBackend) -> bool:
+    def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
         return not backend.cfg.solver_cfg.use_mujoco_contacts
 
-    @classmethod
-    def create_contacts(cls, backend: NewtonBackend) -> Contacts:
+    def create_contacts(self, backend: NewtonBackend) -> Contacts:
         """Allocate contacts sized to MuJoCo's contact buffer; ``solver.update_contacts`` fills them for sensors."""
         model = backend.model
         return Contacts(
@@ -101,8 +92,7 @@ class MJWarpSolverAdapter(NewtonSolver):
             requested_attributes=model.get_requested_contact_attributes(),
         )
 
-    @classmethod
-    def reset_solver(cls, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
+    def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
         """Clear MuJoCo Warp warm-start and applied-force buffers for masked worlds.
 
         With ``flags=0`` MuJoCo zeroes only solver-owned buffers that persist across steps (``qacc_warmstart``,
@@ -118,8 +108,7 @@ class MJWarpSolverAdapter(NewtonSolver):
             return
         solver.reset(state, world_mask=world_mask, flags=0)
 
-    @classmethod
-    def log_debug(cls, backend: NewtonBackend) -> None:
+    def log_debug(self, backend: NewtonBackend) -> None:
         """Log MuJoCo solver convergence statistics."""
         solver = backend.solver
         niter = solver.mjw_data.solver_niter.numpy()
@@ -128,11 +117,10 @@ class MJWarpSolverAdapter(NewtonSolver):
         if np.max(niter) == solver.mjw_model.opt.iterations:
             logger.warning(f"Solver didn't converge! max_iter={np.max(niter)}")
 
-    @classmethod
-    def create_fixed_tendon_control(cls, articulation, model: Model) -> MjWarpTendonControl | None:
+    def create_fixed_tendon_control(self, articulation, model: Model) -> MjWarpTendonControl | None:
         """Build the MuJoCo tendon adapter for ``articulation``.
 
         Returns:
             The adapter, or None when no MuJoCo actuator transmits to any of the articulation's tendons.
         """
-        return MjWarpTendonControl.create(articulation, model)
+        return create_mjwarp_tendon_control(articulation, model)

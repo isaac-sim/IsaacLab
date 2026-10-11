@@ -41,13 +41,12 @@ from isaaclab_newton.renderers.visual_material import (
 from . import newton_backend as nb
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback, StepPhase
 from .newton_scene_data import NewtonSceneDataBackend
+from .newton_solver import create_builder, create_solver_adapter
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
-
-    from .newton_manager_cfg import NewtonSolverCfg
 
 
 logger = logging.getLogger(__name__)
@@ -106,6 +105,8 @@ class NewtonManager(PhysicsManager):
         """
         super().__init__()
         self._cfg = cfg if cfg is not None else NewtonCfg()
+        self.solver_adapter = create_solver_adapter(self._cfg.solver_cfg)
+        """Adapter of the configured solver type, shared by the backends this manager builds."""
         self._device = device
         self._dt = dt
         self._builder = builder
@@ -133,6 +134,7 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         self.clone_context_type = NewtonReplicateContext
+        self.solver_adapter = create_solver_adapter(self._cfg.solver_cfg)
         self._dt = sim_context.cfg.dt
 
     def reset(self, soft: bool = False) -> None:
@@ -475,14 +477,13 @@ class NewtonManager(PhysicsManager):
 
     # ----- Model construction -------------------------------------------------------
 
-    def prepare_builder(self, builder: ModelBuilder, solver_cfg: NewtonSolverCfg) -> None:
+    def prepare_builder(self, builder: ModelBuilder) -> None:
         """Apply unresolved site requests and solver-specific normalization to the builder about to be finalized.
 
         The builder survives hard resets, and so do the sites added to it, so a site is added only once.
 
         Args:
             builder: Builder of the simulated model.
-            solver_cfg: Solver configuration of the model.
         """
         global_sites, body_sites, root_sites = self.inject_sites(builder, {})
         site_map = self._site_index_map
@@ -491,7 +492,7 @@ class NewtonManager(PhysicsManager):
         for label, xform in root_sites.items():
             site_map[label] = (None, [[builder.add_site(body=-1, xform=xform, label=label)]])
         builder.up_axis = Axis.Z
-        solver_cfg.class_type.prepare_solver_builder(builder, solver_cfg)
+        self.solver_adapter.prepare_solver_builder(builder)
 
     def register_site(self, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
         """Request a site for injection into prototypes before replication.
@@ -610,13 +611,13 @@ class NewtonManager(PhysicsManager):
     def _shared_builder(self) -> ModelBuilder:
         """Return this manager's construction model, retained across hard resets."""
         if self._builder is None:
-            self._builder = self._cfg.solver_cfg.class_type.create_builder(physics_cfg=self._cfg)
+            self._builder = create_builder(self._cfg)
         return self._builder
 
     def finalize_backend(self) -> NewtonBackend:
         """Finalize this manager's builder into independently owned simulation buffers."""
         builder = self._shared_builder()
-        self.prepare_builder(builder, self._cfg.solver_cfg)
+        self.prepare_builder(builder)
         model = builder.finalize(device=self._device)
         if self._sim is not None:
             model.set_gravity(self._sim.cfg.gravity)
@@ -628,7 +629,9 @@ class NewtonManager(PhysicsManager):
             )
             for label, start, end in zip(labels, starts, ends, strict=True)
         }
-        return NewtonBackend(model, self._cfg, dt=self._dt, deformable_ranges=ranges)
+        return NewtonBackend(
+            model, self._cfg, dt=self._dt, deformable_ranges=ranges, solver_adapter=self.solver_adapter
+        )
 
     def get_physics_dt(self) -> float:
         """Return the physics timestep, including standalone simulations."""
@@ -703,8 +706,8 @@ class NewtonManager(PhysicsManager):
         """Newton GL headless perspective video capture."""
         return "newton_gl"
 
-    @classmethod
-    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+    @staticmethod
+    def setup_deformable_body(prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
         """Apply Newton's token deformable anchor schemas and sync the visual mesh geometry."""
         sim_mesh_path = sim_mesh_prim.GetPath().pathString
         token = "PhysicsVolumeDeformableSimAPI" if deformable_type == "volume" else "PhysicsSurfaceDeformableSimAPI"

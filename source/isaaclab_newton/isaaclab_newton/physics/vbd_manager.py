@@ -13,7 +13,6 @@ from newton import ModelBuilder, State
 from newton.solvers import SolverVBD
 
 from .newton_solver import NewtonSolver
-from .vbd_manager_cfg import VBDSolverCfg
 
 if TYPE_CHECKING:
     from .newton_backend import NewtonBackend
@@ -26,17 +25,14 @@ class VBDSolverAdapter(NewtonSolver):
     supports_heterogeneous_worlds = True
     prepares_step = True
 
-    @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: VBDSolverCfg) -> None:
+    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
         """Color the completed builder before allocating the model."""
         builder.color(balance_colors=False)
 
-    @classmethod
-    def supports_body_forces(cls, backend: NewtonBackend) -> bool:
+    def supports_body_forces(self, backend: NewtonBackend) -> bool:
         return not backend.cfg.solver_cfg.integrate_with_external_rigid_solver
 
-    @classmethod
-    def prepare_step(cls, backend: NewtonBackend, state: State) -> None:
+    def prepare_step(self, backend: NewtonBackend, state: State) -> None:
         """Rebuild the particle BVH before each physics step."""
         if backend.model.particle_count > 0:
             backend.solver.rebuild_bvh(state)

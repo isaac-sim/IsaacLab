@@ -29,6 +29,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics import newton_backend as nb
+from isaaclab_newton.physics.newton_solver import create_builder, create_solver_adapter
 
 DEVICE = "cuda:0"
 DT = 0.01
@@ -48,9 +49,10 @@ def _pendulums(
     ``links_per_world`` gives each world its own chain length; by default every world holds one link.
     """
     builder = _pendulum_builder(physics_cfg, num_worlds, links_per_world)
-    physics_cfg.solver_cfg.class_type.prepare_solver_builder(builder, physics_cfg.solver_cfg)
+    adapter = create_solver_adapter(physics_cfg.solver_cfg)
+    adapter.prepare_solver_builder(builder)
     model = builder.finalize(device=DEVICE)
-    backend = NewtonBackend(model, physics_cfg, dt=DT)
+    backend = NewtonBackend(model, physics_cfg, dt=DT, solver_adapter=adapter)
     nb.init_solver(backend)
     backend.steps_per_call = steps
     if not captured:
@@ -60,7 +62,7 @@ def _pendulums(
 
 def _pendulum_builder(physics_cfg, num_worlds=4, links_per_world=None):
     """Construct the same pendulum worlds for standalone managers or the functional backend."""
-    builder = physics_cfg.solver_cfg.class_type.create_builder(physics_cfg=physics_cfg)
+    builder = create_builder(physics_cfg)
     for world, num_links in enumerate(links_per_world or [1] * num_worlds):
         builder.begin_world()
         parent, joints = -1, []
@@ -207,7 +209,7 @@ def test_heterogeneous_worlds_match_solver_capability(solver_cfg):
     """Solvers that declare heterogeneous-world support step worlds with different chains; the others refuse them."""
     cfg = NewtonCfg(solver_cfg=solver_cfg, num_substeps=4)
     links = [1, 2, 1, 3]
-    if not cfg.solver_cfg.class_type.supports_heterogeneous_worlds:
+    if not create_solver_adapter(cfg.solver_cfg).supports_heterogeneous_worlds:
         with pytest.raises(ValueError, match="homogeneous"):
             _pendulums(cfg, 1, links_per_world=links)
         return

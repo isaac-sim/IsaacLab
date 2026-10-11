@@ -23,7 +23,7 @@ from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBD
 
 
 def _stub_subsolvers(monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
-    """Replace the MJWarp and VBD sub-solver managers with mocks."""
+    """Replace the MJWarp and VBD sub-solver adapter types with mocks."""
     monkeypatch.setattr(solver_cfg.rigid_solver_cfg, "class_type", MagicMock())
     monkeypatch.setattr(solver_cfg.soft_solver_cfg, "class_type", MagicMock())
 
@@ -34,7 +34,7 @@ def _create(
     """Construct the coupled solver over mocked sub-solvers."""
     solver_cfg = CoupledMJWarpVBDSolverCfg() if solver_cfg is None else solver_cfg
     _stub_subsolvers(monkeypatch, solver_cfg)
-    return CoupledMJWarpVBDSolverAdapter.create_solver(MagicMock(), solver_cfg)
+    return CoupledMJWarpVBDSolverAdapter(solver_cfg).create_solver(MagicMock())
 
 
 def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
@@ -55,11 +55,9 @@ def test_registered_mujoco_solver_imports_mujoco_joint_properties() -> None:
     joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
 
     builder = ModelBuilder()
-    CoupledMJWarpVBDSolverAdapter.register_builder_attributes(builder, CoupledMJWarpVBDSolverCfg())
-    builder.add_usd(
-        stage,
-        schema_resolvers=CoupledMJWarpVBDSolverAdapter.get_usd_import_schema_resolvers(CoupledMJWarpVBDSolverCfg()),
-    )
+    adapter = CoupledMJWarpVBDSolverAdapter(CoupledMJWarpVBDSolverCfg())
+    adapter.register_builder_attributes(builder)
+    builder.add_usd(stage, schema_resolvers=adapter.get_usd_import_schema_resolvers())
     model = builder.finalize(device="cpu")
 
     assert model.joint_friction.numpy()[-1] == pytest.approx(0.11)
@@ -75,7 +73,9 @@ def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> N
     state = object()
     world_mask = object()
 
-    CoupledMJWarpVBDSolverAdapter.reset_solver(SimpleNamespace(solver=solver), state, world_mask)
+    CoupledMJWarpVBDSolverAdapter(CoupledMJWarpVBDSolverCfg()).reset_solver(
+        SimpleNamespace(solver=solver), state, world_mask
+    )
 
     rigid_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
     soft_solver.reset.assert_called_once_with(state, world_mask=world_mask, flags=0)
@@ -112,11 +112,13 @@ def test_reset_skips_all_false_cpu_mask(monkeypatch: pytest.MonkeyPatch) -> None
 )
 def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBDSolverCfg, match: str) -> None:
     with pytest.raises(ValueError, match=match):
-        CoupledMJWarpVBDSolverAdapter.create_solver(MagicMock(), solver_cfg)
+        CoupledMJWarpVBDSolverAdapter(solver_cfg).create_solver(MagicMock())
 
 
 def test_add_contact_sensor_rejects_coupled_solver() -> None:
-    backend = SimpleNamespace(manager=CoupledMJWarpVBDSolverAdapter, contact_sensors={})
+    backend = SimpleNamespace(
+        solver_adapter=CoupledMJWarpVBDSolverAdapter(CoupledMJWarpVBDSolverCfg()), contact_sensors={}
+    )
 
     with pytest.raises(NotImplementedError, match="contact sensors are not yet supported"):
         nb.add_contact_sensor(backend, body_names_expr="body")
@@ -127,10 +129,11 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     solver = _create(monkeypatch, solver_cfg)
     backend = SimpleNamespace(solver=solver)
-    manager = CoupledMJWarpVBDSolverAdapter
+    manager = CoupledMJWarpVBDSolverAdapter(solver_cfg)
 
-    assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.class_type.create_solver.return_value
-    assert solver.soft_solver is solver_cfg.soft_solver_cfg.class_type.create_solver.return_value
+    # Each sub-solver is built by the adapter its configuration's class_type constructs.
+    assert solver.rigid_solver is solver_cfg.rigid_solver_cfg.class_type.return_value.create_solver.return_value
+    assert solver.soft_solver is solver_cfg.soft_solver_cfg.class_type.return_value.create_solver.return_value
     assert manager.single_state is False
     assert manager.uses_collision_pipeline(backend) is True
     assert manager.supports_contact_sensors is False
@@ -152,7 +155,7 @@ def test_step_preserves_input_forces(mode: str, monkeypatch: pytest.MonkeyPatch)
     rigid_solver = solver.rigid_solver
     soft_solver = solver.soft_solver
     backend = SimpleNamespace(solver=solver, contacts=contacts, collision_pipeline=collision_pipeline)
-    CoupledMJWarpVBDSolverAdapter.prepare_contacts(backend)
+    CoupledMJWarpVBDSolverAdapter(CoupledMJWarpVBDSolverCfg()).prepare_contacts(backend)
     monkeypatch.setattr(solver, "_apply_reactions", reactions)
 
     solver.step(state_in, state_out, control, contacts, 0.01)

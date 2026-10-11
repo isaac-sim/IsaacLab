@@ -10,8 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.physics.newton_solver import NewtonSolver
-from isaaclab_newton.physics.vbd_manager import VBDSolverAdapter
+from isaaclab_newton.physics.newton_solver import NewtonSolver, create_solver_adapter
 from newton import CollisionPipeline, Contacts, Control, Model, ModelBuilder, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
@@ -133,41 +132,45 @@ class CoupledMJWarpVBDSolverAdapter(NewtonSolver):
     supports_contact_sensors = False
     prepares_step = True
 
-    @classmethod
+    def __init__(self, solver_cfg: CoupledMJWarpVBDSolverCfg):
+        """Bind the adapter and its rigid and soft sub-solver adapters to the configuration.
+
+        Args:
+            solver_cfg: Coupled solver configuration.
+        """
+        super().__init__(solver_cfg)
+        self.rigid = create_solver_adapter(solver_cfg.rigid_solver_cfg)
+        """Adapter of the MJWarp rigid sub-solver."""
+        self.soft = create_solver_adapter(solver_cfg.soft_solver_cfg)
+        """Adapter of the VBD soft sub-solver."""
+
     def create_solver(
-        cls,
-        model: Model,
-        solver_cfg: CoupledMJWarpVBDSolverCfg,
-        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+        self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
     ) -> CoupledMJWarpVBDSolver:
-        """Construct both sub-solvers through their own managers."""
+        """Construct both sub-solvers through their own adapters."""
+        solver_cfg: CoupledMJWarpVBDSolverCfg = self.cfg
         if solver_cfg.coupling_mode not in ("one_way", "two_way"):
             raise ValueError("coupling_mode must be 'one_way' or 'two_way'.")
         if not solver_cfg.rigid_solver_cfg.use_mujoco_contacts:
             raise ValueError("The custom coupling manager requires MJWarp internal contacts.")
         if not solver_cfg.soft_solver_cfg.integrate_with_external_rigid_solver:
             raise ValueError("The custom coupling manager requires VBD external rigid-body integration.")
-        rigid = solver_cfg.rigid_solver_cfg
-        soft = solver_cfg.soft_solver_cfg
         return CoupledMJWarpVBDSolver(
             model,
-            rigid.class_type.create_solver(model, rigid, deterministic_mode),
-            soft.class_type.create_solver(model, soft, deterministic_mode),
+            self.rigid.create_solver(model, deterministic_mode),
+            self.soft.create_solver(model, deterministic_mode),
             solver_cfg.coupling_mode,
         )
 
-    @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:
+    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
         """Color the completed builder for VBD before allocating the model."""
-        VBDSolverAdapter.prepare_solver_builder(builder, solver_cfg.soft_solver_cfg)
+        self.soft.prepare_solver_builder(builder)
 
-    @classmethod
-    def prepare_contacts(cls, backend: NewtonBackend) -> None:
+    def prepare_contacts(self, backend: NewtonBackend) -> None:
         """Bind the contacts and pipeline used inside each coupled substep."""
         backend.solver.contacts = backend.contacts
         backend.solver.collision_pipeline = backend.collision_pipeline
 
-    @classmethod
-    def prepare_step(cls, backend: NewtonBackend, state: State) -> None:
+    def prepare_step(self, backend: NewtonBackend, state: State) -> None:
         """Rebuild the VBD BVH before each physics step."""
         backend.solver.rebuild_bvh(state)

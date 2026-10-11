@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import gymnasium as gym
 import numpy as np
@@ -18,6 +18,9 @@ from ..utils import env_ids_from_mask, env_mask_from_ids
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+if TYPE_CHECKING:
+    from ..physics import PhysicsManager
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +66,22 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     cfg: ManagerBasedRLEnvCfg
     """Configuration for the environment."""
 
-    def __init__(self, cfg: ManagerBasedRLEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(
+        self,
+        cfg: ManagerBasedRLEnvCfg,
+        render_mode: str | None = None,
+        *,
+        physics_manager: PhysicsManager | None = None,
+        **kwargs,
+    ):
         """Initialize the environment.
 
         Args:
             cfg: The configuration for the environment.
             render_mode: The render mode for the environment. Defaults to None, which
                 is similar to ``"human"``.
+            physics_manager: Physics manager for the simulation context the environment creates. Defaults to the
+                manager selected by ``cfg.sim.physics``.
         """
         # -- counter for curriculum
         self.common_step_counter = 0
@@ -79,7 +91,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
 
         # initialize the base class to setup the scene.
-        super().__init__(cfg=cfg)
+        super().__init__(cfg=cfg, physics_manager=physics_manager)
         # store the render mode
         self.render_mode = render_mode
 

@@ -31,13 +31,13 @@ from newton import CollisionPipeline, Contacts, Model, ModelBuilder, ModelFlags,
 from newton.sensors import SensorContact, SensorIMU
 
 from isaaclab.utils.buffers import TimestampedBuffer
-from isaaclab.utils.string import string_to_callable
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.renderers.visual_material import VisualMaterialWriter
 
 from .newton_manager_cfg import NewtonBuilderCfg, NewtonCfg
+from .newton_solver import NewtonSolver, create_solver_adapter
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
@@ -45,7 +45,6 @@ if TYPE_CHECKING:
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from .newton_manager_cfg import NewtonBackendCfg
-    from .newton_solver import NewtonSolver
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +294,7 @@ class NewtonBackend:
         *,
         dt: float | None = None,
         deformable_ranges: dict[str, tuple[int, int, str]] | None = None,
+        solver_adapter: NewtonSolver | None = None,
     ):
         """Bind native buffers to a finalized model.
 
@@ -304,6 +304,8 @@ class NewtonBackend:
                 ``physics_cfg.solver_cfg.class_type``; anything else makes it render-only.
             dt: Duration of one physics step [s]. Required for a simulation backend.
             deformable_ranges: Native ``(start, count, kind)`` particle range of each deformable mesh, by label.
+            solver_adapter: Adapter of the configured solver type, e.g. shared by the backends of one manager.
+                Defaults to a new adapter for ``physics_cfg.solver_cfg``.
         """
         self.model = model
         self.is_stepping = False
@@ -329,9 +331,8 @@ class NewtonBackend:
         if dt is None:
             raise ValueError("A simulation NewtonBackend requires the physics step duration dt.")
 
-        adapter = physics_cfg.solver_cfg.class_type
-        self.solver_adapter: type[NewtonSolver] = string_to_callable(adapter) if isinstance(adapter, str) else adapter
-        """Stateless solver adapter whose classmethods construct, step, and reset the solver of this backend."""
+        self.solver_adapter: NewtonSolver = solver_adapter or create_solver_adapter(physics_cfg.solver_cfg)
+        """Solver adapter whose hooks construct, step, and reset the solver of this backend."""
         self.dt = dt
         """Duration of one physics step [s]."""
         self.num_substeps = physics_cfg.num_substeps
@@ -451,7 +452,7 @@ def init_solver(backend: NewtonBackend, *, relaxed_capture: bool = False) -> Non
     adapter = backend.solver_adapter
     adapter.validate_cfg(backend)
     cfg = backend.cfg
-    backend.solver = adapter.create_solver(backend.model, cfg.solver_cfg, backend.deterministic_mode)
+    backend.solver = adapter.create_solver(backend.model, backend.deterministic_mode)
     if not adapter.single_state:
         adapter.initialize_output_state(backend, backend.state_1)
     _allocate_contacts(backend)
@@ -461,7 +462,9 @@ def init_solver(backend: NewtonBackend, *, relaxed_capture: bool = False) -> Non
         if adapter.supports_graph_capture(backend):
             backend.capture = partial(capture_graph, backend.device, relaxed=relaxed_capture)
         else:
-            logger.warning("%s cannot capture the current solver configuration; stepping eagerly.", adapter.__name__)
+            logger.warning(
+                "%s cannot capture the current solver configuration; stepping eagerly.", type(adapter).__name__
+            )
 
 
 def _allocate_contacts(backend: NewtonBackend) -> None:
@@ -788,7 +791,7 @@ def add_contact_sensor(
     """
     if not backend.solver_adapter.supports_contact_sensors:
         raise NotImplementedError(
-            f"Newton contact sensors are not yet supported by {backend.solver_adapter.__name__}:"
+            f"Newton contact sensors are not yet supported by {type(backend.solver_adapter).__name__}:"
             " contact forces live in per-entry buffers."
         )
     if (body_names_expr is None) == (shape_names_expr is None):
@@ -1192,11 +1195,11 @@ def run_query(
     if cached.timestamp != timestamp:
         if model.device.is_cuda and use_cuda_graph:
             if cached.data is None or cached.data[0] != pointers:
-                refit = partial(_refit_bvh, backend)
+                refit = partial(refit_bvh, backend)
                 cached.data = pointers, capture_graph(str(model.device), refit, relaxed=has_kit())
             cached.data[1].launch()
         else:
-            _refit_bvh(backend)
+            refit_bvh(backend)
         cached.timestamp = timestamp
     if not model.device.is_cuda or not use_cuda_graph:
         query()
@@ -1207,7 +1210,12 @@ def run_query(
     return graph
 
 
-def _refit_bvh(backend: NewtonBackend) -> None:
+def refit_bvh(backend: NewtonBackend) -> None:
+    """Refit the shape and particle BVHs of the model to the current state.
+
+    Args:
+        backend: Backend whose model and state to use.
+    """
     model, state = backend.model, backend.state_0
     if model.shape_count:
         model.bvh_refit_shapes(state)

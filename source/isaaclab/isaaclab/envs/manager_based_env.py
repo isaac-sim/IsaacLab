@@ -10,7 +10,7 @@ import logging
 import sys
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 
@@ -30,6 +30,9 @@ from .utils.io_descriptors import (
     export_scene_data,
 )
 from .utils.video_recorder import VideoRecorder
+
+if TYPE_CHECKING:
+    from ..physics import PhysicsManager
 
 logger = logging.getLogger(__name__)
 
@@ -76,11 +79,13 @@ class ManagerBasedEnv:
     querying the :attr:`physics_dt` and the :attr:`step_dt` properties respectively.
     """
 
-    def __init__(self, cfg: ManagerBasedEnvCfg):
+    def __init__(self, cfg: ManagerBasedEnvCfg, *, physics_manager: PhysicsManager | None = None):
         """Initialize the environment.
 
         Args:
             cfg: The configuration object for the environment.
+            physics_manager: Physics manager for the simulation context the environment creates, e.g. one the task
+                prepared before the scene is built. Defaults to the manager selected by ``cfg.sim.physics``.
 
         Raises:
             RuntimeError: If a simulation context already exists. The environment must always create one
@@ -110,7 +115,7 @@ class ManagerBasedEnv:
         if SimulationContext.instance() is None:
             # the type-annotation is required to avoid a type-checking error
             # since it gets confused with Isaac Sim's SimulationContext class
-            self.sim: SimulationContext = SimulationContext(self.cfg.sim)
+            self.sim: SimulationContext = SimulationContext(self.cfg.sim, physics_manager=physics_manager)
             created_sim = True
         else:
             # simulation context should only be created before the environment

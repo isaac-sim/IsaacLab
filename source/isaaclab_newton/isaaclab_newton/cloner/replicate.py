@@ -35,8 +35,9 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager, NewtonSolver
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager
 from isaaclab_newton.physics.newton_builder import inject_terrain_heightfields
+from isaaclab_newton.physics.newton_solver import create_builder, create_solver_adapter
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 
@@ -137,10 +138,10 @@ def _replicate_newton(
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    manager_cls = cfg.solver_cfg.class_type if simulation else NewtonSolver
-    schema_resolvers = manager_cls.get_usd_import_schema_resolvers(cfg.solver_cfg if simulation else None)
-    create_builder = partial(manager_cls.create_builder, physics_cfg=cfg) if simulation else ModelBuilder
-    create_builder = partial(create_builder, up_axis=up_axis)
+    solver_adapter = sim.physics_manager.solver_adapter if simulation else create_solver_adapter(None)
+    schema_resolvers = solver_adapter.get_usd_import_schema_resolvers()
+    builder_factory = partial(create_builder, cfg) if simulation else ModelBuilder
+    builder_factory = partial(builder_factory, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
@@ -189,7 +190,7 @@ def _replicate_newton(
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
-    source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    source_builders = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     if simulation:
         for entry in entries:
             ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())

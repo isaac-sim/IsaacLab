@@ -66,7 +66,6 @@ transforms in the Warp-native format consumed by renderers and visualizers.
 .. code-block:: python
 
     # isaaclab_mybackend/physics/mybackend_manager.py
-    from typing import ClassVar
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
     from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -93,38 +92,36 @@ transforms in the Warp-native format consumed by renderers and visualizers.
 
 
     class MyBackendManager(PhysicsManager):
-        _scene_data_backend: ClassVar[MyBackendSceneDataBackend | None] = None
+        backend_name = "mybackend"
 
-        @classmethod
-        def initialize(cls, sim_context):
+        def initialize(self, sim_context):
             super().initialize(sim_context)
-            cls._scene_data_backend = MyBackendSceneDataBackend()
+            self._scene_data_backend = MyBackendSceneDataBackend()
             # Initialize the physics engine.
 
-        @classmethod
-        def get_scene_data_backend(cls) -> SceneDataBackend:
-            return cls._scene_data_backend
+        def get_scene_data_backend(self) -> SceneDataBackend:
+            return self._scene_data_backend
 
-        @classmethod
-        def step(cls):
+        def step(self):
             # Advance simulation by one timestep.
             ...
 
-        @classmethod
-        def forward(cls):
+        def forward(self):
             # Update kinematics without stepping.
             ...
 
-        @classmethod
-        def reset(cls, soft=False):
+        def reset(self, soft=False):
             if not soft:
-                cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
+                self.dispatch_event(PhysicsEvent.PHYSICS_READY)
             # Reset simulation state.
 
-        @classmethod
-        def close(cls):
+        def close(self):
             super().close()
             # Clean up resources.
+
+:class:`~isaaclab.sim.SimulationContext` constructs one manager instance from the configuration (or takes one through
+its ``physics_manager`` argument) and owns it for its lifetime. Keep simulation state on the instance, not on the
+class, so two managers never share data.
 
 Define the physics configuration
 --------------------------------
@@ -147,22 +144,13 @@ manager class and holds backend-specific settings:
 Register the backend key
 ------------------------
 
-``FactoryBase`` does not derive a new backend key from an arbitrary physics
-manager class name. Add the manager prefix to the core selector in
-``isaaclab.utils.backend_utils`` before factories can resolve assets and
-sensors for the backend:
+Asset and sensor factories resolve their backend from the active manager's ``backend_name``, set on the manager class
+above. No core change is needed for a new key:
 
 .. code-block:: python
 
-    # source/isaaclab/isaaclab/utils/backend_utils.py
-    @classmethod
-    def _get_backend(cls, *args, **kwargs) -> str:
-        from isaaclab.sim.simulation_context import SimulationContext
-
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
-        if manager_name.startswith("mybackend"):
-            return "mybackend"
-        # Keep the existing newton, ovphysx, and physx cases below.
+    # source/isaaclab/isaaclab/utils/backend_utils.py (existing behavior)
+    return sim_context.physics_manager.backend_name
 
 The existing ``_get_package_name()`` convention maps the ``mybackend`` key to
 the ``isaaclab_mybackend`` package used above. If the integration uses another

@@ -30,10 +30,13 @@ __all__ = [
     "NewtonManager",
     "MJWarpSolverAdapter",
     "MPMSolverAdapter",
+    "reset_mpm_solver_state",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
     "NewtonSolverCfg",
     "NewtonSolver",
+    "create_builder",
+    "create_solver_adapter",
     "VBDSolverAdapter",
     "XPBDSolverAdapter",
     "StepCallback",
@@ -59,7 +62,7 @@ from .kamino_manager_cfg import (
 )
 from .mjwarp_manager import MJWarpSolverAdapter
 from .mjwarp_manager_cfg import MJWarpSolverCfg
-from .mpm_manager import MPMSolverAdapter
+from .mpm_manager import MPMSolverAdapter, reset_mpm_solver_state
 from .mpm_manager_cfg import MPMSolverCfg
 from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord, StepCallback, StepGraph, StepPhase
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
@@ -72,7 +75,7 @@ from .newton_manager_cfg import (
     NewtonSoftContactCfg,
     NewtonSolverCfg,
 )
-from .newton_solver import NewtonSolver
+from .newton_solver import NewtonSolver, create_builder, create_solver_adapter
 from .vbd_manager import VBDSolverAdapter
 from .vbd_manager_cfg import VBDSolverCfg
 from .xpbd_manager import XPBDSolverAdapter

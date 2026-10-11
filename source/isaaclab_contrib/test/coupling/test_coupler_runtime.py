@@ -30,7 +30,7 @@ from isaaclab_contrib.coupling import (
 def _bind_coupler(model: Model, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonBackend:
     """Build a backend on ``model`` whose coupler solver and contacts are constructed."""
     backend = NewtonBackend(model, NewtonCfg(solver_cfg=solver_cfg), dt=1.0 / 60.0)
-    assert backend.solver_adapter is CouplerSolverAdapter
+    assert isinstance(backend.solver_adapter, CouplerSolverAdapter)
     nb.init_solver(backend)
     return backend
 

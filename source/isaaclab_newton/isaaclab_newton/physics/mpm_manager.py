@@ -123,18 +123,13 @@ class MPMSolverAdapter(NewtonSolver):
 
     single_state = True
 
-    @classmethod
     def create_solver(
-        cls,
-        model: Model,
-        solver_cfg: MPMSolverCfg,
-        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+        self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
     ) -> SolverImplicitMPM:
         """Construct the configured implicit MPM solver."""
-        return SolverImplicitMPM(model, _make_solver_config(solver_cfg), temporary_store=TemporaryStore())
+        return SolverImplicitMPM(model, _make_solver_config(self.cfg), temporary_store=TemporaryStore())
 
-    @classmethod
-    def register_builder_attributes(cls, builder: ModelBuilder, solver_cfg: MPMSolverCfg | None) -> None:
+    def register_builder_attributes(self, builder: ModelBuilder) -> None:
         """Register the per-particle material attributes before particles are added.
 
         Implicit MPM materials are configured per particle through Newton custom attributes (``mpm:young_modulus``,
@@ -143,8 +138,7 @@ class MPMSolverAdapter(NewtonSolver):
         if not builder.has_custom_attribute("mpm:young_modulus"):
             SolverImplicitMPM.register_custom_attributes(builder)
 
-    @classmethod
-    def prepare_solver_builder(cls, builder: ModelBuilder, solver_cfg: MPMSolverCfg) -> None:
+    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
         """Normalize rigid colliders before solver construction.
 
         Newton's implicit MPM treats positive-mass body colliders as finite-mass colliders, so kinematic bodies lose
@@ -162,22 +156,18 @@ class MPMSolverAdapter(NewtonSolver):
             if shape_type == GeoType.CONVEX_MESH:
                 builder.shape_type[shape_id] = GeoType.MESH
 
-    @classmethod
-    def uses_collision_pipeline(cls, backend: NewtonBackend) -> bool:
+    def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
         return False
 
-    @classmethod
-    def supports_body_forces(cls, backend: NewtonBackend) -> bool:
+    def supports_body_forces(self, backend: NewtonBackend) -> bool:
         return False
 
-    @classmethod
-    def supports_graph_capture(cls, backend: NewtonBackend) -> bool:
+    def supports_graph_capture(self, backend: NewtonBackend) -> bool:
         """Whether the active MPM grid has capture-stable storage."""
         return mpm_supports_graph_capture(backend.solver)
 
-    @classmethod
     def step_solver(
-        cls, backend: NewtonBackend, state_in: State, state_out: State, contacts: Contacts | None, dt: float
+        self, backend: NewtonBackend, state_in: State, state_out: State, contacts: Contacts | None, dt: float
     ) -> None:
         """Run one implicit MPM substep, optionally projecting particles out of colliders.
 
@@ -188,66 +178,63 @@ class MPMSolverAdapter(NewtonSolver):
         if backend.cfg.solver_cfg.project_outside_colliders:
             backend.solver.project_outside(state_out, state_out, dt)
 
-    @classmethod
-    def reset_solver(cls, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
+    def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
         """Keep implicit-MPM history across automatic asset resets.
 
         Shared-grid MPM cannot reset history for a subset of worlds. Tasks with independent MPM worlds that need an
-        exact history reset call :meth:`reset_solver_state` after authoring their complete state.
+        exact history reset call :func:`reset_mpm_solver_state` after authoring their complete state.
         """
 
-    @classmethod
-    def check_status(cls, backend: NewtonBackend, captured: bool) -> None:
+    def check_status(self, backend: NewtonBackend, captured: bool) -> None:
         """Raise asynchronous sparse-grid rebuild failures after graph replay."""
         if captured:
             for solver in implicit_mpm_solvers(backend.solver):
                 solver.check_sparse_grid_rebuild_status()
 
-    @classmethod
-    def reset_solver_state(
-        cls,
-        backend: NewtonBackend,
-        state: State | None = None,
-        world_mask: wp.array(dtype=wp.bool) | None = None,
-        flags: StateFlags | int | None = None,
-    ) -> None:
-        """Reset MPM and coupled-solver history after task state is rewritten.
 
-        When :paramref:`state` is omitted, both distinct backend state buffers are reset so a later buffer swap cannot
-        restore stale history. A mask follows Newton's canonical ``world_count + 1`` contract, where the last entry
-        selects global entities in world -1. A selected single local world is promoted to a full reset because a
-        one-world MPM grid has no environment offsets.
+def reset_mpm_solver_state(
+    backend: NewtonBackend,
+    state: State | None = None,
+    world_mask: wp.array(dtype=wp.bool) | None = None,
+    flags: StateFlags | int | None = None,
+) -> None:
+    """Reset MPM and coupled-solver history after task state is rewritten.
 
-        Args:
-            backend: Backend whose solver to reset, e.g. :attr:`NewtonManager.backend`.
-            state: State whose solver-owned history should be reset. If omitted, reset both backend states.
-            world_mask: Canonical per-world mask, including the final global-world entry.
-            flags: State components whose solver-owned history should reset.
+    When :paramref:`state` is omitted, both distinct backend state buffers are reset so a later buffer swap cannot
+    restore stale history. A mask follows Newton's canonical ``world_count + 1`` contract, where the last entry
+    selects global entities in world -1. A selected single local world is promoted to a full reset because a
+    one-world MPM grid has no environment offsets.
 
-        Raises:
-            RuntimeError: If the MPM solver or a usable state is not initialized.
-            ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
-        """
-        solver = backend.solver
-        if not implicit_mpm_solvers(solver):
-            raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
-        model = backend.model
+    Args:
+        backend: Backend whose solver to reset, e.g. :attr:`NewtonManager.backend`.
+        state: State whose solver-owned history should be reset. If omitted, reset both backend states.
+        world_mask: Canonical per-world mask, including the final global-world entry.
+        flags: State components whose solver-owned history should reset.
 
-        reset_mask = world_mask
-        if world_mask is not None:
-            expected_shape = (model.world_count + 1,)
-            if world_mask.shape != expected_shape:
-                raise ValueError(f"world_mask must have shape {expected_shape}; got {world_mask.shape}.")
-            if model.world_count == 1:
-                selected = world_mask.numpy()
-                if not selected.any():
-                    return
-                if selected[0] and not selected[-1]:
-                    reset_mask = None
+    Raises:
+        RuntimeError: If the MPM solver or a usable state is not initialized.
+        ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
+    """
+    solver = backend.solver
+    if not implicit_mpm_solvers(solver):
+        raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
+    model = backend.model
 
-        candidates = (state,) if state is not None else (backend.state_1, backend.state_0)
-        states = list({id(candidate): candidate for candidate in candidates if candidate is not None}.values())
-        if not states:
-            raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
-        for candidate in states:
-            solver.reset(candidate, world_mask=reset_mask, flags=flags)
+    reset_mask = world_mask
+    if world_mask is not None:
+        expected_shape = (model.world_count + 1,)
+        if world_mask.shape != expected_shape:
+            raise ValueError(f"world_mask must have shape {expected_shape}; got {world_mask.shape}.")
+        if model.world_count == 1:
+            selected = world_mask.numpy()
+            if not selected.any():
+                return
+            if selected[0] and not selected[-1]:
+                reset_mask = None
+
+    candidates = (state,) if state is not None else (backend.state_1, backend.state_0)
+    states = list({id(candidate): candidate for candidate in candidates if candidate is not None}.values())
+    if not states:
+        raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
+    for candidate in states:
+        solver.reset(candidate, world_mask=reset_mask, flags=flags)

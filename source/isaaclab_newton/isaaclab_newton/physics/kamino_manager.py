@@ -58,18 +58,15 @@ class KaminoSolverAdapter(NewtonSolver):
     builder_attribute_solvers = (SolverKamino,)
     supports_heterogeneous_worlds = True
 
-    @classmethod
     def create_solver(
-        cls,
-        model: Model,
-        solver_cfg: _KaminoSolverCfgBase,
-        deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+        self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
     ) -> SolverKamino:
         """Construct the configured Kamino solver.
 
         Raises:
             RuntimeError: If the FK solver is enabled with more than one articulation per environment.
         """
+        solver_cfg: _KaminoSolverCfgBase = self.cfg
         if solver_cfg.use_fk_solver is None:
             # Enable the FK solver for loop-closing articulations unless the user chose explicitly.
             solver_cfg = solver_cfg.replace(use_fk_solver=_model_has_loop_closing_joints(model))
@@ -89,8 +86,7 @@ class KaminoSolverAdapter(NewtonSolver):
             )
         return SolverKamino(model, solver_cfg.to_solver_config())
 
-    @classmethod
-    def validate_cfg(cls, backend: NewtonBackend) -> None:
+    def validate_cfg(self, backend: NewtonBackend) -> None:
         """Resolve the automatic FK-solver choice into the backend's configuration, leaving the user's untouched."""
         super().validate_cfg(backend)
         solver_cfg = backend.cfg.solver_cfg
@@ -98,22 +94,18 @@ class KaminoSolverAdapter(NewtonSolver):
             use_fk_solver = _model_has_loop_closing_joints(backend.model)
             backend.cfg = backend.cfg.replace(solver_cfg=solver_cfg.replace(use_fk_solver=use_fk_solver))
 
-    @classmethod
-    def uses_collision_pipeline(cls, backend: NewtonBackend) -> bool:
+    def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
         return not backend.cfg.solver_cfg.use_collision_detector
 
-    @classmethod
-    def initialize_output_state(cls, backend: NewtonBackend, state: State) -> None:
+    def initialize_output_state(self, backend: NewtonBackend, state: State) -> None:
         """Initialize the output state's persistent Kamino buffers; FK initializes the input state."""
         backend.solver.reset(state, config=SolverKamino.ResetConfig.preserve())
 
-    @classmethod
-    def reset_solver(cls, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
+    def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
         """Skip the generic reset; :meth:`eval_fk` performs the masked Kamino reset with an explicit configuration."""
 
-    @classmethod
     def eval_fk(
-        cls, backend: NewtonBackend, state: State, world_mask: wp.array | None, fk_mask: wp.array | None
+        self, backend: NewtonBackend, state: State, world_mask: wp.array | None, fk_mask: wp.array | None
     ) -> None:
         """Update body state from joint coordinates and reset Kamino's internals for masked worlds.
 

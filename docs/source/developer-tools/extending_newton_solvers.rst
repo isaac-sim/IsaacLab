@@ -15,8 +15,9 @@ preset selection, the :ref:`solver tuning guides <solver-tuning>` for shipped so
 When a Solver Adapter Is Needed
 -------------------------------
 
-Each Newton solver is exposed as a stateless :class:`~isaaclab_newton.physics.NewtonSolver` subclass, such as
-:class:`~isaaclab_newton.physics.MJWarpSolverAdapter`. Write a new one when:
+Each Newton solver is exposed as a :class:`~isaaclab_newton.physics.NewtonSolver` subclass, such as
+:class:`~isaaclab_newton.physics.MJWarpSolverAdapter`. An adapter instance holds its solver configuration and no
+runtime state. Write a new one when:
 
 * a Newton solver has no Isaac Lab adapter yet;
 * the solver needs its own contact allocation, builder attributes, or reset
@@ -40,7 +41,9 @@ Responsibilities and Boundaries
 
 Data and behavior are split. :class:`~isaaclab_newton.physics.NewtonBackend` holds everything bound to one finalized
 model, and the functions in :mod:`isaaclab_newton.physics.newton_backend` operate on it explicitly, in the style of
-``mj_step(m, d)``. A solver adapter contributes only stateless classmethod hooks that take the backend as an argument.
+``mj_step(m, d)``. A solver adapter is an instance built from its solver configuration
+(:func:`~isaaclab_newton.physics.newton_solver.create_solver_adapter`); its hooks take the backend or builder they act
+on as an argument and keep no runtime state, so one adapter can serve several backends.
 
 .. list-table::
    :header-rows: 1
@@ -60,7 +63,7 @@ model, and the functions in :mod:`isaaclab_newton.physics.newton_backend` operat
        reset masks, and the compiled :class:`~isaaclab_newton.physics.StepGraph`. A hard reset or close discards it.
    * - Solver adapter (``<Solver>SolverAdapter``)
      - Solver construction, capabilities, stepping, per-world reset of solver-owned buffers, forward kinematics, and
-       builder attributes, as classmethods over an explicit backend.
+       builder attributes, as methods over an explicit backend or builder.
    * - Coupler entry
      - A disjoint part of the shared model, when the selected solver adapter is a coupler.
    * - Task configuration
@@ -244,14 +247,11 @@ from the defaults:
    class MySolverAdapter(NewtonSolver):
        supports_deterministic = True
 
-       @classmethod
-       def create_solver(
-           cls, model: Model, solver_cfg: MySolverCfg, deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED
-       ):
-           return SolverMySolver(model, iterations=solver_cfg.iterations)
+       def create_solver(self, model: Model, deterministic_mode=wp.DeterministicMode.NOT_GUARANTEED):
+           return SolverMySolver(model, iterations=self.cfg.iterations)
 
-Override anything else only when the solver needs it. Every hook takes the backend explicitly and must not keep
-class state:
+Override anything else only when the solver needs it. The configuration is :attr:`~isaaclab_newton.physics.NewtonSolver.cfg`;
+every other input is an argument, and hooks must not keep runtime state on the adapter:
 
 * ``step_solver()``: change one substep, for example to run a projection after the solve.
 * ``reset_solver()``: clear solver-owned history for masked worlds without touching authored joint state.

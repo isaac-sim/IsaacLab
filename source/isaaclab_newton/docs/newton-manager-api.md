@@ -15,11 +15,11 @@ builder on every call, so the two simulations have independent construction data
 
 ```python
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, create_builder
 
 
 def make_builder(cfg):
-    builder = cfg.solver_cfg.class_type.create_builder(physics_cfg=cfg)
+    builder = create_builder(cfg)
     builder.begin_world()
     link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
     joint = builder.add_joint_revolute(
@@ -137,12 +137,12 @@ operate on it. The example below reuses `make_builder` and records two physics
 ticks into a caller-owned graph without a warmup physics step.
 
 ```python
-from isaaclab_newton.physics import NewtonBackend, NewtonCfg
+from isaaclab_newton.physics import NewtonBackend, NewtonCfg, create_solver_adapter
 from isaaclab_newton.physics import newton_backend as nb
 
 cfg = NewtonCfg()
 builder = make_builder(cfg)
-cfg.solver_cfg.class_type.prepare_solver_builder(builder, cfg.solver_cfg)
+create_solver_adapter(cfg.solver_cfg).prepare_solver_builder(builder)
 model = builder.finalize(device="cuda:0")
 backend = NewtonBackend(model, cfg, dt=0.01)
 try:

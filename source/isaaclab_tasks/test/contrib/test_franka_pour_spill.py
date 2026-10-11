@@ -19,7 +19,7 @@ import newton
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MPMSolverAdapter
+from isaaclab_newton.physics import reset_mpm_solver_state
 from newton import ShapeFlags
 
 from isaaclab.utils import clone
@@ -52,8 +52,8 @@ def test_spilled_particles_land_on_ground_without_escaping_workspace(device):
         env._media.write_particle_velocity_to_sim_index(torch.zeros_like(points), env_ids=env_ids)
         world_mask = torch.ones(env.num_envs + 1, dtype=torch.bool, device=device)
         world_mask[-1] = False
-        MPMSolverAdapter.reset_solver_state(
-            MPMSolverAdapter.backend,
+        reset_mpm_solver_state(
+            env.sim.physics_manager.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

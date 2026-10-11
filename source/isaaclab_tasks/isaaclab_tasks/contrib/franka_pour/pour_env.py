@@ -27,7 +27,7 @@ import newton
 import torch
 import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.physics import MPMSolverAdapter
+from isaaclab_newton.physics import reset_mpm_solver_state
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.utils import index_fill_
@@ -112,8 +112,11 @@ class FrankaPourEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: FrankaPourResetDatasetEnvCfg, render_mode: str | None = None, **kwargs):
         configure_mpm_capacities(cfg)
         self._prepare_newton_extras(cfg)
-        with newton_builder_world_hook(self._add_pour_world_to_builder):
-            super().__init__(cfg, render_mode, **kwargs)
+        # The pour worlds are added while the scene replicates, so the hook goes on this env's manager before the
+        # simulation context that owns it builds the scene.
+        physics_manager = cfg.sim.physics.class_type()
+        with newton_builder_world_hook(self._add_pour_world_to_builder, manager=physics_manager):
+            super().__init__(cfg, render_mode, physics_manager=physics_manager, **kwargs)
 
     def load_managers(self) -> None:
         self._setup_after_physics()
@@ -661,8 +664,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
 
         # Public particle writers restore both Newton state buffers. This masked solver reset then
         # clears MPM stress/deformation and every private contact/collider history for the worlds.
-        MPMSolverAdapter.reset_solver_state(
-            MPMSolverAdapter.backend,
+        reset_mpm_solver_state(
+            self.sim.physics_manager.backend,
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
         )

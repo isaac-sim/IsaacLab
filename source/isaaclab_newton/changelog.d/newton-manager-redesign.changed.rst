@@ -1,8 +1,14 @@
 * **Breaking:** Physics managers are instances. Read the active manager from ``sim.physics_manager`` instead of
   calling runtime methods on ``NewtonManager`` or a solver-manager class. Each manager owns construction and
   lifecycle state; ``NewtonBackend`` owns finalized simulation resources.
-* **Breaking:** Solver hooks now live in stateless ``NewtonSolver`` adapters, selected independently through
-  ``solver_cfg.class_type``. For example, use ``MJWarpSolverAdapter`` in place of ``NewtonMJWarpManager``;
+* **Breaking:** Solver hooks now live in ``NewtonSolver`` adapter instances, selected independently through
+  ``solver_cfg.class_type`` and built with :func:`~isaaclab_newton.physics.create_solver_adapter`. An adapter holds its
+  solver configuration as ``cfg`` and no runtime state; its hooks are instance methods, so builder hooks
+  (``register_builder_attributes(builder)``, ``prepare_solver_builder(builder)``,
+  ``get_usd_import_schema_resolvers()``) and ``create_solver(model, deterministic_mode)`` no longer take the solver
+  configuration. ``NewtonBackend.solver_adapter`` and ``NewtonManager.solver_adapter`` are instances. Use
+  :func:`~isaaclab_newton.physics.create_builder` instead of ``<Adapter>.create_builder``, and
+  ``newton_solver.solver_kwargs`` instead of ``NewtonSolver.solver_kwargs``. For example, use ``MJWarpSolverAdapter`` in place of ``NewtonMJWarpManager``;
   ``NewtonCfg.class_type`` selects the integration manager. Apply the same ``*SolverAdapter`` rename for
   Featherstone, XPBD, VBD, Kamino, and MPM. Backend and builder registry configurations now require their owning
   ``manager`` explicitly.
@@ -25,9 +31,10 @@
 * **Breaking:** Replaced the ``NewtonQueries`` static-method class with the module functions ``run_query`` and
   ``capture_graph`` in :mod:`isaaclab_newton.physics.newton_backend`.
 * **Breaking:** The Newton model no longer carries a patched ``num_envs`` attribute; use ``Model.world_count``.
-* **Breaking:** :meth:`~isaaclab_newton.physics.MPMSolverAdapter.reset_solver_state` and
-  :meth:`~isaaclab_newton.physics.NewtonSolver.create_fixed_tendon_control` take the backend or model explicitly
-  instead of reading the active one, and builder hooks receive the solver configuration. Solver hooks no longer read
+* **Breaking:** ``MPMSolverAdapter.reset_solver_state`` is now the function
+  :func:`~isaaclab_newton.physics.reset_mpm_solver_state`, and
+  :meth:`~isaaclab_newton.physics.NewtonSolver.create_fixed_tendon_control` takes the model explicitly instead of
+  reading the active one. ``newton_backend.refit_bvh`` is public. Solver hooks no longer read
   manager class state, so several backends can coexist.
 * The Kamino manager resolves an automatic ``use_fk_solver`` into the backend's configuration instead of writing it
   into the user's configuration.
