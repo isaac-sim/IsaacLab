@@ -28,7 +28,7 @@ Programs whose required modules are unavailable, hardware-dependent teleoperatio
 Kit-only demos are not shown.
 
 For cloth and rigid-soft contact examples, see :ref:`newton-using-vbd` and the
-:ref:`H1 tablecloth expert <tablecloth-h1-expert>`. For particle-material comparisons
+:ref:`five humanoid tablecloth pulls <tablecloth-example>`. For particle-material comparisons
 and solver guidance, see :ref:`newton-tuning-mpm`.
 
 Command Builder

@@ -3,8 +3,8 @@
 VBD Solver
 ==========
 
-Vertex Block Descent (VBD) is a Newton solver for cloth and soft-body
-simulation. In Isaac Lab, VBD is enabled by selecting a
+Vertex Block Descent (VBD) is a Newton solver for cloth, soft bodies, and rigid-body
+simulation, including articulations. In Isaac Lab, VBD is enabled by selecting a
 :class:`~isaaclab_newton.physics.NewtonCfg` whose ``solver_cfg`` is a
 :class:`~isaaclab_newton.physics.VBDSolverCfg`.
 
@@ -13,51 +13,15 @@ deformable assets, materials, contacts, and coupling tuned before it works well
 with VBD.
 
 VBD is usually exposed through a task-specific physics preset rather than a
-general ``newton_vbd`` preset. Deformable-only scenes can use
-:class:`~isaaclab_newton.physics.VBDSolverCfg` directly. For robot or
-rigid-body scenes, the named-entry coupling options are:
+general ``newton_vbd`` preset. Scenes can use
+:class:`~isaaclab_newton.physics.VBDSolverCfg` directly for both deformable and
+articulated rigid-body dynamics, as in the experimental :ref:`tablecloth example <tablecloth-example>`.
+To use a separate rigid-body solver, the named-entry coupling options are:
 
 * :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
   used by the core Franka tasks.
 * :class:`~isaaclab_contrib.coupling.CouplerAdmmCfg` for linearized ADMM
   coupling between named solver entries.
-
-Run the Tablecloth Example
---------------------------
-
-The focused ``examples/newton_tablecloth.py`` script demonstrates
-standalone VBD before the task and coupling examples below. It compares five
-pull speeds side by side and shows how to configure full-surface contact while
-controlling deformable kinematic targets through Isaac Lab.
-
-.. figure:: ../../_static/examples/newton_tablecloth.jpg
-   :alt: Five side-by-side kitchen tables with red cloths and tableware during the pull-speed comparison.
-   :width: 100%
-
-   Five pull speeds in one Isaac Lab scene, rendered with Kit.
-
-Run it with the lightweight Newton GL visualizer:
-
-.. code-block:: bash
-
-   uvx isaaclab example newton-tablecloth --device cuda:0 --visualizer newton_gl
-
-The script declares its ground, tables, cloth, and tableware with
-``InteractiveSceneCfg`` and uses the standard scene write/step/update lifecycle.
-
-For robot manipulation, ``examples/tablecloth_h1.py`` runs a scripted expert for
-the manager-based ``IsaacContrib-Tablecloth-H1`` task:
-
-.. code-block:: bash
-
-   uvx --from 'isaaclab[importers]' isaaclab example tablecloth-h1 \
-      --device cuda:0 --max_steps 312
-
-Both examples use the default Isaac Lab ground plane and share SimReady kitchen
-assets with analytic collision proxies. The H1 task owns the scene, Newton IK
-actions, observations, resets, rewards, and terminations; its expert script
-only supplies actions. No trained policy or RL-library configuration is included.
-See :ref:`tablecloth-h1-expert` for the action interface and grasp calibration.
 
 Start from a Supported Deformable Task
 --------------------------------------
@@ -215,17 +179,6 @@ the intended contact loads. Higher structural stiffness can require more solver
 iterations for drive and contact convergence. Set it before creating the
 simulation because Newton captures these material values during solver construction.
 
-Contact Scheduling
-^^^^^^^^^^^^^^^^^^
-
-:attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` controls how
-often the collision pipeline refreshes contacts within a physics tick. ``0``
-runs collision once per tick. A positive value ``k`` re-runs it every ``k``
-solver substeps. Use ``1`` for fast or thin rigid-soft interactions that can
-cross the contact band within one substep; increase it only after verifying that
-the cheaper, staler contact set does not cause tunneling or ejection.
-
-
 Rigid Cables
 ^^^^^^^^^^^^
 
@@ -276,6 +229,19 @@ Self-Contact
       - Default: ``2``. Filters contacts between mesh primitives that are close in topology. Increase this to suppress contact between neighboring elements of the same surface. Values greater than ``3`` can significantly increase compute time.
     * - ``particle_rest_shape_contact_exclusion_radius``
       - Default: ``0.0`` [m]. Filters self-contact candidates whose rest-configuration distance is shorter than this distance. Increase it when rest-neighbor contacts produce unwanted resistance.
+
+
+Contact Scheduling
+------------------
+
+Contact scheduling belongs to :class:`~isaaclab_newton.physics.NewtonCfg`,
+not :class:`~isaaclab_newton.physics.VBDSolverCfg`.
+:attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` controls how
+often the collision pipeline refreshes contacts within a physics tick. ``0``
+runs collision once per tick. A positive value ``k`` re-runs it every ``k``
+solver substeps. Use ``1`` for fast or thin rigid-soft interactions that can
+cross the contact band within one substep; increase it only after verifying that
+the cheaper, staler contact set does not cause tunneling or ejection.
 
 
 Custom MJWarp + VBD Parameters

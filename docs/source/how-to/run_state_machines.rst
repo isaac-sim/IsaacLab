@@ -47,55 +47,45 @@ and releases it:
    uv run python scripts/environments/state_machine/open_cabinet_sm.py \
       --num_envs 32 --viz kit
 
-.. _tablecloth-h1-expert:
+.. _tablecloth-example:
 
-Pull a tablecloth with H1
--------------------------
+Compare five humanoid tablecloth pulls
+--------------------------------------
 
-This example runs a bimanual Warp state machine against the manager-based
-``IsaacContrib-Tablecloth-H1`` task. It uses Newton VBD for the cloth and rigid
-tableware, Newton IK for the hands, and a downloaded H1 asset. The Newton GL
-visualizer opens by default; the SimReady table and tableware require asset
-access.
+This standalone example uses :class:`~isaaclab.scene.InteractiveScene` to build
+five side-by-side H2 Plus / SHARPA trials with the default Isaac Lab ground plane and SimReady
+kitchen assets. Newton VBD simulates the articulations, cloth, and tableware in a
+single solver. The Warp state machine and Newton IK run on the GPU inside the
+physics CUDA graph.
+It does not register an RL environment or require a trained policy.
 
-.. figure:: ../_static/tasks/manipulation/h1_tablecloth.jpg
-   :alt: A grounded H1 robot grasping the corners of a red cloth beside a kitchen table.
-   :width: 80%
+.. figure:: ../_static/examples/tablecloth_h2.jpg
+   :alt: Five side-by-side H2 Plus robots grasping red tablecloths beside kitchen tables.
+   :width: 100%
 
-   The H1 tablecloth task with its scripted bimanual expert, rendered with Kit.
-
-The pelvis is fixed and the leg actuators hold a grounded standing pose; this
-example demonstrates manipulation, not humanoid balance. Absolute hand and
-torso pose targets are expressed in the robot root frame, while the fingers
-receive joint-position targets.
-
-The expert lifts the cloth's overhanging corners before pinching, then follows a
-constant-attitude arc reachable by H1's five-DOF arms, accelerating and braking
-to rest. The grasp is calibrated for the task's cloth resolution; changing
-the mesh or hand asset requires revalidating acquisition and retention.
+   Contact-only pulls at peak speeds of 4.0, 2.0, 1.5, 0.75, and 0.5 m/s,
+   from left to right, rendered with Kit.
 
 .. code-block:: bash
 
-   uv run --extra importers isaaclab example tablecloth-h1 \
-      --max_steps 312
+   uv run isaaclab example tablecloth --device cuda:0
+   uv run --extra importers isaaclab example tablecloth --robot h1 --device cuda:0
 
-The reusable task lives in
-``source/isaaclab_tasks/isaaclab_tasks/contrib/tablecloth/``. Its ``expert.py``
-contains the Warp controller and grasp calibration; ``examples/tablecloth_h1.py``
-is only a launcher for that task and expert. Both ship in the Isaac Lab wheel.
-The task appears in the :ref:`environment browser <environment-browser>` as
-``IsaacContrib-Tablecloth-H1``.
-For the five-speed standalone comparison, see :ref:`newton-using-vbd`.
+The default robot uses the manufacturer's articulated `H2 Plus USD with SHARPA hands
+<https://github.com/unitreerobotics/unitree_model/tree/b6a8942b0803b6c137e58cef12beb4b03e4a2fa7/H2_Plus>`__,
+downloaded and cached by Isaac Lab. ``--robot h1`` explicitly selects the existing H1 fallback;
+it requires the ``importers`` extra. Both use physical contact-only grips, without cloth attachments.
+The H2 index fingers start beneath the hem; the thumbs close against their native
+rubber surfaces before the lift and pull. This is a calibrated pinch-and-pull example,
+not a general-purpose grasp planner. The H2 configuration uses 64 physics ticks per
+60 Hz control frame to resolve the fastest pull. Its position drives are simulation
+settings: direct VBD with compliant-ALM rigid dynamics does not enforce the
+asset's hardware torque limits or armature.
 
-This experimental expert is open-loop; cloth withdrawal can succeed even if a
-grip slips during the hold. CI covers launch and backend regressions. Full stance
-and physical-grasp validation is an opt-in check for changes to the asset or expert:
-
-.. code-block:: bash
-
-   uv run --extra importers python -m pytest -q \
-      source/isaaclab_tasks/test/contrib/test_tablecloth_h1_stance.py
-
-Start with ``lift_cube_sm.py`` for a self-contained state-machine example.
-The H1 example shows how to keep scene, observations, rewards, and terminations
-in a reusable task while the scripted expert supplies only actions.
+Use ``--speeds 2.0`` for one robot, or ``--viz none`` for a complete headless
+run. The default run duration includes the slowest pull and a final hold.
+The pelvis is fixed with the feet at ground level: this demonstrates
+manipulation, not humanoid balance. Asset and cloth changes require revalidating
+the calibrated physical grasp. This experimental example checks material-point retention after
+a complete run and reports grasp failures; successful IK tracking alone does not establish a grasp.
+Kit uses Catmull-Clark subdivision for cloth rendering without refining the physics mesh.

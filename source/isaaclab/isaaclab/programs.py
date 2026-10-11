@@ -129,22 +129,16 @@ EXAMPLES = (
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
     ProgramSpec(
-        "newton-tablecloth",
-        "examples/newton_tablecloth.py",
-        "Compare the tablecloth trick across five pull speeds with Newton VBD.",
-    ),
-    ProgramSpec(
-        "tablecloth-h1",
-        "examples/tablecloth_h1.py",
-        "Run a bimanual H1 tablecloth expert on a contributed manager-based task.",
-        extras=("importers",),
-        required_modules=("isaacsim",),
-    ),
-    ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",
         "Generate procedural terrain meshes.",
         **_ISAACSIM,
+    ),
+    ProgramSpec(
+        "tablecloth",
+        "examples/tablecloth.py",
+        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+        required_modules=("isaaclab_contrib",),
     ),
     ProgramSpec(
         "visual-color-randomization",

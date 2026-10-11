@@ -1,1 +1,1 @@
-* Added the ``newton-tablecloth`` and ``tablecloth-h1`` examples to the Isaac Lab command-line catalog and standalone smoke coverage.
+* Added the GPU-controlled ``tablecloth`` five-speed comparison with H2 Plus / SHARPA hands and an H1 fallback to the Isaac Lab example catalog and standalone launch smoke coverage.
