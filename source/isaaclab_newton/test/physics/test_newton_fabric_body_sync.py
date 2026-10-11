@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import contextlib
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -206,7 +207,9 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
                 # The suite enables cameras at startup; this case exercises capture-only rendering.
                 sim.set_setting("/isaaclab/render/rtx_sensors", False)
                 assert not sim.is_rendering
-                monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", Mock())
+                monkeypatch.setitem(
+                    sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=Mock())
+                )
                 recorder = VideoRecorder(
                     VideoRecorderCfg(source="viz:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=sim)
                 )
