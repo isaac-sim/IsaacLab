@@ -378,7 +378,7 @@ def _step_channel(stream: _Stream, channel, frames: list[int], resets, seeds, ep
     import torch
 
     device = channel.output.device
-    channel.control_ready.wait(device)
+    channel.control_ready.wait()
     # On the camera's GPU this reads the controls in place; from another GPU it copies them between the GPUs.
     controls = [channel.control.tensor[view, :count].to(device) for view, count in enumerate(frames)]
     generated = stream.step(controls, resets, seeds, **episode)
