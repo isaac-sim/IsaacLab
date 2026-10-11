@@ -14,5 +14,6 @@
   cache, and deployment can run the network's projections in FP16.
 * Added Cartpole and ANYmal-C examples with their scenes, recording, training, deployment, and PPO
   scripts that train in learned physics and evaluate in MuJoCo Warp. The ANYmal-C example follows the
-  FlashNeRD locomotion experiment, and a CartPole benchmark repeats the protocol of the FlashNeRD
-  main-results study.
+  FlashNeRD locomotion experiment and penalizes joint accelerations over the control period, which
+  MuJoCo Warp and the learned model resolve alike, and a CartPole benchmark repeats the protocol of the
+  FlashNeRD main-results study.

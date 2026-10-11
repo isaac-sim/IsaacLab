@@ -274,8 +274,8 @@ python $E/train_policy.py --output /tmp/anymal-c/ppo-learned --artifact /tmp/any
 | Frame and control | 20 ms, joint-position targets | Same: `TrajectoryDatasetRecorder(control_targets=...)` records Newton `joint_target_q`, and the learned scene (`AnymalCTargetControlEnvCfg`) forwards targets through zero-gain implicit actuators, which leaves the Newton model identical |
 | Data | Randomized base poses, velocities, joints; targets within 0.75 rad every 20 ms; up to 100 steps; falls kept | Same (`AnymalCExplorationEnvCfg`), 4,096 x 600 control periods |
 | Contact and inputs | Four fixed foot-sphere probes | Same, with heading-frame state and base-frame gravity |
-| Model | FlashNeRD 8.88M, 13-frame receptive field, 60,000 updates, 5 % validation | ParallelNeRD with the study's G1 geometry and spans (4, 4, 4, 4), 13 frames, 60,000 updates of 4,096 windows, 5 % validation |
-| PPO | 16,384 environments, 300 iterations | Same; the joint-torque penalty is removed in both physics, because target control does not expose torques |
+| Model | FlashNeRD 8.88M, 13-frame receptive field, 60,000 updates, 5 % validation | ParallelNeRD with the study's G1 geometry and spans (4, 4, 4, 4), 10.7M parameters, 13 frames, 60,000 updates of 4,096 windows, 5 % validation |
+| PPO | 16,384 environments, 300 iterations, reward not published | Same, with the Isaac Lab ANYmal-D flat reward: the joint-torque penalty is removed, because target control does not expose torques, and the joint-acceleration penalty is differenced over the control period (`control_period_joint_acc_l2`) |
 
 The recorded targets equal what the learned scene hands the model, element for element
 (`test_target_control.py`). With 2.46 million recorded transitions, every result over 256 environments in

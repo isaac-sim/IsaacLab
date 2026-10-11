@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 
 import newton
+import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_physicsnemo import (
     JOINT_TARGET_KEY,
@@ -32,7 +33,7 @@ import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.managers import TerminationTermCfg
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
@@ -63,8 +64,42 @@ ANYMAL_MODEL_CONFIG: dict[str, object] = {
 }
 """ParallelNeRD geometry of the FlashNeRD study's G1 model with the 13-frame receptive field of its ANYmal model."""
 
+ANYMAL_JOINT_ACC_WEIGHT = -1.2e-6
+"""Weight of :class:`control_period_joint_acc_l2`.
+
+Isaac Lab's ANYmal-D weight of -2.5e-7 applies to accelerations differenced over 5 ms physics steps. A walking
+gait's accelerations differenced over the 20 ms control period are 4.8 times smaller in squared norm, so the weight
+is scaled by that ratio to keep the penalty of a walking gait.
+"""
+
 _FOOT_BODIES = ("LF_FOOT", "LH_FOOT", "RF_FOOT", "RH_FOOT")
 _BASE_BODY = "base"
+
+
+class control_period_joint_acc_l2(ManagerTermBase):
+    """Penalize joint accelerations differenced over one environment step, the control period.
+
+    Isaac Lab differences joint velocities over every physics step, 5 ms in MuJoCo Warp but 20 ms in a learned model
+    of the control period, so the same motion is penalized differently in the two physics. Differencing over the
+    environment step gives both physics the same term. The first step after a reset contributes nothing.
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env):
+        super().__init__(cfg, env)
+        robot = env.scene[cfg.params.get("asset_cfg", SceneEntityCfg("robot")).name]
+        self._previous = robot.data.joint_vel.torch.clone()
+        self._fresh = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def reset(self, env_ids=None) -> None:
+        self._fresh[slice(None) if env_ids is None else env_ids] = True
+
+    def __call__(self, env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+        velocity = env.scene[asset_cfg.name].data.joint_vel.torch[:, asset_cfg.joint_ids]
+        previous = self._previous[:, asset_cfg.joint_ids]
+        penalty = torch.where(self._fresh, 0.0, ((velocity - previous) / env.step_dt).square().sum(dim=1))
+        self._previous[:, asset_cfg.joint_ids] = velocity
+        self._fresh[:] = False
+        return penalty
 
 
 @configclass
@@ -79,6 +114,9 @@ class AnymalCFlatTeacherEnvCfg(AnymalDFlatEnvCfg):
     * events that change model properties (material, mass, center of mass) or apply external wrenches;
     * the joint-torque penalty, because a model that receives joint-position targets does not expose the
       torques, so policies trained in both physics optimize the same reward.
+
+    The joint-acceleration penalty is differenced over the control period (:class:`control_period_joint_acc_l2`),
+    which both physics resolve alike.
 
     Every environment owns its ground plane, so the fixed foot probes of :func:`anymal_foot_contacts` can
     query it.
@@ -110,6 +148,7 @@ class AnymalCFlatTeacherEnvCfg(AnymalDFlatEnvCfg):
         self.rewards.feet_air_time = None
         self.rewards.undesired_contacts = None
         self.rewards.dof_torques_l2 = None
+        self.rewards.dof_acc_l2 = RewardTermCfg(func=control_period_joint_acc_l2, weight=ANYMAL_JOINT_ACC_WEIGHT)
         self.terminations.base_contact = None
         self.terminations.bad_orientation = TerminationTermCfg(
             func=mdp.bad_orientation, params={"limit_angle": 0.5 * math.pi}
