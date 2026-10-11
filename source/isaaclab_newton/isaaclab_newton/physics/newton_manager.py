@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -698,37 +699,64 @@ class NewtonManager(PhysicsManager):
         """Return the physics timestep, including standalone simulations."""
         return self._dt
 
-    # ----- Accessors -------------------------------------------------------------------
+    # ----- Deprecated accessors ------------------------------------------------------------
+
+    def _deprecated_backend_field(self, name: str) -> Any:
+        warnings.warn(
+            f"NewtonManager.get_{name}() is deprecated; read manager.backend.{name} instead.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        backend = self.backend
+        return None if backend is None else getattr(backend, name)
 
     def get_solver(self) -> SolverBase | None:
-        """Return the active Newton solver, or ``None`` before it is constructed."""
-        backend = self.backend
-        return None if backend is None else backend.solver
+        """Return :attr:`NewtonBackend.solver` of the active backend.
+
+        .. deprecated::
+            Read ``manager.backend.solver`` instead.
+        """
+        return self._deprecated_backend_field("solver")
 
     def get_model(self) -> Model | None:
-        """Return the active physics model."""
-        backend = self.backend
-        return None if backend is None else backend.model
+        """Return :attr:`NewtonBackend.model` of the active backend.
+
+        .. deprecated::
+            Read ``manager.backend.model`` instead.
+        """
+        return self._deprecated_backend_field("model")
 
     def get_state_0(self) -> State | None:
-        """Return the current state."""
-        backend = self.backend
-        return None if backend is None else backend.state_0
+        """Return :attr:`NewtonBackend.state_0` of the active backend.
+
+        .. deprecated::
+            Read ``manager.backend.state_0`` instead.
+        """
+        return self._deprecated_backend_field("state_0")
 
     def get_state_1(self) -> State | None:
-        """Return the spare state of double-buffered solvers."""
-        backend = self.backend
-        return None if backend is None else backend.state_1
+        """Return :attr:`NewtonBackend.state_1` of the active backend.
+
+        .. deprecated::
+            Read ``manager.backend.state_1`` instead.
+        """
+        return self._deprecated_backend_field("state_1")
 
     def get_control(self) -> Control | None:
-        """Return the control inputs."""
-        backend = self.backend
-        return None if backend is None else backend.control
+        """Return :attr:`NewtonBackend.control` of the active backend.
+
+        .. deprecated::
+            Read ``manager.backend.control`` instead.
+        """
+        return self._deprecated_backend_field("control")
 
     def get_contacts(self) -> Contacts | None:
-        """Return the current Newton contacts, if the active solver exposes them."""
-        backend = self.backend
-        return None if backend is None else backend.contacts
+        """Return :attr:`NewtonBackend.contacts` of the active backend.
+
+        .. deprecated::
+            Read ``manager.backend.contacts`` instead.
+        """
+        return self._deprecated_backend_field("contacts")
 
     def get_scene_data_backend(self) -> SceneDataBackend | None:
         """Return the SceneDataBackend for the SceneDataProvider."""
@@ -750,7 +778,7 @@ class NewtonManager(PhysicsManager):
         self, asset: BaseArticulation, body_names: tuple[str, ...]
     ) -> VisualShapeColorWriter:
         """Compile selected articulation-body shape addresses for the active Newton model."""
-        model = self.get_model()
+        model = None if self.backend is None else self.backend.model
         view = asset.root_view
         if not isinstance(view, ArticulationView):
             root_expr = asset.cfg.prim_path

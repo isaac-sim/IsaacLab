@@ -146,7 +146,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_indices,
             target_per_world,
             self._target_frame_body_names,
-            self._physics_manager.get_model().shape_label,
+            self._physics_manager.backend.model.shape_label,
             world_origin_idx,
             num_envs,
         )
@@ -159,7 +159,7 @@ class FrameTransformer(BaseFrameTransformer):
 
         # Store the native sensor and its flat transforms array.
         self._newton_sensor = SensorFrameTransform(
-            self._physics_manager.get_model(), shapes=shapes_list, reference_sites=references_list
+            self._physics_manager.backend.model, shapes=shapes_list, reference_sites=references_list
         )
         self._newton_transforms = self._newton_sensor.transforms
         self._stride = 1 + self._num_targets
@@ -308,7 +308,7 @@ class FrameTransformer(BaseFrameTransformer):
         """Samples current frame transforms into owned buffers."""
         if self._newton_transforms is None:
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
-        state = self._physics_manager.get_state_0()
+        state = self._physics_manager.backend.state_0
         device = state.body_q.device
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr

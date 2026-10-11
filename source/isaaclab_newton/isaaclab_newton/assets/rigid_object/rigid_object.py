@@ -1067,7 +1067,7 @@ class RigidObject(BaseRigidObject):
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- object view
         self._root_view = ArticulationView(
-            self._physics_manager.get_model(),
+            self._physics_manager.backend.model,
             path_expr_to_glob(root_prim_path_expr),
             verbose=False,
         )

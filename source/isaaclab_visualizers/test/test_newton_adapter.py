@@ -84,7 +84,7 @@ def test_newton_visualizer_log_mesh_keeps_latest_submission_per_name():
     viewer = Mock()
     visualizer = _make_newton_visualizer(None)
     visualizer._viewer = viewer
-    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
+    visualizer._physics_manager = SimpleNamespace()
     points_0 = wp.zeros(3, dtype=wp.vec3)
     points_1 = wp.zeros(6, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
@@ -267,7 +267,7 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     viewer = _FakeViewer()
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
     visualizer._viewer = viewer
-    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
+    visualizer._physics_manager = SimpleNamespace()
 
     visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
 
@@ -383,7 +383,7 @@ def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
     viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
     visualizer._viewer = viewer
-    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
+    visualizer._physics_manager = SimpleNamespace()
 
     assert visualizer.render_rgb_array() is frame
 
@@ -725,10 +725,13 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._step_counter = 0
     visualizer._runtime_headless = False
     visualizer._viewer = viewer
-    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
+    visualizer._physics_manager = SimpleNamespace()
     state = state or SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     visualizer.backend = SimpleNamespace(
-        model=SimpleNamespace(world_count=1, body_count=len(state.body_q)), state_0=state, geometry_offsets={}
+        model=SimpleNamespace(world_count=1, body_count=len(state.body_q)),
+        state_0=state,
+        geometry_offsets={},
+        contacts=None,
     )
     visualizer._scene_data_provider = scene_data_provider or _SceneDataProvider()
     visualizer._scene_data_provider.poses = state.body_q
@@ -820,7 +823,7 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
     viewer = _Viewer()
 
     visualizer = _make_newton_visualizer(viewer, state=state)
-    visualizer._physics_manager.get_contacts = lambda: contacts
+    visualizer.backend.contacts = contacts
     visualizer.step(0.1)
 
     assert viewer.logged_state is state
@@ -1128,7 +1131,7 @@ def test_newton_rtx_visualizer_render_rgb_array_returns_frame():
     viewer = SimpleNamespace(get_frame=lambda: frame)
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     visualizer._viewer = viewer
-    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
+    visualizer._physics_manager = SimpleNamespace()
 
     assert visualizer.render_rgb_array() is frame
 

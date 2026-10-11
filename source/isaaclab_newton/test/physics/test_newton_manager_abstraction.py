@@ -804,7 +804,7 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             },
         )
         sim.reset()
-        solver = sim.physics_manager.get_solver()
+        solver = sim.physics_manager.backend.solver
         assert isinstance(solver, SolverImplicitMPM)
 
         calls = {"n": 0}
@@ -1173,7 +1173,7 @@ def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
         sim.physics_manager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY, wrap_weak_ref=False)
 
         sim.reset()
-        assert isinstance(sim.physics_manager.get_solver(), SolverMuJoCo)
+        assert isinstance(sim.physics_manager.backend.solver, SolverMuJoCo)
         sim.reset()
 
     assert events == ["ready"] * 2
@@ -1200,8 +1200,8 @@ def test_reset_binds_solver_and_capabilities(
     """End-to-end: ``SimulationContext`` resolves the right manager subclass and
     ``reset`` binds the right solver and capabilities on the active backend.
 
-    Consumers read the solver through :class:`NewtonManager` (``get_solver()``,
-    ``get_contacts()``) even though dispatch runs through a leaf subclass (e.g.
+    Consumers read the solver through :attr:`NewtonManager.backend` (``backend.solver``,
+    ``backend.contacts``) even though dispatch runs through a leaf subclass (e.g.
     :class:`MJWarpSolverAdapter`). This test is the regression guard for that
     contract.
 
@@ -1278,7 +1278,7 @@ def test_reset_binds_solver_and_capabilities(
         backend = sim.physics_manager.backend
         manager = backend.solver_adapter
         assert type(manager).__name__ == expected_manager.__name__
-        assert isinstance(sim.physics_manager.get_solver(), expected_solver_cls)
+        assert isinstance(sim.physics_manager.backend.solver, expected_solver_cls)
         assert manager.single_state is expected_use_single_state
         assert manager.uses_collision_pipeline(backend) is expected_needs_collision_pipeline
         assert manager.supports_body_forces(backend) is RIGID_BODY_FORCE_INPUT_SUPPORT[expected_manager]
@@ -1290,7 +1290,12 @@ def test_reset_binds_solver_and_capabilities(
         # (MuJoCo internal buffer or Newton pipeline output).
         # Kamino with internal contacts and MPM do not report contacts.
         if expected_solver_cls not in (SolverKamino, SolverImplicitMPM):
-            assert sim.physics_manager.get_contacts() is not None
+            assert sim.physics_manager.backend.contacts is not None
+        # The deprecated forwarding getters still return the backend fields.
+        with pytest.warns(DeprecationWarning, match="manager.backend.solver"):
+            assert sim.physics_manager.get_solver() is backend.solver
+        with pytest.warns(DeprecationWarning, match="manager.backend.model"):
+            assert sim.physics_manager.get_model() is backend.model
 
         # One step should not raise — proves the dispatch wiring lines up
         # end-to-end.  (We do not assert physics; that's covered by the
@@ -1600,7 +1605,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
         # Kamino keeps separate input/output states; the bug only exists there.
         assert sim.physics_manager.backend.solver_adapter.single_state is False
         # The data layer binds its joint-state write target to _state_0 at setup.
-        reset_target = sim.physics_manager.get_state_0().joint_q
+        reset_target = sim.physics_manager.backend.state_0.joint_q
         assert reset_target.shape[0] > 0  # guard against a vacuous assertion
 
         for _ in range(num_steps):
@@ -1611,7 +1616,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
 
         # The reset must be visible in the manager's canonical _state_0; if the
         # buffer flipped it landed in _state_1 instead.
-        canonical_joint_q = sim.physics_manager.get_state_0().joint_q.numpy()
+        canonical_joint_q = sim.physics_manager.backend.state_0.joint_q.numpy()
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
@@ -1657,10 +1662,10 @@ def test_graph_capture_preserves_first_step_and_recapture(
         for step in range(3):
             if step != 1:
                 sim.physics_manager.set_decimation(decimation)
-            sim.physics_manager.get_state_0().body_f.assign(wrench)
+            sim.physics_manager.backend.state_0.body_f.assign(wrench)
             sim.step(render=False)
             assert sim.physics_manager.backend.step_graph.captured
-            np.testing.assert_allclose(sim.physics_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+            np.testing.assert_allclose(sim.physics_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
 
@@ -1685,11 +1690,11 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
             # Newton runs the whole decimation loop inside one step() call.
             sim.physics_manager.activate_actuators()
             sim.physics_manager.set_decimation(decimation)
-        sim.physics_manager.get_state_0().body_f.assign(
+        sim.physics_manager.backend.state_0.body_f.assign(
             wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         )
         sim.step(render=False)
-        np.testing.assert_allclose(sim.physics_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+        np.testing.assert_allclose(sim.physics_manager.backend.state_0.joint_qd.numpy(), 0.0, atol=1e-6)
 
 
 def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
@@ -1722,14 +1727,14 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             for decimation in (1, 2, 3):
                 sim.physics_manager.set_decimation(decimation)
                 for target in (1.0, -2.0, 3.0, 0.0):
-                    sim.physics_manager.get_control().joint_target_q.fill_(target)
+                    sim.physics_manager.backend.control.joint_target_q.fill_(target)
                     sim.step(render=False)
                     samples.append(
                         np.concatenate(
                             (
-                                sim.physics_manager.get_state_0().joint_q.numpy(),
-                                sim.physics_manager.get_state_0().joint_qd.numpy(),
-                                sim.physics_manager.get_control().joint_f.numpy(),
+                                sim.physics_manager.backend.state_0.joint_q.numpy(),
+                                sim.physics_manager.backend.state_0.joint_qd.numpy(),
+                                sim.physics_manager.backend.control.joint_f.numpy(),
                             )
                         )
                     )
@@ -1775,18 +1780,18 @@ def test_actuators_follow_world_varying_dof_layouts():
             sim.reset()
             sim.physics_manager.activate_actuators()
             sim.physics_manager.set_decimation(2)
-            assert sim.physics_manager.get_model().joint_dof_count == 3
+            assert sim.physics_manager.backend.model.joint_dof_count == 3
             targets = np.array([1.0, -2.0, 3.0], dtype=np.float32)
             samples = []
             for scale in (1.0, -0.5, 2.0):
-                sim.physics_manager.get_control().joint_target_q.assign(targets * scale)
+                sim.physics_manager.backend.control.joint_target_q.assign(targets * scale)
                 sim.step(render=False)
                 computed = sim.physics_manager.backend.actuators.computed_effort.numpy()
-                applied = sim.physics_manager.get_control().joint_f.numpy()
+                applied = sim.physics_manager.backend.control.joint_f.numpy()
                 # No clamping is configured, so each DOF's computed effort equals the effort applied to it.
                 np.testing.assert_allclose(computed, applied, atol=1e-6)
                 assert np.all(np.abs(applied) > 0.0)
-                samples.append(np.concatenate((sim.physics_manager.get_state_0().joint_q.numpy(), applied)))
+                samples.append(np.concatenate((sim.physics_manager.backend.state_0.joint_q.numpy(), applied)))
             trajectories.append(np.asarray(samples))
     np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
 

@@ -154,7 +154,7 @@ step_solver()``, and post-actuator callbacks run after the actuators of the last
 :class:`~isaaclab_newton.physics.StepCallbacks` has one cadence.
 
 The graph binds every buffer when it is built. Double-buffered solvers alternate input and output states at build
-time, and each physics step ends in ``state_0``, so ``manager.get_state_0()`` is always the same object.
+time, and each physics step ends in ``state_0``, so ``manager.backend.state_0`` is always the same object.
 Consecutive graphable operations are captured together; operations that cannot be captured, such as actuators with Python history indices or eager callbacks, run in place between captured segments. Consumers add operations with
 :meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` and its siblings while ``PHYSICS_READY`` dispatches.
 

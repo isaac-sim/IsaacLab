@@ -30,23 +30,24 @@ and synchronization responsibilities.
 Reuse Isaac Lab-owned access
 ----------------------------
 
-Use the manager accessors to obtain the current Newton objects:
+Read the current Newton objects from the active backend of the simulation's physics manager:
 
 .. code-block:: python
 
-   from isaaclab_newton.physics import NewtonManager
+   import isaaclab.sim as sim_utils
 
-   model = NewtonManager.get_model()
-   state = NewtonManager.get_state_0()
-   control = NewtonManager.get_control()
-   contacts = NewtonManager.get_contacts()
+   backend = sim_utils.SimulationContext.instance().physics_manager.backend
+
+   model = backend.model
+   state = backend.state_0
+   control = backend.control
+   contacts = backend.contacts
 
    body_poses = state.body_q
    joint_forces = control.joint_f
 
-:meth:`isaaclab_newton.physics.NewtonManager.get_model` can construct a visualization shadow
-model when PhysX is active. The write semantics in this guide apply only when Newton is the active,
-authoritative physics backend.
+When PhysX is active, renderers and visualizers build a render-only Newton model that is not
+authoritative. The write semantics in this guide apply only when Newton is the active physics backend.
 
 Isaac Lab's Newton-backed assets expose the same generic
 ``newton.selection.ArticulationView`` selection helper. For example, reuse an articulation's

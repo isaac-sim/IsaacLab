@@ -703,7 +703,7 @@ def scene(composite_scene: _Scene) -> _Scene:
 def _model_attribute(articulation: Articulation, name: str) -> torch.Tensor:
     """Read one live Newton model attribute through the articulation's view, in backend order."""
     return wp.to_torch(
-        articulation.root_view.get_attribute(name, SimulationContext.instance().physics_manager.get_model())
+        articulation.root_view.get_attribute(name, SimulationContext.instance().physics_manager.backend.model)
     )[:, 0]
 
 
@@ -1311,7 +1311,7 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(scene: _Scene) 
         device=device,
     )
     assert backend_body_ids[0] != body_ids[0]
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     initial_masses = articulation.data.body_mass.torch.clone()
     initial_inertias = articulation.data.body_inertia.torch.clone()
 
@@ -1506,7 +1506,7 @@ def test_set_material_properties(scene: _Scene) -> None:
     device = scene.device
 
     # Resolve this articulation's shapes per environment and body from the flat Newton model.
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     body_world = model.body_world.numpy()
     body_labels = list(model.body_label)
     shape_body = model.shape_body.numpy()
@@ -1634,7 +1634,7 @@ def test_hand_with_tendons_targets_only_given_envs_and_properties_reach_solver(s
     articulation.write_fixed_tendon_properties_to_sim_mask()
     scene.step("tendon")
 
-    solver_model = SimulationContext.instance().physics_manager.get_solver().mjw_model
+    solver_model = SimulationContext.instance().physics_manager.backend.solver.mjw_model
     np.testing.assert_allclose(solver_model.tendon_stiffness.numpy(), 12.0)
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), 3.0)
     np.testing.assert_allclose(solver_model.tendon_range.numpy(), limits.cpu().numpy(), rtol=1e-6)
@@ -1700,7 +1700,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
 
     # Sanity: the islands have different DoF counts, so a regression to model-wide sizing would manifest as wrong
     # shapes on the smaller views.
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     island_dofs = [other.num_joints + other.num_base_dofs for other in scene.articulations.values()]
     assert model.max_dofs_per_articulation == max(island_dofs) > min(island_dofs)
 
@@ -1813,7 +1813,7 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(scene: _Scene,
     # Ground truth from Newton state. ``get_link_velocities`` returns shape
     # (num_instances, 1, num_bodies, 6) — per-articulation grouping with
     # one articulation per instance — so we squeeze the inner dim.
-    state = SimulationContext.instance().physics_manager.get_state_0()
+    state = SimulationContext.instance().physics_manager.backend.state_0
     body_qd_view = wp.to_torch(articulation.root_view.get_link_velocities(state)).squeeze(1)
     body_v_com = body_qd_view[..., :3]
     body_omega = body_qd_view[..., 3:]
@@ -1935,7 +1935,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     device = scene.device
 
     # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     model_gravity_arr = model.gravity[: model.world_count]
     global_gravity = wp.to_torch(model.gravity)[-1].clone()
     assert articulation.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -1986,7 +1986,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     device = scene.device
     articulation = scene.articulations["floating"]
     scene.rest(articulation)
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     jc_starts = model.joint_coord_world_start.numpy()
     body_starts = model.body_world_start.numpy()
     # The floating island is authored first, so its root owns the first body and joint coordinates of each world.

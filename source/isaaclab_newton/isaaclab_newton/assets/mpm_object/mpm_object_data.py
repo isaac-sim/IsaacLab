@@ -48,7 +48,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_pos_w(self) -> ProxyArray:
         """Particle positions in simulation world frame [m]."""
         if self._particle_pos_w.timestamp < self._sim_timestamp:
-            state = self._physics_manager.get_state_0()
+            state = self._physics_manager.backend.state_0
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),
@@ -63,7 +63,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_vel_w(self) -> ProxyArray:
         """Particle velocities in simulation world frame [m/s]."""
         if self._particle_vel_w.timestamp < self._sim_timestamp:
-            state = self._physics_manager.get_state_0()
+            state = self._physics_manager.backend.state_0
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),

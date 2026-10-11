@@ -991,7 +991,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
 
     # Map each entry of ``act.indices`` to its env via the model's per-world DOF count (worlds here share a layout,
     # including free-joint DOFs on floating-base articulations).
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     dofs_per_world = model.joint_dof_count // model.world_count
     for act, state in stateful_pairs:
         pushes_after = state.delay_state.num_pushes.numpy()

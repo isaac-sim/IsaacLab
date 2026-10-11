@@ -1233,7 +1233,7 @@ class NewtonVisualizer(BaseVisualizer):
                         self._log_pending_meshes()
                         return
                     self._viewer.log_state(state)
-                    contacts = self._physics_manager.get_contacts()
+                    contacts = backend.contacts
                     if contacts is not None:
                         self._viewer.log_contacts(contacts, state)
                     else:

@@ -456,7 +456,7 @@ class ContactSensor(BaseContactSensor):
 
     def _get_model_labels(self, kind: str) -> list[str]:
         """Return Newton model labels in a version-compatible way."""
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         primary = f"{kind}_label"
         fallback = f"{kind}_key"
         labels = getattr(model, primary, None)

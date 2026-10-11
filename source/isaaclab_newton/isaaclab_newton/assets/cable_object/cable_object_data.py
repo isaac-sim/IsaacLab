@@ -27,8 +27,8 @@ class CableObjectData(BaseCableObjectData):
         """
         self._physics_manager = physics_manager
         super().__init__(device)
-        model = self._physics_manager.get_model()
-        state = self._physics_manager.get_state_0()
+        model = self._physics_manager.backend.model
+        state = self._physics_manager.backend.state_0
         self._sim_bind_body_ids = root_view.get_attribute("joint_child", model)[:, 0].contiguous()
         self._sim_bind_link_pose_w = root_view.get_link_transforms(state)[:, 0]
         self._sim_bind_link_velocity_w = root_view.get_link_velocities(state)[:, 0]

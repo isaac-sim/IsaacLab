@@ -123,7 +123,7 @@ class DeformableObject(BaseDeformableObject):
         if self._data.nodal_kinematic_target is None:
             return
 
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
 
         for state in self._iter_particle_states():
             wp.launch(
@@ -424,7 +424,7 @@ class DeformableObject(BaseDeformableObject):
 
     def _iter_particle_states(self):
         """Yield active Newton states."""
-        for state in dict.fromkeys((self._physics_manager.get_state_0(), self._physics_manager.get_state_1())):
+        for state in dict.fromkeys((self._physics_manager.backend.state_0, self._physics_manager.backend.state_1)):
             if state is None:
                 continue
             yield state
@@ -495,7 +495,7 @@ class DeformableObject(BaseDeformableObject):
             device=self.device,
         )
         self._data.default_nodal_state_w = ProxyArray(default_nodal_state_w)
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         self._default_particle_inv_mass = wp.empty(shape, dtype=wp.float32, device=self.device)
         self._default_particle_flags = wp.empty(shape, dtype=wp.int32, device=self.device)
         for source, default in (

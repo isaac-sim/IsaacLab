@@ -268,7 +268,7 @@ class NewtonSiteFrameView(BaseFrameView):
         self._scale_ta: ProxyArray | None = None
         self._count = 0
 
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         if model is not None:
             self._initialize_from_specs(model)
         else:
@@ -286,7 +286,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 plan, include_world_indices=True
             )
             groups = np.flatnonzero(np.diff(world_starts[1:])) + 1
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         shape_flags = None
@@ -423,7 +423,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
-        self._initialize_from_specs(self._physics_manager.get_model())
+        self._initialize_from_specs(self._physics_manager.backend.model)
 
     def _initialize_from_specs(self, model) -> None:
         """Initialize arrays directly from resolved specs and Newton body labels."""
@@ -644,7 +644,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations."""
-        state = self._physics_manager.get_state_0()
+        state = self._physics_manager.backend.state_0
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         pos_buf = self._pos_buf if indices is None else wp.zeros(n, dtype=wp.vec3f, device=self._device)
@@ -671,7 +671,7 @@ class NewtonSiteFrameView(BaseFrameView):
         if positions is None and orientations is None:
             return
 
-        state = self._physics_manager.get_state_0()
+        state = self._physics_manager.backend.state_0
         if positions is None or orientations is None:
             cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
             if positions is None:
@@ -789,7 +789,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_legacy_shape_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get Newton legacy geometry scales from collision shapes."""
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
@@ -805,7 +805,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _set_legacy_shape_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set Newton legacy geometry scales on collision shapes."""
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)

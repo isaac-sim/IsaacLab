@@ -449,7 +449,7 @@ class Articulation(BaseArticulation):
         # Tendon submission is solver-specific: MuJoCo drives tendons through actuator controls
         # outside the articulation view, so the manager owns how a buffered target reaches the solver.
         if self._fixed_tendon_control is not None:
-            self._fixed_tendon_control.write_data_to_sim(self._physics_manager.get_control())
+            self._fixed_tendon_control.write_data_to_sim(self._physics_manager.backend.control)
             self._fixed_tendon_target_dirty = False
 
     def update(self, dt: float):
@@ -3403,7 +3403,7 @@ class Articulation(BaseArticulation):
         root_prim_path_expr = _resolve_articulation_root_prim_path_expr(self.cfg)
         # -- articulation
         self._root_view = self._physics_manager.views[root_prim_path_expr] = ArticulationView(
-            self._physics_manager.get_model(),
+            self._physics_manager.backend.model,
             re.compile(root_prim_path_expr),
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
@@ -3576,7 +3576,7 @@ class Articulation(BaseArticulation):
         """Process fixed and spatial tendons."""
         if self._root_view.tendon_count > 0:
             tendon_types = wp.to_torch(
-                self._root_view.get_attribute("mujoco.tendon_type", self._physics_manager.get_model())
+                self._root_view.get_attribute("mujoco.tendon_type", self._physics_manager.backend.model)
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")

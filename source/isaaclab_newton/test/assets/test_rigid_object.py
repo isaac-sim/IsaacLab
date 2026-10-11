@@ -336,7 +336,7 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     device = scene.device
 
     # Resolve each cube's shapes from the flat Newton model, independent of the asset's view binding.
-    model = SimulationContext.instance().physics_manager.get_model()
+    model = SimulationContext.instance().physics_manager.backend.model
     body_world = model.body_world.numpy()
     shape_body = model.shape_body.numpy()
     is_cube = np.asarray([label.endswith("/Object") for label in model.body_label])
@@ -385,10 +385,10 @@ def test_rigid_body_set_mass(scene: _Scene) -> None:
     # Get masses before updating one environment.
     original_masses = cube_object.data.body_mass.torch.clone()
     raw_model_inv_mass = cube_object.root_view.get_attribute(
-        "body_inv_mass", SimulationContext.instance().physics_manager.get_model()
+        "body_inv_mass", SimulationContext.instance().physics_manager.backend.model
     )[:, 0]
     raw_model_inv_inertia = cube_object.root_view.get_attribute(
-        "body_inv_inertia", SimulationContext.instance().physics_manager.get_model()
+        "body_inv_inertia", SimulationContext.instance().physics_manager.backend.model
     )[:, 0]
     assert cube_object.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
     assert cube_object.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
@@ -464,7 +464,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model = SimulationContext.instance().physics_manager.get_model()
+        model = SimulationContext.instance().physics_manager.backend.model
         model_gravity_arr = model.gravity[: model.world_count]
         global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert cube_object.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -782,7 +782,7 @@ def test_set_body_inertial_properties_updates_inverses(scene: _Scene) -> None:
     selected = (0, 1)
 
     raw_model_inv_mass = object_collection.root_view.get_attribute(
-        "body_inv_mass", SimulationContext.instance().physics_manager.get_model()
+        "body_inv_mass", SimulationContext.instance().physics_manager.backend.model
     )[:, :, 0]
     assert object_collection.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
     model_inv_mass = object_collection.data._sim_bind_body_inv_mass
@@ -798,7 +798,7 @@ def test_set_body_inertial_properties_updates_inverses(scene: _Scene) -> None:
     torch.testing.assert_close(updated_inv_mass[unselected], original_inv_mass[unselected])
 
     raw_model_inv_inertia = object_collection.root_view.get_attribute(
-        "body_inv_inertia", SimulationContext.instance().physics_manager.get_model()
+        "body_inv_inertia", SimulationContext.instance().physics_manager.backend.model
     )[:, :, 0]
     assert object_collection.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
     model_inv_inertia = object_collection.data._sim_bind_body_inv_inertia
@@ -878,7 +878,7 @@ def test_collection_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model = SimulationContext.instance().physics_manager.get_model()
+        model = SimulationContext.instance().physics_manager.backend.model
         model_gravity_arr = model.gravity[: model.world_count]
         global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert object_collection.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr

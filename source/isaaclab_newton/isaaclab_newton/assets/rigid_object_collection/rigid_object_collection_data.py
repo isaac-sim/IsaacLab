@@ -75,7 +75,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
         # The final entry is reserved for Newton's global world and is not an
         # Isaac Lab environment.
-        model = self._physics_manager.get_model()
+        model = self._physics_manager.backend.model
         self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self.num_instances, self.num_bodies, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
@@ -698,8 +698,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         per world) corresponds to the different body types. This gives us direct 2D bindings into
         Newton's state with no scatter/gather overhead.
         """
-        state_0 = self._physics_manager.get_state_0()
-        model = self._physics_manager.get_model()
+        state_0 = self._physics_manager.backend.state_0
+        model = self._physics_manager.backend.model
 
         # Root transforms/velocities are (num_envs, num_bodies) — direct 2D bindings
         self._sim_bind_body_link_pose_w = self._root_view.get_root_transforms(state_0)

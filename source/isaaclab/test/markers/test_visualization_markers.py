@@ -396,7 +396,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
     cfg = cfg_type()
     visualizer = instantiate(cfg)
-    visualizer._physics_manager = SimpleNamespace(get_contacts=lambda: None)
+    visualizer._physics_manager = SimpleNamespace()
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()

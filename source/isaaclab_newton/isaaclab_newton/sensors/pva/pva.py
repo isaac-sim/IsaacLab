@@ -150,7 +150,7 @@ class Pva(BasePva):
                 site_indices.append(world_sites[0])
 
         self._site_indices = wp.array(site_indices, dtype=int, device=self._device)
-        self._newton_model = self._physics_manager.get_model()
+        self._newton_model = self._physics_manager.backend.model
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 
@@ -163,7 +163,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
-        state = self._physics_manager.get_state_0()
+        state = self._physics_manager.backend.state_0
 
         wp.launch(
             pva_update_kernel,

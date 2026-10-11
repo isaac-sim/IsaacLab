@@ -86,7 +86,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         articulation = _generate_single_joint_articulations(num_articulations=2, device=device)
         sim.reset()
 
-        solver = SimulationContext.instance().physics_manager.get_solver()
+        solver = SimulationContext.instance().physics_manager.backend.solver
         assert isinstance(solver, SolverMuJoCo)
         warm_start = wp.to_torch(solver.mjw_data.qacc_warmstart)
         assert warm_start.shape[0] == 2
@@ -101,7 +101,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
             env_ids=env_ids,
         )
 
-        state = SimulationContext.instance().physics_manager.get_state_0()
+        state = SimulationContext.instance().physics_manager.backend.state_0
         joint_q_before = wp.to_torch(state.joint_q).clone()
         joint_qd_before = wp.to_torch(state.joint_qd).clone()
         warm_start[0].fill_(13.0)

@@ -1205,7 +1205,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # Create a single ArticulationView matching exactly the configured bodies.
         # The 2nd dimension (matches per world) corresponds to the body types.
         self._root_view = ArticulationView(
-            self._physics_manager.get_model(),
+            self._physics_manager.backend.model,
             root_prim_path_exprs,
             verbose=False,
         )
