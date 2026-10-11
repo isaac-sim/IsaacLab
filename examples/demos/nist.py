@@ -356,36 +356,13 @@ class Actions:
     )
 
 
-def main() -> None:
-    """Load the pretrained TorchScript actor and run complete ten-part assembly episodes."""
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--policy",
-        default=f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt",
-        help="Exported K10 TorchScript .pt path or URL; defaults to the published policy.",
-    )
-    parser.add_argument("--seed", type=int, default=1701)
-    parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
-    parser.add_argument(
-        "--episodes",
-        type=int,
-        default=0,
-        help="Total completed episodes across boards before exit; zero runs until closed.",
-    )
-    parser.add_argument("--horizon", type=float, default=140.0, help="Episode limit [s].")
-    parser.add_argument("--real_time", action="store_true", help="Pace the visualizer at real time.")
-    parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
-    add_launcher_args(parser)
-    parser.set_defaults(visualizer=["newton_rtx"])
-    args = parser.parse_args()
-    if args.num_envs < 1 or args.episodes < 0 or args.horizon <= 0:
-        parser.error("num_envs and horizon must be positive; episodes must be nonnegative.")
-    if args.max_steps == 0 or args.max_steps < -1:
-        parser.error("max_steps must be positive or -1.")
-    policy = torch.jit.load(retrieve_file_path(args.policy), map_location=args.device).eval()
-    assemblies = tuple(random.Random(args.seed).sample(ASSEMBLIES, 10))
-    scene = InteractiveSceneCfg(num_envs=args.num_envs, env_spacing=2.0)
-    scene.ground = AssetBaseCfg(
+@configclass
+class NistSceneCfg(InteractiveSceneCfg):
+    """Ground, lighting, robot, and board for the NIST assembly demo."""
+
+    num_envs: int = 1
+    env_spacing: float = 2.0
+    ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(
             color=(0.65, 0.65, 0.65),
@@ -395,11 +372,11 @@ def main() -> None:
             ],
         ),
     )
-    scene.light = AssetBaseCfg(
+    light = AssetBaseCfg(
         prim_path="/World/DomeLight",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=1500.0),
     )
-    scene.nistboard = RigidObjectCfg(
+    nistboard = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/NistBoard",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ASSET_DIR}/Taskboard/nistboard.usd",
@@ -408,7 +385,7 @@ def main() -> None:
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.452824, 0.19145, 0.0206), rot=(0.0, 1.0, 0.0, 0.0)),
     )
-    scene.robot = ArticulationCfg(
+    robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         joint_ordering=[f"panda_joint{i}" for i in range(1, 8)] + ["panda_finger_joint1", "panda_finger_joint2"],
         spawn=sim_utils.UsdFileCfg(
@@ -471,29 +448,39 @@ def main() -> None:
             ),
         },
     )
-    board = scene.nistboard.init_state
-    board_pos, board_quat = torch.tensor(board.pos), torch.tensor(board.rot)
-    for socket, part in {part.socket: part for part in assemblies}.items():
-        offset = torch.tensor(part.board_pose)
-        pos, quat = math_utils.combine_frame_transforms(board_pos, board_quat, offset[:3], offset[3:])
-        setattr(
-            scene,
-            f"fixed_{socket}",
-            RigidObjectCfg(
-                prim_path=f"{{ENV_REGEX_NS}}/fixed_{socket}",
-                spawn=sim_utils.UsdFileCfg(
-                    usd_path=f"{ASSET_DIR}/{socket}.usd",
-                    collision_props=[PhysxCollisionCfg(rest_offset=0.0), NewtonCollisionCfg(contact_gap=0.005)],
-                    mesh_collision_props=SOCKET_MESH_COLLISION_PROPS,
-                    physics_material=CONTACT_MATERIALS,
-                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
-                    mass_props=sim_utils.MassCfg(mass=part.socket_mass),
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(pos.tolist()), rot=tuple(quat.tolist())),
+
+
+@configclass
+class NistEnvCfg(ManagerBasedRLEnvCfg):
+    """Manager-based configuration for the ten-part NIST demo."""
+
+    scene: NistSceneCfg = NistSceneCfg()
+    sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
+        dt=0.01,
+        render_interval=2,
+        physics=NewtonCfg(
+            num_substeps=8,
+            use_cuda_graph=True,
+            solver_cfg=MJWarpSolverCfg(
+                solver="newton",
+                integrator="implicitfast",
+                njmax=3200,
+                nconmax=2400,
+                impratio=1.0,
+                cone="pyramidal",
+                update_data_interval=2,
+                ls_parallel=False,
+                use_mujoco_contacts=False,
             ),
-        )
+            collision_cfg=NewtonCollisionPipelineCfg(
+                broad_phase="sap", max_triangle_pairs=1_000_000, rigid_contact_max=2400
+            ),
+        ),
+    )
+    actions: Actions = Actions()
+    observations = {"policy": RobotObservations(), "slots": SlotObservations()}
     events = {
-        "reset_parts": EventTermCfg(func=reset_parts, mode="reset", params={"assemblies": assemblies}),
+        "reset_parts": EventTermCfg(func=reset_parts, mode="reset", params={}),
         "robot_material": EventTermCfg(
             func=mdp.randomize_rigid_body_material,
             mode="startup",
@@ -506,81 +493,109 @@ def main() -> None:
             },
         ),
     }
-    for slot, part in enumerate(assemblies):
-        name = f"held_{slot:02d}"
-        setattr(
-            scene,
-            name,
-            RigidObjectCfg(
-                prim_path=f"{{ENV_REGEX_NS}}/{name}",
-                spawn=sim_utils.UsdFileCfg(
-                    usd_path=f"{ASSET_DIR}/{part.plug}.usd",
-                    collision_props=[
-                        PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.0025),
-                        NewtonCollisionCfg(contact_gap=0.005),
-                    ],
-                    mesh_collision_props=SOCKET_MESH_COLLISION_PROPS,
-                    physics_material=CONTACT_MATERIALS,
-                    mass_props=sim_utils.MassCfg(mass=part.plug_mass),
+
+    rewards = {}
+    terminations = {
+        "assembly": TerminationTermCfg(func=assembly_terminated),
+        "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True),
+    }
+    episode_length_s = 140.0
+    decimation = 4
+    seed: int = 1701
+    assemblies: tuple[Assembly, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Add the seed-selected parts and their manager terms."""
+        scene = self.scene
+        assemblies = tuple(random.Random(self.seed).sample(ASSEMBLIES, 10))
+        self.assemblies = assemblies
+        self.observations["slots"].geometry.params["assemblies"] = assemblies
+        self.events["reset_parts"].params["assemblies"] = assemblies
+        self.sim.physics.collision_cfg.max_triangle_pairs = max(1_000_000, scene.num_envs * 50_000)
+        self.sim.physics.collision_cfg.rigid_contact_max = scene.num_envs * 2400
+        board = scene.nistboard.init_state
+        board_pos, board_quat = torch.tensor(board.pos), torch.tensor(board.rot)
+        for socket, part in {part.socket: part for part in assemblies}.items():
+            offset = torch.tensor(part.board_pose)
+            pos, quat = math_utils.combine_frame_transforms(board_pos, board_quat, offset[:3], offset[3:])
+            setattr(
+                scene,
+                f"fixed_{socket}",
+                RigidObjectCfg(
+                    prim_path=f"{{ENV_REGEX_NS}}/fixed_{socket}",
+                    spawn=sim_utils.UsdFileCfg(
+                        usd_path=f"{ASSET_DIR}/{socket}.usd",
+                        collision_props=[PhysxCollisionCfg(rest_offset=0.0), NewtonCollisionCfg(contact_gap=0.005)],
+                        mesh_collision_props=SOCKET_MESH_COLLISION_PROPS,
+                        physics_material=CONTACT_MATERIALS,
+                        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                        mass_props=sim_utils.MassCfg(mass=part.socket_mass),
+                    ),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(pos.tolist()), rot=tuple(quat.tolist())),
                 ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0 + slot * 0.1)),
-            ),
-        )
-        events[f"inertia_{slot}"] = EventTermCfg(
-            func=mdp.randomize_rigid_body_inertia,
-            mode="startup",
-            params={
-                "asset_cfg": SceneEntityCfg(name),
-                "inertia_distribution_params": (1.0e-5, 1.0e-5),
-                "operation": "add",
-                "diagonal_only": True,
-            },
-        )
-    cfg = ManagerBasedRLEnvCfg(
-        sim=sim_utils.SimulationCfg(
-            dt=0.01,
-            device=args.device,
-            render_interval=2,
-            physics=NewtonCfg(
-                num_substeps=8,
-                use_cuda_graph=True,
-                solver_cfg=MJWarpSolverCfg(
-                    solver="newton",
-                    integrator="implicitfast",
-                    njmax=3200,
-                    nconmax=2400,
-                    impratio=1.0,
-                    cone="pyramidal",
-                    update_data_interval=2,
-                    ls_parallel=False,
-                    use_mujoco_contacts=False,
+            )
+        for slot, part in enumerate(assemblies):
+            name = f"held_{slot:02d}"
+            setattr(
+                scene,
+                name,
+                RigidObjectCfg(
+                    prim_path=f"{{ENV_REGEX_NS}}/{name}",
+                    spawn=sim_utils.UsdFileCfg(
+                        usd_path=f"{ASSET_DIR}/{part.plug}.usd",
+                        collision_props=[
+                            PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.0025),
+                            NewtonCollisionCfg(contact_gap=0.005),
+                        ],
+                        mesh_collision_props=SOCKET_MESH_COLLISION_PROPS,
+                        physics_material=CONTACT_MATERIALS,
+                        mass_props=sim_utils.MassCfg(mass=part.plug_mass),
+                    ),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0 + slot * 0.1)),
                 ),
-                collision_cfg=NewtonCollisionPipelineCfg(
-                    broad_phase="sap",
-                    max_triangle_pairs=max(1_000_000, args.num_envs * 50_000),
-                    rigid_contact_max=args.num_envs * 2400,
-                ),
-            ),
-        ),
-        scene=scene,
-        actions=Actions(),
-        observations={
-            "policy": RobotObservations(),
-            "slots": SlotObservations(
-                geometry=ObservationTermCfg(func=SlotGeometry, params={"assemblies": assemblies})
-            ),
-        },
-        events=events,
-        rewards={},
-        terminations={
-            "assembly": TerminationTermCfg(func=assembly_terminated),
-            "time_out": TerminationTermCfg(func=mdp.time_out, time_out=True),
-        },
-        episode_length_s=args.horizon,
-        decimation=4,
-        seed=args.seed,
+            )
+            self.events[f"inertia_{slot}"] = EventTermCfg(
+                func=mdp.randomize_rigid_body_inertia,
+                mode="startup",
+                params={
+                    "asset_cfg": SceneEntityCfg(name),
+                    "inertia_distribution_params": (1.0e-5, 1.0e-5),
+                    "operation": "add",
+                    "diagonal_only": True,
+                },
+            )
+
+
+def main() -> None:
+    """Load the pretrained TorchScript actor and run complete ten-part assembly episodes."""
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--policy",
+        default=f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt",
+        help="Exported K10 TorchScript .pt path or URL; defaults to the published policy.",
     )
-    print("Assets:", ", ".join(part.name for part in assemblies), flush=True)
+    parser.add_argument("--seed", type=int, default=1701)
+    parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=0,
+        help="Total completed episodes across boards before exit; zero runs until closed.",
+    )
+    parser.add_argument("--horizon", type=float, default=140.0, help="Episode limit [s].")
+    parser.add_argument("--real_time", action="store_true", help="Pace the visualizer at real time.")
+    parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
+    add_launcher_args(parser)
+    parser.set_defaults(visualizer=["newton_rtx"])
+    args = parser.parse_args()
+    if args.num_envs < 1 or args.episodes < 0 or args.horizon <= 0:
+        parser.error("num_envs and horizon must be positive; episodes must be nonnegative.")
+    if args.max_steps == 0 or args.max_steps < -1:
+        parser.error("max_steps must be positive or -1.")
+    policy = torch.jit.load(retrieve_file_path(args.policy), map_location=args.device).eval()
+    cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs), seed=args.seed, episode_length_s=args.horizon)
+    cfg.sim.device = args.device
+    print("Assets:", ", ".join(part.name for part in cfg.assemblies), flush=True)
     with launch_simulation(cfg=cfg, launcher_args=args) as physics:
         cfg.sim.physics = physics
         env = ManagerBasedRLEnv(cfg)
@@ -588,7 +603,7 @@ def main() -> None:
             center = env.scene.env_origins.mean(dim=0).cpu()
             target = center + torch.tensor((0.35, 0.0, 0.4))
             span = env.scene.env_origins.amax(dim=0) - env.scene.env_origins.amin(dim=0)
-            camera_scale = 1.0 + 1.25 * float(span[:2].max()) / scene.env_spacing
+            camera_scale = 1.0 + 1.25 * float(span[:2].max()) / cfg.scene.env_spacing
             eye = target + camera_scale * torch.tensor((1.2, -0.65, 0.8))
             env.sim.set_camera_view(eye=eye.tolist(), target=target.tolist())
             obs, _ = env.reset()
