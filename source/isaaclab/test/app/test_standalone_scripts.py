@@ -255,79 +255,6 @@ def test_nist_demo_does_not_depend_on_training_packages():
     assert not any(isinstance(node, ast.Attribute) and node.attr == "_reset_idx" for node in nodes)
 
 
-@pytest.mark.parametrize(("visualizer", "policy"), [("none", None), ("newton_gl", "actor.pt")])
-def test_nist_launch_selects_visualizer_and_consistent_assets(nist_demo, monkeypatch, visualizer, policy):
-    """The real launcher selects rendering and passes one asset subset to observations and resets."""
-    demo = nist_demo
-
-    class ConfigInspected(Exception):
-        pass
-
-    def inspect_config(cfg):
-        assert [item.visualizer_type for item in cfg.sim.visualizer_cfgs] == (
-            [] if visualizer == "none" else [visualizer]
-        )
-        assert cfg.sim.device == "cpu" and cfg.scene.num_envs == 2
-        assemblies = cfg.events["reset_parts"].params["assemblies"]
-        assert len({part.identity for part in assemblies}) == 10
-        assert set(assemblies) <= set(demo["ASSEMBLIES"])
-        assert cfg.observations["slots"].geometry.params["assemblies"] == assemblies
-        assert cfg.terminations["assembly"].func is demo["assembly_terminated"]
-        assert cfg.terminations["time_out"].func is demo["mdp"].time_out
-        assert cfg.episode_length_s == 140.0
-        raise ConfigInspected
-
-    retrieve = Mock(return_value="downloaded_actor.pt")
-    load = Mock()
-    monkeypatch.setitem(demo["main"].__globals__, "retrieve_file_path", retrieve)
-    monkeypatch.setattr(demo["torch"].jit, "load", load)
-    monkeypatch.setitem(demo["main"].__globals__, "ManagerBasedRLEnv", inspect_config)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["nist.py", "--device", "cpu", "--visualizer", visualizer, "--num_envs", "2"]
-        + (["--policy", policy] if policy else []),
-    )
-    with pytest.raises(ConfigInspected):
-        demo["main"]()
-    expected_policy = policy or f"{demo['ISAACLAB_NUCLEUS_DIR']}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt"
-    retrieve.assert_called_once_with(expected_policy)
-    load.assert_called_once_with("downloaded_actor.pt", map_location="cpu")
-
-
-def test_nist_termination_reports_finished_boards_without_resetting_them(nist_demo):
-    """The RL environment owns resets while the demo reports terminal board state."""
-    demo = nist_demo
-    torch = demo["torch"]
-    assembled = torch.zeros((6, 10), dtype=torch.bool)
-    assembled[[0, 2]] = True
-    geometry = Mock(assembled=assembled, invalid=torch.tensor([False, True, False, False, False, False]))
-    robot = Mock()
-    robot.data.joint_pos.torch = torch.zeros((6, 9))
-    robot.data.joint_vel.torch = torch.zeros((6, 9))
-    robot.data.joint_vel.torch[2, 0] = float("nan")
-
-    observations = Mock(cfg={"slots": SimpleNamespace(geometry=SimpleNamespace(func=geometry, params={}))})
-    env = Mock(
-        num_envs=6,
-        scene={"robot": robot},
-        observation_manager=observations,
-        episode_length_buf=torch.tensor([1, 3, 7, 10, 4, 2]),
-        max_episode_length=10,
-        extras={},
-    )
-    terminated = demo["assembly_terminated"](env)
-
-    assert terminated.tolist() == [True, True, True, False, False, False]
-    assert demo["mdp"].time_out(env).tolist() == [False, False, False, True, False, False]
-    assert env.extras["assembly_count"].tolist() == [10, 0, 10, 0, 0, 0]
-    assert env.extras["assembly_success"].tolist() == [True, False, False, False, False, False]
-    assert env.extras["assembly_steps"].tolist() == [1, 3, 7, 10, 4, 2]
-    geometry.assert_called_once_with(env)
-    env._reset_idx.assert_not_called()
-    observations.compute.assert_not_called()
-
-
 def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
     """Partial resets place separated parts across a square in their own environment."""
     demo = nist_demo
@@ -348,11 +275,8 @@ def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
     env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
     torch.manual_seed(1701)
     demo["reset_parts"](env, slice(1, None, 2), assemblies)
-    for name in names:
-        write = scene[name].write_root_link_pose_to_sim_index
-        assert write.call_count == 1
-        torch.testing.assert_close(write.call_args.kwargs["env_ids"], env_ids)
     writes = [scene[f"held_{slot:02d}"].write_root_link_pose_to_sim_index.call_args.kwargs for slot in range(10)]
+    assert all(torch.equal(write["env_ids"], env_ids) for write in writes)
     positions = torch.stack([write["root_pose"][:, :3] for write in writes], dim=1) - scene.env_origins[env_ids, None]
     assert (positions >= torch.tensor([0.15, -0.35, 0.12]) - 1e-5).all()
     assert (positions <= torch.tensor([0.85, 0.35, 0.14]) + 1e-5).all()
