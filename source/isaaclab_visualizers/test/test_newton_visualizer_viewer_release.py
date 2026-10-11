@@ -174,7 +174,7 @@ def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -
     visualizer._disable_viewer_on_step_exception = True
     visualizer._sim_time = 0.0
     visualizer._step_counter = 0
-    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
+    visualizer.backend = SimpleNamespace(model=SimpleNamespace(world_count=1))
     visualizer._scene_data_provider = None
     visualizer._update_frequency = 1
     viewer._update_frequency = 1

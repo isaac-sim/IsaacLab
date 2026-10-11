@@ -14,3 +14,5 @@
   capture on large scenes (about 1.7 s at the first step of the rough-terrain ANYmal-D task).
 * Fixed :meth:`~isaaclab_newton.physics.NewtonCfg.copy` and ``replace`` raising because the derived ``class_type``
   looked user-set.
+* Fixed mask-based randomization of Newton model properties (mass, inertia, center of mass) crashing when the mask
+  was a Torch tensor.

@@ -367,7 +367,7 @@ def test_full_reset_clears_every_buffer_and_frame_flag(env_ids: slice | None) ->
     assert _get_wrench_without_pose_reads(composer)[2] is True
 
 
-def test_raw_buffer_merge_accumulates_all_five_buffers_and_ignores_inactive_sources() -> None:
+def test_raw_buffer_merge_accumulates_all_five_buffers() -> None:
     # Alone, the world-at-CoM destination would take the world fast path.
     destination = _make_composer(supports_world_at_com=True)
     source = _make_composer()
@@ -386,8 +386,7 @@ def test_raw_buffer_merge_accumulates_all_five_buffers_and_ignores_inactive_sour
         torques=(0.0, 0.0, 5.0),
         positions=(0.0, 0.0, 0.0),
     )
-    # A raw write that never activated its composer must not be merged.
-    wp.copy(inactive_source.local_force_b, _vectors(_grid({(1, 1): (8.0, 0.0, 0.0)})))
+    # An inactive composer holds zero buffers, so merging it, which a captured graph does unconditionally, adds nothing.
     assert not inactive_source.active
 
     destination.add_raw_buffers_from(source)
@@ -404,10 +403,12 @@ def test_raw_buffer_merge_accumulates_all_five_buffers_and_ignores_inactive_sour
     _assert_vectors(force, _grid({(0, 0): (3.0, 4.0, 3.0)}))
     _assert_vectors(torque, _grid({(0, 0): (0.0, 2.0, 5.0)}))
 
-    # Merging an inactive source leaves an inactive destination inactive.
+    # Merging an inactive source into an empty destination leaves its buffers zero.
     empty_destination = _make_composer()
     empty_destination.add_raw_buffers_from(inactive_source)
-    assert not empty_destination.active
+    force, torque, _ = empty_destination.get_forces_and_torques()
+    _assert_vectors(force, _grid({}))
+    _assert_vectors(torque, _grid({}))
 
 
 # ---------------------------------------------------------------------------

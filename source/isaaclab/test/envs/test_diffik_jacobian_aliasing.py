@@ -84,7 +84,9 @@ def test_process_actions_applies_scale_then_offset(monkeypatch: pytest.MonkeyPat
         num_base_dofs=0,
         is_fixed_base=False,
     )
-    env = SimpleNamespace(scene={"robot": asset}, num_envs=num_envs, device="cpu")
+    env = SimpleNamespace(
+        scene={"robot": asset}, num_envs=num_envs, device="cpu", sim=SimpleNamespace(physics_manager=None)
+    )
     action = DifferentialInverseKinematicsAction(cfg, env)
     ee_pos = torch.zeros(num_envs, 3)
     ee_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(num_envs, 1)
