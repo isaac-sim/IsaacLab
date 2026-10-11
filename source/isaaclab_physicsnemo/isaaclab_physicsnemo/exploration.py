@@ -85,12 +85,10 @@ class SmoothRandomActions:
 
 
 class UniformRandomActions:
-    """Independent uniform actions, the joint-target protocol of FlashNeRD data.
+    """Independent uniform actions, the joint-target and effort protocol of FlashNeRD data.
 
-    Unlike :class:`SmoothRandomActions`, consecutive targets are uncorrelated, so a position-controlled robot
-    sees step changes of its targets over the whole range. Each target is held for ``hold_steps``
-    environment steps, so recording at the physics rate still changes targets at the control rate. Finished
-    environments draw a fresh target immediately.
+    Unlike :class:`SmoothRandomActions`, consecutive actions are uncorrelated, so a robot sees step changes of
+    its commands over the whole range at every environment step.
     """
 
     def __init__(
@@ -99,7 +97,6 @@ class UniformRandomActions:
         action_dim: int,
         *,
         high: float,
-        hold_steps: int = 1,
         device: str | torch.device = "cpu",
         seed: int = 0,
     ) -> None:
@@ -109,40 +106,29 @@ class UniformRandomActions:
             num_envs: Number of environments.
             action_dim: Number of action channels per environment.
             high: Bound of the symmetric uniform range ``[-high, high]``, in action units.
-            hold_steps: Number of consecutive steps that keep one target.
             device: Device of the generated actions.
             seed: Seed of the source.
 
         Raises:
-            ValueError: If ``high`` or ``hold_steps`` is not positive.
+            ValueError: If ``high`` is not positive.
         """
-        if high <= 0.0 or hold_steps < 1:
-            raise ValueError("high and hold_steps must be positive")
+        if high <= 0.0:
+            raise ValueError("high must be positive")
         self.high = high
         """Bound of the symmetric uniform action range."""
-        self.hold_steps = hold_steps
-        """Number of consecutive steps that keep one target."""
+        self._shape = (num_envs, action_dim)
+        self._device = device
         self._generator = torch.Generator(device=device).manual_seed(seed)
-        self._actions = self._sample((num_envs, action_dim), device)
-        self._step = 0
 
     def __call__(self, dones: torch.Tensor | None = None) -> torch.Tensor:
         """Return the actions of the next step.
 
         Args:
-            dones: Environments that finished in the previous step, shape [num_envs]. They draw a fresh target.
+            dones: Environments that finished in the previous step. Every action is drawn afresh, so it is
+                accepted only for interchangeability with :class:`SmoothRandomActions`.
 
         Returns:
-            Actions for the next step, shape [num_envs, action_dim]. The tensor is owned by the caller.
+            Actions for the next step, shape [num_envs, action_dim].
         """
-        if self._step > 0 and self._step % self.hold_steps == 0:
-            self._actions = self._sample(self._actions.shape, self._actions.device)
-        elif dones is not None:
-            fresh = self._sample(self._actions.shape, self._actions.device)
-            self._actions = torch.where(dones.unsqueeze(-1), fresh, self._actions)
-        self._step += 1
-        return self._actions.clone()
-
-    def _sample(self, shape: torch.Size | tuple[int, ...], device: str | torch.device) -> torch.Tensor:
-        uniform = torch.rand(shape, generator=self._generator, device=device)
+        uniform = torch.rand(self._shape, generator=self._generator, device=self._device)
         return self.high * (2.0 * uniform - 1.0)

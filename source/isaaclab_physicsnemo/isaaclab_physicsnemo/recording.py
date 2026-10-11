@@ -66,9 +66,9 @@ class TrajectoryDatasetRecorder:
     within the control period, as FlashNeRD does, and deploys in a scene whose actuators only forward
     their targets (:class:`~isaaclab.actuators.ImplicitActuatorCfg` with zero gains).
 
-    The applied joint efforts must be the only actuation and external input of the scene: implicit
-    position drives are rejected, and the environment must not apply external body wrenches, whose
-    effect would be recorded without its cause.
+    The recorded control must be the only actuation and external input of the scene: implicit position
+    drives of an effort recording are rejected, and the environment must not apply external body wrenches,
+    whose effect would be recorded without its cause.
 
     Use it as a context manager so that pending episodes are written and the dataset is published.
     """

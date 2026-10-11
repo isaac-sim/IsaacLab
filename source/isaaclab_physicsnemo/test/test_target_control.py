@@ -5,18 +5,24 @@
 
 """Control-period recording of joint targets, as consumed by a target-forwarding deployment."""
 
+import sys
+from pathlib import Path
+
 import pytest
 
 pytest.importorskip("physicsnemo_robotics")
 
 import torch
 from isaaclab_physicsnemo import JOINT_TARGET_KEY, NewtonBinding, TrajectoryDatasetRecorder
-from isaaclab_physicsnemo.tasks import AnymalCExplorationEnvCfg, AnymalCTargetControlEnvCfg
 from physicsnemo_robotics.data import NewtonTrajectoryZarrReader
 from physicsnemo_robotics.newton import field_to_torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext
+
+# The ANYmal-C scenes are those of the example scripts.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples" / "anymal_c"))
+from anymal_c_env_cfg import AnymalCExplorationEnvCfg, AnymalCTargetControlEnvCfg  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
 

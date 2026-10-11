@@ -16,8 +16,8 @@ import argparse
 from pathlib import Path
 
 import torch
-from isaaclab_physicsnemo import TrajectoryDatasetRecorder, UniformRandomActions
-from isaaclab_physicsnemo.tasks import AnymalCExplorationEnvCfg, anymal_d_foot_contacts, anymal_d_state_codec
+from anymal_c_env_cfg import AnymalCExplorationEnvCfg, anymal_foot_contacts
+from isaaclab_physicsnemo import HeadingJointStateCodec, TrajectoryDatasetRecorder, UniformRandomActions
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -51,8 +51,8 @@ def main() -> None:
             env,
             args.output,
             scenario_id="isaaclab-anymal-c-flat-mjwarp-flashnerd",
-            codec=anymal_d_state_codec(model),
-            recorded_features=(anymal_d_foot_contacts(model),),
+            codec=HeadingJointStateCodec(model),
+            recorded_features=(anymal_foot_contacts(model),),
             control_targets=env.scene["robot"],
             seed=args.seed,
             replace=args.replace,

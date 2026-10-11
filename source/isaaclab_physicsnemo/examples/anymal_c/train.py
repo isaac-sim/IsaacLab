@@ -17,14 +17,13 @@ import logging
 import os
 from pathlib import Path
 
-from isaaclab_physicsnemo import TrainingSettings, train_dynamics_artifact
-from isaaclab_physicsnemo.tasks import (
-    ANYMAL_C_MODEL_CONFIG,
+from anymal_c_env_cfg import (
+    ANYMAL_MODEL_CONFIG,
     AnymalCTargetControlEnvCfg,
-    anymal_d_foot_contacts,
-    anymal_d_state_codec,
-    anymal_target_dynamics_features,
+    anymal_dynamics_features,
+    anymal_foot_contacts,
 )
+from isaaclab_physicsnemo import HeadingJointStateCodec, TrainingSettings, train_dynamics_artifact
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -51,13 +50,13 @@ def main() -> None:
     env = ManagerBasedRLEnv(cfg=cfg)
     try:
         model = env.sim.physics_manager.get_model()
-        codec = anymal_d_state_codec(model)
+        codec = HeadingJointStateCodec(model)
         summary = train_dynamics_artifact(
             args.dataset,
             model,
             args.output,
             codec=codec,
-            features=anymal_target_dynamics_features(codec, anymal_d_foot_contacts(model)),
+            features=anymal_dynamics_features(codec, anymal_foot_contacts(model)),
             settings=TrainingSettings(
                 history=13,
                 max_updates=args.max_updates,
@@ -66,8 +65,7 @@ def main() -> None:
                 log_every=1000,
                 seed=args.seed,
                 architecture="parallel_nerd",
-                model_kwargs=ANYMAL_C_MODEL_CONFIG,
-                resident=True,
+                model_kwargs=ANYMAL_MODEL_CONFIG,
                 mixed_precision=True,
                 compile=True,
                 checkpoint_every=args.checkpoint_every,

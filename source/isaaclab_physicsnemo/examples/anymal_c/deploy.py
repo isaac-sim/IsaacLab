@@ -8,6 +8,7 @@
 import argparse
 from pathlib import Path
 
+from anymal_c_env_cfg import ANYMAL_CONTINUITY, AnymalCFlatTeacherEnvCfg, AnymalCTargetControlEnvCfg
 from isaaclab_physicsnemo import (
     UniformRandomActions,
     apply_learned_physics,
@@ -15,7 +16,6 @@ from isaaclab_physicsnemo import (
     preflight_learned_physics,
     record_joint_rollout,
 )
-from isaaclab_physicsnemo.tasks import ANYMAL_D_CONTINUITY, AnymalCFlatTeacherEnvCfg, AnymalCTargetControlEnvCfg
 
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import SimulationContext
@@ -56,7 +56,7 @@ def main() -> None:
 
     teacher = rollout(AnymalCFlatTeacherEnvCfg())
     cfg = AnymalCTargetControlEnvCfg()
-    artifact = apply_learned_physics(cfg, args.artifact, continuity=ANYMAL_D_CONTINUITY)
+    artifact = apply_learned_physics(cfg, args.artifact, continuity=ANYMAL_CONTINUITY)
     learned = rollout(cfg)
 
     if not (learned.joint_q.isfinite().all() and learned.joint_qd.isfinite().all()):

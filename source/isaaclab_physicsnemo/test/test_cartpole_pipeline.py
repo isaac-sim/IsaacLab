@@ -9,6 +9,7 @@ import pytest
 
 pytest.importorskip("physicsnemo_robotics")
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,7 +26,6 @@ from isaaclab_physicsnemo import (
     preflight_learned_physics,
     train_dynamics_artifact,
 )
-from isaaclab_physicsnemo.tasks import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleTeacherEnvCfg
 from physicsnemo_robotics.data import NewtonTrajectoryZarrReader
 from physicsnemo_robotics.dynamics import ControlFieldEncoder, DynamicsFrame, newton_state_codec
 
@@ -33,6 +33,10 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
+
+# The Cartpole scenes are those of the example scripts.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples" / "cartpole"))
+from cartpole_env_cfg import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleTeacherEnvCfg  # noqa: E402
 
 _NUM_ENVS = 16
 _TINY_MODEL = {"temporal_depth": 1, "num_heads": 2, "hidden_size": 32, "head_hidden": 16}

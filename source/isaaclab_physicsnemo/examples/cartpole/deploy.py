@@ -8,6 +8,7 @@
 import argparse
 from pathlib import Path
 
+from cartpole_env_cfg import CartpoleTeacherEnvCfg
 from isaaclab_physicsnemo import (
     SmoothRandomActions,
     apply_learned_physics,
@@ -15,7 +16,6 @@ from isaaclab_physicsnemo import (
     preflight_learned_physics,
     record_joint_rollout,
 )
-from isaaclab_physicsnemo.tasks import CartpoleTeacherEnvCfg
 
 from isaaclab.sim import SimulationContext
 

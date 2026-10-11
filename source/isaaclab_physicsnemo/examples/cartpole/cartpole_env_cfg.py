@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Cartpole teacher configurations for learned-dynamics data collection and deployment."""
+"""Cartpole scenes of the learned-dynamics examples: teacher, task-independent exploration, and FlashNeRD benchmark."""
 
 import math
 

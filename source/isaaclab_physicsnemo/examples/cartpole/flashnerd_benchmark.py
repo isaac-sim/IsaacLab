@@ -33,6 +33,7 @@ import sys
 from pathlib import Path
 
 import torch
+from cartpole_env_cfg import CARTPOLE_FLASHNERD_MODEL_CONFIG, CartpoleFlashNeRDBenchmarkEnvCfg
 from isaaclab_physicsnemo import (
     CONTROL_KEY,
     TrainingSettings,
@@ -41,7 +42,6 @@ from isaaclab_physicsnemo import (
     evaluate_rollout_nrmse,
     train_dynamics_artifact,
 )
-from isaaclab_physicsnemo.tasks import CARTPOLE_FLASHNERD_MODEL_CONFIG, CartpoleFlashNeRDBenchmarkEnvCfg
 from physicsnemo_robotics.data import NewtonTrajectoryZarrReader
 from physicsnemo_robotics.dynamics import ControlFieldEncoder, DynamicsArtifact, newton_state_codec
 
@@ -253,7 +253,6 @@ def main() -> None:
                     seed=20260813,
                     architecture="parallel_nerd",
                     model_kwargs=CARTPOLE_FLASHNERD_MODEL_CONFIG,
-                    resident=True,
                     mixed_precision=not args.fp32,
                     compile=True,
                     checkpoint_every=args.checkpoint_every,

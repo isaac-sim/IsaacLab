@@ -6,9 +6,11 @@
   that validates an artifact against the live scene and advances it as the environment's physics.
 * Added :func:`~isaaclab_physicsnemo.evaluate_rollout_nrmse`, the prefix-averaged recursive-rollout
   error of the FlashNeRD evaluation, which training reports on held-out trajectories.
-* Added Cartpole and ANYmal-D flat-terrain teacher configurations with recording, training, and
-  deployment examples, task-independent data collection, and PPO examples that train in learned physics
-  and evaluate in MuJoCo Warp. The ANYmal-D model follows the FlashNeRD locomotion experiment with four
-  fixed foot-sphere probes and ParallelNeRD, with the heading-frame state and base-frame gravity of the
-  PhysicsNeMo Robotics G1 recipe. A CartPole benchmark repeats the protocol of the FlashNeRD main-results
-  study.
+* Added :class:`~isaaclab_physicsnemo.TrajectoryDatasetRecorder`, which records joint efforts or, with
+  ``control_targets``, the joint-position targets of a control period, and
+  :func:`~isaaclab_physicsnemo.train_dynamics_artifact`, which trains NeRD or ParallelNeRD on
+  device-resident windows with FP16 autocast, data-parallel ranks, and resumable checkpoints.
+* Added Cartpole and ANYmal-C examples with their scenes, recording, training, deployment, and PPO
+  scripts that train in learned physics and evaluate in MuJoCo Warp. The ANYmal-C example follows the
+  FlashNeRD locomotion experiment, and a CartPole benchmark repeats the protocol of the FlashNeRD
+  main-results study.

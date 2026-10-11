@@ -14,8 +14,8 @@ import argparse
 from pathlib import Path
 
 import torch
+from cartpole_env_cfg import CartpoleTeacherEnvCfg
 from isaaclab_physicsnemo import apply_learned_physics
-from isaaclab_physicsnemo.tasks import CartpoleTeacherEnvCfg
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.sim import SimulationContext

@@ -16,8 +16,8 @@ import argparse
 from pathlib import Path
 
 import torch
+from anymal_c_env_cfg import ANYMAL_CONTINUITY, AnymalCFlatTeacherEnvCfg, AnymalCTargetControlEnvCfg
 from isaaclab_physicsnemo import apply_learned_physics
-from isaaclab_physicsnemo.tasks import ANYMAL_D_CONTINUITY, AnymalCFlatTeacherEnvCfg, AnymalCTargetControlEnvCfg
 from rsl_rl.runners import OnPolicyRunner
 
 from isaaclab.envs import ManagerBasedRLEnv
@@ -35,7 +35,7 @@ def make_cfg(num_envs: int, seed: int, artifact: Path | None) -> AnymalCFlatTeac
     cfg.scene.num_envs = num_envs
     cfg.seed = seed
     if artifact is not None:
-        apply_learned_physics(cfg, artifact, continuity=ANYMAL_D_CONTINUITY)
+        apply_learned_physics(cfg, artifact, continuity=ANYMAL_CONTINUITY)
     return cfg
 
 

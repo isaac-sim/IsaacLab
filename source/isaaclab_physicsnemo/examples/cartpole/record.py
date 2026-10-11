@@ -9,8 +9,8 @@ import argparse
 from pathlib import Path
 
 import torch
+from cartpole_env_cfg import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleExplorationEnvCfg
 from isaaclab_physicsnemo import SmoothRandomActions, TrajectoryDatasetRecorder
-from isaaclab_physicsnemo.tasks import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleExplorationEnvCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 

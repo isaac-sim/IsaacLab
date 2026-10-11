@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""ANYmal-D flat-terrain configurations and model inputs for learned-dynamics data collection and deployment."""
+"""ANYmal-C scenes and model inputs of the FlashNeRD locomotion experiment, with joint-target control at 20 ms."""
 
 from __future__ import annotations
 
@@ -11,6 +11,13 @@ import math
 
 import newton
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
+from isaaclab_physicsnemo import (
+    JOINT_TARGET_KEY,
+    PARALLEL_NERD_CONFIG,
+    HeadingJointStateCodec,
+    RootGravityEncoder,
+    isaaclab_canonical_view,
+)
 from physicsnemo_robotics.dynamics import (
     BodyHeadingFrame,
     BodyStateCodec,
@@ -23,18 +30,17 @@ from physicsnemo_robotics.dynamics import (
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.managers import TerminationTermCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
 
-from ..heading import HeadingJointStateCodec, RootGravityEncoder
-from ..recording import CONTROL_KEY
-from ..signature import isaaclab_canonical_view
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
-ANYMAL_D_CONTINUITY = "off"
-"""Continuity mode of a deployed ANYmal-D artifact.
+ANYMAL_CONTINUITY = "off"
+"""Continuity mode of a deployed ANYmal artifact.
 
 The PhysicsNeMo Robotics joint codec normalizes the free-root quaternion again when writing a prediction,
 so the written state can differ from the solver's own record by one floating-point unit and ``"verify"``
@@ -42,45 +48,46 @@ would reject it. Isaac Lab reports every environment reset through the solver re
 check off does not hide resets.
 """
 
-ANYMAL_D_CONTACT_KEY = "contact/anymal_d_feet"
-"""Trajectory field of the fixed foot-probe tokens."""
+ANYMAL_CONTACT_KEY = "contact/anymal_d_feet"
+"""Trajectory field of the fixed foot-probe tokens, named as in the datasets recorded so far."""
 
-ANYMAL_D_CONTACT_CHANNELS = ("point", "normal", "lever_arm", "gap", "relative_velocity", "contact_state")
+ANYMAL_CONTACT_CHANNELS = ("point", "normal", "lever_arm", "gap", "relative_velocity", "contact_state")
 """Fixed-probe channels given to the model, as in the PhysicsNeMo Robotics G1 application."""
 
-ANYMAL_D_MODEL_CONFIG: dict[str, object] = {
+ANYMAL_MODEL_CONFIG: dict[str, object] = {
+    **PARALLEL_NERD_CONFIG,
     "num_heads": 10,
-    "head_dim": 64,
     "intermediate_size": 896,
     "head_hidden": 192,
-    "temporal_attention_spans": [4, 3, 3, 3],
-    "rms_norm_eps": 1.0e-6,
-    "linear_probe": True,
+    "temporal_attention_spans": [4, 4, 4, 4],
 }
-"""ParallelNeRD (FlashNeRD) geometry of the G1 model in the FlashNeRD main-results study."""
+"""ParallelNeRD geometry of the FlashNeRD study's G1 model with the 13-frame receptive field of its ANYmal model."""
 
 _FOOT_BODIES = ("LF_FOOT", "LH_FOOT", "RF_FOOT", "RH_FOOT")
 _BASE_BODY = "base"
 
 
 @configclass
-class AnymalDFlatTeacherEnvCfg(AnymalDFlatEnvCfg):
-    """ANYmal-D velocity tracking on flat ground with a learned-solver-compatible scene.
+class AnymalCFlatTeacherEnvCfg(AnymalDFlatEnvCfg):
+    """ANYmal-C velocity tracking on flat ground, stepped by MuJoCo Warp at 5 ms with a 20 ms control period.
 
-    The physics step stays Isaac Lab's 5 ms with ``decimation = 4``, because the ANYdrive actuator network
-    runs once per physics step and is only accurate at that rate. MuJoCo Warp uses its internal contacts.
-    The configuration removes everything a learned solver cannot reproduce:
+    The ANYdrive actuator network runs at every 5 ms physics step, the rate it is accurate at. The scene
+    removes everything a learned solver cannot reproduce:
 
-    * the contact-force sensor, with the rewards and termination that read it;
-    * events that change model properties (material, mass, center of mass) or apply external wrenches.
+    * the contact-force sensor, with the rewards and termination that read it, so a fallen robot is
+      terminated by its base orientation instead;
+    * events that change model properties (material, mass, center of mass) or apply external wrenches;
+    * the joint-torque penalty, because a model that receives joint-position targets does not expose the
+      torques, so policies trained in both physics optimize the same reward.
 
-    A fallen robot is terminated by its base orientation instead of a base contact. Every environment
-    owns its ground plane, so the fixed foot probes of :func:`anymal_d_foot_contacts` can query it.
+    Every environment owns its ground plane, so the fixed foot probes of :func:`anymal_foot_contacts` can
+    query it.
     """
 
     def __post_init__(self):
         super().__post_init__()
         self.scene.num_envs = 64
+        self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.sim.physics = NewtonCfg(
             solver_cfg=MJWarpSolverCfg(
                 njmax=60, nconmax=25, cone="elliptic", impratio=100.0, integrator="implicitfast"
@@ -99,15 +106,14 @@ class AnymalDFlatTeacherEnvCfg(AnymalDFlatEnvCfg):
                 size=(self.scene.env_spacing, self.scene.env_spacing), physics_material=ground_material
             ),
         )
-        # sensors and terms a learned solver cannot provide
         self.scene.contact_forces = None
         self.rewards.feet_air_time = None
         self.rewards.undesired_contacts = None
+        self.rewards.dof_torques_l2 = None
         self.terminations.base_contact = None
         self.terminations.bad_orientation = TerminationTermCfg(
             func=mdp.bad_orientation, params={"limit_angle": 0.5 * math.pi}
         )
-        # events that change the trained model or apply external wrenches
         self.events.physics_material = None
         self.events.add_base_mass = None
         self.events.base_com = None
@@ -116,69 +122,70 @@ class AnymalDFlatTeacherEnvCfg(AnymalDFlatEnvCfg):
 
 
 @configclass
-class AnymalDExplorationEnvCfg(AnymalDFlatTeacherEnvCfg):
-    """ANYmal-D teacher with the task-independent data protocol of FlashNeRD.
+class AnymalCExplorationEnvCfg(AnymalCFlatTeacherEnvCfg):
+    """ANYmal-C teacher with the FlashNeRD task-independent locomotion data protocol.
 
-    Episodes start from randomized base poses, base velocities, and joint configurations, last up to
-    100 control periods of 20 ms (2 s), and keep falls instead of terminating them. One environment step is
-    one 5 ms physics step, as recording requires, so pair it with
-    :class:`~isaaclab_physicsnemo.UniformRandomActions` with ``high=1.5`` and ``hold_steps=4``: the
-    joint-position action scales by 0.5 rad, which gives targets within 0.75 rad of the default pose,
-    resampled every 20 ms. The Newton model equals that of :class:`AnymalDFlatTeacherEnvCfg`, so artifacts
-    trained on this data deploy there.
+    Episodes start from randomized base poses, base velocities, and joint configurations, last up to 100
+    control periods (2 s), and keep falls. Record it with
+    ``TrajectoryDatasetRecorder(control_targets=env.scene["robot"])`` and
+    :class:`~isaaclab_physicsnemo.UniformRandomActions` with ``high=1.5``: the joint-position action scales by
+    0.5 rad, which gives targets within 0.75 rad of the default pose every control period. The Newton model
+    equals that of :class:`AnymalCFlatTeacherEnvCfg`.
     """
 
     def __post_init__(self):
         super().__post_init__()
+        self.episode_length_s = 2.0
+        self.terminations.bad_orientation = None
+        self.events.reset_base.params = {
+            "pose_range": {
+                "x": (-0.5, 0.5),
+                "y": (-0.5, 0.5),
+                "z": (-0.1, 0.1),
+                "roll": (-0.3, 0.3),
+                "pitch": (-0.3, 0.3),
+                "yaw": (-math.pi, math.pi),
+            },
+            "velocity_range": {
+                "x": (-1.0, 1.0),
+                "y": (-1.0, 1.0),
+                "z": (-0.5, 0.5),
+                "roll": (-1.0, 1.0),
+                "pitch": (-1.0, 1.0),
+                "yaw": (-1.0, 1.0),
+            },
+        }
+        self.events.reset_robot_joints.func = mdp.reset_joints_by_offset
+        self.events.reset_robot_joints.params = {"position_range": (-0.5, 0.5), "velocity_range": (-1.0, 1.0)}
+
+
+@configclass
+class AnymalCTargetControlEnvCfg(AnymalCFlatTeacherEnvCfg):
+    """ANYmal-C scene for a learned model of the 20 ms control period, which consumes joint-position targets.
+
+    One physics step is one control period, and the actuators only forward their targets to Newton's
+    ``control.joint_target_q``: zero-gain implicit drives leave the Newton model identical to the teacher's.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.sim.dt = 0.02
         self.decimation = 1
         self.sim.render_interval = 1
-        task_independent_episodes(self)
+        self.scene.robot.actuators = {"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)}
 
 
-def task_independent_episodes(cfg: AnymalDFlatTeacherEnvCfg) -> None:
-    """Apply the FlashNeRD task-independent locomotion data protocol to an ANYmal teacher configuration.
-
-    Episodes start from randomized base poses, base velocities, and joint configurations, last up to 2 s,
-    and keep falls instead of terminating them. The Newton model is unchanged.
-
-    Args:
-        cfg: Teacher configuration, modified in place.
-    """
-    cfg.episode_length_s = 2.0
-    cfg.terminations.bad_orientation = None
-    cfg.events.reset_base.params = {
-        "pose_range": {
-            "x": (-0.5, 0.5),
-            "y": (-0.5, 0.5),
-            "z": (-0.1, 0.1),
-            "roll": (-0.3, 0.3),
-            "pitch": (-0.3, 0.3),
-            "yaw": (-math.pi, math.pi),
-        },
-        "velocity_range": {
-            "x": (-1.0, 1.0),
-            "y": (-1.0, 1.0),
-            "z": (-0.5, 0.5),
-            "roll": (-1.0, 1.0),
-            "pitch": (-1.0, 1.0),
-            "yaw": (-1.0, 1.0),
-        },
-    }
-    cfg.events.reset_robot_joints.func = mdp.reset_joints_by_offset
-    cfg.events.reset_robot_joints.params = {"position_range": (-0.5, 0.5), "velocity_range": (-1.0, 1.0)}
-
-
-def anymal_d_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:
+def anymal_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:
     """Build the four fixed foot-sphere probes of the FlashNeRD ANYmal locomotion model.
 
     Each probe is the center of a foot collision sphere and queries the environment's ground plane. Probe
     geometry is expressed in the base heading frame, so it does not depend on the world position or yaw.
 
     Args:
-        model: Finalized Newton model of an ANYmal-D scene built from :class:`AnymalDFlatTeacherEnvCfg`.
+        model: Finalized Newton model of a scene built from :class:`AnymalCFlatTeacherEnvCfg`.
 
     Returns:
-        The probe encoder, whose tokens are recorded under :data:`ANYMAL_D_CONTACT_KEY`.
+        The probe encoder, whose tokens are recorded under :data:`ANYMAL_CONTACT_KEY`.
 
     Raises:
         ValueError: If a foot has no single collision sphere or an environment has no single ground plane.
@@ -199,7 +206,7 @@ def anymal_d_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:
     feet = [shape_slots(world_bodies[body_names.index(name)], newton.GeoType.SPHERE) for name in _FOOT_BODIES]
     ground = shape_slots(-1, newton.GeoType.PLANE)
     if any(len(slots) != 1 for slots in feet) or len(ground) != 1:
-        raise ValueError("ANYmal-D probes need one collision sphere per foot and one ground plane per environment.")
+        raise ValueError("ANYmal probes need one collision sphere per foot and one ground plane per environment.")
     # The probe geometry fingerprint must match between the recording, training, and deployment scenes.
     with isaaclab_canonical_view(model):
         body_codec = BodyStateCodec(model, model_frame=BodyHeadingFrame(body=body_names.index(_BASE_BODY)))
@@ -209,36 +216,27 @@ def anymal_d_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:
             points=expand_rigid_contact_shapes(model, body_codec, [slots[0] for slots in feet]),
             environment_shape_slots=ground,
             environment_geometry="per_world",
-            key=ANYMAL_D_CONTACT_KEY,
+            key=ANYMAL_CONTACT_KEY,
         )
 
 
-def anymal_d_state_codec(model: newton.Model) -> HeadingJointStateCodec:
-    """Express the ANYmal-D joint state in the base heading frame, as the G1 application does.
-
-    Args:
-        model: Finalized Newton model of an ANYmal-D scene built from :class:`AnymalDFlatTeacherEnvCfg`.
-    """
-    return HeadingJointStateCodec(model)
-
-
-def anymal_d_dynamics_features(
+def anymal_dynamics_features(
     codec: HeadingJointStateCodec, contacts: FixedRigidContactEncoder
 ) -> CompositeFeatureEncoder:
-    """Condition the model on applied joint efforts, base-frame gravity, and the fixed foot-probe features.
+    """Condition the model on the joint-position targets, base-frame gravity, and the fixed foot probes.
 
-    This is the input recipe of the PhysicsNeMo Robotics G1 application with the four foot-sphere probes
-    of the FlashNeRD ANYmal experiment.
+    This is the input recipe of the PhysicsNeMo Robotics G1 application with the joint-position targets and
+    the four foot-sphere probes of the FlashNeRD ANYmal experiment.
 
     Args:
-        codec: State codec from :func:`anymal_d_state_codec`.
-        contacts: Probe encoder from :func:`anymal_d_foot_contacts`.
+        codec: Heading-frame state codec of the robot.
+        contacts: Probe encoder from :func:`anymal_foot_contacts`.
 
     Returns:
         The feature encoder of the artifact.
     """
     return CompositeFeatureEncoder(
-        ControlFieldEncoder("joint_f", per_world_shape=(codec.layout.dof_qd,), key=CONTROL_KEY),
+        ControlFieldEncoder("joint_target_q", per_world_shape=(codec.layout.dof_q,), key=JOINT_TARGET_KEY),
         RootGravityEncoder(codec),
-        FixedContactFeatureAdapter(contacts, ANYMAL_D_CONTACT_CHANNELS),
+        FixedContactFeatureAdapter(contacts, ANYMAL_CONTACT_CHANNELS),
     )

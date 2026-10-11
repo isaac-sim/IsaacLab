@@ -9,8 +9,8 @@ import argparse
 import logging
 from pathlib import Path
 
+from cartpole_env_cfg import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleTeacherEnvCfg
 from isaaclab_physicsnemo import TrainingSettings, train_dynamics_artifact
-from isaaclab_physicsnemo.tasks import CARTPOLE_REMOVE_ROOT_TRANSLATION, CartpoleTeacherEnvCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 

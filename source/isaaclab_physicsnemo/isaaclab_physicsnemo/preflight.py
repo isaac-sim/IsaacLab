@@ -175,7 +175,7 @@ def preflight_learned_physics(manager: type[NewtonManager], artifact: DynamicsAr
     check("eager execution", eager_execution, "learned inference runs without CUDA graph capture")
     check("solver capabilities", capabilities, "no contact sensor, external force, or extended output")
     check("collision inputs", collision_inputs, "the collision pipeline matches the artifact contact inputs")
-    check("effort control", effort_control, "applied joint efforts carry every actuation command")
+    check("effort control", effort_control, "no implicit position drive acts on targets the model does not see")
     check("pending model changes", pending_model_changes, "no physics property change is queued")
     check("reset wiring", reset_wiring, "environment resets restart the affected learned histories")
     check("state ownership", state_ownership, "the codec owns every dynamic Newton state row")
