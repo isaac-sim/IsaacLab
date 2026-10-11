@@ -42,10 +42,11 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def _run_solver_substeps(cls, contacts) -> None:
-        """Synchronize generalized joint state from VBD's maximal-coordinate body state."""
+        """Publish standalone VBD joint state without changing coupled-solver ownership."""
         super()._run_solver_substeps(contacts)
         if (
-            cls._update_joint_state
+            isinstance(cls._solver, SolverVBD)
+            and cls._update_joint_state
             and cls.backend.model.articulation_count > 0
             and cls.backend.model.joint_coord_count > 0
         ):

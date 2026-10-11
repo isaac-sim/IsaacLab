@@ -27,14 +27,17 @@ class VBDSolverCfg(NewtonSolverCfg):
     iterations: int = 10
     """Number of VBD iterations per substep."""
 
+    friction_epsilon: float = 1.0e-2
+    """Relative tangential speed used to smooth friction near rest [m/s]."""
+
     integrate_with_external_rigid_solver: bool = False
     """Whether an external solver integrates rigid bodies."""
 
     update_joint_state: bool = True
-    """Derive joint positions and velocities from VBD-integrated body motion after each physics tick.
+    """Derive standalone VBD joint positions and velocities after each physics tick.
 
-    Disable only when consumers use body state exclusively. External rigid integration always skips
-    this synchronization so the external solver retains ownership of its generalized joint state.
+    Disable only when consumers use body state exclusively. External rigid integration and coupled
+    solvers retain ownership of their generalized joint state and skip this synchronization.
     """
 
     particle_enable_self_contact: bool = False

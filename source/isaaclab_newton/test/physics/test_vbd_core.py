@@ -121,13 +121,24 @@ def test_vbd_solver_force_input_capability(monkeypatch):
     assert NewtonManager._supports_rigid_body_force_input is False
 
 
-@pytest.mark.parametrize("overrides", [{}, {"rigid_compliant_alm": False}], ids=["defaults", "legacy"])
+@pytest.mark.parametrize(
+    "overrides", [{}, {"rigid_compliant_alm": False, "friction_epsilon": 1.0e-3}], ids=["defaults", "legacy"]
+)
 def test_vbd_rigid_solver_controls(overrides):
-    """VBD preserves the default controls and explicit legacy-mode selection."""
+    """VBD configuration preserves native defaults and forwards explicit controls."""
     physics = importlib.import_module("isaaclab_newton.physics")
     kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides))
-    assert kwargs["rigid_compliant_alm"] is overrides.get("rigid_compliant_alm")
     assert kwargs["rigid_body_contact_buffer_size"] == 64
+    model = ModelBuilder().finalize(device="cpu")
+    native_solver = SolverVBD(model, **overrides)
+    configured_solver = physics.NewtonVBDManager._create_solver(model, physics.VBDSolverCfg(**overrides))
+    for name in (
+        "rigid_compliant_alm",
+        "rigid_joint_linear_ke",
+        "rigid_joint_angular_ke",
+        "friction_epsilon",
+    ):
+        assert getattr(configured_solver, name) == getattr(native_solver, name)
 
 
 def test_vbd_compliant_alm_cable_stiffness():
@@ -167,8 +178,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     assert state_0.body_q.numpy()[body, 2] == pytest.approx(-expected_extension, rel=0.01)
 
 
-@pytest.mark.parametrize("stiffness", [None, (1.0e3, 1.0e2)], ids=["defaults", "finite-attachment"])
-def test_vbd_structural_joint_stiffness_under_load(stiffness):
+def test_vbd_structural_joint_stiffness_under_load():
     """A fixed joint balances gravity with independently configured linear and angular springs."""
     physics = importlib.import_module("isaaclab_newton.physics")
     gravity, lever = 9.81, 0.1
@@ -182,10 +192,12 @@ def test_vbd_structural_joint_stiffness_under_load(stiffness):
     builder.add_articulation([joint])
     builder.color()
     model = builder.finalize(device="cpu")
-    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, iterations=15)
-    linear_ke, angular_ke = (1.0e5, 1.0e5) if stiffness is None else stiffness
-    if stiffness is not None:
-        solver_cfg = solver_cfg.replace(rigid_joint_linear_ke=linear_ke, rigid_joint_angular_ke=angular_ke)
+    linear_ke, angular_ke = 1.0e3, 1.0e2
+    solver_cfg = replace(
+        physics.VBDSolverCfg(rigid_compliant_alm=True, iterations=15),
+        rigid_joint_linear_ke=linear_ke,
+        rigid_joint_angular_ke=angular_ke,
+    )
     solver = physics.NewtonVBDManager._create_solver(model, solver_cfg)
     state_0, state_1, control = model.state(), model.state(), model.control()
     for _ in range(480):

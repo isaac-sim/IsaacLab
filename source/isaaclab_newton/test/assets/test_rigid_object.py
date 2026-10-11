@@ -11,8 +11,9 @@
 Every environment holds a rigid-object cube and a three-cube collection, all locally spawned shapes. The cube
 also stands beside the collection as an unrelated rigid body, so the collection view must select exactly its
 configured bodies. Scene gravity is off; a test that needs gravity applies it to every world for its own duration.
-Configurations that fail initialization and the single-instance cases build their own scenes. Only one simulation
-context can be alive, so those tests come first and fail if selected after a shared-scene test.
+Configurations that fail initialization, VBD state publication, and the single-instance cases build their own
+scenes. Only one simulation context can be alive, so those tests come first and fail if selected after a
+shared-scene test.
 """
 
 from isaaclab_newton.physics import NewtonCfg

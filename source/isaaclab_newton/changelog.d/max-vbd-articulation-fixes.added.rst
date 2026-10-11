@@ -1,1 +1,1 @@
-* Added VBD structural joint stiffness settings and optional generalized joint-state synchronization.
+* Added VBD structural joint stiffness and friction-smoothing settings, and optional standalone generalized joint-state synchronization.
