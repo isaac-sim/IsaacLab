@@ -390,8 +390,8 @@ The **transport** is how control images go to the service, and generated images 
 `CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it and uses the camera's GPU or
 a GPU with direct access to it, the socket otherwise. `cuda_ipc` fails when it is unavailable instead of falling
 back. `status` lists the service's transports. With the defaults on one Linux machine, image transport uses shared
-GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket transport's 16-view protocol limit;
-available GPU memory still limits the batch size.
+GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket transport's
+16-view protocol limit; available GPU memory still limits the batch size.
 
 Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
 blur filtering copies RGB from GPU to CPU and back inside the service. CUDA IPC does not remove those copies
