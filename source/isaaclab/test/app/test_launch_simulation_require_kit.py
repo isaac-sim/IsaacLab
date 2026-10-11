@@ -41,13 +41,6 @@ def kit_branch_taken(monkeypatch: pytest.MonkeyPatch):
     return taken
 
 
-def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
-        pass
-
-    assert kit_branch_taken == []
-
-
 def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
     """A direct OmniClient read inside a kitless runtime must see profile routing."""
     events = []
@@ -81,29 +74,19 @@ def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPa
     assert close_calls == [1]
 
 
-def test_require_kit_launches_kit_for_a_kitless_config(kit_branch_taken):
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
+@pytest.mark.parametrize(
+    "launcher_args",
+    [{"require_kit": True}, argparse.Namespace(require_kit=True), {"visualizer": ["kit"], "require_kit": False}],
+    ids=["dict", "namespace", "false_preserves_kit_requirement"],
+)
+def test_require_kit_is_additive(kit_branch_taken, launcher_args):
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
         pass
 
     assert kit_branch_taken == [True]
 
 
-def test_require_kit_reads_from_a_namespace(kit_branch_taken):
-    # scripts pass their argparse namespace straight through, so the key is read off it too
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=argparse.Namespace(require_kit=True)):
-        pass
-
-    assert kit_branch_taken == [True]
-
-
-def test_require_kit_rejects_ovrtx_runtime():
-    cfg = types.SimpleNamespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg())
-    with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(cfg, {"require_kit": True}):
-            pass
-
-
-def test_newton_rtx_rejects_kit_before_loading_ovrtx(monkeypatch: pytest.MonkeyPatch):
+def test_kit_rejects_ovrtx_before_loading_runtime(monkeypatch: pytest.MonkeyPatch):
     class CustomPhysxCfg(sim_launcher.PhysxCfg):
         pass
 
@@ -113,9 +96,13 @@ def test_newton_rtx_rejects_kit_before_loading_ovrtx(monkeypatch: pytest.MonkeyP
     )
     monkeypatch.setattr(physx_app, "KitLauncher", lambda _: pytest.fail("Invalid runtime reached Kit launch"))
 
-    with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(CustomPhysxCfg(), {"visualizer": ["newton_rtx"]}):
-            pass
+    for cfg, launcher_args in (
+        (types.SimpleNamespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg()), {"require_kit": True}),
+        (CustomPhysxCfg(), {"visualizer": ["newton_rtx"]}),
+    ):
+        with pytest.raises(ValueError, match="OVRTX runtime"):
+            with launch_simulation(cfg, launcher_args):
+                pass
 
     assert calls == []
 
@@ -161,16 +148,6 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
         assert not interrupt
 
     assert events == ["start", "user", 130 if interrupt else 0]
-
-
-def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
-    # '--viz kit' requires Kit on its own; require_kit=False must not override that
-    launcher_args = {"visualizer": ["kit"], "require_kit": False}
-
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
-        pass
-
-    assert kit_branch_taken == [True]
 
 
 @pytest.mark.parametrize("producer_count", [0, 1, 2])

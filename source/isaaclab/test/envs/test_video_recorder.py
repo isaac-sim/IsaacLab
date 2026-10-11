@@ -129,11 +129,6 @@ def test_parse_video_source(source, expected):
 # ---------------------------------------------------------------------------
 
 
-def test_init_raises_value_error_for_unknown_source_kind():
-    with pytest.raises(ValueError, match="Invalid video source"):
-        VideoRecorder(_cfg(source="badkind:foo"), _make_env())
-
-
 def test_init_raises_import_error_when_moviepy_missing():
     with patch.dict("sys.modules", {"moviepy.video.io.ImageSequenceClip": None}):
         with pytest.raises(ImportError, match="moviepy"):
@@ -158,20 +153,6 @@ def test_cfg_validate_clip_schedule(overrides, error):
     else:
         with pytest.raises(ValueError, match=error):
             validate(cfg)
-
-
-@pytest.mark.parametrize(
-    "existing,expected_index",
-    [([], 0), (["clip_0000.mp4", "clip_0007.mp4", "clip_final.mp4", "other_0008.mp4"], 8)],
-    ids=["empty_dir", "after_highest_matching_clip"],
-)
-def test_init_continues_clip_index_after_existing_clips(tmp_path, existing, expected_index):
-    for name in existing:
-        (tmp_path / name).touch()
-
-    recorder = VideoRecorder(_cfg(output_dir=str(tmp_path)), _make_env())
-
-    assert recorder._clip_index == expected_index
 
 
 # ---------------------------------------------------------------------------
@@ -290,21 +271,23 @@ def test_source_resolves_frame(source, make_env, caplog):
 
 
 @pytest.mark.parametrize(
-    "source,make_env,message",
+    "source,make_env,error,message",
     [
-        ("viz", lambda: _make_env(visualizers=[]), "no recording-capable visualizer"),
+        ("badkind:foo", _make_env, ValueError, "Invalid video source"),
+        ("viz", lambda: _make_env(visualizers=[]), RuntimeError, "no recording-capable visualizer"),
         (
             "viz:newton_gl:streaming_view",
             lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
+            RuntimeError,
             "Enable streaming_view",
         ),
-        ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), "missing"),
-        ("sensor:tiled_camera:depth", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()}), "depth"),
+        ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), ValueError, "missing"),
+        ("sensor:tiled_camera:depth", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()}), KeyError, "depth"),
     ],
 )
-def test_unavailable_source_raises(source, make_env, message):
+def test_invalid_source_raises(source, make_env, error, message):
     """Invalid sources fail during construction or first visualizer capture, with an actionable error."""
-    with pytest.raises((RuntimeError, ValueError, KeyError), match=message):
+    with pytest.raises(error, match=message):
         recorder = VideoRecorder(_cfg(source=source), make_env())
         recorder._get_frame()
 
@@ -315,19 +298,25 @@ def test_unavailable_source_raises(source, make_env, message):
 
 
 def _make_env_cfg(eye=(7.5, 7.5, 7.5)):
-    viewer = ViewerCfg()
-    viewer.eye = eye
-    sim = SimpleNamespace(default_visualizer_cfg=None)
-    return SimpleNamespace(viewer=viewer, sim=sim)
+    return SimpleNamespace(viewer=ViewerCfg(eye=eye), sim=SimpleNamespace(default_visualizer_cfg=None))
 
 
-def test_apply_deprecated_viewer_sets_visualizer_cfg():
+@pytest.mark.parametrize(
+    "origin_type,expected_path", [("world", None), ("asset_root", "robot"), ("asset_body", "robot/panda_hand")]
+)
+def test_apply_deprecated_viewer_preserves_pose_and_tracking(origin_type, expected_path):
     from isaaclab.envs.common import _apply_deprecated_viewer_cfg
 
     env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
+    env_cfg.viewer.origin_type = origin_type
+    env_cfg.viewer.asset_name = "robot"
+    env_cfg.viewer.body_name = "panda_hand"
     _apply_deprecated_viewer_cfg(env_cfg)
-    assert env_cfg.sim.default_visualizer_cfg is not None
-    assert env_cfg.sim.default_visualizer_cfg.eye == (1.0, 2.0, 3.0)
+    cfg = env_cfg.sim.default_visualizer_cfg
+    assert cfg is not None
+    assert cfg.eye == (1.0, 2.0, 3.0)
+    assert cfg.origin_type == ("asset" if expected_path else "world")
+    assert cfg.origin_track_path == expected_path
 
 
 def test_apply_deprecated_viewer_noop_when_defaults():
@@ -336,45 +325,6 @@ def test_apply_deprecated_viewer_noop_when_defaults():
     env_cfg = _make_env_cfg()
     _apply_deprecated_viewer_cfg(env_cfg)
     assert env_cfg.sim.default_visualizer_cfg is None
-
-
-# ---------------------------------------------------------------------------
-# Minor 11: asset_root / asset_body origin_type migration
-# ---------------------------------------------------------------------------
-
-
-def test_apply_deprecated_viewer_asset_root_migration():
-    """origin_type='asset_root' → origin_type='asset' + origin_track_path=asset_name."""
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.viewer.origin_type = "asset_root"
-    env_cfg.viewer.asset_name = "robot"
-    _apply_deprecated_viewer_cfg(env_cfg)
-    cfg = env_cfg.sim.default_visualizer_cfg
-    assert cfg is not None
-    assert getattr(cfg, "origin_type", None) == "asset"
-    assert getattr(cfg, "origin_track_path", None) == "robot"
-
-
-def test_apply_deprecated_viewer_asset_body_migration():
-    """origin_type='asset_body' → origin_type='asset' + origin_track_path='asset/body'."""
-    from isaaclab.envs.common import _apply_deprecated_viewer_cfg
-
-    env_cfg = _make_env_cfg(eye=(1.0, 2.0, 3.0))
-    env_cfg.viewer.origin_type = "asset_body"
-    env_cfg.viewer.asset_name = "robot"
-    env_cfg.viewer.body_name = "panda_hand"
-    _apply_deprecated_viewer_cfg(env_cfg)
-    cfg = env_cfg.sim.default_visualizer_cfg
-    assert cfg is not None
-    assert getattr(cfg, "origin_type", None) == "asset"
-    assert getattr(cfg, "origin_track_path", None) == "robot/panda_hand"
-
-
-# ---------------------------------------------------------------------------
-# Minor 12: conflict branch — default_visualizer_cfg already set
-# ---------------------------------------------------------------------------
 
 
 def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set():
@@ -396,9 +346,20 @@ def test_apply_deprecated_viewer_skips_when_default_visualizer_cfg_already_set()
 # ---------------------------------------------------------------------------
 
 
-def test_keep_last_n_clips_prunes_only_older_clips(tmp_path):
-    """Pruning deletes this recorder's clips older than the last N and leaves other prefixes alone."""
-    for name in ["clip_0001.mp4", "clip_9997.mp4", "clip_9998.mp4", "other_0000.mp4"]:
+@pytest.mark.parametrize(
+    "existing,expected",
+    [
+        ([], ["clip_0000.mp4"]),
+        (
+            ["clip_0001.mp4", "clip_9997.mp4", "clip_9998.mp4", "clip_final.mp4", "other_10000.mp4"],
+            ["clip_9998.mp4", "clip_9999.mp4", "clip_final.mp4", "other_10000.mp4"],
+        ),
+    ],
+    ids=["empty_dir", "resume_and_prune"],
+)
+def test_clip_files_resume_and_prune_only_matching_indices(tmp_path, existing, expected):
+    """Continue the highest clip index and retain only this recorder's last N numbered clips."""
+    for name in existing:
         (tmp_path / name).touch()
     recorder = VideoRecorder(
         _cfg(output_dir=str(tmp_path), keep_last_n_clips=2, video_length=1), _make_env([_FakeViz("newton_gl")])
@@ -407,4 +368,4 @@ def test_keep_last_n_clips_prunes_only_older_clips(tmp_path):
         encoder.return_value.write_videofile.side_effect = lambda path, **kwargs: (tmp_path / path).touch()
         recorder.step()
 
-    assert sorted(path.name for path in tmp_path.iterdir()) == ["clip_9998.mp4", "clip_9999.mp4", "other_0000.mp4"]
+    assert sorted(path.name for path in tmp_path.iterdir()) == expected
