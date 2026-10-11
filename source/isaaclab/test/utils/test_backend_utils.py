@@ -28,3 +28,21 @@ def test_factory_backend_falls_back_to_newton_without_simulation_context(monkeyp
     monkeypatch.setattr(SimulationContext, "_instance", None)
 
     assert FactoryBase._get_backend() == "newton"
+
+
+def test_factory_and_visualizer_use_inherited_backend_identifier(monkeypatch):
+    """Renaming a solver manager must not change backend dispatch or visualizer capabilities."""
+    from types import SimpleNamespace
+
+    from isaaclab_newton.physics import NewtonManager
+
+    from isaaclab.sim import SimulationContext
+    from isaaclab.visualizers import BaseVisualizer
+
+    class CustomSolver(NewtonManager):
+        pass
+
+    sim = SimpleNamespace(physics_manager=CustomSolver)
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+    assert FactoryBase._get_backend() == "newton"
+    assert BaseVisualizer.physics_backend.fget(SimpleNamespace(_sim=sim)) == "newton"

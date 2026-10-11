@@ -2638,14 +2638,13 @@ The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
 
 
-Custom visualizers now receive resolved ``cameras`` and the optional USD ``stage`` in ``initialize()``.
-Accept these arguments and forward them to ``super().initialize(scene_data_provider, cameras=cameras,
-stage=stage)``. ``SimulationContext`` resolves scene-camera references before initialization;
-visualizers consume those borrowed sensors without a clone plan or a simulation lookup.
-Code that initializes a visualizer directly must supply ordered ``PerspectiveCameraCfg`` objects
-and existing ``Camera`` sensors through ``cameras``. Use ``resolve_camera_sources`` from
-``isaaclab.envs.utils.camera_view`` to bind configured path references against a camera registry.
+Custom visualizers receive their owning ``sim`` and bound ``cameras`` in ``initialize()``.
+Forward these to ``super().initialize(sim, cameras=cameras)`` and use ``self._sim`` to access
+the stage, scene data provider, and backend registry. ``SimulationContext`` binds scene-camera
+references before initialization. Code that initializes a visualizer directly must supply ordered
+``PerspectiveCameraCfg`` objects and existing ``Camera`` sensors through ``cameras``.
 Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
+GL and RTX image capture both require an initialized visualizer; capture after ``sim.reset()``.
 The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
 to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
 ``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already
@@ -2689,13 +2688,6 @@ Streaming cameras must now be declared in the scene before cloning. Move
 The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
 Visualizers only display the selected sensor's output; they no longer create a renderer or
 camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
-
-The generated-camera helpers ``resolve_tiled_env_indices``, ``resolve_mono_env_index``,
-``compute_tile_resolution``, ``apply_camera_view_from_origins``, and ``sensor_keys_for_gt_types``
-have also been removed. Declare resolution, output channels, and initial pose in ``CameraCfg``.
-Use ``resolve_streaming_envs`` for display tile selection and ``Camera.set_world_poses_from_view``
-for explicit sensor pose updates.
-
 
 .. code-block:: python
 
@@ -2766,6 +2758,40 @@ Similarly, when importing the config class directly:
 The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
 ``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
 ``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
+
+
+.. rubric:: Window settings and RTX scene ownership
+
+Move Newton's ``window_width`` and ``window_height`` into ``WindowCfg.size``. Replace
+``update_frequency`` with ``WindowCfg.fps``:
+
+.. code-block:: python
+
+   # Before
+   viewer = NewtonGLVisualizerCfg(window_width=1920, window_height=1080, update_frequency=2)
+
+   # After
+   from isaaclab.visualizers import WindowCfg
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+   viewer = NewtonGLVisualizerCfg(window=WindowCfg(size=(1920, 1080), fps=30.0))
+
+``fps`` limits presentation by elapsed wall-clock time, rather than rendering every N simulation
+steps. Choose the desired display rate; there is no fixed conversion from ``update_frequency``
+when simulation speed varies. Headless recording captures on demand independently of this limit.
+
+Newton RTX now uses authored scene lighting and environment placement. Remove ``rtx_environment``
+and RTX ``world_spacing`` settings; author lights and transforms in the scene instead. An unlit
+scene stays unlit. ``background_color=None`` preserves the scene background; an explicit color
+changes only the visible background. Use Newton GL for model overlays, live plots, and rigid-body
+dragging; RTX retains visualization markers and camera controls.
+
+Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
+uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
+resolution follows its framebuffer. For windows sharing one sensor image selection, use
+``ImageViewCfg`` as described in :doc:`/source/features/visualizer_tiled_camera`; existing CLI
+recording source strings remain supported. Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
+window settings control presentation independently of image selection.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)

@@ -141,6 +141,7 @@ class _FakeVisualizer(BaseVisualizer):
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
+    ctx._backend_registry = []
     ctx._visualizers = list(visualizers)
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
@@ -304,6 +305,10 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
+    from isaaclab.visualizers import ImageView
+
+    view = Mock(spec=ImageView, invalidate=Mock(side_effect=lambda: events.append("invalidate_image")))
+    ctx._backend_registry = [(object(), view)]
     ctx.cfg = SimpleNamespace(physics=object())
     ctx._visualizers = [
         SimpleNamespace(
@@ -340,7 +345,14 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     ctx.reset()
 
-    assert events == ["reset:False", "viewer_reset", "initialize_visualizers", "finalize_consumers:1:True", "play"]
+    assert events == [
+        "reset:False",
+        "invalidate_image",
+        "viewer_reset",
+        "initialize_visualizers",
+        "finalize_consumers:1:True",
+        "play",
+    ]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 
@@ -367,6 +379,7 @@ def web_backend(monkeypatch):
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
+        physics_manager=type("NewtonManager", (), {"backend_name": "newton"}),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
         vis_marker_registry=VisMarkerRegistry(),
@@ -498,7 +511,11 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer.backend = SimpleNamespace(model="dummy-model")
-    sim = Mock(stage=None, get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)))
+    sim = Mock(
+        stage=None,
+        physics_manager=type("NewtonManager", (), {"backend_name": "newton"}),
+        get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)),
+    )
     BaseVisualizer.initialize(visualizer, sim, cameras=[])
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
@@ -776,22 +793,60 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
 
     visualizer = ctx._pending_visualizers[0]
     if not fail_construct:
+        from pxr import Usd, UsdGeom
+
+        stage = Usd.Stage.CreateInMemory()
         ctx._clone_plan = SimpleNamespace(env_template="/Scenes/world_{}")
-        camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]))
+        ctx._scene_data_provider._num_envs = 4
+        camera = SimpleNamespace(
+            cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+            _view=SimpleNamespace(
+                prims=[UsdGeom.Camera.Define(stage, f"/Scenes/world_{i}/Camera").GetPrim() for i in range(4)]
+            ),
+        )
         ctx._scene_data_provider.get_camera_sensors = Mock(return_value={"camera": camera})
         source = SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")
         perspective = PerspectiveCameraCfg(eye=(1.0, 2.0, 3.0))
         cfg.cameras, cfg.streaming_view = [source, perspective], True
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
-        assert visualizer._cameras == [camera, perspective]
+        assert [view.camera for view in visualizer._image_views] == [camera]
         assert cfg.cameras == [source, perspective]
         assert source.prim_path == "{ENV_REGEX_NS}/Camera"
-        assert not {"_clone_plan", "_scene_stage", "_get_backend"}.intersection(vars(visualizer))
+        assert not {"_clone_plan", "_scene_stage", "_get_backend", "_camera_choices", "_streaming_frame"}.intersection(
+            vars(visualizer)
+        )
         ctx._scene_data_provider.get_camera_sensors.assert_called_once_with()
         assert visualizer._sim is ctx
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]
+
+        # Automatic choices skip unsupported channels; explicit references fail before viewer initialization.
+        for path, channel, expected, error in (
+            (None, "rgb", [camera], None),
+            (None, "depth", [], None),
+            ("/Missing/Camera", "rgb", None, (ValueError, "No scene Camera matches")),
+            ("{ENV_REGEX_NS}/Camera", "depth", None, (KeyError, "No sensor output")),
+            (None, "optical_flow", None, (ValueError, "optical_flow")),
+            ("/Scenes/world_2/Camera", "rgb", [camera], None),
+            ("/Scenes/world_.*/Camera", "rgb", [camera], None),
+        ):
+            cfg.cameras = [SceneCameraCfg(prim_path=path)] if path is not None else None
+            cfg.streaming_gt_types = (channel,)
+            pending = _FakeVisualizer(cfg)
+            ctx._pending_visualizers = [pending]
+            if error is not None:
+                with pytest.raises(error[0], match=error[1]):
+                    ctx.initialize_visualizers()
+                assert not pending.is_initialized
+                assert pending not in ctx.visualizers
+            else:
+                ctx.initialize_visualizers()
+                assert [view.camera for view in pending._image_views] == expected
+        cfg.cameras, cfg.streaming_sensor_prim_path = None, "/Scenes/world_2/Camera"
+        ctx._pending_visualizers = [_FakeVisualizer(cfg)]
+        ctx.initialize_visualizers()
+        assert ctx._visualizers[-1]._image_views[0].camera is camera
     assert visualizer.close_calls == 0
     SimulationContext.clear_instance()
     assert visualizer.close_calls == 1
@@ -818,6 +873,7 @@ def _make_context_with_settings(
         },
     )()
     ctx = object.__new__(SimulationContext)
+    ctx._backend_registry = []
     ctx.cfg = cfg
     ctx._has_gui = has_gui
     ctx._has_offscreen_render = has_offscreen_render
