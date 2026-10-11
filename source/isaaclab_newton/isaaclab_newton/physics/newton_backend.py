@@ -140,20 +140,36 @@ def _mark_worlds_from_ids(
 
 
 class StepPhase(enum.Enum):
-    """Where a step callback runs inside one physics step, following MuJoCo's ``mjcb_*`` callback hooks."""
+    """Where a step callback runs in :func:`step`, after MuJoCo's ``mjcb_*`` callback hooks.
+
+    Each phase has one cadence. One :func:`step` advances :attr:`NewtonBackend.steps_per_call` physics steps of
+    :attr:`NewtonBackend.num_substeps` solver substeps each:
+
+    =================  ===================================================  ============================================
+    Phase              Runs                                                 Typical use
+    =================  ===================================================  ============================================
+    ``PRE_STEP``       once, before the first physics step                  actions held for the whole environment step
+    ``CONTROL``        every physics step, before Newton actuators          controllers, asset command writers
+    ``POST_ACTUATOR``  last physics step, after Newton actuators            actuator telemetry
+    ``STATE_FORCE``    every solver substep, with the substep's input state  interactive forces such as viewer picking
+    ``POST_STEP``      every physics step, after the solver                 republishing state before sensors update
+    =================  ===================================================  ============================================
+    """
+
+    PRE_STEP = "pre_step"
+    """Once per :func:`step`, before the first physics step."""
 
     CONTROL = "control"
-    """After collision and before Newton actuators, like ``mjcb_control``. Controllers write targets and efforts."""
+    """Every physics step, after collision and before Newton actuators, like ``mjcb_control``."""
 
     POST_ACTUATOR = "post_actuator"
-    """After Newton actuators of the last physics step of :func:`step`, before its solver substeps, e.g. actuator
-    telemetry, which consumers observe after the step."""
+    """After the Newton actuators of the last physics step, before its solver substeps."""
 
     STATE_FORCE = "state_force"
     """Before every solver substep. The callback receives the substep's input :class:`newton.State`."""
 
     POST_STEP = "post_step"
-    """After every physics step, before sensors update; state and feedback stay current within decimation."""
+    """After every physics step, before sensors update, so state and feedback stay current within decimation."""
 
 
 @dataclass(frozen=True, eq=False)
@@ -704,7 +720,12 @@ def notify_model_changes(backend: NewtonBackend) -> None:
 
 
 def register_step_callback(
-    backend: NewtonBackend, fn: Callable[..., None], phase: StepPhase, *, graphable: bool = True, name: str = ""
+    backend: NewtonBackend,
+    fn: Callable[..., None],
+    phase: StepPhase,
+    *,
+    graphable: bool = True,
+    name: str = "",
 ) -> StepCallback:
     """Run ``fn`` at ``phase`` of every subsequent step.
 
@@ -849,9 +870,10 @@ def compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | Non
 def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
     """Unroll ``steps`` physics steps into straight-line operations with every buffer bound.
 
-    Each physics step runs ``collide -> CONTROL -> Newton actuators -> substeps``, where each substep runs
-    ``staged forces -> STATE_FORCE -> solver`` and an optional mid-step collision. ``POST_ACTUATOR`` callbacks run
-    after the actuators of the last physics step, and ``POST_STEP`` callbacks and sensors run after every physics step.
+    ``PRE_STEP`` callbacks run first. Each physics step then runs ``collide -> CONTROL -> Newton actuators ->
+    substeps -> POST_STEP -> sensors``, where each substep runs ``staged forces -> STATE_FORCE -> solver`` and an
+    optional mid-step collision, and ``POST_ACTUATOR`` callbacks run after the actuators of the last physics step (see
+    :class:`StepPhase`).
     Double-buffered states alternate when the graph is built, and every physics step ends in
     :attr:`NewtonBackend.state_0`, so callbacks and bound views always observe the current state.
 
@@ -890,6 +912,7 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
         staged = list(backend.staged_forces.items())
     else:
         staged = []
+    emit_callbacks(StepPhase.PRE_STEP)
     actuator_steps = 0
     for physics_step in range(steps):
         if adapter.prepares_step:

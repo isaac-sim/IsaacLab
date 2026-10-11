@@ -90,6 +90,44 @@ def test_newton_osc_in_step_matches_host_controller(monkeypatch: pytest.MonkeyPa
     torch.testing.assert_close(in_step, on_host, atol=1e-4, rtol=0.0)
 
 
+def _rollout_joint_actions(num_steps: int) -> tuple[torch.Tensor, bool]:
+    """Step the joint-position reach task with new random actions every step; return the arm trajectory."""
+    sim_utils.create_new_stage()
+    env_cfg = resolve_presets(
+        load_cfg_from_registry("Isaac-Reach-Franka", "env_cfg_entry_point"), selected=("newton_mjwarp",)
+    )
+    env_cfg.sim.device = "cuda:0"
+    env_cfg.scene.num_envs = 4
+    env_cfg.seed = 7
+    env = gym.make("Isaac-Reach-Franka", cfg=env_cfg)
+    try:
+        env.unwrapped.sim._app_control_on_stop_handle = None
+        env.reset()
+        robot = env.unwrapped.scene["robot"]
+        generator = torch.Generator(device="cuda:0").manual_seed(0)
+        trajectory = []
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                actions = torch.rand(env.action_space.shape, device="cuda:0", generator=generator) - 0.5
+                env.step(actions)
+                trajectory.append(robot.data.joint_pos.torch.clone())
+        return torch.stack(trajectory), env.unwrapped._physics_handles_actions
+    finally:
+        env.close()
+
+
+def test_bound_joint_actions_follow_each_new_action(monkeypatch: pytest.MonkeyPatch):
+    """Joint actions applied inside the captured step track every new action, exactly like the host path."""
+    in_step, bound = _rollout_joint_actions(num_steps=12)
+    with monkeypatch.context() as patch:
+        patch.setattr(NewtonManager, "bind_control", lambda *args: False)
+        on_host, host_bound = _rollout_joint_actions(num_steps=12)
+
+    assert bound and not host_bound
+    assert (on_host[-1] - on_host[0]).abs().max() > 0.05
+    torch.testing.assert_close(in_step, on_host, atol=1e-4, rtol=0.0)
+
+
 def _rollout_cartpole(actions: list[torch.Tensor], captured: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Step the Warp cart-pole MDP eagerly or as one captured environment-step graph."""
     sim_utils.create_new_stage()

@@ -141,11 +141,10 @@ class BinaryJointAction(ActionTerm):
         else:
             close_mask = actions < 0
         # compute the command
-        self._processed_actions = torch.where(close_mask, self._close_command, self._open_command)
+        # write in place: a captured apply_actions reads this buffer
+        torch.where(close_mask, self._close_command, self._open_command, out=self._processed_actions)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
         index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
@@ -198,11 +197,10 @@ class AbsBinaryJointPositionAction(BinaryJointAction):
             # true: close 0.0, false: open 0.785
             binary_mask = actions < self.cfg.threshold
         # compute the command
-        self._processed_actions = torch.where(binary_mask, self._open_command, self._close_command)
+        # write in place: a captured apply_actions reads this buffer
+        torch.where(binary_mask, self._open_command, self._close_command, out=self._processed_actions)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def apply_actions(self):
         self._asset.actuators.target_command.set_position_index(

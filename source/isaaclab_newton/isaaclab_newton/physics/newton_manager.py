@@ -116,7 +116,6 @@ class NewtonManager(PhysicsManager):
         self._world_builder_hooks = []
         self._clone: NewtonCloneRecord | None = None
         self._scene_data_backend = NewtonSceneDataBackend(lambda: self.backend)
-        self._controls_bound = False
         self._control_binding = None
         self._decimation = 1
         self._apply_every_physics_step = None
@@ -240,7 +239,6 @@ class NewtonManager(PhysicsManager):
         self._site_index_map = {}
         self._world_builder_hooks = []
         self._clone = None
-        self._controls_bound = False
         self._control_binding = None
         self._decimation = 1
         self._apply_every_physics_step = None
@@ -262,31 +260,27 @@ class NewtonManager(PhysicsManager):
     # ----- Decimation --------------------------------------------------------------
 
     def bind_control(self, actions, scene) -> bool:
-        """Schedule each controller and asset command writer, preserving their execution order."""
-        for name, term in actions._terms.items():
-            self.register_step_callback(
-                term.apply_actions,
-                StepPhase.CONTROL,
-                graphable=term.supports_graph_capture,
-                name=f"action.{name}",
-            )
-        for name in (
-            "articulations",
-            "cable_objects",
-            "deformable_objects",
-            "rigid_objects",
-            "surface_grippers",
-            "rigid_object_collections",
-        ):
-            for key, asset in getattr(scene, name).items():
-                self.register_step_callback(
-                    asset.write_data_to_sim,
-                    StepPhase.CONTROL,
-                    graphable=asset.supports_graph_capture,
-                    name=f"{name}.{key}.commands",
-                )
+        """Run the environment's actions and asset command writers inside the step, in the environment's order.
+
+        Actions that hold their command for the whole environment step run once per step (:attr:`StepPhase.PRE_STEP`);
+        the other actions and the asset command writers run before every physics step (:attr:`StepPhase.CONTROL`).
+
+        Args:
+            actions: Environment action manager.
+            scene: Scene whose assets submit commands.
+
+        Returns:
+            True: the step now applies the actions and submits the scene commands.
+        """
+        for name in actions.active_terms:
+            term = actions.get_term(name)
+            phase = StepPhase.CONTROL if term.apply_every_physics_step else StepPhase.PRE_STEP
+            graphable = term.supports_graph_capture
+            self.register_step_callback(term.apply_actions, phase, graphable=graphable, name=f"action.{name}")
+        for name, asset in scene.assets.items():
+            graphable = asset.supports_graph_capture
+            self.register_step_callback(asset.write_data_to_sim, StepPhase.CONTROL, graphable=graphable, name=name)
         self._control_binding = (actions, scene)
-        self._controls_bound = True
         self._resolve_steps_per_call()
         return True
 
@@ -313,7 +307,7 @@ class NewtonManager(PhysicsManager):
         backend = self.backend
         if backend is None or backend.env_decimation:
             return False
-        if self._controls_bound:
+        if self._control_binding is not None:
             return True
         if self._apply_every_physics_step:
             return False
@@ -333,7 +327,12 @@ class NewtonManager(PhysicsManager):
     # ----- Step callbacks and actuators -----------------------------------------------
 
     def register_step_callback(
-        self, fn: Callable[..., None], phase: StepPhase, *, graphable: bool = True, name: str = ""
+        self,
+        fn: Callable[..., None],
+        phase: StepPhase,
+        *,
+        graphable: bool = True,
+        name: str = "",
     ) -> StepCallback:
         """Run ``fn`` at ``phase`` of every step until it is unregistered or the model is rebuilt.
 

@@ -30,6 +30,7 @@ from ..assets import (
     Articulation,
     ArticulationCfg,
     Asset,
+    AssetBase,
     AssetBaseCfg,
     CableObject,
     CableObjectCfg,
@@ -452,15 +453,7 @@ class InteractiveScene:
         else:
             env_ids = None
         env_mask_wp = wp.from_torch(env_mask, dtype=wp.bool)
-        entities = (
-            *self._articulations.values(),
-            *self._cable_objects.values(),
-            *self._deformable_objects.values(),
-            *self._rigid_objects.values(),
-            *self._surface_grippers.values(),
-            *self._rigid_object_collections.values(),
-            *self._sensors.values(),
-        )
+        entities = (*self.assets.values(), *self._sensors.values())
         for entity in entities:
             if takes_env_mask(entity.reset):
                 entity.reset(env_mask=env_mask_wp)
@@ -469,21 +462,22 @@ class InteractiveScene:
                 if selection is not None:
                     entity.reset(*selection.values())
 
+    @property
+    def assets(self) -> dict[str, AssetBase]:
+        """Scene assets by name, in the order they write data to the simulation."""
+        return {
+            **self._articulations,
+            **self._cable_objects,
+            **self._deformable_objects,
+            **self._rigid_objects,
+            **self._surface_grippers,
+            **self._rigid_object_collections,
+        }
+
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""
-        # -- assets
-        for articulation in self._articulations.values():
-            articulation.write_data_to_sim()
-        for cable_object in self._cable_objects.values():
-            cable_object.write_data_to_sim()
-        for deformable_object in self._deformable_objects.values():
-            deformable_object.write_data_to_sim()
-        for rigid_object in self._rigid_objects.values():
-            rigid_object.write_data_to_sim()
-        for surface_gripper in self._surface_grippers.values():
-            surface_gripper.write_data_to_sim()
-        for rigid_object_collection in self._rigid_object_collections.values():
-            rigid_object_collection.write_data_to_sim()
+        for asset in self.assets.values():
+            asset.write_data_to_sim()
 
     def update(self, dt: float) -> None:
         """Update the scene entities.

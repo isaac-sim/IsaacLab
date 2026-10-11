@@ -158,12 +158,10 @@ class JointPositionToLimitsAction(ActionTerm):
     def process_actions(self, actions: torch.Tensor):
         # store the raw actions
         self._raw_actions[:] = actions
-        # apply affine transformations
-        self._processed_actions = self._raw_actions * self._scale
+        # apply affine transformations in place: a captured apply_actions reads this buffer
+        torch.mul(self._raw_actions, self._scale, out=self._processed_actions)
         if self.cfg.clip is not None:
-            self._processed_actions = torch.clamp(
-                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
-            )
+            self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
         # rescale the position targets if configured
         # this is useful when the input actions are in the range [-1, 1]
         if self.cfg.rescale_to_limits:

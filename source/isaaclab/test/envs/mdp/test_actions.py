@@ -30,7 +30,9 @@ def _make_env(joint_names: list[str], num_envs: int = 2) -> SimpleNamespace:
         num_joints=len(joint_names),
         find_joints=lambda *_args, **_kwargs: (_JointIds(len(joint_names)), list(joint_names)),
     )
-    return SimpleNamespace(num_envs=num_envs, device="cpu", scene={"robot": robot})
+    return SimpleNamespace(
+        num_envs=num_envs, device="cpu", scene={"robot": robot}, sim=SimpleNamespace(physics_manager=None)
+    )
 
 
 @pytest.mark.parametrize(

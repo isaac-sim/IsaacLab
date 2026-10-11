@@ -25,3 +25,6 @@
   :attr:`~isaaclab_newton.physics.NewtonSolver.supports_heterogeneous_worlds` for solvers that step worlds with
   different contents. ``record_step`` needs no eager warm-up step and works inside Torch-owned captures that Warp
   joins with ``wp.capture_begin(stream, external=True)``.
+* Added :attr:`~isaaclab_newton.physics.StepPhase.PRE_STEP` for step callbacks that run once per step, before the first
+  physics step. Each step phase now has one documented cadence. Bound environment actions that hold their command for
+  the environment step run there instead of before every physics step.
