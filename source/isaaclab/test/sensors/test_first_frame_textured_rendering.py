@@ -14,7 +14,7 @@ from isaaclab_physx.physics import PhysxCfg
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, mdp
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -138,7 +138,7 @@ def test_first_frame_is_textured_camera(setup_sim, device):
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
 def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
-    """Reset must restore the initial pose in state and camera observations without stepping physics."""
+    """The first and subsequent resets must return the reset pose without stepping physics."""
 
     @configclass
     class CameraObservationsCfg(ObservationGroupCfg):
@@ -161,6 +161,17 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
     cfg.sim.visualizer_cfgs = []
     cfg.num_rerenders_on_reset = 2
     cfg.observations = {"camera": CameraObservationsCfg()}
+    # A stale spawn-pose frame must differ from the first reset observation.
+    reset_x_offset = 0.15
+    cfg.events.reset_cube_pose = EventTermCfg(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("cube"),
+            "pose_range": {"x": (reset_x_offset, reset_x_offset)},
+            "velocity_range": {},
+        },
+    )
     cfg.scene.cube = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
@@ -181,15 +192,31 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
     )
     env = ManagerBasedEnv(cfg)
     try:
-        env.reset()
+        cube = env.scene["cube"]
+        initial_pose = cube.data.default_root_pose.torch.clone()
+        initial_pose[:, :3] += env.scene.env_origins
+        initial_pose[:, 0] += reset_x_offset
+        first_reset_obs, _ = env.reset()
+        first_reset_depth = first_reset_obs["camera"]["depth"].clone()
+        assert env.sim.get_physics_step_count() == 0
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+
         action = torch.zeros_like(env.action_manager.action)
         # Establish rendered references at both poses before testing the reset boundary.
         for _ in range(STABILISATION_STEPS):
             initial_obs, _ = env.step(action)
         initial_depth = initial_obs["camera"]["depth"].clone()
-        cube = env.scene["cube"]
-        initial_pose = cube.data.default_root_pose.torch.clone()
-        initial_pose[:, :3] += env.scene.env_origins
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+
+        # Check the saved zero-step frame against the same pose after stabilization.
+        first_mask = torch.isfinite(first_reset_depth) & (first_reset_depth > 0.0) & (first_reset_depth < 10.0)
+        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
+        assert initial_mask.any(), "The reset cube must be visible in the reference frame."
+        first_overlap = (first_mask & initial_mask).sum() / (first_mask | initial_mask).sum()
+        assert first_overlap > 0.9, (
+            f"First reset camera observation did not show the reset silhouette: IoU={first_overlap.item():.3f}"
+        )
+
         moved_pose = initial_pose.clone()
         moved_pose[:, 0] += 0.7
         moved_pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=device)
@@ -207,7 +234,6 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
 
         # Depth silhouettes check geometry, independent of RGB exposure and temporal denoising.
-        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
         moved_mask = torch.isfinite(moved_depth) & (moved_depth > 0.0) & (moved_depth < 10.0)
         reset_mask = torch.isfinite(reset_depth) & (reset_depth > 0.0) & (reset_depth < 10.0)
         assert initial_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
