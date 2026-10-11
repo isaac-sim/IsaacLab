@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import warnings
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
@@ -141,13 +142,82 @@ class PerspectiveCameraCfg:
 
 @configclass
 class SceneCameraCfg:
-    """Select an existing scene camera's output for display in the visualizer.
+    """Select an existing scene camera's output as the visualizer's main view.
 
     This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
     """
 
     prim_path: str = MISSING
     """Scene camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable."""
+
+
+@configclass
+class ImageViewCfg:
+    """A shared image selection consumed by windows and recorders.
+
+    Reusing this declaration shares one runtime view within a simulation, including across copies
+    of an environment configuration. Use :func:`isaaclab.utils.replace` to declare an independent view.
+    """
+
+    class_type: str = "{DIR}.image_view:ImageView"
+    """Runtime image selection and composition."""
+
+    source: str | PerspectiveCameraCfg = MISSING
+    """Scene sensor name, or the initial camera for a visualizer-owned perspective render product."""
+
+    envs: tuple[int, ...] = (0,)
+    """Sensor rows to display, in the requested order."""
+
+    channels: tuple[str, ...] = ("rgb",)
+    """Existing source outputs to display, left-to-right: rgb, depth, normals, or segmentation."""
+
+    depth_range: tuple[float, float] = (0.1, 10.0)
+    """Display color scale limits [m]. Source depth values and camera clipping planes remain unchanged."""
+
+    def __eq__(self, other) -> bool:
+        """Share explicit declarations; equal initial poses can belong to independent cameras."""
+        return self is other
+
+    def __deepcopy__(self, memo):
+        """Keep this explicitly shared declaration when its consumers' configurations are copied."""
+        return self
+
+    def validate_config(self) -> None:
+        """Reject unsupported channels, negative row indices, and invalid display color limits."""
+        if not isinstance(self.source, (str, PerspectiveCameraCfg)) or self.source == "":
+            raise ValueError("ImageViewCfg.source must name a scene camera or declare a perspective camera.")
+        if any(not isinstance(i, int) or i < 0 for i in self.envs):
+            raise ValueError("ImageViewCfg.envs must contain non-negative sensor row indices.")
+        if not self.channels:
+            raise ValueError("ImageViewCfg.channels must contain at least one display channel.")
+        for channel in self.channels:
+            if channel not in ("rgb", "depth", "normals", "segmentation"):
+                raise ValueError(f"Unsupported image channel: {channel!r}.")
+        if isinstance(self.source, PerspectiveCameraCfg) and (self.envs != (0,) or self.channels != ("rgb",)):
+            raise ValueError("Perspective image views provide one RGB image; use envs=(0,) and channels=('rgb',).")
+        if len(self.depth_range) != 2 or not 0 <= self.depth_range[0] < self.depth_range[1]:
+            raise ValueError("ImageViewCfg.depth_range must contain increasing non-negative limits.")
+
+
+@configclass
+class WindowCfg:
+    """Native window presentation, independent of the camera's image resolution."""
+
+    size: tuple[int, int] = (1920, 1080)
+    """Initial window width and height [px]."""
+
+    fps: float = 30.0
+    """Maximum Newton window update rate [Hz], measured in wall-clock time.
+
+    Headless on-demand recording is independent of this limit. Kit owns its application update cadence.
+    """
+
+    def validate_config(self) -> None:
+        """Require positive dimensions and a finite, positive presentation rate."""
+        if len(self.size) != 2 or any(not isinstance(value, int) or value < 1 for value in self.size):
+            raise ValueError("WindowCfg.size must contain positive integer width and height.")
+        if not math.isfinite(self.fps) or self.fps <= 0:
+            raise ValueError("WindowCfg.fps must be finite and positive.")
 
 
 @configclass
@@ -167,13 +237,23 @@ class VisualizerCfg:
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
+    view: ImageViewCfg | None = None
+    """Shared image view, or None to use the visualizer's camera selection."""
+
+    window: WindowCfg = WindowCfg()
+    """Native window settings used by Newton and Kit; network visualizers manage their own presentation."""
+
+    headless: bool = False
+    """Render on demand without opening a native viewer window."""
+
     # Primary interactive camera settings
     cameras: list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
     """Camera sources available to the visualizer.
 
     PerspectiveCameraCfg configures the interactive view; SceneCameraCfg refers to an existing scene
-    sensor. Kit, Newton GL, Rerun, and Viser display the first scene source in their camera panel.
-    Newton RTX supports only perspective sources. None uses eye/lookat/focal_length and the streaming settings below.
+    sensor. Newton GL and RTX display the first source and offer a dropdown for switching sources.
+    Kit, Rerun, and Viser display the first scene source in their camera panel.
+    None uses eye/lookat/focal_length and the streaming settings below.
     Every explicit scene source must provide all requested streaming_gt_types channels.
     """
 
@@ -186,11 +266,12 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
-    """Solid background color as normalized RGB values in ``[0, 1]``.
+    background_color: tuple[float, float, float] | None = None
+    """Viewer perspective-camera background as normalized RGB values in ``[0, 1]``.
 
-    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
-    backend's native background. Scene lighting remains independent of the visible background.
+    None preserves the scene HDR background in Kit and Newton RTX, or Newton GL's procedural sky.
+    An explicit color changes only the visible background, not scene lighting or reflections.
+    Scene-camera images retain their sensor's :attr:`~isaaclab.sensors.CameraCfg.background_color`.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
@@ -211,7 +292,7 @@ class VisualizerCfg:
 
     # Shared settings
     streaming_envs: int | list[int] = 32
-    """Environments to display.
+    """Environments to display, limited to 100 tiles.
 
     * ``int`` — sample this many envs once at initialization (from all visible envs).
     * ``list[int]`` — display exactly these env indices.
@@ -221,8 +302,7 @@ class VisualizerCfg:
     """GT data types displayed left-to-right per environment row.
 
     Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
-    Validated against :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES`
-    at initialization time (only when :attr:`streaming_view` is ``True``).
+    Validated at initialization when :attr:`streaming_view` is ``True``.
     """
 
     streaming_depth_min: float = 0.1
@@ -269,6 +349,14 @@ class VisualizerCfg:
     # Internal
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
+
+    def validate_config(self) -> None:
+        """Reject ambiguous sources and unsupported native-window configurations."""
+        if self.view is not None:
+            if self.visualizer_type not in ("newton_gl", "newton_rtx"):
+                raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+            if self.cameras is not None or self.streaming_sensor_prim_path is not None:
+                raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
     def __post_init__(self) -> None:
         if self.background_color is not None:

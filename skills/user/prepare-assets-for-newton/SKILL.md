@@ -20,7 +20,7 @@ Implicit MPM particle assets and rigid-MPM coupling are also out of scope; see t
 ## Workflow
 
 1. **Multi-backend Asset Importing Pipeline.** Use provided Isaac Lab assets directly in PhysX and MJWarp; Newton parses their supported authored USD Physics and PhysX properties. For a new URDF or MJCF, keep `run_asset_transformer=True` and `run_multi_physics_conversion=True` so the importer creates neutral, PhysX, and MuJoCo payloads. Account for its nested rigid-body structure.
-2. **Use per-solver asset configuration classes.** Put common USD Physics properties in solver-common base cfgs. Put MJWarp-specific fields in `Mujoco*Cfg`, Newton-native fields in `Newton*Cfg`, and PhysX-only fields in `Physx*Cfg`. Confirm support in the generated schema APIs.
+2. **Use per-solver schema fragments.** Pass a list of fragments to each spawner field. Put common USD Physics properties in solver-common fragments such as `UsdPhysicsRigidBodyCfg`. Put MJWarp-specific fields in `Mujoco*Cfg`, Newton-native fields in `Newton*Cfg`, and PhysX-only fields in `Physx*Cfg`. Confirm support in the generated schema APIs.
 3. **Audit the authored mechanical model.** Check every dynamic link and contact-relevant object for intentional mass, COM, inertia and frames, collision geometry, approximation and scale, materials, articulation root, fixed-base and fixed-joint representation, joint axes and limits, self-collision, and gravity overrides.
 4. **Match contact and friction behavior.** Expect more default slip in MJWarp. Validate colliders, material bindings, contact locations and gripper force. Set per-shape `condim` with `MujocoCollisionCfg`, tune material friction, then set global `MJWarpSolverCfg(cone=..., impratio=...)`. Treat `priority`, `solmix`, `solref`, and `solimp` as expert per-collider overrides. Use fixed-grasp displacement, contact count, effort, penetration, and success metrics.
 5. **Velocity limits distinction.** `actuator_velocity_limit` is a rated speed and `joint_velocity_limit` is a requested solver clamp. Isaac Lab writes the latter to Newton's model, but MJWarp does not consume or enforce it; Kamino does. Add task or control checks for required speed bounds under MJWarp. Use `joint_effort_limit` for solver limits and `actuator_effort_limit` to clip explicit actuator models.
@@ -43,5 +43,6 @@ Keep this skill synchronized section-for-section with the asset migration guide 
 - [Examples](examples.md)
 - [Evaluations](evaluations.md)
 - [MJWarp solver tuning](../../../docs/source/how-to/solver_tuning_mjwarp.rst)
-- [Schema configuration classes](../../../docs/source/concepts/schema_cfgs.rst)
+- [Schema fragments](../../../docs/source/concepts/schema_fragments.rst)
+- [Schema configuration classes (legacy, deprecated)](../../../docs/source/concepts/schema_cfgs.rst)
 - [Newton Simulation Tuning guide](https://newton-physics.github.io/newton/latest/concepts/simulation_tuning.html)

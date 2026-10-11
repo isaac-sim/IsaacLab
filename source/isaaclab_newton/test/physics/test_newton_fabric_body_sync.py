@@ -13,6 +13,7 @@ from unittest.mock import Mock
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 from isaaclab.test.utils import launch_test_simulation
+from isaaclab.visualizers import WindowCfg
 
 launch_test_simulation(enable_cameras=True)
 
@@ -132,15 +133,13 @@ def _fabric_curve_points_world(curve_path: str) -> torch.Tensor:
     return torch.tensor(transformed)
 
 
-def _expected_cable_points_world(cable, env_id: int = 0) -> torch.Tensor:
+def _expected_cable_points_world(curve_path: str) -> torch.Tensor:
     """Reconstruct curve points from Newton body and shape state."""
     model = NewtonManager.get_model()
     body_q = wp.to_torch(NewtonManager.get_state_0().body_q).cpu()
     shape_transform = wp.to_torch(model.shape_transform).cpu()
     shape_scale = wp.to_torch(model.shape_scale).cpu()
-    root_id = int(cable.data._sim_bind_root_body_ids.numpy()[env_id])
-    link_ids = [int(value) for value in cable.data._sim_bind_link_body_ids.numpy()[env_id]]
-    body_ids = [root_id, *link_ids]
+    body_ids = [index for index, label in enumerate(model.body_label) if label.startswith(f"{curve_path}_edge_body_")]
 
     negative_endpoints = []
     positive_endpoints = []
@@ -179,7 +178,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-        visualizer_cfgs=[KitVisualizerCfg(headless=True, window_width=64, window_height=64)],
+        visualizer_cfgs=[KitVisualizerCfg(headless=True, window=WindowCfg(size=(64, 64)))],
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -528,7 +527,6 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
         scene = InteractiveScene(_CableRenderSceneCfg(num_envs=2, env_spacing=2.0))
         sim.register_interactive_scene(scene)
         try:
-            cable = scene["cable"]
             paths = [f"{path}/Cable/geometry/mesh" for path in scene.env_prim_paths]
             for reset_scene in (True, False):
                 sim.reset()
@@ -538,7 +536,7 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
                 _render(sim, scene)
                 initial_points = [_fabric_curve_points_world(path) for path in paths]
                 for env_id, initial in enumerate(initial_points):
-                    expected = _expected_cable_points_world(cable, env_id)
+                    expected = _expected_cable_points_world(paths[env_id])
                     torch.testing.assert_close(initial, expected, rtol=0.0, atol=1.0e-4)
                 cube_pose = scene["cube"].data.default_root_pose.torch.clone()
                 cube_pose[:, :3] = scene.env_origins + torch.tensor([1.5, -0.75, 2.0], device=device)
@@ -553,7 +551,7 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
                 _render(sim, scene)
                 for env_id, path in enumerate(paths):
                     moved = _fabric_curve_points_world(path)
-                    expected = _expected_cable_points_world(cable, env_id)
+                    expected = _expected_cable_points_world(path)
                     torch.testing.assert_close(moved, expected, rtol=0.0, atol=1.0e-4)
                     assert not torch.allclose(moved, initial_points[env_id], rtol=0.0, atol=1.0e-5)
         finally:

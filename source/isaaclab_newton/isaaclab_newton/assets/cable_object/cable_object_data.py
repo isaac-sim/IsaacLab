@@ -5,18 +5,13 @@
 
 from __future__ import annotations
 
-import weakref
-from typing import TYPE_CHECKING
-
 import warp as wp
+from newton.selection import ArticulationView
 
 from isaaclab.assets.cable_object.base_cable_object_data import BaseCableObjectData
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-
-if TYPE_CHECKING:
-    from newton.selection import ArticulationView
 
 
 class CableObjectData(BaseCableObjectData):
@@ -33,10 +28,15 @@ class CableObjectData(BaseCableObjectData):
             device: The device used for processing.
         """
         super().__init__(device)
-        self._root_view: ArticulationView = weakref.proxy(root_view)
-        self._create_simulation_bindings()
-        self._create_buffers()
-        self.update(0.0)
+        model = SimulationManager.get_model()
+        state = SimulationManager.get_state_0()
+        self._sim_bind_body_ids = root_view.get_attribute("joint_child", model)[:, 0].contiguous()
+        self._sim_bind_link_pose_w = root_view.get_link_transforms(state)[:, 0]
+        self._sim_bind_link_velocity_w = root_view.get_link_velocities(state)[:, 0]
+        self._segment_pose_w = wp.clone(self._sim_bind_link_pose_w)
+        self._segment_velocity_w = wp.clone(self._sim_bind_link_velocity_w)
+        self._segment_pose_w_ta = ProxyArray(self._segment_pose_w)
+        self._segment_velocity_w_ta = ProxyArray(self._segment_velocity_w)
         self.default_segment_pose_w = ProxyArray(wp.clone(self._segment_pose_w))
         self.default_segment_velocity_w = ProxyArray(wp.clone(self._segment_velocity_w))
 
@@ -63,28 +63,5 @@ class CableObjectData(BaseCableObjectData):
             dt: The time step [s].
         """
         del dt
-        wp.copy(self._segment_pose_w[:, 0], self._sim_bind_root_pose_w)
-        wp.copy(self._segment_velocity_w[:, 0], self._sim_bind_root_velocity_w)
-        wp.copy(self._segment_pose_w[:, 1:], self._sim_bind_link_pose_w)
-        wp.copy(self._segment_velocity_w[:, 1:], self._sim_bind_link_velocity_w)
-
-    def _create_simulation_bindings(self) -> None:
-        """Create bindings to Newton simulation data."""
-        model = SimulationManager.get_model()
-        state = SimulationManager.get_state_0()
-        self._num_instances = self._root_view.count
-        self._num_segments = self._root_view.link_count + 1
-        self._sim_bind_root_body_ids = self._root_view.get_attribute("joint_parent", model)[:, 0, 0].contiguous()
-        self._sim_bind_link_body_ids = self._root_view.get_attribute("joint_child", model)[:, 0].contiguous()
-        self._sim_bind_root_pose_w = state.body_q[self._sim_bind_root_body_ids]
-        self._sim_bind_root_velocity_w = state.body_qd[self._sim_bind_root_body_ids]
-        self._sim_bind_link_pose_w = self._root_view.get_link_transforms(state)[:, 0]
-        self._sim_bind_link_velocity_w = self._root_view.get_link_velocities(state)[:, 0]
-
-    def _create_buffers(self) -> None:
-        """Create cable state buffers."""
-        shape = (self._num_instances, self._num_segments)
-        self._segment_pose_w = wp.empty(shape, dtype=wp.transformf, device=self.device)
-        self._segment_velocity_w = wp.empty(shape, dtype=wp.spatial_vectorf, device=self.device)
-        self._segment_pose_w_ta = ProxyArray(self._segment_pose_w)
-        self._segment_velocity_w_ta = ProxyArray(self._segment_velocity_w)
+        wp.copy(self._segment_pose_w, self._sim_bind_link_pose_w)
+        wp.copy(self._segment_velocity_w, self._sim_bind_link_velocity_w)
