@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from isaaclab.envs.mdp.actions import EMAJointPositionToLimitsActionCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import preset
@@ -30,7 +31,9 @@ class FrankaCabinetDirectEnvCfg(CabinetDirectEnvCfg):
 
     scene: FrankaCabinetDirectSceneCfg = FrankaCabinetDirectSceneCfg(num_envs=4096, env_spacing=2.0)
 
-    arm_joint_names: str | list[str] = "panda_joint.*"
+    arm_action = EMAJointPositionToLimitsActionCfg(
+        asset_name="robot", joint_names=["panda_joint.*"], scale=1.0, rescale_to_limits=True, alpha=0.01
+    )
     finger_joint_names: str | list[str] = "panda_finger_joint.*"
     ee_body_name: str = "panda_hand"
     left_finger_body_name: str = "panda_leftfinger"

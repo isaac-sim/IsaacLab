@@ -82,11 +82,12 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         super().__post_init__()
 
         # actions
-        self.actions.arm_action = mdp.JointPositionActionCfg(
+        self.actions.arm_action = mdp.EMAJointPositionToLimitsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             scale=1.0,
-            use_default_offset=True,
+            rescale_to_limits=True,
+            alpha=0.01,
         )
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",

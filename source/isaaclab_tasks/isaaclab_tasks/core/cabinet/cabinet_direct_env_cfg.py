@@ -11,6 +11,7 @@ from dataclasses import MISSING
 
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.envs.mdp.actions import EMAJointPositionToLimitsActionCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
@@ -55,7 +56,6 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
     events: EventCfg = EventCfg()
 
     # robot joints and frames -- set by a robot-specific subclass
-    arm_joint_names: str | list[str] = MISSING
     finger_joint_names: str | list[str] = MISSING
     ee_body_name: str = MISSING
     left_finger_body_name: str = MISSING
@@ -66,8 +66,8 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
     """Fingertip frame position offset [m]."""
 
     # action processing -- set by a robot-specific subclass
-    arm_action_scale: float = 1.0
-    """Arm joint position scale [m or rad, depending on joint type]."""
+    arm_action: EMAJointPositionToLimitsActionCfg = MISSING
+    """Existing smoothed position action shared with the manager-based task."""
     gripper_open_command: float = MISSING
     """Open gripper joint position [m or rad, depending on joint type]."""
     gripper_close_command: float = MISSING
