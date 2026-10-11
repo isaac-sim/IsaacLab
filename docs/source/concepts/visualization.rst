@@ -208,13 +208,13 @@ Visualizer Overview
 
       .. code-block:: python
 
+          from isaaclab.visualizers import WindowCfg
           from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
           visualizer_cfg = NewtonGLVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
-              window_width=1920,
-              window_height=1080,
+              window=WindowCfg(size=(1920, 1080), fps=30.0),
               show_joints=False,
               show_contacts=False,
               enable_live_plots=True,
@@ -229,7 +229,7 @@ Visualizer Overview
             :language: python
             :pyobject: NewtonGLVisualizerCfg
 
-      .. dropdown:: NewtonVisualizerCfg source (shared Newton base class)
+      .. dropdown:: Newton GL model options
          :icon: code
 
          .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
@@ -327,9 +327,8 @@ Visualizer Overview
       .. note::
 
          The following features are not yet supported and will be added in a future release:
-         visualization markers, live plots, and pause rendering. All are available in the other
-         visualizers. The streaming camera panel's live on-screen preview is also unavailable, but
-         headless streaming capture (e.g. for :class:`~isaaclab.envs.VideoRecorderCfg`) works.
+         live plots and rigid-body dragging. Visualization markers, camera selection, scene-camera
+         display, pause controls, and headless recording are supported.
 
       **Core configuration:**
 
@@ -351,12 +350,12 @@ Visualizer Overview
             :language: python
             :pyobject: NewtonRTXVisualizerCfg
 
-      .. dropdown:: NewtonVisualizerCfg source (shared Newton base class)
+      .. dropdown:: Shared window options
          :icon: code
 
-         .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/newton_visualizer_cfg.py
+         .. literalinclude:: ../../../source/isaaclab/isaaclab/visualizers/visualizer_cfg.py
             :language: python
-            :pyobject: NewtonVisualizerCfg
+            :pyobject: WindowCfg
 
       .. dropdown:: VisualizerCfg source (shared base class)
          :icon: code
@@ -472,13 +471,13 @@ Visualizer Overview
 
       .. code-block:: python
 
+          from isaaclab.visualizers import WindowCfg
           from isaaclab_visualizers.kit import KitVisualizerCfg
 
           visualizer_cfg = KitVisualizerCfg(
               eye=(8.0, 8.0, 3.0),
               lookat=(0.0, 0.0, 0.0),
-              window_width=1280,
-              window_height=720,
+              window=WindowCfg(size=(1280, 720)),
               enable_markers=True,
               enable_live_plots=True,
           )
@@ -798,10 +797,17 @@ For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
-``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
-lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
-color directly, or set the field to ``None`` to preserve the backend's native background:
+Kit and Newton RTX use the scene's authored lights and HDR background by default. Configure the
+environment once on the scene, without repeating its HDR path or intensity in the visualizer:
+
+.. code-block:: python
+
+    env_cfg.scene.sky_light.spawn.texture_file = "/path/to/evening.hdr"
+    env_cfg.scene.sky_light.spawn.intensity = 1000.0
+
+``VisualizerCfg.background_color`` defaults to ``None``. An explicit normalized RGB color changes
+only the visible background; the scene lights continue to illuminate objects and contribute
+reflections. Newton GL uses its procedural sky when no color override is supplied:
 
 .. code-block:: python
 
@@ -820,16 +826,17 @@ Performance
    * - Visualizer
      - Tips
    * - Newton GL
-     - Lowest overhead; increase ``update_frequency`` to skip render calls.
+     - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
        environments.
    * - Newton RTX
-     - Path-traced; highest per-frame cost, use ``--max_visible_envs`` to reduce load.
+     - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
+       Environment selection limits sensor display tiles; the perspective view shows the full scene.
    * - Rerun
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
-     - Highest overhead of the five visualizers; reduce ``window_width`` / ``window_height``
+     - Highest overhead of the five visualizers; reduce ``window.size``
        or use ``--max_visible_envs``.
 
 
@@ -891,12 +898,17 @@ Each backend lights the scene differently, so the same environment can look noti
 different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
-``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX supports
-only 3 lighting-environment presets
-(:attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.rtx_environment`: ``"default"``,
-``"studio"``, ``"none"``) and does not use any scene-authored USD lights. Viser uses a single
-ambient light with no directional key light, so scenes tend to look darker and flatter than
-the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
+``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
+authored scene through Newton's native RTX viewer, borrowing a simulation-owned OVStage.
+Body poses follow simulation updates; runtime material randomization is not yet propagated
+to the borrowed stage. Perspective resolution stays fixed when the window is resized; the
+window scales the image for presentation.
+Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
+and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
+scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.
+Particle color overrides and rigid-body picking remain GL-only. Viser uses a single ambient light
+with no directional key light, so scenes tend to look darker and flatter than the other backends.
+Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 
 **Kit: incompatible with ovphysx / ovrtx presets**
 

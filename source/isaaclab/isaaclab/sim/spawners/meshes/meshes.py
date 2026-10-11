@@ -22,7 +22,13 @@ from ..materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from ..materials.physics_materials import spawn_physics_material
-from ..utils import apply_schema_props, fragment_mapping, props_expr, resolve_deformable_slot
+from ..utils import (
+    apply_mesh_collision_props,
+    apply_schema_props,
+    fragment_mapping,
+    props_expr,
+    resolve_deformable_slot,
+)
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -327,6 +333,8 @@ def _spawn_mesh_geom_from_mesh(
     - Deformable body properties: The properties are applied to the parent prim: ``{prim_path}``.
     - Collision properties: The properties are applied to the simulation mesh ``{prim_path}/sim_mesh`` for
       deformable bodies, and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
+    - Mesh-collision properties: The properties are applied to the mesh prim ``{prim_path}/geometry/mesh`` of
+      rigid bodies, after the default approximation for the shape.
     - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
 
     Args:
@@ -351,6 +359,7 @@ def _spawn_mesh_geom_from_mesh(
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
         ValueError: If deformable properties are used with non-fragment collision properties.
+        ValueError: If deformable properties are used with mesh-collision properties.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -366,6 +375,8 @@ def _spawn_mesh_geom_from_mesh(
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
         if fragment_mapping(cfg.collision_props) is None:
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.mesh_collision_props is not None:
+        raise ValueError("Deformable bodies collide through their simulation mesh and take no 'mesh_collision_props'.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
@@ -441,6 +452,9 @@ def _spawn_mesh_geom_from_mesh(
             schemas.define_collision_properties,
             stage,
         )
+    # mesh-collision properties override the default approximation chosen above (rigid colliders only)
+    if cfg.mesh_collision_props is not None:
+        apply_mesh_collision_props(cfg.mesh_collision_props, mesh_prim_path, "", stage)
 
     if deformable_slot is not None or cfg.deformable_props is not None:
         if cfg.collision_props is not None:
