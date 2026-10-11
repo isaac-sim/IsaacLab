@@ -77,7 +77,8 @@ The concrete ``close()`` implementation dispatches the ``STOP`` event.
 ``SimulationContext`` owns native resources and renderer instances in one registry.
 ``get_or_create_backend(backend_cfg)``
 reuses one resource for equal configurations of the same concrete type; a cache miss
-constructs ``instantiate(backend_cfg)``.
+constructs ``instantiate(backend_cfg)``. Optional keyword arguments pass simulation-owned
+dependencies to that constructor on a cache miss; they do not change the sharing key.
 :class:`~isaaclab.sim.BackendCfg` describes resource settings and identity, and
 :class:`~isaaclab.renderers.RendererCfg` extends it for renderer instances.
 ``PhysicsCfg`` selects a physics manager. Finalize configurations before
@@ -90,6 +91,10 @@ operation; removing the registry entry releases its reference. A failed close re
 the entry for retry. After physics shutdown invalidates camera
 render data, simulation teardown closes material writers, renderer instances, visualizers,
 and remaining native resources, in that order, before closing the stage.
+
+Image views use this same registry. ``ImageViewCfg`` compares by declaration identity so two
+perspective cameras with identical initial settings remain independent; windows and recorders
+explicitly share a declaration to reuse its image.
 
 Managers and native renderers expose their borrowed resource through ``backend``.
 For example, ``NewtonManager.backend.model`` accesses the finalized native model.

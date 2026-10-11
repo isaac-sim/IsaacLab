@@ -382,7 +382,6 @@ class ViserVisualizer(BaseVisualizer):
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
-        self._setup_streaming_view(num_envs, visible_env_ids=self._env_ids)
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
