@@ -16,12 +16,7 @@ from typing import Any, Literal
 import newton
 import torch
 from physicsnemo.distributed import DistributedManager
-from physicsnemo_robotics.data import (
-    InMemoryTrajectoryReader,
-    NewtonTrajectoryZarrReader,
-    TransitionWindowReader,
-    split_reader_ids,
-)
+from physicsnemo_robotics.data import TransitionWindowReader, split_reader_ids
 from physicsnemo_robotics.dynamics import (
     ControlFieldEncoder,
     DynamicsArtifact,
@@ -34,6 +29,7 @@ from physicsnemo_robotics.dynamics import (
 from physicsnemo_robotics.models import NewtonNeRDVectorTransformer, ParallelNeRD
 from physicsnemo_robotics.training import fit_transition_normalizer, package_dynamics_artifact
 
+from .datasets import expand_dataset_paths, load_trajectory_datasets
 from .evaluation import HorizonError, evaluate_rollout_nrmse
 from .recording import CONTROL_KEY
 from .resident_training import ResidentOptions, fit_resident, materialize_windows
@@ -103,8 +99,18 @@ class TrainingSettings:
     validate_every: int = 0
     """Updates between logged one-step validations; zero validates only at the end."""
 
-    loader_workers: int = 0
-    """Worker processes that read the windows once before training."""
+    read_workers: int = 8
+    """Worker processes that read the recorded trajectories into host memory, see
+    :func:`~isaaclab_physicsnemo.datasets.load_trajectory_datasets`."""
+
+    cache_dataset: bool = False
+    """Keep the loaded trajectories in ``output_dir/dataset_cache.pt``, so a later run on the same datasets loads
+    them in seconds. Data-parallel ranks always share the trajectories through this file and remove it after
+    loading unless it is kept."""
+
+    normalizer_windows: int | None = None
+    """Number of training windows the normalization statistics are fitted on, a deterministic subset of blocks
+    spread over the data. Defaults to every window."""
 
     rollout_horizons: tuple[int, ...] = (1, 15, 100, 200)
     """Horizons of the held-out recursive-rollout evaluation after training.
@@ -192,21 +198,21 @@ def train_dynamics_artifact(
 
     # Window sampling reads many short slices per trajectory, which is far faster from memory than
     # from per-trajectory Zarr groups.
-    dataset_paths = [dataset_path] if isinstance(dataset_path, (str, Path)) else list(dataset_path)
-    dataset_paths = [
-        shard for path in dataset_paths for shard in (sorted(Path(path).expanduser().glob("shard-*")) or [path])
-    ]
-    trajectories, metadata, schema = [], [], None
-    for path in dataset_paths:
-        with NewtonTrajectoryZarrReader(path) as stored:
-            if schema is not None and stored.schema.differences(schema):
-                raise ValueError(f"The dataset at {path} has a different schema than {dataset_paths[0]}.")
-            schema = stored.schema
-            trajectories += [stored[index][0] for index in range(len(stored))]
-            metadata += [stored.trajectory_metadata(index) for index in range(len(stored))]
-    if len({item.trajectory_id for item in metadata}) != len(metadata):
-        raise ValueError("The datasets share trajectory identifiers; record them with different seeds.")
-    reader = InMemoryTrajectoryReader(trajectories, schema=schema, metadata=metadata)
+    dataset_paths = expand_dataset_paths(dataset_path)
+    cache_path = output_dir / "dataset_cache.pt"
+    share = manager.world_size > 1
+    reader = load_trajectory_datasets(
+        dataset_paths,
+        workers=settings.read_workers,
+        cache_path=cache_path if settings.cache_dataset or share else None,
+        rank=manager.rank,
+        world_size=manager.world_size,
+    )
+    if share:
+        torch.distributed.barrier()
+        if manager.rank == 0 and not settings.cache_dataset:
+            for path in (cache_path, cache_path.with_name(f"{cache_path.name}.key.json")):
+                path.unlink(missing_ok=True)
     split = split_reader_ids(
         reader,
         validation_fraction=settings.validation_fraction,
@@ -230,7 +236,9 @@ def train_dynamics_artifact(
         TransitionWindowReader(reader, history=settings.history, trajectory_ids=ids, include_reset_prefix=True)
         for ids in (split.train, split.validation)
     )
-    normalizer = fit_transition_normalizer(train_windows, adapter, device=device)
+    normalizer = fit_transition_normalizer(
+        train_windows, adapter, device=device, max_windows=settings.normalizer_windows
+    )
 
     dimensions = {
         "input_dim": codec.state_shape[-1] + features.signature.width,
@@ -263,19 +271,27 @@ def train_dynamics_artifact(
     input_dtype = torch.float16 if settings.mixed_precision else torch.float32
     resident_train, resident_validation = (
         materialize_windows(
-            windows, adapter, normalizer, device=device, input_dtype=input_dtype, num_workers=settings.loader_workers
+            reader, ids, adapter, normalizer, history=settings.history, device=device, input_dtype=input_dtype
         )
-        for windows in (train_windows, validation_windows)
+        for ids in (split.train, split.validation)
     )
     # A checkpoint resumes only the optimization it was written by.
     identity = {
         key: value
         for key, value in asdict(settings).items()
         if key
-        not in ("checkpoint_every", "validate_every", "log_every", "loader_workers", "rollout_horizons", "compile")
+        not in (
+            "checkpoint_every",
+            "validate_every",
+            "log_every",
+            "read_workers",
+            "cache_dataset",
+            "rollout_horizons",
+            "compile",
+        )
     }
     identity |= {
-        "dataset": [str(Path(path).expanduser().resolve()) for path in dataset_paths],
+        "dataset": [str(path) for path in dataset_paths],
         "train_windows": resident_train.targets.shape[0],
         "world_size": manager.world_size,
     }

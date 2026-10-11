@@ -22,6 +22,7 @@ from physicsnemo_robotics.newton import FrameSpec, NewtonModelSignature
 from isaaclab.utils.string import string_to_callable
 
 from ..heading import artifact_codec_factory, artifact_feature_factory
+from ..resident_training import _fp32_parallel_nerd_attention
 from ..signature import isaaclab_canonical_view
 from .state_ownership import validate_effort_control, validate_state_ownership
 
@@ -155,7 +156,27 @@ def _create_learned_solver(
         )
     validate_state_ownership(model, solver.operator.adapter.codec)
     validate_effort_control(model)
+    if solver_cfg.inference_dtype == "float16":
+        _half_precision_projections(solver.operator.model)
     return solver
+
+
+def _half_precision_projections(network: torch.nn.Module) -> None:
+    """Run the network under FP16 autocast and return FP32 predictions, so states stay in FP32.
+
+    Attention scores stay in FP32, because trained ParallelNeRD logits can exceed the FP16 range.
+    """
+    for name in ("forward", "predict_last"):
+        method = getattr(network, name, None)
+        if not callable(method):
+            continue
+
+        def half_precision(*args, _method=method, **kwargs):
+            with torch.autocast("cuda", dtype=torch.float16), _fp32_parallel_nerd_attention():
+                output = _method(*args, **kwargs)
+            return output.float() if isinstance(output, torch.Tensor) else output
+
+        setattr(network, name, half_precision)
 
 
 def _accept_unchanged_root_pose_writes(solver: LearnedDynamicsSolver, model: Model) -> None:

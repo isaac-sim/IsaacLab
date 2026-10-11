@@ -12,7 +12,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,15 +21,16 @@ from typing import Any, cast
 import torch
 import torch.distributed as dist
 from physicsnemo.distributed import DistributedManager
-from physicsnemo_robotics.data import TransitionWindowReader
+from physicsnemo_robotics.data import InMemoryTrajectoryReader
 from physicsnemo_robotics.dynamics import FieldNormalizer, TransitionAdapter
+from physicsnemo_robotics.dynamics.features import history_key
 from physicsnemo_robotics.models.parallel_nerd import model as parallel_nerd_model
-from physicsnemo_robotics.training import LoaderOptions, normalize_transition
-from physicsnemo_robotics.training.distributed import build_stock_data_pipeline
+from physicsnemo_robotics.training import normalize_transition
+from tensordict import TensorDict
 
 _LOGGER = logging.getLogger("isaaclab_physicsnemo_training")
 _RANK_SEED_STRIDE = 1_000_003
-_MATERIALIZE_BATCH = 4096
+_MATERIALIZE_BATCH = 65536
 
 
 @dataclass(frozen=True)
@@ -97,51 +98,104 @@ def _fp32_parallel_nerd_attention() -> Iterator[None]:
 
 
 def materialize_windows(
-    windows: TransitionWindowReader,
+    reader: InMemoryTrajectoryReader,
+    trajectory_ids: Sequence[str],
     adapter: TransitionAdapter,
     normalizer: FieldNormalizer,
     *,
+    history: int,
     device: torch.device,
     input_dtype: torch.dtype,
-    num_workers: int = 0,
 ) -> ResidentWindows:
-    """Normalize every window once, exactly as the streaming training pipeline does, and keep it on ``device``.
+    """Normalize every transition window of the selected trajectories once and keep it on ``device``.
+
+    The windows equal those of :class:`~physicsnemo_robotics.data.TransitionWindowReader` with
+    ``include_reset_prefix=True``, in its order: the reset-prefix windows of a trajectory, padded with its first
+    frame, then its regular windows, skipping windows with an invalid frame. They are gathered in large batches
+    from the trajectories stacked on the device, instead of being assembled one by one on the host.
 
     Args:
-        windows: Transition windows to materialize. Every window is read once, in order.
+        reader: In-memory trajectories.
+        trajectory_ids: Identifiers of the trajectories to window.
         adapter: Transition adapter that builds model inputs and targets.
         normalizer: Fitted transition normalizer.
+        history: Number of past frames of each window.
         device: Device holding the windows.
         input_dtype: Storage dtype of the inputs; targets stay float32.
-        num_workers: Loader worker processes.
 
     Returns:
         The resident normalized windows.
+
+    Raises:
+        NotImplementedError: If the schema has episode-level fields.
     """
-    pipeline = build_stock_data_pipeline(
-        windows,
-        device=device,
-        batch_size=_MATERIALIZE_BATCH,
-        seed=0,
-        options=LoaderOptions(num_workers=num_workers),
-    )
+    schema = reader.schema
+    if any(spec.alignment == "episode" for spec in schema.fields):
+        raise NotImplementedError("Resident windows do not support episode-level trajectory fields.")
+    state_keys = tuple(spec.key for spec in schema.fields if spec.alignment == "state")
+    transition_keys = tuple(spec.key for spec in schema.fields if spec.alignment == "transition")
+    selected = set(trajectory_ids)
+    states: dict[str, list[torch.Tensor]] = {key: [] for key in state_keys}
+    transitions: dict[str, list[torch.Tensor]] = {key: [] for key in transition_keys}
+    window_states, window_transitions, window_starts = [], [], []
+    state_offset = transition_offset = 0
+    for index in range(len(reader)):
+        metadata = reader.trajectory_metadata(index)
+        if metadata.trajectory_id not in selected:
+            continue
+        length = metadata.length
+        state_values = reader.read_slice(index, 0, length, state_keys)
+        valid = state_values[schema.valid_key].reshape(-1).bool()
+        # A window holds history + 1 states; one invalid frame rejects it.
+        candidates = max(length - history, 0)
+        starts = torch.arange(candidates)
+        if candidates:
+            starts = starts[valid.unfold(0, history + 1, 1).all(dim=1)]
+        prefix = torch.arange(1 - history, min(0, length - history))
+        prefix = prefix[valid.int().cumprod(0).bool()[prefix + history]]
+        starts = torch.cat((prefix, starts))
+        if starts.numel():
+            for key in state_keys:
+                states[key].append(state_values[key])
+            for key, value in reader.read_slice(index, 0, length - 1, transition_keys).items():
+                transitions[key].append(value)
+            window_states.append(torch.full_like(starts, state_offset))
+            window_transitions.append(torch.full_like(starts, transition_offset))
+            window_starts.append(starts)
+            state_offset += length
+            transition_offset += length - 1
+    if not window_starts:
+        raise ValueError("no valid transition windows were produced")
+    stacked_states = {key: torch.cat(values).to(device) for key, values in states.items()}
+    stacked_transitions = {key: torch.cat(values).to(device) for key, values in transitions.items()}
+    window_states_t = torch.cat(window_states).to(device)
+    window_transitions_t = torch.cat(window_transitions).to(device)
+    window_starts_t = torch.cat(window_starts).to(device)
+    state_steps = torch.arange(history + 1, device=device)
+
     # Fill preallocated tensors instead of concatenating batches, which would double the peak device memory.
-    count, filled = len(windows), 0
+    count = window_starts_t.numel()
     inputs = targets = None
-    try:
-        for loaded in pipeline.loader:
-            transition, target = normalize_transition(adapter, normalizer, loaded)
-            if inputs is None or targets is None:
-                inputs = torch.empty((count, *transition.inputs.shape[1:]), dtype=input_dtype, device=device)
-                targets = torch.empty((count, *target.shape[1:]), dtype=torch.float32, device=device)
-            size = target.shape[0]
-            inputs[filled : filled + size] = transition.inputs
-            targets[filled : filled + size] = target
-            filled += size
-    finally:
-        pipeline.close()
-    if inputs is None or targets is None or filled != count:
-        raise RuntimeError(f"Materialized {filled} of {count} transition windows.")
+    for begin in range(0, count, _MATERIALIZE_BATCH):
+        end = min(begin + _MATERIALIZE_BATCH, count)
+        start = window_starts_t[begin:end, None]
+        state_rows = window_states_t[begin:end, None] + (start + state_steps).clamp_min(0)
+        transition_rows = window_transitions_t[begin:end, None] + (start + state_steps[:-1]).clamp_min(0)
+        batch = {}
+        for key, values in stacked_states.items():
+            batch[history_key(key)] = values[state_rows[:, :-1]]
+            batch[f"next/{key}"] = values[state_rows[:, -1]]
+        for key, values in stacked_transitions.items():
+            batch[history_key(key)] = values[transition_rows]
+        transition, target = normalize_transition(
+            adapter, normalizer, TensorDict(batch, batch_size=[end - begin], device=device)
+        )
+        if inputs is None or targets is None:
+            inputs = torch.empty((count, *transition.inputs.shape[1:]), dtype=input_dtype, device=device)
+            targets = torch.empty((count, *target.shape[1:]), dtype=torch.float32, device=device)
+        inputs[begin:end] = transition.inputs
+        targets[begin:end] = target
+    assert inputs is not None and targets is not None
     return ResidentWindows(inputs, targets)
 
 

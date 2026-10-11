@@ -29,19 +29,23 @@ from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 from isaaclab_tasks.core.velocity.config.anymal_d.agents.rsl_rl_ppo_cfg import AnymalDFlatPPORunnerCfg
 
 
-def make_cfg(num_envs: int, seed: int, artifact: Path | None) -> AnymalCFlatTeacherEnvCfg:
+def make_cfg(
+    num_envs: int, seed: int, artifact: Path | None, inference_dtype: str = "float32"
+) -> AnymalCFlatTeacherEnvCfg:
     """MuJoCo Warp with the actuator network, or the learned model of the 20 ms control period."""
     cfg = AnymalCFlatTeacherEnvCfg() if artifact is None else AnymalCTargetControlEnvCfg()
     cfg.scene.num_envs = num_envs
     cfg.seed = seed
     if artifact is not None:
-        apply_learned_physics(cfg, artifact, continuity=ANYMAL_CONTINUITY)
+        apply_learned_physics(cfg, artifact, continuity=ANYMAL_CONTINUITY, inference_dtype=inference_dtype)
     return cfg
 
 
-def evaluate(policy: torch.nn.Module, num_envs: int, steps: int, seed: int, artifact: Path | None) -> dict[str, float]:
+def evaluate(
+    policy: torch.nn.Module, num_envs: int, steps: int, seed: int, artifact: Path | None, inference_dtype: str
+) -> dict[str, float]:
     """Run the policy with mean actions and report the training reward, command tracking, and falls."""
-    env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=make_cfg(num_envs, seed, artifact)))
+    env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=make_cfg(num_envs, seed, artifact, inference_dtype)))
     robot, commands = env.unwrapped.scene["robot"], env.unwrapped.command_manager
     returns = torch.zeros(num_envs, device=env.device)
     finished_returns, fell = [], []
@@ -83,6 +87,12 @@ def main():
     parser.add_argument(
         "--eval-artifact", type=Path, default=None, help="Also evaluate in learned physics. Defaults to --artifact."
     )
+    parser.add_argument(
+        "--inference-dtype",
+        choices=("float32", "float16"),
+        default="float32",
+        help="Precision of the learned model's projections.",
+    )
     args = parser.parse_args()
 
     agent_cfg = AnymalDFlatPPORunnerCfg()
@@ -90,7 +100,8 @@ def main():
     agent_cfg.seed = args.seed
     num_envs = args.eval_envs if args.checkpoint is not None else args.num_envs
     env = RslRlVecEnvWrapper(
-        ManagerBasedRLEnv(cfg=make_cfg(num_envs, args.seed, args.artifact)), clip_actions=agent_cfg.clip_actions
+        ManagerBasedRLEnv(cfg=make_cfg(num_envs, args.seed, args.artifact, args.inference_dtype)),
+        clip_actions=agent_cfg.clip_actions,
     )
     runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=str(args.output), device=agent_cfg.device)
     if args.checkpoint is not None:
@@ -106,7 +117,7 @@ def main():
     if (args.eval_artifact or args.artifact) is not None:
         evaluations["learned"] = args.eval_artifact or args.artifact
     for physics, artifact in evaluations.items():
-        metrics = evaluate(policy, args.eval_envs, args.eval_steps, args.seed + 1, artifact)
+        metrics = evaluate(policy, args.eval_envs, args.eval_steps, args.seed + 1, artifact, args.inference_dtype)
         print(f"Policy from {source}, evaluated with {physics} physics:")
         for name, value in metrics.items():
             print(f"  {name}: {value:.4g}")

@@ -46,6 +46,10 @@ class PhysicsNeMoSolverCfg(NewtonSolverCfg):
     reset masks Isaac Lab forwards.
     """
 
+    inference_dtype: Literal["float32", "float16"] = "float32"
+    """Precision of the network's projections. ``"float16"`` runs them under FP16 autocast, with attention scores
+    and every state computation in FP32, which speeds up large models at a small cost in accuracy."""
+
     model_factory: Callable | str | None = None
     """Factory returning the network module, required only for artifacts storing a plain Torch module."""
 

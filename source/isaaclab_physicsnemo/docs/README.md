@@ -44,12 +44,13 @@ isaaclab_physicsnemo/         core interface, independent of any task
   physics/                    PhysicsNeMoSolverCfg, NewtonPhysicsNeMoManager, state-ownership checks
   recording.py                TrajectoryDatasetRecorder
   training.py                 train_dynamics_artifact, TrainingSettings
-  resident_training.py        device-resident training loop (FP16, data-parallel, resumable)
+  resident_training.py        device-resident windows and training loop (FP16, data-parallel, resumable)
   deployment.py               apply_learned_physics
   preflight.py                preflight_learned_physics
   evaluation.py               rollout comparison and the FlashNeRD E_H metric
   exploration.py              random action sources for data collection
   heading.py                  heading-frame state codec and base-frame gravity encoder
+  datasets.py                 parallel and cached loading of recorded datasets
   signature.py                Isaac Lab model identity
   binding.py                  live Newton buffers and execution identity
 examples/
@@ -244,8 +245,28 @@ python $E/train_policy.py --output /tmp/anymal-c/eval-mjwarp --checkpoint /tmp/a
   --eval-artifact /tmp/anymal-c/train/artifact
 ```
 
-`train.py` accepts several datasets, for example recordings of different seeds made in parallel on
-separate GPUs.
+For ten million transitions, record with several processes per GPU, each with its own seed and with
+bounded shards, and train on all of them; FP16 projections halve the cost of each learned step:
+
+```bash
+for seed in 7 8 9 10; do
+  python $E/record.py --output /tmp/anymal-c/data/seed-$seed --num-envs 2048 --steps 618 --seed $seed \
+    --shard-episodes 4000 &
+done
+wait
+torchrun --standalone --nproc-per-node 2 $E/train.py --dataset /tmp/anymal-c/data/seed-* --output /tmp/anymal-c/train \
+  --normalizer-windows 2000000
+python $E/train_policy.py --output /tmp/anymal-c/ppo-learned --artifact /tmp/anymal-c/train/artifact \
+  --inference-dtype float16
+```
+
+| Stage | Cost and remedy |
+| --- | --- |
+| Recording | PhysicsNeMo Robotics rewrites a dataset's whole manifest after every episode, and writing is single-threaded. With 2 processes of 8,192 environments, ten million transitions took over six hours; with 8 processes of 2,048 environments and shards of 4,000 episodes (`shard_episodes`), 14 minutes on two L40S GPUs |
+| Loading | Every trajectory is a Zarr group. Worker processes read them in parallel (`TrainingSettings.read_workers`, 5.6 times faster for 16,384 trajectories), data-parallel ranks share one read through a cache file, and `cache_dataset` keeps it for later runs (16,384 trajectories in 1.2 s) |
+| Normalization | `normalizer_windows` fits the statistics on a spread subset (2,000,000 of 9.5 million windows) |
+| Windows | Gathered in batches on the GPU from the stacked trajectories; 1.6 million ANYmal-C windows take 1.6 s instead of 140 s with the PhysicsNeMo Robotics loader, with identical values |
+| Learned PPO | `inference_dtype="float16"` halves a learned step at 16,384 environments (118 against 240 ms); joint positions differ by 0.001 rad on average after 40 steps |
 
 | Setting | FlashNeRD | This example |
 | --- | --- | --- |
@@ -290,10 +311,11 @@ The image contains PhysicsNeMo Robotics sources, so publish it only to a private
 
 | API | Purpose |
 | --- | --- |
-| `physics.PhysicsNeMoSolverCfg`, `physics.NewtonPhysicsNeMoManager` | Newton solver configuration and manager that run an artifact |
+| `physics.PhysicsNeMoSolverCfg`, `physics.NewtonPhysicsNeMoManager` | Newton solver configuration and manager that run an artifact, optionally with FP16 projections (`inference_dtype`) |
 | `physics.validate_state_ownership` | Check that a codec owns every dynamic Newton state row |
 | `physics.validate_effort_control` | Check that no implicit position drive acts on targets the model does not see |
-| `TrajectoryDatasetRecorder`, `RecordedFeature` | Write the episodes of a running environment to a Zarr dataset, with joint efforts or, with `control_targets`, joint-position targets, and additional inputs such as fixed contact probes |
+| `TrajectoryDatasetRecorder`, `RecordedFeature` | Write the episodes of a running environment to a Zarr dataset, in shards with `shard_episodes`, with joint efforts or, with `control_targets`, joint-position targets, and additional inputs such as fixed contact probes |
+| `datasets.load_trajectory_datasets`, `datasets.expand_dataset_paths` | Read recorded datasets and their shards into memory with worker processes and an optional cache |
 | `SmoothRandomActions`, `UniformRandomActions` | Temporally correlated or independent uniform exploration actions |
 | `HeadingJointStateCodec`, `RootGravityEncoder` | Heading-frame free-root state and base-frame gravity |
 | `train_dynamics_artifact`, `TrainingSettings`, `PARALLEL_NERD_CONFIG` | Train and package a NeRD or ParallelNeRD artifact |

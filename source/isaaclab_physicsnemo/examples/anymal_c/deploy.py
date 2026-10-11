@@ -30,6 +30,12 @@ def main() -> None:
     parser.add_argument("--steps", type=int, default=100, help="Control periods (20 ms) of each rollout.")
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--device", default="cuda:0")
+    parser.add_argument(
+        "--inference-dtype",
+        choices=("float32", "float16"),
+        default="float32",
+        help="Precision of the learned model's projections.",
+    )
     args = parser.parse_args()
 
     def rollout(cfg):
@@ -56,7 +62,9 @@ def main() -> None:
 
     teacher = rollout(AnymalCFlatTeacherEnvCfg())
     cfg = AnymalCTargetControlEnvCfg()
-    artifact = apply_learned_physics(cfg, args.artifact, continuity=ANYMAL_CONTINUITY)
+    artifact = apply_learned_physics(
+        cfg, args.artifact, continuity=ANYMAL_CONTINUITY, inference_dtype=args.inference_dtype
+    )
     learned = rollout(cfg)
 
     if not (learned.joint_q.isfinite().all() and learned.joint_qd.isfinite().all()):

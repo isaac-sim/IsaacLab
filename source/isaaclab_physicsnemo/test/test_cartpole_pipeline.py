@@ -23,11 +23,21 @@ from isaaclab_physicsnemo import (
     TrainingSummary,
     TrajectoryDatasetRecorder,
     apply_learned_physics,
+    datasets,
     preflight_learned_physics,
     train_dynamics_artifact,
 )
-from physicsnemo_robotics.data import NewtonTrajectoryZarrReader
-from physicsnemo_robotics.dynamics import ControlFieldEncoder, DynamicsFrame, newton_state_codec
+from isaaclab_physicsnemo.resident_training import materialize_windows
+from physicsnemo_robotics.data import NewtonTrajectoryZarrReader, TransitionWindowReader
+from physicsnemo_robotics.dynamics import (
+    ControlFieldEncoder,
+    DynamicsFrame,
+    TransitionAdapter,
+    TransitionSpec,
+    newton_state_codec,
+)
+from physicsnemo_robotics.training import fit_transition_normalizer, normalize_transition
+from physicsnemo_robotics.training.distributed import build_stock_data_pipeline
 
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -137,6 +147,77 @@ def test_sharded_recording_trains_as_one_dataset(device: str, tmp_path: Path):
     assert len(lengths) > 2 and max(lengths) == 5 and sum(lengths) == recorder.episodes_written
     trained = len(training.train_trajectory_ids) + len(training.validation_trajectory_ids)
     assert trained == recorder.episodes_written
+
+
+def test_parallel_and_cached_loading_keep_the_trajectories(
+    recording: _Recording, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Worker processes and the dataset cache return the trajectories and metadata of a serial read, in order."""
+    monkeypatch.setattr(datasets, "_CHUNK_TRAJECTORIES", 7)
+    paths = datasets.expand_dataset_paths(recording.dataset)
+    serial = datasets.load_trajectory_datasets(paths)
+    cache = tmp_path / "cache.pt"
+    parallel = datasets.load_trajectory_datasets(paths, workers=3, cache_path=cache)
+    cached = datasets.load_trajectory_datasets(paths, cache_path=cache)
+
+    for reader in (parallel, cached):
+        assert len(reader) == len(serial) > 7
+        for index in range(len(serial)):
+            assert reader.trajectory_metadata(index) == serial.trajectory_metadata(index)
+            expected, actual = serial[index][0], reader[index][0]
+            assert set(actual.keys()) == set(expected.keys())
+            for key in expected.keys():
+                torch.testing.assert_close(actual[key], expected[key], atol=0.0, rtol=0.0)
+
+
+def test_resident_windows_equal_the_window_reader(recording: _Recording, device: str):
+    """Windows gathered on the device equal those of the PhysicsNeMo Robotics window reader and loader, in order."""
+    reader = datasets.load_trajectory_datasets(datasets.expand_dataset_paths(recording.dataset))
+    env = CartpoleEnv(cfg=_make_cfg(device))
+    try:
+        codec = newton_state_codec(env.sim.physics_manager.get_model(), "joint")
+    finally:
+        env.close()
+    SimulationContext.clear_instance()
+    features = ControlFieldEncoder("joint_f", per_world_shape=(codec.layout.dof_qd,), key=CONTROL_KEY)
+    adapter = TransitionAdapter(reader.schema, codec, TransitionSpec(history=10), features=features)
+    ids = list(recording.training.train_trajectory_ids)
+    windows = TransitionWindowReader(reader, history=10, trajectory_ids=ids, include_reset_prefix=True)
+    normalizer = fit_transition_normalizer(windows, adapter, device=torch.device(device))
+    resident = materialize_windows(
+        reader, ids, adapter, normalizer, history=10, device=torch.device(device), input_dtype=torch.float32
+    )
+
+    pipeline = build_stock_data_pipeline(windows, device=torch.device(device), batch_size=512, seed=0)
+    try:
+        expected = [normalize_transition(adapter, normalizer, batch) for batch in pipeline.loader]
+    finally:
+        pipeline.close()
+    torch.testing.assert_close(resident.inputs, torch.cat([item[0].inputs for item in expected]), atol=0.0, rtol=0.0)
+    torch.testing.assert_close(resident.targets, torch.cat([item[1] for item in expected]), atol=0.0, rtol=0.0)
+
+
+def test_half_precision_inference_tracks_full_precision(recording: _Recording, device: str):
+    """FP16 projections change the learned Cartpole states only by FP16 rounding."""
+    states = {}
+    for dtype in ("float32", "float16"):
+        cfg = _make_cfg(device)
+        apply_learned_physics(cfg, recording.training.artifact_path, inference_dtype=dtype)
+        env = CartpoleEnv(cfg=cfg)
+        try:
+            env.reset(seed=0)
+            binding = NewtonBinding(env.sim.physics_manager)
+            codec = newton_state_codec(binding.model, "joint")
+            actions = SmoothRandomActions(env.num_envs, env.cfg.action_space, device=env.device, seed=0)
+            with torch.inference_mode():
+                for _ in range(5):
+                    env.step(actions(None))
+            states[dtype] = codec.read(binding.state).clone()
+        finally:
+            env.close()
+        SimulationContext.clear_instance()
+    torch.testing.assert_close(states["float16"], states["float32"], atol=1.0e-2, rtol=1.0e-2)
+    assert not torch.equal(states["float16"], states["float32"])
 
 
 def test_learned_cartpole_round_trip(recording: _Recording, device: str):

@@ -10,6 +10,8 @@
   ``control_targets``, the joint-position targets of a control period, and
   :func:`~isaaclab_physicsnemo.train_dynamics_artifact`, which trains NeRD or ParallelNeRD on
   device-resident windows with FP16 autocast, data-parallel ranks, and resumable checkpoints.
+  Recording can write bounded dataset shards, loading reads them with worker processes and an optional
+  cache, and deployment can run the network's projections in FP16.
 * Added Cartpole and ANYmal-C examples with their scenes, recording, training, deployment, and PPO
   scripts that train in learned physics and evaluate in MuJoCo Warp. The ANYmal-C example follows the
   FlashNeRD locomotion experiment, and a CartPole benchmark repeats the protocol of the FlashNeRD

@@ -38,6 +38,13 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=4096, help="Global batch over all ranks.")
     parser.add_argument("--checkpoint-every", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--read-workers", type=int, default=8, help="Processes that read the recorded trajectories.")
+    parser.add_argument(
+        "--normalizer-windows", type=int, default=None, help="Fit the normalization on this many windows."
+    )
+    parser.add_argument(
+        "--cache-dataset", action="store_true", help="Keep the loaded trajectories for later runs in --output."
+    )
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
@@ -70,6 +77,9 @@ def main() -> None:
                 compile=True,
                 checkpoint_every=args.checkpoint_every,
                 validate_every=args.checkpoint_every,
+                read_workers=args.read_workers,
+                normalizer_windows=args.normalizer_windows,
+                cache_dataset=args.cache_dataset,
             ),
             device=device,
         )

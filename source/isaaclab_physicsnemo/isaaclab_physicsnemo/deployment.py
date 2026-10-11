@@ -26,6 +26,7 @@ def apply_learned_physics(
     artifact_path: str | Path,
     *,
     continuity: Literal["verify", "refill", "off"] = "verify",
+    inference_dtype: Literal["float32", "float16"] = "float32",
 ) -> DynamicsArtifact:
     """Replace the teacher Newton solver of an environment configuration with a dynamics artifact.
 
@@ -38,6 +39,8 @@ def apply_learned_physics(
         env_cfg: Environment configuration whose ``sim.physics`` is a :class:`NewtonCfg`. Modified in place.
         artifact_path: Directory of a saved :class:`~physicsnemo_robotics.dynamics.DynamicsArtifact`.
         continuity: Response of the learned solver to state rewrites that were not reported as resets.
+        inference_dtype: Precision of the network's projections, see
+            :attr:`~isaaclab_physicsnemo.physics.PhysicsNeMoSolverCfg.inference_dtype`.
 
     Returns:
         The loaded artifact, for use with :func:`~isaaclab_physicsnemo.preflight_learned_physics`.
@@ -54,7 +57,9 @@ def apply_learned_physics(
     env_cfg.sim.physics = replace(
         env_cfg.sim.physics,
         class_type=None,
-        solver_cfg=PhysicsNeMoSolverCfg(artifact_path=str(artifact_path), continuity=continuity),
+        solver_cfg=PhysicsNeMoSolverCfg(
+            artifact_path=str(artifact_path), continuity=continuity, inference_dtype=inference_dtype
+        ),
         num_substeps=1,
         use_cuda_graph=False,
         deterministic_mode="not_guaranteed",
