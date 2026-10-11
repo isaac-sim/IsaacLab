@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import newton
 import numpy as np
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import get_newton_backend
 from newton.viewer import ViewerViser
 
 from isaaclab.scene_data import SceneDataFormat
@@ -370,8 +370,7 @@ class ViserVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         sim = SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._active_record_path = self.cfg.record_to_viser
@@ -482,7 +481,7 @@ class ViserVisualizer(BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = get_newton_backend(sim)
         if backend is self.backend:
             return
         self.backend = backend

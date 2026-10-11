@@ -19,7 +19,7 @@ from urllib.parse import quote
 import newton
 import rerun as rr
 import rerun.blueprint as rrb
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import get_newton_backend
 from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
@@ -298,8 +298,7 @@ class RerunVisualizer(BaseVisualizer):
         super().initialize(scene_data_provider, cameras=cameras, stage=stage)
         num_envs = scene_data_provider.num_envs
         sim = SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._setup_streaming_view(num_envs, visible_env_ids=self._env_ids)
@@ -416,7 +415,7 @@ class RerunVisualizer(BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = get_newton_backend(sim)
         if backend is self.backend:
             return
         self.backend = backend

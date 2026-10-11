@@ -35,8 +35,9 @@ def _material_backend(material_paths: list[str], monkeypatch):
 
     manager = NewtonManager(device="cpu")
     manager._sim = sim
-    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu", manager=manager)
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg, manager=manager))
+    physics_cfg = object()
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=physics_cfg))
+    cfg = NewtonBackendCfg(physics_cfg=physics_cfg, device="cpu", builder=builder)
     for index, material_path in enumerate(material_paths):
         shape = UsdGeom.Cube.Define(stage, f"/World/shape_{index}")
         builder.add_shape_box(-1, label=str(shape.GetPath()))

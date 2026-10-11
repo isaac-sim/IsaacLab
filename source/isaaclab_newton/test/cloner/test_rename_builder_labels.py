@@ -16,7 +16,7 @@ from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonCloneRecord, NewtonManager
+from isaaclab_newton.physics import NewtonCloneRecord, NewtonManager, get_newton_backend
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -395,10 +395,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     options = dict(plan=plan, asset_prototype_ids=range(5))
                     options.update(positions=positions, quaternions=quaternions)
                     builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
-                cfg = NewtonBackendCfg(
-                    physics_cfg=self.sim.cfg.physics, device=self.sim.device, manager=self.sim.physics_manager
-                )
-                backend = self.sim.get_or_create_backend(cfg)
+                backend = get_newton_backend(self.sim)
                 offsets = backend.geometry_offsets
                 self.assertEqual(add_cloth.call_count, 4)  # One copy for each source builder that needs the cloth.
                 np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 19, 3])

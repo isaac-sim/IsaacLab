@@ -5,6 +5,8 @@
 
 __all__ = [
     "create_newton_builder",
+    "get_newton_backend",
+    "get_newton_builder",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
     "KaminoCollisionDetectorCfg",
@@ -64,7 +66,16 @@ from .mjwarp_manager import MJWarpSolverAdapter
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mpm_manager import MPMSolverAdapter, reset_mpm_solver_state
 from .mpm_manager_cfg import MPMSolverCfg
-from .newton_backend import CapturedGraph, NewtonBackend, NewtonCloneRecord, StepCallback, StepGraph, StepCallbacks
+from .newton_backend import (
+    CapturedGraph,
+    NewtonBackend,
+    NewtonCloneRecord,
+    StepCallback,
+    StepCallbacks,
+    StepGraph,
+    get_newton_backend,
+    get_newton_builder,
+)
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager, create_newton_builder
 from .newton_manager_cfg import (

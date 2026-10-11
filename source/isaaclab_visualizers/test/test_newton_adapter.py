@@ -769,12 +769,13 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
 @pytest.mark.parametrize("picking", [False, True])
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
-    from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
-    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), physics_manager=NewtonManager())
+    sim = SimpleNamespace(cfg=SimpleNamespace(physics=NewtonCfg()), physics_manager=NewtonManager())
+    sim.physics_manager.backend = backend
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     register_state_force_callback = Mock()
     monkeypatch.setattr(sim.physics_manager, "register_state_force_callback", register_state_force_callback)
@@ -789,7 +790,6 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
     visualizer._physics_manager = sim.physics_manager
-    cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu", manager=sim.physics_manager)
     visualizer._env_ids = [1, 3]
     visualizer._picking_enabled = picking
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
@@ -799,7 +799,6 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer.reset(soft=False)
 
     assert visualizer.backend is backend
-    sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
     viewer._register_isaaclab_ui_callbacks.assert_called_once_with()
     viewer.set_visible_worlds.assert_called_once_with([1, 3])

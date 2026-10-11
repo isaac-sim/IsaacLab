@@ -30,7 +30,6 @@ from isaaclab.utils.version import has_kit
 
 from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics.newton_manager_cfg import (
-    NewtonBackendCfg,
     NewtonBuilderCfg,
     NewtonCfg,
 )
@@ -54,18 +53,19 @@ logger = logging.getLogger(__name__)
 
 
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
-    """Construct a native builder through the selected physics manager's factory.
+    """Construct the builder of a render-only Newton model; the simulation registry's factory.
 
     Args:
-        cfg: The selected physics configuration.
+        cfg: The selected, non-Newton physics configuration.
 
     Returns:
-        An empty builder with the selected solver schemas and shape/BVH defaults.
+        An empty builder.
+
+    Raises:
+        ValueError: If Newton is the physics backend, whose manager owns the builder (see :func:`get_newton_builder`).
     """
     if isinstance(cfg.physics_cfg, NewtonCfg):
-        if cfg.physics_cfg != cfg.manager._cfg:
-            raise ValueError("A Newton builder must use its owning manager's physics configuration.")
-        return cfg.manager._shared_builder()
+        raise ValueError("Newton physics owns its builder; use get_newton_builder(sim).")
     return ModelBuilder()
 
 
@@ -154,11 +154,7 @@ class NewtonManager(PhysicsManager):
         self._close_backend()
         sim = self._sim
         self.dispatch_event(PhysicsEvent.MODEL_INIT)
-        if sim is None:
-            backend = self.backend = self.finalize_backend()
-        else:
-            cfg = NewtonBackendCfg(physics_cfg=self.cfg, device=self._device, manager=self)
-            backend = self.backend = sim.get_or_create_backend(cfg)
+        backend = self.backend = self.finalize_backend()
         clone = self._clone
         self._scene_data_backend.initialize_geometry(
             [] if clone is None else clone.geometry_batches, {} if clone is None else clone.cable_bindings
@@ -223,14 +219,14 @@ class NewtonManager(PhysicsManager):
 
     def close(self) -> None:
         """Clean up Newton physics resources."""
-        sim, backend = self._sim, self.backend
+        backend = self.backend
         try:
             super().close()
         finally:
             self.backend = None
             try:
                 if backend is not None:
-                    backend.close() if sim is None else sim.close_backend(backend)
+                    backend.close()
             finally:
                 self.clear()
 
@@ -247,7 +243,7 @@ class NewtonManager(PhysicsManager):
         self._apply_every_physics_step = None
 
     def _close_backend(self, *, dispatch_stop: bool = True) -> None:
-        """Stop consumers, drop their views, and return the backend to the simulation registry."""
+        """Stop consumers, drop their views, and close the backend."""
         backend = self.backend
         if backend is None:
             return
@@ -255,10 +251,7 @@ class NewtonManager(PhysicsManager):
             self.dispatch_event(PhysicsEvent.STOP)
         self.views.clear()
         self.backend = None
-        if self._sim is None:
-            backend.close()
-        else:
-            self._sim.close_backend(backend)
+        backend.close()
 
     # ----- Decimation --------------------------------------------------------------
 
@@ -659,7 +652,7 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: State attribute name (must be in ``State.EXTENDED_ATTRIBUTES``).
         """
-        self._shared_builder().request_state_attributes(attr)
+        self.builder.request_state_attributes(attr)
 
     def request_extended_contact_attribute(self, attr: str) -> None:
         """Request an extended contact attribute (e.g. ``"force"``) from the builder before finalization.
@@ -667,17 +660,18 @@ class NewtonManager(PhysicsManager):
         Args:
             attr: Contact attribute name.
         """
-        self._shared_builder().request_contact_attributes(attr)
+        self.builder.request_contact_attributes(attr)
 
-    def _shared_builder(self) -> ModelBuilder:
-        """Return this manager's construction model, retained across hard resets."""
+    @property
+    def builder(self) -> ModelBuilder:
+        """This manager's construction model, retained across hard resets."""
         if self._builder is None:
             self._builder = create_builder(self.cfg)
         return self._builder
 
     def finalize_backend(self) -> NewtonBackend:
         """Finalize this manager's builder into independently owned simulation buffers."""
-        builder = self._shared_builder()
+        builder = self.builder
         self.prepare_builder(builder)
         model = builder.finalize(device=self._device)
         if self._sim is not None:

@@ -37,7 +37,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg
+from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import JointTargetMode, JointType, ModelBuilder
 from newton.solvers import SolverMuJoCo
@@ -502,7 +502,7 @@ def _make_target_mode_builder(
     sim.physics_manager._sim = sim
     sim._backend_registry = []
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))
+    builder = sim.physics_manager.builder
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []

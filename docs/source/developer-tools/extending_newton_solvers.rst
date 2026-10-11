@@ -119,8 +119,8 @@ Lifecycle
    * - Public call
      - What happens
      - Solver hooks
-   * - ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics, manager=sim.physics_manager))``
-     - Acquires the shared builder through the selected solver adapter's ``create_builder()`` factory. The cloner imports
+   * - ``get_newton_builder(sim)``
+     - Returns the physics manager's builder, created through the selected solver adapter's ``create_builder()``. The cloner imports
        declared prototypes and composes worlds into it.
      - ``register_builder_attributes()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.reset` (hard)

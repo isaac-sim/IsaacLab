@@ -10,15 +10,21 @@
   :func:`~isaaclab_newton.physics.create_builder` instead of ``<Adapter>.create_builder``, and
   ``newton_solver.solver_kwargs`` instead of ``NewtonSolver.solver_kwargs``. For example, use ``MJWarpSolverAdapter`` in place of ``NewtonMJWarpManager``;
   ``NewtonCfg.class_type`` selects the integration manager. Apply the same ``*SolverAdapter`` rename for
-  Featherstone, XPBD, VBD, Kamino, and MPM. Backend and builder registry configurations now require their owning
-  ``manager`` explicitly.
+  Featherstone, XPBD, VBD, Kamino, and MPM.
+* **Breaking:** Under Newton physics, :class:`~isaaclab_newton.physics.NewtonManager` owns its builder
+  (:attr:`~isaaclab_newton.physics.NewtonManager.builder`) and finalizes its backend directly instead of through the
+  simulation registry. :class:`~isaaclab_newton.physics.NewtonBuilderCfg` and
+  :class:`~isaaclab_newton.physics.NewtonBackendCfg` now describe only the render-only model used under other physics,
+  and ``NewtonBackendCfg`` takes the ``builder`` to finalize. Use :func:`~isaaclab_newton.physics.get_newton_builder`
+  and :func:`~isaaclab_newton.physics.get_newton_backend` instead of ``sim.get_or_create_backend(NewtonBuilderCfg(...))``
+  and ``sim.get_or_create_backend(NewtonBackendCfg(...))``.
 * **Breaking:** Replaced the separate full and physics-only stepping paths with one step graph. Newton actuators that
   are not CUDA-graph-safe run eagerly between captured segments instead of forcing the environment to own the
   decimation loop.
 * **Breaking:** :meth:`~isaaclab_newton.physics.NewtonManager.reset` builds the whole simulation in one pass
   (``MODEL_INIT``, finalize, ``PHYSICS_READY``, solver), so ``start_simulation`` and ``initialize_solver`` were
-  removed. :class:`~isaaclab_newton.physics.NewtonBackendCfg` now constructs the backend through
-  ``create_newton_backend``, which applies site requests and solver-specific builder normalization before finalizing.
+  removed. :meth:`~isaaclab_newton.physics.NewtonManager.finalize_backend` applies site requests and solver-specific
+  builder normalization before finalizing.
 * **Breaking:** :meth:`~isaaclab_newton.physics.NewtonManager.add_contact_sensor` and
   :meth:`~isaaclab_newton.physics.NewtonManager.add_imu_sensor` return the Newton sensor instead of a key or index,
   and ``NewtonManager.transforms_may_change_on_graph_replay`` is now a method.

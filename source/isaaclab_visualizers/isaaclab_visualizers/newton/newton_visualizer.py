@@ -42,7 +42,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import get_newton_backend
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -1093,8 +1093,7 @@ class NewtonVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._physics_manager = sim.physics_manager
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, manager=sim.physics_manager)
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.backend = get_newton_backend(sim)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         runtime_headless = self.cfg.headless or (
@@ -1287,7 +1286,7 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = get_newton_backend(sim)
         if backend is self.backend:
             return
         self.backend = backend

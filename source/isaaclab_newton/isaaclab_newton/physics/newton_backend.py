@@ -35,15 +35,14 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.renderers.visual_material import VisualMaterialWriter
 
-from .newton_manager_cfg import NewtonBuilderCfg, NewtonCfg
+from .newton_manager_cfg import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg
 from .newton_solver import NewtonSolver, create_solver_adapter
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
-
-    from .newton_manager_cfg import NewtonBackendCfg
+    from isaaclab.sim import SimulationContext
 
 logger = logging.getLogger(__name__)
 
@@ -420,24 +419,48 @@ class NewtonBackend:
             self.world_mask = self.fk_mask = self.world_ids = None
 
 
-def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
-    """Finalize the shared builder of the simulation and bind a backend to the model.
+def get_newton_builder(sim: SimulationContext) -> ModelBuilder:
+    """Return the Newton construction model of a simulation.
 
-    This is the simulation registry's constructor for :class:`~isaaclab_newton.physics.NewtonBackendCfg`. For Newton
-    physics, the selected manager first applies pending sites, attribute requests, and solver-specific builder
-    normalization.
+    Under Newton physics this is the physics manager's builder. Under other physics it is the render-only builder
+    that renderers, visualizers, and ray casters share through the simulation registry.
 
     Args:
-        cfg: Physics configuration and device.
+        sim: Simulation context.
+    """
+    if isinstance(sim.cfg.physics, NewtonCfg):
+        return sim.physics_manager.builder
+    return sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+
+
+def get_newton_backend(sim: SimulationContext) -> NewtonBackend | None:
+    """Return the Newton backend of a simulation.
+
+    Under Newton physics this is the physics manager's active backend, or None before the first reset. Under other
+    physics it is the render-only backend, built on first use and shared through the simulation registry.
+
+    Args:
+        sim: Simulation context.
+    """
+    if isinstance(sim.cfg.physics, NewtonCfg):
+        return sim.physics_manager.backend
+    return sim.get_or_create_backend(
+        NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device, builder=get_newton_builder(sim))
+    )
+
+
+def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
+    """Finalize a shared builder into a render-only backend; the simulation registry's factory.
+
+    Newton physics finalizes its own backend (:meth:`NewtonManager.finalize_backend`).
+
+    Args:
+        cfg: Physics configuration, device, and builder.
 
     Returns:
         The backend.
     """
-    simulation = isinstance(cfg.physics_cfg, NewtonCfg)
-    if simulation:
-        return cfg.manager.finalize_backend()
-    sim = cfg.manager._sim
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg, manager=cfg.manager))
+    builder = cfg.builder
     model = builder.finalize(device=cfg.device)
     deformable_ranges = {
         label: (start, end - start, kind)
