@@ -228,6 +228,8 @@ class _JointTargets:
         model = binding.model
         if binding.control.joint_target_q is None:
             raise ValueError("The Newton control has no joint-position targets.")
+        if model.joint_world is None or model.joint_q_start is None:
+            raise ValueError("The Newton model has no joint layout.")
         world, starts = model.joint_world.numpy(), model.joint_q_start.numpy()
         coordinates = {
             str(model.joint_label[joint]).rsplit("/", 1)[-1]: int(starts[joint])
