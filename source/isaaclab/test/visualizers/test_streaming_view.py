@@ -192,17 +192,17 @@ def test_window_and_recorder_share_fixed_device_image(device, monkeypatch):
         ImageViewCfg(source="front", size=(16, 20))
     declaration = ImageViewCfg(source="front", envs=(2, 0), channels=("rgb", "depth"))
     visualizer_cfg_copy = deepcopy(VisualizerCfg(view=declaration, window=WindowCfg(size=(320, 240))))
-    recorder_cfg = deepcopy(VideoRecorderCfg(view=declaration))
+    recorder_cfg = deepcopy(VideoRecorderCfg(source=declaration))
     monkeypatch.setitem(sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=Mock()))
     recorder = VideoRecorder(recorder_cfg, SimpleNamespace(sim=sim, scene=SimpleNamespace(sensors={"front": camera})))
     view = sim.get_or_create_backend(visualizer_cfg_copy.view, camera=camera)
     image = view.read(0)
     pixels = recorder._capture()
-    assert sim.get_or_create_backend(recorder_cfg.view, camera=camera) is view
+    assert sim.get_or_create_backend(recorder_cfg.source, camera=camera) is view
     assert sim.get_or_create_backend(declaration.copy(), camera=camera) is not view
     assert sim.get_or_create_backend(replace(declaration), camera=camera) is not view
     restored = pickle.loads(pickle.dumps((visualizer_cfg_copy, recorder_cfg)))
-    assert restored[0].view is restored[1].view and restored[0].view is not declaration
+    assert restored[0].view is restored[1].source and restored[0].view is not declaration
     assert restored[0].view.source == declaration.source
     assert "get_image_view" not in vars(SimulationContext)
     assert "_image_views" not in vars(sim)

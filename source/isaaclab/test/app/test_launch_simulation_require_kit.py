@@ -170,7 +170,7 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
         visualizers.insert(0, NewtonGLVisualizerCfg())  # An unrelated viewer of the same backend must stay inactive.
     cfg = SimpleNamespace(
         sim=SimulationCfg(device="cpu", physics=NewtonCfg(), visualizer_cfgs=visualizers),
-        video_recorders=[VideoRecorderCfg(view=view) for view in views or [ImageViewCfg(source="front")]],
+        video_recorders=[VideoRecorderCfg(source=view) for view in views or [ImageViewCfg(source="front")]],
     )
     declared = cfg.sim.visualizer_cfgs
     preview = sim_launcher.scan(cfg, {"visualizer": [], "headless": True})
@@ -180,7 +180,7 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
         assert len(cfg.sim.visualizer_cfgs) == producer_count
         for producer, recorder in zip(cfg.sim.visualizer_cfgs, cfg.video_recorders):
             assert producer.headless
-            assert producer.view is recorder.view
+            assert producer.view is recorder.source
             assert producer.window.size == (128, 96)
 
 

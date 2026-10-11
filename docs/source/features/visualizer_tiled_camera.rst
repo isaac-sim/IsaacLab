@@ -23,7 +23,7 @@ Sharing a view with recording
 ``ImageViewCfg`` selects pixels independently of their destination. A scene sensor name binds
 an existing camera; its renderer and capture cadence remain owned by the scene. ``WindowCfg``
 controls presentation independently through ``VisualizerCfg.window``. ``VisualizerCfg.view`` and
-``VideoRecorderCfg.view`` can consume the same selection:
+``VideoRecorderCfg.source`` can consume the same selection:
 
 .. code-block:: python
 
@@ -33,7 +33,7 @@ controls presentation independently through ``VisualizerCfg.window``. ``Visualiz
 
    view = ImageViewCfg(source="front_camera", envs=(0, 2), channels=("rgb", "depth"))
    env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(view=view, window=WindowCfg(size=(1280, 720)))]
-   env_cfg.video_recorders = [VideoRecorderCfg(view=view, output_dir="videos")]
+   env_cfg.video_recorders = [VideoRecorderCfg(source=view, output_dir="videos")]
 
 Use ``--viz newton_gl`` (or ``--viz newton_rtx`` for the RTX example) to display the window.
 Omit ``--viz`` for recording alone. The scene must declare ``front_camera`` with both requested outputs.
@@ -64,7 +64,7 @@ A perspective source uses a visualizer's renderer without creating a scene camer
    env_cfg.sim.visualizer_cfgs = [
        NewtonRTXVisualizerCfg(view=view, window=WindowCfg(size=(960, 540)))
    ]
-   env_cfg.video_recorders = [VideoRecorderCfg(view=view)]
+   env_cfg.video_recorders = [VideoRecorderCfg(source=view)]
 
 Newton RTX fixes perspective render resolution at the initial ``WindowCfg.size``; resizing the window
 scales its image. Newton GL perspective rendering follows its window framebuffer dimensions.

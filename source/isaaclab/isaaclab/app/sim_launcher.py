@@ -39,6 +39,7 @@ from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import (
     VISUALIZER_TYPES,
+    ImageViewCfg,
     VisualizerCfg,
     parse_visualizer_csv,
 )
@@ -283,10 +284,10 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                 visualizer_cfgs.append(string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")())
 
     for recorder in video_recorders:
-        if recorder.view is not None:
-            if isinstance(recorder.view.source, str):
+        if isinstance(recorder.source, ImageViewCfg):
+            if isinstance(recorder.source.source, str):
                 continue
-            owners = [cfg for cfg in configured if cfg.view is recorder.view]
+            owners = [cfg for cfg in configured if cfg.view is recorder.source]
             if len(owners) != 1:
                 raise ValueError("A recorded perspective view requires exactly one configured visualizer.")
             producer = owners[0]

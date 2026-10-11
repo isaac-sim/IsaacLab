@@ -31,6 +31,9 @@ Add a ``VideoRecorderCfg`` to ``env_cfg.video_recorders``:
         VideoRecorderCfg(source="viz:kit", output_dir="videos/")
     ]
 
+``source`` also accepts an ``ImageViewCfg``: use ``VideoRecorderCfg(source=view)`` to share an image
+selection and frame with a window. See :ref:`how-to-visualizer-tiled-camera` for sensor and perspective examples.
+
 Or pass ``--video [SOURCE]`` on the command line to record without editing the environment config. ``--video``
 adds a single recorder; to record several sources at once, list one ``VideoRecorderCfg`` per source in
 ``env_cfg.video_recorders``, which then takes precedence over the ``--video`` source (``--video_length`` and

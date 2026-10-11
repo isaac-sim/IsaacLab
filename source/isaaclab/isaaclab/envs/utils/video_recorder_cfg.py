@@ -20,7 +20,7 @@ SENSOR_CHANNELS = ("rgb", "depth", "segmentation", "normals")
 
 
 def parse_video_source(source: str) -> tuple[str, str, str]:
-    """Split a :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
+    """Split a string :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
     ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The prefix
@@ -61,7 +61,8 @@ class VideoRecorderCfg:
 
     A recording stream captures frames from a *source* — a visualizer or a named scene sensor — and writes
     them to an mp4 clip file.  Multiple ``VideoRecorderCfg`` entries on an env cfg produce independent
-    simultaneous streams.
+    simultaneous streams. Pass an :class:`~isaaclab.visualizers.ImageViewCfg` as :attr:`source` to share
+    the same image selection and frame with a visualizer window, or use one of the strings below.
 
     Source string format
     --------------------
@@ -88,14 +89,11 @@ class VideoRecorderCfg:
     ``viz:<type>`` (e.g. ``"newton_gl"`` is ``"viz:newton_gl"``).
     """
 
-    source: str = "viz"
-    """Legacy recording source, used when :attr:`view` is None. Existing CLI source strings remain supported."""
+    source: ImageViewCfg | str = "viz"
+    """Shared image declaration or a visualizer/sensor source string.
 
-    view: ImageViewCfg | None = None
-    """Shared image view to record, independent of a window.
-
-    ``None`` uses :attr:`source`, whose default records the selected visualizer. An explicit view
-    replaces that default; it cannot be combined with a non-default source.
+    The default ``"viz"`` records the selected capture-capable visualizer, or a headless Newton GL
+    visualizer when none is selected. An ``ImageViewCfg`` records its selection independently of a window.
     """
 
     output_dir: str | None = None
@@ -185,8 +183,6 @@ class VideoRecorderCfg:
         Raises:
             ValueError: If a clip timing field is outside its documented range.
         """
-        if self.view is not None and self.source != "viz":
-            raise ValueError("Specify VideoRecorderCfg.view or a legacy source, not both.")
         if self.video_length < 1 or self.frame_stride < 1 or self.video_interval < 0 or self.step_offset < 0:
             raise ValueError(
                 f"Invalid clip schedule: video_length={self.video_length}, frame_stride={self.frame_stride}, "

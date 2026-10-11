@@ -41,17 +41,17 @@ class VideoRecorder:
         from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
         self._clip_class = ImageSequenceClip
-        view_cfg = cfg.view
-        if view_cfg is None:
-            kind, name, channel = parse_video_source(cfg.source)
+        source = cfg.source
+        if isinstance(source, str):
+            kind, name, channel = parse_video_source(source)
             if kind == "sensor":
-                view_cfg = ImageViewCfg(
+                source = ImageViewCfg(
                     source=name, channels=(channel or "rgb",),
                     depth_range=(cfg.depth_colormap_min, cfg.depth_colormap_max),
                 )  # fmt: skip
-        if view_cfg is not None:
-            camera = env.scene.sensors.get(view_cfg.source) if isinstance(view_cfg.source, str) else None
-            view = env.sim.get_or_create_backend(view_cfg, camera=camera)
+        if isinstance(source, ImageViewCfg):
+            camera = env.scene.sensors.get(source.source) if isinstance(source.source, str) else None
+            view = env.sim.get_or_create_backend(source, camera=camera)
             self._capture = lambda: view.read_rgb(env.sim.get_physics_step_count())
         else:
             for viz in env.sim.visualizers:

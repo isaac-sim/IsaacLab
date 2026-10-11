@@ -1,4 +1,5 @@
-* Added ``VideoRecorderCfg(view=...)`` to share an ``ImageViewCfg`` with visualizer windows.
+* Added ``ImageViewCfg`` support to ``VideoRecorderCfg.source`` to share a view with visualizer windows.
+  Pass the shared declaration as ``VideoRecorderCfg(source=view)``.
   Recording reused the composed device frame and host readback, replacing duplicate CPU colorization.
   Existing ``sensor:<name>`` and ``viz:<type>[:streaming_view]`` source strings remained supported.
 * Selected display and recording producers together during launch. Headless recording retained the
