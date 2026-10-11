@@ -188,12 +188,17 @@ def anymal_foot_contacts(model: newton.Model) -> FixedRigidContactEncoder:
         The probe encoder, whose tokens are recorded under :data:`ANYMAL_CONTACT_KEY`.
 
     Raises:
-        ValueError: If a foot has no single collision sphere or an environment has no single ground plane.
+        ValueError: If the model has no body or shape layout, a foot has no single collision sphere, or an
+            environment has no single ground plane.
     """
-    body_world = model.body_world.numpy()
+    body_world, shape_world = model.body_world, model.shape_world
+    shape_body, shape_type = model.shape_body, model.shape_type
+    if body_world is None or shape_world is None or shape_body is None or shape_type is None:
+        raise ValueError("The Newton model has no body or shape layout.")
+    body_world = body_world.numpy()
     world_bodies = [body for body in range(model.body_count) if body_world[body] == 0]
     body_names = [model.body_label[body].rsplit("/", 1)[-1] for body in world_bodies]
-    shape_world, shape_body, shape_type = model.shape_world.numpy(), model.shape_body.numpy(), model.shape_type.numpy()
+    shape_world, shape_body, shape_type = shape_world.numpy(), shape_body.numpy(), shape_type.numpy()
     world_shapes = [shape for shape in range(model.shape_count) if shape_world[shape] == 0]
 
     def shape_slots(body: int, geometry: newton.GeoType) -> list[int]:
