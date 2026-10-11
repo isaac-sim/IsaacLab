@@ -226,7 +226,9 @@ main-results study (PhysicsNeMo Robotics tag `mnabian/flashnerd-benchmark-v1`) o
 
 ```bash
 python source/isaaclab_physicsnemo/examples/cartpole/flashnerd_benchmark.py --output /tmp/flashnerd-cartpole \
-  --max-updates 20000
+  --stages data
+torchrun --standalone --nproc-per-node 2 source/isaaclab_physicsnemo/examples/cartpole/flashnerd_benchmark.py \
+  --output /tmp/flashnerd-cartpole --stages train evaluate --max-updates 5000000 --checkpoint-every 250000
 ```
 
 The benchmark trains with resident windows and FP16 autocast, appends the held-out `E_H` of every
@@ -238,24 +240,25 @@ and the `train` stage under `torchrun --nproc-per-node 2` for the study's two da
 | Setting | Study | This benchmark |
 | --- | --- | --- |
 | Teacher | Its own Cartpole URDF, Newton Featherstone, 1/60 s frames | Isaac Lab Cartpole, MuJoCo Warp, 1/60 s frames (`CartpoleFlashNeRDBenchmarkEnvCfg`) |
-| Data | 10,000 x 100 training and 2,048 x 509 held-out transitions; uniform initial states (cart 1 m, pole full turn, velocities 1) and per-frame uniform forces; no termination | Same, with forces over the full 400 N actuator range |
+| Data | 10,000 x 100 training and 2,048 x 509 held-out transitions; uniform initial states (cart 1 m, pole full turn, velocities 1) and per-frame uniform forces up to 1500 N on 52.5 kg; no termination | Same, with forces up to 57 N on the 2 kg Isaac Lab cart and pole, the same cart acceleration |
 | Model | ParallelNeRD H256, 4 heads x 64, FFN 640, head 256, spans (4, 3, 3, 3), inputs padded to 64 | Same geometry without padding (`tasks.CARTPOLE_FLASHNERD_MODEL_CONFIG`, 2.69M parameters) |
 | Optimization | Global batch 4,096, 1e-3 to 1e-4, 5,000,000 updates, FP16 autocast, two ranks | Same, with `--max-updates` updates, resident windows, and `torch.compile` |
 | Metric | Prefix-pooled `E_H` on the finite held-out cohort, training-state scale | Same (`evaluate_rollout_nrmse`) |
 
-Results on all 2,048 held-out trajectories, none non-finite, for 50,000 updates (1 % of the study's budget;
-27 minutes on one shared GPU) on each teacher:
+Results after the study's 5,000,000 updates on two L40S GPUs (about ten hours each), on all 2,048 held-out
+trajectories, none non-finite:
 
 | E_H | E1 | E15 | E50 | E100 | E200 | E500 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Study teacher (`--teacher physicsnemo`), 50,000 updates | 9.9e-5 | 5.1e-4 | 1.7e-3 | 1.0e-2 | 0.11 | 1.07 |
-| Isaac Lab teacher, 50,000 updates | 4.1e-4 | 1.7e-3 | 1.5e-2 | 0.12 | 0.44 | 0.83 |
-| FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | - | 3.2e-3 | 6.0e-2 | - |
+| Study teacher (`--teacher physicsnemo`) | 1.8e-5 | 8.7e-5 | 2.6e-4 | 1.8e-3 | 0.048 | 0.92 |
+| Isaac Lab teacher | 7.0e-5 | 2.5e-4 | 8.5e-4 | 4.2e-3 | 0.012 | 0.025 |
+| FlashNeRD paper | 4.4e-5 | 1.7e-4 | - | 3.2e-3 | 0.060 | - |
 
-On the study's own teacher, 1 % of the budget already comes within 2 to 3 times the paper at every reported
-horizon, which validates the training recipe. At equal budget the Isaac Lab Cartpole is 3 to 12 times
-harder: with per-frame random 400 N efforts and no termination, its cart reaches the track limits and its
-pole reaches 50 rad/s. Full-budget runs on both teachers are pending.
+On the study's own teacher, the recipe reproduces Table I of the paper and improves on every reported horizon.
+On the Isaac Lab Cartpole, short horizons are within 1.6 times the paper and long horizons are five times
+better, because its cart is damped and rarely reaches the track limits. With forces up to the 400 N actuator
+limit instead, the cart accelerates ten times harder than the study's and a third of the trajectories hit the
+track limits; E100 then stays near 0.07, twenty times the paper.
 
 ### ANYmal-C with target control (FlashNeRD locomotion)
 

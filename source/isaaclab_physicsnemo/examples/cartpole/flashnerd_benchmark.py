@@ -13,8 +13,8 @@ The run follows the CartPole configuration of the FlashNeRD main-results study
    ``--teacher isaaclab`` records the Isaac Lab Cartpole with MuJoCo Warp; ``--teacher physicsnemo``
    generates the study's own Cartpole with Newton's Featherstone solver through the PhysicsNeMo Robotics
    example code in ``--physicsnemo-root``.
-   The Isaac Lab cart has 2 kg of moving mass against the study's 52.5 kg, so its default forces of up to
-   400 N accelerate it ten times harder; ``--force-range 57.1`` matches the study's cart acceleration.
+   The Isaac Lab cart moves 2 kg against the study's 52.5 kg, so its forces are scaled by mass to the
+   study's cart acceleration of 28.6 m/s^2, which bounds them at 57 N.
 2. ``train``: ParallelNeRD with the frozen CartPole geometry, ten frames of history, global batch 4,096,
    a linear 1e-3 to 1e-4 learning rate, resident windows, and FP16 autocast. Every checkpoint appends the
    held-out ``E_H`` to ``rollout_nrmse.jsonl``, and a rerun resumes from the last checkpoint. Launch it
@@ -52,11 +52,9 @@ from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 HORIZONS = (1, 15, 50, 100, 200, 500)
 # FlashNeRD in Table I of the paper; the study adds H = 50 and 500.
 PAPER_FLASHNERD = {1: 4.4e-5, 15: 1.7e-4, 100: 3.2e-3, 200: 6.0e-2}
-# The Isaac Lab cart actuator saturates at 400 N.
-ISAACLAB_FORCE_RANGE = 400.0
 # The study drives its 52.5 kg Cartpole with up to 1500 N; the same 28.6 m/s^2 of the Isaac Lab Cartpole's
 # 2 kg of moving mass needs 57 N.
-ISAACLAB_MATCHED_FORCE_RANGE = 1500.0 / 52.5 * 2.0
+ISAACLAB_FORCE_RANGE = 1500.0 / 52.5 * 2.0
 # Data controls of the study's CartPole teacher.
 STUDY_DATA = {
     "history": 10,
@@ -186,13 +184,7 @@ def main() -> None:
     )
     parser.add_argument("--teacher", choices=["isaaclab", "physicsnemo"], default="isaaclab")
     parser.add_argument(
-        "--force-range",
-        type=float,
-        default=ISAACLAB_FORCE_RANGE,
-        help=(
-            "Bound [N] of the uniform Isaac Lab cart forces. The default is the actuator limit; "
-            f"{ISAACLAB_MATCHED_FORCE_RANGE:.1f} N matches the study's cart acceleration."
-        ),
+        "--force-range", type=float, default=ISAACLAB_FORCE_RANGE, help="Bound [N] of the Isaac Lab cart forces."
     )
     parser.add_argument(
         "--physicsnemo-root", type=Path, help="PhysicsNeMo Robotics checkout for --teacher physicsnemo."

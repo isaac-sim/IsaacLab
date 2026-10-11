@@ -78,8 +78,9 @@ class CartpoleFlashNeRDBenchmarkEnvCfg(CartpoleTeacherEnvCfg):
     Frames are 1/60 s, initial states are uniform within 1 m of cart position, a full turn of pole angle,
     and 1 m/s or rad/s of velocity, and episodes are never terminated early. Each episode holds 100
     transitions; set :attr:`episode_length_s` to ``(transitions + 0.5) / 60`` for longer held-out episodes.
-    Pair it with :class:`~isaaclab_physicsnemo.UniformRandomActions` with ``high=4.0``, which draws a fresh
-    cart effort uniformly over the full 400 N actuator range every frame.
+    Pair it with :class:`~isaaclab_physicsnemo.UniformRandomActions`, which draws a fresh cart effort every
+    frame; ``examples/cartpole/flashnerd_benchmark.py`` bounds it at 57 N, which gives the cart the study's
+    acceleration.
 
     The study's teacher is a different Cartpole model stepped by Newton's Featherstone solver with a
     1500 N force range, so errors are comparable in protocol and metric but not for the same system.
