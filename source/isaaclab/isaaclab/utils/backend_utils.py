@@ -80,15 +80,7 @@ class FactoryBase:
         if sim_context is None:
             return "newton"
 
-        manager_name = sim_context.physics_manager.__name__.lower()
-        if manager_name.startswith("newton"):
-            return "newton"
-        if manager_name.startswith("ovphysx"):
-            return "ovphysx"
-        if manager_name.startswith("physx"):
-            return "physx"
-        else:
-            raise ValueError(f"Unknown physics manager: {manager_name}")
+        return sim_context.physics_manager.backend_name
 
     @classmethod
     def _get_package_name(cls, backend: str) -> str:

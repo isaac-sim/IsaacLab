@@ -61,7 +61,9 @@ Implement the physics manager
 
 The manager must expose a :class:`~isaaclab.scene_data.SceneDataBackend` so
 :class:`~isaaclab.scene_data.SceneDataProvider` can read the backend's body
-transforms in the Warp-native format consumed by renderers and visualizers.
+transforms in the Warp-native format consumed by renderers and visualizers. Declare
+``backend_name`` on the manager; asset dispatch and visualizer capabilities use this
+identifier, and solver subclasses inherit it independently of their class names.
 
 .. code-block:: python
 
@@ -93,6 +95,8 @@ transforms in the Warp-native format consumed by renderers and visualizers.
 
 
     class MyBackendManager(PhysicsManager):
+        backend_name = "mybackend"
+
         _scene_data_backend: ClassVar[MyBackendSceneDataBackend | None] = None
 
         @classmethod

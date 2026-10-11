@@ -331,6 +331,10 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
+  Keep a single representation of the active selection alongside its available choices. Detach borrowed
+  callbacks when their producer closes; Python-owned arrays do not require a separate backend teardown.
+  Image processing belongs in ``utils.images`` and must not depend on ``envs.utils``. Bind scene references
+  in simulation initialization; core simulation must not depend on environment camera adapters.
   Before adding a parameter record and preparation helper for one consumer, check which values already
   exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
   the buffers or calculations that need reuse.

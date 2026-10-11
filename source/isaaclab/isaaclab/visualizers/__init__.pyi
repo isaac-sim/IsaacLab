@@ -5,6 +5,8 @@
 
 __all__ = [
     "BaseVisualizer",
+    "ImageView",
+    "ImageViewCfg",
     "PerspectiveCameraCfg",
     "SceneCameraCfg",
     "VisualizerCfg",
@@ -12,4 +14,5 @@ __all__ = [
 ]
 
 from .base_visualizer import BaseVisualizer
-from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+from .image_view import ImageView
+from .visualizer_cfg import WindowCfg, ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg

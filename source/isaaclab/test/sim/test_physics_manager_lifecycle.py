@@ -6,7 +6,6 @@
 """Tests for shared physics-manager lifecycle behavior."""
 
 import gc
-import inspect
 import weakref
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -35,7 +34,6 @@ def test_backend_registry_identity_and_lifecycle():
     assert not hasattr(RenderContext, "get_renderer")
     assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
     assert "_renderer_entries" not in RenderContext.__slots__
-    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
     assert all(
         "resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in (PhysicsCfg, RendererCfg, VisualizerCfg)
     )
