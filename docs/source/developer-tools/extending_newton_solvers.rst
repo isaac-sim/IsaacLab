@@ -52,10 +52,12 @@ on as an argument and keep no runtime state, so one adapter can serve several ba
    * - Owner
      - Responsibility
    * - Simulation context
-     - Resolves the manager from :attr:`~isaaclab_newton.physics.NewtonCfg.class_type`, owns the shared builder and
-       the backend through its registry, and drives the public lifecycle calls.
+     - Resolves the manager from :attr:`~isaaclab_newton.physics.NewtonCfg.class_type` (or adopts the one passed in)
+       and drives the public lifecycle calls.
    * - :class:`~isaaclab_newton.physics.NewtonManager`
-     - The active :attr:`~isaaclab_newton.physics.NewtonManager.backend`, plus what must survive a hard reset: site
+     - The :attr:`~isaaclab_newton.physics.NewtonManager.builder` and the active
+       :attr:`~isaaclab_newton.physics.NewtonManager.backend`, which it finalizes and closes itself, plus what must
+       survive a hard reset: site
        requests, the replication outputs (:class:`~isaaclab_newton.physics.NewtonCloneRecord`), and the decimation
        setting. Each instance owns its construction data, callbacks and views; closing it cannot clear another manager.
    * - :class:`~isaaclab_newton.physics.NewtonBackend`

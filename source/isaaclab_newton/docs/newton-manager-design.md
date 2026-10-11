@@ -163,10 +163,12 @@ After initialization, `sim.physics_manager` gives you the manager and
 state, and `control` contains solver inputs. It also retains the resources needed
 to replay the simulation safely.
 
-Internally, the context's resource registry shares construction data and tracks
-cleanup. `NewtonBuilderCfg` describes a builder request; `NewtonBackendCfg`
-describes the finalized resource. Normal scene code lets the manager and cloner
-create these descriptors.
+The manager owns its builder and backend: it finalizes a new backend on every
+hard reset and closes the old one. Consumers that may also run under other
+physics, such as renderers and ray casters, call `get_newton_builder(sim)` and
+`get_newton_backend(sim)`; under non-Newton physics these return a render-only
+builder and backend shared through the context's registry (`NewtonBuilderCfg`,
+`NewtonBackendCfg`).
 
 ## What runs inside a step
 
