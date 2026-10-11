@@ -772,6 +772,19 @@ def register_step_callback(
     return callback
 
 
+def invalidate_step_graph(backend: NewtonBackend) -> None:
+    """Rebuild the step graph before the next step, e.g. after a callback's recorded work changed.
+
+    Callbacks are recorded with the host state they see when the graph is built. A consumer whose recorded work
+    depends on that state, such as an asset that first applies external wrenches, invalidates the graph when it
+    changes. An outer recording made with :func:`record_step` must be recorded again.
+
+    Args:
+        backend: Simulation backend.
+    """
+    backend.step_graph = None
+
+
 def unregister_step_callback(backend: NewtonBackend, callback: StepCallback) -> None:
     """Stop running a callback; unregistering an absent callback is a no-op.
 

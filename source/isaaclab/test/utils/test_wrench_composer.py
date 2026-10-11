@@ -152,6 +152,21 @@ def test_add_accumulates_local_wrenches() -> None:
     _assert_vectors(composer.out_torque_b, _grid({(0, 1): (2.0, 1.0, -3.0)}))
 
 
+def test_first_write_marks_the_composer_used_once_across_resets() -> None:
+    """``used`` survives resets, and the first-use hook runs exactly once."""
+    composer = _make_composer()
+    first_uses = []
+    composer.on_first_use = lambda: first_uses.append(composer.active)
+    assert not composer.used
+
+    for _ in range(2):
+        _apply_to_cell(composer, "add_forces_and_torques_index", (0, 1), False, forces=(1.0, 0.0, 0.0))
+        composer.reset()
+
+    assert composer.used and not composer.active
+    assert first_uses == [True]
+
+
 @pytest.mark.parametrize("method", _METHODS)
 def test_global_wrench_at_com_uses_world_fast_path_or_rotates(method: str) -> None:
     """A world-at-CoM consumer receives the world wrench as-is; a body-frame consumer receives it rotated."""

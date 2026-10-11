@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -70,6 +70,9 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        self._used = False
+        self.on_first_use: Callable[[], None] | None = None
+        """Called once, when forces or torques are first written, e.g. to add wrench work to a captured step."""
         self._supports_world_at_com = supports_world_at_com
         # Conservative until a full reset; partial resets do not scan the remaining buffers.
         self._has_local_wrench = False
@@ -117,6 +120,15 @@ class WrenchComposer:
         compared to scanning the buffers every frame.
         """
         return self._active
+
+    @property
+    def used(self) -> bool:
+        """Whether forces or torques were ever written through an ``add_*`` or ``set_*`` method.
+
+        Unlike :attr:`active`, resets do not clear it, so consumers that record their work into a CUDA graph can
+        leave the wrench work out until it is first needed.
+        """
+        return self._used
 
     @property
     def global_force_w(self) -> wp.array:
@@ -264,8 +276,7 @@ class WrenchComposer:
             )
             return
 
-        self._active = True
-        self._dirty = True
+        self._activate()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
@@ -332,8 +343,7 @@ class WrenchComposer:
         # Clear input buffers for the targeted environments before writing
         self.reset(env_ids=env_ids)
 
-        self._active = True
-        self._dirty = True
+        self._activate()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
@@ -397,8 +407,7 @@ class WrenchComposer:
             )
             return
 
-        self._active = True
-        self._dirty = True
+        self._activate()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
@@ -467,8 +476,7 @@ class WrenchComposer:
         # Clear input buffers for the masked environments before writing
         self.reset(env_mask=env_mask)
 
-        self._active = True
-        self._dirty = True
+        self._activate()
         if is_global:
             self._has_global_wrench = True
             self._has_global_positions = self._has_global_positions or (forces is not None and positions is not None)
@@ -493,6 +501,15 @@ class WrenchComposer:
             ],
             device=self.device,
         )
+
+    def _activate(self) -> None:
+        """Mark pending data, notifying :attr:`on_first_use` on the first write."""
+        self._active = True
+        self._dirty = True
+        if not self._used:
+            self._used = True
+            if self.on_first_use is not None:
+                self.on_first_use()
 
     def add_raw_buffers_from(self, other: WrenchComposer):
         """Add another composer's raw input buffers into this composer's input buffers.

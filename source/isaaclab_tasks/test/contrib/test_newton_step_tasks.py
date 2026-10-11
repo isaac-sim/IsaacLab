@@ -53,10 +53,11 @@ def _rollout_osc(num_steps: int, native: bool = True) -> tuple[torch.Tensor, boo
         trajectory = []
         with torch.inference_mode():
             for step in range(num_steps):
-                # Start with no wrench, then change both inputs after graph capture.
+                # Start without wrenches, then apply both after graph capture, which must rebuild the step graph.
                 force = torch.zeros((env.unwrapped.num_envs, robot.num_bodies, 3), device="cuda:0")
                 force[:, -1, 0] = 2.0 if step % 6 >= 3 else 0.0
-                robot.permanent_wrench_composer.set_forces_and_torques_index(forces=force, is_global=True)
+                if step >= 3:
+                    robot.permanent_wrench_composer.set_forces_and_torques_index(forces=force, is_global=True)
                 if step % 5 == 3:
                     robot.instantaneous_wrench_composer.set_forces_and_torques_index(forces=-force, is_global=False)
                 offset = 0.1 * (torch.rand(env.unwrapped.num_envs, 3, device="cuda:0", generator=generator) - 0.5)

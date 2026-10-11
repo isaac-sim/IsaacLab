@@ -398,44 +398,46 @@ class Articulation(BaseArticulation):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        composer = self._instantaneous_wrench_composer
-        composer.add_raw_buffers_from(self._permanent_wrench_composer)
-        force_b, torque_b = composer.compose_to_body_frame()
-        # Kept separate from the joint-target gather below: this scatter runs
-        # over bodies while the target gather runs over joints (mismatched
-        # item axes), and it must precede the actuator compute/submit below,
-        # which produces the target inputs. A merged kernel would need a
-        # divergent max-dim launch and would break that ordering, so there is no win.
-        if self.data.has_body_ordering:
-            wp.launch(
-                articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    force_b,
-                    torque_b,
-                    self._data.body_link_pose_w.warp,
-                    self._body_user_to_backend_map(),
-                    self._data._sim_bind_body_external_wrench,
-                    self._ALL_ENV_MASK,
-                    self._ALL_BODY_MASK,
-                ],
-            )
-        else:
-            wp.launch(
-                shared_kernels.update_wrench_array_with_force_and_torque,
-                dim=(self.num_instances, self.num_bodies),
-                device=self.device,
-                inputs=[
-                    force_b,
-                    torque_b,
-                    self._data.body_link_pose_w.warp,
-                    self._data._sim_bind_body_external_wrench,
-                    self._ALL_ENV_MASK,
-                    self._ALL_BODY_MASK,
-                ],
-            )
-        composer.reset()
+        # Wrench work enters the recorded step once a composer is first used, which rebuilds the step graph.
+        if self._instantaneous_wrench_composer.used or self._permanent_wrench_composer.used:
+            composer = self._instantaneous_wrench_composer
+            composer.add_raw_buffers_from(self._permanent_wrench_composer)
+            force_b, torque_b = composer.compose_to_body_frame()
+            # Kept separate from the joint-target gather below: this scatter runs
+            # over bodies while the target gather runs over joints (mismatched
+            # item axes), and it must precede the actuator compute/submit below,
+            # which produces the target inputs. A merged kernel would need a
+            # divergent max-dim launch and would break that ordering, so there is no win.
+            if self.data.has_body_ordering:
+                wp.launch(
+                    articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        force_b,
+                        torque_b,
+                        self._data.body_link_pose_w.warp,
+                        self._body_user_to_backend_map(),
+                        self._data._sim_bind_body_external_wrench,
+                        self._ALL_ENV_MASK,
+                        self._ALL_BODY_MASK,
+                    ],
+                )
+            else:
+                wp.launch(
+                    shared_kernels.update_wrench_array_with_force_and_torque,
+                    dim=(self.num_instances, self.num_bodies),
+                    device=self.device,
+                    inputs=[
+                        force_b,
+                        torque_b,
+                        self._data.body_link_pose_w.warp,
+                        self._data._sim_bind_body_external_wrench,
+                        self._ALL_ENV_MASK,
+                        self._ALL_BODY_MASK,
+                    ],
+                )
+            composer.reset()
 
         # Compute processed actuator commands (native path is a no-op here) and
         # submit them to the backend through the collection's control adapter.
@@ -3461,6 +3463,9 @@ class Articulation(BaseArticulation):
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
+        for composer in (self._instantaneous_wrench_composer, self._permanent_wrench_composer):
+            # The step records wrench work only once forces are applied, so assets without them cost nothing.
+            composer.on_first_use = self._physics_manager.invalidate_step_graph
 
         # asset named data
         self._resolve_and_install_ordering_maps()

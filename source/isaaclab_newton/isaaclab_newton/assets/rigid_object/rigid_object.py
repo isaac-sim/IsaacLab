@@ -142,23 +142,25 @@ class RigidObject(BaseRigidObject):
             We write external wrench to the simulation here since this function is called before the simulation step.
             This ensures that the external wrench is applied at every simulation step.
         """
-        composer = self._instantaneous_wrench_composer
-        composer.add_raw_buffers_from(self._permanent_wrench_composer)
-        force_b, torque_b = composer.compose_to_body_frame()
-        wp.launch(
-            shared_kernels.update_wrench_array_with_force_and_torque,
-            dim=(self.num_instances, self.num_bodies),
-            device=self.device,
-            inputs=[
-                force_b,
-                torque_b,
-                self._data.body_link_pose_w.warp,
-                self._data._sim_bind_body_external_wrench,
-                self._ALL_ENV_MASK,
-                self._ALL_BODY_MASK,
-            ],
-        )
-        self._instantaneous_wrench_composer.reset()
+        # Wrench work enters the recorded step once a composer is first used, which rebuilds the step graph.
+        if self._instantaneous_wrench_composer.used or self._permanent_wrench_composer.used:
+            composer = self._instantaneous_wrench_composer
+            composer.add_raw_buffers_from(self._permanent_wrench_composer)
+            force_b, torque_b = composer.compose_to_body_frame()
+            wp.launch(
+                shared_kernels.update_wrench_array_with_force_and_torque,
+                dim=(self.num_instances, self.num_bodies),
+                device=self.device,
+                inputs=[
+                    force_b,
+                    torque_b,
+                    self._data.body_link_pose_w.warp,
+                    self._data._sim_bind_body_external_wrench,
+                    self._ALL_ENV_MASK,
+                    self._ALL_BODY_MASK,
+                ],
+            )
+            self._instantaneous_wrench_composer.reset()
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -1095,6 +1097,9 @@ class RigidObject(BaseRigidObject):
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
         self._permanent_wrench_composer = WrenchComposer(self)
+        for composer in (self._instantaneous_wrench_composer, self._permanent_wrench_composer):
+            # The step records wrench work only once forces are applied, so assets without them cost nothing.
+            composer.on_first_use = self._physics_manager.invalidate_step_graph
 
         # set information about rigid body into data
         self._data.body_names = self.body_names

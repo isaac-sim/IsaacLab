@@ -405,6 +405,11 @@ class NewtonManager(PhysicsManager):
             self.backend, self.backend.callbacks.post_step, fn, graphable=graphable, name=name
         )
 
+    def invalidate_step_graph(self) -> None:
+        """Rebuild the step graph before the next step; see :func:`newton_backend.invalidate_step_graph`."""
+        if self.backend is not None:
+            nb.invalidate_step_graph(self.backend)
+
     def unregister_step_callback(self, callback: StepCallback) -> None:
         """Stop running a callback; a no-op after the model is rebuilt.
 
