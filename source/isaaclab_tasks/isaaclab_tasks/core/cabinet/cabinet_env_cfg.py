@@ -178,15 +178,15 @@ class CabinetSceneCfg(InteractiveSceneCfg):
 
     cabinet_body_material = VisualMaterialCfg(
         prim_path="/World/Looks/CabinetBody",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.75, 0.66), roughness=0.65),
+        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.78, 0.69, 0.56), roughness=0.55),
     )
     cabinet_front_material = VisualMaterialCfg(
         prim_path="/World/Looks/CabinetFront",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.06, 0.18, 0.23), roughness=0.5),
+        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.52, 0.32, 0.18), roughness=0.4),
     )
     cabinet_hardware_material = VisualMaterialCfg(
         prim_path="/World/Looks/CabinetHardware",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.035, 0.045, 0.055), metallic=0.7, roughness=0.25),
+        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.16, 0.10, 0.055), metallic=0.75, roughness=0.26),
     )
     cabinet = CABINET_CFG
 
