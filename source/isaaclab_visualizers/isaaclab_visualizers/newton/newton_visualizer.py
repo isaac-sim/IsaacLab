@@ -604,6 +604,9 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         self._sim_time += dt
         if self._runtime_headless:
+            if self.current_image_view.camera is None:
+                self.current_image_view.invalidate()
+                self._last_render_step = -1
             return
         now = time.monotonic()
         if now - self._last_present_time < 1.0 / self.cfg.window.fps:

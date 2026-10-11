@@ -10,3 +10,4 @@
 * Shared Kit window docking between viewport and camera-image presentation.
 * Keyed sensor-view capture to the physics step, fixing frozen headless
   ``--video viz:newton_gl:streaming_view`` clips while reusing repeated reads within one step.
+  Explicit headless viewer updates also refreshed perspective captures after marker edits without a physics step.

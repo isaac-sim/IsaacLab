@@ -902,6 +902,7 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     markers = Mock(side_effect=lambda *args, **kwargs: events.append("render-markers"))
     monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
     visualizer = _make_newton_visualizer(viewer, state=state, cfg=NewtonGLVisualizerCfg(enable_markers=True))
+    visualizer._sim.get_physics_step_count = lambda: 0
     provider = visualizer._sim.get_scene_data_provider()
     fresh_poses = wp.full(1, wp.transform((1.0, 2.0, 3.0), (0.0, 0.0, 0.0, 1.0)), device="cpu")
     visualizer._sim.is_rendering = False
@@ -929,6 +930,18 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     provider.get_transforms.assert_called_once()
 
     viewer.paused = False
+    # Marker/camera edits can request a new presentation without advancing physics.
+    pixels = wp.full((4, 6, 3), 37, dtype=wp.uint8, device="cpu")
+    monkeypatch.setattr(viewer, "get_frame", lambda output=None: pixels)
+    visualizer.step(0.0)
+    refreshed = visualizer.render_rgb_array()
+    np.testing.assert_array_equal(refreshed, np.full((4, 6, 3), 37, dtype=np.uint8))
+    pixels.fill_(38)
+    assert visualizer.render_rgb_array() is refreshed
+    visualizer.step(0.0)
+    np.testing.assert_array_equal(visualizer.render_rgb_array(), np.full((4, 6, 3), 38, dtype=np.uint8))
+    assert (refreshed == 37).all()
+
     visualizer._runtime_headless = False
     visualizer.cfg.window.fps = 20.0
     clock = iter((0.0, 0.01, 0.025, 0.05, 0.1))
