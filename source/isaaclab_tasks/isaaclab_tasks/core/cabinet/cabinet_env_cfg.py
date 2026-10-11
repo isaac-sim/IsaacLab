@@ -13,7 +13,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -43,11 +43,35 @@ FRAME_MARKER_SMALL_CFG = clone(FRAME_MARKER_CFG)
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 """Frame marker for the end-effector and drawer-handle frame transformers."""
 
+CABINET_BODY_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetBody",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.78, 0.69, 0.56), roughness=0.55),
+)
+CABINET_FRONT_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetFront",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.52, 0.32, 0.18), roughness=0.4),
+)
+CABINET_HARDWARE_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetHardware",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.16, 0.10, 0.055), metallic=0.75, roughness=0.26),
+)
+
 CABINET_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Cabinet",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
         activate_contact_sensors=False,
+        visual_material_bindings={
+            "sektion": "/World/Looks/CabinetBody",
+            "door_left_link": "/World/Looks/CabinetFront",
+            "door_right_link": "/World/Looks/CabinetFront",
+            "drawer_bottom": "/World/Looks/CabinetFront",
+            "drawer_top": "/World/Looks/CabinetFront",
+            "door_left_nob_link": "/World/Looks/CabinetHardware",
+            "door_right_nob_link": "/World/Looks/CabinetHardware",
+            "drawer_handle_bottom": "/World/Looks/CabinetHardware",
+            "drawer_handle_top": "/World/Looks/CabinetHardware",
+        },
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.8, 0, 0.4),
@@ -165,6 +189,9 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = MISSING
     ee_frame: FrameTransformerCfg = MISSING
 
+    cabinet_body_material = CABINET_BODY_MATERIAL_CFG
+    cabinet_front_material = CABINET_FRONT_MATERIAL_CFG
+    cabinet_hardware_material = CABINET_HARDWARE_MATERIAL_CFG
     cabinet = CABINET_CFG
 
     # drawer handle frame, aligned with the end-effector frame

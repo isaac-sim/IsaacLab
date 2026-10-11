@@ -85,6 +85,8 @@ class CabinetDirectEnv(DirectRLEnv):
                 "multi_stage_open_drawer",
                 "action_rate_l2",
                 "joint_vel",
+                "joint_pos_limits",
+                "joint_vel_limits",
             )
         }
 
@@ -180,6 +182,17 @@ class CabinetDirectEnv(DirectRLEnv):
 
         action_rate = torch.sum(torch.square(self.actions - self.previous_actions), dim=-1)
         joint_vel = torch.sum(torch.square(self._robot.data.joint_vel.torch), dim=-1)
+        arm_joint_pos = self._robot.data.joint_pos.torch[:, self.arm_joint_ids]
+        arm_joint_vel = self._robot.data.joint_vel.torch[:, self.arm_joint_ids]
+        position_limits = self._robot.data.soft_joint_pos_limits.torch[:, self.arm_joint_ids]
+        joint_pos_limits = torch.sum(
+            (position_limits[..., 0] - arm_joint_pos).clamp(min=0.0)
+            + (arm_joint_pos - position_limits[..., 1]).clamp(min=0.0),
+            dim=-1,
+        )
+        # Match the standard joint_vel_limits reward's 1 rad/s excess cap per joint.
+        velocity_limits = self._robot.data.soft_joint_vel_limits.torch[:, self.arm_joint_ids]
+        joint_vel_limits = torch.sum((arm_joint_vel.abs() - velocity_limits).clamp(min=0.0, max=1.0), dim=-1)
 
         reward_terms = {
             "approach_ee_handle": self.cfg.approach_ee_handle_reward_scale * approach_ee_handle,
@@ -191,6 +204,8 @@ class CabinetDirectEnv(DirectRLEnv):
             "multi_stage_open_drawer": (self.cfg.multi_stage_open_drawer_reward_scale * multi_stage_open_drawer),
             "action_rate_l2": self.cfg.action_rate_reward_scale * action_rate,
             "joint_vel": self.cfg.joint_vel_reward_scale * joint_vel,
+            "joint_pos_limits": self.cfg.joint_pos_limits_reward_scale * joint_pos_limits,
+            "joint_vel_limits": self.cfg.joint_vel_limits_reward_scale * joint_vel_limits,
         }
         reward = torch.zeros_like(drawer_pos)
         for name, value in reward_terms.items():

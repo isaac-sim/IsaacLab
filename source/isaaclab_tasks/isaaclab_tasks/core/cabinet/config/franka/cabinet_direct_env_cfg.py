@@ -41,3 +41,17 @@ class FrankaCabinetDirectEnvCfg(CabinetDirectEnvCfg):
     gripper_open_command: float = 0.04
     gripper_close_command: float = 0.0
     approach_gripper_handle_offset: float = 0.04
+
+    episode_length_s = 16.0
+    action_rate_reward_scale = -0.05
+    joint_vel_reward_scale = -5.0
+    joint_pos_limits_reward_scale = -10.0
+    joint_vel_limits_reward_scale = -100.0
+
+    def __post_init__(self):
+        # Match the manager-based Franka task's reset clearance and arm control.
+        self.scene.robot.soft_joint_pos_limit_factor = 0.9
+        self.scene.robot.init_state.joint_pos["panda_joint2"] = -1.1
+        self.scene.robot.actuators["panda_arm"].damping = 80.0
+        # MJWarp does not enforce this limit; the velocity-limit reward penalizes excess speed.
+        self.scene.robot.actuators["panda_arm"].joint_velocity_limit = 0.3

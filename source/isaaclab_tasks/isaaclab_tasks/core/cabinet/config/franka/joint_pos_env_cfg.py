@@ -5,6 +5,8 @@
 
 """Configuration for the manager-based Franka cabinet-opening environment."""
 
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.utils import configclass, replace
@@ -14,7 +16,7 @@ from isaaclab_tasks.utils import preset
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
 
 from ... import mdp
-from ...cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg
+from ...cabinet_env_cfg import FRAME_MARKER_SMALL_CFG, CabinetEnvCfg, CabinetSceneCfg, RewardsCfg
 
 
 @configclass
@@ -54,10 +56,27 @@ class FrankaCabinetSceneCfg(CabinetSceneCfg):
 
 
 @configclass
+class FrankaCabinetRewardsCfg(RewardsCfg):
+    """Penalize arm motion near position limits and above the requested speed."""
+
+    joint_pos_limits = RewTerm(
+        func=mdp.joint_pos_limits,
+        weight=-10.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+    joint_vel_limits = RewTerm(
+        func=mdp.joint_vel_limits,
+        weight=-100.0,
+        params={"soft_ratio": 1.0, "asset_cfg": SceneEntityCfg("robot", joint_names=["panda_joint.*"])},
+    )
+
+
+@configclass
 class FrankaCabinetEnvCfg(CabinetEnvCfg):
     """Cabinet-opening environment with a Franka Panda arm driven by joint position targets."""
 
     scene: FrankaCabinetSceneCfg = FrankaCabinetSceneCfg(num_envs=4096, env_spacing=2.0)
+    rewards: FrankaCabinetRewardsCfg = FrankaCabinetRewardsCfg()
 
     def __post_init__(self):
         super().__post_init__()
@@ -80,6 +99,17 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         self.rewards.approach_gripper_handle.params["offset"] = 0.04
         self.rewards.grasp_handle.params["open_joint_pos"] = 0.04
         self.rewards.grasp_handle.params["asset_cfg"].joint_names = ["panda_finger_.*"]
+        self.rewards.action_rate_l2.weight = -0.05
+        self.rewards.joint_vel.weight = -5.0
+
+        # Keep a 5% margin at each end of the joint range.
+        self.scene.robot.soft_joint_pos_limit_factor = 0.9
+        # Retract the hand so randomized resets clear the lower cabinet doors and knobs.
+        self.scene.robot.init_state.joint_pos["panda_joint2"] = -1.1
+        self.scene.robot.actuators["panda_arm"].damping = 80.0
+        # MJWarp does not enforce this limit; the velocity-limit reward penalizes excess speed.
+        self.scene.robot.actuators["panda_arm"].joint_velocity_limit = 0.3
+        self.episode_length_s = 16.0
 
     def play_mode(self):
         super().play_mode()
