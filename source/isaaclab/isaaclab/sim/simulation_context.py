@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
@@ -430,8 +431,6 @@ class SimulationContext:
             and self.get_setting("/isaaclab/xr/auto_start")
             and not any(cfg.visualizer_type == "kit" for cfg in resolved)
         ):
-            from isaaclab_visualizers.kit import KitVisualizerCfg
-
             resolved.append(KitVisualizerCfg())
             logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
