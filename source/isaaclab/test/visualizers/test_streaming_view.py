@@ -197,7 +197,7 @@ def test_window_and_recorder_share_fixed_device_image(device, monkeypatch):
     recorder = VideoRecorder(recorder_cfg, SimpleNamespace(sim=sim, scene=SimpleNamespace(sensors={"front": camera})))
     view = sim.get_or_create_backend(visualizer_cfg_copy.view, camera=camera)
     image = view.read(0)
-    pixels = recorder._get_frame()
+    pixels = recorder._capture()
     assert sim.get_or_create_backend(recorder_cfg.view, camera=camera) is view
     assert sim.get_or_create_backend(declaration.copy(), camera=camera) is not view
     assert sim.get_or_create_backend(replace(declaration), camera=camera) is not view
@@ -267,7 +267,7 @@ def test_window_and_recorder_share_fixed_device_image(device, monkeypatch):
         np.testing.assert_array_equal(image, np.broadcast_to(expected, image.shape))
     declaration.envs = ()
     assert view.read(2) is None
-    assert recorder._get_frame() is None
+    assert recorder._capture() is None
     sim.close_backend(view)
     assert all(resource is not view for _, resource in sim._backend_registry)
     camera.close.assert_not_called()

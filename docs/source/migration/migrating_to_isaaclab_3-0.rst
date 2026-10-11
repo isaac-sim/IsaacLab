@@ -2798,7 +2798,11 @@ resolution follows its framebuffer. For windows and recorders sharing one image 
 ``ImageViewCfg`` as described in :doc:`/source/features/visualizer_tiled_camera`; existing CLI
 recording source strings remain supported. Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
 window settings control presentation independently of image selection. Invalid recording sources or
-channel selections now raise an error when bound or first captured instead of disabling recording.
+channel selections now raise an error during recorder construction instead of disabling recording.
+
+Visualizer imports and :func:`~isaaclab.utils.string.string_to_callable` now propagate the original
+``ModuleNotFoundError`` for missing modules or dependencies. Catch ``ModuleNotFoundError`` instead of
+the previous ``ValueError`` wrapper if your application handles these failures.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)

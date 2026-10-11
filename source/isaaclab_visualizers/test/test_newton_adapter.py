@@ -973,9 +973,9 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     for value in (10, 20, 30):
         pixels.fill_(value)
         sim.step(render=False)
-        frame = recorder._get_frame()
+        frame = recorder._capture()
         recorder.step()
-        assert recorder._get_frame() is frame
+        assert recorder._capture() is frame
     assert visualizer._sim_time == 0.0
     frames = clip.call_args.args[0]
     assert len(frames) == 3

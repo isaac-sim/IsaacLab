@@ -218,7 +218,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
                 if recorder is None:
                     _render(sim, scene)
                 else:
-                    assert recorder._get_frame().shape == (64, 64, 3)
+                    assert recorder._capture().shape == (64, 64, 3)
                     wp.synchronize_device(device)
 
             cube = scene["cube"]

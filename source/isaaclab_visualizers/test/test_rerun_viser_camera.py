@@ -3,14 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for RerunVisualizer/ViserVisualizer set_camera_view()."""
+"""Tests for Rerun/Viser construction and camera controls."""
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
+import pytest
 from isaaclab_visualizers.rerun import RerunVisualizer, RerunVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
+from isaaclab_visualizers.viser.viser_visualizer import NewtonViewerViser
+
+
+def test_viser_missing_dependency_propagates_import_error(monkeypatch):
+    monkeypatch.setitem(sys.modules, "viser", None)
+    monkeypatch.setattr(NewtonViewerViser, "_viser_module", None)
+    with pytest.raises(ModuleNotFoundError) as error:
+        NewtonViewerViser()
+    assert error.value.name == "viser"
 
 
 def test_rerun_visualizer_set_camera_view():

@@ -317,6 +317,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   Prefer direct control flow and early returns when they remove unnecessary nesting.
 * Use predicates or optional lookup results for expected incompatibility, such as filtering available
   camera channels. Do not raise and catch exceptions for routine selection or capability checks.
+* Let missing optional dependencies raise Python's original ``ModuleNotFoundError``. Do not wrap import
+  failures merely to add installation hints or relabel them as configuration errors.
 * Inline simple expressions and operations when a helper would only add indirection. Do not extract
   a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the

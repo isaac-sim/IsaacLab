@@ -29,14 +29,14 @@ from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
 from ..utils.images import sensor_key_for_gt_type
-from ..utils.string import clear_resolve_matching_names_cache
+from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
+    VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
-    select_visualizer_cfgs,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -173,7 +173,13 @@ class SimulationContext:
             self.cfg.visualizer_cfgs = [] if self.cfg.visualizer_cfgs is None else [self.cfg.visualizer_cfgs]
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         if pending_visualizers:
-            self.cfg.visualizer_cfgs = select_visualizer_cfgs(self.cfg.visualizer_cfgs, pending_visualizers.split(","))
+            names = pending_visualizers.split(",")
+            self.cfg.visualizer_cfgs = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type in names]
+            for name in names:
+                if not any(cfg.visualizer_type == name for cfg in self.cfg.visualizer_cfgs):
+                    self.cfg.visualizer_cfgs.append(
+                        string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")()
+                    )
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
         if max_visible_envs is not None and max_visible_envs >= 0:
             for visualizer in self.cfg.visualizer_cfgs:

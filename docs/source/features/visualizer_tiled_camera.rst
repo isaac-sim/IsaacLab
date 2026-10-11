@@ -44,7 +44,8 @@ Neither changes the source camera's outputs, measurements, or clipping planes.
 dimensions; the window scales the composed image for display. Resizing a sensor's window leaves both
 sensor and composed-image storage unchanged. The recorder encodes the native composed image.
 Only encoding downloads pixels; display uses the device image. Invalid recording sources or channel
-selections raise errors when bound or first captured; they do not silently disable recording.
+selections raise errors when the recorder binds its source after simulation reset; they do not silently
+disable recording. Subsequent frames use the bound capture function without looking up the producer again.
 
 Reusing the same ``ImageViewCfg`` shares one runtime frame within a simulation, including through
 copies of the enclosing configuration. Use ``isaaclab.utils.replace(view, ...)`` for an independent

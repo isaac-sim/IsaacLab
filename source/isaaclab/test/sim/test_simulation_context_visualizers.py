@@ -1037,23 +1037,25 @@ def test_explicit_type_matches_existing_cfg():
     assert cfgs[0].background_color == (0.4, 0.5, 0.6)
 
 
-def test_missing_visualizer_package_reports_unresolved_type(monkeypatch: pytest.MonkeyPatch):
+def test_missing_visualizer_package_propagates_import_error(monkeypatch: pytest.MonkeyPatch):
     """Configured types need no imports; a missing requested package still reports its import failure."""
     import importlib
 
     real_import = importlib.import_module
     requested = []
+    missing_dependency = ModuleNotFoundError("No module named 'rerun'", name="rerun")
 
     def _failing_import(name, *args, **kwargs):
         requested.append(name)
         if name == "isaaclab_visualizers.rerun":
-            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'")
+            raise missing_dependency
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
-    with pytest.raises(ValueError, match="isaaclab_visualizers.rerun"):
+    with pytest.raises(ModuleNotFoundError) as error:
         scan(SimulationCfg(visualizer_cfgs=[_FakeVisualizerCfg("kit")]), {"visualizer": ["kit", "rerun"]})
+    assert error.value is missing_dependency
     # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is constructed and reported.
     assert requested == ["isaaclab_visualizers.rerun"]
 

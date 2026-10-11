@@ -14,7 +14,6 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
-from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
@@ -57,15 +56,6 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
                 stacklevel=3,
             )
     return list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in names))
-
-
-def select_visualizer_cfgs(configured: list[VisualizerCfg], names: list[str]) -> list[VisualizerCfg]:
-    """Select configured producers in order, adding defaults for requested types that are absent."""
-    selected = [cfg for cfg in configured if cfg.visualizer_type in names]
-    for name in names:
-        if not any(cfg.visualizer_type == name for cfg in selected):
-            selected.append(string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")())
-    return selected
 
 
 @configclass

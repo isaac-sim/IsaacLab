@@ -68,22 +68,6 @@ def _scalar_base_name(name: str) -> str:
     return name
 
 
-def _disable_viser_runtime_client_rebuild_if_bundled() -> None:
-    """Skip viser's runtime frontend rebuild when a bundled build is present."""
-    try:
-        import viser
-        import viser._client_autobuild as client_autobuild
-    except Exception:
-        return
-
-    client_root = Path(viser.__file__).resolve().parent / "client"
-    has_bundled_build = (client_root / "build" / "index.html").exists()
-    if not has_bundled_build:
-        return
-
-    client_autobuild.ensure_client_is_built = lambda: None
-
-
 def _open_viser_web_viewer(url: str) -> None:
     """Open the Viser web UI in a browser."""
     try:
@@ -91,11 +75,6 @@ def _open_viser_web_viewer(url: str) -> None:
             logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
     except Exception:
         logger.info("[ViserVisualizer] Could not auto-open browser tab. Open manually: %s", url)
-
-
-def _viser_web_viewer_url(port: int, display_address: str) -> str:
-    """Return Viser web UI URL for display to users."""
-    return f"http://{display_address}:{int(port)}"
 
 
 _BACKEND_DISPLAY_NAMES = {
@@ -129,14 +108,12 @@ class NewtonViewerViser(ViewerViser):
             record_to_viser: Optional recording destination.
             metadata: Optional metadata attached to the viewer.
         """
-        _disable_viser_runtime_client_rebuild_if_bundled()
-        try:
-            viser = self._get_viser()
-        except ImportError as exc:
-            raise ImportError(
-                "The Viser visualizer requires the optional 'viser' package. "
-                "Run your command with: uv run --extra viser <command>."
-            ) from exc
+        import viser
+        import viser._client_autobuild as client_autobuild
+
+        # Use the bundled frontend without rebuilding it at viewer startup.
+        if (Path(viser.__file__).resolve().parent / "client" / "build" / "index.html").exists():
+            client_autobuild.ensure_client_is_built = lambda: None
         original_viser_server = viser.ViserServer
 
         def _viser_server_with_bind_address(*args, **kwargs):
@@ -589,7 +566,7 @@ class ViserVisualizer(BaseVisualizer):
         server = getattr(self._viewer, "_server", None)
         if server is not None:
             server.gui.add_markdown(f"Physics: {backend_display}")
-        viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
+        viewer_url = self._viewer.share_url or f"http://{self.cfg.display_address}:{self.cfg.port}"
         if self.cfg.verbose:
             print()
             self._log_viewer_url(

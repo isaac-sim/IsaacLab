@@ -41,7 +41,6 @@ from ..visualizers.visualizer_cfg import (
     VISUALIZER_TYPES,
     VisualizerCfg,
     parse_visualizer_csv,
-    select_visualizer_cfgs,
 )
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
@@ -291,7 +290,11 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
     configured = sim_cfg.visualizer_cfgs if sim_cfg is not None else []
     if not isinstance(configured, list):
         configured = [] if configured is None else [configured]
-    visualizer_cfgs = select_visualizer_cfgs(configured, args["visualizer"]) if sim_cfg is not None else []
+    visualizer_cfgs = [cfg for cfg in configured if cfg.visualizer_type in args["visualizer"]]
+    if sim_cfg is not None:
+        for name in args["visualizer"]:
+            if not any(cfg.visualizer_type == name for cfg in visualizer_cfgs):
+                visualizer_cfgs.append(string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")())
 
     for recorder in video_recorders:
         if recorder.view is not None:

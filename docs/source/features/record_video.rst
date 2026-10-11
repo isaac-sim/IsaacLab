@@ -351,7 +351,7 @@ Limitations and compatibility
 
 * ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
   require ``streaming_view=True`` on the corresponding visualizer cfg.  A
-  :class:`~RuntimeError` is raised at the first capture attempt if it is not set.
+  :class:`~RuntimeError` is raised when the recorder is constructed if it is not set.
 
 * For ``source="sensor:<name>"``, the named field must exist on the scene config with
   ``"rgb"`` in its ``data_types``.

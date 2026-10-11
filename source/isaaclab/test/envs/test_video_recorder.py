@@ -234,12 +234,12 @@ def test_kit_visualizer_newton_physics_logs_warning(caplog):
     env = _make_env(visualizers=[kit_viz])
     env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
 
-    recorder = VideoRecorder(_cfg(source="viz:kit"), env)
     with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
+        recorder = VideoRecorder(_cfg(source="viz:kit"), env)
         for _ in range(5):
-            recorder._get_frame()
+            recorder._capture()
         second_recorder = VideoRecorder(_cfg(source="viz:kit"), env)
-        second_recorder._get_frame()
+        second_recorder._capture()
 
     cubric_warnings = [r for r in caplog.records if "source='viz:newton_gl'" in r.message]
     assert len(cubric_warnings) == 2
@@ -269,16 +269,17 @@ def _rgb_sensor():
 )
 def test_source_resolves_frame(source, make_env, caplog):
     env = make_env()
-    visualizers, env.sim.visualizers = env.sim.visualizers, []
+    visualizers = env.sim.visualizers
     recorder = VideoRecorder(_cfg(source=source), env)
-    env.sim.visualizers = visualizers
+    # Capture is bound during construction; later frames do not discover producers again.
+    env.sim.visualizers = []
     if source.startswith("sensor:"):
         env.sim._scene_data_provider.get_camera_sensors.return_value = {}
     if source == "viz:newton_gl":
         visualizers[0]._frame = None
-        assert recorder._get_frame() is None
+        assert recorder._capture() is None
         visualizers[0]._frame = _FRAME.copy()
-    frame = recorder._get_frame()
+    frame = recorder._capture()
     assert frame is not None
     assert frame.shape == _FRAME.shape
     assert not caplog.records
@@ -300,10 +301,9 @@ def test_source_resolves_frame(source, make_env, caplog):
     ],
 )
 def test_invalid_source_raises(source, make_env, error, message):
-    """Invalid sources fail during construction or first visualizer capture, with an actionable error."""
+    """Invalid sources fail when the recorder is constructed, before training starts."""
     with pytest.raises(error, match=message):
-        recorder = VideoRecorder(_cfg(source=source), make_env())
-        recorder._get_frame()
+        VideoRecorder(_cfg(source=source), make_env())
 
 
 # ---------------------------------------------------------------------------
