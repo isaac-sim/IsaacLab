@@ -384,6 +384,29 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture():
     np.testing.assert_array_equal(viewer.camera.pos, moved)
 
 
+def test_newton_viewer_tracks_fullscreen_image_without_newton_private_state(monkeypatch):
+    """Picking follows fullscreen image presentation across supported Newton versions."""
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._fullscreen_image_active = False
+    viewer._close_requested = False
+    viewer.renderer = SimpleNamespace(close=Mock())
+    mouse_presses = []
+
+    monkeypatch.setattr(ViewerGL, "log_image", lambda self, *args, **kwargs: None)
+    monkeypatch.setattr(ViewerGL, "end_frame", lambda self: None)
+    monkeypatch.setattr(ViewerGL, "on_mouse_press", lambda self, *args: mouse_presses.append(args))
+
+    viewer.log_image("Camera", object(), fullscreen=True)
+    viewer.on_mouse_press(1, 2, 3, 4)
+    assert mouse_presses == []
+
+    viewer.end_frame()
+    viewer.on_mouse_press(1, 2, 3, 4)
+    assert mouse_presses == [(1, 2, 3, 4)]
+
+
 class _FakeTrainingControlsImgui:
     """Minimal imgui double that drives ``_render_training_controls`` by label."""
 
