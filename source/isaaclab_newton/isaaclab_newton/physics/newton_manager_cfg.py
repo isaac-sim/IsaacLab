@@ -294,7 +294,7 @@ class NewtonCfg(PhysicsCfg):
                 f"got {self.deterministic_mode!r}."
             )
         if self.solver_cfg is None:
-            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
 

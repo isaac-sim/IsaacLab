@@ -3,32 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the custom MJWarp and VBD coupling manager."""
+"""Deprecated alias of :mod:`isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg`.
 
-from __future__ import annotations
+.. deprecated::
+    Import from :mod:`isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg` or the package instead.
+"""
 
-from typing import TYPE_CHECKING, Literal
+import warnings
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonSolverCfg, VBDSolverCfg
+from .coupled_mjwarp_vbd_solver_cfg import *  # noqa: F401, F403
 
-from isaaclab.utils import configclass
-
-if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonSolver
-
-
-@configclass
-class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
-    """Configuration for the custom MJWarp and VBD coupling manager."""
-
-    class_type: type[NewtonSolver] | str = "{DIR}.coupled_mjwarp_vbd_manager:CoupledMJWarpVBDSolverAdapter"
-    """Manager class for the coupled solver."""
-
-    rigid_solver_cfg: MJWarpSolverCfg = MJWarpSolverCfg()
-    """MJWarp rigid-body solver configuration."""
-
-    soft_solver_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
-    """VBD deformable solver configuration."""
-
-    coupling_mode: Literal["one_way", "two_way"] = "two_way"
-    """Coupling direction between the rigid and deformable solvers."""
+warnings.warn(
+    "isaaclab_contrib.custom_coupling.newton_manager_cfg is deprecated; "
+    "import from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)

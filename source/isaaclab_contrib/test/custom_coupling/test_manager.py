@@ -15,11 +15,11 @@ from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import (
+from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver import (
     CoupledMJWarpVBDSolver,
     CoupledMJWarpVBDSolverAdapter,
 )
-from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
+from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
 
 
 def _stub_subsolvers(monkeypatch: pytest.MonkeyPatch, solver_cfg: CoupledMJWarpVBDSolverCfg) -> None:

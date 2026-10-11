@@ -30,7 +30,7 @@ from isaaclab_newton.physics import (
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics import newton_backend as nb
-from isaaclab_newton.physics.mpm_manager import MPMSolverAdapter
+from isaaclab_newton.physics.mpm_solver import MPMSolverAdapter
 from isaaclab_newton.physics.newton_solver import create_builder
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy

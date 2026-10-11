@@ -3,36 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""VBD Newton manager."""
+"""Deprecated alias of :mod:`isaaclab_newton.physics.vbd_solver`.
 
-from __future__ import annotations
+.. deprecated::
+    Import from :mod:`isaaclab_newton.physics.vbd_solver` or the package instead.
+"""
 
-from typing import TYPE_CHECKING
+import warnings
 
-from newton import ModelBuilder, State
-from newton.solvers import SolverVBD
+from .vbd_solver import *  # noqa: F401, F403
 
-from .newton_solver import NewtonSolver
-
-if TYPE_CHECKING:
-    from .newton_backend import NewtonBackend
-
-
-class VBDSolverAdapter(NewtonSolver):
-    """:class:`NewtonSolver` adapter for the VBD solver, which double-buffers state."""
-
-    solver_class = SolverVBD
-    supports_heterogeneous_worlds = True
-    prepares_step = True
-
-    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
-        """Color the completed builder before allocating the model."""
-        builder.color(balance_colors=False)
-
-    def supports_body_forces(self, backend: NewtonBackend) -> bool:
-        return not self.cfg.integrate_with_external_rigid_solver
-
-    def prepare_step(self, backend: NewtonBackend, state: State) -> None:
-        """Rebuild the particle BVH before each physics step."""
-        if backend.model.particle_count > 0:
-            backend.solver.rebuild_bvh(state)
+warnings.warn(
+    "isaaclab_newton.physics.vbd_manager is deprecated; import from isaaclab_newton.physics.vbd_solver instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)

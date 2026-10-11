@@ -11,7 +11,7 @@ import isaaclab_contrib.custom_coupling.tasks  # noqa: F401
 
 from isaaclab_tasks.utils import resolve_task_config
 
-MANUAL_ADAPTER = "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager:CoupledMJWarpVBDSolverAdapter"
+MANUAL_ADAPTER = "isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver:CoupledMJWarpVBDSolverAdapter"
 PROXY_ADAPTER = "isaaclab_contrib.coupling.coupler:CouplerSolverAdapter"
 
 

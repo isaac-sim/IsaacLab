@@ -309,7 +309,7 @@ The four architectures differ in what drives the substep loop:
      - ``create_solver()`` returns a :class:`newton.solvers.SolverBase` subclass
        that holds several sub-solvers and fixes the substep order in its
        ``step()``.
-       :class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
+       :class:`~isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg`
        is the in-tree example. Its manager clears force accumulators, detects
        contacts once, injects soft-to-rigid reactions into ``body_f`` when
        ``coupling_mode="two_way"``, then advances MJWarp on its own internal

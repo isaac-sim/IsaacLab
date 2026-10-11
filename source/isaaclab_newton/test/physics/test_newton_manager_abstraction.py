@@ -20,7 +20,9 @@ Covers:
 from __future__ import annotations
 
 import functools
+import importlib
 import logging
+import sys
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_backend as nb
@@ -59,8 +61,8 @@ from isaaclab_newton.physics import (
     get_newton_backend,
     get_newton_builder,
 )
-from isaaclab_newton.physics import mjwarp_manager as mjwarp_manager_module
-from isaaclab_newton.physics.mpm_manager import (
+from isaaclab_newton.physics import mjwarp_solver as mjwarp_manager_module
+from isaaclab_newton.physics.mpm_solver import (
     _make_solver_config,
     implicit_mpm_solvers,
     mpm_supports_graph_capture,
@@ -1140,6 +1142,18 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
 
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)] * 2
     assert actuator_resolutions == 1
+
+
+@pytest.mark.parametrize("solver", ["featherstone", "kamino", "mjwarp", "mpm", "vbd", "xpbd"])
+@pytest.mark.parametrize("suffix", ["", "_cfg"])
+def test_renamed_solver_modules_keep_deprecated_aliases(monkeypatch, solver, suffix):
+    """The ``*_manager`` modules that now hold solver adapters warn and re-export the ``*_solver`` modules."""
+    new = importlib.import_module(f"isaaclab_newton.physics.{solver}_solver{suffix}")
+    monkeypatch.delitem(sys.modules, f"isaaclab_newton.physics.{solver}_manager{suffix}", raising=False)
+    with pytest.warns(DeprecationWarning, match=f"{solver}_solver{suffix}"):
+        old = importlib.import_module(f"isaaclab_newton.physics.{solver}_manager{suffix}")
+    public = [name for name in vars(new) if name.endswith(("SolverAdapter", "SolverCfg"))]
+    assert public and all(getattr(old, name) is getattr(new, name) for name in public)
 
 
 @pytest.mark.parametrize("configured", [True, False], ids=["manager-cfg", "context-cfg"])

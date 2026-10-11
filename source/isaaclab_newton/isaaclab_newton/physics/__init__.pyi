@@ -48,10 +48,10 @@ __all__ = [
     "XPBDSolverCfg",
 ]
 
-from .featherstone_manager import FeatherstoneSolverAdapter
-from .featherstone_manager_cfg import FeatherstoneSolverCfg
-from .kamino_manager import KaminoSolverAdapter
-from .kamino_manager_cfg import (
+from .featherstone_solver import FeatherstoneSolverAdapter
+from .featherstone_solver_cfg import FeatherstoneSolverCfg
+from .kamino_solver import KaminoSolverAdapter
+from .kamino_solver_cfg import (
     KaminoCollisionDetectorCfg,
     KaminoConstraintsCfg,
     KaminoDVICfg,
@@ -62,10 +62,10 @@ from .kamino_manager_cfg import (
     KaminoPADMMCfg,
     KaminoPADMMSolverCfg,
 )
-from .mjwarp_manager import MJWarpSolverAdapter
-from .mjwarp_manager_cfg import MJWarpSolverCfg
-from .mpm_manager import MPMSolverAdapter, reset_mpm_solver_state
-from .mpm_manager_cfg import MPMSolverCfg
+from .mjwarp_solver import MJWarpSolverAdapter
+from .mjwarp_solver_cfg import MJWarpSolverCfg
+from .mpm_solver import MPMSolverAdapter, reset_mpm_solver_state
+from .mpm_solver_cfg import MPMSolverCfg
 from .newton_backend import (
     CapturedGraph,
     NewtonBackend,
@@ -87,7 +87,7 @@ from .newton_manager_cfg import (
     NewtonSolverCfg,
 )
 from .newton_solver import NewtonSolver, create_builder, create_solver_adapter
-from .vbd_manager import VBDSolverAdapter
-from .vbd_manager_cfg import VBDSolverCfg
-from .xpbd_manager import XPBDSolverAdapter
-from .xpbd_manager_cfg import XPBDSolverCfg
+from .vbd_solver import VBDSolverAdapter
+from .vbd_solver_cfg import VBDSolverCfg
+from .xpbd_solver import XPBDSolverAdapter
+from .xpbd_solver_cfg import XPBDSolverCfg
