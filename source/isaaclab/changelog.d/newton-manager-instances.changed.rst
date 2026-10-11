@@ -8,3 +8,5 @@
   context, so managers configured at construction need no override. A manager passed to
   :class:`~isaaclab.sim.SimulationContext` with its own physics configuration keeps it, and the context adopts it as
   ``cfg.physics``; previously the context's configuration silently replaced the manager's.
+* Assets and sensors resolve the simulation context once, when they register their physics callbacks, and keep it as
+  ``_sim`` next to ``_physics_manager`` instead of looking up the global context in later methods.

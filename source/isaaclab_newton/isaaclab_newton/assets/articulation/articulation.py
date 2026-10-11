@@ -28,7 +28,6 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
-from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -160,8 +159,7 @@ class Articulation(BaseArticulation):
         if cfg.enable_joint_wrench:
             self._physics_manager.request_extended_state_attribute("body_parent_f")
 
-        sim_ctx = SimulationContext.instance()
-        self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        self._sim_cfg = self._sim.cfg if self._sim is not None else None
         # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
         # solver has no tendon transmission. ``_process_tendons`` asks the manager for it.
         self._fixed_tendon_control = None

@@ -16,7 +16,6 @@ from newton import JointType
 from newton import Model as NewtonModel
 from newton.selection import ArticulationView
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
@@ -176,7 +175,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
             raise ValueError("NewtonInverseKinematicsAction requires at least one pose objective.")
 
         # Finalize the controlled asset's retained prototype builder.
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        plan = self._env.sim.get_clone_plan()
         asset_ids = cloner.path.get_asset_prototypes(plan, self._asset.cfg.prim_path)
         sources = cloner.path.get_asset_prototype_paths(plan)
         self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)

@@ -257,10 +257,7 @@ class SensorBase(ABC):
     @abstractmethod
     def _initialize_impl(self):
         """Initializes the sensor-related handles and internal buffers."""
-        # Obtain Simulation Context
-        sim = sim_utils.SimulationContext.instance()
-        if sim is None:
-            raise RuntimeError("Simulation Context is not initialized!")
+        sim = self._sim
         # Obtain device and backend
         self._device = sim.device
         self._backend = sim.backend
@@ -336,7 +333,9 @@ class SensorBase(ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = self._physics_manager = sim_utils.SimulationContext.instance().physics_manager
+        # Resolve the owning context once; the sensor reaches it and its physics manager through these afterwards.
+        self._sim = sim_utils.SimulationContext.instance()
+        physics_mgr_cls = self._physics_manager = self._sim.physics_manager
 
         obj_ref = weakref.proxy(self)
 

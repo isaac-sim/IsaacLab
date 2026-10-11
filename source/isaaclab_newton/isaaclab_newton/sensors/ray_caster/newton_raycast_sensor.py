@@ -101,7 +101,7 @@ class _NewtonRayCasterPoseMixin:
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        plan = self._sim.get_clone_plan()
         if plan is not None:
             matched = cloner.path.match(prim_expr, plan.env_template)
             if matched is not None and not matched.suffix:
@@ -127,7 +127,7 @@ class _NewtonRayCasterPoseMixin:
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
-        sim = sim_utils.SimulationContext.instance()
+        sim = self._sim
         self.backend = get_newton_backend(sim)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
@@ -282,7 +282,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         if cfg.max_distance <= 0.0:
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
         super().__init__(cfg)
-        sim = sim_utils.SimulationContext.instance()
+        sim = self._sim
         builder = get_newton_builder(sim)
         builder.default_bvh_cfg.shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         self._data = NewtonRaycastSensorData()

@@ -367,7 +367,9 @@ class AssetBase(Asset, ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = self._physics_manager = SimulationContext.instance().physics_manager
+        # Resolve the owning context once; the asset reaches it and its physics manager through these afterwards.
+        self._sim = SimulationContext.instance()
+        physics_mgr_cls = self._physics_manager = self._sim.physics_manager
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
@@ -411,8 +413,8 @@ class AssetBase(Asset, ABC):
             :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            self._backend = SimulationContext.instance().physics_manager.get_backend()
-            self._device = SimulationContext.instance().physics_manager.get_device()
+            self._backend = self._physics_manager.get_backend()
+            self._device = self._physics_manager.get_device()
             self._initialize_impl()
             self._is_initialized = True
 
