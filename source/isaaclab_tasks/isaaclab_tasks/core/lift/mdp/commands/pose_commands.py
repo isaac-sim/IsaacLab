@@ -16,6 +16,7 @@ from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
@@ -158,7 +159,7 @@ class ObjectUniformPoseCommand(CommandTerm):
             return self._static_success_vis_pos_w
         return self.success_vis_asset.data.root_pos_w.torch
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         # sample new pose targets for all the environments and keep them only for the selected ones
         pose_command_b = torch.empty_like(self.pose_command_b)
         # -- position
@@ -173,7 +174,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         quat = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
         # make sure the quaternion has real part as positive
         pose_command_b[:, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
-        torch.where(env_mask[:, None], pose_command_b, self.pose_command_b, out=self.pose_command_b)
+        torch.where(env_mask.torch[:, None], pose_command_b, self.pose_command_b, out=self.pose_command_b)
 
     def _update_command(self):
         pass

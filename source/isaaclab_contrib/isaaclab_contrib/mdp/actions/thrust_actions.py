@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_, instantiate
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -190,7 +191,7 @@ class ThrustAction(ActionTerm):
     Methods
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         """Reset the action term.
 
         This method resets the raw actions to zero for the specified environments.
@@ -201,7 +202,7 @@ class ThrustAction(ActionTerm):
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
                 ``env_ids``.
         """
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
 
     def process_actions(self, actions: torch.Tensor):
         r"""Process actions by applying scaling, offset, and clipping.

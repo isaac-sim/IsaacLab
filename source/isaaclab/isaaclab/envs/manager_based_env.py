@@ -22,6 +22,7 @@ from ..sim.utils.stage import use_stage
 from ..utils import env_mask_from_ids, validate
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
+from ..utils.warp import ProxyArray
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .utils.io_descriptors import (
@@ -641,7 +642,7 @@ class ManagerBasedEnv:
         """
         self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
 
-    def _reset_mask(self, env_mask: torch.Tensor):
+    def _reset_mask(self, env_mask: ProxyArray):
         """Reset the environments selected by a boolean mask.
 
         The reset runs on every call, and unselected environments are left unchanged, so it never waits on the
@@ -651,7 +652,7 @@ class ManagerBasedEnv:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_mask=env_mask)
+        self.scene.reset(env_mask=env_mask.warp)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.active_terms:
@@ -664,7 +665,7 @@ class ManagerBasedEnv:
         managers = (self.observation_manager, self.action_manager, self.event_manager, self.recorder_manager)
         self._reset_managers(env_mask, managers)
 
-    def _reset_managers(self, env_mask: torch.Tensor, managers: Sequence[ManagerBase]):
+    def _reset_managers(self, env_mask: ProxyArray, managers: Sequence[ManagerBase]):
         """Reset ``managers`` in order and store their logs in ``extras["log"]``.
 
         Terms may also write into ``extras["log"]`` while resetting. A logged tensor keeps its previous value
@@ -680,7 +681,7 @@ class ManagerBasedEnv:
         log = self.extras["log"] = {}
         for manager in managers:
             log.update(manager.reset(env_mask=env_mask))
-        any_reset = env_mask.any()
+        any_reset = env_mask.torch.any()
         for key, last in previous.items():
             value = log.setdefault(key, last)
             if value is not last and isinstance(value, torch.Tensor) and isinstance(last, torch.Tensor):

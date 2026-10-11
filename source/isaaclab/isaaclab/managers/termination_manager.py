@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import TerminationTermCfg
 
@@ -127,7 +128,7 @@ class TerminationManager(ManagerBase):
     """
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         """Returns the per-term mean activation across environments.
 

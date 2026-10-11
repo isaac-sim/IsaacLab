@@ -48,6 +48,7 @@ from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, SensorBa
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
 from ..utils import env_mask_from_ids, env_selection_kwargs, instantiate, takes_env_mask, validate
+from ..utils.warp import ProxyArray
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -435,30 +436,31 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets the scene entities.
 
-        Entities whose ``reset`` takes ``env_mask`` receive the mask as a Warp array and reset without
-        synchronizing the device. Other entities receive the selected indices.
+        Entities whose ``reset`` takes ``env_mask`` receive the mask and reset without synchronizing the device.
+        Other entities receive the selected indices.
 
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
-                ``env_ids``.
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,). Takes
+                precedence over ``env_ids``.
         """
         if env_mask is None:
             env_ids = slice(None) if env_ids is None else env_ids
-            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+            selection_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+            env_mask = selection_mask.warp
         else:
-            env_ids = None
-        env_mask_wp = wp.from_torch(env_mask, dtype=wp.bool)
-        entities = (*self.assets.values(), *self._sensors.values())
-        for entity in entities:
+            env_ids = selection_mask = None
+        for entity in (*self.assets.values(), *self._sensors.values()):
             if takes_env_mask(entity.reset):
-                entity.reset(env_mask=env_mask_wp)
+                entity.reset(env_mask=env_mask)
             else:
-                selection = env_selection_kwargs(entity.reset, env_mask, env_ids)
+                if selection_mask is None:
+                    selection_mask = ProxyArray(env_mask)
+                selection = env_selection_kwargs(entity.reset, selection_mask, env_ids)
                 if selection is not None:
                     entity.reset(*selection.values())
 

@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ..warp import ProxyArray
+
 if TYPE_CHECKING:
     from .modifier_cfg import ModifierCfg
 
@@ -57,7 +59,7 @@ class ModifierBase(ABC):
         self._device = device
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Resets the Modifier.
 
         Args:

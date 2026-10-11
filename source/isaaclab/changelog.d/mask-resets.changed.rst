@@ -3,8 +3,9 @@
   :meth:`~isaaclab.envs.ManagerBasedEnv._reset_mask` implements the reset and ``_reset_idx`` wraps it; subclasses
   that override ``_reset_idx`` keep receiving indices.
 * **Breaking:** Built-in event, command, curriculum, action, observation, reward and modifier terms select
-  environments with ``env_mask`` (a boolean tensor of shape ``(num_envs,)``) instead of ``env_ids``. They compute for
-  all environments and leave unselected ones unchanged. Terms that still take ``env_ids`` keep working: managers pass
+  environments with ``env_mask`` instead of ``env_ids``: a :class:`~isaaclab.utils.warp.ProxyArray` over a Warp
+  boolean array of shape ``(num_envs,)``. Torch terms read ``env_mask.torch`` (a cached zero-copy view) and pass
+  ``env_mask.warp`` to assets and sensors. They compute for all environments and leave unselected ones unchanged. Terms that still take ``env_ids`` keep working: managers pass
   them indices, which synchronizes the device, and skip the call when no environment is selected.
 * **Breaking:** Command metrics, the rewards' episodic sums and curriculum states are logged as tensors averaged over
   the reset environments. A logged value keeps its previous value on steps where no environment reset.

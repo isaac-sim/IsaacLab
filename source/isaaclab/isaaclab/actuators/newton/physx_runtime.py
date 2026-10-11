@@ -17,8 +17,6 @@ from .adapter import NewtonActuatorAdapter, build_implicit_dof_mask
 from .physx_wrapper import PhysxActuatorWrapper
 
 if TYPE_CHECKING:
-    import torch
-
     from .. import ActuatorCollection
 
 
@@ -127,7 +125,7 @@ class PhysxActuatorRuntime:
                     return
         self._run_native_actuator_kernels(collection, dt)
 
-    def reset(self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         """Reset selected native actuator state.
 
         Args:

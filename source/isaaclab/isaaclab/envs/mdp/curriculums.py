@@ -19,6 +19,7 @@ import torch
 
 from ...managers import CurriculumTermCfg, ManagerTermBase
 from ...utils import env_selection_kwargs
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .. import ManagerBasedRLEnv
@@ -41,7 +42,7 @@ class modify_reward_weight(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         term_name: str,
         weight: float,
         num_steps: int,
@@ -160,7 +161,7 @@ class modify_env_param(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         address: str,
         modify_fn: callable,
         modify_params: dict | None = None,
@@ -333,7 +334,7 @@ class DifficultyScheduler(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         init_difficulty: int = 0,
         min_difficulty: int = 0,
         max_difficulty: int = 50,
@@ -345,7 +346,7 @@ class DifficultyScheduler(ManagerTermBase):
         current = self.current_difficulties
         demoted = current if promotion_only else current - 1
         updated = torch.where(succeeded, current + 1, demoted).clamp(min=min_difficulty, max=max_difficulty)
-        torch.where(env_mask, updated, current, out=self.current_difficulties)
+        torch.where(env_mask.torch, updated, current, out=self.current_difficulties)
         # Python float: the dependent curriculum terms compare and interpolate host-side
         # note: this synchronizes the device on every curriculum update
         self.difficulty_frac = (torch.mean(self.current_difficulties) / max(max_difficulty, 1)).item()
@@ -354,7 +355,7 @@ class DifficultyScheduler(ManagerTermBase):
 
 def initial_final_interpolate_fn(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     data: Any,
     initial_value: Any,
     final_value: Any,

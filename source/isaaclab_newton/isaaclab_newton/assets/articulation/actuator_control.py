@@ -11,7 +11,6 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
 import warp as wp
 
 from isaaclab.actuators import ActuatorCollection
@@ -27,8 +26,6 @@ from isaaclab.utils import index_fill_
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 
 if TYPE_CHECKING:
-    import torch
-
     from .articulation import Articulation
 
 logger = logging.getLogger(__name__)
@@ -95,8 +92,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             computed_effort = view.get_attribute("joint_f", _DofBuffer(adapter.computed_effort))[:, 0]
             self._reset_dof_mask = wp.zeros(adapter.computed_effort.shape[0], dtype=wp.bool, device=self.device)
             self._reset_dof_view = view.get_attribute("joint_f", _DofBuffer(self._reset_dof_mask))[:, 0]
-            self._reset_row_mask = torch.zeros(self.num_instances, dtype=torch.bool, device=self.device)
-            self._reset_row_mask_wp = wp.from_torch(self._reset_row_mask, dtype=wp.bool)
+            self._reset_row_mask = wp.zeros(self.num_instances, dtype=wp.bool, device=self.device)
             binding = adapter.bind_articulation(
                 implicit_joint_indices=collection._implicit_group_joint_indices(),
                 num_joints=self.num_joints,
@@ -221,22 +217,19 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 articulation._ALL_ENV_MASK,
             )
 
-    def reset_native_actuators(
-        self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None
-    ) -> None:
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         adapter = self._physics_manager.backend.actuators
         if not self._native_actuator_path_active or adapter is None:
             return
-        row_mask = self._reset_row_mask
-        if env_mask is not None:
-            row_mask.copy_(wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask)
-        else:
+        if env_mask is None:
+            env_mask = self._reset_row_mask
+            row_mask = wp.to_torch(env_mask)
             row_mask.zero_()
             index_fill_(row_mask, env_ids, True)
         wp.launch(
             _select_row_dofs,
             dim=self._reset_dof_view.shape,
-            inputs=[self._reset_row_mask_wp],
+            inputs=[env_mask],
             outputs=[self._reset_dof_view],
             device=self.device,
         )

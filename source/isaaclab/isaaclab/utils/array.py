@@ -17,6 +17,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from .warp.proxy_array import ProxyArray
+
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
 
@@ -48,8 +50,8 @@ inner dictionary are the source backend (``np.ndarray``, ``torch.Tensor``, ``wp.
 
 def env_mask_from_ids(
     env_ids: Sequence[int] | torch.Tensor | slice | None, num_envs: int, device: torch.device | str
-) -> torch.Tensor:
-    """Return a boolean mask that selects ``env_ids`` without synchronizing the device.
+) -> ProxyArray:
+    """Return a Warp boolean mask that selects ``env_ids`` without synchronizing the device.
 
     Args:
         env_ids: Integer indices, a boolean mask, or a slice. None selects every environment.
@@ -57,16 +59,17 @@ def env_mask_from_ids(
         device: Device of the mask.
 
     Returns:
-        Boolean mask. Shape is (num_envs,).
+        Boolean mask with a cached Torch view. Shape is (num_envs,).
     """
+    mask = ProxyArray(wp.zeros(num_envs, dtype=wp.bool, device=str(device)))
     if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
-        return env_ids
-    mask = torch.zeros(num_envs, dtype=torch.bool, device=device)
-    index_fill_(mask, slice(None) if env_ids is None else env_ids, True)
+        mask.torch.copy_(env_ids)
+    else:
+        index_fill_(mask.torch, slice(None) if env_ids is None else env_ids, True)
     return mask
 
 
-def env_ids_from_mask(env_mask: torch.Tensor | None) -> torch.Tensor | slice:
+def env_ids_from_mask(env_mask: ProxyArray | None) -> torch.Tensor | slice:
     """Return the indices selected by ``env_mask``.
 
     This synchronizes the device, since the number of indices is data dependent. Use it only for consumers that
@@ -80,7 +83,7 @@ def env_ids_from_mask(env_mask: torch.Tensor | None) -> torch.Tensor | slice:
     """
     if env_mask is None:
         return slice(None)
-    return env_mask.nonzero().squeeze(-1)
+    return env_mask.torch.nonzero().squeeze(-1)
 
 
 def index_fill_(
@@ -169,7 +172,7 @@ def convert_to_torch(
 
 def env_selection_kwargs(
     fn: Callable[..., Any],
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     env_ids: Sequence[int] | torch.Tensor | slice | None = None,
 ) -> dict[str, Any] | None:
     """Return the keyword argument that selects environments for ``fn``.

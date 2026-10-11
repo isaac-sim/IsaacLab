@@ -16,6 +16,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils import env_mask_from_ids
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.reorient.utils import EpisodeErrorRecorder
 
@@ -57,7 +58,7 @@ class HandoverCommand(CommandTerm):
         self._minimum_goal_distance.update(goal_distance)
         self._succeeded |= goal_distance < self.cfg.success_distance_threshold
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         if env_mask is None:
             env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
         # The base class averages the metric over the reset envs and zeroes it, so the episode's success bit is
@@ -65,22 +66,22 @@ class HandoverCommand(CommandTerm):
         # it passed through it; the latch guards the first reset, before any distance is measured.
         success = (self.metrics["goal_distance"] < self.cfg.success_distance_threshold) & self._succeeded
         success_rate = self.metrics["success_rate"]
-        torch.where(env_mask, success.float(), success_rate, out=success_rate)
+        torch.where(env_mask.torch, success.float(), success_rate, out=success_rate)
         extras = super().reset(env_mask=env_mask)
-        self._succeeded.masked_fill_(env_mask, False)
+        self._succeeded.masked_fill_(env_mask.torch, False)
         log = self._env.extras.setdefault("log", {})
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # card across tasks); pop it from the returned dict so CommandManager does not
         # additionally log it under ``Metrics/<term_name>/success_rate``.
         log["Metrics/success_rate"] = extras.pop("success_rate")
-        for statistic, value in self._minimum_goal_distance.reset(env_mask).items():
+        for statistic, value in self._minimum_goal_distance.reset(env_mask.torch).items():
             log[f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         return extras
 
-    def _resample_command(self, env_mask: torch.Tensor) -> None:
+    def _resample_command(self, env_mask: ProxyArray) -> None:
         # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
         quat = math_utils.random_orientation(self.num_envs, device=self.device)
-        torch.where(env_mask[:, None], quat, self.quat_command_w, out=self.quat_command_w)
+        torch.where(env_mask.torch[:, None], quat, self.quat_command_w, out=self.quat_command_w)
 
     def _update_command(self) -> None:
         pass

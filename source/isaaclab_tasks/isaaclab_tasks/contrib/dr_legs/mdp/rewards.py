@@ -21,6 +21,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -118,14 +119,14 @@ class ActionRate2L2(ManagerTermBase):
         self._prev_action = torch.zeros((env.num_envs, dim), device=env.device)
         self._prev_prev_action = torch.zeros((env.num_envs, dim), device=env.device)
 
-    def reset(self, env_mask: torch.Tensor):
+    def reset(self, env_mask: ProxyArray):
         """Clear the action history of the reset environments.
 
         Args:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
-        self._prev_action.masked_fill_(env_mask.unsqueeze(-1), 0.0)
-        self._prev_prev_action.masked_fill_(env_mask.unsqueeze(-1), 0.0)
+        self._prev_action.masked_fill_(env_mask.torch.unsqueeze(-1), 0.0)
+        self._prev_prev_action.masked_fill_(env_mask.torch.unsqueeze(-1), 0.0)
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         current_action = env.action_manager.action
@@ -241,7 +242,7 @@ class walk_success_rate(ManagerTermBase):
         self._vel_yaw_threshold = 0.4
         self._contact_match_threshold = 0.7
 
-    def reset(self, env_mask: torch.Tensor):
+    def reset(self, env_mask: ProxyArray):
         """Log the episode metrics of the reset environments and clear their accumulators.
 
         Args:
@@ -258,14 +259,14 @@ class walk_success_rate(ManagerTermBase):
             & (err_yaw < self._vel_yaw_threshold)
             & (contact >= self._contact_match_threshold)
         )
-        num_reset = env_mask.sum().clamp_min(1)
+        num_reset = env_mask.torch.sum().clamp_min(1)
         log = self._env.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = torch.where(env_mask, success, False).sum() / num_reset
-        log["Metrics/error_vel_xy"] = torch.where(env_mask, err_xy, 0.0).sum() / num_reset
-        log["Metrics/error_vel_yaw"] = torch.where(env_mask, err_yaw, 0.0).sum() / num_reset
-        log["Metrics/contact_match_rate"] = torch.where(env_mask, contact, 0.0).sum() / num_reset
+        log["Metrics/success_rate"] = torch.where(env_mask.torch, success, False).sum() / num_reset
+        log["Metrics/error_vel_xy"] = torch.where(env_mask.torch, err_xy, 0.0).sum() / num_reset
+        log["Metrics/error_vel_yaw"] = torch.where(env_mask.torch, err_yaw, 0.0).sum() / num_reset
+        log["Metrics/contact_match_rate"] = torch.where(env_mask.torch, contact, 0.0).sum() / num_reset
         for buffer in (self._err_xy_sum, self._err_yaw_sum, self._contact_sum, self._steps):
-            buffer.masked_fill_(env_mask, 0.0)
+            buffer.masked_fill_(env_mask.torch, 0.0)
 
     def __call__(
         self,

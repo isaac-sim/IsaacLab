@@ -18,6 +18,7 @@ from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.utils import replace
 from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
+from isaaclab.utils.warp import ProxyArray
 
 from .utils import sample_object_point_cloud
 
@@ -257,7 +258,7 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         self.node_ids = torch.empty(env.num_envs, self.num_points, dtype=torch.long, device=env.device)
         self.reset()
 
-    def reset(self, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_mask: ProxyArray | None = None) -> None:
         """Resample observed deformable nodes for the selected environments.
 
         Args:
@@ -273,7 +274,7 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         if env_mask is None:
             self.node_ids.copy_(node_ids)
         else:
-            torch.where(env_mask.unsqueeze(-1), node_ids, self.node_ids, out=self.node_ids)
+            torch.where(env_mask.torch.unsqueeze(-1), node_ids, self.node_ids, out=self.node_ids)
 
     def __call__(
         self,

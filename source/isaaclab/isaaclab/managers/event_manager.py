@@ -12,9 +12,11 @@ import logging
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 from prettytable import PrettyTable
 
 from ..utils import env_selection_kwargs, takes_env_mask
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
@@ -123,7 +125,7 @@ class EventManager(ManagerBase):
     """
 
     def reset(
-        self, env_ids: torch.Tensor | slice | None = slice(None), env_mask: torch.Tensor | None = None
+        self, env_ids: torch.Tensor | slice | None = slice(None), env_mask: ProxyArray | None = None
     ) -> dict[str, float]:
         """Reset event state for the selected environments, defaulting to all environments.
 
@@ -150,7 +152,7 @@ class EventManager(ManagerBase):
                 #   counter across resets, so we do not resample them either
                 if not term_cfg.is_global_time and term_cfg.resample_interval_on_reset:
                     time_left = self._interval_term_time_left[index]
-                    torch.where(env_mask, self._sample_interval(term_cfg, time_left), time_left, out=time_left)
+                    torch.where(env_mask.torch, self._sample_interval(term_cfg, time_left), time_left, out=time_left)
 
         # nothing to log here
         return {}
@@ -161,7 +163,7 @@ class EventManager(ManagerBase):
         env_ids: torch.Tensor | slice | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
-        env_mask: torch.Tensor | None = None,
+        env_mask: ProxyArray | None = None,
     ):
         """Calls each event term in the specified mode.
 
@@ -244,8 +246,9 @@ class EventManager(ManagerBase):
                         else:
                             term_cfg.func(self._env, None, **term_cfg.params)
                 else:
-                    due = time_left < 1e-6
-                    torch.where(due, self._sample_interval(term_cfg, time_left), time_left, out=time_left)
+                    due = self._interval_term_due[index]
+                    torch.lt(time_left, 1e-6, out=due.torch)
+                    torch.where(due.torch, self._sample_interval(term_cfg, time_left), time_left, out=time_left)
                     self._call_term(term_cfg, due)
             elif mode == "reset":
                 valid = env_mask
@@ -258,17 +261,20 @@ class EventManager(ManagerBase):
                     # never been triggered (usually only needed at the start of the environment)
                     steps_since_triggered = global_env_step_count - last_triggered_step
                     first_trigger = (last_triggered_step == 0) & ~triggered_at_least_once
-                    valid = env_mask & ((steps_since_triggered >= min_step_count) | first_trigger)
+                    valid = self._reset_term_valid[index]
+                    torch.logical_and(
+                        env_mask.torch, (steps_since_triggered >= min_step_count) | first_trigger, out=valid.torch
+                    )
                 # record the trigger for each selected environment
-                last_triggered_step.masked_fill_(valid, global_env_step_count)
-                triggered_at_least_once |= valid
+                last_triggered_step.masked_fill_(valid.torch, global_env_step_count)
+                triggered_at_least_once |= valid.torch
                 self._call_term(term_cfg, valid, env_ids if min_step_count == 0 else None)
             elif env_mask is not None or takes_env_mask(term_cfg.func):
                 self._call_term(term_cfg, *self._env_selection(env_ids, env_mask))
             else:
                 term_cfg.func(self._env, env_ids, **term_cfg.params)
 
-    def _call_term(self, term_cfg: EventTermCfg, env_mask: torch.Tensor, env_ids: torch.Tensor | slice | None = None):
+    def _call_term(self, term_cfg: EventTermCfg, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None = None):
         """Call an event term on the environments selected by ``env_mask``, or by ``env_ids`` if given."""
         selection = env_selection_kwargs(term_cfg.func, env_mask, env_ids)
         if selection is not None:
@@ -334,9 +340,13 @@ class EventManager(ManagerBase):
         # buffer to store the time left for "interval" mode
         # if interval is global, then it is a single value, otherwise it is per environment
         self._interval_term_time_left: list[torch.Tensor] = list()
+        # boolean masks of the environments due for each interval term (None for global-time terms)
+        self._interval_term_due: list[ProxyArray | None] = list()
         # buffer to store the step count when the term was last triggered for each environment for "reset" mode
         self._reset_term_last_triggered_step_id: list[torch.Tensor] = list()
         self._reset_term_last_triggered_once: list[torch.Tensor] = list()
+        # boolean masks of the environments each reset term applies to
+        self._reset_term_valid: list[ProxyArray] = list()
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -406,11 +416,14 @@ class EventManager(ManagerBase):
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(1) * (upper - lower) + lower
                     self._interval_term_time_left.append(time_left)
+                    self._interval_term_due.append(None)
                 else:
                     # sample the time left for each environment
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(self.num_envs, device=self.device) * (upper - lower) + lower
                     self._interval_term_time_left.append(time_left)
+                    due = ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device))
+                    self._interval_term_due.append(due)
             # -- reset mode
             elif term_cfg.mode == "reset":
                 if term_cfg.min_step_count_between_reset < 0:
@@ -425,3 +438,4 @@ class EventManager(ManagerBase):
                 # initialize the trigger flag for each environment to zero
                 no_trigger = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
                 self._reset_term_last_triggered_once.append(no_trigger)
+                self._reset_term_valid.append(ProxyArray(wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)))

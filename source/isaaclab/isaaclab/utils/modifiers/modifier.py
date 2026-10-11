@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..array import index_fill_
+from ..warp import ProxyArray
 from .modifier_base import ModifierBase
 
 if TYPE_CHECKING:
@@ -156,7 +157,7 @@ class DigitalFilter(ModifierBase):
         self.x_n = torch.zeros(self._data_dim + (self.B.shape[0],), device=self._device)
         self.y_n = torch.zeros(self._data_dim + (self.A.shape[0],), device=self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Resets digital filter history.
 
         Args:
@@ -165,7 +166,7 @@ class DigitalFilter(ModifierBase):
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
                 Takes precedence over ``env_ids``.
         """
-        env_selection = env_ids if env_mask is None else env_mask
+        env_selection = env_ids if env_mask is None else env_mask.torch
         # reset history buffers
         index_fill_(self.x_n, env_selection, 0.0)
         index_fill_(self.y_n, env_selection, 0.0)
@@ -232,7 +233,7 @@ class Integrator(ModifierBase):
         self.integral = torch.zeros(self._data_dim, device=self._device)
         self.y_prev = torch.zeros(self._data_dim, device=self._device)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Resets integrator state to zero.
 
         Args:
@@ -241,7 +242,7 @@ class Integrator(ModifierBase):
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None.
                 Takes precedence over ``env_ids``.
         """
-        env_selection = env_ids if env_mask is None else env_mask
+        env_selection = env_ids if env_mask is None else env_mask.torch
         # reset history buffers
         index_fill_(self.integral, env_selection, 0.0)
         index_fill_(self.y_prev, env_selection, 0.0)

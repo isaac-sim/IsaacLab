@@ -17,6 +17,7 @@ from ..physics import PhysicsEvent, PhysicsManager
 from ..utils import env_mask_from_ids, env_selection_kwargs, string_to_callable, to_dict
 from ..utils import string as string_utils
 from ..utils.modifiers import ModifierCfg
+from ..utils.warp import ProxyArray
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -92,7 +93,7 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         """Resets the manager term.
 
         Managers pass ``env_mask`` to terms whose ``reset`` declares it, and indices otherwise. See
@@ -216,7 +217,7 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
 
         Args:
@@ -231,8 +232,8 @@ class ManagerBase(ABC):
         return {}
 
     def _env_selection(
-        self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: torch.Tensor | None
-    ) -> tuple[torch.Tensor, Sequence[int] | torch.Tensor | slice | None]:
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: ProxyArray | None
+    ) -> tuple[ProxyArray, Sequence[int] | torch.Tensor | slice | None]:
         """Resolve a reset selection.
 
         Args:
@@ -248,7 +249,7 @@ class ManagerBase(ABC):
         return env_mask_from_ids(env_ids, self.num_envs, self.device), env_ids
 
     def _reset_term(
-        self, term: Any, env_mask: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | slice | None = None
+        self, term: Any, env_mask: ProxyArray, env_ids: Sequence[int] | torch.Tensor | slice | None = None
     ) -> Any:
         """Reset a term (or modifier) with the selection its ``reset`` takes.
 

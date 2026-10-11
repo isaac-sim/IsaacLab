@@ -15,6 +15,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import quat_apply, quat_mul
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -30,7 +31,7 @@ __all__ = [
 
 def reset_task_stage(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     print_log: bool = False,
 ) -> None:
     """Reset task stage to 0 for specified environments.
@@ -46,30 +47,30 @@ def reset_task_stage(
     from .rewards import get_assemble_trocar_state
 
     s = get_assemble_trocar_state(env)
-    s.task_stage.masked_fill_(env_mask, 0)
+    s.task_stage.masked_fill_(env_mask.torch, 0)
 
     # Reset dense-reward locked caches
-    s.lift_reward_locked.masked_fill_(env_mask, 0)
-    s.tip_reward_locked.masked_fill_(env_mask, 0)
-    s.insertion_reward_locked.masked_fill_(env_mask, 0)
-    s.placement_reward_locked.masked_fill_(env_mask, 0)
+    s.lift_reward_locked.masked_fill_(env_mask.torch, 0)
+    s.tip_reward_locked.masked_fill_(env_mask.torch, 0)
+    s.insertion_reward_locked.masked_fill_(env_mask.torch, 0)
+    s.placement_reward_locked.masked_fill_(env_mask.torch, 0)
 
     # Reset sparse-reward previous-stage trackers
-    s.prev_stage_lift.masked_fill_(env_mask, 0)
-    s.prev_stage_tip.masked_fill_(env_mask, 0)
-    s.prev_stage_insert.masked_fill_(env_mask, 0)
-    s.prev_stage_place.masked_fill_(env_mask, 0)
+    s.prev_stage_lift.masked_fill_(env_mask.torch, 0)
+    s.prev_stage_tip.masked_fill_(env_mask.torch, 0)
+    s.prev_stage_insert.masked_fill_(env_mask.torch, 0)
+    s.prev_stage_place.masked_fill_(env_mask.torch, 0)
 
     # Reset debug throttle
     s.last_debug_print_step = -1
 
     if print_log:
-        logger.debug("Reset task stage for %d environment(s)", int(env_mask.sum()))
+        logger.debug("Reset task stage for %d environment(s)", int(env_mask.torch.sum()))
 
 
 def reset_tray_with_random_rotation(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     tray_cfg: SceneEntityCfg,
     trocar_1_cfg: SceneEntityCfg,
     trocar_2_cfg: SceneEntityCfg,
@@ -179,13 +180,13 @@ def reset_tray_with_random_rotation(
 
     zero_velocity = torch.zeros(num_envs, 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
 
-    tray.write_root_pose_to_sim_mask(root_pose=tray_new_pose, env_mask=env_mask)
-    trocar_1.write_root_pose_to_sim_mask(root_pose=trocar_1_new_pose, env_mask=env_mask)
-    trocar_2.write_root_pose_to_sim_mask(root_pose=trocar_2_new_pose, env_mask=env_mask)
+    tray.write_root_pose_to_sim_mask(root_pose=tray_new_pose, env_mask=env_mask.warp)
+    trocar_1.write_root_pose_to_sim_mask(root_pose=trocar_1_new_pose, env_mask=env_mask.warp)
+    trocar_2.write_root_pose_to_sim_mask(root_pose=trocar_2_new_pose, env_mask=env_mask.warp)
 
-    tray.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask)
-    trocar_1.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask)
-    trocar_2.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask)
+    tray.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask.warp)
+    trocar_1.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask.warp)
+    trocar_2.write_root_velocity_to_sim_mask(root_velocity=zero_velocity, env_mask=env_mask.warp)
 
 
 def _deterministic_uniform_0_1(env: ManagerBasedRLEnv, seed: int) -> torch.Tensor:
@@ -213,7 +214,7 @@ def _deterministic_uniform_0_1(env: ManagerBasedRLEnv, seed: int) -> torch.Tenso
 
 def reset_robot_to_default_joint_positions(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     robot_cfg: SceneEntityCfg,
 ):
     """Reset robot joint positions directly to default values.
@@ -235,11 +236,11 @@ def reset_robot_to_default_joint_positions(
     default_joint_vel = robot.data.default_joint_vel.torch.clone()
 
     # Directly write joint state to simulation (bypasses PD controller)
-    robot.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask)
-    robot.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask)
+    robot.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask.warp)
+    robot.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask.warp)
 
     # Also reset root pose and velocity
     default_root_pose = robot.data.default_root_pose.torch.clone()
     default_root_vel = robot.data.default_root_vel.torch.clone()
-    robot.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask)
-    robot.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask)
+    robot.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask.warp)
+    robot.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask.warp)

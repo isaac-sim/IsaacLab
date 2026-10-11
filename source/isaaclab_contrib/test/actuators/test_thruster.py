@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 # The thruster model is pure torch bookkeeping; env/motor counts and device select no distinct branch.
 NUM_ENVS = 2
@@ -103,7 +104,7 @@ def test_reset_idx_resamples_only_selected_envs(use_mask):
     prev_tau_inc = thr.tau_inc_s.clone()
 
     if use_mask:
-        thr.reset(env_mask=torch.tensor([True, False, False], device=DEVICE))
+        thr.reset(env_mask=wp.array([True, False, False], dtype=wp.bool, device=DEVICE))
     else:
         thr.reset_idx(torch.tensor([0], dtype=torch.int64, device=DEVICE))
 

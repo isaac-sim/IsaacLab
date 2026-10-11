@@ -15,6 +15,7 @@ import torch
 
 from isaaclab.envs.mdp.actions import RelativeJointPositionAction
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -83,7 +84,7 @@ class ClampedRelativeJointPositionAction(RelativeJointPositionAction):
         self._joint_targets[selected] = position.to(device=self.device, dtype=self._joint_targets.dtype)
 
     def reset(
-        self, env_ids: Sequence[int] | torch.Tensor | slice | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | torch.Tensor | slice | None = None, env_mask: ProxyArray | None = None
     ) -> None:
         """Clear selected action and validity history without changing reset targets.
 
@@ -93,7 +94,7 @@ class ClampedRelativeJointPositionAction(RelativeJointPositionAction):
                 ``env_ids``.
         """
         super().reset(env_ids=env_ids, env_mask=env_mask)
-        selection = env_ids if env_mask is None else env_mask
+        selection = env_ids if env_mask is None else env_mask.torch
         index_fill_(self._processed_actions, selection, 0.0)
         index_fill_(self._previous_actions, selection, 0.0)
         index_fill_(self._invalid_actions, selection, False)

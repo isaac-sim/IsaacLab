@@ -15,6 +15,7 @@ import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_error_magnitude, quat_mul
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
@@ -101,8 +102,8 @@ class success_reward(ManagerTermBase):
         super().__init__(cfg, env)
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
-    def reset(self, env_mask: torch.Tensor):
-        self.succeeded.masked_fill_(env_mask, False)
+    def reset(self, env_mask: ProxyArray):
+        self.succeeded.masked_fill_(env_mask.torch, False)
 
     def __call__(
         self,
@@ -232,8 +233,8 @@ class _ProgressReward(ManagerTermBase):
         self.best_error = torch.full((env.num_envs,), float("inf"), device=env.device)
         self._prev_command: torch.Tensor | None = None
 
-    def reset(self, env_mask: torch.Tensor):
-        self.best_error.masked_fill_(env_mask, float("inf"))
+    def reset(self, env_mask: ProxyArray):
+        self.best_error.masked_fill_(env_mask.torch, float("inf"))
 
     def _progress(
         self, error: torch.Tensor, gate: torch.Tensor, min_improvement: float, command: torch.Tensor
@@ -399,10 +400,10 @@ class _GoalDistanceReward(ManagerTermBase):
         super().__init__(cfg, env)
         self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
-    def reset(self, env_mask: torch.Tensor) -> None:
-        success_rate = (self._succeeded & env_mask).sum() / env_mask.sum().clamp_min(1)
+    def reset(self, env_mask: ProxyArray) -> None:
+        success_rate = (self._succeeded & env_mask.torch).sum() / env_mask.torch.sum().clamp_min(1)
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success_rate
-        self._succeeded.masked_fill_(env_mask, False)
+        self._succeeded.masked_fill_(env_mask.torch, False)
 
 
 class DeformableComGoalDistance(_GoalDistanceReward):

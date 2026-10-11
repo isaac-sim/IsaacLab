@@ -19,6 +19,7 @@ from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils import env_selection_kwargs, instantiate
 from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
@@ -42,7 +43,7 @@ if TYPE_CHECKING:
 
 def reset_joints_shared_offset(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
     asset_cfg: SceneEntityCfg,
 ):
@@ -68,9 +69,9 @@ def reset_joints_shared_offset(
     offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
     joint_mask = _joint_mask(asset, asset_cfg.joint_ids)
-    asset.write_joint_position_to_sim_mask(position=positions, joint_mask=joint_mask, env_mask=env_mask)
+    asset.write_joint_position_to_sim_mask(position=positions, joint_mask=joint_mask, env_mask=env_mask.warp)
     asset.write_joint_velocity_to_sim_mask(
-        velocity=torch.zeros_like(positions), joint_mask=joint_mask, env_mask=env_mask
+        velocity=torch.zeros_like(positions), joint_mask=joint_mask, env_mask=env_mask.warp
     )
 
 
@@ -88,7 +89,7 @@ def _joint_mask(asset: Articulation, joint_ids: Sequence[int] | torch.Tensor | s
 
 def reset_cable_state_uniform(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("cable"),
 ) -> None:
@@ -98,20 +99,11 @@ def reset_cable_state_uniform(
     segment_velocity = asset.data.default_segment_velocity_w.torch.clone()
     offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), segment_pose.shape[0], device=asset.device)
     segment_pose[..., :3] += offset.unsqueeze(1)
-    wp_mask = wp.from_torch(env_mask, dtype=wp.bool)
-    asset.write_segment_pose_to_sim_mask(segment_pose=segment_pose, env_mask=wp_mask)
-    asset.write_segment_velocity_to_sim_mask(segment_velocity=segment_velocity, env_mask=wp_mask)
+    asset.write_segment_pose_to_sim_mask(segment_pose=segment_pose, env_mask=env_mask.warp)
+    asset.write_segment_velocity_to_sim_mask(segment_velocity=segment_velocity, env_mask=env_mask.warp)
 
 
-def reset_to_target(
-    env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    probability: float,
-    target_cfg: SceneEntityCfg,
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-):
+class reset_to_target(ManagerTermBase):
     """Reset a fraction of the assets onto a target body with a uniformly random orientation.
 
     Each environment is selected with :paramref:`probability`; selected assets are placed at
@@ -125,39 +117,58 @@ def reset_to_target(
 
     The target body pose is read from the live simulation state, so the term must run after
     the reset terms that pose the target asset (dict order inside the wrapper).
-
-    Args:
-        env: The environment.
-        env_mask: Boolean mask of the environments being reset. Shape is (num_envs,).
-        pose_range: Position offset ranges in the target body frame [m], keys ``x``/``y``/``z``.
-        velocity_range: Velocity ranges, keys ``x``/``y``/``z``/``roll``/``pitch``/``yaw``
-            [m/s, rad/s].
-        probability: Per-environment selection probability.
-        target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
-        asset_cfg: The asset to reset.
     """
-    # sample for every environment and write only the picked ones
-    num_envs = env.num_envs
-    picked = env_mask & (torch.rand(num_envs, device=env.device) < probability)
-    asset = env.scene[asset_cfg.name]
-    target = env.scene[target_cfg.name]
-    target_pos = target.data.body_pos_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :3]
-    target_quat = target.data.body_quat_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :4]
 
-    keys = ("x", "y", "z")
-    offsets = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
-    # offsets are expressed in the target body frame, so e.g. a +z range places the object
-    # along the gripper approach axis (between the fingertips) at any hand orientation
-    local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (num_envs, 3), device=asset.device)
-    positions = target_pos + quat_apply(target_quat, local_offsets)
-    orientations = random_orientation(num_envs, device=asset.device)
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        super().__init__(cfg, env)
+        # environments picked for the target reset at the current call
+        self._picked = ProxyArray(wp.zeros(env.num_envs, dtype=wp.bool, device=env.device))
 
-    keys = ("x", "y", "z", "roll", "pitch", "yaw")
-    vel_ranges = torch.tensor([tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
-    velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (num_envs, 6), device=asset.device)
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: ProxyArray,
+        pose_range: dict[str, tuple[float, float]],
+        velocity_range: dict[str, tuple[float, float]],
+        probability: float,
+        target_cfg: SceneEntityCfg,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ):
+        """Reset the picked environments onto the target body.
 
-    asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=picked)
-    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=picked)
+        Args:
+            env: The environment.
+            env_mask: Boolean mask of the environments being reset. Shape is (num_envs,).
+            pose_range: Position offset ranges in the target body frame [m], keys ``x``/``y``/``z``.
+            velocity_range: Velocity ranges, keys ``x``/``y``/``z``/``roll``/``pitch``/``yaw``
+                [m/s, rad/s].
+            probability: Per-environment selection probability.
+            target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
+            asset_cfg: The asset to reset.
+        """
+        # sample for every environment and write only the picked ones
+        num_envs = env.num_envs
+        torch.logical_and(env_mask.torch, torch.rand(num_envs, device=env.device) < probability, out=self._picked.torch)
+        asset = env.scene[asset_cfg.name]
+        target = env.scene[target_cfg.name]
+        target_pos = target.data.body_pos_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :3]
+        target_quat = target.data.body_quat_w.torch[:, target_cfg.body_ids, :].reshape(num_envs, -1)[:, :4]
+
+        keys = ("x", "y", "z")
+        offsets = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
+        # offsets are expressed in the target body frame, so e.g. a +z range places the object
+        # along the gripper approach axis (between the fingertips) at any hand orientation
+        local_offsets = sample_uniform(offsets[:, 0], offsets[:, 1], (num_envs, 3), device=asset.device)
+        positions = target_pos + quat_apply(target_quat, local_offsets)
+        orientations = random_orientation(num_envs, device=asset.device)
+
+        keys = ("x", "y", "z", "roll", "pitch", "yaw")
+        vel_ranges = torch.tensor([tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)
+        velocities = sample_uniform(vel_ranges[:, 0], vel_ranges[:, 1], (num_envs, 6), device=asset.device)
+
+        picked = self._picked.warp
+        asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=picked)
+        asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=picked)
 
 
 class reset_to_grasp(ManagerTermBase):
@@ -212,11 +223,13 @@ class reset_to_grasp(ManagerTermBase):
         self._joint_positions = torch.zeros((env.num_envs, self._gripper.num_joints), device=env.device)
         self._zero_joint_velocities = torch.zeros_like(self._joint_positions)
         self._zero_root_velocities = torch.zeros((env.num_envs, 6), device=env.device)
+        # environments picked for a pre-grasp at the current reset
+        self._picked = ProxyArray(wp.zeros(env.num_envs, dtype=wp.bool, device=env.device))
 
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         pose_range: dict[str, tuple[float, float]],
         probability: float,
         target_cfg: SceneEntityCfg,
@@ -240,7 +253,8 @@ class reset_to_grasp(ManagerTermBase):
         """
         # sample for every environment and write only the picked ones
         num_envs = env.num_envs
-        picked = env_mask & (torch.rand(num_envs, device=env.device) < probability)
+        torch.logical_and(env_mask.torch, torch.rand(num_envs, device=env.device) < probability, out=self._picked.torch)
+        picked = self._picked.warp
 
         target_pos = self._target.data.body_pos_w.torch[:, self._target_body_ids, :].flatten(1)[:, :3]
         target_quat = self._target.data.body_quat_w.torch[:, self._target_body_ids, :].flatten(1)[:, :4]
@@ -262,7 +276,7 @@ class reset_to_grasp(ManagerTermBase):
         self._gripper.actuators.target_command.set_position_mask(
             value=self._joint_positions,
             joint_mask=self._gripper_joint_mask,
-            env_mask=wp.from_torch(picked, dtype=wp.bool),
+            env_mask=picked,
         )
         self._asset.write_root_pose_to_sim_mask(root_pose=torch.cat((positions, orientations), dim=-1), env_mask=picked)
         self._asset.write_root_velocity_to_sim_mask(root_velocity=self._zero_root_velocities, env_mask=picked)
@@ -313,7 +327,7 @@ class conditional_reset(ManagerTermBase):
         # bank row each environment is currently playing; -1 until its first restore
         self._playing_row = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
 
-    def reset(self, env_mask: torch.Tensor):
+    def reset(self, env_mask: ProxyArray):
         """Log how well the policy does across the bank, once a monitor is tracking it.
 
         Reported from here rather than from the reward term because the bank is what the number is
@@ -326,7 +340,7 @@ class conditional_reset(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         terms: dict[str, EventTermCfg],
         valid_criteria: dict[str, ManagerTermBaseCfg],
         buffer_size_per_group: int = 20,
@@ -400,7 +414,7 @@ class conditional_reset(ManagerTermBase):
             # prefill ignores env_mask and rolls every environment: a partial first reset may
             # not cover all groups, and a group with no rolled envs could never fill
             all_ids = torch.arange(env.num_envs, device=env.device)
-            roll_mask = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+            roll_mask = ProxyArray(wp.ones(env.num_envs, dtype=wp.bool, device=env.device))
 
             with tqdm(
                 total=num_groups * harvest_size,
@@ -471,8 +485,8 @@ class conditional_reset(ManagerTermBase):
             # credit before drawing: the outcome belongs to the row these environments were playing
             self._credit_episodes(env, env_mask, self._monitor, success_reward_term)
             rows = self._monitor.sample_by_target_rate(groups)
-            torch.where(env_mask, rows, self._playing_row, out=self._playing_row)
-        set_reset_state_mask(env, self._buffer[rows], env_mask, self._reset_assets, is_relative=True)
+            torch.where(env_mask.torch, rows, self._playing_row, out=self._playing_row)
+        set_reset_state_mask(env, self._buffer[rows], env_mask.warp, self._reset_assets, is_relative=True)
 
     def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.
@@ -498,7 +512,7 @@ class conditional_reset(ManagerTermBase):
     def _credit_episodes(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         monitor: SuccessMonitor,
         success_reward_term: str,
     ):
@@ -518,7 +532,7 @@ class conditional_reset(ManagerTermBase):
                 )
         played = self._playing_row
         # an environment that is not reset, or has not been restored yet, has no episode to credit
-        monitor.success_update(played, self._success_term.succeeded, valid=env_mask & (played >= 0))
+        monitor.success_update(played, self._success_term.succeeded, valid=env_mask.torch & (played >= 0))
 
 
 class grasp_travel_distance(ManagerTermBase):
@@ -940,7 +954,7 @@ class slab_clearance(ManagerTermBase):
 
 def reset_deformable_over_support(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: dict[str, tuple[float, float]],
     clear_gap_range: tuple[float, float],
     support_cfg: tuple[SceneEntityCfg, SceneEntityCfg],
@@ -962,7 +976,7 @@ def reset_deformable_over_support(
 
     # sample for every environment and write only the selected ones
     num_envs = env.num_envs
-    wp_mask = wp.from_torch(env_mask, dtype=wp.bool)
+    wp_mask = env_mask.warp
     offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), num_envs, device=deformable.device)
 
     nodal_state = deformable.data.default_nodal_state_w.torch.clone()

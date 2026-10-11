@@ -17,7 +17,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from ..utils import clone, env_selection_kwargs, instantiate
+from ..utils import clone, instantiate, takes_env_mask
 from ..utils.types import ArticulationActions
 from ..utils.warp import ProxyArray
 from ..utils.warp.launch_cache import _WarpLaunchCache
@@ -183,7 +183,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def reset(
         self,
         env_ids: Sequence[int] | slice | None = None,
-        env_mask: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Reset all actuator group states.
 
@@ -194,17 +194,22 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_instances,). Defaults to None.
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_instances,).
+                Defaults to None.
         """
         if env_mask is not None:
-            env_mask_torch = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
+            env_ids_selected = None
             for actuator in self._groups.values():
                 # Newton-executed groups are reset through the backend below.
                 if isinstance(actuator, ActuatorBase):
+                    if takes_env_mask(actuator.reset):
+                        actuator.reset(env_mask=env_mask)
+                        continue
                     # actuator models that only take indices receive them (synchronizing the device)
-                    selection = env_selection_kwargs(actuator.reset, env_mask_torch)
-                    if selection is not None:
-                        actuator.reset(**selection)
+                    if env_ids_selected is None:
+                        env_ids_selected = wp.to_torch(env_mask).nonzero().squeeze(-1)
+                    if len(env_ids_selected) > 0:
+                        actuator.reset(env_ids_selected)
             self._control.reset_native_actuators(slice(None), env_mask=env_mask)
             return
         group_env_ids = self._control._normalize_index_sequence(env_ids)

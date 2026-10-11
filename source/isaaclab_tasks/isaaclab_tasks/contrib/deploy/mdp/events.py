@@ -13,6 +13,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.contrib.automate import factory_control as fc
 
@@ -59,7 +60,7 @@ class randomize_gear_type(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         gear_types: list[str] = ["gear_small", "gear_medium", "gear_large"],
     ):
         """Randomize the gear type for specified environments.
@@ -79,7 +80,7 @@ class randomize_gear_type(ManagerTermBase):
         choices = self._choices[key]
         sampled = choices[torch.randint(len(choices), (env.num_envs,), device=env.device)]
         indices = self._current_gear_type_indices
-        torch.where(env_mask, sampled, indices, out=indices)
+        torch.where(env_mask.torch, sampled, indices, out=indices)
 
     def get_gear_type(self, env_id: int) -> str:
         """Get the current gear type for a specific environment.
@@ -426,7 +427,7 @@ class randomize_gears_and_base_pose(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         pose_range: dict = {},
         velocity_range: dict = {},
         gear_pos_range: dict = {},
@@ -507,5 +508,7 @@ class randomize_gears_and_base_pose(ManagerTermBase):
             positions = positions_by_asset[asset_name]
             orientations = orientations_by_asset[asset_name]
             velocities = velocities_by_asset[asset_name]
-            asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask)
-            asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask)
+            asset.write_root_pose_to_sim_mask(
+                root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask.warp
+            )
+            asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask.warp)

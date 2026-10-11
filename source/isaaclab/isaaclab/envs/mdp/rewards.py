@@ -19,6 +19,7 @@ from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import RewardTermCfg
 from ...utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul, wrap_to_pi
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -86,9 +87,10 @@ class survival_success_rate(ManagerTermBase):
     timed out without terminating early.
     """
 
-    def reset(self, env_mask: torch.Tensor) -> None:
-        survived = (self._env.termination_manager.time_outs & env_mask).sum()
-        success_rate = survived / env_mask.sum().clamp_min(1)
+    def reset(self, env_mask: ProxyArray) -> None:
+        mask = env_mask.torch
+        survived = (self._env.termination_manager.time_outs & mask).sum()
+        success_rate = survived / mask.sum().clamp_min(1)
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success_rate
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:

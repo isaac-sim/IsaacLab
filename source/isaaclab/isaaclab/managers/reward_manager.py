@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
@@ -100,7 +101,7 @@ class RewardManager(ManagerBase):
     """
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         """Returns the episodic sum of individual reward terms.
 
@@ -116,10 +117,10 @@ class RewardManager(ManagerBase):
         """
         env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # average of r_1 + r_2 + ... + r_n over the selected environments, for all terms at once
-        selected = env_mask.unsqueeze(-1)
-        episode_sums = torch.where(selected, self._episode_sum_buf, 0.0).sum(dim=0) / env_mask.sum().clamp_min(1)
+        mask = env_mask.torch
+        episode_sums = torch.where(mask.unsqueeze(-1), self._episode_sum_buf, 0.0).sum(dim=0) / mask.sum().clamp_min(1)
         episodic_sum_avg = episode_sums / self._env.max_episode_length_s
-        self._episode_sum_buf.masked_fill_(selected, 0.0)
+        self._episode_sum_buf.masked_fill_(mask.unsqueeze(-1), 0.0)
         extras = {"Episode_Reward/" + key: episodic_sum_avg[i] for i, key in enumerate(self._term_names)}
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:

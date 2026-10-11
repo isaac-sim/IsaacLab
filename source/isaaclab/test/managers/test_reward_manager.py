@@ -11,7 +11,7 @@ import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -189,8 +189,7 @@ def test_reset_with_mask():
     env = SimpleNamespace(num_envs=4, device="cpu", sim=sim, max_episode_length_s=2.0)
     rew_man = RewardManager({"term_1": RewardTermCfg(func=grilled_chicken, weight=1.0)}, env)
     rew_man._episode_sum_buf[:, 0] = torch.arange(env.num_envs, dtype=torch.float)
-    env_mask = torch.zeros(env.num_envs, dtype=torch.bool)
-    env_mask[[1, 3]] = True
+    env_mask = env_mask_from_ids([1, 3], env.num_envs, env.device)
 
     extras = rew_man.reset(env_mask=env_mask)
 
@@ -199,6 +198,6 @@ def test_reset_with_mask():
     expected[[1, 3]] = 0.0
     torch.testing.assert_close(rew_man._episode_sum_buf[:, 0], expected)
     # an empty mask logs zero and changes nothing
-    extras = rew_man.reset(env_mask=torch.zeros(env.num_envs, dtype=torch.bool))
+    extras = rew_man.reset(env_mask=env_mask_from_ids([], env.num_envs, env.device))
     torch.testing.assert_close(extras["Episode_Reward/term_1"], torch.tensor(0.0))
     torch.testing.assert_close(rew_man._episode_sum_buf[:, 0], expected)

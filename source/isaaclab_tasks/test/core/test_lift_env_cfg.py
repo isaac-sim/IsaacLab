@@ -232,7 +232,7 @@ def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> 
     )
 
     term = mdp.reset_to_grasp(cfg, env)
-    term(env, torch.ones(4, dtype=torch.bool), **cfg.params)
+    term(env, ProxyArray(wp.ones(4, dtype=wp.bool, device="cpu")), **cfg.params)
 
     write_kwargs = robot.write_joint_position_to_sim_mask.call_args.kwargs
     torch.testing.assert_close(
@@ -247,9 +247,10 @@ def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> 
         torch.tensor([[0.0, 0.7071068, 0.0, 0.7071068]] * 2 + [[0.0, 0.0, 0.0, 1.0]] * 2),
     )
 
-    env_mask = torch.tensor([True, False, False, True])
+    env_mask = ProxyArray(wp.array([True, False, False, True], dtype=wp.bool, device="cpu"))
     term(env, env_mask, **cfg.params)
-    torch.testing.assert_close(object_asset.write_root_pose_to_sim_mask.call_args.kwargs["env_mask"], env_mask)
+    written_mask = object_asset.write_root_pose_to_sim_mask.call_args.kwargs["env_mask"]
+    assert wp.to_torch(written_mask).tolist() == [True, False, False, True]
 
     cfg.params["grasp_configs"] = cfg.params["grasp_configs"][:1]
     with pytest.raises(ValueError, match="no configured pre-grasp"):

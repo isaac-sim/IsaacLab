@@ -125,7 +125,7 @@ class VisualMaterial(AssetBase):
         if materials:
             materials[0]._render_context.write_visual_materials(materials, channels, env_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         pass
 
     def write_data_to_sim(self) -> None:

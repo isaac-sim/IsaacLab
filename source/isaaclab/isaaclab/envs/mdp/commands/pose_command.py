@@ -18,6 +18,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -152,7 +153,7 @@ class UniformPoseCommand(CommandTerm):
         return success
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         if env_mask is None:
             env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
@@ -160,12 +161,12 @@ class UniformPoseCommand(CommandTerm):
         if self._track_success:
             # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
             # a TensorBoard card with the same metric from other tasks.
-            success_rate = (self._succeeded & env_mask).sum() / env_mask.sum().clamp_min(1)
+            success_rate = (self._succeeded & env_mask.torch).sum() / env_mask.torch.sum().clamp_min(1)
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success_rate
-            self._succeeded.masked_fill_(env_mask, False)
+            self._succeeded.masked_fill_(env_mask.torch, False)
         return extras
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         # sample new pose targets for all the environments and keep them only for the selected ones
         pose_command_b = torch.empty_like(self.pose_command_b)
         # -- position
@@ -180,7 +181,7 @@ class UniformPoseCommand(CommandTerm):
         quat = quat_from_euler_xyz(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2])
         # make sure the quaternion has real part as positive
         pose_command_b[:, 3:] = quat_unique(quat) if self.cfg.make_quat_unique else quat
-        torch.where(env_mask[:, None], pose_command_b, self.pose_command_b, out=self.pose_command_b)
+        torch.where(env_mask.torch[:, None], pose_command_b, self.pose_command_b, out=self.pose_command_b)
 
     def _update_command(self):
         pass

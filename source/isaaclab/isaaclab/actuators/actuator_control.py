@@ -308,9 +308,7 @@ class ActuatorControl(ABC):
         """
         raise NotImplementedError
 
-    def reset_native_actuators(
-        self, env_ids: Sequence[int] | slice, env_mask: wp.array | torch.Tensor | None = None
-    ) -> None:
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         """Reset backend-native actuator state.
 
         .. caution::

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ..ur10_particle_push_env import UR10ParticlePushEnv
@@ -47,7 +48,7 @@ class SinglePushCurriculum(ManagerTermBase):
     def __call__(
         self,
         env: UR10ParticlePushEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
     ) -> dict[str, torch.Tensor]:
         """Credit completed outcomes, draw new reset levels, and return logging state.
 
@@ -57,9 +58,9 @@ class SinglePushCurriculum(ManagerTermBase):
         """
         if env.common_step_counter > 0:
             # count per level with scatter-add, since bincount on the device synchronizes
-            self._episode_count.scatter_add_(0, self._levels, env_mask.long())
-            self._success_count.scatter_add_(0, self._levels, (env_mask & env.success_this_step).long())
-        torch.where(env_mask, self._sample_levels(env.num_envs), self._levels, out=self._levels)
+            self._episode_count.scatter_add_(0, self._levels, env_mask.torch.long())
+            self._success_count.scatter_add_(0, self._levels, (env_mask.torch & env.success_this_step).long())
+        torch.where(env_mask.torch, self._sample_levels(env.num_envs), self._levels, out=self._levels)
 
         state = {
             "mean_level": self._levels.float().mean(),

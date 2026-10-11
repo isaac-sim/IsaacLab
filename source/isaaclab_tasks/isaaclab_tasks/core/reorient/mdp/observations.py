@@ -14,6 +14,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -172,7 +173,7 @@ class ShadowHandCameraFeatures(ManagerTermBase):
         self._shape_probe_pending = True
         self._keypoints_buf = torch.empty(env.num_envs, 8, 3, dtype=torch.float32, device=env.device)
 
-    def reset(self, env_mask: torch.Tensor) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Finish the shape-probe phase on the first Manager reset.
 
         Args:

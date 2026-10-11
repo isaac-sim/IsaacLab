@@ -18,6 +18,7 @@ from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsA
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import instantiate
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.warp import ProxyArray
 
 from ..assembly_keypoints import NIST_BOARD_CFG
 from ..assembly_profile_cfg import AssemblyProfileCfg
@@ -32,7 +33,7 @@ if TYPE_CHECKING:
 
 def reset_fixed_asset_uniform(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     asset_map: dict[str, str],
     pose_range: dict[str, tuple[float, float]],
 ):
@@ -66,13 +67,13 @@ def reset_fixed_asset_uniform(
         nominal_quat, math_utils.quat_from_euler_xyz(samples[:, 3], samples[:, 4], samples[:, 5])
     )
 
-    fixed_asset.write_root_pose_to_sim_mask(root_pose=torch.cat([new_pos, new_quat], dim=1), env_mask=env_mask)
+    fixed_asset.write_root_pose_to_sim_mask(root_pose=torch.cat([new_pos, new_quat], dim=1), env_mask=env_mask.warp)
     fixed_asset.write_root_velocity_to_sim_mask(
-        root_velocity=torch.zeros_like(fixed_asset.data.root_vel_w.torch), env_mask=env_mask
+        root_velocity=torch.zeros_like(fixed_asset.data.root_vel_w.torch), env_mask=env_mask.warp
     )
 
 
-def reset_board_under_fixed_asset(env: ManagerBasedRLEnv, env_mask: torch.Tensor, asset_map: dict[str, str]):
+def reset_board_under_fixed_asset(env: ManagerBasedRLEnv, env_mask: ProxyArray, asset_map: dict[str, str]):
     """Seat the NIST board (and any extra board assets) under the already-placed fixed asset.
 
     Inverse of the board-first placement: solves the board root so ``board ∘ keypoint`` matches the
@@ -91,9 +92,9 @@ def reset_board_under_fixed_asset(env: ManagerBasedRLEnv, env_mask: torch.Tensor
     fixed_pos = fixed_asset.data.root_pos_w.torch
     fixed_quat = fixed_asset.data.root_quat_w.torch
     board_pos, board_quat = keypoint.subtract(fixed_pos, fixed_quat)
-    nistboard.write_root_pose_to_sim_mask(root_pose=torch.cat([board_pos, board_quat], dim=1), env_mask=env_mask)
+    nistboard.write_root_pose_to_sim_mask(root_pose=torch.cat([board_pos, board_quat], dim=1), env_mask=env_mask.warp)
     nistboard.write_root_velocity_to_sim_mask(
-        root_velocity=torch.zeros_like(nistboard.data.root_vel_w.torch), env_mask=env_mask
+        root_velocity=torch.zeros_like(nistboard.data.root_vel_w.torch), env_mask=env_mask.warp
     )
 
     for scene_key, keypoint_attr in asset_map.items():
@@ -101,9 +102,9 @@ def reset_board_under_fixed_asset(env: ManagerBasedRLEnv, env_mask: torch.Tensor
             continue
         extra: Articulation | RigidObject = env.scene[scene_key]
         extra_pos, extra_quat = getattr(NIST_BOARD_CFG, keypoint_attr).combine(board_pos, board_quat)
-        extra.write_root_pose_to_sim_mask(root_pose=torch.cat([extra_pos, extra_quat], dim=1), env_mask=env_mask)
+        extra.write_root_pose_to_sim_mask(root_pose=torch.cat([extra_pos, extra_quat], dim=1), env_mask=env_mask.warp)
         extra.write_root_velocity_to_sim_mask(
-            root_velocity=torch.zeros_like(extra.data.root_vel_w.torch), env_mask=env_mask
+            root_velocity=torch.zeros_like(extra.data.root_vel_w.torch), env_mask=env_mask.warp
         )
 
 
@@ -129,7 +130,7 @@ class reset_held_asset_on_fixed_asset(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         assembly_profile: AssemblyProfileCfg,
         held_asset_align_offset: Offset,
         assembly_fraction_range: tuple[float, float],
@@ -152,15 +153,15 @@ class reset_held_asset_on_fixed_asset(ManagerTermBase):
             )
             pose = torch.cat(held_asset_align_offset.subtract(pos, quat), dim=1)
             vel = held_asset.data.default_root_state.torch[:, 7:]
-            held_asset.write_root_pose_to_sim_mask(root_pose=pose, env_mask=env_mask)
-            held_asset.write_root_com_velocity_to_sim_mask(root_velocity=vel, env_mask=env_mask)
+            held_asset.write_root_pose_to_sim_mask(root_pose=pose, env_mask=env_mask.warp)
+            held_asset.write_root_com_velocity_to_sim_mask(root_velocity=vel, env_mask=env_mask.warp)
             if debug_term:
                 env.sim.render()
 
 
 def reset_held_asset_in_gripper(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     holding_body_cfg: SceneEntityCfg,
     held_asset_cfg: SceneEntityCfg,
     held_asset_graspable_offset: Offset,
@@ -190,15 +191,17 @@ def reset_held_asset_in_gripper(
 
     new_pos_w, new_quat_w = held_asset_graspable_offset.subtract(grasp_pos_w, grasp_quat_w)
 
-    held_asset.write_root_link_pose_to_sim_mask(root_pose=torch.cat([new_pos_w, new_quat_w], dim=1), env_mask=env_mask)
+    held_asset.write_root_link_pose_to_sim_mask(
+        root_pose=torch.cat([new_pos_w, new_quat_w], dim=1), env_mask=env_mask.warp
+    )
     held_asset.write_root_com_velocity_to_sim_mask(
-        root_velocity=held_asset.data.default_root_state.torch[:, 7:], env_mask=env_mask
+        root_velocity=held_asset.data.default_root_state.torch[:, 7:], env_mask=env_mask.warp
     )
 
 
 def grasp_held_asset(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     robot_cfg: SceneEntityCfg,
     held_asset_diameter: float,
     flexible_angle: bool = True,
@@ -214,7 +217,7 @@ def grasp_held_asset(
         joint_pos[:, robot_cfg.joint_ids] = min_angle
 
     robot.write_joint_position_to_sim_mask(
-        position=joint_pos, joint_mask=_joint_mask(robot, robot_cfg.joint_ids), env_mask=env_mask
+        position=joint_pos, joint_mask=_joint_mask(robot, robot_cfg.joint_ids), env_mask=env_mask.warp
     )
 
 

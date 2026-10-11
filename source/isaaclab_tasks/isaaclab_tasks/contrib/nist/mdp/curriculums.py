@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.envs import mdp
 from isaaclab.managers import ManagerTermBase
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -32,7 +33,7 @@ def _recurse(iv_elem, fv_elem, data_elem, frac):
 
 
 def initial_final_interpolate_fn(
-    env: ManagerBasedRLEnv, env_mask: torch.Tensor, data, initial_value, final_value, difficulty_term_str
+    env: ManagerBasedRLEnv, env_mask: ProxyArray, data, initial_value, final_value, difficulty_term_str
 ):
     """Interpolate scalars in an arbitrarily nested list or tuple.
 
@@ -66,7 +67,7 @@ class DifficultyScheduler(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         success_rate_callback: str,
         init_difficulty: int = 0,
         min_difficulty: int = 0,
@@ -82,6 +83,6 @@ class DifficultyScheduler(ManagerTermBase):
         current = self.current_adr_difficulties
         demot = current if promotion_only else current - 1
         updated = torch.where(move_up, current + 1, demot).clamp(min=min_difficulty, max=max_difficulty)
-        torch.where(env_mask, updated, current, out=self.current_adr_difficulties)
+        torch.where(env_mask.torch, updated, current, out=self.current_adr_difficulties)
         self.difficulty_frac = torch.mean(self.current_adr_difficulties) / max(max_difficulty, 1)
         return self.difficulty_frac

@@ -9,6 +9,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 
@@ -176,7 +177,7 @@ class Thruster:
         )
         self.curr_thrust[env_ids] = self.thrust_const[env_ids] * self._init_thruster_rps[env_ids] ** 2
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Re-sample parameters and reinitialize state of the selected envs.
 
         .. caution::
@@ -184,14 +185,14 @@ class Thruster:
 
         Args:
             env_ids: Env indices to reset. If ``None``, resets all envs.
-            env_mask: Boolean mask of the envs to reset. Shape is (num_envs,). Resets without synchronizing the
-                device and leaves the unselected envs unchanged. Defaults to None.
+            env_mask: Boolean mask of the envs to reset, dtype ``wp.bool``. Shape is (num_envs,). Resets without
+                synchronizing the device and leaves the unselected envs unchanged. Defaults to None.
         """
         if env_mask is None:
             self.reset_idx(env_ids)
             return
         # sample every env and keep the unselected ones, which avoids a device sync
-        mask = env_mask[:, None]
+        mask = wp.to_torch(env_mask)[:, None]
         shape = (self._num_envs, self.num_motors)
         tau_inc = math_utils.sample_uniform(*self.tau_inc_r, shape, self._device)
         tau_dec = math_utils.sample_uniform(*self.tau_dec_r, shape, self._device)

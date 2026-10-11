@@ -18,6 +18,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains import TerrainImporter
 from isaaclab.utils import env_mask_from_ids
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -99,7 +100,7 @@ class UniformPose2dCommand(CommandTerm):
             self._succeeded |= self.metrics["error_pos"] < self.cfg.position_success_threshold
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         if env_mask is None:
             env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
@@ -107,12 +108,12 @@ class UniformPose2dCommand(CommandTerm):
         if self._track_success:
             # Write the unified ``Metrics/success_rate`` directly to env extras so it shares
             # a TensorBoard card with the same metric from other tasks.
-            success_rate = (self._succeeded & env_mask).sum() / env_mask.sum().clamp_min(1)
+            success_rate = (self._succeeded & env_mask.torch).sum() / env_mask.torch.sum().clamp_min(1)
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = success_rate
-            self._succeeded.masked_fill_(env_mask, False)
+            self._succeeded.masked_fill_(env_mask.torch, False)
         return extras
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         # obtain env origins for all the environments
         pos_command_w = self._env.scene.env_origins.clone()
         # offset the position command by the current root position
@@ -122,7 +123,7 @@ class UniformPose2dCommand(CommandTerm):
         pos_command_w[:, 2] += self.robot.data.default_root_pose.torch[:, 2]
         self._set_resampled_command(env_mask, pos_command_w, r)
 
-    def _set_resampled_command(self, env_mask: torch.Tensor, pos_command_w: torch.Tensor, r: torch.Tensor):
+    def _set_resampled_command(self, env_mask: ProxyArray, pos_command_w: torch.Tensor, r: torch.Tensor):
         """Write the sampled position and its heading command for the selected environments.
 
         Args:
@@ -131,7 +132,7 @@ class UniformPose2dCommand(CommandTerm):
                 Shape is (num_envs, 3).
             r: Scratch buffer for random sampling. Shape is (num_envs,).
         """
-        torch.where(env_mask[:, None], pos_command_w, self.pos_command_w, out=self.pos_command_w)
+        torch.where(env_mask.torch[:, None], pos_command_w, self.pos_command_w, out=self.pos_command_w)
 
         if self.cfg.simple_heading:
             # set heading command to point towards target
@@ -153,7 +154,7 @@ class UniformPose2dCommand(CommandTerm):
         else:
             # random heading command
             heading_command_w = r.uniform_(*self.cfg.ranges.heading)
-        torch.where(env_mask, heading_command_w, self.heading_command_w, out=self.heading_command_w)
+        torch.where(env_mask.torch, heading_command_w, self.heading_command_w, out=self.heading_command_w)
 
     def _update_command(self):
         """Re-target the position command to the current root state."""
@@ -213,7 +214,7 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
         # valid targets: (terrain_level, terrain_type, num_patches, 3)
         self.valid_targets: torch.Tensor = self.terrain.flat_patches["target"]
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         # sample new position targets from the terrain for all the environments
         ids = torch.randint(0, self.valid_targets.shape[2], size=(self.num_envs,), device=self.device)
         pos_command_w = self.valid_targets[self.terrain.terrain_levels, self.terrain.terrain_types, ids]

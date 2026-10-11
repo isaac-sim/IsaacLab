@@ -42,9 +42,7 @@ class _ThrusterCollection(dict):
     exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
     """
 
-    def reset(
-        self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | torch.Tensor | None = None
-    ) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset every thruster actuator for the given environments.
 
         .. caution::
@@ -54,8 +52,6 @@ class _ThrusterCollection(dict):
             env_ids: Environment indices to reset. Defaults to None (all environments).
             env_mask: Boolean environment mask. Shape is (num_instances,). Defaults to None.
         """
-        if isinstance(env_mask, wp.array):
-            env_mask = wp.to_torch(env_mask)
         for actuator in self.values():
             actuator.reset(env_ids, env_mask=env_mask)
 
@@ -253,7 +249,7 @@ class Multirotor(Articulation):
         # set targets
         self._data.thrust_target[env_ids, thruster_ids] = target
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Reset the multirotor to default state.
 
         This method resets both the base articulation state (pose, velocities) and
@@ -277,12 +273,10 @@ class Multirotor(Articulation):
         super().reset(env_ids, env_mask)
 
         if env_mask is not None:
-            if isinstance(env_mask, wp.array):
-                env_mask = wp.to_torch(env_mask)
             # reset thruster targets of the masked environments to their default values
             if self._data.thrust_target is not None and self._data.default_thruster_rps is not None:
                 torch.where(
-                    env_mask[:, None],
+                    wp.to_torch(env_mask)[:, None],
                     self._data.default_thruster_rps,
                     self._data.thrust_target,
                     out=self._data.thrust_target,

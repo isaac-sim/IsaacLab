@@ -17,6 +17,7 @@ from isaaclab.controllers.pink_ik import PinkIKController
 from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import clone, index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -357,7 +358,7 @@ class PinkInverseKinematicsAction(ActionTerm):
 
     # ==================== Reset ====================
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         """Reset the action term for specified environments.
 
         Args:
@@ -365,4 +366,4 @@ class PinkInverseKinematicsAction(ActionTerm):
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
                 ``env_ids``.
         """
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)

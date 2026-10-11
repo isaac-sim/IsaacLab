@@ -189,7 +189,7 @@ class NewtonActuatorAdapter:
     def reset(
         self,
         env_ids: Sequence[int] | torch.Tensor | slice | None = None,
-        env_mask: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Reset actuator states for the given environments.
 
@@ -198,7 +198,7 @@ class NewtonActuatorAdapter:
                 ``slice(None)``, which IsaacLab callers sometimes pass)
                 resets all environments. Otherwise expects a torch tensor
                 or sequence of int indices.
-            env_mask: Boolean environment mask with shape ``(num_envs,)``.
+            env_mask: Boolean environment mask with dtype ``wp.bool`` and shape ``(num_envs,)``.
                 Takes precedence over ``env_ids`` and resets without
                 synchronizing the device.
 
@@ -210,8 +210,6 @@ class NewtonActuatorAdapter:
         env mask before delegating to each state.
         """
         if env_mask is not None:
-            if isinstance(env_mask, torch.Tensor):
-                env_mask = wp.from_torch(env_mask, dtype=wp.bool)
             self._reset_states(env_mask)
             return
         if env_ids is None or env_ids == slice(None):

@@ -14,6 +14,7 @@ import torch
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils.math import combine_frame_transforms, quat_from_euler_xyz, quat_unique
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -41,9 +42,9 @@ class SelectedUniformPoseCommand(CommandTerm):
         """Pose command, shape ``(num_envs, 7)``."""
         return self.pose_command
 
-    def _resample_command(self, env_mask: torch.Tensor) -> None:
+    def _resample_command(self, env_mask: ProxyArray) -> None:
         # resample only the selected environments that contain the reference entity
-        env_mask = env_mask & (self._reference_cfg.instance_ids.to(self.device) >= 0)
+        selected = env_mask.torch & (self._reference_cfg.instance_ids.to(self.device) >= 0)
         ranges = self.cfg.ranges
         pose_command = torch.empty_like(self.pose_command)
         pose_command[:, 0].uniform_(*ranges.pos_x)
@@ -54,7 +55,7 @@ class SelectedUniformPoseCommand(CommandTerm):
         euler[:, 1].uniform_(*ranges.pitch)
         euler[:, 2].uniform_(*ranges.yaw)
         pose_command[:, 3:] = quat_unique(quat_from_euler_xyz(*euler.unbind(-1)))
-        torch.where(env_mask[:, None], pose_command, self.pose_command, out=self.pose_command)
+        torch.where(selected[:, None], pose_command, self.pose_command, out=self.pose_command)
 
     def _update_metrics(self) -> None:
         pass

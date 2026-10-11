@@ -18,6 +18,7 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.utils import env_mask_from_ids, index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -131,7 +132,7 @@ class UniformVelocityCommand(CommandTerm):
         self._step_count += 1.0
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
         # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
@@ -150,18 +151,18 @@ class UniformVelocityCommand(CommandTerm):
             ("error_vel_yaw", mean_error_yaw),
             ("success_rate", success),
         ):
-            torch.where(env_mask, value, self.metrics[name], out=self.metrics[name])
+            torch.where(env_mask.torch, value, self.metrics[name], out=self.metrics[name])
         extras = super().reset(env_mask=env_mask)
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # / wandb card across tasks); pop it from the returned dict so CommandManager does
         # not additionally log it under ``Metrics/<term_name>/success_rate``.
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
-        self._error_xy_sum.masked_fill_(env_mask, 0.0)
-        self._error_yaw_sum.masked_fill_(env_mask, 0.0)
-        self._step_count.masked_fill_(env_mask, 0.0)
+        self._error_xy_sum.masked_fill_(env_mask.torch, 0.0)
+        self._error_yaw_sum.masked_fill_(env_mask.torch, 0.0)
+        self._step_count.masked_fill_(env_mask.torch, 0.0)
         return extras
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         # sample velocity commands for all environments and keep them only for the selected ones
         r = torch.empty(self.num_envs, device=self.device)
         vel_command_b = torch.empty_like(self.vel_command_b)
@@ -171,16 +172,18 @@ class UniformVelocityCommand(CommandTerm):
         vel_command_b[:, 1] = r.uniform_(*self.cfg.ranges.lin_vel_y)
         # -- ang vel yaw - rotation around z
         vel_command_b[:, 2] = r.uniform_(*self.cfg.ranges.ang_vel_z)
-        torch.where(env_mask[:, None], vel_command_b, self.vel_command_b, out=self.vel_command_b)
+        torch.where(env_mask.torch[:, None], vel_command_b, self.vel_command_b, out=self.vel_command_b)
         # heading target
         if self.cfg.heading_command:
-            torch.where(env_mask, r.uniform_(*self.cfg.ranges.heading), self.heading_target, out=self.heading_target)
+            torch.where(
+                env_mask.torch, r.uniform_(*self.cfg.ranges.heading), self.heading_target, out=self.heading_target
+            )
             # update heading envs
             is_heading_env = r.uniform_(0.0, 1.0) <= self.cfg.rel_heading_envs
-            torch.where(env_mask, is_heading_env, self.is_heading_env, out=self.is_heading_env)
+            torch.where(env_mask.torch, is_heading_env, self.is_heading_env, out=self.is_heading_env)
         # update standing envs
         is_standing_env = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
-        torch.where(env_mask, is_standing_env, self.is_standing_env, out=self.is_standing_env)
+        torch.where(env_mask.torch, is_standing_env, self.is_standing_env, out=self.is_standing_env)
 
     def _update_command(self):
         """Post-processes the velocity command.
@@ -306,7 +309,7 @@ class NormalVelocityCommand(UniformVelocityCommand):
         msg += f"\tStanding probability: {self.cfg.rel_standing_envs}"
         return msg
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         # sample velocity commands for all environments and keep them only for the selected ones
         r = torch.empty(self.num_envs, device=self.device)
         vel_command_b = torch.empty_like(self.vel_command_b)
@@ -319,18 +322,18 @@ class NormalVelocityCommand(UniformVelocityCommand):
         # -- angular velocity - yaw direction
         vel_command_b[:, 2] = r.normal_(mean=self.cfg.ranges.mean_vel[2], std=self.cfg.ranges.std_vel[2])
         vel_command_b[:, 2] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)
-        torch.where(env_mask[:, None], vel_command_b, self.vel_command_b, out=self.vel_command_b)
+        torch.where(env_mask.torch[:, None], vel_command_b, self.vel_command_b, out=self.vel_command_b)
 
         # update element wise zero velocity command
         # TODO what is zero prob ?
         for buf, prob in zip(
             (self.is_zero_vel_x_env, self.is_zero_vel_y_env, self.is_zero_vel_yaw_env), self.cfg.ranges.zero_prob
         ):
-            torch.where(env_mask, r.uniform_(0.0, 1.0) <= prob, buf, out=buf)
+            torch.where(env_mask.torch, r.uniform_(0.0, 1.0) <= prob, buf, out=buf)
 
         # update standing envs
         is_standing_env = r.uniform_(0.0, 1.0) <= self.cfg.rel_standing_envs
-        torch.where(env_mask, is_standing_env, self.is_standing_env, out=self.is_standing_env)
+        torch.where(env_mask.torch, is_standing_env, self.is_standing_env, out=self.is_standing_env)
 
     def _update_command(self):
         """Sets velocity command to zero for standing envs."""

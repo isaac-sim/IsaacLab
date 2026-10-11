@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -18,6 +17,7 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.utils import index_fill_, replace
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.controllers.differential_ik import NewtonDifferentialIKController
 from isaaclab_newton.controllers.operational_space import NewtonOperationalSpaceController
@@ -79,8 +79,8 @@ class _NewtonTaskSpaceAction(ActionTerm):
         self._ee_pose_b = torch.zeros(self.num_envs, 7, device=self.device)
         self._jacobian_b = torch.zeros(self.num_envs, 6, self._num_joints, device=self.device)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
 
     def _joint_pos_target(self, target: str) -> torch.Tensor:
         """Resolve a named joint posture target for the controlled joints."""
@@ -340,13 +340,13 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
         )
         self._asset.actuators.target_command.set_effort_index(value=efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         super().reset(env_ids=env_ids, env_mask=env_mask)
         if self._contact_sensor is not None:
             if env_mask is None:
                 self._contact_sensor.reset(env_ids)
             else:
-                self._contact_sensor.reset(env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+                self._contact_sensor.reset(env_mask=env_mask.warp)
 
     def _action_slice(self, name: str) -> torch.Tensor | None:
         return self._processed_actions[:, self._slices[name]] if name in self._slices else None

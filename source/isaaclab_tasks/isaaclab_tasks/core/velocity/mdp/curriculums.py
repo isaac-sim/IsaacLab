@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
 
 def terrain_levels_vel(
-    env: ManagerBasedRLEnv, env_mask: torch.Tensor, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    env: ManagerBasedRLEnv, env_mask: ProxyArray, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Curriculum based on the distance the robot walked when commanded to move at a desired velocity.
 
@@ -51,6 +52,6 @@ def terrain_levels_vel(
     move_down = distance < torch.linalg.norm(command[:, :2], dim=1) * env.max_episode_length_s * 0.5
     move_down *= ~move_up
     # update terrain levels of the reset environments
-    terrain.update_env_origins_mask(env_mask, move_up, move_down)
+    terrain.update_env_origins_mask(env_mask.warp, move_up, move_down)
     # return the mean terrain level
     return torch.mean(terrain.terrain_levels.float())

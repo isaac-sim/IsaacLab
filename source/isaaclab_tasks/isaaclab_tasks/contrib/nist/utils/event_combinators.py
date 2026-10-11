@@ -28,10 +28,12 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 from tqdm import tqdm
 
 from isaaclab.managers import EventTermCfg, ManagerTermBase
 from isaaclab.utils import env_selection_kwargs, instantiate
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.contrib.nist.utils import reset_state
 from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
@@ -42,7 +44,7 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def _apply_term(env: ManagerBasedRLEnv, term_cfg: EventTermCfg, env_mask: torch.Tensor) -> None:
+def _apply_term(env: ManagerBasedRLEnv, term_cfg: EventTermCfg, env_mask: ProxyArray) -> None:
     """Apply a sub-event-term to the environments selected by ``env_mask``.
 
     Mask-native terms receive the mask. Other terms receive the selected indices, which synchronizes the device,
@@ -101,7 +103,7 @@ class reset_accumulator(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         reset_term: EventTermCfg,
         reset_assets: list[str],
         acceptance_conditions: dict,
@@ -139,7 +141,7 @@ class reset_accumulator(ManagerTermBase):
             if self._state_tag_names_bind is not None:
                 self.state_tag_names = eval(self._state_tag_names_bind)  # noqa: S307
             all_env_ids = torch.arange(env.num_envs, device=env.device)
-            all_env_mask = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+            all_env_mask = ProxyArray(wp.ones(env.num_envs, dtype=wp.bool, device=env.device))
             precollect_capacity = self.state_data.shape[0]
             target_size = min(self._state_target_size, precollect_capacity)
             state_size = 0
@@ -195,14 +197,14 @@ class reset_accumulator(ManagerTermBase):
             self.monitor_success_rate = self.success_monitor.success_rate
 
         progress = env.termination_manager.get_term_cfg("progress_context").func
-        monitored = env_mask
+        monitored = env_mask.torch
         if monitor_exclude_terms:
             exclude_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
             for term_name in monitor_exclude_terms:
                 if term_name in env.termination_manager._term_names:
                     term_idx = env.termination_manager._term_name_to_term_idx[term_name]
                     exclude_mask |= env.termination_manager._last_episode_dones[:, term_idx]
-            monitored = env_mask & ~exclude_mask
+            monitored = env_mask.torch & ~exclude_mask
         self.success_monitor.success_update(self.sampled_slots, progress.is_success, valid=monitored)
 
         log: dict[str, torch.Tensor] = {}
@@ -223,7 +225,7 @@ class reset_accumulator(ManagerTermBase):
             self._sampler = instantiate(self._sampling_cfg, self.monitor_success_rate)
 
         probs, slot_idx = self._sampler.probabilities_and_sample(env.num_envs)
-        torch.where(env_mask, slot_idx, self.sampled_slots, out=self.sampled_slots)
+        torch.where(env_mask.torch, slot_idx, self.sampled_slots, out=self.sampled_slots)
         self.apply_sampled_slots(env_mask)
         if report and self.state_tag_names:
             tags = self.state_tag_indices[: self.state_data.shape[0]]
@@ -245,7 +247,7 @@ class reset_accumulator(ManagerTermBase):
                     self.reset_assets,
                 )
 
-    def apply_sampled_slots(self, env_mask: torch.Tensor) -> None:
+    def apply_sampled_slots(self, env_mask: ProxyArray) -> None:
         """Realize each env's currently-assigned table slot state in the sim.
 
         The caller writes the desired slot index into :attr:`sampled_slots` for
@@ -256,7 +258,7 @@ class reset_accumulator(ManagerTermBase):
             env_mask: Boolean mask of the environments to write. Shape is (num_envs,).
         """
         reset_state.set_reset_state(
-            self._env, self.state_data[self.sampled_slots], env_mask, self.reset_assets, is_relative=True
+            self._env, self.state_data[self.sampled_slots], env_mask.warp, self.reset_assets, is_relative=True
         )
 
 
@@ -283,11 +285,15 @@ class TermChoice(ManagerTermBase):
             self.term_success_rate = torch.zeros(self.num_partitions, device=env.device)
 
         self._sampler = instantiate(self._sampling_cfg, self.term_success_rate)
+        # environments of each partition at the current call
+        self._partition_masks = [
+            ProxyArray(wp.zeros(env.num_envs, dtype=wp.bool, device=env.device)) for _ in range(self.num_partitions)
+        ]
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         terms: dict[str, ManagerTermBase],
         sampling: SamplerCfg,
         success_monitor_cfg: SuccessMonitorCfg,
@@ -302,15 +308,17 @@ class TermChoice(ManagerTermBase):
             log["Metrics/SuccessRate"] = self.term_success_rate.mean()
         if self.success_monitor:
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
-            self.success_monitor.success_update(self.term_samples, success, valid=env_mask)
+            self.success_monitor.success_update(self.term_samples, success, valid=env_mask.torch)
 
         probs, choices = self._sampler.probabilities_and_sample(env.num_envs)
-        torch.where(env_mask, choices, self.term_samples, out=self.term_samples)
+        torch.where(env_mask.torch, choices, self.term_samples, out=self.term_samples)
         if report:
             log.update({f"Metrics/SampleProb/{name}": probs[i] for i, name in enumerate(self.term_partitions)})
 
         for i, term_cfg in enumerate(self.term_partitions.values()):
-            _apply_term(env, term_cfg, env_mask & (self.term_samples == i))
+            partition = self._partition_masks[i]
+            torch.logical_and(env_mask.torch, self.term_samples == i, out=partition.torch)
+            _apply_term(env, term_cfg, partition)
 
         if report:
             env.extras.setdefault("log", {}).update(log)
@@ -320,15 +328,20 @@ class ChainedResetTerms(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self.terms: dict[str, EventTermCfg] = cfg.params["terms"]  # type: ignore
+        # environments picked by the per-environment probability at the current call
+        self._picked = ProxyArray(wp.zeros(env.num_envs, dtype=wp.bool, device=env.device))
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         terms: dict[str, EventTermCfg],
         probability: float = 1.0,
     ) -> None:
         if probability < 1.0:
-            env_mask = env_mask & (torch.rand(env.num_envs, device=env.device) < probability)
+            torch.logical_and(
+                env_mask.torch, torch.rand(env.num_envs, device=env.device) < probability, out=self._picked.torch
+            )
+            env_mask = self._picked
         for term in terms.values():
             _apply_term(env, term, env_mask)

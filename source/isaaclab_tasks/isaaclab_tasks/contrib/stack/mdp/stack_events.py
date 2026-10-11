@@ -16,6 +16,7 @@ import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 
 def set_default_joint_pose(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     default_pose: torch.Tensor,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
@@ -52,7 +53,7 @@ def set_default_joint_pose(
 
 def randomize_joint_by_gaussian_offset(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     mean: float,
     std: float,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -98,11 +99,10 @@ def randomize_joint_by_gaussian_offset(
         joint_pos[:, gripper_ids] = asset.data.default_joint_pos.torch[:, gripper_ids]
 
     # Set into the physics simulation
-    env_mask_wp = wp.from_torch(env_mask, dtype=wp.bool)
-    asset.actuators.target_command.set_position_mask(value=joint_pos, env_mask=env_mask_wp)
-    asset.actuators.target_command.set_velocity_mask(value=joint_vel, env_mask=env_mask_wp)
-    asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
-    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask)
+    asset.actuators.target_command.set_position_mask(value=joint_pos, env_mask=env_mask.warp)
+    asset.actuators.target_command.set_velocity_mask(value=joint_vel, env_mask=env_mask.warp)
+    asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask.warp)
+    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask.warp)
 
 
 def sample_random_color(base=(0.75, 0.75, 0.75), variation=0.1):

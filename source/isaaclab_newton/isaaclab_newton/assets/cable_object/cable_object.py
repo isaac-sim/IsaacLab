@@ -58,7 +58,7 @@ class CableObject(BaseCableObject):
         """Articulation view for the cable."""
         return self._root_view
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         """Reset the cable object's internal buffers.
 
         The cable object has no internal buffers to reset.

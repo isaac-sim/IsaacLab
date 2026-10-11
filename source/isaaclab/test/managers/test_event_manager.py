@@ -17,7 +17,8 @@ import torch
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventManager, EventTermCfg, ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
@@ -438,20 +439,20 @@ def test_apply_reset_mode(env, index_dtype):
             )
 
 
-def increment_dummy1_by_one_masked(env, env_mask: torch.Tensor):
-    env.dummy1.add_(env_mask[:, None])
+def increment_dummy1_by_one_masked(env, env_mask: ProxyArray):
+    env.dummy1.add_(env_mask.torch[:, None])
 
 
-def reset_dummy1_to_zero_masked(env, env_mask: torch.Tensor):
-    env.dummy1.masked_fill_(env_mask[:, None], 0)
+def reset_dummy1_to_zero_masked(env, env_mask: ProxyArray):
+    env.dummy1.masked_fill_(env_mask.torch[:, None], 0)
 
 
 def test_apply_reset_mode_with_mask_terms(env):
     """Mask terms run on every reset, see the cooldown-filtered mask, and leave unselected environments alone."""
     calls = []
 
-    def increment(env, env_mask: torch.Tensor):
-        calls.append(env_mask.clone())
+    def increment(env, env_mask: ProxyArray):
+        calls.append(env_mask.torch.clone())
         increment_dummy1_by_one_masked(env, env_mask)
 
     event_man = EventManager(
@@ -466,12 +467,11 @@ def test_apply_reset_mode_with_mask_terms(env):
     triggered = [False] * env.num_envs
     for count in range(23):
         selected = [i for i in range(env.num_envs) if (i + count) % 3 == 0] if count % 4 else []
-        env_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-        env_mask[selected] = True
+        env_mask = env_mask_from_ids(selected, env.num_envs, env.device)
         event_man.apply("reset", env_mask=env_mask, global_env_step_count=count)
 
         # an empty selection still calls the mask term, with an all-False mask
-        assert torch.equal(calls[-1], env_mask)
+        assert torch.equal(calls[-1], env_mask.torch)
         for i in selected:
             expected[i] += 1
             if not triggered[i] or count - last_step[i] >= 10:

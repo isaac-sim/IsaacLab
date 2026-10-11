@@ -15,6 +15,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -178,8 +179,8 @@ class JointAction(ActionTerm):
         if self.cfg.clip is not None:
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
 
 
 class JointPositionAction(JointAction):

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -445,7 +446,7 @@ def set_reset_state(
 def set_reset_state_mask(
     env: ManagerBasedEnv,
     states: torch.Tensor,
-    env_mask: torch.Tensor,
+    env_mask: wp.array,
     reset_assets: Sequence[str],
     is_relative: bool = False,
 ):
@@ -457,7 +458,7 @@ def set_reset_state_mask(
     Args:
         env: The environment.
         states: Reset states laid out like :func:`get_reset_state`. Shape is (num_envs, state_dim).
-        env_mask: Boolean mask of the environments to write. Shape is (num_envs,).
+        env_mask: Boolean mask of the environments to write, dtype ``wp.bool``. Shape is (num_envs,).
         reset_assets: Names of the scene assets in :paramref:`states`.
         is_relative: Whether root positions are relative to the environment origins.
     """

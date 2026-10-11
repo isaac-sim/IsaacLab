@@ -34,6 +34,7 @@ from ...utils.images import (
     normalize_rgb,
     normalize_segmentation,
 )
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -409,8 +410,8 @@ class CameraImageBase(ManagerTermBase):
             channel_first=cfg.params["channel_first"],
         )
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: torch.Tensor | None = None):
-        self._frames.reset(env_ids if env_mask is None else env_mask)
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | None = None, env_mask: ProxyArray | None = None):
+        self._frames.reset(env_ids if env_mask is None else env_mask.torch)
 
     @staticmethod
     def _accepts(data_type: str) -> bool:
@@ -678,7 +679,7 @@ class image_features(ManagerTermBase):
         self._reset_fn = model_config.get("reset")
         self._inference_fn = model_config["inference"]
 
-    def reset(self, env_ids: torch.Tensor | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: torch.Tensor | None = None, env_mask: ProxyArray | None = None):
         # reset the model if a reset function is provided
         # this might be useful when the model has a state that needs to be reset
         # for example: video transformers
@@ -871,8 +872,8 @@ class stacked_image(ManagerTermBase):
         super().__init__(cfg, env)
         self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=cfg.params["frame_stack"])
 
-    def reset(self, env_ids: torch.Tensor | None = None, env_mask: torch.Tensor | None = None):
-        self._frames.reset(env_ids if env_mask is None else env_mask)
+    def reset(self, env_ids: torch.Tensor | None = None, env_mask: ProxyArray | None = None):
+        self._frames.reset(env_ids if env_mask is None else env_mask.torch)
 
     def __call__(
         self,

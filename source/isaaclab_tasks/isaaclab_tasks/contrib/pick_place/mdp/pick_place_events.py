@@ -13,6 +13,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -20,7 +21,7 @@ if TYPE_CHECKING:
 
 def reset_object_poses_nut_pour(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     pose_range: dict[str, tuple[float, float]],
     sorting_beaker_cfg: SceneEntityCfg = SceneEntityCfg("sorting_beaker"),
     factory_nut_cfg: SceneEntityCfg = SceneEntityCfg("factory_nut"),
@@ -78,14 +79,14 @@ def reset_object_poses_nut_pour(
 
     # set into the physics simulation
     sorting_beaker.write_root_pose_to_sim_mask(
-        root_pose=torch.cat([positions_sorting_beaker, orientations_sorting_beaker], dim=-1), env_mask=env_mask
+        root_pose=torch.cat([positions_sorting_beaker, orientations_sorting_beaker], dim=-1), env_mask=env_mask.warp
     )
     factory_nut.write_root_pose_to_sim_mask(
-        root_pose=torch.cat([positions_factory_nut, orientations_factory_nut], dim=-1), env_mask=env_mask
+        root_pose=torch.cat([positions_factory_nut, orientations_factory_nut], dim=-1), env_mask=env_mask.warp
     )
     sorting_bowl.write_root_pose_to_sim_mask(
-        root_pose=torch.cat([positions_sorting_bowl, orientations_sorting_bowl], dim=-1), env_mask=env_mask
+        root_pose=torch.cat([positions_sorting_bowl, orientations_sorting_bowl], dim=-1), env_mask=env_mask.warp
     )
     sorting_scale.write_root_pose_to_sim_mask(
-        root_pose=torch.cat([positions_sorting_scale, orientations_sorting_scale], dim=-1), env_mask=env_mask
+        root_pose=torch.cat([positions_sorting_scale, orientations_sorting_scale], dim=-1), env_mask=env_mask.warp
     )

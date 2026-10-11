@@ -70,7 +70,8 @@ def test_env_mask_round_trip(env_ids):
     mask = env_mask_from_ids(env_ids, 5, "cpu")
     expected = torch.zeros(5, dtype=torch.bool)
     expected[slice(None) if env_ids is None else env_ids] = True
-    assert torch.equal(mask, expected)
+    assert mask.warp.dtype == wp.bool
+    assert torch.equal(mask.torch, expected)
     assert torch.equal(env_ids_from_mask(mask), expected.nonzero().squeeze(-1))
 
 
@@ -90,13 +91,13 @@ def test_env_selection_kwargs():
         def reset(self, env_ids=None):
             pass
 
-    mask = torch.tensor([False, True, False, True])
+    mask = env_mask_from_ids([1, 3], 4, "cpu")
     assert takes_env_mask(by_mask) and takes_env_mask(Term()) and takes_env_mask(Term)
     assert not takes_env_mask(by_ids) and not takes_env_mask(Term().reset)
     assert env_selection_kwargs(by_mask, mask) == {"env_mask": mask}
     assert torch.equal(env_selection_kwargs(by_ids, mask)["env_ids"], torch.tensor([1, 3]))
     assert env_selection_kwargs(by_ids, mask, slice(None)) == {"env_ids": slice(None)}
-    assert env_selection_kwargs(Term().reset, torch.zeros(4, dtype=torch.bool)) is None
+    assert env_selection_kwargs(Term().reset, env_mask_from_ids([], 4, "cpu")) is None
 
 
 def test_takes_env_mask_sees_through_partial():

@@ -8,8 +8,10 @@
 from types import SimpleNamespace
 
 import torch
+import warp as wp
 
 from isaaclab.utils import instantiate
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.contrib.nist.mdp.curriculums import DifficultyScheduler
 from isaaclab_tasks.contrib.nist.utils import (
@@ -70,7 +72,7 @@ def test_difficulty_scheduler_waits_for_accumulator_rates():
     result = DifficultyScheduler.__call__(
         scheduler,
         env,
-        torch.ones(3, dtype=torch.bool),
+        ProxyArray(wp.ones(3, dtype=wp.bool, device="cpu")),
         "env.event_manager.get_term_cfg('reset_strategies').func.monitor_success_rate",
         max_difficulty=10,
     )
@@ -93,7 +95,7 @@ def test_difficulty_scheduler_averages_ready_success_rates():
     result = DifficultyScheduler.__call__(
         scheduler,
         env,
-        torch.ones(3, dtype=torch.bool),
+        ProxyArray(wp.ones(3, dtype=wp.bool, device="cpu")),
         "env.event_manager.get_term_cfg('reset_strategies').func.monitor_success_rate",
         max_difficulty=10,
     )

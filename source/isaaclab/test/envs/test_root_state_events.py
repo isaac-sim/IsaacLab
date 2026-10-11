@@ -12,6 +12,7 @@ import torch
 
 from isaaclab.envs.mdp import push_by_setting_velocity, reset_root_state_uniform
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.utils import env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -56,7 +57,7 @@ def test_reset_root_state_uniform_uses_call_ranges():
         params={"pose_range": {}, "velocity_range": {}, "asset_cfg": asset_cfg},
     )
     term = reset_root_state_uniform(cfg, env)
-    env_mask = torch.ones(env.num_envs, dtype=torch.bool, device=device)
+    env_mask = env_mask_from_ids(None, env.num_envs, device)
 
     term(env, env_mask, pose_range={"x": (1.0, 1.0), "z": (0.5, 0.5)}, velocity_range={"yaw": (2.0, 2.0)})
 
@@ -72,7 +73,7 @@ def test_push_by_setting_velocity_follows_range_edits():
     """Ranges are matched to components by name, and in-place range edits still take effect."""
     device = "cpu"
     env, asset = _make_env(device)
-    env_mask = torch.ones(env.num_envs, dtype=torch.bool, device=device)
+    env_mask = env_mask_from_ids(None, env.num_envs, device)
     # Dictionary insertion order differs from the command's component order.
     velocity_range = {"yaw": (-0.2, 0.8), "x": (-2.0, 1.0)}
     push_by_setting_velocity(env, env_mask, velocity_range)

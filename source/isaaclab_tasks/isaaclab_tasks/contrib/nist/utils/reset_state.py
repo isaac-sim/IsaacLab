@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import torch
+import warp as wp
 from torch import Tensor
 
 
@@ -37,14 +38,14 @@ def get_reset_state(env, env_ids: Tensor, reset_assets: Sequence[str], is_relati
 
 
 def set_reset_state(
-    env, states: Tensor, env_mask: Tensor, reset_assets: Sequence[str], is_relative: bool = False
+    env, states: Tensor, env_mask: wp.array, reset_assets: Sequence[str], is_relative: bool = False
 ) -> None:
     """Split ``states`` by scene asset and write the reset states of the selected environments.
 
     Args:
         env: The environment.
         states: Concatenated reset states of every environment. Shape is (num_envs, state_dim).
-        env_mask: Boolean mask of the environments to write. Shape is (num_envs,).
+        env_mask: Boolean mask of the environments to write, dtype ``wp.bool``. Shape is (num_envs,).
         reset_assets: Names of the scene assets in ``states``.
         is_relative: Whether the root positions in ``states`` are relative to the environment origins.
     """

@@ -13,6 +13,7 @@ import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.warp import ProxyArray
 
 from ..selection_utils import SceneEntitySelectionCfg
 from .utils import offset_body_pose
@@ -127,14 +128,14 @@ class _LiftSuccessTerm(ManagerTermBase):
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         self._logged: dict[str, torch.Tensor] = {}
 
-    def reset(self, env_mask: torch.Tensor) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Log and clear success for reset lift environments.
 
         Args:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
         object_cfg: SceneEntitySelectionCfg = self.cfg.params["object_cfg"]
-        selected = env_mask & (object_cfg.instance_ids >= 0)
+        selected = env_mask.torch & (object_cfg.instance_ids >= 0)
         _log_masked_mean(self._env, self._logged, "Metrics/lift_success_rate", self.succeeded.float(), selected)
         self.succeeded.masked_fill_(selected, False)
 
@@ -283,14 +284,14 @@ class CabinetOpenDrawerBonus(ManagerTermBase):
         self.best_drawer_pos = torch.zeros(env.num_envs, device=env.device)
         self._logged: dict[str, torch.Tensor] = {}
 
-    def reset(self, env_mask: torch.Tensor) -> None:
+    def reset(self, env_mask: ProxyArray) -> None:
         """Log and clear episode statistics for reset cabinet environments.
 
         Args:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
         cabinet_cfg: SceneEntitySelectionCfg = self.cfg.params["cabinet_cfg"]
-        selected = env_mask & (cabinet_cfg.instance_ids >= 0)
+        selected = env_mask.torch & (cabinet_cfg.instance_ids >= 0)
         _log_masked_mean(self._env, self._logged, "Metrics/cabinet_success_rate", self.succeeded.float(), selected)
         _log_masked_mean(self._env, self._logged, "Metrics/cabinet_drawer_pos", self.best_drawer_pos, selected)
         self.succeeded.masked_fill_(selected, False)

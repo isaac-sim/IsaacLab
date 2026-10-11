@@ -26,7 +26,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.env_cfgs import EmptyManagerCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
 
 pytestmark = pytest.mark.integration
 
@@ -173,7 +173,7 @@ def test_modify_env_param_indexes_into_dict_values():
     cfg = CurrTerm(func=mdp.modify_env_param, params={"address": "params.ranges[1].high"})
     term = mdp.modify_env_param(cfg, env)
 
-    env_mask = torch.ones(1, dtype=torch.bool)
+    env_mask = env_mask_from_ids(None, 1, "cpu")
     term(env, env_mask, "params.ranges[1].high", modify_fn=lambda env, env_ids, value: value * 10)
 
     assert env.params["ranges"][1].high == 20.0

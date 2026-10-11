@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 from . import observations as obs
 
@@ -50,7 +51,7 @@ class progress_reward(ManagerTermBase):
         self.potentials = torch.zeros(env.num_envs, device=env.device)
         self.prev_potentials = torch.zeros_like(self.potentials)
 
-    def reset(self, env_mask: torch.Tensor):
+    def reset(self, env_mask: ProxyArray):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = self._env.scene["robot"]
         # compute the planar distance to the target, matching __call__ so the first step scores no progress
@@ -59,8 +60,8 @@ class progress_reward(ManagerTermBase):
         to_target_pos[:, 2] = 0.0
         # reward terms
         potentials = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
-        torch.where(env_mask, potentials, self.potentials, out=self.potentials)
-        torch.where(env_mask, potentials, self.prev_potentials, out=self.prev_potentials)
+        torch.where(env_mask.torch, potentials, self.potentials, out=self.potentials)
+        torch.where(env_mask.torch, potentials, self.prev_potentials, out=self.prev_potentials)
 
     def __call__(
         self,

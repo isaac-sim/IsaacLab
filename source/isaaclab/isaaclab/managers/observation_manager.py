@@ -18,6 +18,7 @@ from prettytable import PrettyTable
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -327,7 +328,7 @@ class ObservationManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         """Resets the class terms, modifiers, and the delay and history buffers of the selected environments.
 
         Args:
@@ -346,9 +347,9 @@ class ObservationManager(ManagerBase):
             # reset delay and observation histories for the selected environments
             for term_name in self._group_obs_term_names[group_name]:
                 if term_name in self._group_obs_term_delay_buffer[group_name]:
-                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_mask)
+                    self._group_obs_term_delay_buffer[group_name][term_name].reset(env_mask.torch)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
-                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_mask)
+                    self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_mask.torch)
         # call all modifiers that are classes
         for mod in self._group_obs_class_instances:
             self._reset_term(mod, env_mask, env_ids)

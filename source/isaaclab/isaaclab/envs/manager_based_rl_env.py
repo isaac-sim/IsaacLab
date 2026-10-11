@@ -12,9 +12,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import gymnasium as gym
 import numpy as np
 import torch
+import warp as wp
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from ..utils import env_ids_from_mask, env_mask_from_ids
+from ..utils.warp import ProxyArray
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
@@ -89,6 +91,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # initialize the episode length buffer BEFORE loading the managers to use it in mdp functions.
         self.episode_length_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.long)
         self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
+        # stable mask of the environments reset within a step, shared by every reset consumer
+        self._step_reset_mask = ProxyArray(wp.zeros(cfg.scene.num_envs, dtype=wp.bool, device=cfg.sim.device))
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg, physics_manager=physics_manager)
@@ -384,14 +388,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_terminated_envs(self, env_mask: torch.Tensor):
+    def _reset_terminated_envs(self, reset: torch.Tensor):
         """Reset the environments selected by ``env_mask`` within :meth:`step`.
 
         Subclasses that override :meth:`_reset_idx` keep receiving indices, which waits on the device.
 
         Args:
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
+            reset: Boolean flags of the environments to reset. Shape is (num_envs,).
         """
+        env_mask = self._step_reset_mask
+        env_mask.torch.copy_(reset)
         recording = len(self.recorder_manager.active_terms) > 0
         if recording or type(self)._reset_idx is not ManagerBasedRLEnv._reset_idx:
             env_ids = env_ids_from_mask(env_mask)
@@ -411,7 +417,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         """
         self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
 
-    def _reset_mask(self, env_mask: torch.Tensor):
+    def _reset_mask(self, env_mask: ProxyArray):
         """Reset the environments selected by a boolean mask.
 
         Args:
@@ -420,7 +426,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_mask=env_mask)
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_mask=env_mask)
+        self.scene.reset(env_mask=env_mask.warp)
         # apply events such as randomizations for environments that need a reset
         if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
@@ -441,4 +447,4 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         )
         self._reset_managers(env_mask, managers)
 
-        self.episode_length_buf.masked_fill_(env_mask, 0)
+        self.episode_length_buf.masked_fill_(env_mask.torch, 0)

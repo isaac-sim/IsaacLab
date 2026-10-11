@@ -18,6 +18,7 @@ from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_o
 from isaaclab.envs.mdp.visual_events import _compile_distribution
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.warp import ProxyArray
 
 from ... import assets
 
@@ -74,7 +75,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         static_friction_range: tuple[float, float],
         dynamic_friction_range: tuple[float, float],
         restitution_range: tuple[float, float],
@@ -120,7 +121,7 @@ class randomize_rigid_body_material(ManagerTermBase):
                 restitution_range_t[0], restitution_range_t[1], (self._kamino_num_groups,), device=device
             )
             # keep the current materials when no environment is selected
-            selected = env_mask.any()
+            selected = env_mask.torch.any()
             friction_view[:, shape_idx] = torch.where(selected, friction_groups[inverse], friction_view[:, shape_idx])
             restitution_view[:, shape_idx] = torch.where(
                 selected, restitution_groups[inverse], restitution_view[:, shape_idx]
@@ -133,11 +134,11 @@ class randomize_rigid_body_material(ManagerTermBase):
                 restitution_range_t[0], restitution_range_t[1], (num_envs, num_shapes), device=device
             )
             # write the selected environments only
-            env_rows = env_mask[:, None]
+            env_rows = env_mask.torch[:, None]
             friction_view[:, shape_idx] = torch.where(env_rows, friction_samples, friction_view[:, shape_idx])
             restitution_view[:, shape_idx] = torch.where(env_rows, restitution_samples, restitution_view[:, shape_idx])
 
-        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=wp.from_torch(env_mask))
+        self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=env_mask.warp)
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
@@ -177,7 +178,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
@@ -193,7 +194,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             contact_offset_distribution_params: Contact offset distribution parameters [m].
             distribution: Sampling distribution for the offsets.
         """
-        env_rows = env_mask[:, None]
+        env_rows = env_mask.torch[:, None]
         margin_view = wp.to_torch(self._sim_bind_shape_margin)
 
         if rest_offset_distribution_params is not None:
@@ -224,7 +225,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
             gap_view = wp.to_torch(self._sim_bind_shape_gap)
             gap_view[:] = torch.where(env_rows, gap, gap_view)
         if rest_offset_distribution_params is not None or contact_offset_distribution_params is not None:
-            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=wp.from_torch(env_mask))
+            self._newton_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES, env_mask=env_mask.warp)
 
 
 class randomize_physics_scene_gravity(_GravityRandomization):
@@ -247,7 +248,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         gravity_distribution_params: tuple[list[float], list[float]],
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
@@ -267,8 +268,8 @@ class randomize_physics_scene_gravity(_GravityRandomization):
         # The trailing global-world row is not an environment.
         gravity = wp.to_torch(model.gravity)[: env.num_envs]
         sampled = self._sample_gravity(gravity, gravity_distribution_params, operation)
-        gravity[:] = torch.where(env_mask[:, None], sampled, gravity)
-        self._manager.add_model_change(ModelFlags.MODEL_PROPERTIES, env_mask=wp.from_torch(env_mask))
+        gravity[:] = torch.where(env_mask.torch[:, None], sampled, gravity)
+        self._manager.add_model_change(ModelFlags.MODEL_PROPERTIES, env_mask=env_mask.warp)
 
 
 class randomize_visual_shape(ManagerTermBase):

@@ -9,11 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import torch
-import warp as wp
-
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 from ..utils import sample_joint_positions_within_limits
 
@@ -24,7 +22,7 @@ if TYPE_CHECKING:
 
 def reset_reorient_hand(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     joint_position_noise: float,
     joint_velocity_noise: float,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -49,8 +47,6 @@ def reset_reorient_hand(
     joint_position = sample_joint_positions_within_limits(default_position, limits, joint_position_noise)
     velocity_sample = math_utils.sample_uniform(-1.0, 1.0, default_position.shape, device=env.device)
     joint_velocity = robot.data.default_joint_vel.torch + joint_velocity_noise * velocity_sample
-    robot.actuators.target_command.set_position_mask(
-        value=joint_position, env_mask=wp.from_torch(env_mask, dtype=wp.bool)
-    )
-    robot.write_joint_position_to_sim_mask(position=joint_position, env_mask=env_mask)
-    robot.write_joint_velocity_to_sim_mask(velocity=joint_velocity, env_mask=env_mask)
+    robot.actuators.target_command.set_position_mask(value=joint_position, env_mask=env_mask.warp)
+    robot.write_joint_position_to_sim_mask(position=joint_position, env_mask=env_mask.warp)
+    robot.write_joint_velocity_to_sim_mask(velocity=joint_velocity, env_mask=env_mask.warp)

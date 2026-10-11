@@ -14,6 +14,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..utils import env_selection_kwargs
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
@@ -92,7 +93,7 @@ class CurriculumManager(ManagerBase):
     """
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, float | torch.Tensor]:
         """Returns the current state of individual curriculum terms.
 
@@ -129,7 +130,7 @@ class CurriculumManager(ManagerBase):
             self._reset_term(term_cfg.func, env_mask, env_ids)
         return extras
 
-    def compute(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def compute(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Update the curriculum terms.
 
         This function calls each curriculum term managed by the class. Terms that take ``env_mask`` are called

@@ -17,6 +17,7 @@ import torch
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers.manager_term_cfg import CurriculumTermCfg
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -66,7 +67,7 @@ class ObstacleDensityCurriculum(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         command_name: str = "target_pose",
         min_difficulty: int | None = None,
@@ -104,7 +105,7 @@ class ObstacleDensityCurriculum(ManagerTermBase):
             min=self._min_difficulty,
             max=self._max_difficulty - 1,
         )
-        torch.where(env_mask, difficulty_levels, self._difficulty_levels, out=self._difficulty_levels)
+        torch.where(env_mask.torch, difficulty_levels, self._difficulty_levels, out=self._difficulty_levels)
 
         return self._difficulty_levels.float().mean()
 

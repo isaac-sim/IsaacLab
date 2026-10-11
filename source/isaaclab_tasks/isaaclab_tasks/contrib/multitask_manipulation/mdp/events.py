@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from isaaclab.utils.warp import ProxyArray
+
 from ..selection_utils import SceneEntitySelectionCfg
 
 if TYPE_CHECKING:
@@ -19,15 +21,10 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-def _row_mask(asset_cfg: SceneEntitySelectionCfg, env_mask: torch.Tensor) -> wp.array:
-    """Return the physics-view rows of an asset selected by a global environment mask."""
-    return wp.from_torch(env_mask[asset_cfg.env_ids].contiguous(), dtype=wp.bool)
-
-
-def _reset_root(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_mask: torch.Tensor) -> None:
+def _reset_root(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_mask: ProxyArray) -> None:
     """Write an asset's default root state for selected global environments."""
     asset: Articulation | RigidObject = env.scene[asset_cfg.name]
-    rows = _row_mask(asset_cfg, env_mask)
+    rows = asset_cfg.view_row_mask(env_mask)
     root_pose = asset.data.default_root_pose.torch.clone()
     root_pose[:, :3] += env.scene.env_origins[asset_cfg.env_ids]
     asset.write_root_pose_to_sim_mask(root_pose=root_pose, env_mask=rows)
@@ -45,18 +42,18 @@ def _write_joint_state(
         asset.actuators.target_command.set_velocity_mask(value=joint_vel, env_mask=rows)
 
 
-def _reset_joints_default(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_mask: torch.Tensor) -> None:
+def _reset_joints_default(env: ManagerBasedEnv, asset_cfg: SceneEntitySelectionCfg, env_mask: ProxyArray) -> None:
     """Write default articulation joint states for selected global environments."""
     asset: Articulation = env.scene[asset_cfg.name]
     joint_pos = asset.data.default_joint_pos.torch.clone()
     joint_vel = asset.data.default_joint_vel.torch.clone()
-    _write_joint_state(asset, _row_mask(asset_cfg, env_mask), joint_pos, joint_vel, set_velocity_target=True)
+    _write_joint_state(asset, asset_cfg.view_row_mask(env_mask), joint_pos, joint_vel, set_velocity_target=True)
 
 
 def _randomize_joint_offset(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntitySelectionCfg,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
 ) -> None:
     """Reset articulation joints with uniform offsets from their defaults."""
@@ -66,13 +63,13 @@ def _randomize_joint_offset(
     limits = asset.data.soft_joint_pos_limits.torch
     joint_pos.clamp_(limits[..., 0], limits[..., 1])
     joint_vel = torch.zeros_like(joint_pos)
-    _write_joint_state(asset, _row_mask(asset_cfg, env_mask), joint_pos, joint_vel, set_velocity_target=False)
+    _write_joint_state(asset, asset_cfg.view_row_mask(env_mask), joint_pos, joint_vel, set_velocity_target=False)
 
 
 def _randomize_joint_scale(
     env: ManagerBasedEnv,
     asset_cfg: SceneEntitySelectionCfg,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
 ) -> None:
     """Reset articulation joints by uniformly scaling their default positions."""
@@ -82,12 +79,12 @@ def _randomize_joint_scale(
     limits = asset.data.soft_joint_pos_limits.torch
     joint_pos.clamp_(limits[..., 0], limits[..., 1])
     joint_vel = torch.zeros_like(joint_pos)
-    _write_joint_state(asset, _row_mask(asset_cfg, env_mask), joint_pos, joint_vel, set_velocity_target=False)
+    _write_joint_state(asset, asset_cfg.view_row_mask(env_mask), joint_pos, joint_vel, set_velocity_target=False)
 
 
 def reset_multitask_scene(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     root_asset_cfgs: tuple[SceneEntitySelectionCfg, ...],
     lift_robot_cfg: SceneEntitySelectionCfg,
     lift_object_cfg: SceneEntitySelectionCfg,
@@ -120,6 +117,6 @@ def reset_multitask_scene(
     object_pose[:, :3] += env.scene.env_origins[lift_object_cfg.env_ids]
     object_pose[:, 0] += torch.empty(object_pose.shape[0], device=env.device).uniform_(-0.1, 0.1)
     object_pose[:, 1] += torch.empty(object_pose.shape[0], device=env.device).uniform_(-0.25, 0.25)
-    rows = _row_mask(lift_object_cfg, env_mask)
+    rows = lift_object_cfg.view_row_mask(env_mask)
     lift_object.write_root_pose_to_sim_mask(root_pose=object_pose, env_mask=rows)
     lift_object.write_root_velocity_to_sim_mask(root_velocity=torch.zeros_like(object_pose[:, :6]), env_mask=rows)

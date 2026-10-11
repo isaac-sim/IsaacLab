@@ -14,6 +14,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.warp import ProxyArray
 
 from .curriculums import get_obstacle_curriculum_term
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 
 def reset_obstacles_with_individual_ranges(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     asset_cfg: SceneEntityCfg,
     obstacle_configs: dict,
     wall_configs: dict,
@@ -159,5 +160,5 @@ def reset_obstacles_with_individual_ranges(
             all_poses[:, obj_idx, 3:7] = torch.where(envs_need_obstacle, quats, identity_quat)
 
     # Write to sim
-    obstacles.write_body_pose_to_sim_mask(body_poses=all_poses, env_mask=env_mask)
-    obstacles.write_body_velocity_to_sim_mask(body_velocities=all_velocities, env_mask=env_mask)
+    obstacles.write_body_pose_to_sim_mask(body_poses=all_poses, env_mask=env_mask.warp)
+    obstacles.write_body_velocity_to_sim_mask(body_velocities=all_velocities, env_mask=env_mask.warp)

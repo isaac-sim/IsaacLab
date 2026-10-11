@@ -26,6 +26,7 @@ from ... import sim as sim_utils
 from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from ...utils import env_mask_from_ids, env_selection_kwargs
 from ...utils import math as math_utils
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
@@ -213,7 +214,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         static_friction_range: tuple[float, float],
         dynamic_friction_range: tuple[float, float],
         restitution_range: tuple[float, float],
@@ -283,7 +284,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         mass_distribution_params: tuple[float, float],
         operation: Literal["add", "scale", "abs"],
@@ -314,7 +315,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
         masses = torch.clamp(masses, min=min_mass)  # ensure masses are positive
 
         # set the mass into the physics simulation
-        self.asset.set_masses_mask(masses=masses, body_mask=body_mask, env_mask=env_mask)
+        self.asset.set_masses_mask(masses=masses, body_mask=body_mask, env_mask=env_mask.warp)
 
         # recompute inertia tensors if needed
         if recompute_inertia:
@@ -325,7 +326,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
             # inertia has shape: (num_envs, num_bodies, 9) for all assets
             inertias = self.default_inertia * ratios[..., None]
             # set the inertia tensors into the physics simulation
-            self.asset.set_inertias_mask(inertias=inertias, body_mask=body_mask, env_mask=env_mask)
+            self.asset.set_inertias_mask(inertias=inertias, body_mask=body_mask, env_mask=env_mask.warp)
 
 
 class randomize_rigid_body_inertia(ManagerTermBase):
@@ -385,7 +386,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         inertia_distribution_params: tuple[float, float],
         operation: Literal["add", "scale", "abs"] = "add",
@@ -442,7 +443,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
         elif operation == "abs":
             inertias[:, :, self._inertia_idx] = random_values[..., None]
 
-        self.asset.set_inertias_mask(inertias=inertias, body_mask=body_mask, env_mask=env_mask)
+        self.asset.set_inertias_mask(inertias=inertias, body_mask=body_mask, env_mask=env_mask.warp)
 
 
 class randomize_rigid_body_com(ManagerTermBase):
@@ -476,7 +477,7 @@ class randomize_rigid_body_com(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         com_range: dict[str, tuple[float, float]],
         asset_cfg: SceneEntityCfg,
     ):
@@ -497,7 +498,7 @@ class randomize_rigid_body_com(ManagerTermBase):
         coms[..., :3] += rand_samples
 
         # note: only the selected environments and bodies are written
-        self.asset.set_coms_mask(coms=coms, body_mask=body_mask, env_mask=env_mask)
+        self.asset.set_coms_mask(coms=coms, body_mask=body_mask, env_mask=env_mask.warp)
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
@@ -551,7 +552,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         rest_offset_distribution_params: tuple[float, float] | None = None,
         contact_offset_distribution_params: tuple[float, float] | None = None,
@@ -603,7 +604,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         gravity_distribution_params: tuple[list[float], list[float]],
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
@@ -730,7 +731,7 @@ class randomize_actuator_gains(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         stiffness_distribution_params: tuple[float, float] | None = None,
         damping_distribution_params: tuple[float, float] | None = None,
@@ -766,9 +767,9 @@ class randomize_actuator_gains(ManagerTermBase):
         params: tuple[float, float],
         actuator_indices: torch.Tensor | slice,
         joint_indices: torch.Tensor | slice,
-        joint_mask: torch.Tensor | None,
+        joint_mask: wp.array | None,
         group_columns: torch.Tensor | None,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"],
     ):
@@ -794,17 +795,17 @@ class randomize_actuator_gains(ManagerTermBase):
             joint_values = getattr(self.asset.data, f"joint_{gain}").torch.clone()
             joint_values[:, joint_indices] = values
             writer = getattr(self.asset, f"write_joint_{gain}_to_sim_mask")
-            writer(**{gain: joint_values}, joint_mask=joint_mask, env_mask=env_mask)
+            writer(**{gain: joint_values}, joint_mask=joint_mask, env_mask=env_mask.warp)
         elif is_native:
             attr = "kp" if gain == "stiffness" else "kd"
             current = read_group_parameter(self.asset.actuators, actuator_name, "controller", attr)
-            values = torch.where(env_mask[:, None], values, current[:, actuator_indices])
+            values = torch.where(env_mask.torch[:, None], values, current[:, actuator_indices])
             write_group_parameter(
                 self.asset.actuators, actuator_name, "controller", attr, values=values, joint_ids=group_columns
             )
         else:
             current = getattr(actuator, gain)
-            current[:, actuator_indices] = torch.where(env_mask[:, None], values, current[:, actuator_indices])
+            current[:, actuator_indices] = torch.where(env_mask.torch[:, None], values, current[:, actuator_indices])
 
 
 class randomize_joint_parameters(ManagerTermBase):
@@ -864,7 +865,7 @@ class randomize_joint_parameters(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         friction_distribution_params: tuple[float, float] | None = None,
         armature_distribution_params: tuple[float, float] | None = None,
@@ -918,15 +919,15 @@ class randomize_joint_parameters(ManagerTermBase):
                     joint_dynamic_friction_coeff=dynamic_friction_coeff,
                     joint_viscous_friction_coeff=viscous_friction_coeff,
                     joint_mask=joint_mask,
-                    env_mask=env_mask,
+                    env_mask=env_mask.warp,
                 )
             else:
                 # backends without dynamic friction (e.g. Newton) write the viscous friction separately
                 self.asset.write_joint_friction_coefficient_to_sim_mask(
-                    joint_friction_coeff=friction_coeff, joint_mask=joint_mask, env_mask=env_mask
+                    joint_friction_coeff=friction_coeff, joint_mask=joint_mask, env_mask=env_mask.warp
                 )
                 self.asset.write_joint_viscous_friction_coefficient_to_sim_mask(
-                    joint_viscous_friction_coeff=viscous_friction_coeff, joint_mask=joint_mask, env_mask=env_mask
+                    joint_viscous_friction_coeff=viscous_friction_coeff, joint_mask=joint_mask, env_mask=env_mask.warp
                 )
 
         if armature_distribution_params is not None:
@@ -938,7 +939,9 @@ class randomize_joint_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.write_joint_armature_to_sim_mask(armature=armature, joint_mask=joint_mask, env_mask=env_mask)
+            self.asset.write_joint_armature_to_sim_mask(
+                armature=armature, joint_mask=joint_mask, env_mask=env_mask.warp
+            )
 
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
             joint_pos_limits = self.default_joint_pos_limits.clone()
@@ -966,14 +969,14 @@ class randomize_joint_parameters(ManagerTermBase):
             # check the position limits of the selected environments and joints
             # note: raising on invalid limits requires reading the result on the host
             selected_limits = joint_pos_limits[:, joint_ids]
-            invalid = (selected_limits[..., 0] > selected_limits[..., 1]).any(dim=-1) & env_mask
+            invalid = (selected_limits[..., 0] > selected_limits[..., 1]).any(dim=-1) & env_mask.torch
             if invalid.any():
                 raise ValueError(
                     "Randomization term 'randomize_joint_parameters' is setting lower joint limits that are greater"
                     " than upper joint limits. Please check the distribution parameters for the joint position limits."
                 )
             self.asset.write_joint_position_limit_to_sim_mask(
-                limits=joint_pos_limits, joint_mask=joint_mask, env_mask=env_mask, warn_limit_violation=False
+                limits=joint_pos_limits, joint_mask=joint_mask, env_mask=env_mask.warp, warn_limit_violation=False
             )
 
 
@@ -1036,7 +1039,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         asset_cfg: SceneEntityCfg,
         stiffness_distribution_params: tuple[float, float] | None = None,
         damping_distribution_params: tuple[float, float] | None = None,
@@ -1065,7 +1068,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 distribution=distribution,
             )
             self.asset.set_fixed_tendon_stiffness_mask(
-                stiffness=stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+                stiffness=stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
             )
 
         if damping_distribution_params is not None:
@@ -1077,7 +1080,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.set_fixed_tendon_damping_mask(damping=damping, fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+            self.asset.set_fixed_tendon_damping_mask(
+                damping=damping, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
+            )
 
         # limit stiffness
         if limit_stiffness_distribution_params is not None:
@@ -1090,7 +1095,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 distribution=distribution,
             )
             self.asset.set_fixed_tendon_limit_stiffness_mask(
-                limit_stiffness=limit_stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+                limit_stiffness=limit_stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
             )
 
         if lower_limit_distribution_params is not None or upper_limit_distribution_params is not None:
@@ -1119,13 +1124,13 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             # check the limits of the selected environments and tendons
             # note: raising on invalid limits requires reading the result on the host
             tendon_limits = limit[:, tendon_ids]
-            if ((tendon_limits[..., 0] > tendon_limits[..., 1]).any(dim=-1) & env_mask).any():
+            if ((tendon_limits[..., 0] > tendon_limits[..., 1]).any(dim=-1) & env_mask.torch).any():
                 raise ValueError(
                     "Randomization term 'randomize_fixed_tendon_parameters' is setting lower tendon limits that are"
                     " greater than upper tendon limits."
                 )
             self.asset.set_fixed_tendon_position_limit_mask(
-                limit=limit, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+                limit=limit, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
             )
 
         if rest_length_distribution_params is not None:
@@ -1138,7 +1143,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 distribution=distribution,
             )
             self.asset.set_fixed_tendon_rest_length_mask(
-                rest_length=rest_length, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+                rest_length=rest_length, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
             )
         # offset
         if offset_distribution_params is not None:
@@ -1150,14 +1155,16 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.set_fixed_tendon_offset_mask(offset=offset, fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+            self.asset.set_fixed_tendon_offset_mask(
+                offset=offset, fixed_tendon_mask=tendon_mask, env_mask=env_mask.warp
+            )
 
-        self.asset.write_fixed_tendon_properties_to_sim_mask(env_mask=env_mask)
+        self.asset.write_fixed_tendon_properties_to_sim_mask(env_mask=env_mask.warp)
 
 
 def apply_external_force_torque(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     force_range: tuple[float, float],
     torque_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1186,14 +1193,14 @@ def apply_external_force_torque(
     asset.permanent_wrench_composer.set_forces_and_torques_mask(
         forces=wp.from_torch(forces, dtype=wp.vec3f),
         torques=wp.from_torch(torques, dtype=wp.vec3f),
-        body_mask=None if body_mask is None else wp.from_torch(body_mask, dtype=wp.bool),
-        env_mask=wp.from_torch(env_mask, dtype=wp.bool),
+        body_mask=body_mask,
+        env_mask=env_mask.warp,
     )
 
 
 def push_by_setting_velocity(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ):
@@ -1215,7 +1222,7 @@ def push_by_setting_velocity(
         velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), vel_w.shape[:-1], device=asset.device
     )
     # set the velocities of the selected environments into the physics simulation
-    asset.write_root_velocity_to_sim_mask(root_velocity=vel_w, env_mask=env_mask)
+    asset.write_root_velocity_to_sim_mask(root_velocity=vel_w, env_mask=env_mask.warp)
 
 
 class reset_root_state_uniform(ManagerTermBase):
@@ -1236,7 +1243,7 @@ class reset_root_state_uniform(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         pose_range: dict[str, tuple[float, float]],
         velocity_range: dict[str, tuple[float, float]],
         asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1260,13 +1267,15 @@ class reset_root_state_uniform(ManagerTermBase):
 
         velocities = default_root_vel + rand_samples
         # set the selected environments into the physics simulation
-        asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask)
-        asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask)
+        asset.write_root_pose_to_sim_mask(
+            root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask.warp
+        )
+        asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask.warp)
 
 
 def reset_root_state_with_random_orientation(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1312,13 +1321,13 @@ def reset_root_state_with_random_orientation(
     velocities = default_root_vel + rand_samples
 
     # set the selected environments into the physics simulation
-    asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask)
-    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask)
+    asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask.warp)
+    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask.warp)
 
 
 def reset_root_state_from_terrain(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     pose_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1378,13 +1387,13 @@ def reset_root_state_from_terrain(
     velocities = asset.data.default_root_vel.torch + rand_samples
 
     # set the selected environments into the physics simulation
-    asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask)
-    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask)
+    asset.write_root_pose_to_sim_mask(root_pose=torch.cat([positions, orientations], dim=-1), env_mask=env_mask.warp)
+    asset.write_root_velocity_to_sim_mask(root_velocity=velocities, env_mask=env_mask.warp)
 
 
 def reset_joints_by_scale(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1414,13 +1423,13 @@ def reset_joints_by_scale(
 
     # set into the physics simulation
     joint_mask = _index_mask(asset_cfg.joint_ids, asset.num_joints, asset.device)
-    asset.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=joint_mask, env_mask=env_mask)
-    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, joint_mask=joint_mask, env_mask=env_mask)
+    asset.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=joint_mask, env_mask=env_mask.warp)
+    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, joint_mask=joint_mask, env_mask=env_mask.warp)
 
 
 def reset_joints_by_offset(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1450,8 +1459,8 @@ def reset_joints_by_offset(
 
     # set into the physics simulation
     joint_mask = _index_mask(asset_cfg.joint_ids, asset.num_joints, asset.device)
-    asset.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=joint_mask, env_mask=env_mask)
-    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, joint_mask=joint_mask, env_mask=env_mask)
+    asset.write_joint_position_to_sim_mask(position=joint_pos, joint_mask=joint_mask, env_mask=env_mask.warp)
+    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, joint_mask=joint_mask, env_mask=env_mask.warp)
 
 
 class reset_joints_within_limits_range(ManagerTermBase):
@@ -1573,7 +1582,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        env_mask: torch.Tensor,
+        env_mask: ProxyArray,
         position_range: dict[str, tuple[float | None, float | None]],
         velocity_range: dict[str, tuple[float | None, float | None]],
         use_default_offset: bool = False,
@@ -1601,13 +1610,13 @@ class reset_joints_within_limits_range(ManagerTermBase):
             joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
 
         # set the selected environments into the physics simulation
-        self._asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
-        self._asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask)
+        self._asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask.warp)
+        self._asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask.warp)
 
 
 def reset_nodal_state_uniform(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: dict[str, tuple[float, float]],
     velocity_range: dict[str, tuple[float, float]],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -1643,10 +1652,10 @@ def reset_nodal_state_uniform(
     nodal_state[..., 3:] += rand_samples
 
     # set the selected environments into the physics simulation
-    asset.write_nodal_state_to_sim_mask(nodal_state, env_mask=wp.from_torch(env_mask, dtype=wp.bool))
+    asset.write_nodal_state_to_sim_mask(nodal_state, env_mask=env_mask.warp)
 
 
-def reset_scene_to_default(env: ManagerBasedEnv, env_mask: torch.Tensor, reset_joint_targets: bool = False):
+def reset_scene_to_default(env: ManagerBasedEnv, env_mask: ProxyArray, reset_joint_targets: bool = False):
     """Reset the scene to the default state specified in the scene configuration.
 
     If :attr:`reset_joint_targets` is True, the joint position and velocity targets of the articulations are
@@ -1655,7 +1664,7 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_mask: torch.Tensor, reset_j
     targets to default values, especially when the targets should be handled by action terms and not event terms.
     """
     # some writers only accept warp masks
-    env_mask_wp = wp.from_torch(env_mask, dtype=wp.bool)
+    env_mask_wp = env_mask.warp
     # rigid bodies
     for rigid_object in env.scene.rigid_objects.values():
         # obtain default and deal with the offset for env origins
@@ -1663,8 +1672,8 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_mask: torch.Tensor, reset_j
         default_root_vel = rigid_object.data.default_root_vel.torch
         default_root_pose[:, :3] += env.scene.env_origins
         # set into the physics simulation
-        rigid_object.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask)
-        rigid_object.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask)
+        rigid_object.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask.warp)
+        rigid_object.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask.warp)
     # articulations
     for articulation_asset in env.scene.articulations.values():
         # obtain default and deal with the offset for env origins
@@ -1672,14 +1681,14 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_mask: torch.Tensor, reset_j
         default_root_vel = articulation_asset.data.default_root_vel.torch
         default_root_pose[:, :3] += env.scene.env_origins
         # set into the physics simulation
-        articulation_asset.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask)
-        articulation_asset.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask)
+        articulation_asset.write_root_pose_to_sim_mask(root_pose=default_root_pose, env_mask=env_mask.warp)
+        articulation_asset.write_root_velocity_to_sim_mask(root_velocity=default_root_vel, env_mask=env_mask.warp)
         # obtain default joint positions
         default_joint_pos = articulation_asset.data.default_joint_pos.torch
         default_joint_vel = articulation_asset.data.default_joint_vel.torch
         # set into the physics simulation
-        articulation_asset.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask)
-        articulation_asset.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask)
+        articulation_asset.write_joint_position_to_sim_mask(position=default_joint_pos, env_mask=env_mask.warp)
+        articulation_asset.write_joint_velocity_to_sim_mask(velocity=default_joint_vel, env_mask=env_mask.warp)
         # reset joint targets if required
         if reset_joint_targets:
             articulation_asset.actuators.target_command.set_position_mask(value=default_joint_pos, env_mask=env_mask_wp)
@@ -1808,7 +1817,7 @@ Internal helper functions.
 """
 
 
-def _index_mask(ids: list[int] | torch.Tensor | slice, num: int, device: torch.device | str) -> torch.Tensor | None:
+def _index_mask(ids: list[int] | torch.Tensor | slice, num: int, device: torch.device | str) -> wp.array | None:
     """Return a boolean mask that selects ``ids`` along an axis of length ``num``, without waiting on the device.
 
     Args:
@@ -1817,11 +1826,11 @@ def _index_mask(ids: list[int] | torch.Tensor | slice, num: int, device: torch.d
         device: Device of the mask.
 
     Returns:
-        Boolean mask. Shape is (num,). None when ``ids`` selects the whole axis.
+        Boolean mask with dtype ``wp.bool``. Shape is (num,). None when ``ids`` selects the whole axis.
     """
     if isinstance(ids, slice) and ids == slice(None):
         return None
-    return env_mask_from_ids(ids, num, device)
+    return env_mask_from_ids(ids, num, device).warp
 
 
 def _randomize_prop_by_op(

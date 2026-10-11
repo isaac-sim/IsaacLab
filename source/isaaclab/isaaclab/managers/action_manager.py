@@ -18,6 +18,7 @@ from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
 from ..utils import index_fill_, instantiate
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
@@ -375,7 +376,7 @@ class ActionManager(ManagerBase):
             term.set_debug_vis(debug_vis)
 
     def reset(
-        self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         """Resets the action history.
 
@@ -390,8 +391,8 @@ class ActionManager(ManagerBase):
         """
         env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # reset the action history
-        index_fill_(self._prev_action, env_mask, 0.0)
-        index_fill_(self._action, env_mask, 0.0)
+        index_fill_(self._prev_action, env_mask.torch, 0.0)
+        index_fill_(self._action, env_mask.torch, 0.0)
         # reset all action terms
         for term in self._terms.values():
             self._reset_term(term, env_mask, env_ids)

@@ -18,6 +18,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.math import sample_uniform
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 
 def reset_joints_around_default(
     env: ManagerBasedEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     position_range: tuple[float, float],
     velocity_range: tuple[float, float],
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -63,5 +64,5 @@ def reset_joints_around_default(
     joint_pos = sample_uniform(joint_min_pos, joint_max_pos, joint_min_pos.shape, joint_min_pos.device)
     joint_vel = sample_uniform(joint_min_vel, joint_max_vel, joint_min_vel.shape, joint_min_vel.device)
     # set into the physics simulation
-    asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask)
-    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask)
+    asset.write_joint_position_to_sim_mask(position=joint_pos, env_mask=env_mask.warp)
+    asset.write_joint_velocity_to_sim_mask(velocity=joint_vel, env_mask=env_mask.warp)

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import torch
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 def difficulty_interpolate_float(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     _data: float,
     initial_value: float,
     final_value: float,
@@ -30,7 +30,7 @@ def difficulty_interpolate_float(
 
 def gravity_range_linear(
     env: ManagerBasedRLEnv,
-    env_mask: torch.Tensor,
+    env_mask: ProxyArray,
     event_name: str,
     start_gravity_z: float,
     end_gravity_z: float,

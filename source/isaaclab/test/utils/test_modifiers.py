@@ -10,7 +10,7 @@ import torch
 
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.test.utils import test_devices
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -132,7 +132,7 @@ def test_stateful_modifier_mask_reset(cfg):
     modifier_obj(data)
     modifier_obj(data)
 
-    modifier_obj.reset(env_mask=torch.tensor([True, False, True]))
+    modifier_obj.reset(env_mask=env_mask_from_ids([0, 2], 3, "cpu"))
     output = modifier_obj(data)
 
     torch.testing.assert_close(output[[0, 2]], first_output[[0, 2]])

@@ -490,7 +490,7 @@ class BaseArticulation(AssetBase):
     def reset(
         self,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_mask: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Reset the articulation.
 
@@ -502,7 +502,7 @@ class BaseArticulation(AssetBase):
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
-            env_mask: Boolean environment mask. If None, then the selection follows ``env_ids``.
+            env_mask: Boolean environment mask, dtype ``wp.bool``. If None, then the selection follows ``env_ids``.
                 Shape is (num_instances,).
         """
         raise NotImplementedError()

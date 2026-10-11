@@ -17,6 +17,7 @@ from prettytable import PrettyTable
 
 from ..utils import configclass, env_ids_from_mask, instantiate
 from ..utils.datasets import EpisodeData, HDF5DatasetFileHandler
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
 
@@ -268,7 +269,7 @@ class RecorderManager(ManagerBase):
     """
 
     def reset(
-        self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None
+        self, env_ids: Sequence[int] | slice | None = None, env_mask: ProxyArray | None = None
     ) -> dict[str, torch.Tensor]:
         """Resets the recorder data.
 

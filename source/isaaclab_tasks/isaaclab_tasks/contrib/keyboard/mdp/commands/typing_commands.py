@@ -19,7 +19,7 @@ import warp as wp
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers import CommandTerm, ManagerTermBase
-from isaaclab.utils import env_ids_from_mask, env_mask_from_ids, index_fill_
+from isaaclab.utils import env_ids_from_mask, env_mask_from_ids, env_selection_kwargs, index_fill_
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     quat_apply,
@@ -28,6 +28,7 @@ from isaaclab.utils.math import (
     quat_mul,
     skew_symmetric_matrix,
 )
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift.mdp.utils import get_reset_state, set_reset_state
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
@@ -337,7 +338,7 @@ class LetterTypingCommand(CommandTerm):
         typed_n = torch.where(self.typed >= 0, self.typed.float() / scale, -1.0)
         return torch.cat([target_n, typed_n], dim=1)
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         """Reset the typing command for the environments selected by ``env_mask``.
 
         Without the curriculum this is just the normal random reset. With it, the snapshot buffer is built
@@ -407,12 +408,11 @@ class LetterTypingCommand(CommandTerm):
         distance = torch.zeros(m_candidates, dtype=torch.float32, device=self.device)
         scratch1 = torch.zeros(m_candidates, dtype=torch.long, device=self.device)  # max_prefix (unused here)
         scratch2 = torch.zeros(m_candidates, dtype=torch.long, device=self.device)  # min_prefix (unused here)
-        env_mask = torch.ones(m_candidates, dtype=torch.bool, device=self.device)
         wp.launch(
             _resample_reset_kernel,
             dim=m_candidates,
             inputs=[
-                wp.from_torch(env_mask, dtype=wp.bool),
+                wp.ones(m_candidates, dtype=wp.bool, device=str(self.device)),
                 wp.from_torch(self._typeable.contiguous(), dtype=wp.int64),
                 int(lo),
                 int(hi),
@@ -652,7 +652,7 @@ class LetterTypingCommand(CommandTerm):
         index_fill_(self.new_high, env_ids, False)
         index_fill_(self.new_low, env_ids, False)
 
-    def _resample_normal(self, env_mask: torch.Tensor):
+    def _resample_normal(self, env_mask: ProxyArray):
         # Normal (random) reset path: draw the target word + a match_prob-typed start buffer, guard against an
         # instant success, and seed the typing metrics + progress water marks - one Warp thread per env that
         # returns early for unselected envs, so the ragged fill reads as a per-thread loop instead of
@@ -664,7 +664,7 @@ class LetterTypingCommand(CommandTerm):
             _resample_reset_kernel,
             dim=self.num_envs,
             inputs=[
-                wp.from_torch(env_mask.contiguous(), dtype=wp.bool),
+                env_mask.warp,
                 wp.from_torch(self._typeable.contiguous(), dtype=wp.int64),
                 int(lo),
                 int(hi),
@@ -683,10 +683,10 @@ class LetterTypingCommand(CommandTerm):
             ],
             device=str(self.device),
         )
-        self._prev_pressed.masked_fill_(env_mask[:, None], False)
-        self._just_reset.masked_fill_(env_mask, True)
-        self.new_high.masked_fill_(env_mask, False)
-        self.new_low.masked_fill_(env_mask, False)
+        self._prev_pressed.masked_fill_(env_mask.torch[:, None], False)
+        self._just_reset.masked_fill_(env_mask.torch, True)
+        self.new_high.masked_fill_(env_mask.torch, False)
+        self.new_low.masked_fill_(env_mask.torch, False)
 
     def _update_command(self):
         if self._press_level is None:
@@ -761,7 +761,7 @@ class LetterTypingCommand(CommandTerm):
         first_mismatch = torch.where(mismatch, pos, self.max_len).min(dim=1).values
         return torch.minimum(first_mismatch, torch.minimum(self.typed_len, self.target_len))
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         """Resample the target word and snap the arm above its first key (see :meth:`_solve_reset_pose`).
 
         Runs only on episode reset (not on the mid-episode resampling timer), so the IK snap never
@@ -875,7 +875,9 @@ class LetterTypingCommand(CommandTerm):
             # are instantiated once with (cfg, env) and the callable instance replaces ``func``.
             if inspect.isclass(pre.func) and issubclass(pre.func, ManagerTermBase):
                 pre.func = pre.func(cfg=pre, env=self._env)
-            pre.func(self._env, env_ids, **pre.params)
+            env_mask = env_mask_from_ids(env_ids, self.num_envs, self.device)
+            selection = env_selection_kwargs(pre.func, env_mask, env_ids)
+            pre.func(self._env, *selection.values(), **pre.params)
         # Seed the arm from the default pose, optionally biased by a uniform joint offset (mirrors the
         # reset_joints_by_offset event it replaces) so the reset start-states carry the same joint diversity as
         # the no-IK case; zero velocity. On low IK-iteration snapshots the offset survives into the pose, while

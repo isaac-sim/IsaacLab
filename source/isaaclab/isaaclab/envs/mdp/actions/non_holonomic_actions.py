@@ -16,6 +16,7 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import euler_xyz_from_quat
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -194,5 +195,5 @@ class NonHolonomicAction(ActionTerm):
             value=self._joint_vel_command, joint_ids=self._joint_ids
         )
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)

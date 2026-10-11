@@ -7,6 +7,7 @@ import pytest
 import torch
 
 import isaaclab.utils.noise as noise
+from isaaclab.utils import env_mask_from_ids
 
 pytestmark = pytest.mark.unit
 
@@ -121,7 +122,7 @@ def test_additive_bias_mask_reset():
     )
     noise_model = noise.NoiseModelWithAdditiveBias(cfg, num_envs=3, device="cpu")
 
-    noise_model.reset(env_mask=torch.tensor([True, False, True]))
+    noise_model.reset(env_mask=env_mask_from_ids([0, 2], 3, "cpu"))
 
     output = noise_model(torch.zeros(3, 2))
     torch.testing.assert_close(output, torch.tensor([[1.0, 1.0], [0.0, 0.0], [1.0, 1.0]]))

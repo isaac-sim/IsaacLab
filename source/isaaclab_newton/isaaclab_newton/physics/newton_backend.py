@@ -652,15 +652,13 @@ def forward(backend: NewtonBackend, *, force: bool = False) -> None:
     backend.kinematics_dirty = False
 
 
-def mark_model_changed(
-    backend: NewtonBackend, change: ModelFlags, env_mask: wp.array | torch.Tensor | None = None
-) -> None:
+def mark_model_changed(backend: NewtonBackend, change: ModelFlags, env_mask: wp.array | None = None) -> None:
     """Queue a model-property transaction, selecting affected worlds entirely on the device.
 
     Args:
         backend: Simulation backend.
         change: Property categories the solver must refresh.
-        env_mask: Changed worlds, as a Warp or Torch boolean array; ``None`` means an unconditional edit.
+        env_mask: Changed worlds, dtype ``wp.bool``; ``None`` means an unconditional edit.
     """
     if backend.solver is None:
         return
@@ -668,8 +666,6 @@ def mark_model_changed(
     if env_mask is None:
         backend.model_dirty.fill_(1)
         return
-    if isinstance(env_mask, torch.Tensor):
-        env_mask = wp.from_torch(env_mask, dtype=wp.bool)
     wp.launch(_mark_model_changes, env_mask.shape[0], [env_mask, backend.model_dirty], device=backend.device)
 
 

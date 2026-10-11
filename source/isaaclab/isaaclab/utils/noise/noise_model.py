@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ..warp import ProxyArray
+
 if TYPE_CHECKING:
     from . import noise_cfg
 
@@ -108,7 +110,7 @@ class NoiseModel:
         self._num_envs = num_envs
         self._device = device
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Reset the noise model.
 
         This method can be implemented by derived classes to reset the noise model.
@@ -151,7 +153,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         self._num_components: int | None = None
         self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Reset the noise model.
 
         This method resets the bias term for the specified environments.
@@ -171,7 +173,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         else:
             # sample the bias for all environments and keep it for the selected ones
             bias = self._bias_noise_cfg.func(self._bias, self._bias_noise_cfg)
-            torch.where(env_mask[:, None], bias, self._bias, out=self._bias)
+            torch.where(env_mask.torch[:, None], bias, self._bias, out=self._bias)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply bias noise to the data.

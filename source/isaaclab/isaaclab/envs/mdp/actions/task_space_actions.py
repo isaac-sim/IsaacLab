@@ -10,7 +10,6 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
-import warp as wp
 
 from pxr import UsdPhysics
 
@@ -23,6 +22,7 @@ from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils import index_fill_
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -223,8 +223,8 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # set the joint position command
         self._asset.actuators.target_command.set_position_index(value=joint_pos_des, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
-        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask, 0.0)
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
+        index_fill_(self._raw_actions, env_ids if env_mask is None else env_mask.torch, 0.0)
 
     """
     Helper functions.
@@ -558,7 +558,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         )
         self._asset.actuators.target_command.set_effort_index(value=self._joint_efforts, joint_ids=self._joint_ids)
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         """Resets the raw actions and the sensors if available.
 
         Args:
@@ -570,8 +570,8 @@ class OperationalSpaceControllerAction(ActionTerm):
             index_fill_(self._raw_actions, env_ids, 0.0)
             sensor_selection = {"env_ids": env_ids}
         else:
-            index_fill_(self._raw_actions, env_mask, 0.0)
-            sensor_selection = {"env_mask": wp.from_torch(env_mask, dtype=wp.bool)}
+            index_fill_(self._raw_actions, env_mask.torch, 0.0)
+            sensor_selection = {"env_mask": env_mask.warp}
         if self._contact_sensor is not None:
             self._contact_sensor.reset(**sensor_selection)
         if self._task_frame_transformer is not None:

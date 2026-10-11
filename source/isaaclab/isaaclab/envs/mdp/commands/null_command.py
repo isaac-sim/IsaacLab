@@ -10,9 +10,8 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 from isaaclab.managers import CommandTerm
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .commands_cfg import NullCommandCfg
@@ -51,7 +50,7 @@ class NullCommand(CommandTerm):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         return {}
 
     def compute(self, dt: float):
@@ -64,7 +63,7 @@ class NullCommand(CommandTerm):
     def _update_metrics(self):
         pass
 
-    def _resample_command(self, env_mask: torch.Tensor):
+    def _resample_command(self, env_mask: ProxyArray):
         pass
 
     def _update_command(self):
