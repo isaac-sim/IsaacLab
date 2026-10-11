@@ -80,6 +80,7 @@ live in a window.
 | `--tissue_solver {explicit,implicit,vbd}` | `explicit` | Tissue solver (see below) |
 | `--arm_speed X` | 2 | Arm speed multiplier; the gripper keeps its gentle closing pace |
 | `--camera {punnet_and_bowl,berry_closeup,room,scripted_camera}` | `punnet_and_bowl` | Fixed views, a close-up following the handled berry, or a shot-by-shot film (scripted demo) |
+| `--punnet {pet,fiber}` | `pet` | Punnet: clear plastic, or molded fiber |
 | `--bowl_material {glass,porcelain}` | `porcelain` | Material of the receiving bowl |
 | `--repeat` | | Scripted demo: start again when it ends |
 | `--save_frames DIR` | | Scripted demo: render offscreen, save one PNG per 1/30 s, then exit |
@@ -119,9 +120,11 @@ measured fruit properties.
 ### Assets
 
 The raspberry is one USDZ package: its Gaussians with degree-three spherical harmonics, its tissue particles, its
-tetrahedral mesh with the Gaussians' binding to it, simulation metadata and MDL shader. The room is a Gaussian scan.
-Both are fetched from Nucleus on first use and cached (`assets/asset_paths.py`); `ISAACLAB_BERRY_ASSET_ROOT` points to
-another root, holding `raspberry/raspberry_v4.usdz` and `background/ebc/`.
+tetrahedral mesh with the Gaussians' binding to it, simulation metadata and MDL shader. Each punnet is a visual USDZ
+package; simple collision walls follow its tapered cavity (`scene/tableware.py`). The room is a Gaussian scan. All are
+fetched from Nucleus on first use and cached (`assets/asset_paths.py`); `ISAACLAB_BERRY_ASSET_ROOT` points to another
+root, holding `raspberry/raspberry_v4.usdz`, `containers/clear_pet.usdz`, `containers/molded_fiber.usdz` and
+`background/ebc/`.
 
 ### Known limitations
 

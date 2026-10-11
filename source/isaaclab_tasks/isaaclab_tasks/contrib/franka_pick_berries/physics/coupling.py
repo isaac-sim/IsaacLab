@@ -21,6 +21,7 @@ from newton.solvers import SolverVBD
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
+from ..scene.tableware import PunnetSpec
 from . import grasp_explicit_mpm, grasp_implicit_mpm
 from .grasp_explicit_mpm import GraspExplicitMPMSolverCfg, SolverGraspExplicitMPM, explicit_solver_config
 from .grasp_implicit_mpm import GraspImplicitMPMSolverCfg, SolverGraspImplicitMPM
@@ -145,17 +146,17 @@ def coupled_physics_cfg(solver: str = "explicit") -> NewtonCfg:
     return physics
 
 
-def configure_tissue_solver(physics: NewtonCfg, specs) -> None:
+def configure_tissue_solver(physics: NewtonCfg, specs, punnet: PunnetSpec) -> None:
     """Fit the tissue solver of a configuration from :func:`coupled_physics_cfg` to the berries.
 
     The implicit solver gets the grid spacing [m] of the coarsest berry, which keeps at least the required particles
     per cell for all of them, and active-cell room for each; the explicit solver gets its grid, rates, contacts and
-    fields; the VBD solver needs nothing more.
+    fields, with the contact walls of ``punnet``; the VBD solver needs nothing more.
     """
     for entry in physics.solver_cfg.entries:
         if entry.name == TISSUE_ENTRY:
             if isinstance(entry.solver_cfg, GraspExplicitMPMSolverCfg):
-                entry.solver_cfg.solver_config = explicit_solver_config(specs, _FINGER)
+                entry.solver_cfg.solver_config = explicit_solver_config(specs, _FINGER, punnet)
             elif isinstance(entry.solver_cfg, GraspImplicitMPMSolverCfg):
                 entry.solver_cfg.voxel_size = max(spec.voxel_size for spec in specs)
                 entry.solver_cfg.max_active_cell_count = CELLS_PER_BERRY * len(specs)

@@ -7,6 +7,8 @@ Added
   glazed white porcelain.
 * Added a ``vbd`` tissue solver to the berry task: Newton's VBD on a tetrahedral mesh of each berry, with the
   Gaussians skinned to the mesh.
+* Added a ``--punnet fiber`` option to the berry teleoperation script that holds the berries in a molded-fiber
+  punnet.
 
 Changed
 ^^^^^^^
@@ -15,7 +17,8 @@ Changed
   and better integrate the robot and support table with the scanned room.
 * Restored the robot's authored surface finishes and the support table's normal, roughness, and metalness
   texture maps in the standalone berry viewer.
-* Rendered the berry task's punnet as glossy clear plastic that casts no shadow.
+* Replaced the berry task's procedural punnet with a smaller, clear PET punnet asset, whose collision walls follow
+  its tapered cavity.
 * Lowered the berry task's receiving bowl from 4.5 cm to 3 cm.
 * Set accepted berries down just above the receiving bowl's floor instead of dropping them, side by side in
   the scripted demo.

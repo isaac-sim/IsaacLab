@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The lab table, the open plastic punnet, the glass or porcelain receiving bowl and the reject dish; dimensions in
-metres."""
+"""The lab table, the open punnet, the glass or porcelain receiving bowl and the reject dish; dimensions in metres."""
+
+from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -15,16 +17,51 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 import isaaclab.sim as sim_utils
 from isaaclab.sim.schemas import define_rigid_body_properties
 from isaaclab.sim.spawners.from_files import spawn_from_usd
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import retrieve_file_path
+
+from ..assets.asset_paths import punnet_asset_path
 
 # (x, y, outer radius, inner radius, base thickness, total height), task frame.
 BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.030)
-# Punnet: (x, y, half width, half depth, corner radius, wall, floor, height).
-PUNNET = (0.48, 0.0, 0.055, 0.070, 0.010, 0.001, 0.004, 0.028)
 REJECT_DISH = (0.40, -0.085, 0.028, 0.026, 0.004, 0.018)
-PUNNET_FLOOR_OPACITY = 0.6
-"""Opacity of the punnet floor, which must catch the berries' shadows."""
-PUNNET_FLOOR_COLOR = (0.12, 0.125, 0.13)
-"""Color [linear RGB] of the punnet floor: close to the table it shows, so that it still reads as clear plastic."""
+PUNNET_CENTER = (0.48, 0.0)
+"""Center (x, y) [m] of the punnet on the table, in the task frame."""
+PUNNET_FLOOR = 0.004
+"""Height [m] of the punnet's inner floor, on which the berries rest."""
+
+
+@dataclass(frozen=True)
+class PunnetSpec:
+    """A punnet's visual asset and the simple collision geometry that follows its cavity.
+
+    The inner wall is a rounded rectangle that tapers toward the floor: its half extents and corner radius grow by
+    :attr:`flare` per unit height above the floor. Its fine relief (ribs, fibers, slots) is visual only.
+    """
+
+    asset: str
+    """File name of the visual USDZ package, whose ``/Punnet`` default prim is centered on the tabletop."""
+    floor_outline: tuple[float, float, float]
+    """Half width, half depth and corner radius [m] of the inner wall at the floor."""
+    flare: float
+    """Growth of the inner wall's half extents and corner radius per unit height [m/m]."""
+    wall: float
+    """Thickness [m] of the collision wall, outside the inner wall."""
+    height: float
+    """Height [m] of the collision wall's top, just below the rim."""
+
+    def outline(self, z: float) -> tuple[float, float, float]:
+        """Return the inner wall's half width, half depth and corner radius [m] at height ``z`` [m]."""
+        grow = self.flare * (z - PUNNET_FLOOR)
+        return tuple(value + grow for value in self.floor_outline)
+
+
+PUNNETS = {
+    # Thermoformed clear PET sheet, 0.35 mm thick: its collision wall is thicker so that thin contact stays robust.
+    "pet": PunnetSpec("clear_pet.usdz", (0.0431, 0.0556, 0.0086), 0.0035 / 0.021, 0.001, 0.027),
+    "fiber": PunnetSpec("molded_fiber.usdz", (0.0409, 0.0534, 0.0073), 0.0040 / 0.0223, 0.0018, 0.027),
+}
+"""Punnets: clear plastic (``pet``) or blue-green molded fiber (``fiber``)."""
 # The spawner replaces (rather than composes with) the asset root pose. Retain
 # its authored 55 cm translation and quarter turn. The table's visible top lies
 # 1.42 mm above its collision box, whose authored top is at -3 mm: place the
@@ -39,20 +76,29 @@ PORCELAIN_COLOR = (0.93, 0.92, 0.89)
 """Color [linear RGB] of the porcelain bowl's glaze."""
 
 
-def tableware_solids() -> np.ndarray:
+def tableware_solids(punnet: PunnetSpec) -> np.ndarray:
     """Return static contact solids [m], including open mouths (never convex lids).
 
     Each row is (cx, cy, zmid, a, b, halfheight). Positive a/b describe annular
     cylinders (inner/outer radii). Negative a selects a rounded rectangle with
-    half width abs(a), half depth abs(b); negative b selects its hollow wall.
-    The punnet corner radius and wall thickness are shared with its render mesh.
+    half width abs(a), half depth abs(b); negative b selects its hollow wall, whose
+    outline at its bottom is given, and which flares upward by ``punnet.flare``.
+    The punnet's outer corner radius and wall thickness go with it: see
+    :func:`punnet_wall_contact`.
     """
     solids = []
     for x, y, outer, inner, base, height in (BOWL, REJECT_DISH):
         solids += [(x, y, base / 2, 0, outer, base / 2), (x, y, (height + base) / 2, inner, outer, (height - base) / 2)]
-    x, y, hx, hy, _, _, base, height = PUNNET
-    solids += [(x, y, base / 2, -hx, hy, base / 2), (x, y, (height + base) / 2, -hx, -hy, (height - base) / 2)]
+    x, y = PUNNET_CENTER
+    hx, hy, _ = (value + punnet.wall for value in punnet.floor_outline)
+    middle, half = (punnet.height + PUNNET_FLOOR) / 2, (punnet.height - PUNNET_FLOOR) / 2
+    solids += [(x, y, PUNNET_FLOOR / 2, -hx, hy, PUNNET_FLOOR / 2), (x, y, middle, -hx, -hy, half)]
     return np.asarray(solids, np.float32)
+
+
+def punnet_wall_contact(punnet: PunnetSpec) -> tuple[float, float, float]:
+    """Return the outer corner radius [m] at the floor, thickness [m] and flare of the punnet's analytic wall."""
+    return punnet.floor_outline[2] + punnet.wall, punnet.wall, punnet.flare
 
 
 def spawn_kinematic_usd(prim_path, cfg, translation=None, orientation=None, **kwargs):
@@ -65,7 +111,7 @@ def spawn_kinematic_usd(prim_path, cfg, translation=None, orientation=None, **kw
     return prim
 
 
-def spawn_tableware(prim_path: str, cfg, translation=None, orientation=None, **kwargs) -> Usd.Prim:
+def spawn_tableware(prim_path: str, cfg: TablewareCfg, translation=None, orientation=None, **kwargs) -> Usd.Prim:
     """Spawn fixed collision proxies in the task frame; RTX authors their visuals."""
     from isaaclab.sim import get_current_stage
 
@@ -94,26 +140,46 @@ def spawn_tableware(prim_path: str, cfg, translation=None, orientation=None, **k
             wall.AddScaleOp().Set(Gf.Vec3f(outer - inner, 2 * outer * math.tan(math.pi / segments), height - base))
             UsdPhysics.CollisionAPI.Apply(wall.GetPrim())
             wall.CreateVisibilityAttr("invisible")
-    # Thin box wall segments approximate the same rounded perimeter for robot contact.
-    x, y, hx, hy, corner, thickness, base, height = PUNNET
+    # A floor slab and thin box wall segments, tilted outward, follow the punnet's tapered cavity.
+    punnet = PUNNETS[cfg.punnet]
+    x, y = PUNNET_CENTER
+    hx, hy, corner = punnet.floor_outline
     floor = UsdGeom.Cube.Define(stage, f"{prim_path}/PunnetFloor")
     floor.CreateSizeAttr(1)
-    floor.AddTranslateOp().Set(Gf.Vec3d(x, y, base / 2))
-    floor.AddScaleOp().Set(Gf.Vec3f(2 * hx, 2 * hy, base))
+    floor.AddTranslateOp().Set(Gf.Vec3d(x, y, PUNNET_FLOOR / 2))
+    floor.AddScaleOp().Set(Gf.Vec3f(2 * (hx + punnet.wall), 2 * (hy + punnet.wall), PUNNET_FLOOR))
     UsdPhysics.CollisionAPI.Apply(floor.GetPrim())
     floor.CreateVisibilityAttr("invisible")
-    outline = _rounded_outline(hx - thickness / 2, hy - thickness / 2, corner - thickness / 2)
-    for index, (a, b) in enumerate(zip(outline, np.roll(outline, -1, axis=0))):
-        delta = b - a
-        middle = (a + b) / 2
+    rise = punnet.height - PUNNET_FLOOR
+    bottom = _rounded_outline(*(value + punnet.wall / 2 for value in punnet.floor_outline))
+    top = _rounded_outline(*(value + punnet.wall / 2 for value in punnet.outline(punnet.height)))
+    tilt = math.degrees(math.atan(punnet.flare))
+    for index in range(len(bottom)):
+        following = (index + 1) % len(bottom)
+        delta = (bottom[following] - bottom[index] + top[following] - top[index]) / 2
+        middle = (bottom[index] + bottom[following] + top[index] + top[following]) / 4
         wall = UsdGeom.Cube.Define(stage, f"{prim_path}/PunnetWall{index}")
         wall.CreateSizeAttr(1)
-        wall.AddTranslateOp().Set(Gf.Vec3d(x + middle[0], y + middle[1], (base + height) / 2))
+        wall.AddTranslateOp().Set(Gf.Vec3d(x + middle[0], y + middle[1], (PUNNET_FLOOR + punnet.height) / 2))
         wall.AddRotateZOp().Set(math.degrees(math.atan2(delta[1], delta[0])))
-        wall.AddScaleOp().Set(Gf.Vec3f(float(np.linalg.norm(delta)) + 0.0001, thickness, height - base))
+        # The outline runs counterclockwise: its outward normal is the segment's -y, toward which the top leans.
+        wall.AddRotateXOp().Set(tilt)
+        wall.AddScaleOp().Set(
+            Gf.Vec3f(float(np.linalg.norm(delta)) + 0.0001, punnet.wall, rise / math.cos(math.radians(tilt)))
+        )
         UsdPhysics.CollisionAPI.Apply(wall.GetPrim())
         wall.CreateVisibilityAttr("invisible")
     return root.GetPrim()
+
+
+@configclass
+class TablewareCfg(sim_utils.SpawnerCfg):
+    """Configuration of the tableware's static collision proxies."""
+
+    func: callable = spawn_tableware
+
+    punnet: str = "pet"
+    """Punnet, one of :data:`PUNNETS`."""
 
 
 def _rounded_outline(hx: float, hy: float, radius: float) -> np.ndarray:
@@ -125,63 +191,6 @@ def _rounded_outline(hx: float, hy: float, radius: float) -> np.ndarray:
                 (sx * (hx - radius) + radius * math.cos(angle), sy * (hy - radius) + radius * math.sin(angle))
             )
     return np.asarray(points)
-
-
-def _punnet_mesh(stage: Usd.Stage) -> UsdGeom.Mesh:
-    """Closed thin shell with an open mouth, rounded corners and rolled flange."""
-    x, y, hx, hy, radius, wall, base, height = PUNNET
-    # Traverse underside -> outer wall -> flange -> inner wall -> inner floor.
-    profile = [
-        (hx, hy, radius, 0.0016),
-        (hx, hy, radius, base),
-        (hx, hy, radius, height - 0.002),
-        (hx + 0.003, hy + 0.003, radius + 0.003, height - 0.001),
-        (hx + 0.003, hy + 0.003, radius + 0.003, height),
-        (hx - wall, hy - wall, radius - wall, height),
-        (hx - wall, hy - wall, radius - wall, base),
-    ]
-    points, faces, counts = [], [], []
-    for width, depth, corner, z in profile:
-        outline = _rounded_outline(width, depth, corner)
-        points.extend((float(px + x), float(py + y), z) for px, py in outline)
-    n = len(outline)
-    for ring in range(len(profile) - 1):
-        for j in range(n):
-            k = (j + 1) % n
-            faces.extend((ring * n + j, ring * n + k, (ring + 1) * n + k, (ring + 1) * n + j))
-            counts.append(4)
-    # Bottom and inner floor are separate surfaces: never cap the mouth.
-    for ring, z, reverse in ((0, 0.0016, True), (len(profile) - 1, base, False)):
-        pole = len(points)
-        points.append((x, y, z))
-        for j in range(n):
-            a, b = ring * n + j, ring * n + (j + 1) % n
-            faces.extend((pole, b, a) if reverse else (pole, a, b))
-            counts.append(3)
-    mesh = UsdGeom.Mesh.Define(stage, "/World/Tableware/Punnet")
-    mesh.CreatePointsAttr(Vt.Vec3fArray(points))
-    mesh.CreateFaceVertexCountsAttr(counts)
-    mesh.CreateFaceVertexIndicesAttr(faces)
-    mesh.CreateSubdivisionSchemeAttr("none")
-    return mesh
-
-
-def _punnet_material(
-    stage: Usd.Stage, name: str, opacity: float, color: tuple[float, float, float] = (0.95, 0.98, 1.0)
-) -> UsdShade.Material:
-    material = UsdShade.Material.Define(stage, f"/World/Tableware/{name}")
-    shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
-    # Thin clear packaging approximation avoids dark multi-bounce solid-glass
-    # reflections on the table. The receiving bowl retains its refractive MDL.
-    shader.SetSourceAsset(Sdf.AssetPath("OmniPBR_Opacity.mdl"), "mdl")
-    shader.SetSourceAssetSubIdentifier("OmniPBR_Opacity", "mdl")
-    shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*color))
-    shader.CreateInput("reflection_roughness_constant", Sdf.ValueTypeNames.Float).Set(0.15)
-    shader.CreateInput("enable_opacity", Sdf.ValueTypeNames.Bool).Set(True)
-    shader.CreateInput("opacity_constant", Sdf.ValueTypeNames.Float).Set(opacity)
-    shader.CreateInput("opacity_threshold", Sdf.ValueTypeNames.Float).Set(0.0)
-    material.CreateSurfaceOutput("mdl").ConnectToSource(shader.ConnectableAPI(), "out")
-    return material
 
 
 def _no_shadow(geometry: UsdGeom.Gprim) -> None:
@@ -203,48 +212,6 @@ def _glass_material(
     shader.CreateInput("thin_walled", Sdf.ValueTypeNames.Bool).Set(thin_walled)
     material.CreateSurfaceOutput("mdl").ConnectToSource(shader.ConnectableAPI(), "out")
     return material
-
-
-def _add_punnet(stage: Usd.Stage) -> None:
-    mesh = _punnet_mesh(stage)
-    # RTX shadow rays do not pass through glass: clear plastic would shade its own floor and the table.
-    _no_shadow(mesh)
-    # Glossy clear PET: sharp reflections along its folds and edges.
-    material = _glass_material(stage, "PunnetMaterial", (0.97, 0.99, 1.0), 1.57, 0.0, True)
-    accent = _glass_material(stage, "PunnetMoldedEdges", (0.97, 0.99, 1.0), 1.57, 0.08, True)
-    UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
-    x, y, hx, hy, corner, _, base, height = PUNNET
-    # Thicker rolled/molded details catch light while the thin panels remain clear.
-    n = len(_rounded_outline(hx, hy, corner))
-    lip = UsdGeom.Subset.Define(stage, "/World/Tableware/Punnet/RolledRim")
-    lip.CreateElementTypeAttr("face")
-    lip.CreateFamilyNameAttr("materialBind")
-    lip.CreateIndicesAttr(list(range(2 * n, 5 * n)))
-    UsdShade.MaterialBindingAPI.Apply(lip.GetPrim()).Bind(accent)
-    # A nearly invisible floor lets the berries' shadows fall through onto the table below, so that berries resting
-    # on it look afloat; a milky floor catches them. The six wall and rim bands come first, then the bottom and the
-    # inner floor.
-    floor = UsdGeom.Subset.Define(stage, "/World/Tableware/Punnet/Floor")
-    floor.CreateElementTypeAttr("face")
-    floor.CreateFamilyNameAttr("materialBind")
-    floor.CreateIndicesAttr(list(range(6 * n, 8 * n)))
-    UsdShade.MaterialBindingAPI.Apply(floor.GetPrim()).Bind(
-        _punnet_material(stage, "PunnetFloor", PUNNET_FLOOR_OPACITY, PUNNET_FLOOR_COLOR)
-    )
-    # Molded ribs are appearance-only, outside the smooth collision envelope.
-    for axis, half, other in ((0, hx, hy), (1, hy, hx)):
-        for side in (-1, 1):
-            for index, along in enumerate(np.arange(-other + corner + 0.005, other - corner, 0.009)):
-                rib = UsdGeom.Capsule.Define(stage, f"/World/Tableware/PunnetRib{axis}_{int(side > 0)}_{index}")
-                rib.CreateRadiusAttr(0.0008)
-                rib.CreateHeightAttr(height - base - 0.005)
-                rib.CreateAxisAttr("Z")
-                xy = [x, y]
-                xy[axis] += side * half
-                xy[1 - axis] += float(along)
-                rib.AddTranslateOp().Set(Gf.Vec3d(*xy, (height + base) / 2))
-                UsdShade.MaterialBindingAPI.Apply(rib.GetPrim()).Bind(accent)
-                _no_shadow(rib)
 
 
 def _lathe(
@@ -333,17 +300,21 @@ def _porcelain_material(stage: Usd.Stage, path: str) -> UsdShade.Material:
     return material
 
 
-def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "porcelain") -> None:
-    """Author open container render meshes.
+def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "porcelain", punnet: str = "pet") -> None:
+    """Reference the punnet's visual asset and author the bowl's and reject dish's open render meshes.
 
     Args:
         stage: Stage to author the meshes in.
         bowl_material: Material of the receiving bowl, one of :data:`BOWL_MATERIALS`.
+        punnet: Punnet, one of :data:`PUNNETS`.
     """
     if bowl_material not in BOWL_MATERIALS:
         raise ValueError(f"Unknown bowl material {bowl_material!r}; expected one of {BOWL_MATERIALS}")
     UsdGeom.Xform.Define(stage, "/World/Tableware")
-    _add_punnet(stage)
+    # The package is centered on the tabletop, with its floor's support height in its geometry.
+    package = UsdGeom.Xform.Define(stage, "/World/Tableware/Punnet")
+    package.GetPrim().GetReferences().AddReference(retrieve_file_path(punnet_asset_path(PUNNETS[punnet].asset)))
+    package.AddTranslateOp().Set(Gf.Vec3d(*PUNNET_CENTER, 0.0))
     for name, spec in (("Reject", REJECT_DISH), ("Bowl", BOWL)):
         x, y, outer, inner, base, height = spec
         bevel = min(0.001, (outer - inner) / 3)

@@ -215,7 +215,7 @@ class BerryViewer(ViewerRTX):
         )
         for delegate in self.render_delegates:
             delegate.author_in_stage(self.stage)
-        add_tableware_visuals(self.stage, self.bowl_material)
+        add_tableware_visuals(self.stage, self.bowl_material, self.env.cfg.punnet)
         add_room_scan(
             self.stage,
             UsdShade.Shader.Get(self.stage, f"{self.render_delegates[0].root_path}/Materials/Radiance/Shader"),

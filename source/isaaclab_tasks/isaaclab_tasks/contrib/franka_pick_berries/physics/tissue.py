@@ -32,7 +32,7 @@ from isaaclab.sim.utils import bind_physics_material, clone, create_prim, get_cu
 from isaaclab.utils import configclass
 
 from ..assets.berry_asset import load_berry_asset, load_berry_tetmesh, rotate_berry_sh
-from ..scene.tableware import PUNNET
+from ..scene.tableware import PunnetSpec
 from . import grasp_vbd
 from .materials import particle_material
 
@@ -148,24 +148,31 @@ def fixed_layout(cfg: BerryPickEnvCfg) -> list[tuple[str, tuple[float, float, fl
     return [(f"raspberry_{i}", (x + dx, y + dy, z)) for i, (dx, dy) in enumerate(_FIXED_LAYOUT[cfg.num_berries], 1)]
 
 
-def random_punnet_poses(particles: dict, count: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
-    """Sample separated centers and full 3D orientations for ``count`` copies of a tissue inside the punnet.
+def random_punnet_poses(particles: dict, count: int, seed: int, punnet: PunnetSpec) -> tuple[np.ndarray, np.ndarray]:
+    """Sample separated centers and full 3D orientations for ``count`` copies of a tissue inside ``punnet``.
 
     Returns each copy's rotation matrix and its translation [m] in the berry frame, about the punnet center, that
-    keeps the rotated tissue's bottom at the height of the unrotated tissue's, on the punnet floor. Extra rim and
-    berry clearance leaves room for a vertical gripper approach.
+    keeps the rotated tissue's bottom at the height of the unrotated tissue's, on the punnet floor. Extra wall and
+    berry clearance leaves room for a vertical gripper approach, whose fingers close along y: along x, the berries
+    are wider than the fingers, and keep clear of the walls only.
     """
     rng = np.random.default_rng(seed)
     rotations = Rotation.random(count, random_state=rng).as_matrix()
     center = (particles["xyz"].min(0) + particles["xyz"].max(0)) / 2
     rotated = [(particles["xyz"] - center) @ r.T for r in rotations]
     radius = max(float(np.linalg.norm(p[:, :2], axis=1).max()) for p in rotated)
-    bounds = np.array(PUNNET[2:4]) - radius - 0.016
+    bounds = np.array(punnet.floor_outline[:2]) - radius - np.array([0.004, 0.016])
     if np.any(bounds <= 0):
         raise ValueError("The berries must fit inside the punnet with gripper clearance")
-    for _ in range(10000):
-        centers = rng.uniform(-bounds, bounds, size=(count, 2))
-        if all(np.linalg.norm(centers[i] - centers[j]) >= 2 * radius + 0.014 for i in range(count) for j in range(i)):
+    # A small punnet leaves few separated layouts: test candidates in batches, and take the first that fits.
+    pairs = [(i, j) for i in range(count) for j in range(i)]
+    for _ in range(20):
+        candidates = rng.uniform(-bounds, bounds, size=(100000, count, 2))
+        fits = np.ones(len(candidates), bool)
+        for i, j in pairs:
+            fits &= np.linalg.norm(candidates[:, i] - candidates[:, j], axis=1) >= 2 * radius + 0.014
+        if fits.any():
+            centers = candidates[np.argmax(fits)]
             break
     else:
         raise ValueError("Unable to fit separated berries with gripper clearance in the punnet")

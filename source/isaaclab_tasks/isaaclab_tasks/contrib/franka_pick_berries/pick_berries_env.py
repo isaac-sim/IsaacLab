@@ -22,6 +22,7 @@ from .physics.tissue import (
     tissue_object_cfg,
     transform_tissue,
 )
+from .scene.tableware import PUNNETS
 
 
 class BerryPickEnv(ManagerBasedRLEnv):
@@ -31,10 +32,12 @@ class BerryPickEnv(ManagerBasedRLEnv):
         # Read by _reset_idx, which can run during super().__init__.
         self.berries = {}
         self.handled_berry = None
+        punnet = PUNNETS[cfg.punnet]
+        cfg.scene.tableware.spawn.punnet = cfg.punnet
         specs = [load_tissue(cfg, *berry) for berry in fixed_layout(cfg)]
         if cfg.num_berries > 1 and cfg.randomize_layout:
             # Scatter the berries in the punnet with random orientations; every berry shares the punnet frame.
-            rotations, shifts = random_punnet_poses(specs[0].particles, len(specs), cfg.layout_seed)
+            rotations, shifts = random_punnet_poses(specs[0].particles, len(specs), cfg.layout_seed, punnet)
             specs = [
                 transform_tissue(spec, rotation, shift, cfg.berry_position)
                 for spec, rotation, shift in zip(specs, rotations, shifts)
@@ -46,7 +49,7 @@ class BerryPickEnv(ManagerBasedRLEnv):
             use_cuda_graph = cfg.sim.physics.use_cuda_graph
             cfg.sim.physics = coupled_physics_cfg(solver=cfg.tissue_solver)
             cfg.sim.physics.use_cuda_graph = use_cuda_graph
-        configure_tissue_solver(cfg.sim.physics, specs)
+        configure_tissue_solver(cfg.sim.physics, specs, punnet)
         super().__init__(cfg, **kwargs)
         self.berries = {spec.name: BerryTissue(spec, self.scene[spec.scene_name]) for spec in specs}
         register_tissues(self.berries.values())

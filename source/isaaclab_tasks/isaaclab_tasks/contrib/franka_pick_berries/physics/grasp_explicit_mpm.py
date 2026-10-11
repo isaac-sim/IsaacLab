@@ -45,7 +45,7 @@ from newton.solvers import SolverBase
 
 from isaaclab.utils import configclass
 
-from ..scene.tableware import PUNNET, tableware_solids
+from ..scene.tableware import PunnetSpec, punnet_wall_contact, tableware_solids
 from .materials import POISSON_RATIO, YOUNG_MODULUS
 
 # Error counters of :attr:`SolverGraspExplicitMPM.errors`.
@@ -116,12 +116,14 @@ def rounded_rectangle(p: wp.vec3, hx: float, hy: float, corner: float):
 
 
 @wp.func
-def vessel_surface(x: wp.vec3, center: wp.vec3, size: wp.vec3, corner: float, wall: float):
+def vessel_surface(x: wp.vec3, center: wp.vec3, size: wp.vec3, corner: float, wall: float, flare: float):
     """Outward normal and signed distance [m] to a static vessel part.
 
     ``size`` = (a, b, half height). Nonnegative ``a`` is an annular cylinder with inner radius ``a`` (0 for a disk)
     and outer radius ``b``. Negative ``a`` is a rounded rectangle of half extents ``(|a|, |b|)``, solid for positive
-    ``b`` and a wall of thickness ``wall`` for negative ``b``.
+    ``b`` and a wall of thickness ``wall`` for negative ``b``. The wall's half extents and corner radius grow by
+    ``flare`` per unit height above its bottom, which tapers it inward toward the bottom; its normals stay
+    horizontal, which is accurate for a slight taper.
     """
     p = x - center
     vertical = wp.vec3(0.0, 0.0, wp.where(p[2] >= 0.0, 1.0, -1.0))
@@ -130,9 +132,15 @@ def vessel_surface(x: wp.vec3, center: wp.vec3, size: wp.vec3, corner: float, wa
     dr = float(0.0)
     if size[0] < 0.0:
         hx, hy = -size[0], wp.abs(size[1])
-        planar = rounded_rectangle(p, hx, hy, corner)
+        rounding = corner
         if size[1] < 0.0:
-            inner = rounded_rectangle(p, hx - wall, hy - wall, corner - wall)
+            grow = flare * wp.max(p[2] + size[2], 0.0)
+            hx += grow
+            hy += grow
+            rounding += grow
+        planar = rounded_rectangle(p, hx, hy, rounding)
+        if size[1] < 0.0:
+            inner = rounded_rectangle(p, hx - wall, hy - wall, rounding - wall)
             if -inner[2] > planar[2]:
                 planar = -inner
         radial = wp.vec3(planar[0], planar[1], 0.0)
@@ -174,6 +182,7 @@ def static_boundaries(
     vessel_friction: float,
     corner: float,
     wall: float,
+    flare: float,
     reach: float,
 ):
     """Apply ground friction to velocity ``v`` at or below the ground, and vessel friction within ``reach`` [m] of a
@@ -182,7 +191,7 @@ def static_boundaries(
     if x[2] <= ground:
         result = coulomb_velocity(result, wp.vec3(0.0, 0.0, 1.0), ground_friction)
     for j in range(vessel_center.shape[0]):
-        surface = vessel_surface(x, vessel_center[j], vessel_size[j], corner, wall)
+        surface = vessel_surface(x, vessel_center[j], vessel_size[j], corner, wall, flare)
         if surface[3] <= reach:
             result = coulomb_velocity(result, wp.vec3(surface[0], surface[1], surface[2]), vessel_friction)
     return result
@@ -546,6 +555,7 @@ def grid_update(
     vessel_friction: float,
     corner: float,
     wall: float,
+    flare: float,
     node_mass: wp.array[float],
     node_momentum: wp.array[wp.vec3],
     mass_gradient: wp.array[wp.vec3],
@@ -614,6 +624,7 @@ def grid_update(
             vessel_friction,
             corner,
             wall,
+            flare,
             0.5 * spacing,
         )
 
@@ -708,6 +719,7 @@ def particle_boundaries(
     vessel_friction: float,
     corner: float,
     wall: float,
+    flare: float,
     x: wp.array[wp.vec3],
     v: wp.array[wp.vec3],
     impulse: wp.array[wp.vec3],
@@ -738,7 +750,7 @@ def particle_boundaries(
         position[2] = ground + radius
         velocity = coulomb_velocity(velocity, wp.vec3(0.0, 0.0, 1.0), ground_friction)
     for j in range(vessel_center.shape[0]):
-        surface = vessel_surface(position, vessel_center[j], vessel_size[j], corner, wall)
+        surface = vessel_surface(position, vessel_center[j], vessel_size[j], corner, wall, flare)
         if surface[3] < radius:
             normal = wp.vec3(surface[0], surface[1], surface[2])
             position += (radius - surface[3]) * normal
@@ -851,6 +863,8 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
         vessel_friction: float = 0.3
         vessel_corner_radius: float = 0.01
         vessel_wall_thickness: float = 0.001
+        vessel_wall_flare: float = 0.0
+        """Growth of the rounded-rectangle walls' half extents and corner radius per unit height [m/m]."""
         pads: tuple[PadConfig, ...] = ()
         pad_friction: float = 1.2
         hardening: float = 0.0
@@ -1013,6 +1027,7 @@ class SolverGraspExplicitMPM(SolverBase, CouplingInterface):
             config.vessel_friction,
             config.vessel_corner_radius,
             config.vessel_wall_thickness,
+            config.vessel_wall_flare,
         ]
         count = model.particle_count
         x, v = state_out.particle_q, state_out.particle_qd
@@ -1288,18 +1303,20 @@ def workcell_grid(spacing: float, center) -> tuple[tuple[float, ...], tuple[int,
     return tuple((np.asarray(center) + origin).tolist()), tuple(int(r) for r in resolution)
 
 
-def explicit_solver_config(specs, fingers: dict[str, str]) -> SolverGraspExplicitMPM.Config:
+def explicit_solver_config(specs, fingers: dict[str, str], punnet: PunnetSpec) -> SolverGraspExplicitMPM.Config:
     """Configure the explicit solver for the task's berries: one field per berry when there are several.
 
     Args:
         specs: The berries' :class:`.tissue.TissueSpec`.
         fingers: Body label pattern of each finger, keyed ``left`` and ``right``.
+        punnet: The punnet, whose walls the tissue collides with.
     """
     materials = [tissue_material(spec.profile) for spec in specs]
     # One grid serves every berry: the coarsest spacing and the fastest rate keep each stable.
     spacing = max(m.grid_spacing for m in materials)
     rate = max(m.substep_rate for m in materials)
     origin, resolution = workcell_grid(spacing, specs[0].offset)
+    corner, wall, flare = punnet_wall_contact(punnet)
     return SolverGraspExplicitMPM.Config(
         grid_origin=origin,
         grid_resolution=resolution,
@@ -1308,9 +1325,10 @@ def explicit_solver_config(specs, fingers: dict[str, str]) -> SolverGraspExplici
         substep_rate=rate,
         damping=materials[0].damping,
         ground_friction=0.3,
-        vessels=tuple(tuple(row) for row in tableware_solids().tolist()),
-        vessel_corner_radius=PUNNET[4],
-        vessel_wall_thickness=PUNNET[5],
+        vessels=tuple(tuple(row) for row in tableware_solids(punnet).tolist()),
+        vessel_corner_radius=corner,
+        vessel_wall_thickness=wall,
+        vessel_wall_flare=flare,
         pads=tuple(PadConfig(fingers[side], _PAD_OFFSETS[side], _PAD_HALF_EXTENTS) for side in ("left", "right")),
         hardening=materials[0].hardening,
     )

@@ -34,6 +34,11 @@ def raspberry_asset_path() -> str:
     return f"{_berry_root()}/raspberry/raspberry_v4.usdz"
 
 
+def punnet_asset_path(name: str) -> str:
+    """Source of a punnet's visual USDZ package, ``name``: ``containers/<name>`` under the raspberry's root."""
+    return f"{_berry_root()}/containers/{name}"
+
+
 def room_scan_root() -> str:
     """Source root of the room scan: ``<root>/aligned.usda`` + ``point_cloud.usd``.
 

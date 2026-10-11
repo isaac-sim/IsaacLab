@@ -8,7 +8,6 @@
 from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
@@ -28,7 +27,14 @@ from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 from .assets.asset_paths import raspberry_asset_path
 from .mdp.actions import GripperApertureActionCfg, WorkspaceIKAction
 from .physics.coupling import coupled_physics_cfg
-from .scene.tableware import PUNNET, TABLE_POSITION, TABLE_ROTATION, spawn_kinematic_usd, spawn_tableware
+from .scene.tableware import (
+    PUNNET_CENTER,
+    PUNNET_FLOOR,
+    TABLE_POSITION,
+    TABLE_ROTATION,
+    TablewareCfg,
+    spawn_kinematic_usd,
+)
 
 # Franka joint positions [rad] with the hand pointing down above the punnet.
 _READY_JOINTS = (0.00785503, 0.30280935, -0.00700201, -2.45886405, 0.00562982, 2.76166094, 0.78134144)
@@ -59,7 +65,7 @@ class BerrySceneCfg(InteractiveSceneCfg):
         spawn=GroundPlaneCfg(visible=False),
     )
     # The punnet, bowl and reject dish as static colliders; the viewer renders their visual meshes.
-    tableware = AssetBaseCfg(prim_path="/World/TablewareCollisions", spawn=sim_utils.SpawnerCfg(func=spawn_tableware))
+    tableware = AssetBaseCfg(prim_path="/World/TablewareCollisions", spawn=TablewareCfg())
 
 
 @configclass
@@ -128,7 +134,9 @@ class BerryPickEnvCfg(ManagerBasedRLEnvCfg):
     """Tissue particles: ``full``, or ``half`` of them for speed; the Gaussians are unchanged."""
     berry_asset: str = raspberry_asset_path()
     """Raspberry USDZ package: a Nucleus URL or a local path."""
-    berry_position: tuple[float, float, float] = (PUNNET[0], PUNNET[1], PUNNET[6])
+    punnet: str = "pet"
+    """Punnet: clear plastic (``pet``) or molded fiber (``fiber``); see :data:`.scene.tableware.PUNNETS`."""
+    berry_position: tuple[float, float, float] = (*PUNNET_CENTER, PUNNET_FLOOR)
     """Center [m] of the berries' layout, on the punnet floor."""
 
     def __post_init__(self):

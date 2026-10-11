@@ -59,6 +59,9 @@ parser.add_argument(
 parser.add_argument(
     "--bowl_material", choices=["glass", "porcelain"], default="porcelain", help="Material of the receiving bowl"
 )
+parser.add_argument(
+    "--punnet", choices=["pet", "fiber"], default="pet", help="Punnet: clear plastic (pet) or molded fiber (fiber)"
+)
 parser.add_argument("--repeat", action="store_true", help="scripted_demo: reset and run it again when it ends")
 parser.add_argument(
     "--save_frames",
@@ -99,6 +102,7 @@ cfg.randomize_layout = not args.fixed_layout
 cfg.layout_seed = args.layout_seed
 cfg.tissue_resolution = args.tissue_resolution
 cfg.tissue_solver = args.tissue_solver
+cfg.punnet = args.punnet
 cfg.sim.device = args.device
 
 with launch_simulation(cfg, args), ExitStack() as resources:
