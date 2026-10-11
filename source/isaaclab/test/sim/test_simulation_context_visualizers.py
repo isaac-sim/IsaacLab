@@ -27,7 +27,9 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.app import scan
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers import WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -898,14 +900,12 @@ def _make_context_with_settings(
 
 
 def test_default_visualizer_cfg_applies_to_cli_created_configs():
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
         streaming_sensor_prim_path="/World/envs/*/Camera",
         window=WindowCfg(size=(640, 480), fps=60),
     )
-    visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl", "newton_rtx"])
+    visualizer_cfgs = scan(SimulationCfg(), {"visualizer": ["newton_gl", "newton_rtx"]}).visualizer_cfgs
     ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
 
     ctx._create_visualizers()
@@ -922,9 +922,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
 
 def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
     """Requesting 'newton_rtx' via CLI resolves to a NewtonRTXVisualizerCfg."""
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
-    cfgs = resolve_visualizer_cfgs([], ["newton_rtx"])
+    cfgs = scan(SimulationCfg(), {"visualizer": ["newton_rtx"]}).visualizer_cfgs
 
     assert len(cfgs) == 1
     assert isinstance(cfgs[0], NewtonRTXVisualizerCfg)
@@ -1006,8 +1004,6 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     # Force import to fail for the rerun visualizer module
     import importlib
 
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
     real_import = importlib.import_module
 
     def _failing_import(name, *args, **kwargs):
@@ -1018,7 +1014,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
     with pytest.raises(RuntimeError, match="rerun"):
-        resolve_visualizer_cfgs([], ["rerun"])
+        scan(SimulationCfg(), {"visualizer": ["rerun"]})
 
 
 def test_visualizer_init_keeps_requirements_published_before_reset():
@@ -1060,11 +1056,11 @@ def test_explicit_type_matches_existing_cfg():
     """Requesting 'newton_gl' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
     config selects and returns that exact instance, rather than discarding it and building a
     fresh default -- exercising the branch that filters pre-existing cfgs by type."""
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
-    existing_cfg = NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6))
-
-    cfgs = resolve_visualizer_cfgs([existing_cfg, KitVisualizerCfg()], ["newton_gl"])
+    sim_cfg = SimulationCfg(
+        visualizer_cfgs=[NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6)), KitVisualizerCfg()]
+    )
+    existing_cfg = sim_cfg.visualizer_cfgs[0]
+    cfgs = scan(sim_cfg, {"visualizer": ["newton_gl"]}).visualizer_cfgs
 
     assert len(cfgs) == 1
     assert cfgs[0] is existing_cfg
@@ -1076,8 +1072,6 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
     resolved still raises, exercising the branch that extends pre-existing cfgs with freshly-created
     defaults for the remaining requested types."""
     import importlib
-
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
 
     real_import = importlib.import_module
     requested = []
@@ -1091,7 +1085,7 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
     with pytest.raises(RuntimeError) as exc_info:
-        resolve_visualizer_cfgs([_FakeVisualizerCfg("kit")], ["kit", "rerun"])
+        scan(SimulationCfg(visualizer_cfgs=[_FakeVisualizerCfg("kit")]), {"visualizer": ["kit", "rerun"]})
     # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is constructed and reported.
     assert "'rerun'" in str(exc_info.value)
     assert requested == ["isaaclab_visualizers.rerun"]

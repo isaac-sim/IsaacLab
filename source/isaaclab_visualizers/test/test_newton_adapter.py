@@ -971,12 +971,11 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     """Recording advances without viewer steps, while repeated reads in one physics step reuse the image."""
     from unittest.mock import PropertyMock
 
-    from isaaclab.envs.utils import video_recorder
     from isaaclab.envs.utils.video_recorder import VideoRecorder
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     clip = Mock()
-    monkeypatch.setattr(video_recorder, "ImageSequenceClip", clip)
+    monkeypatch.setitem(sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=clip))
     pixels = wp.full((2, 4, 6, 4), 10, dtype=wp.uint8, device="cpu")
     camera = Mock(cfg=SimpleNamespace(prim_path="/Camera", data_types=["rgb"]))
     acquired = PropertyMock(return_value=SimpleNamespace(output={"rgb": ProxyArray(pixels)}))
@@ -989,8 +988,6 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     sim.get_setting = lambda name: False
     sim._physics_step_count, sim._backend_registry = 0, []
     sim.physics_manager = Mock()
-    sim.forward = Mock()
-    sim.vis_marker_registry = Mock()
     sim._scene_data_provider = SimpleNamespace(num_envs=2)
     sim._visualizers = [visualizer]
     BaseVisualizer.initialize(visualizer, sim, cameras=[camera])

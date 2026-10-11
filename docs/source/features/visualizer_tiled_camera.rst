@@ -17,31 +17,34 @@ their output. Multiple visualizers can display the same sensor with different ti
    The streaming camera view is supported in Kit, Newton GL, Newton RTX, Rerun, and Viser.
 
 
-Shared image views
-------------------
+Sharing a view with recording
+-----------------------------
 
 ``ImageViewCfg`` selects pixels independently of their destination. A scene sensor name binds
 an existing camera; its renderer and capture cadence remain owned by the scene. ``WindowCfg``
-controls presentation independently through ``VisualizerCfg.window``. Multiple windows can share
-a sensor selection through ``VisualizerCfg.view``:
+controls presentation independently through ``VisualizerCfg.window``. ``VisualizerCfg.view`` and
+``VideoRecorderCfg.view`` can consume the same selection:
 
 .. code-block:: python
 
+   from isaaclab.envs import VideoRecorderCfg
    from isaaclab.visualizers import ImageViewCfg, WindowCfg
    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
    view = ImageViewCfg(source="front_camera", envs=(0, 2), channels=("rgb", "depth"))
    env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(view=view, window=WindowCfg(size=(1280, 720)))]
+   env_cfg.video_recorders = [VideoRecorderCfg(view=view, output_dir="videos")]
 
 Use ``--viz newton_gl`` (or ``--viz newton_rtx`` for the RTX example) to display the window.
-The scene must declare ``front_camera`` with both requested outputs.
+Omit ``--viz`` for recording alone. The scene must declare ``front_camera`` with both requested outputs.
 The view preserves environment order and native tile dimensions, placing channels beside each other.
 ``channels`` selects existing outputs; ``depth_range`` only maps depth values to display colors.
 Neither changes the source camera's outputs, measurements, or clipping planes.
 ``CameraCfg.width`` and ``height`` set sensor resolution. ``WindowCfg.size`` sets the initial window
 dimensions; the window scales the composed image for display. Resizing a sensor's window leaves both
-sensor and composed-image storage unchanged.
-Display uses the device image. Channel selections are validated when the view is bound.
+sensor and composed-image storage unchanged. The recorder encodes the native composed image.
+Only encoding downloads pixels; display uses the device image. Invalid recording sources or channel
+selections raise errors when bound or first captured; they do not silently disable recording.
 
 Reusing the same ``ImageViewCfg`` shares one runtime frame within a simulation, including through
 copies of the enclosing configuration. Use ``isaaclab.utils.replace(view, ...)`` for an independent
@@ -60,11 +63,14 @@ A perspective source uses a visualizer's renderer without creating a scene camer
    env_cfg.sim.visualizer_cfgs = [
        NewtonRTXVisualizerCfg(view=view, window=WindowCfg(size=(960, 540)))
    ]
+   env_cfg.video_recorders = [VideoRecorderCfg(view=view)]
 
 Newton RTX fixes perspective render resolution at the initial ``WindowCfg.size``; resizing the window
 scales its image. Newton GL perspective rendering follows its window framebuffer dimensions.
+The recorder reads the completed native render without requesting a second render for that step.
 Perspective views currently provide one RGB image, so keep ``envs=(0,)`` and ``channels=("rgb",)``.
-A perspective view has exactly one configured rendering visualizer.
+A recorded perspective view requires exactly one configured rendering visualizer. In headless runs,
+the launcher retains that producer without opening a window; recording a sensor view needs no visualizer.
 
 ``VisualizerCfg.view`` is supported by Newton GL and RTX. Existing ``cameras`` and
 ``streaming_*`` configurations and CLI recording source strings remain supported; they are translated

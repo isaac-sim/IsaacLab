@@ -1,0 +1,1 @@
+Exercised distributed device selection through the launch entry point instead of a private helper.

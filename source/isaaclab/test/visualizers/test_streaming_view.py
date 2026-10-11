@@ -9,6 +9,7 @@ import ast
 import inspect
 import math
 import pickle
+import sys
 from colorsys import hsv_to_rgb
 from importlib.util import find_spec
 from types import SimpleNamespace
@@ -163,17 +164,20 @@ def test_device_colorization_matches_reference_and_reuses_storage(device, monkey
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_windows_share_fixed_device_image(device, monkeypatch):
+def test_window_and_recorder_share_fixed_device_image(device, monkeypatch):
     """One selected frame serves both consumers; resizing presentation preserves captured storage."""
     from copy import deepcopy
     from unittest.mock import PropertyMock
 
+    from isaaclab.envs.utils.video_recorder import VideoRecorder
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
     from isaaclab.sim import SimulationContext, simulation_context
     from isaaclab.visualizers import VisualizerCfg, WindowCfg, image_view, visualizer_cfg
 
     for module in (image_view, visualizer_cfg, simulation_context):
         imports = (node for node in ast.walk(ast.parse(inspect.getsource(module))) if isinstance(node, ast.ImportFrom))
         assert not any("envs" in (node.module or "").split(".") for node in imports)
+    assert find_spec("isaaclab.envs.utils.camera_colorizer") is None
     assert find_spec("isaaclab.envs.utils.camera_view") is None
     rgb = wp.array(np.arange(3, dtype=np.uint8)[:, None, None, None] * np.ones((3, 2, 2, 4), np.uint8), device=device)
     depth = wp.full((3, 2, 2, 1), 2.0, dtype=wp.float32, device=device)
@@ -188,14 +192,16 @@ def test_windows_share_fixed_device_image(device, monkeypatch):
         ImageViewCfg(source="front", size=(16, 20))
     declaration = ImageViewCfg(source="front", envs=(2, 0), channels=("rgb", "depth"))
     visualizer_cfg_copy = deepcopy(VisualizerCfg(view=declaration, window=WindowCfg(size=(320, 240))))
-    other_window = deepcopy(VisualizerCfg(view=declaration))
+    recorder_cfg = deepcopy(VideoRecorderCfg(view=declaration))
+    monkeypatch.setitem(sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=Mock()))
+    recorder = VideoRecorder(recorder_cfg, SimpleNamespace(sim=sim, scene=SimpleNamespace(sensors={"front": camera})))
     view = sim.get_or_create_backend(visualizer_cfg_copy.view, camera=camera)
     image = view.read(0)
-    pixels = view.read_rgb(0)
-    assert sim.get_or_create_backend(other_window.view, camera=camera) is view
+    pixels = recorder._get_frame()
+    assert sim.get_or_create_backend(recorder_cfg.view, camera=camera) is view
     assert sim.get_or_create_backend(declaration.copy(), camera=camera) is not view
     assert sim.get_or_create_backend(replace(declaration), camera=camera) is not view
-    restored = pickle.loads(pickle.dumps((visualizer_cfg_copy, other_window)))
+    restored = pickle.loads(pickle.dumps((visualizer_cfg_copy, recorder_cfg)))
     assert restored[0].view is restored[1].view and restored[0].view is not declaration
     assert restored[0].view.source == declaration.source
     assert "get_image_view" not in vars(SimulationContext)
@@ -246,7 +252,7 @@ def test_windows_share_fixed_device_image(device, monkeypatch):
     assert view.read(2) is image
     declaration.envs = ()
     assert view.read(2) is None
-    assert view.read_rgb(2) is None
+    assert recorder._get_frame() is None
     sim.close_backend(view)
     assert all(resource is not view for _, resource in sim._backend_registry)
     camera.close.assert_not_called()

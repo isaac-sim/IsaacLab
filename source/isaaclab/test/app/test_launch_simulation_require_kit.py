@@ -96,36 +96,25 @@ def test_require_kit_reads_from_a_namespace(kit_branch_taken):
     assert kit_branch_taken == [True]
 
 
-def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
-    config_scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        sim_cfg=None,
-        has_ovrtx=True,
-        has_kit_camera=False,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=False,
-    )
-    monkeypatch.setattr(
-        sim_launcher,
-        "scan",
-        lambda _cfg, launcher_args: sim_launcher._resolve_launcher_args(launcher_args) or config_scan,
-    )
-
+def test_require_kit_rejects_ovrtx_runtime():
+    cfg = types.SimpleNamespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg())
     with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(cfg=object(), launcher_args={"require_kit": True}):
+        with launch_simulation(cfg, {"require_kit": True}):
             pass
 
 
 def test_newton_rtx_rejects_kit_before_loading_ovrtx(monkeypatch: pytest.MonkeyPatch):
+    class CustomPhysxCfg(sim_launcher.PhysxCfg):
+        pass
+
     calls = []
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
+    monkeypatch.setattr(physx_app, "KitLauncher", lambda _: pytest.fail("Invalid runtime reached Kit launch"))
 
     with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(sim_launcher.PhysxCfg(), {"visualizer": ["newton_rtx"]}):
+        with launch_simulation(CustomPhysxCfg(), {"visualizer": ["newton_rtx"]}):
             pass
 
     assert calls == []
@@ -182,3 +171,56 @@ def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
         pass
 
     assert kit_branch_taken == [True]
+
+
+@pytest.mark.parametrize("producer_count", [0, 1, 2])
+def test_shared_view_recording_selects_its_producer_without_a_window(producer_count):
+    """Retain each recorded perspective producer, including when viewers share the same backend."""
+    from types import SimpleNamespace
+
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, WindowCfg, visualizer_cfg
+
+    assert "_resolve_video_sources" not in vars(sim_launcher)
+    assert "resolve_visualizer_cfgs" not in vars(visualizer_cfg)
+    views = [ImageViewCfg(source=PerspectiveCameraCfg()) for _ in range(producer_count)]
+    visualizers = [NewtonGLVisualizerCfg(view=view, window=WindowCfg(size=(128, 96))) for view in views]
+    if producer_count == 1:
+        visualizers = visualizers[0]  # SimulationCfg also accepts a single configuration.
+    else:
+        visualizers.insert(0, NewtonGLVisualizerCfg())  # An unrelated viewer of the same backend must stay inactive.
+    cfg = SimpleNamespace(
+        sim=SimulationCfg(device="cpu", physics=NewtonCfg(), visualizer_cfgs=visualizers),
+        video_recorders=[VideoRecorderCfg(view=view) for view in views or [ImageViewCfg(source="front")]],
+    )
+    declared = cfg.sim.visualizer_cfgs
+    preview = sim_launcher.scan(cfg, {"visualizer": [], "headless": True})
+    assert cfg.sim.visualizer_cfgs is declared
+    assert len(preview.visualizer_cfgs) == producer_count
+    with launch_simulation(cfg, {"visualizer": [], "headless": True}):
+        assert len(cfg.sim.visualizer_cfgs) == producer_count
+        for producer, recorder in zip(cfg.sim.visualizer_cfgs, cfg.video_recorders):
+            assert producer.headless
+            assert producer.view is recorder.view
+            assert producer.window.size == (128, 96)
+
+
+@pytest.mark.parametrize("visualizers", [[], ["newton_gl"]])
+def test_legacy_recording_reuses_the_display_producer(visualizers):
+    """Display and multiple legacy recorders create one producer when none was configured."""
+    from types import SimpleNamespace
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.sim import SimulationCfg
+
+    cfg = SimpleNamespace(
+        sim=SimulationCfg(device="cpu", physics=sim_launcher.NewtonCfg(), visualizer_cfgs=None),
+        video_recorders=[VideoRecorderCfg(source="viz:newton_gl"), VideoRecorderCfg(source="viz:newton_gl")],
+    )
+    with launch_simulation(cfg, {"visualizer": visualizers}):
+        assert len(cfg.sim.visualizer_cfgs) == 1
+        assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)

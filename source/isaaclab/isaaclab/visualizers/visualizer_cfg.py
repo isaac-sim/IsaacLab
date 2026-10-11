@@ -73,7 +73,7 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     return list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in names))
 
 
-def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
+def make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
     """Construct the default config of a visualizer type, importing only its backend package."""
     try:
         cfg_class = string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[visualizer_type]}")
@@ -84,46 +84,13 @@ def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
     return cfg_class()
 
 
-def resolve_visualizer_cfgs(
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None,
-    visualizers: list[str] | None,
-    max_visible_envs=None,
-    headless_visualizers: tuple[str, ...] | list[str] = (),
-) -> list[VisualizerCfg]:
-    """Return the visualizers a run uses: exactly the selected types, configured by *visualizer_cfgs*.
-
-    Each selected type reuses the configured visualizer of that type, with its settings, or else gets its default
-    config; configured visualizers of unselected types do not run. Each type of *headless_visualizers* the
-    selection lacks is added the same way but runs headless, e.g. a visualizer only a video recorder uses.
-
-    Args:
-        visualizer_cfgs: Configured visualizers, e.g. :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
-        visualizers: Selection in canonical names (see :func:`parse_visualizer_csv`), empty for no visualizers.
-            None applies no selection and keeps the configured visualizers, for a simulation built without a
-            launch.
-        max_visible_envs: ``--max_visible_envs`` applied to every resulting visualizer, or None.
-        headless_visualizers: Capture-capable types (``kit``, ``newton_gl``, ``newton_rtx``) to add headless when
-            not selected, in canonical names.
-    """
-    if visualizer_cfgs is None:
-        visualizer_cfgs = []
-    elif not isinstance(visualizer_cfgs, list):
-        visualizer_cfgs = [visualizer_cfgs]
-    if visualizers is not None:
-        configured = {cfg.visualizer_type: cfg for cfg in reversed(visualizer_cfgs)}
-        added = [name for name in headless_visualizers if name not in visualizers]
-        visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in visualizers]
-        configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
-        visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
-        for name in added:
-            # a headless copy of the configured visualizer of the type keeps its settings, e.g. the camera pose
-            cfg = configured[name].copy() if name in configured else _make_visualizer_cfg(name)
-            cfg.headless = True
-            visualizer_cfgs.append(cfg)
-    if max_visible_envs is not None:
-        for cfg in visualizer_cfgs:
-            cfg.max_visible_envs = int(max_visible_envs)
-    return visualizer_cfgs
+def select_visualizer_cfgs(configured: list[VisualizerCfg], names: list[str]) -> list[VisualizerCfg]:
+    """Select configured producers in order, adding defaults for requested types that are absent."""
+    selected = [cfg for cfg in configured if cfg.visualizer_type in names]
+    for name in names:
+        if not any(cfg.visualizer_type == name for cfg in selected):
+            selected.append(make_visualizer_cfg(name))
+    return selected
 
 
 @configclass

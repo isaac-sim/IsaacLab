@@ -2788,10 +2788,11 @@ dragging; RTX retains visualization markers and camera controls.
 
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
-resolution follows its framebuffer. For windows sharing one sensor image selection, use
+resolution follows its framebuffer. For windows and recorders sharing one image selection, use
 ``ImageViewCfg`` as described in :doc:`/source/features/visualizer_tiled_camera`; existing CLI
 recording source strings remain supported. Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
-window settings control presentation independently of image selection.
+window settings control presentation independently of image selection. Invalid recording sources or
+channel selections now raise an error when bound or first captured instead of disabling recording.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)

@@ -18,7 +18,9 @@ from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _resolve_launcher_args
+from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources
+from isaaclab.physics import PhysicsCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
@@ -282,7 +284,7 @@ def test_livestream_request_resolves_headless_livestream_launch(
     launcher = KitLauncher.__new__(KitLauncher)
     monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
 
-    _resolve_launcher_args(launcher_args)
+    sim_launcher.scan(PhysicsCfg(), launcher_args)
     launcher._config_resolution(launcher_args)
 
     assert launcher._livestream == 1
@@ -375,7 +377,7 @@ def test_make_physics_cfg_builds_core_vbd():
 def test_livestream_injects_kit_visualizer_when_missing():
     args = argparse.Namespace(livestream=2, visualizer=None)
 
-    _resolve_launcher_args(vars(args))
+    sim_launcher.scan(PhysicsCfg(), vars(args))
 
     assert args.visualizer == ["kit"]
 
@@ -384,7 +386,7 @@ def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.Monkey
     monkeypatch.setenv("LIVESTREAM", "3")
 
     with pytest.raises(ValueError, match="Invalid livestream mode: 3"):
-        _resolve_launcher_args({})
+        sim_launcher.scan(PhysicsCfg(), {})
 
 
 def test_explicit_experience_requires_isaac_sim_runtime():
@@ -400,7 +402,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
         needs_kit=False,
     )
     args = {"experience": "isaaclab.python.kit", "visualizer": None}
-    _resolve_launcher_args(args)
+    sim_launcher.scan(PhysicsCfg(), args)
 
     assert _get_kit_runtime_sources(scan, args)
 
@@ -414,7 +416,7 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    _resolve_launcher_args(launcher_args)
+    sim_launcher.scan(PhysicsCfg(), launcher_args)
     launcher = KitLauncher.__new__(KitLauncher)
     launcher._kit_visualizer = "kit" in launcher_args["visualizer"]
     launcher._livestream = launcher_args["livestream"]
@@ -467,21 +469,10 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
         def close(self, exit_code: int = 0) -> None:
             close_args["exit_code"] = exit_code
 
-    scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        sim_cfg=None,
-        has_ovrtx=False,
-        has_kit_camera=False,
-        has_kit_physics=True,
-        has_ovphysx_physics=False,
-        needs_kit=True,
-    )
-    monkeypatch.setattr(sim_launcher, "scan", lambda cfg, launcher_args: _resolve_launcher_args(launcher_args) or scan)
     monkeypatch.setattr(app_module, "KitLauncher", _FakeKitLauncher)
 
     with pytest.raises(RuntimeError, match="sentinel"):
-        with sim_launcher.launch_simulation(object(), argparse.Namespace()):
+        with sim_launcher.launch_simulation(sim_launcher.PhysxCfg(), argparse.Namespace()):
             raise RuntimeError("sentinel")
 
     assert close_args == {"exit_code": 1}
@@ -495,26 +486,9 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
         def __init__(self, launcher_args):
             received_args.update(launcher_args)
 
-    scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        sim_cfg=None,
-        has_ovrtx=False,
-        has_kit_camera=True,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=True,
-    )
-
-    def _scan(_cfg, launcher_args):
-        assert launcher_args == {}
-        _resolve_launcher_args(launcher_args)
-        return scan
-
-    monkeypatch.setattr(sim_launcher, "scan", _scan)
     monkeypatch.setattr(app_module, "KitLauncher", _FakeKitLauncher)
 
-    with sim_launcher.launch_simulation(object()):
+    with sim_launcher.launch_simulation(SimpleNamespace(physics=PhysicsCfg(), camera=CameraCfg(prim_path="/Camera"))):
         pass
 
     assert received_args["enable_cameras"] is True
@@ -702,9 +676,9 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_resolve_launcher_args_rejects_negative_max_visible_envs():
+def test_scan_rejects_negative_max_visible_envs():
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        _resolve_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})
+        sim_launcher.scan(PhysicsCfg(), {"visualizer": ["viser"], "max_visible_envs": -5})
 
 
 @pytest.mark.parametrize(
