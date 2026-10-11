@@ -58,10 +58,19 @@ _WARP_SUPPORTED_TASKS = frozenset(
         "Isaac-Velocity-Flat-G1",
         "Isaac-Velocity-Flat-H1",
         "Isaac-Velocity-Flat-UnitreeGo2",
+        "Isaac-Velocity-Rough-AnymalD",
+        "Isaac-Velocity-Rough-Cassie",
+        "Isaac-Velocity-Rough-G1",
+        "Isaac-Velocity-Rough-H1",
+        "Isaac-Velocity-Rough-UnitreeGo2",
         "IsaacContrib-Velocity-Flat-AnymalB",
         "IsaacContrib-Velocity-Flat-AnymalC",
         "IsaacContrib-Velocity-Flat-UnitreeA1",
         "IsaacContrib-Velocity-Flat-UnitreeGo1",
+        "IsaacContrib-Velocity-Rough-AnymalB",
+        "IsaacContrib-Velocity-Rough-AnymalC",
+        "IsaacContrib-Velocity-Rough-UnitreeA1",
+        "IsaacContrib-Velocity-Rough-UnitreeGo1",
     }
 )
 

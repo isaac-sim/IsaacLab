@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import dataclasses
 import inspect
 import logging
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Iterable, Sequence
+from typing import TYPE_CHECKING, Any, NamedTuple
 
+import numpy as np
+import torch
 import warp as wp
 
 import isaaclab.utils.string as string_utils
@@ -31,6 +34,7 @@ from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
 from isaaclab.utils import string_to_callable, to_dict
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
+from isaaclab_experimental.utils.warp_capture import reset_captured_stages
 
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -38,12 +42,42 @@ from .scene_entity_cfg import SceneEntityCfg
 
 
 if TYPE_CHECKING:
-    import torch
-
     from isaaclab.envs import ManagerBasedEnv
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+class TermSplit(NamedTuple):
+    """Terms of one operation, split by whether they can be recorded into a CUDA graph."""
+
+    eager: list
+    """Terms that run eagerly, before the recorded part."""
+
+    captured: list
+    """Terms recorded with the rest of the operation."""
+
+
+def split_terms(terms: Sequence[Any], capturable: Callable[[Any], bool] = lambda term: term.capturable) -> TermSplit:
+    """Split terms by capturability, keeping their order.
+
+    Args:
+        terms: The terms (term configurations by default).
+        capturable: Whether a term can be recorded. Defaults to the term configuration's ``capturable`` flag.
+    """
+    return TermSplit([term for term in terms if not capturable(term)], [term for term in terms if capturable(term)])
+
+
+def split_resets(term_cfgs: Sequence[Any]) -> TermSplit:
+    """Split class terms by whether their ``reset`` can be recorded, keeping their order.
+
+    An annotation on a term class covers its ``__call__``; the ``reset`` is judged by the annotation on the
+    ``reset`` method itself.
+
+    Args:
+        term_cfgs: The configurations of the class terms.
+    """
+    return split_terms(term_cfgs, lambda term_cfg: is_warp_capturable(term_cfg.func.reset, term_cfg.params))
 
 
 class ManagerTermBase(ABC):
@@ -199,9 +233,12 @@ class ManagerBase(ABC):
         #     self._resolve_terms_handle = None
         self._resolve_terms_handle = None
 
+        # what the recorded stages read from each term configuration, compared when a term configuration is set
+        self._term_signatures: dict[str, Any] = {}
         # parse config to create terms information
         if self.cfg:
             self._prepare_terms()
+            self._take_term_signatures()
 
     def __del__(self):
         """Delete the manager."""
@@ -237,17 +274,34 @@ class ManagerBase(ABC):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> dict[str, float]:
+    def reset(
+        self,
+        env_ids: Sequence[int] | torch.Tensor | None = None,
+        *,
+        env_mask: wp.array | None = None,
+    ) -> dict[str, float]:
         """Resets the manager and returns logging information for the current time-step.
+
+        The ids resolve to a mask on the host, which a CUDA graph cannot record, so the recorded part is :meth:`_reset`.
 
         Args:
             env_ids: The environment ids for which to log data.
                 Defaults None, which logs data for all environments.
+            env_mask: Boolean Warp mask of shape (num_envs,) selecting the environments.
+                If provided, takes precedence over ``env_ids``.
 
         Returns:
             Dictionary containing the logging information.
         """
-        return {}
+        # Mask-first path: captured callers must provide env_mask.
+        if env_mask is None or not isinstance(env_mask, wp.array):
+            if wp.get_device().is_capturing:
+                raise RuntimeError(
+                    f"{type(self).__name__}.reset requires env_mask(wp.array[bool]) during capture. "
+                    "Do not pass env_ids on captured paths."
+                )
+            env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        return self._reset(env_mask)
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.
@@ -295,6 +349,39 @@ class ManagerBase(ABC):
         """Prepare terms information from the configuration object."""
         raise NotImplementedError
 
+    def _reset(self, env_mask: wp.array) -> dict[str, float]:
+        """Resets the environments selected by a boolean mask of shape (num_envs,) and returns logging information."""
+        return {}
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, Any]]:
+        """Name and configuration of each term whose configuration can be set."""
+        return ()
+
+    def _term_signature(self, term_cfg: ManagerTermBaseCfg) -> Any:
+        """What the recorded stages read from a term configuration when they record.
+
+        Values the stages read from device arrays on every call are left out, since a replayed graph sees their
+        changes.
+        """
+        return term_cfg.func, _config_key(term_cfg.params), is_warp_capturable(term_cfg.func, term_cfg.params)
+
+    def _take_term_signatures(self) -> None:
+        """Take the signature of every term configuration, as the stages recorded from now on read them."""
+        self._term_signatures = {name: self._term_signature(cfg) for name, cfg in self._named_term_cfgs()}
+
+    def _term_cfg_changed(self, term_name: str, term_cfg: Any) -> bool:
+        """Whether the recorded stages read a different configuration of the term.
+
+        Compares against the signature taken when the term was prepared or last changed, since curricula change a
+        stored configuration in place before setting it again.
+        """
+        return self._term_signatures.get(term_name) != self._term_signature(term_cfg)
+
+    def _record_term_again(self, term_name: str, term_cfg: Any) -> None:
+        """Take the signature of a changed term configuration and drop the recordings that read the previous one."""
+        self._term_signatures[term_name] = self._term_signature(term_cfg)
+        reset_captured_stages(self)
+
     """
     Internal callbacks.
     """
@@ -324,6 +411,9 @@ class ManagerBase(ABC):
 
         # set the flag
         self._is_scene_entities_resolved = True
+        # class terms were just created
+        self._take_term_signatures()
+        reset_captured_stages(self)
 
     """
     Internal functions.
@@ -407,11 +497,8 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # register non-capturable terms with the call switch for mode=2 fallback
-        if not is_warp_capturable(term_cfg.func):
-            switch = getattr(self._env, "_manager_call_switch", None)
-            if switch is not None:
-                switch.register_manager_capturability(type(self).__name__, False)
+        # whether the term can be recorded into a CUDA graph, resolved once per term
+        term_cfg.capturable = is_warp_capturable(term_cfg.func, term_cfg.params)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
@@ -456,3 +543,24 @@ class ManagerBase(ABC):
         if inspect.isclass(term_cfg.func):
             logger.info(f"Initializing term '{term_name}' with class '{term_cfg.func.__name__}'.")
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
+
+
+def _config_key(value: Any) -> Any:
+    """Comparable copy of a configuration value, taken by value.
+
+    Arrays are keyed by the memory a recorded graph reads, configuration objects by their attributes
+    (including those set when they are resolved, such as the Warp joint mask), and other objects by identity.
+    """
+    if isinstance(value, wp.array):
+        return ("wp.array", value.ptr, value.shape, value.strides, value.dtype)
+    if isinstance(value, torch.Tensor):
+        return ("tensor", value.data_ptr(), tuple(value.shape), value.stride(), value.dtype)
+    if isinstance(value, np.ndarray):
+        return ("ndarray", value.shape, value.dtype.str, value.tobytes())
+    if isinstance(value, dict):
+        return ("dict", tuple((key, _config_key(item)) for key, item in value.items()))
+    if isinstance(value, (list, tuple)):
+        return (type(value), tuple(_config_key(item) for item in value))
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return (type(value), _config_key(vars(value)))
+    return value
