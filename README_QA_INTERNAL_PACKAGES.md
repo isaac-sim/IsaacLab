@@ -1,13 +1,13 @@
-# Release 3.0.0 Internal Package QA
+# Release 3.0.0 Isaac Sim Internal Package QA
 
-This branch prepares Isaac Lab `release/3.0.0` for QA with unreleased OVPhysX,
-OVRTX, and OVStage packages from NVIDIA's internal Python registries. Isaac Sim
-is not overridden and keeps the release branch's published pin. It is a temporary
-QA branch and is not intended to merge while those internal package sources are
-required.
+This branch prepares Isaac Lab `release/3.0.0` for QA with unreleased Isaac Sim
+packages from NVIDIA's internal Python registry. OVPhysX, OVRTX, and OVStage are
+not overridden and use the versions published by the release branch. This is a
+temporary QA branch and is not intended to merge while the internal package
+source is required.
 
-Run these commands from the repository root on the NVIDIA network or VPN.
-The branch already configures the required indexes; do not add index URLs to the
+Run these commands from the repository root on the NVIDIA network or VPN. The
+branch already configures the required index; do not add an index URL to the
 commands below.
 
 ## Check out the QA branch
@@ -20,22 +20,18 @@ git switch --detach FETCH_HEAD
 
 ## Package selection
 
-The root UV overrides use QA-only requirements instead of changing the release
-branch's published package pins. The committed `uv.lock` intentionally
+The root UV overrides use a bounded nightly range instead of changing the
+release branch's published Isaac Sim pins. The committed `uv.lock` intentionally
 remains identical to `release/3.0.0` to keep this branch small and conflict-free.
 Each QA pass must generate a local lock before running tests.
 
-The Linux x86_64 resolution below was last verified on October 7, 2026.
+The Linux x86_64 resolution below was last verified on October 10, 2026.
 
 | Package | QA override | Registry | Last verified resolution |
 | --- | --- | --- | --- |
-| OVPhysX | `==0.6.4.72118723` | Internal Omniverse | `0.6.4.72118723` |
-| OVRTX | `>=0.5.1,<0.6` | Internal Omniverse | `0.5.1.386105` |
-| OVStage | `>=0.2.1,<0.3` | Internal Omniverse | `0.2.1.386105` |
-| Isaac Sim and asset importer | unchanged (release pin) | Public | Per `release/3.0.0` |
-
-The UV override for OVStage intentionally replaces any older exact OVStage
-dependency declared by the OVPhysX package.
+| Isaac Sim | `>=6.2.0.dev0,<6.2.0rc0` | Internal Isaac Sim | `6.2.0a21+develop.52446.b91212b0.gl` |
+| Isaac Sim asset importer | `>=6.2.0.dev0,<6.2.0rc0` | Internal Isaac Sim | `6.2.0a21+develop.52446.b91212b0.gl` |
+| OVPhysX, OVRTX, and OVStage | unchanged | Public | Per `release/3.0.0` |
 
 ## QA regression to retest
 
@@ -43,26 +39,24 @@ Retest [NVBug 6833897](https://nvbugspro.nvidia.com/bug/6833897) with the
 refreshed local resolution and attach the version output from this README to the
 QA result. This README does not claim that the package refresh fixes the bug.
 
-## Start a QA pass with the latest nightlies
+## Start a QA pass with the latest nightly
 
 Use the package upgrade selectors when starting a new QA pass. They make UV
-ignore the versions already recorded for these packages and select the newest
-versions that satisfy the QA overrides above:
+ignore the Isaac Sim versions already recorded in `uv.lock` and select the
+newest versions that satisfy the QA overrides above:
 
 ```bash
 UV_HTTP_TIMEOUT=120 uv sync \
   --extra isaacsim \
   --extra importers \
-  --extra ov \
-  -P ovphysx \
-  -P ovrtx \
-  -P ovstage
+  -P isaacsim \
+  -P isaacsim-asset-isolated
 ```
 
 This initial refresh is required. Do not use `--frozen` before running it. The
 command updates the local `uv.lock`; leave that file uncommitted. Record the
 resolved versions and attach the generated lock to the QA report because
-separate passes can select different builds as new packages are published.
+separate passes can select different nightly builds as packages are published.
 
 ## Reproduce a reported QA resolution
 
@@ -72,8 +66,7 @@ root, and then install without allowing UV to change it:
 ```bash
 UV_HTTP_TIMEOUT=120 uv sync --frozen \
   --extra isaacsim \
-  --extra importers \
-  --extra ov
+  --extra importers
 ```
 
 `--frozen` reproduces the exact versions and hashes in the attached lock rather
@@ -81,38 +74,22 @@ than looking for newly published builds.
 
 ## Verify installed versions
 
-After installing all three QA extras, print the exact versions and include them
-in the QA report:
+Print the exact Isaac Sim versions and include them in the QA report:
 
 ```bash
 uv run --frozen \
   --extra isaacsim \
   --extra importers \
-  --extra ov \
-  python -c 'from importlib.metadata import version; packages = ("isaacsim", "isaacsim-asset-isolated", "ovphysx", "ovrtx", "ovstage"); print({p: version(p) for p in packages})'
+  python -c 'from importlib.metadata import version; packages = ("isaacsim", "isaacsim-asset-isolated", "isaacsim-robot-schema"); print({p: version(p) for p in packages})'
 ```
 
 ## Use the documented `uv run` commands
 
 The `uv run` commands in the Isaac Lab documentation work the same way on this
-branch. The extras route packages to the configured internal or public registry,
-and UV uses the versions in the locally refreshed `uv.lock`:
+branch. UV uses the versions in the locally refreshed `uv.lock`:
 
 ```bash
-# OVPhysX and OVStage
-uv run --extra ovphysx isaaclab train --rl_library rsl_rl \
-  --task Isaac-Cartpole-Direct physics=ovphysx
-
-# OVRTX, OVPhysX, and OVStage
-uv run --extra ov isaaclab train --rl_library rsl_rl \
-  --task Isaac-Cartpole-Direct physics=ovphysx
-
-# Full Isaac Sim
 uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
-  --task Isaac-Cartpole-Direct physics=isaacsim_physx
-
-# Multiple integrations in one environment
-uv run --extra isaacsim,importers,ov isaaclab train --rl_library rsl_rl \
   --task Isaac-Cartpole-Direct physics=isaacsim_physx
 ```
 
@@ -137,9 +114,7 @@ checkout:
 git restore uv.lock
 ```
 
-The restored lock contains the public release packages, not the QA nightlies.
+The restored lock contains the public release packages, not the QA nightly.
 `uv lock --check` is therefore expected to report that the committed lock needs
 an update on this branch. GitHub-hosted CI cannot resolve the NVIDIA-internal PDX
 registry hostname, so non-frozen dependency jobs cannot exercise this QA setup.
-Also note that `uv pip check` can report the original release pins; the
-project-level UV overrides deliberately replace that metadata during resolution.

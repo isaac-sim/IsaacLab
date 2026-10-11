@@ -384,9 +384,9 @@ url = "https://pypi.org/simple"
 explicit = true
 
 [[tool.uv.index]]
-name = "omniverse-internal"
-url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi-local/simple"
-explicit = true
+name = "isaacsim-internal"
+url = "https://artifactory.pdx.nvidia.com/artifactory/api/pypi/sw-isaacsim-pypi/simple"
+explicit = false
 
 [[tool.uv.index]]
 name = "pytorch-cu130"
@@ -415,11 +415,10 @@ override-dependencies = [
     "numpy>=2",
     "mujoco~=3.12.0",
     "mujoco-warp~=3.12.0",
-    # QA-only package overrides replace the release branch's published OV pins.
-    "ovphysx==0.6.4.72118723",
-    "ovrtx>=0.5.1,<0.6",
-    "ovstage>=0.2.1,<0.3",
     "newton[sim]==1.6.1",
+    # QA-only nightly ranges replace the release branch's published Isaac Sim pins.
+    "isaacsim[all,extscache]>=6.2.0.dev0,<6.2.0rc0",
+    "isaacsim-asset-isolated>=6.2.0.dev0,<6.2.0rc0",
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.1 pin usd-exchange ==2.3.0.
@@ -440,9 +439,11 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-ovphysx = { index = "omniverse-internal" }
-ovrtx = { index = "omniverse-internal" }
-ovstage = { index = "omniverse-internal" }
+isaacsim = { index = "isaacsim-internal" }
+isaacsim-asset-isolated = { index = "isaacsim-internal" }
+ovphysx = { index = "pypi-public" }
+ovrtx = { index = "pypi-public" }
+ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
