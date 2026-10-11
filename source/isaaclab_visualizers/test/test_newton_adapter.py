@@ -32,7 +32,6 @@ from isaaclab_visualizers.newton_adapter import (
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
 )
-from matplotlib import colormaps
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim import SimulationContext
@@ -167,32 +166,25 @@ def test_importing_newton_visualizer_lets_pyglet_resolve_a_screen_without_monito
     assert result.returncode == 0, result.stderr[-2000:]
 
 
-def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
-
-    visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
-
-    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
-    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
-
-
-def test_newton_visualizer_set_camera_view_updates_active_viewer():
-    """NewtonGLVisualizer should honor SimulationContext camera updates."""
+def test_newton_visualizer_set_camera_view_before_and_after_viewer_creation():
+    """Camera updates change configuration before launch and the active viewer afterward."""
 
     from newton._src.viewer.camera import Camera
 
-    viewer = object.__new__(NewtonViewerGL)
-    viewer.camera = Camera(width=64, height=64, up_axis="Z")
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
-    visualizer._viewer = viewer
-
     visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
-
-    assert (viewer.camera.pos.x, viewer.camera.pos.y, viewer.camera.pos.z) == (1.0, 2.0, 3.0)
-    expected = np.array([-1.0, -2.0, -2.0]) / 3.0
-    np.testing.assert_allclose(viewer.camera.get_front(), expected, atol=1e-6)
     assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+
+    viewer = object.__new__(NewtonViewerGL)
+    viewer.camera = Camera(width=64, height=64, up_axis="Z")
+    visualizer._viewer = viewer
+    visualizer.set_camera_view((2, 3, 4), (1, 1, 2))
+    assert (viewer.camera.pos.x, viewer.camera.pos.y, viewer.camera.pos.z) == (2.0, 3.0, 4.0)
+    expected = np.array([-1.0, -2.0, -2.0]) / 3.0
+    np.testing.assert_allclose(viewer.camera.get_front(), expected, atol=1e-6)
+    assert visualizer.cfg.eye == (2.0, 3.0, 4.0)
+    assert visualizer.cfg.lookat == (1.0, 1.0, 2.0)
 
 
 def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
@@ -245,24 +237,6 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     camera.update.assert_not_called()
     camera.close.assert_not_called()
     SimulationContext.instance.assert_not_called()
-
-    visualizer = viewers[0]
-    rgba = camera.data.output["rgba"]
-    camera.data.output["rgba"] = ProxyArray(rgba.warp[:, :, :, :1])
-    sim._physics_step_count += 1
-    with pytest.raises(ValueError, match="Channel"):
-        visualizer.render_tiled_rgba_array()
-    camera.data.output["rgba"] = rgba
-
-    # Channel and color-range changes rebuild the display buffers at their owner.
-    camera.cfg.data_types.append("depth")
-    camera.data.output["depth"] = ProxyArray(wp.full((4, 2, 3, 1), 2.0, dtype=wp.float32, device=rgba.warp.device))
-    visualizer.current_image_view.cfg.channels = ("depth",)
-    for depth_max in (5.0, 3.0):
-        visualizer.current_image_view.cfg.depth_range = (1.0, depth_max)
-        image = visualizer.render_tiled_rgb_array()
-        expected = (np.array(colormaps["turbo"](1.0 / (depth_max - 1.0))[:3]) * 255).astype(np.uint8)
-        np.testing.assert_array_equal(image, np.broadcast_to(expected, image.shape))
 
 
 @pytest.mark.parametrize("components", [3, 4], ids=["gl-rgb", "rtx-rgba"])

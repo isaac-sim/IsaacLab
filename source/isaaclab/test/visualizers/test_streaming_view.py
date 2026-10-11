@@ -244,6 +244,21 @@ def test_windows_share_fixed_device_image(device, monkeypatch):
                 view.read(2)
     data.output["distance_to_image_plane"] = ProxyArray(depth)
     assert view.read(2) is image
+
+    data.output["rgba"] = ProxyArray(rgb[:, :, :, :1])
+    with monkeypatch.context() as execution:
+        execution.setattr(image_view, "compose_image", Mock(side_effect=AssertionError("Invalid GPU launch")))
+        with pytest.raises(ValueError, match="Channel"):
+            view.read(3)
+    data.output["rgba"] = ProxyArray(rgb)
+
+    # Changing channels and depth range invalidates the cached image within the same simulation step.
+    declaration.channels = ("depth",)
+    for depth_max in (5.0, 3.0):
+        declaration.depth_range = (1.0, depth_max)
+        image = view.read_rgb(3)
+        expected = (np.array(colormaps["turbo"](1.0 / (depth_max - 1.0))[:3]) * 255).astype(np.uint8)
+        np.testing.assert_array_equal(image, np.broadcast_to(expected, image.shape))
     declaration.envs = ()
     assert view.read(2) is None
     assert view.read_rgb(2) is None
