@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from .. import sim as sim_utils
@@ -56,9 +57,6 @@ logger = logging.getLogger(__name__)
 def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
-        # core must not import a backend package at module level
-        from isaaclab_physx.physics import PhysxCfg
-
         physics_cfg = PhysxCfg()
     elif not isinstance(physics_cfg, PhysicsCfg):
         raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")

@@ -15,16 +15,12 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import numpy as np
 
 from ...visualizers.visualizer_cfg import ImageViewCfg
-from .video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, parse_video_source
-
-if TYPE_CHECKING:
-    from .video_recorder_cfg import VideoRecorderCfg
+from .video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
 
 logger = logging.getLogger(__name__)
 
