@@ -583,10 +583,15 @@ class PhysxManager(PhysicsManager):
         # Reattaching on initial play hides GPU tensor reset poses until a physics step,
         # so the first camera frame shows the spawn pose. A zero-step reset immediately
         # after resume remains affected by the same Fabric limitation.
-        resuming = not cls._timeline.is_playing() and not cls._timeline.is_stopped()
+        starting = cls._timeline.is_stopped()
+        resuming = not cls._timeline.is_playing() and not starting
         cls._timeline.play()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
+        if starting:
+            # Let the initial Fabric stage sync settle before callers write camera poses;
+            # otherwise the first physics step can restore a cloned camera's authored pose.
+            omni.kit.app.get_app().update()
         if resuming:
             cls._sync_fabric_after_resume()
 
