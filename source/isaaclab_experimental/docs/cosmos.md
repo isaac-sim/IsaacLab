@@ -384,13 +384,13 @@ The **transport** is how control images go to the service, and generated images 
 
 | Transport | Data path | Where it works |
 |---|---|---|
-| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies. Each step sends only a small message on the endpoint. | Service on the same Linux machine and the same GPU as the camera. |
+| `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies. Each step sends only a small message on the endpoint. | Service on the same Linux machine, on the camera's GPU or on another GPU with direct access to it; see [Cosmos on another GPU](#cosmos-on-another-gpu). |
 | `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
 
-`CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it and uses the camera's GPU, the
-socket otherwise. `cuda_ipc` fails when it is unavailable instead of falling back. `status` lists the service's
-transports. With the defaults on one Linux machine, image transport uses shared GPU buffers and the messages use
-the Unix socket, so no TCP is involved. CUDA IPC avoids the socket transport's 16-view protocol limit;
+`CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it and uses the camera's GPU or
+a GPU with direct access to it, the socket otherwise. `cuda_ipc` fails when it is unavailable instead of falling
+back. `status` lists the service's transports. With the defaults on one Linux machine, image transport uses shared
+GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket transport's 16-view protocol limit;
 available GPU memory still limits the batch size.
 
 Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
@@ -403,6 +403,26 @@ For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
 `ssh -L 5555:/tmp/isaaclab-cosmos-<uid>.sock gpu-host`. Then set the camera's endpoint to `tcp://127.0.0.1:5555`;
 the protocol has no authentication, so do not open a public interface.
+
+### Cosmos on another GPU
+
+The service can run on another GPU of the same machine, which leaves the model's memory off the simulator's GPU.
+CUDA IPC then works when the two GPUs can access each other's memory directly, over NVLink or PCIe;
+`nvidia-smi topo -m` shows how they connect. Each process creates the buffer it writes on its own GPU, and the
+other process copies it between the GPUs without host memory. Without direct access, `auto` uses the socket and
+`cuda_ipc` fails. MIG instances have no direct access to each other.
+
+Both processes must see both GPUs, so do not narrow `CUDA_VISIBLE_DEVICES` to one GPU; select the model's GPU with
+`--device` instead:
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1
+```
+
+Isaac Lab keeps its own device, `cuda:0` by default. Add `--cosmos_transport cuda_ipc` to the training command to
+require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA context on the other GPU,
+which takes some memory there.
 
 ## Episode frame budget
 

@@ -268,11 +268,14 @@ def _handle_connection(
                 stream = state.executor.submit(state.model.open_stream, **arguments).result()
                 image_shape = (arguments["height"], arguments["width"], 3)
                 num_views = arguments["num_views"]
+                reply = {"ok": True}
                 if transport == "cuda_ipc":
                     channel = state.executor.submit(
                         _open_channel, state.model, num_views, image_shape, handles
                     ).result()
-                send_message(connection, {"ok": True})
+                    # The camera opens the generated-image buffer and event this service writes on its own GPU.
+                    reply["ipc"] = channel.handles
+                send_message(connection, reply)
             elif operation == "step":
                 fields = {"op", "version", "reset_rows", "seeds"} | ({"prompt"} if "prompt" in metadata else set())
                 fields |= {"frames"} if channel is not None else set()
@@ -337,24 +340,47 @@ def _handle_connection(
 
 
 def _open_channel(model: _Model, num_views: int, image_shape: tuple[int, int, int], handles: object):
-    """Open the camera's shared GPU buffers, one row per view, and events on the model's device (inference thread)."""
+    """Create the output buffer and event on the model's GPU and open the camera's (inference thread).
+
+    Buffers hold one row per view. The camera's controls stay on its GPU, which can be another GPU with direct
+    access to the model's.
+    """
     import torch
 
-    from .._cuda_ipc import SharedChannel
+    from .. import _cuda_ipc
 
-    keys = {"control", "output", "control_ready", "output_ready"}
-    if not isinstance(handles, dict) or set(handles) != keys or not all(isinstance(v, str) for v in handles.values()):
-        raise ProtocolError("A CUDA IPC session needs control, output, control_ready and output_ready handles.")
-    shape = (num_views, MAX_CHUNK_FRAMES, *image_shape)
-    return SharedChannel(torch.device(model.capabilities["device"]), shape, handles)
+    if (
+        not isinstance(handles, dict)
+        or set(handles) != {"pci_bus_id", "control", "control_ready"}
+        or not all(isinstance(value, str) for value in handles.values())
+    ):
+        raise ProtocolError("A CUDA IPC session needs the camera's pci_bus_id, control and control_ready handles.")
+    device = torch.device(model.capabilities["device"])
+    camera = _cuda_ipc.device_by_bus_id(handles["pci_bus_id"])
+    if camera is None:
+        raise ValueError(
+            f"This Cosmos service cannot see the camera's GPU {handles['pci_bus_id']}; keep that GPU visible to the "
+            "service and select the model's GPU with --device."
+        )
+    if not _cuda_ipc.can_access_peer(camera, device.index or 0):
+        raise ValueError("The camera's GPU and the Cosmos service's GPU cannot access each other's memory directly.")
+    channel = _cuda_ipc.SharedChannel(device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="output")
+    try:
+        channel.open(torch.device("cuda", camera), {name: handles[name] for name in ("control", "control_ready")})
+    except Exception:
+        channel.close()
+        raise
+    return channel
 
 
 def _step_channel(stream: _Stream, channel, frames: list[int], resets, seeds, episode: dict) -> None:
-    """Generate from shared GPU controls into the shared output, ordered by events (inference thread)."""
+    """Generate from the camera's shared controls into the shared output, ordered by events (inference thread)."""
     import torch
 
-    channel.control_ready.wait()
-    controls = [channel.control.tensor[view, :count] for view, count in enumerate(frames)]
+    device = channel.output.device
+    channel.control_ready.wait(device)
+    # On the camera's GPU this reads the controls in place; from another GPU it copies them between the GPUs.
+    controls = [channel.control.tensor[view, :count].to(device) for view, count in enumerate(frames)]
     generated = stream.step(controls, resets, seeds, **episode)
     if (
         not isinstance(generated, list)

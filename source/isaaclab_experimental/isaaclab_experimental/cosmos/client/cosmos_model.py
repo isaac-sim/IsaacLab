@@ -123,6 +123,7 @@ class _CosmosStream:
         self._episode = 0
         self._episode_frames = 0
         self._channel = None
+        self._service_device: torch.device | None = None
         self.transport: str | None = None
 
     def step(
@@ -183,13 +184,20 @@ class _CosmosStream:
                     }
                     self.transport = self._select_transport(control.device)
                     if self.transport == "cuda_ipc":
-                        from .._cuda_ipc import SharedChannel
+                        from .. import _cuda_ipc
 
-                        self._channel = SharedChannel(control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape))
-                        request.update(transport="cuda_ipc", ipc=self._channel.handles)
-                    _, arrays = self._exchange(request)
+                        self._channel = _cuda_ipc.SharedChannel(
+                            control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
+                        )
+                        # The service opens the controls on this GPU, which it finds by its PCI bus ID.
+                        ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(control.device.index or 0)}
+                        request.update(transport="cuda_ipc", ipc=ipc)
+                    reply, arrays = self._exchange(request)
                     if arrays:
                         raise ProtocolError("Cosmos open reply must not contain image arrays.")
+                    if self._channel is not None:
+                        # The service writes generated images into a buffer on its own GPU.
+                        self._channel.open(self._service_device, reply.get("ipc"))
                     self._shape = image_shape
                 frames = [view.shape[0] for view in controls]
                 if max(frames) > MAX_CHUNK_FRAMES:
@@ -210,8 +218,12 @@ class _CosmosStream:
                     reply, generated = self._exchange(request)
                     if generated or reply.get("frames") != frames:
                         raise ProtocolError("Cosmos returned images that do not match the control chunks.")
-                    self._channel.output_ready.wait()
-                    images = [self._channel.output.tensor[view, :count].clone() for view, count in enumerate(frames)]
+                    self._channel.output_ready.wait(control.device)
+                    # From the service's GPU, the images copy directly to this one.
+                    images = [
+                        self._channel.output.tensor[view, :count].to(control.device, copy=True)
+                        for view, count in enumerate(frames)
+                    ]
                 else:
                     # Images cross the process boundary through host memory and the socket.
                     _, generated = self._exchange(request, [chunk.detach().cpu().numpy() for chunk in controls])
@@ -246,7 +258,13 @@ class _CosmosStream:
         return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
 
     def _select_transport(self, device: torch.device) -> str:
-        """Choose CUDA IPC when the service shares this GPU on this machine, else the socket, per the configuration."""
+        """Choose CUDA IPC or the socket, per the configuration.
+
+        CUDA IPC needs the service on this machine, on this GPU or on another one this process can see and that
+        can access this GPU's memory directly. Choosing it records this process's index of the service's GPU.
+        """
+        import torch
+
         if self._cfg.transport == "socket":
             return "socket"
         reason = None
@@ -263,10 +281,16 @@ class _CosmosStream:
                 reason = "CUDA IPC is not available on this platform"
             elif "cuda_ipc" not in capabilities.get("transports", ()):
                 reason = "the service does not offer CUDA IPC"
-            elif capabilities.get("pci_bus_id") != _cuda_ipc.pci_bus_id(device.index or 0):
-                reason = "the service uses a different GPU"
+            else:
+                service_gpu = _cuda_ipc.device_by_bus_id(capabilities.get("pci_bus_id"))
+                if service_gpu is None:
+                    reason = "this process cannot see the service's GPU"
+                elif not _cuda_ipc.can_access_peer(device.index or 0, service_gpu):
+                    reason = "this GPU and the service's GPU cannot access each other's memory directly"
+                else:
+                    self._service_device = torch.device("cuda", service_gpu)
         if reason is None:
-            _LOGGER.info("Cosmos keeps images on the GPU with CUDA IPC.")
+            _LOGGER.info("Cosmos keeps images on the GPU with CUDA IPC; the service uses %s.", self._service_device)
             return "cuda_ipc"
         if self._cfg.transport == "cuda_ipc":
             raise RuntimeError(f"Cosmos transport cuda_ipc is unavailable: {reason}.")
@@ -288,6 +312,9 @@ class _CosmosStream:
         try:
             if self._socket is not None:
                 try:
+                    if self._channel is not None:
+                        # Unmap the service's output buffer before the service frees it when the session closes.
+                        self._channel.close_opened()
                     if notify:
                         self._exchange({"op": "close"})
                 except (OSError, ValueError, RuntimeError):
@@ -296,7 +323,7 @@ class _CosmosStream:
                     self._socket.close()
                     self._socket = None
         finally:
-            # The service unmaps the shared memory when the session closes; then this process frees it.
+            # The service unmaps the control buffer when the session closes; then this process frees it.
             if self._channel is not None:
                 self._channel.close()
                 self._channel = None

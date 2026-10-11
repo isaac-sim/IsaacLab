@@ -133,10 +133,11 @@ for one camera on the `(480, 832)` canvas; otherwise omit it to accept requests 
 
 The equivalent module entrypoint is
 `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the same
-arguments. Use `--device cuda:1` for another GPU, and `--endpoint unix:///path/to/socket` or
-`--endpoint tcp://127.0.0.1:5556` for another endpoint, for example TCP for Isaac Lab on another machine through
-an SSH tunnel (see [Endpoints and transports](cosmos.md#endpoints-and-transports)). Match that endpoint in the camera
-configuration.
+arguments. Use `--device cuda:1` for another GPU; keep the simulator's GPU visible to the service so images still
+move between the GPUs directly (see [Cosmos on another GPU](cosmos.md#cosmos-on-another-gpu)). Use
+`--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` for another endpoint, for example TCP for
+Isaac Lab on another machine through an SSH tunnel (see [Endpoints and transports](cosmos.md#endpoints-and-transports)).
+Match that endpoint in the camera configuration.
 
 ## Connect Isaac Lab
 

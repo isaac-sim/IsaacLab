@@ -441,71 +441,107 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
+_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.0"}
+
+
 @pytest.mark.parametrize(
-    "transport,device,capabilities,available,expected",
+    "transport,device,capabilities,available,service_gpu,peer,expected",
     [
-        ("socket", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "socket"),
-        ("auto", "cpu", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket"]}, True, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.0"}, True, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, False, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "cuda_ipc"),
-        ("cuda_ipc", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "cuda_ipc"),
+        ("socket", "cuda:0", _IPC_SERVICE, True, 0, True, "socket"),
+        ("auto", "cpu", _IPC_SERVICE, True, 0, True, "socket"),
+        ("auto", "cuda:0", {"transports": ["socket"]}, True, 0, True, "socket"),
+        ("auto", "cuda:0", _IPC_SERVICE, False, 0, True, "socket"),
+        ("auto", "cuda:0", _IPC_SERVICE, True, None, True, "socket"),
+        ("auto", "cuda:0", _IPC_SERVICE, True, 1, False, "socket"),
+        ("auto", "cuda:0", _IPC_SERVICE, True, 0, False, "cuda_ipc"),
+        ("auto", "cuda:0", _IPC_SERVICE, True, 1, True, "cuda_ipc"),
+        ("cuda_ipc", "cuda:0", _IPC_SERVICE, True, 1, True, "cuda_ipc"),
     ],
 )
-def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu(
-    transport, device, capabilities, available, expected, monkeypatch, caplog
+def test_transport_keeps_images_on_gpus_that_can_access_each_other(
+    transport, device, capabilities, available, service_gpu, peer, expected, monkeypatch, caplog
 ):
-    """Auto uses CUDA IPC only for a local service on the same GPU; the socket is the fallback."""
+    """Auto uses CUDA IPC for a local service on this GPU or on a visible peer GPU; the socket is the fallback."""
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
-    monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
+    # service_gpu is this process's index of the service's GPU, or None when this process cannot see it.
+    monkeypatch.setattr(
+        _cuda_ipc, "device_by_bus_id", lambda bus_id: service_gpu if bus_id == _IPC_SERVICE["pci_bus_id"] else None
+    )
+    monkeypatch.setattr(_cuda_ipc, "can_access_peer", lambda index, peer_index: index == peer_index or peer)
     stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport=transport)).open_stream(
         num_views=1, seeds=(1,)
     )
     stream._exchange = lambda metadata, arrays=(): ({"ok": True, "capabilities": capabilities}, [])
     with caplog.at_level("INFO"):
         assert stream._select_transport(torch.device(device)) == expected
+    if expected == "cuda_ipc":
+        assert stream._service_device == torch.device("cuda", service_gpu)
     if transport != "socket":
         # The log says which path the images take; an explicit socket transport needs no choice.
         assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
 
 
-@pytest.mark.parametrize("fail_output_event", [False, True])
-def test_cuda_ipc_channel_releases_acquired_resources_on_close_or_construction_failure(monkeypatch, fail_output_event):
+@pytest.mark.parametrize("fail", [None, "created", "opened"])
+def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_failure(monkeypatch, fail):
+    """Freeing memory another process still maps is undefined in CUDA, so each side unmaps the other's first."""
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     acquired, released = [], []
 
-    class Buffer:
-        def __init__(self, device, shape, handle):
-            acquired.append(self)
-
+    class Resource:
         def close(self):
             if self not in released:
                 released.append(self)
 
-    class Event:
-        def __init__(self, device, handle):
-            if fail_output_event and any(isinstance(resource, Event) for resource in acquired):
-                raise RuntimeError("Cannot create output event")
+    class Buffer(Resource):
+        def __init__(self, device, shape, handle=None):
+            self.handle = handle or "control"
             acquired.append(self)
 
-        def close(self):
-            if self not in released:
-                released.append(self)
+    class Event(Resource):
+        def __init__(self, device, handle=None):
+            if fail == ("opened" if handle else "created"):
+                raise RuntimeError("Cannot get event")
+            self.handle = handle or "control_ready"
+            acquired.append(self)
 
     monkeypatch.setattr(_cuda_ipc, "SharedBuffer", Buffer)
     monkeypatch.setattr(_cuda_ipc, "SharedEvent", Event)
-    if fail_output_event:
-        with pytest.raises(RuntimeError, match="Cannot create output event"):
-            _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3))
+    if fail == "created":
+        with pytest.raises(RuntimeError, match="Cannot get event"):
+            _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3), writes="control")
+        assert released == acquired
+        return
+    channel = _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3), writes="control")
+    assert channel.handles == {"control": "control", "control_ready": "control_ready"}
+    created = list(acquired)
+    if fail == "opened":
+        with pytest.raises(RuntimeError, match="Cannot get event"):
+            channel.open(torch.device("cuda:1"), {"output": "output", "output_ready": "output_ready"})
+        assert released == acquired[2:]
     else:
-        channel = _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3))
-        channel.close()
-        channel.close()
-    assert len(released) == len(acquired) and set(released) == set(acquired)
+        channel.open(torch.device("cuda:1"), {"output": "output", "output_ready": "output_ready"})
+        assert (channel.output.handle, channel.output_ready.handle) == ("output", "output_ready")
+    channel.close()
+    channel.close()
+    assert set(released) == set(acquired) and released[-2:] == created[::-1]
+
+
+@pytest.mark.parametrize(
+    "camera_gpu,peer,message", [(None, True, "cannot see the camera's GPU"), (0, False, "cannot access each other")]
+)
+def test_a_service_rejects_a_camera_gpu_it_cannot_reach_directly(monkeypatch, camera_gpu, peer, message):
+    """The service refuses a camera GPU it cannot see or access directly instead of copying through host memory."""
+    from isaaclab_experimental.cosmos import _cuda_ipc
+    from isaaclab_experimental.cosmos.server import service
+
+    monkeypatch.setattr(_cuda_ipc, "device_by_bus_id", lambda bus_id: camera_gpu)
+    monkeypatch.setattr(_cuda_ipc, "can_access_peer", lambda index, peer_index: peer)
+    handles = {"pci_bus_id": "0000:01:00.0", "control": "unused", "control_ready": "unused"}
+    with pytest.raises(ValueError, match=message):
+        service._open_channel(SimpleNamespace(capabilities={"device": "cuda:1"}), 1, (4, 6, 3), handles)
 
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
@@ -559,9 +595,13 @@ import sys
 import torch
 from isaaclab_experimental.cosmos.server.service import serve
 
+DEVICE = torch.device(sys.argv[2])
+
 
 class Stream:
     def step(self, controls, reset_rows, seeds, **episode):
+        # Controls reach the model's GPU, copied from the camera's GPU when the two differ.
+        assert all(control.device == DEVICE for control in controls)
         return [255 - control for control in controls]
 
     def close(self):
@@ -569,7 +609,7 @@ class Stream:
 
 
 class Model:
-    capabilities = {"device": "cuda:0"}
+    capabilities = {"device": str(DEVICE)}
 
     def warmup(self):
         pass
@@ -584,16 +624,27 @@ class Model:
 serve(Model(), sys.argv[1])
 """
 
+_TWO_PEER_GPUS = (
+    sys.platform.startswith("linux")
+    and torch.cuda.device_count() >= 2
+    and torch.cuda.can_device_access_peer(0, 1)
+    and torch.cuda.can_device_access_peer(1, 0)
+)
+
 
 @pytest.mark.skipif(
     not (sys.platform.startswith("linux") and torch.cuda.is_available()), reason="CUDA IPC needs Linux and a GPU"
 )
-def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu():
-    """A service in another process reads controls and writes images in shared GPU memory; no TCP is involved."""
+@pytest.mark.parametrize(
+    "service_device",
+    ["cuda:0", pytest.param("cuda:1", marks=pytest.mark.skipif(not _TWO_PEER_GPUS, reason="needs two peer GPUs"))],
+)
+def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(service_device):
+    """A service on the camera's GPU or a peer GPU exchanges images in shared GPU memory; no TCP is involved."""
     import subprocess
 
     endpoint, directory = _unix_endpoint()
-    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint], env={**os.environ})
+    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint, service_device], env={**os.environ})
     try:
         deadline = time.monotonic() + 60
         while True:
