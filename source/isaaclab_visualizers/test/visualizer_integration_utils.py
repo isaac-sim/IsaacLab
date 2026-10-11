@@ -1779,62 +1779,6 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
         _cleanup_visualizer_test_process(env)
 
 
-def run_cartpole_env_kit_viewport_and_tiled(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Kit RTX viewport and tiled camera motion tests in two sequential Kit-only envs.
-
-    Two envs are required because the Kit RTX viewport render product is inactive when
-    ``tiled_camera=True``; the GPU only renders tiled products in that mode.
-
-    Args:
-        backend_kind: Physics backend, ``"physx"`` or ``"newton"``.
-        caplog: Pytest log capture fixture.
-    """
-    env = None
-    try:
-        _prepare_visualizer_test_process()
-        sim_utils.create_new_stage()
-        env = _make_cartpole_camera_env(
-            visualizer_kind=("kit",),
-            backend_kind=backend_kind,
-        )
-        env.cfg.initial_pole_angle_range = _INTEGRATION_TEST_POLE_ANGLE_RANGE
-        env.cfg.initial_pole_velocity_range = _INTEGRATION_TEST_POLE_VELOCITY_RANGE
-        _configure_sim_for_visualizer_test(env)
-        with caplog.at_level(logging.WARNING):
-            env.reset()
-            kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
-            assert kit_visualizers, "Expected an initialized Kit visualizer."
-            with _visualizer_debug_case("kit", backend_kind):
-                _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
-        _assert_no_visualizer_log_issues(caplog)
-    finally:
-        _cleanup_visualizer_test_process(env)
-
-    env = None
-    try:
-        _prepare_visualizer_test_process()
-        sim_utils.create_new_stage()
-        env = _make_cartpole_camera_env(
-            visualizer_kind=("kit",),
-            backend_kind=backend_kind,
-            tiled_camera=True,
-        )
-        env.cfg.initial_pole_angle_range = _INTEGRATION_TEST_POLE_ANGLE_RANGE
-        env.cfg.initial_pole_velocity_range = _INTEGRATION_TEST_POLE_VELOCITY_RANGE
-        _configure_sim_for_visualizer_test(env)
-        with caplog.at_level(logging.WARNING):
-            env.reset()
-            kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
-            assert kit_visualizers, "Expected an initialized Kit visualizer."
-            with _visualizer_debug_case("kit", backend_kind, tiled=True):
-                _run_visualizer_tiled_camera_motion_test(
-                    env, kit_visualizers[0], physics_kind=backend_kind, viz_kind="kit"
-                )
-        _assert_no_visualizer_log_issues(caplog)
-    finally:
-        _cleanup_visualizer_test_process(env)
-
-
 def run_cartpole_env_visualizers_tiled_camera_motion(
     backend_kind: str,
     caplog: pytest.LogCaptureFixture,
