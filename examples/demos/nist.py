@@ -384,8 +384,6 @@ def main() -> None:
         parser.error("max_steps must be positive or -1.")
     policy = torch.jit.load(retrieve_file_path(args.policy), map_location=args.device).eval()
     assemblies = tuple(random.Random(args.seed).sample(ASSEMBLIES, 10))
-    slot_observations = SlotObservations()
-    slot_observations.geometry.params = {"assemblies": assemblies}
     scene = InteractiveSceneCfg(num_envs=args.num_envs, env_spacing=2.0)
     scene.ground = AssetBaseCfg(
         prim_path="/World/ground",
@@ -509,17 +507,6 @@ def main() -> None:
         ),
     }
     for slot, part in enumerate(assemblies):
-        offset = torch.tensor(part.board_pose)
-        seated = torch.tensor((*part.seated, 0, 0, 0, 1))
-        align = torch.tensor((*part.held_align, 0, 0, 0, 1))
-        fixed_pos, fixed_quat = math_utils.combine_frame_transforms(board_pos, board_quat, offset[:3], offset[3:])
-        goal_pos, goal_quat = math_utils.combine_frame_transforms(fixed_pos, fixed_quat, seated[:3], seated[3:])
-        goal_root_quat = math_utils.quat_mul(goal_quat, math_utils.quat_inv(align[3:]))
-        goal_root_pos = goal_pos - math_utils.quat_apply(goal_root_quat, align[:3])
-        if not (
-            (goal_root_pos >= torch.tensor(WORKSPACE_LOWER)) & (goal_root_pos <= torch.tensor(WORKSPACE_UPPER))
-        ).all():
-            raise ValueError(f"Assembly destination outside workspace: {part.name} at {goal_root_pos.tolist()}")
         name = f"held_{slot:02d}"
         setattr(
             scene,
@@ -577,7 +564,12 @@ def main() -> None:
         ),
         scene=scene,
         actions=Actions(),
-        observations={"policy": RobotObservations(), "slots": slot_observations},
+        observations={
+            "policy": RobotObservations(),
+            "slots": SlotObservations(
+                geometry=ObservationTermCfg(func=SlotGeometry, params={"assemblies": assemblies})
+            ),
+        },
         events=events,
         rewards={},
         terminations={
