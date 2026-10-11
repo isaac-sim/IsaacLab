@@ -109,7 +109,8 @@ class SimulationContext:
         Args:
             cfg: Simulation configuration. Defaults to None (uses default config).
             physics_manager: Manager to attach and own for this context's lifetime. Defaults to constructing
-                the manager selected by ``cfg.physics.class_type``. A manager may belong to only one context.
+                the manager selected by ``cfg.physics.class_type``. A manager constructed with its own physics
+                configuration replaces ``cfg.physics``. A manager may belong to only one context.
 
         Raises:
             RuntimeError: If a simulation context already exists.
@@ -127,6 +128,9 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
+        if physics_manager is not None and physics_manager._cfg is not None:
+            # A manager configured at construction keeps its configuration.
+            self.cfg.physics = physics_manager._cfg
         self._backend_registry: list[tuple[Any, Any]] = []
         self.clone_contexts: dict[type, Any] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""

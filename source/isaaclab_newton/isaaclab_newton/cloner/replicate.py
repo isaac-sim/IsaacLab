@@ -9,7 +9,7 @@ import contextlib
 import copy
 from collections.abc import Callable, Iterator, Sequence
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -35,10 +35,13 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
 from isaaclab_newton.physics.newton_builder import inject_terrain_heightfields
 from isaaclab_newton.physics.newton_solver import create_builder, create_solver_adapter
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
+
+if TYPE_CHECKING:
+    from isaaclab_newton.physics import NewtonManager
 
 
 def copy_newton_clone_source(

@@ -378,11 +378,12 @@ class PhysicsManager(ABC):
         """
         pass
 
-    @abstractmethod
     def initialize(self, sim_context: SimulationContext) -> None:
-        """Initialize the physics manager with simulation context.
+        """Attach the manager to its simulation context.
 
-        Subclasses should call super().initialize() first, then do backend-specific setup.
+        The context's physics configuration and device become the manager's. A manager configured completely at
+        construction needs nothing else; subclasses that set up native resources against the context call
+        ``super().initialize()`` first.
 
         Args:
             sim_context: Parent simulation context.

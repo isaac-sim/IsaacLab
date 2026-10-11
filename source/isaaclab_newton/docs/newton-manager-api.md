@@ -116,7 +116,9 @@ finally:
 
 If your application constructs the instance itself, the equivalent entry point is
 `SimulationContext(sim_cfg, physics_manager=EffortManager())`. The context supplies
-its configuration, device and timestep and owns the manager's lifecycle.
+its device and timestep and owns the manager's lifecycle. A manager constructed with its own
+`NewtonCfg` keeps it, and the context adopts it as `sim_cfg.physics`; an unconfigured manager
+takes the context's physics configuration.
 
 Most custom device work only needs a callback. Each registration method has one cadence:
 

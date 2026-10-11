@@ -1139,6 +1139,25 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
     assert actuator_resolutions == 1
 
 
+@pytest.mark.parametrize("configured", [True, False], ids=["manager-cfg", "context-cfg"])
+def test_context_adopts_the_configuration_of_a_configured_manager(configured):
+    """A manager built with its own configuration keeps it; an unconfigured one takes the context's."""
+    context_cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False)
+    manager_cfg = NewtonCfg(solver_cfg=FeatherstoneSolverCfg(), use_cuda_graph=False)
+    manager = NewtonManager(cfg=manager_cfg if configured else None, dt=1.0, device="cpu")
+    sim = SimulationContext(SimulationCfg(dt=1.0 / 120.0, device="cpu", physics=context_cfg), physics_manager=manager)
+    try:
+        assert manager.cfg is sim.cfg.physics
+        if configured:
+            assert manager.cfg is manager_cfg
+        else:
+            assert manager.cfg == context_cfg
+        assert manager.get_physics_dt() == 1.0 / 120.0
+        assert manager.clone_context_type is NewtonManager.clone_context_type is not None
+    finally:
+        SimulationContext.clear_instance()
+
+
 def test_reset_binds_consumers_before_constructing_the_solver(monkeypatch):
     """Each hard reset finalizes a new backend, lets consumers bind it, then constructs the solver."""
     events: list[str] = []

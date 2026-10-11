@@ -94,10 +94,11 @@ transforms in the Warp-native format consumed by renderers and visualizers.
     class MyBackendManager(PhysicsManager):
         backend_name = "mybackend"
 
-        def initialize(self, sim_context):
-            super().initialize(sim_context)
+        def __init__(self, cfg=None):
+            super().__init__()
+            # Configure everything at construction; the context only attaches itself through initialize().
+            self._cfg = cfg
             self._scene_data_backend = MyBackendSceneDataBackend()
-            # Initialize the physics engine.
 
         def get_scene_data_backend(self) -> SceneDataBackend:
             return self._scene_data_backend

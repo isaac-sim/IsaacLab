@@ -24,11 +24,11 @@ from pxr import UsdGeom
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataProvider
-from isaaclab.sim import SimulationContext
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
 from isaaclab_newton.physics.newton_manager_cfg import (
     NewtonBackendCfg,
     NewtonBuilderCfg,
@@ -88,6 +88,8 @@ class NewtonManager(PhysicsManager):
 
     backend_name = "newton"
 
+    clone_context_type = NewtonReplicateContext
+
     def __init__(
         self,
         builder: ModelBuilder | None = None,
@@ -100,12 +102,13 @@ class NewtonManager(PhysicsManager):
 
         Args:
             builder: Construction model retained across hard resets. Created lazily when omitted.
-            cfg: Physics and solver settings. Defaults to Newton's standard configuration.
+            cfg: Physics and solver settings. A context the manager is attached to adopts them. Defaults to the
+                context's physics configuration, or to Newton's standard configuration for standalone use.
             dt: Physics timestep for standalone use; an attached context supplies its timestep.
             device: Simulation device for standalone use.
         """
         super().__init__()
-        self._cfg = cfg if cfg is not None else NewtonCfg()
+        self._cfg = cfg
         self._device = device
         self._dt = dt
         self._builder = builder
@@ -121,26 +124,20 @@ class NewtonManager(PhysicsManager):
         self._apply_every_physics_step = None
 
     @property
+    def cfg(self) -> NewtonCfg:
+        """Physics and solver settings: the constructor's, else the attached context's, else Newton's defaults."""
+        if self._cfg is None:
+            self._cfg = NewtonCfg()
+        return self._cfg
+
+    @property
     def solver_adapter(self) -> NewtonSolver:
         """Adapter of the configured solver, used for the builder before a backend exists."""
-        if self._solver_adapter is None or self._solver_adapter.cfg is not self._cfg.solver_cfg:
-            self._solver_adapter = create_solver_adapter(self._cfg.solver_cfg)
+        if self._solver_adapter is None or self._solver_adapter.cfg is not self.cfg.solver_cfg:
+            self._solver_adapter = create_solver_adapter(self.cfg.solver_cfg)
         return self._solver_adapter
 
     # ----- Physics manager lifecycle ---------------------------------------------
-
-    def initialize(self, sim_context: SimulationContext) -> None:
-        """Initialize the manager with simulation context.
-
-        Args:
-            sim_context: Parent simulation context.
-        """
-        super().initialize(sim_context)
-        # This context imports NewtonManager, so it can only be imported after this module initializes.
-        from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
-
-        self.clone_context_type = NewtonReplicateContext
-        self._dt = sim_context.cfg.dt
 
     def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
@@ -160,7 +157,7 @@ class NewtonManager(PhysicsManager):
         if sim is None:
             backend = self.backend = self.finalize_backend()
         else:
-            cfg = NewtonBackendCfg(physics_cfg=self._cfg, device=self._device, manager=self)
+            cfg = NewtonBackendCfg(physics_cfg=self.cfg, device=self._device, manager=self)
             backend = self.backend = sim.get_or_create_backend(cfg)
         clone = self._clone
         self._scene_data_backend.initialize_geometry(
@@ -206,7 +203,7 @@ class NewtonManager(PhysicsManager):
         else:
             graph = nb.step(backend)
             backend.solver_adapter.check_status(backend, graph.captured)
-            if self._cfg.debug_mode:
+            if self.cfg.debug_mode:
                 backend.solver_adapter.log_debug(backend)
         self._sim_time += backend.dt * backend.steps_per_call
         scene_data = self._scene_data_backend
@@ -675,7 +672,7 @@ class NewtonManager(PhysicsManager):
     def _shared_builder(self) -> ModelBuilder:
         """Return this manager's construction model, retained across hard resets."""
         if self._builder is None:
-            self._builder = create_builder(self._cfg)
+            self._builder = create_builder(self.cfg)
         return self._builder
 
     def finalize_backend(self) -> NewtonBackend:
@@ -693,11 +690,11 @@ class NewtonManager(PhysicsManager):
             )
             for label, start, end in zip(labels, starts, ends, strict=True)
         }
-        return NewtonBackend(model, self._cfg, dt=self._dt, deformable_ranges=ranges)
+        return NewtonBackend(model, self.cfg, dt=self.get_physics_dt(), deformable_ranges=ranges)
 
     def get_physics_dt(self) -> float:
-        """Return the physics timestep, including standalone simulations."""
-        return self._dt
+        """Return the physics timestep: the attached context's, or the constructor's for standalone use."""
+        return self._dt if self._sim is None else self._sim.cfg.dt
 
     # ----- Deprecated accessors ------------------------------------------------------------
 

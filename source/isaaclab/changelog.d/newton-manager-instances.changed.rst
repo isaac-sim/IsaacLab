@@ -4,3 +4,7 @@
   through the required ``physics_manager`` keyword.
 * Added ``supports_graph_capture`` declarations to action terms and actuator models. Custom implementations opt in
   when all state changes are device operations and their execution can safely be replayed.
+* :meth:`~isaaclab.physics.PhysicsManager.initialize` is no longer abstract: the base implementation attaches the
+  context, so managers configured at construction need no override. A manager passed to
+  :class:`~isaaclab.sim.SimulationContext` with its own physics configuration keeps it, and the context adopts it as
+  ``cfg.physics``; previously the context's configuration silently replaced the manager's.
