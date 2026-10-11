@@ -766,15 +766,15 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
 @pytest.mark.parametrize("picking", [False, True])
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
-    from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, StepPhase
+    from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend), physics_manager=NewtonManager())
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    register_step_callback = Mock()
-    monkeypatch.setattr(sim.physics_manager, "register_step_callback", register_step_callback)
+    register_state_force_callback = Mock()
+    monkeypatch.setattr(sim.physics_manager, "register_state_force_callback", register_state_force_callback)
 
     viewer = _Viewer()
     viewer.picking_enabled = False
@@ -806,11 +806,11 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     if picking:
         assert viewer.wind is None
         # The hard reset discarded the old backend's callbacks, so picking forces join the new step.
-        register_step_callback.assert_called_once_with(
-            visualizer._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
+        register_state_force_callback.assert_called_once_with(
+            visualizer._viewer_picking_binding.apply, name="viewer.picking"
         )
     else:
-        register_step_callback.assert_not_called()
+        register_state_force_callback.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 

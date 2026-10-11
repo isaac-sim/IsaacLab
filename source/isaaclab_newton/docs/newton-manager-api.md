@@ -64,7 +64,7 @@ fields instead when controlling a model through native actuators.
 
 ```python
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, StepPhase
+from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
 
 class EffortManager(NewtonManager):
@@ -79,8 +79,8 @@ class EffortManager(NewtonManager):
         def apply_effort():
             wp.copy(control.joint_f, effort)
 
-        self.register_step_callback(
-            apply_effort, StepPhase.CONTROL, graphable=True, name="direct_effort"
+        self.register_control_callback(
+            apply_effort, graphable=True, name="direct_effort"
         )
 
 
@@ -118,11 +118,17 @@ If your application constructs the instance itself, the equivalent entry point i
 `SimulationContext(sim_cfg, physics_manager=EffortManager())`. The context supplies
 its configuration, device and timestep and owns the manager's lifecycle.
 
-Most custom device work only needs a callback. Use `CONTROL` before actuators,
-`STATE_FORCE` before each solver substep, or `POST_STEP` after each physics tick.
-`STATE_FORCE` receives the current input state; the other callbacks take no
-arguments. Native sensors refresh after `POST_STEP`. `POST_ACTUATOR` is available
-for telemetry after the final physics tick's actuator evaluation.
+Most custom device work only needs a callback. Each registration method has one cadence:
+
+| Method | Runs | Typical use |
+| --- | --- | --- |
+| `register_pre_step_callback` | once per step, before the first physics tick | commands held for the whole environment step |
+| `register_control_callback` | every physics tick, before Newton actuators | controllers, asset command writers |
+| `register_post_actuator_callback` | last physics tick, after Newton actuators | actuator telemetry |
+| `register_state_force_callback` | every solver substep, with the substep's input state | interactive forces |
+| `register_post_step_callback` | every physics tick, after the solver | republishing state; native sensors refresh after it |
+
+State-force callbacks receive the current input state; the others take no arguments.
 
 Keep the returned callback handle if you need to unregister the work later.
 Changing callbacks invalidates the schedule, so rebuild any caller-owned graph

@@ -3,10 +3,16 @@
   callbacks, and the compiled :class:`~isaaclab_newton.physics.StepGraph`), and free functions such as
   ``init_solver``, ``invalidate_fk``, ``forward``, ``register_step_callback``, ``step``, and ``record_step`` take it
   explicitly. Several backends, with different solvers, can be built and stepped side by side.
-* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_step_callback` and
-  :meth:`~isaaclab_newton.physics.NewtonManager.unregister_step_callback` with
-  :class:`~isaaclab_newton.physics.StepPhase` (``CONTROL``, ``POST_ACTUATOR``, ``STATE_FORCE``, ``POST_STEP``).
-  Graphable callbacks are captured with the solver; others run eagerly at the same position.
+* Added step callbacks at fixed points of the step, each with one cadence:
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_step_callback` (once per step, before the first physics
+  step), :meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` (before the Newton actuators of every
+  physics step), :meth:`~isaaclab_newton.physics.NewtonManager.register_post_actuator_callback`,
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_state_force_callback` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_post_step_callback`. They return a
+  :class:`~isaaclab_newton.physics.StepCallback` for
+  :meth:`~isaaclab_newton.physics.NewtonManager.unregister_step_callback`; the backend keeps them in
+  :class:`~isaaclab_newton.physics.StepCallbacks`. Graphable callbacks are captured with the solver; others run eagerly
+  at the same position.
 * Added whole-environment-step capture: :meth:`~isaaclab_newton.physics.NewtonManager.step` called while the caller
   records a CUDA graph records the Newton step into that graph. Call
   :meth:`~isaaclab_newton.physics.NewtonManager.prepare` before the capture.
@@ -25,6 +31,5 @@
   :attr:`~isaaclab_newton.physics.NewtonSolver.supports_heterogeneous_worlds` for solvers that step worlds with
   different contents. ``record_step`` needs no eager warm-up step and works inside Torch-owned captures that Warp
   joins with ``wp.capture_begin(stream, external=True)``.
-* Added :attr:`~isaaclab_newton.physics.StepPhase.PRE_STEP` for step callbacks that run once per step, before the first
-  physics step. Each step phase now has one documented cadence. Bound environment actions that hold their command for
-  the environment step run there instead of before every physics step.
+* Bound environment actions that hold their command for the environment step run as pre-step callbacks instead of
+  before every physics step.

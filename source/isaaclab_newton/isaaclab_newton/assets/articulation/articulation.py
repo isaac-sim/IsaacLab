@@ -38,7 +38,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import NewtonBuilderCfg, StepPhase
+from isaaclab_newton.physics import NewtonBuilderCfg
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
@@ -3486,8 +3486,8 @@ class Articulation(BaseArticulation):
         # sim-bound, so it has to be republished after every step just like the ordering shadows.
         self._post_step_callback = None
         if self.data.has_joint_ordering or self.data.has_body_ordering or self.data._joint_coord_map.required:
-            self._post_step_callback = self._physics_manager.register_step_callback(
-                self._data._refresh_user_order_state, StepPhase.POST_STEP, name="articulation.republish_state"
+            self._post_step_callback = self._physics_manager.register_post_step_callback(
+                self._data._refresh_user_order_state, name="articulation.republish_state"
             )
         # tendon names are set in _process_tendons function
 

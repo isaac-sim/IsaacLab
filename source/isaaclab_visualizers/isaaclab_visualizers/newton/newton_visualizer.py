@@ -42,7 +42,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, StepPhase
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -1168,8 +1168,8 @@ class NewtonVisualizer(BaseVisualizer):
         )
         if self._viewer is not None and self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            self._physics_manager.register_step_callback(
-                self._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
+            self._physics_manager.register_state_force_callback(
+                self._viewer_picking_binding.apply, name="viewer.picking"
             )
         if self._viewer is not None and self.cfg.enable_picking and not picking_supported:
             logger.info(
@@ -1305,8 +1305,8 @@ class NewtonVisualizer(BaseVisualizer):
             if self._picking_enabled:
                 self._viewer_picking_binding.bind(self._viewer)
                 # A hard reset discards the Newton backend and its callbacks, so register picking with the new one.
-                self._physics_manager.register_step_callback(
-                    self._viewer_picking_binding.apply, StepPhase.STATE_FORCE, name="viewer.picking"
+                self._physics_manager.register_state_force_callback(
+                    self._viewer_picking_binding.apply, name="viewer.picking"
                 )
 
     def _release_viewer(self) -> None:

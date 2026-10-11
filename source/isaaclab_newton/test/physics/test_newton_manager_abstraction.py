@@ -51,7 +51,7 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonShapeCfg,
     StepCallback,
-    StepPhase,
+    StepCallbacks,
     VBDSolverAdapter,
     VBDSolverCfg,
     XPBDSolverAdapter,
@@ -1393,9 +1393,12 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 def test_record_step_requires_a_prepared_graphable_step(unsupported):
     """Recording into an outer capture neither builds the step nor records operations that cannot be captured."""
     events = []
-    eager = StepCallback(lambda: events.append("eager"), StepPhase.CONTROL, graphable=False)
+    eager = StepCallback(lambda: events.append("eager"), graphable=False)
     backend = _recording_backend(
-        events, single_state=True, num_substeps=1, callbacks=[eager] if unsupported == "callback" else []
+        events,
+        single_state=True,
+        num_substeps=1,
+        callbacks=StepCallbacks(control=[eager] if unsupported == "callback" else []),
     )
     backend.solver_adapter.supports_graph_capture = lambda _: unsupported != "solver"
 
@@ -1435,7 +1438,7 @@ class _State:
         self._events.append(("assign", self.name, other.name))
 
 
-def _recording_backend(events, *, single_state, num_substeps, callbacks=()):
+def _recording_backend(events, *, single_state, num_substeps, callbacks=None):
     """Build a backend stand-in whose solver hooks and states record every operation of a step graph."""
     manager = SimpleNamespace(
         single_state=single_state,
@@ -1460,7 +1463,7 @@ def _recording_backend(events, *, single_state, num_substeps, callbacks=()):
         dt=0.002,
         num_substeps=num_substeps,
         solver_dt=0.002 / num_substeps,
-        callbacks=list(callbacks),
+        callbacks=callbacks if callbacks is not None else StepCallbacks(),
         actuators=None,
         staged_forces={},
         contact_sensors={},
@@ -1480,8 +1483,10 @@ def _recording_backend(events, *, single_state, num_substeps, callbacks=()):
 def test_state_force_callback_runs_before_every_solver_substep(use_single_state):
     """Viewer forces are applied to each current input state before solver stepping."""
     events = []
-    callback = StepCallback(lambda state: events.append(("force", state.name)), StepPhase.STATE_FORCE)
-    backend = _recording_backend(events, single_state=use_single_state, num_substeps=2, callbacks=[callback])
+    callback = StepCallback(lambda state: events.append(("force", state.name)))
+    backend = _recording_backend(
+        events, single_state=use_single_state, num_substeps=2, callbacks=StepCallbacks(state_force=[callback])
+    )
 
     nb.build_step_graph(backend, steps=1).launch()
 
@@ -1506,10 +1511,10 @@ def test_state_force_callback_runs_before_every_solver_substep(use_single_state)
 def test_step_graph_orders_callbacks_and_ends_each_physics_step_in_state_0():
     """Each physics step runs control before substeps and ends in the canonical state; post-step runs once."""
     events = []
-    callbacks = [
-        StepCallback(lambda: events.append(("post",)), StepPhase.POST_STEP),
-        StepCallback(lambda: events.append(("control",)), StepPhase.CONTROL),
-    ]
+    callbacks = StepCallbacks(
+        post_step=[StepCallback(lambda: events.append(("post",)))],
+        control=[StepCallback(lambda: events.append(("control",)))],
+    )
     backend = _recording_backend(events, single_state=False, num_substeps=1, callbacks=callbacks)
 
     graph = nb.build_step_graph(backend, steps=2)
@@ -1523,10 +1528,12 @@ def test_step_graph_orders_callbacks_and_ends_each_physics_step_in_state_0():
 def test_step_graph_captures_graphable_runs_and_keeps_other_callbacks_eager(monkeypatch):
     """Operations that cannot be captured run eagerly between captured segments of one step graph."""
     events = []
-    callbacks = [
-        StepCallback(lambda: events.append("safe"), StepPhase.CONTROL),
-        StepCallback(lambda: events.append("eager"), StepPhase.CONTROL, graphable=False),
-    ]
+    callbacks = StepCallbacks(
+        control=[
+            StepCallback(lambda: events.append("safe")),
+            StepCallback(lambda: events.append("eager"), graphable=False),
+        ]
+    )
     backend = _recording_backend(events, single_state=True, num_substeps=1, callbacks=callbacks)
     graph = nb.build_step_graph(backend, steps=2)
     launched = []
@@ -1645,9 +1652,7 @@ def test_graph_capture_preserves_first_step_and_recapture(
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
         sim.physics_manager.activate_actuators()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
-        sim.physics_manager.register_step_callback(
-            lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]), StepPhase.POST_STEP
-        )
+        sim.physics_manager.register_post_step_callback(lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]))
         wrench = wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         for step in range(3):
             if step != 1:

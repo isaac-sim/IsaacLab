@@ -14,13 +14,12 @@ be built and stepped side by side.
 from __future__ import annotations
 
 import contextlib
-import enum
 import gc
 import itertools
 import logging
 import re
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field, fields
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -139,48 +138,12 @@ def _mark_worlds_from_ids(
 # ----- Step callbacks and the compiled step -------------------------------------
 
 
-class StepPhase(enum.Enum):
-    """Where a step callback runs in :func:`step`, after MuJoCo's ``mjcb_*`` callback hooks.
-
-    Each phase has one cadence. One :func:`step` advances :attr:`NewtonBackend.steps_per_call` physics steps of
-    :attr:`NewtonBackend.num_substeps` solver substeps each:
-
-    =================  ===================================================  ============================================
-    Phase              Runs                                                 Typical use
-    =================  ===================================================  ============================================
-    ``PRE_STEP``       once, before the first physics step                  actions held for the whole environment step
-    ``CONTROL``        every physics step, before Newton actuators          controllers, asset command writers
-    ``POST_ACTUATOR``  last physics step, after Newton actuators            actuator telemetry
-    ``STATE_FORCE``    every solver substep, with the substep's input state  interactive forces such as viewer picking
-    ``POST_STEP``      every physics step, after the solver                 republishing state before sensors update
-    =================  ===================================================  ============================================
-    """
-
-    PRE_STEP = "pre_step"
-    """Once per :func:`step`, before the first physics step."""
-
-    CONTROL = "control"
-    """Every physics step, after collision and before Newton actuators, like ``mjcb_control``."""
-
-    POST_ACTUATOR = "post_actuator"
-    """After the Newton actuators of the last physics step, before its solver substeps."""
-
-    STATE_FORCE = "state_force"
-    """Before every solver substep. The callback receives the substep's input :class:`newton.State`."""
-
-    POST_STEP = "post_step"
-    """After every physics step, before sensors update, so state and feedback stay current within decimation."""
-
-
 @dataclass(frozen=True, eq=False)
 class StepCallback:
-    """A function run at a :class:`StepPhase` of every step, until it is unregistered or the backend closes."""
+    """A function run at one point of every :func:`step`, until it is unregistered or the backend closes."""
 
     fn: Callable[..., None]
-    """Function to run. :attr:`StepPhase.STATE_FORCE` callbacks receive the input state; others take no arguments."""
-
-    phase: StepPhase
-    """Where the callback runs."""
+    """Function to run. State-force callbacks receive the substep's input state; others take no arguments."""
 
     graphable: bool = True
     """Whether the function can be recorded into a CUDA graph: fixed buffers and no host branching on device data.
@@ -188,6 +151,35 @@ class StepCallback:
 
     name: str = ""
     """Label used in errors and profiles."""
+
+
+@dataclass
+class StepCallbacks:
+    """Callbacks at the fixed points of :func:`step`, in execution order.
+
+    One :func:`step` advances :attr:`NewtonBackend.steps_per_call` physics steps of :attr:`NewtonBackend.num_substeps`
+    solver substeps each, so each list has one cadence.
+    """
+
+    pre_step: list[StepCallback] = field(default_factory=list)
+    """Once per step, before the first physics step, e.g. actions held for the whole environment step."""
+
+    control: list[StepCallback] = field(default_factory=list)
+    """Every physics step, after collision and before Newton actuators (like MuJoCo's ``mjcb_control``), e.g.
+    controllers and asset command writers."""
+
+    post_actuator: list[StepCallback] = field(default_factory=list)
+    """After the Newton actuators of the last physics step, before its solver substeps, e.g. actuator telemetry."""
+
+    state_force: list[StepCallback] = field(default_factory=list)
+    """Before every solver substep, called with the substep's input :class:`newton.State`, e.g. viewer picking."""
+
+    post_step: list[StepCallback] = field(default_factory=list)
+    """After every physics step, before sensors update, e.g. republishing state within decimation."""
+
+    def lists(self) -> tuple[list[StepCallback], ...]:
+        """Return every callback list, in execution order."""
+        return tuple(getattr(self, f.name) for f in fields(self))
 
 
 @dataclass(frozen=True)
@@ -383,7 +375,7 @@ class NewtonBackend:
         self.model_change_graphs: dict[int, CapturedGraph] = {}
 
         # Consumers of the step.
-        self.callbacks: list[StepCallback] = []
+        self.callbacks = StepCallbacks()
         self.contact_sensors: dict[tuple, SensorContact] = {}
         self.imu_sensors: list[SensorIMU] = []
         self.actuators: NewtonActuatorAdapter | None = None
@@ -421,7 +413,7 @@ class NewtonBackend:
         self.bvh_refit = TimestampedBuffer()
         if self.cfg is not None:
             self.solver = self.collision_pipeline = self.contacts = self.actuators = self.step_graph = None
-            self.callbacks, self.contact_sensors, self.imu_sensors = [], {}, []
+            self.callbacks, self.contact_sensors, self.imu_sensors = StepCallbacks(), {}, []
             self.staged_forces.clear()
             self.model_change_graphs.clear()
             self.model_dirty = None
@@ -727,30 +719,30 @@ def notify_model_changes(backend: NewtonBackend) -> None:
 
 def register_step_callback(
     backend: NewtonBackend,
+    callbacks: list[StepCallback],
     fn: Callable[..., None],
-    phase: StepPhase,
     *,
     graphable: bool = True,
     name: str = "",
 ) -> StepCallback:
-    """Run ``fn`` at ``phase`` of every subsequent step.
+    """Run ``fn`` at one point of every subsequent step.
 
     Args:
         backend: Simulation backend.
-        fn: Function to run; :attr:`StepPhase.STATE_FORCE` functions receive the substep's input state.
-        phase: Where the function runs.
+        callbacks: One of the lists in :attr:`NewtonBackend.callbacks`, e.g. ``backend.callbacks.control``.
+        fn: Function to run; state-force functions receive the substep's input state.
         graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
         name: Label used in errors and profiles.
 
     Returns:
-        The callback, for :func:`unregister_step_callback`. Registering the same function and phase again returns
-        the existing callback.
+        The callback, for :func:`unregister_step_callback`. Registering the same function in the same list again
+        returns the existing callback.
     """
-    for callback in backend.callbacks:
-        if callback.fn == fn and callback.phase == phase:
+    for callback in callbacks:
+        if callback.fn == fn:
             return callback
-    callback = StepCallback(fn, phase, graphable, name or getattr(fn, "__name__", ""))
-    backend.callbacks.append(callback)
+    callback = StepCallback(fn, graphable, name or getattr(fn, "__name__", ""))
+    callbacks.append(callback)
     backend.step_graph = None
     return callback
 
@@ -762,9 +754,10 @@ def unregister_step_callback(backend: NewtonBackend, callback: StepCallback) -> 
         backend: Simulation backend.
         callback: Callback returned by :func:`register_step_callback`.
     """
-    if callback in backend.callbacks:
-        backend.callbacks.remove(callback)
-        backend.step_graph = None
+    for callbacks in backend.callbacks.lists():
+        if callback in callbacks:
+            callbacks.remove(callback)
+            backend.step_graph = None
 
 
 def activate_actuators(backend: NewtonBackend) -> NewtonActuatorAdapter | None:
@@ -876,10 +869,10 @@ def compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | Non
 def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
     """Unroll ``steps`` physics steps into straight-line operations with every buffer bound.
 
-    ``PRE_STEP`` callbacks run first. Each physics step then runs ``collide -> CONTROL -> Newton actuators ->
-    substeps -> POST_STEP -> sensors``, where each substep runs ``staged forces -> STATE_FORCE -> solver`` and an
-    optional mid-step collision, and ``POST_ACTUATOR`` callbacks run after the actuators of the last physics step (see
-    :class:`StepPhase`).
+    Pre-step callbacks run first. Each physics step then runs ``collide -> control callbacks -> Newton actuators ->
+    substeps -> post-step callbacks -> sensors``, where each substep runs ``staged forces -> state-force callbacks ->
+    solver`` and an optional mid-step collision, and post-actuator callbacks run after the actuators of the last
+    physics step (see :class:`StepCallbacks`).
     Double-buffered states alternate when the graph is built, and every physics step ends in
     :attr:`NewtonBackend.state_0`, so callbacks and bound views always observe the current state.
 
@@ -898,19 +891,19 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
     pipeline = backend.collision_pipeline
     contacts = backend.contacts if pipeline is not None else None
     collide_every = backend.cfg.collision_decimation if pipeline is not None else 0
-    phases = {phase: [cb for cb in backend.callbacks if cb.phase == phase] for phase in StepPhase}
+    callbacks = backend.callbacks
     ops: list[StepOp] = []
 
     def emit(fn: Callable[[], None], name: str, graphable: bool = True) -> None:
         ops.append(StepOp(fn, graphable, name))
 
-    def emit_callbacks(phase: StepPhase, *args) -> None:
-        for cb in phases[phase]:
+    def emit_callbacks(step_callbacks: list[StepCallback], *args) -> None:
+        for cb in step_callbacks:
             emit(partial(cb.fn, *args) if args else cb.fn, cb.name, cb.graphable)
 
     # Forces persist in a single state across substeps. Double-buffered solvers alternate input states, and STATE_FORCE
     # callbacks add to the input forces, so both re-apply staged copies before every substep.
-    if not adapter.single_state or phases[StepPhase.STATE_FORCE]:
+    if not adapter.single_state or callbacks.state_force:
         for name in ("body_f", "particle_f"):
             forces = getattr(state_0, name, None)
             if forces is not None and name not in backend.staged_forces:
@@ -918,26 +911,26 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
         staged = list(backend.staged_forces.items())
     else:
         staged = []
-    emit_callbacks(StepPhase.PRE_STEP)
+    emit_callbacks(callbacks.pre_step)
     actuator_steps = 0
     for physics_step in range(steps):
         if adapter.prepares_step:
             emit(partial(adapter.prepare_step, backend, state_0), "solver.prepare_step")
         if pipeline is not None:
             emit(partial(pipeline.collide, state_0, contacts), "collide")
-        emit_callbacks(StepPhase.CONTROL)
+        emit_callbacks(callbacks.control)
         for name, buffer in staged:
             emit(partial(wp.copy, buffer, getattr(state_0, name)), f"stage_forces.{name}")
         if backend.actuators is not None:
             _emit_actuators(emit, backend.actuators, state_0, control, backend.dt, actuator_steps % 2)
             actuator_steps += 1
         if physics_step == steps - 1:
-            emit_callbacks(StepPhase.POST_ACTUATOR)
+            emit_callbacks(callbacks.post_actuator)
         state_in, state_out = state_0, spare
         for substep in range(backend.num_substeps):
             for name, buffer in staged:
                 emit(partial(wp.copy, getattr(state_in, name), buffer), f"apply_forces.{name}")
-            emit_callbacks(StepPhase.STATE_FORCE, state_in)
+            emit_callbacks(callbacks.state_force, state_in)
             emit(
                 partial(adapter.step_solver, backend, state_in, state_out, contacts, backend.solver_dt),
                 "solver",
@@ -951,7 +944,7 @@ def build_step_graph(backend: NewtonBackend, steps: int) -> StepGraph:
             emit(partial(state_0.assign, state_in), "state.assign")
         for name, buffer in staged:
             emit(partial(wp.copy, getattr(state_0, name), buffer), f"restore_forces.{name}")
-        emit_callbacks(StepPhase.POST_STEP)
+        emit_callbacks(callbacks.post_step)
         if backend.contact_sensors or backend.imu_sensors:
             emit(partial(_update_sensors, backend), "sensors")
     if actuator_steps % 2:

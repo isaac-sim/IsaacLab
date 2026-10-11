@@ -103,7 +103,8 @@ the context supplies its physics configuration, device and timestep and owns the
 An instance already attached to a context cannot be injected again. ``SimulationContext`` remains the scene-level
 singleton; standalone managers and the functional API are independent of it.
 
-Use ``register_step_callback`` for controllers or additional device work. Override lifecycle methods when ownership
+Use ``register_control_callback`` and the other ``register_*_callback`` methods for controllers or additional
+device work. Override lifecycle methods when ownership
 or construction changes, and call the base lifecycle implementation. Override ``finalize_backend`` to customize
 model construction. A custom solver only needs a ``NewtonSolver`` adapter; it does not need a new manager.
 
@@ -146,15 +147,16 @@ The Step
 
 Each :meth:`~isaaclab_newton.physics.NewtonManager.step` launches one :class:`~isaaclab_newton.physics.StepGraph`. It
 covers the whole decimation loop when the manager handles decimation
-(:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`) and one physics step otherwise. Every physics step
-runs ``collide -> CONTROL -> Newton actuators -> POST_ACTUATOR -> substeps``, where every substep runs
-``staged forces -> STATE_FORCE -> step_solver()``; ``POST_STEP`` callbacks and native sensors run after every physics step, so feedback stays current during decimation.
-``POST_ACTUATOR`` telemetry runs only after the final physics step's actuators.
+(:meth:`~isaaclab_newton.physics.NewtonManager.handles_decimation`) and one physics step otherwise. Pre-step
+callbacks run once first. Every physics step then runs ``collide -> control callbacks -> Newton actuators ->
+substeps -> post-step callbacks -> sensors``, where every substep runs ``staged forces -> state-force callbacks ->
+step_solver()``, and post-actuator callbacks run after the actuators of the last physics step. Each list of
+:class:`~isaaclab_newton.physics.StepCallbacks` has one cadence.
 
 The graph binds every buffer when it is built. Double-buffered solvers alternate input and output states at build
 time, and each physics step ends in ``state_0``, so ``manager.get_state_0()`` is always the same object.
 Consecutive graphable operations are captured together; operations that cannot be captured, such as actuators with Python history indices or eager callbacks, run in place between captured segments. Consumers add operations with
-:meth:`~isaaclab_newton.physics.NewtonManager.register_step_callback` while ``PHYSICS_READY`` dispatches.
+:meth:`~isaaclab_newton.physics.NewtonManager.register_control_callback` and its siblings while ``PHYSICS_READY`` dispatches.
 
 The backend functions read no manager state, so backends with different solvers can be built from their own models
 and stepped side by side, or recorded into one caller-owned CUDA graph:

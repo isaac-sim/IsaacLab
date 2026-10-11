@@ -12,7 +12,7 @@
     CapturedGraph
     NewtonBackend
     NewtonCloneRecord
-    StepPhase
+    StepCallbacks
     StepCallback
     StepGraph
     NewtonCfg
@@ -70,7 +70,7 @@ Physics Manager
   :show-inheritance:
   :exclude-members: __init__
 
-.. autoclass:: StepPhase
+.. autoclass:: StepCallbacks
   :members:
   :show-inheritance:
 

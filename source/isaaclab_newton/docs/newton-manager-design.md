@@ -26,7 +26,7 @@ flowchart LR
     Manager -->|owns| Backend[NewtonBackend data]
     Manager -->|calls| Functions[Backend functions]
     Functions -->|read and update| Backend
-    Functions -->|solver behavior| Adapter[Stateless solver adapter]
+    Functions -->|solver behavior| Adapter[Solver adapter]
     Backend --> Resources[Model, state, control, solver, graphs]
 ```
 

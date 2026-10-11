@@ -39,7 +39,7 @@ from isaaclab_newton.renderers.visual_material import (
 )
 
 from . import newton_backend as nb
-from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback, StepPhase
+from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback
 from .newton_scene_data import NewtonSceneDataBackend
 from .newton_solver import NewtonSolver, create_builder, create_solver_adapter
 
@@ -267,8 +267,8 @@ class NewtonManager(PhysicsManager):
     def bind_control(self, actions, scene) -> bool:
         """Run the environment's actions and asset command writers inside the step, in the environment's order.
 
-        Actions that hold their command for the whole environment step run once per step (:attr:`StepPhase.PRE_STEP`);
-        the other actions and the asset command writers run before every physics step (:attr:`StepPhase.CONTROL`).
+        Actions that hold their command for the whole environment step run once per step (pre-step callbacks);
+        the other actions and the asset command writers run before every physics step (control callbacks).
 
         Args:
             actions: Environment action manager.
@@ -279,12 +279,12 @@ class NewtonManager(PhysicsManager):
         """
         for name in actions.active_terms:
             term = actions.get_term(name)
-            phase = StepPhase.CONTROL if term.apply_every_physics_step else StepPhase.PRE_STEP
-            graphable = term.supports_graph_capture
-            self.register_step_callback(term.apply_actions, phase, graphable=graphable, name=f"action.{name}")
+            register = (
+                self.register_control_callback if term.apply_every_physics_step else self.register_pre_step_callback
+            )
+            register(term.apply_actions, graphable=term.supports_graph_capture, name=f"action.{name}")
         for name, asset in scene.assets.items():
-            graphable = asset.supports_graph_capture
-            self.register_step_callback(asset.write_data_to_sim, StepPhase.CONTROL, graphable=graphable, name=name)
+            self.register_control_callback(asset.write_data_to_sim, graphable=asset.supports_graph_capture, name=name)
         self._control_binding = (actions, scene)
         self._resolve_steps_per_call()
         return True
@@ -329,34 +329,96 @@ class NewtonManager(PhysicsManager):
 
     # ----- Step callbacks and actuators -----------------------------------------------
 
-    def register_step_callback(
-        self,
-        fn: Callable[..., None],
-        phase: StepPhase,
-        *,
-        graphable: bool = True,
-        name: str = "",
+    def register_pre_step_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
     ) -> StepCallback:
-        """Run ``fn`` at ``phase`` of every step until it is unregistered or the model is rebuilt.
+        """Run ``fn`` once per :meth:`step`, before the first physics step.
 
         Consumers register on ``PHYSICS_READY``; a hard reset discards callbacks together with the buffers they bind.
 
         Args:
-            fn: Function to run. :attr:`StepPhase.STATE_FORCE` functions receive the substep's input state.
-            phase: Where the function runs.
+            fn: Function to run, e.g. an action that holds its command for the whole environment step.
             graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
             name: Label used in errors and profiles.
 
         Returns:
             The callback, for :meth:`unregister_step_callback`.
         """
-        return nb.register_step_callback(self.backend, fn, phase, graphable=graphable, name=name)
+        return nb.register_step_callback(
+            self.backend, self.backend.callbacks.pre_step, fn, graphable=graphable, name=name
+        )
+
+    def register_control_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` before the Newton actuators of every physics step, like MuJoCo's ``mjcb_control``.
+
+        Args:
+            fn: Function to run, e.g. a controller or an asset command writer.
+            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
+            name: Label used in errors and profiles.
+
+        Returns:
+            The callback, for :meth:`unregister_step_callback`.
+        """
+        return nb.register_step_callback(
+            self.backend, self.backend.callbacks.control, fn, graphable=graphable, name=name
+        )
+
+    def register_post_actuator_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` after the Newton actuators of the last physics step of every :meth:`step`.
+
+        Args:
+            fn: Function to run, e.g. actuator telemetry.
+            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
+            name: Label used in errors and profiles.
+
+        Returns:
+            The callback, for :meth:`unregister_step_callback`.
+        """
+        callbacks = self.backend.callbacks.post_actuator
+        return nb.register_step_callback(self.backend, callbacks, fn, graphable=graphable, name=name)
+
+    def register_state_force_callback(
+        self, fn: Callable[[State], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` before every solver substep with the substep's input state.
+
+        Args:
+            fn: Function receiving the input :class:`newton.State`, e.g. one that applies interactive forces.
+            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
+            name: Label used in errors and profiles.
+
+        Returns:
+            The callback, for :meth:`unregister_step_callback`.
+        """
+        callbacks = self.backend.callbacks.state_force
+        return nb.register_step_callback(self.backend, callbacks, fn, graphable=graphable, name=name)
+
+    def register_post_step_callback(
+        self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
+    ) -> StepCallback:
+        """Run ``fn`` after every physics step, before sensors update.
+
+        Args:
+            fn: Function to run, e.g. one that republishes state within decimation.
+            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
+            name: Label used in errors and profiles.
+
+        Returns:
+            The callback, for :meth:`unregister_step_callback`.
+        """
+        return nb.register_step_callback(
+            self.backend, self.backend.callbacks.post_step, fn, graphable=graphable, name=name
+        )
 
     def unregister_step_callback(self, callback: StepCallback) -> None:
         """Stop running a callback; a no-op after the model is rebuilt.
 
         Args:
-            callback: Callback returned by :meth:`register_step_callback`.
+            callback: Callback returned by one of the ``register_*_callback`` methods.
         """
         if self.backend is not None:
             nb.unregister_step_callback(self.backend, callback)

@@ -55,12 +55,12 @@ def test_mpm_object_initializes_from_interactive_scene():
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
         assert not sim.get_scene_data_provider().get_geometry_points()
 
-        callback_count = len(sim.physics_manager.backend.callbacks)
+        callback_count = sum(map(len, sim.physics_manager.backend.callbacks.lists()))
         for _ in range(2):
             old_data = media.data
             sim.reset()
             assert media.data is not old_data
-            assert len(sim.physics_manager.backend.callbacks) == callback_count
+            assert sum(map(len, sim.physics_manager.backend.callbacks.lists())) == callback_count
 
             default_state = media.data.default_particle_state_w.torch.clone()
             shifted_state = default_state[0:1].clone()

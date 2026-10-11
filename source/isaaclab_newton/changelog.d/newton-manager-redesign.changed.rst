@@ -45,16 +45,16 @@
   :meth:`~isaaclab_newton.physics.NewtonManager.set_decimation`, so ``step(backend)`` reads
   ``NewtonBackend.steps_per_call`` and ``NewtonBackend.capture`` instead of re-deriving them every step.
   ``NewtonBackend.device`` is a :class:`warp.Device`.
-* ``POST_ACTUATOR`` step callbacks, such as actuator telemetry, run once per step, after the actuators of its last
-  physics step.
+* Post-actuator callbacks, such as actuator telemetry, run once per step, after the actuators of its last physics
+  step.
 * Forces authored before a step are staged and re-applied per substep only for double-buffered solvers or when
-  ``STATE_FORCE`` callbacks add forces; single-state solvers read them in place.
+  state-force callbacks add forces; single-state solvers read them in place.
 * Property edits queue model-change categories and a device-side dirty flag. ``forward`` or ``step`` commits the
   combined categories once. Empty reset masks skip constant reconstruction without synchronizing the device.
   Capture property-changing resets with ``newton_backend.capture_graph`` so conditional nodes retain their scratch
   storage. The helper returns a ``CapturedGraph`` with a ``launch()`` method.
-* ``POST_STEP`` callbacks and native sensors update after every physics step, keeping feedback current within the
-  captured decimation loop. ``POST_ACTUATOR`` telemetry remains sampled on the last physics step.
+* Post-step callbacks and native sensors update after every physics step, keeping feedback current within the
+  captured decimation loop. Post-actuator telemetry remains sampled on the last physics step.
 * A backend builds its own solver adapter from its configuration, and every adapter hook reads the solver settings
   from :attr:`~isaaclab_newton.physics.NewtonSolver.cfg`. Kamino keeps its resolved ``use_fk_solver`` on the adapter
   instead of rewriting the backend configuration. :attr:`~isaaclab_newton.physics.NewtonBackend.live` replaces the

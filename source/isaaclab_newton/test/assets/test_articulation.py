@@ -586,7 +586,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         sim.reset()
         callback_counts = (
             len(SimulationContext.instance().physics_manager._callbacks),
-            len(SimulationContext.instance().physics_manager.backend.callbacks),
+            sum(map(len, SimulationContext.instance().physics_manager.backend.callbacks.lists())),
         )
         for reset_index in range(3):
             if reset_index:
@@ -595,7 +595,7 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
                 assert callback_counts == (
                     len(SimulationContext.instance().physics_manager._callbacks),
-                    len(SimulationContext.instance().physics_manager.backend.callbacks),
+                    sum(map(len, SimulationContext.instance().physics_manager.backend.callbacks.lists())),
                 )
 
             positions = []

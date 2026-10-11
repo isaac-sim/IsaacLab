@@ -25,7 +25,6 @@ from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuat
 from isaaclab.utils import index_fill_
 
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
-from isaaclab_newton.physics import StepPhase
 
 if TYPE_CHECKING:
     import torch
@@ -147,9 +146,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 device=self.device,
             )
 
-        self._physics_manager.register_step_callback(
-            _post_actuator, StepPhase.POST_ACTUATOR, name="articulation.actuator_telemetry"
-        )
+        self._physics_manager.register_post_actuator_callback(_post_actuator, name="articulation.actuator_telemetry")
 
         if adapter is None:
             return None
