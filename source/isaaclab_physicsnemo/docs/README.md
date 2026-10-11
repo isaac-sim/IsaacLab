@@ -93,15 +93,16 @@ git -C /absolute/path/to/physicsnemo-robotics fetch origin tag mnabian/flashnerd
 git -C /absolute/path/to/physicsnemo-robotics checkout mnabian/flashnerd-benchmark-v1
 export ROBOTICS_ROOT=/absolute/path/to/physicsnemo-robotics
 
-uv sync --frozen
+uv sync --frozen --extra test
 uv pip install --python .venv/bin/python --no-deps -e "$ROBOTICS_ROOT"
 uv pip install --python .venv/bin/python \
   "nvidia-physicsnemo==2.1.1" "jaxtyping>=0.3.3" "tensordict>=0.11,<0.12" "zarr>=3,<4"
 uv pip install --python .venv/bin/python --no-deps -e source/isaaclab_physicsnemo
 ```
 
-Run Python from `.venv/bin/python`, or use `uv run --no-sync`. A later `uv sync` restores the
-locked environment and removes these packages. `TrainingSettings(compile=True)`, which the benchmark and
+Run Python from `.venv/bin/python`, or use `uv run --no-sync`. The `test` extra provides pytest for the
+tests below. A later `uv sync` restores the locked environment and removes the packages installed after it,
+so install them again after every sync. `TrainingSettings(compile=True)`, which the benchmark and
 ANYmal-C training use, needs a C compiler and the Python headers for `torch.compile` (`gcc` and
 `python3.12-dev` on Ubuntu, as the container installs).
 
@@ -109,8 +110,7 @@ The integration was validated with PhysicsNeMo Robotics tag `mnabian/flashnerd-b
 (`a81160e`), Newton 1.6.1, Warp 1.17.0, Torch 2.12 (CUDA 13), PhysicsNeMo 2.1.1, and RSL-RL 5.5.1, on one
 NVIDIA RTX PRO 5000 Blackwell GPU and in the container on two NVIDIA L40S GPUs. The tag adds the FlashNeRD
 benchmark tooling and the ParallelNeRD FP16 safeguards to `mataei/icra` at `4e4be69`; its library sources
-otherwise equal that commit. The usable Cartpole results were measured with `4e4be69`, the benchmark and
-ANYmal-C results with the tag.
+otherwise equal that commit. All results below were measured with the tag.
 
 ## Examples
 
@@ -144,19 +144,36 @@ done
 The recording follows the task-independent data of NeRD and FlashNeRD (`CartpoleExplorationEnvCfg`):
 episodes start anywhere on the track, at every pole angle, and with large velocities, and each episode draws
 its own action scale, so the data covers the command range that controllers use. The dataset holds about
-10,800 episodes and 1.5 million frames. Held-out results, measured with the earlier streaming loader (each
-horizon uses the episodes long enough for it, from 1,069 at E1 to 373 at E200):
+10,800 episodes and 1.5 million frames. On one RTX PRO 5000 GPU, recording takes 10 minutes, training 13
+minutes, and each PPO run under 3 minutes. Held-out results of this model after 30,000 updates (1/120 s
+frames; each horizon uses the episodes long enough for it, from 1,069 at E1 to 373 at E200):
 
-| Held-out rollout error | E1 | E15 | E100 | E200 |
-| --- | --- | --- | --- | --- |
-| This model, 30,000 updates | 2.0e-4 | 1.0e-3 | 1.4e-2 | 0.10 |
-| FlashNeRD paper, 5,000,000 updates | 4.4e-5 | 1.7e-4 | 3.2e-3 | 6.0e-2 |
+| E1 | E15 | E100 | E200 |
+| --- | --- | --- | --- |
+| 2.1e-4 | 9.7e-4 | 7.7e-3 | 0.060 |
 
-The deployed model stays within 0.016 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
-random actions. A PPO policy trained only in the learned environment balances the MuJoCo Warp Cartpole in
-every evaluation episode, with the same return (4.95) as a policy trained in MuJoCo Warp, for two seeds.
-With a fixed action scale of 0.5 (about 50 N) instead, the model reached a lower E200 of 0.023, but the PPO
+These frames are half as long as the FlashNeRD study's, so the values are not comparable with the paper;
+the benchmark below repeats the study's configuration.
+
+The deployed model stays within 0.007 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
+random actions. PPO policies trained only in the learned environment balance the MuJoCo Warp Cartpole in
+99.8 and 100 % of 1,536 evaluation episodes, with returns of 4.93 and 4.95 against 4.94 and 4.95 for
+policies trained in MuJoCo Warp (seeds 42 and 43).
+In an earlier ablation with `4e4be69` and a fixed action scale of 0.5 (about 50 N), the model reached a lower
+E200 of 0.023, but the PPO
 policy exploited its errors at larger efforts and succeeded in only 55 % of MuJoCo Warp episodes.
+
+PPO training curves of these runs. Each return is measured in the physics the policy trains in, MuJoCo Warp
+on the left and the learned model on the right. All four runs pass a return of 4.8 between iterations 32
+and 47 and end between 4.93 and 4.96.
+
+![Cartpole PPO training return in MuJoCo Warp and in learned physics](media/cartpole_ppo_reward.png)
+
+The seed-42 policy trained only in learned physics, deployed in the MuJoCo Warp Cartpole for one 5 s
+episode from random initial pole angles and velocities, recorded with the Newton GL visualizer
+([mp4](media/cartpole_learned_policy_mjwarp.mp4)):
+
+![Learned-physics Cartpole policy balancing in MuJoCo Warp](media/cartpole_learned_policy_mjwarp.gif)
 
 ### FlashNeRD CartPole benchmark
 
@@ -175,13 +192,15 @@ torchrun --standalone --nproc-per-node 2 $B --output /tmp/fnb-physicsnemo --stag
   --teacher physicsnemo --physicsnemo-root "$ROBOTICS_ROOT" --max-updates 5000000 --checkpoint-every 250000
 ```
 
-The `data` stage runs in one process (about ten minutes for the Isaac Lab Cartpole); the `train` stage runs under `torchrun` for the study's two
+The `data` stage runs in one process (about ten minutes for either teacher); the `train` stage runs under `torchrun` for the study's two
 data-parallel ranks, or as a single process with the same global batch. Training uses FP16 autocast,
 appends the held-out `E_H` of every checkpoint to `rollout_nrmse.jsonl`, prints the final table next to the
 paper's values, and resumes from its last checkpoint when rerun with the same arguments. The
 study's own teacher separates the training recipe from the difference in teacher systems. Five million
-updates take about ten hours on two L40S GPUs (135 updates per second); `--max-updates 50000` shows the
-trend in about half an hour on one GPU.
+updates take about ten hours on two L40S GPUs (135 updates per second). `--max-updates 50000
+--checkpoint-every 25000` checks a setup in about 16 minutes on one RTX PRO 5000 GPU (93 updates per second)
+and gives E1 = 9.9e-5 and E200 = 0.11 on the study's teacher, and E1 = 1.6e-4 and E200 = 0.020 on the Isaac
+Lab teacher.
 
 | Setting | Study | This benchmark |
 | --- | --- | --- |
