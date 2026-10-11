@@ -103,7 +103,7 @@ class BaseVisualizer(ABC):
                 else None
             )
             self.current_image_view = sim.get_or_create_backend(cfg.view, camera=camera)
-            self._image_views = [self.current_image_view]
+            self._image_views.append(self.current_image_view)
             return
         env_ids = []
         if any(not isinstance(camera, PerspectiveCameraCfg) for camera in cameras):
@@ -113,16 +113,20 @@ class BaseVisualizer(ABC):
                 pool = self._env_ids if self._env_ids is not None else range(num_envs)
                 env_ids = sorted(random.sample(pool, min(int(cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))))
         for camera in cameras:
-            perspective = isinstance(camera, PerspectiveCameraCfg)
-            if perspective and cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
-                continue
-            view_cfg = ImageViewCfg(
-                source=camera if perspective else camera.cfg.prim_path,
-                envs=(0,) if perspective else tuple(map(int, env_ids)),
-                channels=("rgb",) if perspective else tuple(self.cfg.streaming_gt_types),
-                depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
-            )
-            self._image_views.append(sim.get_or_create_backend(view_cfg, camera=None if perspective else camera))
+            if isinstance(camera, PerspectiveCameraCfg):
+                if cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
+                    continue
+                view = sim.get_or_create_backend(ImageViewCfg(source=camera))
+            else:
+                view_cfg = ImageViewCfg(
+                    source=camera.cfg.prim_path, envs=tuple(map(int, env_ids)),
+                    channels=tuple(cfg.streaming_gt_types),
+                    depth_range=(cfg.streaming_depth_min, cfg.streaming_depth_max),
+                )  # fmt: skip
+                view = sim.get_or_create_backend(view_cfg, camera=camera)
+            if cfg.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
+                view.aspect = cfg.window.size[0] / cfg.window.size[1]
+            self._image_views.append(view)
         self.current_image_view = next((view for view in self._image_views if view.camera is not None), None)
 
     def render_tiled_rgba_array(self) -> wp.array | None:

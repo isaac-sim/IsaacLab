@@ -512,9 +512,6 @@ class NewtonVisualizerBase(BaseVisualizer):
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind scene data and the Newton model shared with the simulation."""
         super().initialize(sim, cameras=cameras)
-        if self.cfg.view is None:
-            for view in self._image_views:
-                view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(

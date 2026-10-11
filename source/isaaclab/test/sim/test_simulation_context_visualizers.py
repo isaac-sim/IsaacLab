@@ -588,15 +588,16 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["visible_worlds"] == expected_visible
 
 
-def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
-    """Default ``--viz kit`` should work for envs without a camera prim."""
+@pytest.mark.parametrize("viewport", ["active", "unnamed", "missing", "headless"])
+def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch, viewport):
+    """Use the active camera or Kit's default without requiring an authored scene camera."""
 
     class _FakeViewportApi:
         def __init__(self):
             self.set_active_camera_calls = []
 
         def get_active_camera(self):
-            return "/OmniverseKit_Persp"
+            return "/CustomPerspective" if viewport == "active" else ""
 
         def set_active_camera(self, camera_path):
             self.set_active_camera_calls.append(camera_path)
@@ -615,7 +616,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
         (),
         {
             "create_viewport_window": staticmethod(lambda **kwargs: viewport_window),
-            "get_active_viewport_window": staticmethod(lambda: viewport_window),
+            "get_active_viewport_window": staticmethod(lambda: None if viewport == "missing" else viewport_window),
         },
     )
     monkeypatch.setitem(sys.modules, "omni", type(sys)("omni"))
@@ -635,14 +636,16 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
     cfg = KitVisualizerCfg()
     visualizer = kit_visualizer.KitVisualizer(cfg)
     monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(stage=_FakeStage()))
-    visualizer._runtime_headless = False
+    visualizer._runtime_headless = viewport == "headless"
 
     visualizer._setup_viewport()
 
     assert not cfg.streaming_view
     assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
     assert viewport_window.viewport_api.set_active_camera_calls == []
-    assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
+    assert visualizer._controlled_camera_path == (
+        "/CustomPerspective" if viewport == "active" else "/OmniverseKit_Persp"
+    )
 
 
 def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):

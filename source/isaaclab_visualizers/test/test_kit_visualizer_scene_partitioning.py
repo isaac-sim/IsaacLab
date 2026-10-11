@@ -29,7 +29,6 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
-    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
 
     visualizer.step(0.1)
