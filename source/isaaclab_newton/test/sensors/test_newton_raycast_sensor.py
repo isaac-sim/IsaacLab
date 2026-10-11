@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sensors import (
@@ -39,6 +40,7 @@ from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.seed import WarpRng
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -194,6 +196,52 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
 
     assert sensor.num_instances == 1
     assert sensor.data.ray_hits_w.shape[0] == 1
+
+
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
+def test_partial_reset_resamples_drift_of_selected_envs_only(sim):
+    """Mask and slice resets resample the drift of the selected environments only, also on graph replay."""
+    scene_cfg = RaycastTestSceneCfg(num_envs=3)
+    scene_cfg.raycast.drift_range = (0.01, 0.05)
+    scene_cfg.raycast.ray_cast_drift_range = {"z": (0.1, 0.2)}
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    sensor: NewtonRaycastSensor = scene["raycast"]
+    sensor.reset()
+
+    # A masked reset draws from the process-wide Warp RNG state, which an environment initializes.
+    WarpRng.initialize(scene.num_envs, sensor.device)
+
+    drift = sensor.drift.torch.clone()
+    ray_cast_drift = sensor.ray_cast_drift.torch.clone()
+    sensor.reset(env_mask=wp.array([False, True, False], dtype=wp.bool, device=sensor.device))
+    torch.testing.assert_close(sensor.drift.torch[[0, 2]], drift[[0, 2]])
+    torch.testing.assert_close(sensor.ray_cast_drift.torch[[0, 2]], ray_cast_drift[[0, 2]])
+    assert not torch.allclose(sensor.drift.torch[1], drift[1])
+    assert not torch.allclose(sensor.ray_cast_drift.torch[1, 2], ray_cast_drift[1, 2])
+    assert ((sensor.drift.torch >= 0.01) & (sensor.drift.torch <= 0.05)).all()
+    assert ((sensor.ray_cast_drift.torch[:, 2] >= 0.1) & (sensor.ray_cast_drift.torch[:, 2] <= 0.2)).all()
+
+    drift = sensor.drift.torch.clone()
+    sensor.reset(env_ids=slice(2, None))
+    torch.testing.assert_close(sensor.drift.torch[:2], drift[:2])
+    assert not torch.allclose(sensor.drift.torch[2], drift[2])
+
+    # The masked reset records into a CUDA graph without allocating (the disabled memory pool makes an
+    # allocation raise), and every replay draws new drift for the masked environment only.
+    env_mask = wp.array([True, False, False], dtype=wp.bool, device=sensor.device)
+    with wp.ScopedMempool(sensor.device, False), wp.ScopedCapture(sensor.device) as capture:
+        sensor.reset(env_mask=env_mask)
+    for _ in range(2):
+        drift = sensor.drift.torch.clone()
+        ray_cast_drift = sensor.ray_cast_drift.torch.clone()
+        wp.capture_launch(capture.graph)
+        torch.testing.assert_close(sensor.drift.torch[1:], drift[1:])
+        torch.testing.assert_close(sensor.ray_cast_drift.torch[1:], ray_cast_drift[1:])
+        assert not torch.allclose(sensor.drift.torch[0], drift[0])
+        assert not torch.allclose(sensor.ray_cast_drift.torch[0, 2], ray_cast_drift[0, 2])
+    assert ((sensor.drift.torch >= 0.01) & (sensor.drift.torch <= 0.05)).all()
+    assert ((sensor.ray_cast_drift.torch[:, 2] >= 0.1) & (sensor.ray_cast_drift.torch[:, 2] <= 0.2)).all()
 
 
 def test_bvh_refit_tracks_moving_geometry(sim):
