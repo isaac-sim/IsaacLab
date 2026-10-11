@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 from .cabinet_env_cfg import (
+    CABINET_BODY_MATERIAL_CFG,
     CABINET_CFG,
+    CABINET_FRONT_MATERIAL_CFG,
+    CABINET_HARDWARE_MATERIAL_CFG,
     LIGHT_CFG,
     PLANE_CFG,
     CabinetDecimationCfg,
@@ -29,6 +32,9 @@ class CabinetDirectSceneCfg(InteractiveSceneCfg):
     """Scene configuration shared by direct-workflow cabinet tasks."""
 
     robot: ArticulationCfg = MISSING
+    cabinet_body_material: VisualMaterialCfg = CABINET_BODY_MATERIAL_CFG
+    cabinet_front_material: VisualMaterialCfg = CABINET_FRONT_MATERIAL_CFG
+    cabinet_hardware_material: VisualMaterialCfg = CABINET_HARDWARE_MATERIAL_CFG
     cabinet: ArticulationCfg = CABINET_CFG
     plane: AssetBaseCfg = PLANE_CFG
     light: AssetBaseCfg = LIGHT_CFG
@@ -94,3 +100,5 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
     multi_stage_open_drawer_reward_scale: float = 1.0
     action_rate_reward_scale: float = -1e-2
     joint_vel_reward_scale: float = -1e-4
+    joint_pos_limits_reward_scale: float = 0.0
+    joint_vel_limits_reward_scale: float = 0.0
