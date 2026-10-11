@@ -8,3 +8,5 @@
   visualizer with the requested outputs. Empty warmup frames continued to be skipped.
 * Detected physics configuration subclasses by type during launch, preserving runtime compatibility
   checks independently of the configuration class name.
+* Preserved automatic recording frame rates for non-Gym environments and used shared image composition
+  for renderer gallery captures after removing the CPU colorizer.

@@ -33,20 +33,6 @@ the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, impor
 VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
 
-_VISUALIZER_EXTRAS = {
-    "kit": "isaacsim",
-    "rerun": "rerun",
-    "viser": "viser",
-}
-
-
-def get_visualizer_install_hint(visualizer_type: str) -> str:
-    """Return the uv command needed to run a visualizer backend."""
-    extra = _VISUALIZER_EXTRAS.get(visualizer_type)
-    if extra is None:
-        return "Run your command with: uv run <command>."
-    return f"Run your command with: uv run --extra {extra} <command>."
-
 
 def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
@@ -73,23 +59,12 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     return list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in names))
 
 
-def make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
-    """Construct the default config of a visualizer type, importing only its backend package."""
-    try:
-        cfg_class = string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[visualizer_type]}")
-    except ValueError as exc:  # string_to_callable reports a missing module as ValueError
-        raise RuntimeError(
-            f"Visualizer '{visualizer_type}' is not available: {exc}. {get_visualizer_install_hint(visualizer_type)}"
-        ) from exc
-    return cfg_class()
-
-
 def select_visualizer_cfgs(configured: list[VisualizerCfg], names: list[str]) -> list[VisualizerCfg]:
     """Select configured producers in order, adding defaults for requested types that are absent."""
     selected = [cfg for cfg in configured if cfg.visualizer_type in names]
     for name in names:
         if not any(cfg.visualizer_type == name for cfg in selected):
-            selected.append(make_visualizer_cfg(name))
+            selected.append(string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")())
     return selected
 
 

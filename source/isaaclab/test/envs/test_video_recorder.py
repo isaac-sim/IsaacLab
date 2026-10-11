@@ -15,6 +15,7 @@ import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import gymnasium as gym
 import numpy as np
 import pytest
 
@@ -68,7 +69,7 @@ class _FakeViz:
 
 
 def _make_env(visualizers=(), sensors: dict | None = None):
-    env = MagicMock()
+    env = SimpleNamespace(sim=MagicMock(), scene=SimpleNamespace(), step_dt=0.02)
     env.sim.visualizers = list(visualizers)
     env.scene.sensors = sensors or {}
     from isaaclab.sim import SimulationContext
@@ -170,6 +171,7 @@ def test_cfg_validate_clip_schedule(overrides, error):
         (dict(video_length=6, video_interval=3, frame_stride=2), 8, [[2], [5], [8]]),
         (dict(video_length=4), 2, [[1, 2]]),
         (dict(video_length=2, step_offset=5), 3, []),
+        (dict(video_length=4, frame_stride=2, fps=None), 4, [[2, 4]]),
     ],
     ids=[
         "one_shot",
@@ -179,6 +181,7 @@ def test_cfg_validate_clip_schedule(overrides, error):
         "overlapping_clips",
         "close_flushes_partial",
         "close_skips_empty",
+        "automatic_fps_without_gym_metadata",
     ],
 )
 def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expected_clips):
@@ -199,7 +202,18 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
         recorder.close()
 
     assert [steps for steps, _ in written] == expected_clips
-    assert all(fps == recorder.cfg.fps for _, fps in written)
+    expected_fps = recorder.cfg.fps or round(1 / (0.02 * recorder.cfg.frame_stride))
+    assert all(fps == expected_fps for _, fps in written)
+
+    if recorder.cfg.fps is None:
+        # Gym environments may override the playback rate in their metadata.
+        env = gym.Env()
+        env.sim, env.step_dt, env.metadata = _make_env([viz]).sim, 0.02, {"render_fps": 40}
+        recorder = VideoRecorder(recorder.cfg, env)
+        with patch.object(recorder, "_clip_class", side_effect=write_clip):
+            for _ in range(num_steps):
+                recorder.step()
+        assert written[-1][1] == 20
 
 
 # ---------------------------------------------------------------------------

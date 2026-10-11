@@ -92,7 +92,11 @@ class VideoRecorderCfg:
     """Legacy recording source, used when :attr:`view` is None. Existing CLI source strings remain supported."""
 
     view: ImageViewCfg | None = None
-    """Shared image view to record, independent of a window. Takes precedence over the default source='viz'."""
+    """Shared image view to record, independent of a window.
+
+    ``None`` uses :attr:`source`, whose default records the selected visualizer. An explicit view
+    replaces that default; it cannot be combined with a non-default source.
+    """
 
     output_dir: str | None = None
     """Directory for output mp4 files (created on demand).
@@ -183,10 +187,9 @@ class VideoRecorderCfg:
         """
         if self.view is not None and self.source != "viz":
             raise ValueError("Specify VideoRecorderCfg.view or a legacy source, not both.")
-        minimums = {"video_length": 1, "frame_stride": 1, "video_interval": 0, "step_offset": 0}
-        invalid = [f"{name}={getattr(self, name)!r}" for name, low in minimums.items() if getattr(self, name) < low]
-        if invalid:
+        if self.video_length < 1 or self.frame_stride < 1 or self.video_interval < 0 or self.step_offset < 0:
             raise ValueError(
-                f"Invalid VideoRecorderCfg for source={self.source!r}: {', '.join(invalid)}. "
+                f"Invalid clip schedule: video_length={self.video_length}, frame_stride={self.frame_stride}, "
+                f"video_interval={self.video_interval}, step_offset={self.step_offset}. "
                 "video_length and frame_stride must be positive; video_interval and step_offset must be non-negative."
             )

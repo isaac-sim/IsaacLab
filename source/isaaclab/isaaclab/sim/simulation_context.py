@@ -36,7 +36,6 @@ from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
     PerspectiveCameraCfg,
     SceneCameraCfg,
-    get_visualizer_install_hint,
     select_visualizer_cfgs,
 )
 from .utils import create_new_stage
@@ -425,18 +424,10 @@ class SimulationContext:
             and self.get_setting("/isaaclab/xr/auto_start")
             and not any(cfg.visualizer_type == "kit" for cfg in resolved)
         ):
-            try:
-                # isaaclab_visualizers is optional
-                from isaaclab_visualizers.kit import KitVisualizerCfg
-            except ImportError as exc:
-                logger.warning(
-                    "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
-                    exc,
-                    get_visualizer_install_hint("kit"),
-                )
-            else:
-                resolved.append(KitVisualizerCfg())
-                logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
+            from isaaclab_visualizers.kit import KitVisualizerCfg
+
+            resolved.append(KitVisualizerCfg())
+            logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         for cfg in resolved:
             if cfg.visualizer_type is not None:

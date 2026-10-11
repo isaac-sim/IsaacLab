@@ -18,6 +18,7 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+import gymnasium as gym
 import numpy as np
 
 from ...visualizers.visualizer_cfg import ImageViewCfg
@@ -38,6 +39,7 @@ class VideoRecorder:
     Raises:
         ImportError: If ``moviepy`` is not installed.
         ValueError: If :attr:`~VideoRecorderCfg.source` does not follow the source grammar.
+        RuntimeError: If capture requires an unavailable visualizer or a disabled streaming view.
     """
 
     def __init__(self, cfg: VideoRecorderCfg, env: object):
@@ -149,7 +151,7 @@ class VideoRecorder:
             path = self._clip_path(self._clip_index)
             fps = self.cfg.fps
             if fps is None:
-                base_fps = self._env.metadata.get("render_fps")
+                base_fps = self._env.metadata.get("render_fps") if isinstance(self._env, gym.Env) else None
                 if base_fps is None:
                     base_fps = 1.0 / self._env.step_dt
                 # frame_stride subsamples: one frame every N steps, so playback fps scales down.

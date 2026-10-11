@@ -160,10 +160,8 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
 
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
     from isaaclab.sim import SimulationCfg
-    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, WindowCfg, visualizer_cfg
+    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, WindowCfg
 
-    assert "_resolve_video_sources" not in vars(sim_launcher)
-    assert "resolve_visualizer_cfgs" not in vars(visualizer_cfg)
     views = [ImageViewCfg(source=PerspectiveCameraCfg()) for _ in range(producer_count)]
     visualizers = [NewtonGLVisualizerCfg(view=view, window=WindowCfg(size=(128, 96))) for view in views]
     if producer_count == 1:
@@ -186,8 +184,8 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
             assert producer.window.size == (128, 96)
 
 
-@pytest.mark.parametrize("visualizers", [[], ["newton_gl"]])
-def test_legacy_recording_reuses_the_display_producer(visualizers):
+@pytest.mark.parametrize("visualizers,source", [([], "newton_gl"), (["newton_gl"], "newton_gl"), ([], "kit")])
+def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualizers, source):
     """Display and multiple legacy recorders create one producer when none was configured."""
     from types import SimpleNamespace
 
@@ -196,8 +194,13 @@ def test_legacy_recording_reuses_the_display_producer(visualizers):
 
     cfg = SimpleNamespace(
         sim=SimulationCfg(device="cpu", physics=sim_launcher.NewtonCfg(), visualizer_cfgs=None),
-        video_recorders=[VideoRecorderCfg(source="viz:newton_gl"), VideoRecorderCfg(source="viz:newton_gl")],
+        video_recorders=[VideoRecorderCfg(source=f"viz:{source}"), VideoRecorderCfg(source=f"viz:{source}")],
     )
-    with launch_simulation(cfg, {"visualizer": visualizers}):
+    args = {"visualizer": visualizers}
+    sim_launcher.scan(cfg, args)
+    assert "enable_cameras" not in args
+    with launch_simulation(cfg, args):
         assert len(cfg.sim.visualizer_cfgs) == 1
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)
+        assert args.get("enable_cameras", False) == (source == "kit")
+    assert kit_branch_taken == [True] * (source == "kit")

@@ -38,8 +38,8 @@ from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import (
+    VISUALIZER_TYPES,
     VisualizerCfg,
-    make_visualizer_cfg,
     parse_visualizer_csv,
     select_visualizer_cfgs,
 )
@@ -169,7 +169,7 @@ class Scan:
     effective_cfg: Any  # the input config, or its replacement when the config itself was an overridden physics config
     sim_cfg: SimulationCfg | None  # first simulation config in walk order, e.g. an env config's ``sim``
     has_ovrtx: bool
-    has_kit_camera: bool
+    has_kit_camera: bool  # a scene camera or recorded viewport requires Kit camera rendering
     has_kit_physics: bool  # PhysX (Kit-based)
     has_ovphysx_physics: bool
     needs_kit: bool
@@ -314,11 +314,11 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
             recorder.source = f"viz:{name}:{sub}" if sub else f"viz:{name}"
             producer = next((cfg for cfg in configured + visualizer_cfgs if cfg.visualizer_type == name), None)
             if producer is None:
-                producer = make_visualizer_cfg(name)
+                producer = string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")()
         if not any(cfg is producer for cfg in visualizer_cfgs):
             visualizer_cfgs.append(producer)
         if producer.visualizer_type == "kit":
-            args["enable_cameras"] = True
+            has_kit_camera = True
 
     visualizer_cfgs = [
         cfg if cfg.visualizer_type in args["visualizer"] else cfg.replace(headless=True) for cfg in visualizer_cfgs
@@ -523,10 +523,7 @@ def launch_simulation(
 
     if needs_kit and (config_scan.has_kit_camera or has_kit_streaming_view):
         if not args.get("enable_cameras", False):
-            logger.info(
-                "Auto-enabling camera rendering because the scene contains Kit camera sensors, "
-                "or a Kit visualizer with streaming_view=True."
-            )
+            logger.info("Auto-enabling camera rendering for Kit sensors, recording, or streaming views.")
             args["enable_cameras"] = True
 
     # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.

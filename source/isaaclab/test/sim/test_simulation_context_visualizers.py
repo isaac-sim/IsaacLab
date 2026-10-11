@@ -987,24 +987,6 @@ def test_is_rendering_false_when_only_cfg_visualizer_is_headless():
     assert ctx.is_rendering is False
 
 
-def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
-    """Requesting a valid type whose package is not installed raises RuntimeError."""
-    # Force import to fail for the rerun visualizer module
-    import importlib
-
-    real_import = importlib.import_module
-
-    def _failing_import(name, *args, **kwargs):
-        if "isaaclab_visualizers.rerun" in name:
-            raise ModuleNotFoundError("No module named 'isaaclab_visualizers.rerun'")
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(importlib, "import_module", _failing_import)
-
-    with pytest.raises(RuntimeError, match="rerun"):
-        scan(SimulationCfg(), {"visualizer": ["rerun"]})
-
-
 def test_visualizer_init_keeps_requirements_published_before_reset():
     """Scene and renderer requirements survive visualizer initialization.
 
@@ -1055,10 +1037,8 @@ def test_explicit_type_matches_existing_cfg():
     assert cfgs[0].background_color == (0.4, 0.5, 0.6)
 
 
-def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failure(monkeypatch: pytest.MonkeyPatch):
-    """A pre-existing cfg satisfies one requested type; a second requested type that cannot be
-    resolved still raises, exercising the branch that extends pre-existing cfgs with freshly-created
-    defaults for the remaining requested types."""
+def test_missing_visualizer_package_reports_unresolved_type(monkeypatch: pytest.MonkeyPatch):
+    """Configured types need no imports; a missing requested package still reports its import failure."""
     import importlib
 
     real_import = importlib.import_module
@@ -1072,10 +1052,9 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
 
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(ValueError, match="isaaclab_visualizers.rerun"):
         scan(SimulationCfg(visualizer_cfgs=[_FakeVisualizerCfg("kit")]), {"visualizer": ["kit", "rerun"]})
     # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is constructed and reported.
-    assert "'rerun'" in str(exc_info.value)
     assert requested == ["isaaclab_visualizers.rerun"]
 
 
