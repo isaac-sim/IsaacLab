@@ -344,7 +344,8 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_libra
 - With the socket transport, one step's image message carries at most 16 environments.
 - Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
   one environment fits with the default window. Two `640 x 640` Shadow Hand environments ran with `--kv-window 4`
-  and no `--warmup` while Isaac Sim shared the GPU. Larger GPUs fit more environments.
+  and no `--warmup` while Isaac Sim shared the GPU. Larger GPUs fit more environments, and
+  [several services](#several-gpus) can split the environments across GPUs.
 - Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
   step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
 
@@ -423,6 +424,36 @@ uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --devi
 Isaac Lab keeps its own device, `cuda:0` by default. Add `--cosmos_transport cuda_ipc` to the training command to
 require GPU-to-GPU transfer instead of a socket fallback. Each process also creates a CUDA context on the other GPU,
 which takes some memory there.
+
+### Several GPUs
+
+Several services can share one camera's environments, for example one service per GPU. Start each service in its
+own terminal with its own GPU and endpoint; each loads its own copy of the model:
+
+```bash
+cd "$COSMOS_FRAMEWORK_ROOT"
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --device cuda:1 \
+  --endpoint unix:///tmp/isaaclab-cosmos-gpu1.sock
+```
+
+Start the second with `--device cuda:2 --endpoint unix:///tmp/isaaclab-cosmos-gpu2.sock`. Then repeat
+`--cosmos_endpoint` in the training command:
+
+```bash
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 4 \
+  --cosmos_endpoint unix:///tmp/isaaclab-cosmos-gpu1.sock --cosmos_endpoint unix:///tmp/isaaclab-cosmos-gpu2.sock \
+  --cosmos_transport cuda_ipc presets=cosmos
+```
+
+The environments are split into contiguous shares of near-equal size, one per service in the order given:
+environments 0-1 on the first service and 2-3 on the second here. Each environment stays on its service, which
+keeps its generation history, and keeps its prompt: environment `v` uses `prompt[v % len(prompt)]` on any service.
+Every step sends each service its share before waiting for any reply, so the services generate at the same time,
+and a step lasts as long as the slowest service.
+
+`--cosmos` checks that every service is running and idle and that a service with several environments runs
+compiled; there must be at least one environment per service. If one service fails, the camera closes every
+session. In a configuration, set `CosmosModelCfg.endpoint` to the list of endpoints.
 
 ## Episode frame budget
 

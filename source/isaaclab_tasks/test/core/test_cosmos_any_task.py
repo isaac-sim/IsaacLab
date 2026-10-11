@@ -134,6 +134,29 @@ def test_several_environments_need_a_compiled_service_that_batches_them(monkeypa
     assert env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.max_episode_frames > 1
 
 
+def test_several_services_split_the_environments_and_each_is_checked(monkeypatch):
+    """Repeated --cosmos_endpoint splits the environments; only a service with several needs compiled inference."""
+    checked = []
+
+    def capabilities(endpoint, **kwargs):
+        checked.append((endpoint, kwargs.get("require_idle")))
+        return {"partial_resets": endpoint == "tcp://127.0.0.1:5556"}
+
+    monkeypatch.setattr(cosmos_camera_module, "service_capabilities", capabilities)
+    compiled, eager = ["--cosmos_endpoint", "tcp://127.0.0.1:5556"], ["--cosmos_endpoint", "tcp://127.0.0.1:5557"]
+    env_cfg = _kuka()
+    apply_env_overrides(_cli(add_common_train_args, ["--cosmos", "--num_envs", "3", *compiled, *eager]), env_cfg)
+    backend = env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend
+    assert backend.endpoint == ["tcp://127.0.0.1:5556", "tcp://127.0.0.1:5557"]
+    assert checked == [("tcp://127.0.0.1:5556", True), ("tcp://127.0.0.1:5557", True)]
+
+    # In the other order, the eager service would get two of the three environments.
+    with pytest.raises(ValueError, match="at tcp://127.0.0.1:5557 without --no-compile"):
+        apply_env_overrides(_cli(add_common_train_args, ["--cosmos", "--num_envs", "3", *eager, *compiled]), _kuka())
+    with pytest.raises(ValueError, match="at least one environment per service"):
+        apply_env_overrides(_cli(add_common_train_args, ["--cosmos", *compiled, *eager]), _kuka())
+
+
 def test_the_shadow_hand_preset_batches_several_environments_at_its_camera_rate(monkeypatch):
     """--num_envs on the preset keeps its camera rate; each environment's budget counts its own captures."""
     _serve(monkeypatch, partial_resets=True)

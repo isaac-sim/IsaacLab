@@ -22,7 +22,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -32,6 +32,7 @@ import torch
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferModifierCfg, _protocol
 from isaaclab_experimental.cosmos.client import CosmosModel
 from isaaclab_experimental.cosmos.client.camera import service_capabilities
+from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import depth_to_control
 from isaaclab_experimental.image_transfer import modifier as modifier_module
@@ -104,9 +105,22 @@ class TransportStream:
 @pytest.fixture
 def cosmos_service(request):
     """Start the production listener on a TCP or Unix socket endpoint, then shut it down through that endpoint."""
+    with _running_service(getattr(request, "param", "tcp")) as service:
+        yield service
+
+
+@pytest.fixture
+def cosmos_services():
+    """Two independent services, as one service per GPU would be."""
+    with _running_service() as first, _running_service() as second:
+        yield [first, second]
+
+
+@contextmanager
+def _running_service(kind: str = "tcp"):
     resource = TransportResource()
     directory = None
-    if getattr(request, "param", "tcp") == "unix":
+    if kind == "unix":
         endpoint, directory = _unix_endpoint()
     else:
         with socket.socket() as reserved:
@@ -700,6 +714,59 @@ def test_several_views_share_one_session_with_their_own_prompts_frames_and_reset
     assert [tuple(view.shape) for view in images] == [(4, *_controls().shape[1:]), tuple(_controls().shape)]
     # Batched views keep their prompts, so a reset sends none.
     assert session.episode_prompts[-1] == "<kept>"
+
+
+@pytest.mark.parametrize("num_views,num_services,shares", [(8, 3, [(0, 3), (3, 6), (6, 8)]), (2, 2, [(0, 1), (1, 2)])])
+def test_views_split_into_contiguous_near_equal_shares_with_one_or_more_per_service(num_views, num_services, shares):
+    assert [(share.start, share.stop) for share in split_views(num_views, num_services)] == shares
+    with pytest.raises(ValueError, match="at least one environment per service"):
+        split_views(num_services - 1, num_services)
+
+
+def test_several_services_each_generate_their_share_of_the_views(cosmos_services):
+    """Views 0-1 go to the first service and view 2 to the second; prompts, seeds, and resets follow each view."""
+    first, second = cosmos_services
+    cfg = CosmosModelCfg(
+        max_episode_frames=13,
+        endpoint=[first.endpoint, second.endpoint],
+        prompt=["A lab.", "A kitchen.", "A field."],
+        timeout=2,
+    )
+    client = CosmosModel(cfg)
+    stream = client.open_stream(num_views=3, seeds=(1, 2, 3))
+    stream.step([_controls() + view for view in range(3)], (), ())
+    update = [(_controls() + view).expand(4, -1, -1, -1).contiguous() for view in range(2)]
+    images = stream.step([*update, _controls() + 2], (2,), (9,))
+    sessions = [first.resource.streams[0], second.resource.streams[0]]
+    client.close()
+
+    assert [session.settings["num_views"] for session in sessions] == [2, 1]
+    assert [session.settings["seeds"] for session in sessions] == [(1, 2), (3,)]
+    assert [session.settings["prompt"] for session in sessions] == [["A lab.", "A kitchen."], ["A field."]]
+    # Each service receives its own views, and the reset of view 2 is row 0 of the second service.
+    first_controls, second_controls = sessions[0].steps[0][0], sessions[1].steps[0][0]
+    assert [int(array[0, 0, 0, 0]) for array in first_controls] == [0, 1] and int(second_controls[0][0, 0, 0, 0]) == 2
+    assert sessions[0].steps[-1][1:] == ((), ()) and sessions[1].steps[-1][1:] == ((0,), (9,))
+    assert [tuple(view.shape) for view in images] == [(4, 2, 3, 3), (4, 2, 3, 3), (1, 2, 3, 3)]
+    # A view alone on its service keeps its prompt like any batched view, instead of cycling the list.
+    assert sessions[1].episode_prompts[-1] == "<kept>"
+    assert all(session.closed.wait(5) for session in sessions)
+
+
+@pytest.mark.parametrize("failing", [0, 1])
+def test_a_failing_service_closes_every_session_of_the_camera(cosmos_services, failing):
+    """The other service may already have advanced its views, so no session stays open for a retry."""
+    cfg = CosmosModelCfg(max_episode_frames=13, endpoint=[service.endpoint for service in cosmos_services], timeout=2)
+    client = CosmosModel(cfg)
+    stream = client.open_stream(num_views=2, seeds=(1, 2))
+    stream.step([_controls(), _controls()], (), ())
+    cosmos_services[failing].resource.fail = True
+    with pytest.raises(RuntimeError, match="generation rejected this chunk"):
+        stream.step([_controls().expand(4, -1, -1, -1).contiguous()] * 2, (), ())
+    assert all(service.resource.streams[0].closed.wait(5) for service in cosmos_services)
+    with pytest.raises(RuntimeError, match="closed or failed"):
+        stream.step([_controls(), _controls()], (), ())
+    client.close()
 
 
 def test_the_service_accepts_only_distinct_ordered_resets_of_opened_views(cosmos_service):

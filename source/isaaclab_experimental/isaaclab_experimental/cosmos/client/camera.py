@@ -21,6 +21,7 @@ from isaaclab_experimental.image_transfer import center_crop_resize, depth_to_co
 
 from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
 from .control_profiles import blur_processor, depth_processor, edge_processor
+from .cosmos_model import service_endpoints, split_views
 from .cosmos_model_cfg import CosmosModelCfg
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
 
@@ -129,15 +130,15 @@ def apply_cosmos(
     control: Literal["depth", "edge", "blur"] | None = None,
     near: float | None = None,
     far: float | None = None,
-    endpoint: str | None = None,
+    endpoint: str | list[str] | None = None,
     transport: Literal["auto", "cuda_ipc", "socket"] | None = None,
     num_envs: int | None = None,
 ) -> None:
     """Put Cosmos on a task's camera in place.
 
     Selects the scene camera publishing only ``rgb`` (or ``camera``) and replaces it with :func:`cosmos_camera`. It
-    sets the environment count, whose cameras the service generates as one batch, and derives the episode budget
-    without changing capture timing. It checks that the service is running and idle. For an existing Cosmos camera,
+    sets the environment count, whose cameras each service generates as one batch, and derives the episode budget
+    without changing capture timing. It checks that every service is running and idle. For an existing Cosmos camera,
     it updates settings without rebuilding its modifier chain. Tasks must read the camera image from its output;
     Direct tasks that size their observation space from the camera configuration are not supported, because the
     camera renders at the Cosmos canvas.
@@ -151,17 +152,18 @@ def apply_cosmos(
             An existing preset's control type cannot be changed here.
         near: Depth rendered white [m]. None preserves a preset or uses 0.1.
         far: Depth rendered black [m]. None preserves a preset or uses 2.0.
-        endpoint: Cosmos service endpoint. None preserves a preset or uses the default endpoint.
+        endpoint: Cosmos service endpoint, or a list of services, for example one per GPU, that split the
+            environments into contiguous shares. None preserves a preset or uses the default endpoint.
         transport: How images move to and from the service. None preserves a preset or uses auto.
-        num_envs: Environments to generate together. Defaults to None, which uses one. The session requests this
-            count from the service. Several need compiled inference with per-view caches for independent resets,
-            and enough GPU memory for the batch.
+        num_envs: Environments to generate together. Defaults to None, which uses one. Each session requests its
+            share from its service. A service with several needs compiled inference with per-view caches for
+            independent resets, and enough GPU memory for its batch.
 
     Raises:
         ValueError: If no single rgb camera can be selected, the selected entity is not a suitable camera, sensors
-            update eagerly, the camera renders asynchronously, or the service cannot batch ``num_envs``
-            environments.
-        RuntimeError: If the service is not running or already has a camera session.
+            update eagerly, the camera renders asynchronously, there are fewer environments than services, or a
+            service cannot batch its share of the environments.
+        RuntimeError: If a service is not running or already has a camera session.
     """
     num_envs = 1 if num_envs is None else num_envs
     if type(num_envs) is not int or num_envs < 1:
@@ -187,12 +189,16 @@ def apply_cosmos(
     prompt = existing.prompt if prompt is None and existing is not None else prompt
     if control != "depth" and (near is not None or far is not None):
         raise ValueError("--cosmos_near and --cosmos_far apply only to depth control.")
-    capabilities = service_capabilities(endpoint, require_idle=True)
-    if num_envs > 1 and not capabilities.get("partial_resets", False):
-        raise ValueError(
-            "Several Cosmos environments need a Framework runtime with per-view caches and compiled inference "
-            "for independent resets; start isaaclab-cosmos-server without --no-compile."
-        )
+    endpoints = service_endpoints(endpoint)
+    endpoint = endpoints[0] if len(endpoints) == 1 else endpoints
+    shares = split_views(num_envs, len(endpoints))
+    for address, share in zip(endpoints, shares):
+        capabilities = service_capabilities(address, require_idle=True)
+        if len(share) > 1 and not capabilities.get("partial_resets", False):
+            raise ValueError(
+                "Several Cosmos environments need a Framework runtime with per-view caches and compiled inference "
+                f"for independent resets; start isaaclab-cosmos-server at {address} without --no-compile."
+            )
     if prompt is None:
         logger.warning("Cosmos runs without a prompt; pass --cosmos_prompt to describe the scene.")
     if env_cfg.scene.num_envs != num_envs:
@@ -258,6 +264,12 @@ def apply_cosmos(
         capture_hz,
         capture_hz / 4,
     )
+    if len(endpoints) > 1:
+        logger.info(
+            "Cosmos splits the environments across %d services: %s.",
+            len(endpoints),
+            ", ".join(f"{share.start}-{share.stop - 1} on {address}" for address, share in zip(endpoints, shares)),
+        )
     if isinstance(prompt, (list, tuple)):
         logger.info(
             "Cosmos prompt list: %s.",

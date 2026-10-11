@@ -30,10 +30,14 @@ class CosmosModelCfg(BackendCfg):
     class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
     """Client resource constructor. The model framework runs in the service's environment."""
 
-    endpoint: str = DEFAULT_ENDPOINT
+    endpoint: str | list[str] = DEFAULT_ENDPOINT
     """Endpoint of the independently started Cosmos service: ``unix:///path`` on the same machine, or
     ``tcp://host:port``. Defaults to the service's default, a Unix socket private to this user on Linux and
-    ``tcp://127.0.0.1:5555`` on Windows."""
+    ``tcp://127.0.0.1:5555`` on Windows.
+
+    A list names several services, for example one per GPU. The camera's views are then split into contiguous
+    shares of near-equal size, one per service in list order; each service generates its share as one batch, all
+    services at the same time. Each view stays on its service, which keeps its generation history."""
 
     prompt: str | list[str] | None = None
     """Appearance prompt. A string applies to every episode. A list varies the appearance, for visual

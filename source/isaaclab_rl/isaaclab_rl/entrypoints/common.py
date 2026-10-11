@@ -211,8 +211,9 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--cosmos_far", type=float, default=None, help="Depth rendered black [m]; preset value or 2.0.")
     group.add_argument(
         "--cosmos_endpoint",
+        action="append",
         default=None,
-        help="Cosmos service endpoint, unix:///path or tcp://host:port; defaults to the service's default endpoint.",
+        help="Cosmos service endpoint (unix:///path or tcp://host:port); repeat to split environments across services.",
     )
     group.add_argument(
         "--cosmos_transport",
@@ -415,6 +416,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
                 raise ValueError("Cosmos options require --cosmos or a task configured with presets=cosmos.")
             return
         prompts = args_cli.cosmos_prompt
+        endpoints = args_cli.cosmos_endpoint
         apply_cosmos(
             env_cfg,
             prompt=prompts[0] if prompts and len(prompts) == 1 else prompts,
@@ -422,7 +424,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
             control=args_cli.cosmos_control,
             near=args_cli.cosmos_near,
             far=args_cli.cosmos_far,
-            endpoint=args_cli.cosmos_endpoint,
+            endpoint=endpoints[0] if endpoints and len(endpoints) == 1 else endpoints,
             transport=args_cli.cosmos_transport,
             num_envs=args_cli.num_envs,
         )

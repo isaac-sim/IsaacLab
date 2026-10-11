@@ -137,7 +137,8 @@ arguments. Use `--device cuda:1` for another GPU; keep the simulator's GPU visib
 move between the GPUs directly (see [Cosmos on another GPU](cosmos.md#cosmos-on-another-gpu)). Use
 `--endpoint unix:///path/to/socket` or `--endpoint tcp://127.0.0.1:5556` for another endpoint, for example TCP for
 Isaac Lab on another machine through an SSH tunnel (see [Endpoints and transports](cosmos.md#endpoints-and-transports)).
-Match that endpoint in the camera configuration.
+Match that endpoint in the camera configuration. Several services, each with its own `--device` and `--endpoint`,
+can split one camera's environments across GPUs (see [Several GPUs](cosmos.md#several-gpus)).
 
 ## Connect Isaac Lab
 
