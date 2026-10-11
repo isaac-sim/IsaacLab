@@ -5,6 +5,8 @@
 
 """Tests for Kit visualizer scene-partition behavior."""
 
+import sys
+from types import ModuleType
 from unittest.mock import MagicMock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
@@ -14,6 +16,7 @@ from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationM
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
+import omni
 from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
@@ -31,6 +34,15 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
     monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+    app = MagicMock()
+    app.is_running.return_value = True
+    app_module = ModuleType("omni.kit.app")
+    app_module.get_app = lambda: app
+    kit_module = ModuleType("omni.kit")
+    kit_module.app = app_module
+    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
+    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
+    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
 
     visualizer.step(0.1)
 
@@ -41,6 +53,88 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     else:
         visualizer._fabric.update_transforms.assert_called_once_with(provider)
         visualizer._fabric.update_geometries.assert_called_once_with(provider, 12)
+        app.update.assert_called_once_with()
+
+
+def test_training_pause_follows_kit_timeline(monkeypatch):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    timeline = MagicMock()
+    timeline_module = ModuleType("omni.timeline")
+    timeline_module.get_timeline_interface = lambda: timeline
+    monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
+    monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
+
+    timeline.is_playing.return_value = False
+    timeline.is_stopped.return_value = False
+    assert visualizer.is_training_paused()
+
+    timeline.is_stopped.return_value = True
+    assert not visualizer.is_training_paused()
+
+    timeline.is_playing.return_value = True
+    timeline.is_stopped.return_value = False
+    assert not visualizer.is_training_paused()
+
+
+@pytest.mark.parametrize("training_paused", [False, True])
+def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeypatch, training_paused):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._sim = MagicMock(render_generation=1)
+    monkeypatch.setattr(visualizer, "is_training_paused", lambda: training_paused)
+    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+    settings = MagicMock()
+    settings.get.return_value = None
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    app = MagicMock()
+    app.is_running.return_value = True
+    app_module = ModuleType("omni.kit.app")
+    app_module.get_app = lambda: app
+    kit_module = ModuleType("omni.kit")
+    kit_module.app = app_module
+    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
+    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
+    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
+
+    visualizer.step(0.1)
+
+    assert [call.args for call in settings.set.call_args_list] == [
+        ("/app/player/playSimulations", False),
+        ("/app/player/playSimulations", True),
+    ]
+    app.update.assert_called_once_with()
+
+
+def test_play_synchronizes_kit_timeline_without_advancing_physics(monkeypatch):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    timeline = MagicMock()
+    timeline_module = ModuleType("omni.timeline")
+    timeline_module.get_timeline_interface = lambda: timeline
+    monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
+    monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
+    settings = MagicMock()
+    settings.get.return_value = True
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    app = MagicMock()
+    app.is_running.return_value = True
+    app_module = ModuleType("omni.kit.app")
+    app_module.get_app = lambda: app
+    kit_module = ModuleType("omni.kit")
+    kit_module.app = app_module
+    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
+    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
+    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
+
+    visualizer.play()
+
+    timeline.play.assert_called_once_with()
+    assert [call.args for call in settings.set.call_args_list] == [
+        ("/app/player/playSimulations", False),
+        ("/app/player/playSimulations", True),
+    ]
+    app.update.assert_called_once_with()
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])

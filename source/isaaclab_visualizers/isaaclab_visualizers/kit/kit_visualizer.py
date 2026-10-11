@@ -139,6 +139,8 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
+        if not self._runtime_headless:
+            self.play()
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.
@@ -160,22 +162,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
-        _externally_paused = self.is_training_paused()
-        if not _externally_paused:
-            try:
-                import omni.kit.app
-
-                app = omni.kit.app.get_app()
-                if app is not None and app.is_running():
-                    # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
-                    # Disable playSimulations around app.update() so Kit does not advance its own physics here.
-                    settings = get_settings_manager()
-                    settings.set("/app/player/playSimulations", False)
-                    app.update()
-                    settings.set("/app/player/playSimulations", True)
-                    self._app_pumped_this_step = True
-            except (ImportError, AttributeError) as exc:
-                logger.debug("[KitVisualizer] App update skipped: %s", exc)
+        self._app_pumped_this_step = self._pump_kit_app_update()
         self._update_camera_image_panel()
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
@@ -207,6 +194,27 @@ class KitVisualizer(BaseVisualizer):
         self._is_initialized = False
         super().close()
 
+    def play(self) -> None:
+        """Show the running state in Kit's toolbar without advancing Kit physics."""
+        import omni.timeline
+
+        omni.timeline.get_timeline_interface().play()
+        self._pump_kit_app_update()
+
+    def pause(self) -> None:
+        """Show the paused state in Kit's toolbar without advancing Kit physics."""
+        import omni.timeline
+
+        omni.timeline.get_timeline_interface().pause()
+        self._pump_kit_app_update()
+
+    def stop(self) -> None:
+        """Show the stopped state in Kit's toolbar without advancing Kit physics."""
+        import omni.timeline
+
+        omni.timeline.get_timeline_interface().stop()
+        self._pump_kit_app_update()
+
     def render_rgb_array(self) -> np.ndarray:
         """Return an RGB frame captured from the Kit viewport camera.
 
@@ -218,7 +226,6 @@ class KitVisualizer(BaseVisualizer):
         Returns:
             RGB image array of shape ``(window_height, window_width, 3)``, dtype ``uint8``.
         """
-        import omni.kit.app
         import omni.replicator.core as rep
 
         provider = self._sim.get_scene_data_provider()
@@ -245,11 +252,7 @@ class KitVisualizer(BaseVisualizer):
                 self._rgb_render_product.resume()
 
         if not self._app_pumped_this_step:
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set("/app/player/playSimulations", False)
-            omni.kit.app.get_app().update()
-            settings.set("/app/player/playSimulations", bool(play_flag))
+            self._pump_kit_app_update()
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):
@@ -291,11 +294,12 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        """Return whether simulation play flag is paused in Kit settings."""
+        """Return whether the Kit timeline is paused by its toolbar controls."""
         try:
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            return play_flag is False
+            import omni.timeline
+
+            timeline = omni.timeline.get_timeline_interface()
+            return not timeline.is_playing() and not timeline.is_stopped()
         except Exception:
             return False
 
@@ -398,6 +402,26 @@ class KitVisualizer(BaseVisualizer):
         return self._viewer_origin
 
     # ---- Viewport + camera ----------------------------------------------------------------
+
+    def _pump_kit_app_update(self) -> bool:
+        """Process one Kit UI update without letting Kit advance physics."""
+        try:
+            import omni.kit.app
+
+            app = omni.kit.app.get_app()
+            if app is None or not app.is_running():
+                return False
+            settings = get_settings_manager()
+            play_flag = settings.get("/app/player/playSimulations")
+            settings.set("/app/player/playSimulations", False)
+            try:
+                app.update()
+            finally:
+                settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
+            return True
+        except (ImportError, AttributeError) as exc:
+            logger.debug("[KitVisualizer] App update skipped: %s", exc)
+            return False
 
     def _setup_backend_menubar_label(self) -> None:
         """Add a read-only backend label to the viewport menubar and hide the PhysX Simulation menu."""
