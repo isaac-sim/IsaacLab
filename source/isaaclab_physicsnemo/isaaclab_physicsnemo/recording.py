@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import shutil
 from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Protocol
+from uuid import uuid4
 
 import torch
 from physicsnemo_robotics.data import NewtonTrajectoryWriter, TrajectoryRecorder
@@ -70,6 +72,12 @@ class TrajectoryDatasetRecorder:
     drives of an effort recording are rejected, and the environment must not apply external body wrenches,
     whose effect would be recorded without its cause.
 
+    PhysicsNeMo Robotics rewrites a dataset's whole manifest after every episode, so the cost of an episode
+    grows with the dataset. With ``shard_episodes``, the recorder instead writes datasets of at most that
+    many episodes under ``path`` (``shard-000``, ``shard-001``, ...), which keeps recording time linear in
+    the number of episodes; :func:`~isaaclab_physicsnemo.train_dynamics_artifact` reads the shard directory
+    as one dataset.
+
     Use it as a context manager so that pending episodes are written and the dataset is published.
     """
 
@@ -85,6 +93,7 @@ class TrajectoryDatasetRecorder:
         control_targets: Articulation | None = None,
         seed: int = 0,
         replace: bool = False,
+        shard_episodes: int | None = None,
     ) -> None:
         """Bind the initialized environment and create the dataset.
 
@@ -103,12 +112,19 @@ class TrajectoryDatasetRecorder:
             control_targets: Articulation whose joint-position targets are the control of each
                 environment step. Defaults to recording the applied joint efforts of each physics step.
             seed: Seed stored with every episode.
-            replace: Whether to replace an existing dataset at ``path``.
+            replace: Whether to replace an existing dataset at ``path``. The replacement is published only
+                when the recorder closes.
+            shard_episodes: Maximum number of episodes per dataset shard under ``path``. Defaults to one
+                dataset at ``path``.
 
         Raises:
             ValueError: If one environment step spans more than one physics step without
-                ``control_targets``, or a joint uses an implicit position drive.
+                ``control_targets``, a joint uses an implicit position drive, or ``shard_episodes`` is not
+                positive.
+            FileExistsError: If ``path`` is not empty and ``replace`` is false.
         """
+        if shard_episodes is not None and shard_episodes < 1:
+            raise ValueError(f"shard_episodes must be positive, got {shard_episodes}.")
         manager = env.sim.physics_manager
         decimation = round(env.step_dt / manager.get_dt())
         if not math.isclose(env.step_dt, decimation * manager.get_dt(), rel_tol=1e-9) or (
@@ -152,7 +168,18 @@ class TrajectoryDatasetRecorder:
             scenario_id=scenario_id,
             metadata={"decimation": decimation, "physics_dt": manager.get_dt()},
         )
-        self._writer = NewtonTrajectoryWriter(path, self.schema, mode="replace" if replace else "create")
+        self._shard_episodes = shard_episodes
+        if shard_episodes is None:
+            self._writer = NewtonTrajectoryWriter(path, self.schema, mode="replace" if replace else "create")
+        else:
+            # Shards are built in a staging directory beside a replaced dataset, which is swapped in on close.
+            target = Path(path).expanduser().resolve()
+            if not replace and target.exists() and (not target.is_dir() or any(target.iterdir())):
+                raise FileExistsError(f"trajectory dataset already exists: {target}")
+            self._replace_target = target if replace else None
+            self._root = target.with_name(f".{target.name}.replace-{uuid4().hex}") if replace else target
+            self._shards = 0
+            self._writer = self._open_shard()
         self._recorder.begin(self.codec.read(self.binding.state))
         self._pending_features = self._encode_features()
         self.episodes_written = 0
@@ -167,6 +194,8 @@ class TrajectoryDatasetRecorder:
         else:
             # Discard a partially written replacement dataset instead of publishing it.
             self._writer.__exit__(exc_type, exc, traceback)
+            if self._shard_episodes is not None and self._replace_target is not None:
+                shutil.rmtree(self._root, ignore_errors=True)
 
     def record(self, dones: torch.Tensor) -> None:
         """Record the transition produced by the latest environment step.
@@ -189,7 +218,19 @@ class TrajectoryDatasetRecorder:
             The dataset directory.
         """
         self._write(self._recorder.finalize())
-        return self._writer.close()
+        path = self._writer.close()
+        if self._shard_episodes is None:
+            return path
+        target = self._replace_target
+        if target is None:
+            return self._root
+        # Keep the existing dataset until the replacement is in place.
+        backup = target.with_name(f".{target.name}.backup-{uuid4().hex}")
+        if target.exists():
+            target.replace(backup)
+        self._root.replace(target)
+        shutil.rmtree(backup, ignore_errors=True)
+        return target
 
     def _encode_features(self) -> dict[str, torch.Tensor]:
         """Encode the recorded features of the current state."""
@@ -211,10 +252,23 @@ class TrajectoryDatasetRecorder:
     def _applied_joint_f(self) -> torch.Tensor:
         return field_to_torch(self.binding.control.joint_f, clone=True).reshape(self.binding.worlds, -1)
 
+    def _open_shard(self) -> NewtonTrajectoryWriter:
+        """Start the next dataset shard."""
+        writer = NewtonTrajectoryWriter(self._root / f"shard-{self._shards:03d}", self.schema, mode="create")
+        self._shards += 1
+        self._shard_written = 0
+        return writer
+
     def _write(self, episodes) -> None:
         for episode in episodes:
+            # A shard is started only for an episode it receives, so no shard is left empty.
+            if self._shard_episodes is not None and self._shard_written == self._shard_episodes:
+                self._writer.close()
+                self._writer = self._open_shard()
             self._writer.append(episode.data, episode.metadata)
             self.episodes_written += 1
+            if self._shard_episodes is not None:
+                self._shard_written += 1
 
 
 class _JointTargets:

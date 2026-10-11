@@ -33,6 +33,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--replace", action="store_true", help="Replace an existing dataset.")
+    parser.add_argument(
+        "--shard-episodes", type=int, default=None, help="Write datasets of at most this many episodes under --output."
+    )
     args = parser.parse_args()
 
     cfg = AnymalCExplorationEnvCfg()
@@ -56,6 +59,7 @@ def main() -> None:
             control_targets=env.scene["robot"],
             seed=args.seed,
             replace=args.replace,
+            shard_episodes=args.shard_episodes,
         ) as recorder:
             with torch.inference_mode():
                 for _ in range(args.steps):

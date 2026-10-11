@@ -163,6 +163,7 @@ def train_dynamics_artifact(
     Args:
         dataset_path: Dataset written by :class:`~isaaclab_physicsnemo.TrajectoryDatasetRecorder`, or several
             datasets of the same schema, such as recordings of different seeds, which are trained on together.
+            A directory of ``shard-*`` datasets stands for all of its shards.
         model: Finalized Newton model of the recording scene, used to build the state codec.
         output_dir: Directory receiving training checkpoints and the ``artifact`` directory.
         remove_root_translation: Same value the dataset was recorded with. Ignored when ``codec`` is given.
@@ -192,6 +193,9 @@ def train_dynamics_artifact(
     # Window sampling reads many short slices per trajectory, which is far faster from memory than
     # from per-trajectory Zarr groups.
     dataset_paths = [dataset_path] if isinstance(dataset_path, (str, Path)) else list(dataset_path)
+    dataset_paths = [
+        shard for path in dataset_paths for shard in (sorted(Path(path).expanduser().glob("shard-*")) or [path])
+    ]
     trajectories, metadata, schema = [], [], None
     for path in dataset_paths:
         with NewtonTrajectoryZarrReader(path) as stored:

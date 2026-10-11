@@ -103,6 +103,42 @@ def recording(device: str, tmp_path_factory: pytest.TempPathFactory) -> _Recordi
     return _Recording(root / "dataset", finished, recorder.episodes_written, training)
 
 
+def test_sharded_recording_trains_as_one_dataset(device: str, tmp_path: Path):
+    """Episodes split over bounded shards train together, and a replaced recording drops its old shards."""
+    env = CartpoleEnv(cfg=_make_cfg(device))
+    try:
+        env.reset(seed=0)
+        with TrajectoryDatasetRecorder(
+            env, tmp_path / "dataset", scenario_id="test-shards", shard_episodes=5
+        ) as recorder:
+            _step(env, 240, recorder.record)
+        with TrajectoryDatasetRecorder(
+            env, tmp_path / "dataset", scenario_id="test-shards", shard_episodes=1000, replace=True
+        ) as replacement:
+            _step(env, 60, replacement.record)
+        replaced_shards = sorted(path.name for path in (tmp_path / "dataset").iterdir())
+        with TrajectoryDatasetRecorder(
+            env, tmp_path / "sharded", scenario_id="test-shards", shard_episodes=5
+        ) as recorder:
+            _step(env, 240, recorder.record)
+        training = train_dynamics_artifact(
+            tmp_path / "sharded",
+            env.sim.physics_manager.get_model(),
+            tmp_path / "training",
+            settings=TrainingSettings(max_updates=2, batch_size=16, model_kwargs=_TINY_MODEL, rollout_horizons=()),
+            device=device,
+        )
+    finally:
+        env.close()
+    SimulationContext.clear_instance()
+
+    assert replaced_shards == ["shard-000"]
+    lengths = [len(NewtonTrajectoryZarrReader(shard)) for shard in sorted((tmp_path / "sharded").iterdir())]
+    assert len(lengths) > 2 and max(lengths) == 5 and sum(lengths) == recorder.episodes_written
+    trained = len(training.train_trajectory_ids) + len(training.validation_trajectory_ids)
+    assert trained == recorder.episodes_written
+
+
 def test_learned_cartpole_round_trip(recording: _Recording, device: str):
     """A dataset recorded with MuJoCo Warp yields an artifact that deploys through ``NewtonCfg``.
 
