@@ -191,6 +191,6 @@ def newton_manager(num_instances: int, device: str) -> MagicMock:
     manager.backend.is_stepping = False
     manager.backend.transforms_may_change_on_graph_replay = False
     manager.backend.device = wp.get_device(device)
-    manager.get_model.return_value = model
-    manager.get_state_0.return_value = manager.get_state_1.return_value = MagicMock()
+    manager.backend.model = model
+    manager.backend.state_0 = manager.backend.state_1 = MagicMock()
     return manager
