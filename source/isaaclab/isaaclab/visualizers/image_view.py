@@ -97,6 +97,8 @@ class ImageView:
                         raise ValueError(
                             f"Channel {channel!r} requires nonempty [N, H, W, C] arrays with C >= {components}."
                         )
+                    if source.shape[:3] != sources[0].shape[:3] or source.device != sources[0].device:
+                        raise ValueError("Image channels must have the same batch, resolution, and device.")
                 device = sources[0].device
                 count, height, width, _ = sources[0].shape
                 if max(cfg.envs) >= count:

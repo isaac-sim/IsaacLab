@@ -389,13 +389,6 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
 class NewtonViewerGL(NewtonViewerUI, ViewerGL):
     """Newton GL window with Isaac Lab controls and device-image presentation."""
 
-    def get_frame(self, target_image: wp.array | None = None, render_ui: bool = False) -> wp.array:
-        """Reuse device capture storage while the native framebuffer size remains unchanged."""
-        shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
-        if target_image is not None and target_image.shape != shape:
-            target_image = None
-        return super().get_frame(target_image, render_ui=render_ui)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.particle_color: tuple[float, float, float] | None = None
@@ -412,6 +405,13 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
             implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
             # Live plots are drawn in the sidebar, not Newton's floating window.
             self.gui._render_scalar_plots = lambda: None
+
+    def get_frame(self, target_image: wp.array | None = None, render_ui: bool = False) -> wp.array:
+        """Reuse device capture storage while the native framebuffer size remains unchanged."""
+        shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
+        if target_image is not None and target_image.shape != shape:
+            target_image = None
+        return super().get_frame(target_image, render_ui=render_ui)
 
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""

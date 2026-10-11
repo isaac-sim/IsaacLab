@@ -2,6 +2,7 @@
   Windows reused one composed device image and retained native sensor dimensions.
   Configurations used ``NewtonGLVisualizerCfg(view=view, window=WindowCfg(...))`` or the RTX equivalent;
   legacy camera configurations remained supported. The existing simulation resource registry owned views.
+  Rejected mismatched channel batches, resolutions, and devices before GPU composition.
 * Bound camera references during simulation initialization and removed unused environment camera helpers.
   Kept image composition and channel selection in the shared image utilities.
 * **Breaking:** Declared physics backend identifiers on their managers, preserving backend dispatch and viewer

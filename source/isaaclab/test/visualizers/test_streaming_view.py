@@ -8,6 +8,7 @@
 import ast
 import inspect
 import math
+import pickle
 from colorsys import hsv_to_rgb
 from importlib.util import find_spec
 from types import SimpleNamespace
@@ -20,6 +21,7 @@ import warp as wp
 from matplotlib import colormaps
 
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import replace
 from isaaclab.utils.images import compose_image, sensor_key_for_gt_type
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.visualizers import ImageView, ImageViewCfg
@@ -192,6 +194,10 @@ def test_windows_share_fixed_device_image(device, monkeypatch):
     pixels = view.read_rgb(0)
     assert sim.get_or_create_backend(other_window.view, camera=camera) is view
     assert sim.get_or_create_backend(declaration.copy(), camera=camera) is not view
+    assert sim.get_or_create_backend(replace(declaration), camera=camera) is not view
+    restored = pickle.loads(pickle.dumps((visualizer_cfg_copy, other_window)))
+    assert restored[0].view is restored[1].view and restored[0].view is not declaration
+    assert restored[0].view.source == declaration.source
     assert "get_image_view" not in vars(SimulationContext)
     assert "_image_views" not in vars(sim)
     assert acquired.call_count == 1
@@ -223,6 +229,21 @@ def test_windows_share_fixed_device_image(device, monkeypatch):
     np.testing.assert_array_equal(replayed[:, 2:], expected[:, 2:])
     camera.update.assert_not_called()
     camera.close.assert_not_called()
+
+    # Reject incompatible channels before the GPU can index them using the RGB batch's layout.
+    for shape, channel_device in (
+        ((2, 2, 2, 1), device),
+        ((3, 1, 2, 1), device),
+        ((3, 2, 1, 1), device),
+        ((3, 2, 2, 1), "cpu"),
+    ):
+        data.output["distance_to_image_plane"] = ProxyArray(wp.zeros(shape, dtype=wp.float32, device=channel_device))
+        with monkeypatch.context() as execution:
+            execution.setattr(image_view, "compose_image", Mock(side_effect=AssertionError("Invalid GPU launch")))
+            with pytest.raises(ValueError, match="same batch, resolution, and device"):
+                view.read(2)
+    data.output["distance_to_image_plane"] = ProxyArray(depth)
+    assert view.read(2) is image
     declaration.envs = ()
     assert view.read(2) is None
     assert view.read_rgb(2) is None
