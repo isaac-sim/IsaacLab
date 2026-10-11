@@ -218,7 +218,7 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
         "--cosmos_transport",
         choices=["auto", "cuda_ipc", "socket"],
         default=None,
-        help="cuda_ipc keeps images on the GPU (same Linux machine and GPU); socket also works across machines.",
+        help="cuda_ipc keeps images on the GPU (same machine, same or peer GPU); socket also works across machines.",
     )
 
 
