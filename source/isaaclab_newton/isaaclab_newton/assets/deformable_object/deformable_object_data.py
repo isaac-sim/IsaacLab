@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -73,21 +73,6 @@ class DeformableObjectData(BaseDeformableObjectData):
     """Simulation mesh kinematic targets for the deformable bodies.
     Shape is (num_instances, particles_per_body) with dtype vec4f.
     """
-
-    def _create_simulation_bindings(self) -> None:
-        """Invalidate gathered buffers after model reinitialization.
-
-        Newton may swap :attr:`state_0` and :attr:`state_1` across substeps, so deformable data does not keep
-        long-lived particle array bindings. Read properties query :meth:`SimulationManager.get_state_0` at gather time
-        and materialize object-local views from the current flat particle arrays.
-        """
-        reset_timestamps(
-            (self._nodal_pos_w, self._nodal_vel_w, self._nodal_state_w, self._root_pos_w, self._root_vel_w)
-        )
-
-    ##
-    # Properties.
-    ##
 
     @property
     def nodal_pos_w(self) -> ProxyArray:
