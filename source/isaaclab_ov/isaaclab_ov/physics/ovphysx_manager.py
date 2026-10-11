@@ -349,7 +349,7 @@ class OvPhysxBackend:
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
-                    physx.wait_task(physx.reset_stage())
+                    physx.wait_task(physx.detach_ovstage())
                 finally:
                     try:
                         destroy = getattr(physx, destroy_entry_point, None)
@@ -631,14 +631,15 @@ class OvPhysxManager(PhysicsManager):
                 domains=ovstage.PopulationDomain.ALL,
             )
             # ovphysx reads sealed data only: population completes the writes but never
-            # commits the ordinal, so attaching at an unsealed ordinal fails the parse
-            # and silently yields an empty scene.
+            # commits the ordinal, so attaching at an unsealed ordinal fails the initial parse.
             stage.advance_write_floor(ordinal=1).wait()
-            cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
+            task = cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
             stage.destroy()
             raise
         cls.backend.stage = stage
+        # Failed attach rollback can retain native ownership; close must still own the stage.
+        cls.backend.physx.wait_task(task)
 
         cls._next_control_ordinal = 2
 
@@ -652,7 +653,7 @@ class OvPhysxManager(PhysicsManager):
             cls.backend.rigid_body_view.destroy()
             cls.backend.rigid_body_view = None
         OvPhysxView._close_all_for(physx)
-        physx.wait_task(physx.reset_stage())
+        physx.wait_task(physx.detach_ovstage())
         if cls.backend.stage is not None:
             cls.backend.stage.destroy()
             cls.backend.stage = None
@@ -665,7 +666,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
-        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
+        """Return the last successfully applied world-frame gravity vector [m/s^2].
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
         can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
@@ -724,10 +725,9 @@ class OvPhysxManager(PhysicsManager):
                 query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
             stage.advance_write_floor(ordinal=ordinal).wait()
-            cls.backend.physx.update_from_ovstage(ordinal, ordinal)
+            cls.backend.physx.wait_task(cls.backend.physx.update_from_ovstage(ordinal, ordinal))
 
-        # Only publish once the ordinal has been applied, so a failed write leaves
-        # :meth:`get_gravity` reporting the gravity the scene is still running with.
+        # Only publish after successful task collection; failed updates need not be atomic.
         cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
     @classmethod

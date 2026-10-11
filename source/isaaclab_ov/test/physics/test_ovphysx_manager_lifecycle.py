@@ -268,22 +268,22 @@ def test_atexit_cleanup_logs_and_swallows_active_close_failure(monkeypatch, mana
     assert "Failed to close OVPhysX during process exit." in caplog.text
 
 
-@pytest.mark.parametrize("reset_fails", [False, True])
-def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, reset_fails):
+@pytest.mark.parametrize("detach_fails", [False, True])
+def test_stage_reuse_drains_bindings_before_detach(monkeypatch, manager_module, detach_fails):
     manager = manager_module.OvPhysxManager
     events = []
     task = object()
 
     class FakePhysX:
-        def reset_stage(self):
-            events.append("reset")
+        def detach_ovstage(self):
+            events.append("detach")
             return task
 
         def wait_task(self, receipt):
             assert receipt is task
             events.append(("wait", receipt))
-            if reset_fails:
-                raise RuntimeError("reset task failed")
+            if detach_fails:
+                raise RuntimeError("detach task failed")
 
     physx = FakePhysX()
     manager.backend.physx = physx
@@ -293,15 +293,15 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, r
     stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
     manager.backend.stage = stage
 
-    with pytest.raises(RuntimeError, match="reset task failed") if reset_fails else nullcontext():
+    with pytest.raises(RuntimeError, match="detach task failed") if detach_fails else nullcontext():
         manager._prepare_physx_for_stage_reuse()
 
     assert events == [
         ("close_views", physx),
-        "reset",
+        "detach",
         ("wait", task),
-    ] + ([] if reset_fails else ["destroy_stage"])
-    assert manager.backend.stage is (stage if reset_fails else None)
+    ] + ([] if detach_fails else ["destroy_stage"])
+    assert manager.backend.stage is (stage if detach_fails else None)
 
 
 @pytest.mark.parametrize("clone_fails", [False, True])
@@ -363,11 +363,12 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     assert manager._warmup_done is (not clone_fails)
 
 
-@pytest.mark.parametrize("failure", [None, "query", "write"])
+@pytest.mark.parametrize("failure", [None, "query", "write", "update"])
 def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, failure):
     """Scene gravity updates must seal their ordinal and release resources on every path."""
     manager = manager_module.OvPhysxManager
     calls = []
+    task = object()
 
     class FakePathDictionary:
         def __init__(self, stage):
@@ -413,6 +414,13 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
     class FakePhysX:
         def update_from_ovstage(self, start_ordinal, end_ordinal):
             calls.append(("update", start_ordinal, end_ordinal))
+            return task
+
+        def wait_task(self, receipt):
+            assert receipt is task
+            calls.append(("wait", receipt))
+            if failure == "update":
+                raise RuntimeError("update failed")
 
     fake_ovstage = ModuleType("ovstage")
     fake_ovstage.PathDictionary = FakePathDictionary
@@ -435,6 +443,7 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
             ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
             ("seal", 2),
             ("update", 2, 2),
+            ("wait", task),
             ("release_query", "physics-scene-query"),
             ("destroy_paths", "physics-scene-paths"),
             ("destroy_dictionary",),
@@ -446,13 +455,20 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
         ]
-        if failure == "write":
-            expected_calls.extend(
-                [
-                    ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
-                    ("release_query", "physics-scene-query"),
-                ]
+        if failure in ("write", "update"):
+            expected_calls.append(
+                ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False)
             )
+            if failure == "update":
+                expected_calls.extend(
+                    [
+                        ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
+                        ("seal", 2),
+                        ("update", 2, 2),
+                        ("wait", task),
+                    ]
+                )
+            expected_calls.append(("release_query", "physics-scene-query"))
         expected_calls.extend(
             [
                 ("destroy_paths", "physics-scene-paths"),
@@ -461,8 +477,7 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         )
 
     assert calls == expected_calls
-    # ``get_gravity`` must report what the scene is actually running with: the new vector
-    # once the ordinal was applied, and the previous one when the update failed.
+    # ``get_gravity`` reports the last successfully applied vector.
     expected_gravity = (0.0, 0.0, -3.72) if failure is None else (0.0, 0.0, -9.81)
     assert manager.get_gravity() == pytest.approx(expected_gravity)
     # ``cfg.gravity`` stays the nominal base that randomization terms resample from.

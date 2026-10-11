@@ -83,7 +83,7 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
 
 @pytest.mark.parametrize(("device", "expected_active_cuda_gpus"), [("cpu", None), ("cuda:2", "2")])
 def test_manager_uses_supported_runtime_api(monkeypatch, tmp_path, device, expected_active_cuda_gpus):
-    """The manager uses the supported constructor, synchronous step, and task-based reset.
+    """The manager uses the supported constructor, synchronous step, and task-based detach.
 
     The runtime never enters the wheel's sticky process-wide CPU-only mode, which would block later CUDA scenes.
     """
@@ -112,8 +112,8 @@ def test_manager_uses_supported_runtime_api(monkeypatch, tmp_path, device, expec
         def update_articulations_kinematic(self):
             self.calls.append(("update_articulations_kinematic",))
 
-        def reset_stage(self):
-            self.calls.append(("reset_stage",))
+        def detach_ovstage(self):
+            self.calls.append(("detach_ovstage",))
             return task
 
         def wait_task(self, operation):
@@ -146,7 +146,7 @@ def test_manager_uses_supported_runtime_api(monkeypatch, tmp_path, device, expec
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
     assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is device.startswith("cuda")
     updates = [("step_sync", 0.02), ("update_articulations_kinematic",)]
-    assert physx.calls == updates + [("destroy_view",), ("reset_stage",), ("wait_task", task)]
+    assert physx.calls == updates + [("destroy_view",), ("detach_ovstage",), ("wait_task", task)]
     assert OvPhysxManager.backend.rigid_body_view is None
     assert PhysicsManager._sim_time == 0.02
     assert OvPhysxManager._scene_data_backend.transforms_timestamp > version
@@ -184,14 +184,15 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     assert calls == ["fk", "read", "fk", "read"]
 
 
-@pytest.mark.parametrize("reset_fails", [False, True])
-def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, reset_fails):
+@pytest.mark.parametrize("failure", [None, "attach", "detach"])
+def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, failure):
     """The registered resource releases the attached OVStage once, after PhysX."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
     from isaaclab_ov.physics import OvPhysxManager
 
     events = []
-    task = object()
+    attach_task = object()
+    detach_task = object()
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
 
     class FakeWriteFloorOp:
@@ -214,16 +215,19 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, reset_fails):
     class FakePhysX:
         def attach_ovstage(self, stage, read_ordinal):
             events.append(("attach", stage, read_ordinal))
+            return attach_task
 
-        def reset_stage(self):
-            events.append(("reset",))
-            return task
+        def detach_ovstage(self):
+            events.append(("detach",))
+            return detach_task
 
         def wait_task(self, receipt):
-            assert receipt is task
+            assert receipt in (attach_task, detach_task)
             events.append(("wait", receipt))
-            if reset_fails:
-                raise RuntimeError("reset task failed")
+            if receipt is attach_task and failure == "attach":
+                raise RuntimeError("attach task failed")
+            if receipt is detach_task and failure == "detach":
+                raise RuntimeError("detach task failed")
 
         def release(self):
             events.append(("release",))
@@ -248,26 +252,33 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, reset_fails):
         "_close_all_for",
         lambda value: events.append(("close_views", value)),
     )
-    OvPhysxManager._attach_ovstage("#usda 1.0")
+    if failure == "attach":
+        with pytest.raises(RuntimeError, match="attach task failed"):
+            OvPhysxManager._attach_ovstage("#usda 1.0")
+        assert OvPhysxManager.backend.stage is not None
+        assert ("destroy",) not in events
+    else:
+        OvPhysxManager._attach_ovstage("#usda 1.0")
     stage = OvPhysxManager.backend.stage
-    if reset_fails:
-        with pytest.raises(RuntimeError, match="reset task failed"):
+    if failure == "detach":
+        with pytest.raises(RuntimeError, match="detach task failed"):
             OvPhysxManager.backend.close()
     else:
         OvPhysxManager.backend.close()
     OvPhysxManager.backend.close()
 
     # The seal must land between population and attach: ovphysx reads sealed data
-    # only, so attaching at an unsealed ordinal silently yields an empty scene.
+    # only, so attaching at an unsealed ordinal fails the initial parse.
     assert events == [
         ("stage", "isaaclab"),
         ("populate", stage, "#usda 1.0", 1, "all"),
         ("seal", 1),
         ("attach", stage, 1),
+        ("wait", attach_task),
         ("destroy_view",),
         ("close_views", physx),
-        ("reset",),
-        ("wait", task),
+        ("detach",),
+        ("wait", detach_task),
         ("release",),
         ("destroy",),
     ]
@@ -293,7 +304,7 @@ def test_manager_uses_version_selected_lifecycle_apis(monkeypatch, entry_points,
         warmup_gpu=lambda: calls.append("warmup_gpu"),
         destroy=lambda: calls.append("destroy"),
         release=lambda: calls.append("release"),
-        reset_stage=lambda: task,
+        detach_ovstage=lambda: task,
         wait_task=lambda op: None,
     )
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
@@ -318,7 +329,7 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
         if operation == "warmup":
             OvPhysxManager._warmup_physx(SimpleNamespace())
         else:
-            OvPhysxManager.backend.physx = SimpleNamespace(reset_stage=lambda: task, wait_task=lambda op: None)
+            OvPhysxManager.backend.physx = SimpleNamespace(detach_ovstage=lambda: task, wait_task=lambda op: None)
             OvPhysxManager.backend.close()
 
 
@@ -352,8 +363,8 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
                 raise RuntimeError("PhysX instance has been destroyed")
             return 17
 
-        def reset_stage(self):
-            events.append("reset")
+        def detach_ovstage(self):
+            events.append("detach")
             return task
 
         def wait_task(self, operation):
@@ -395,7 +406,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     assert backend.physx is (physx if retryable else None)
     assert backend.stage is (stage if retryable else None)
 
-    teardown = ["close_views", "reset", ("wait", task), entry_points["destroy"]]
+    teardown = ["close_views", "detach", ("wait", task), entry_points["destroy"]]
     assert events == teardown + ([] if retryable else ["destroy_stage"])
 
     physx.fail_destroy = False

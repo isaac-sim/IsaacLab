@@ -139,12 +139,18 @@ USD schema lookup or OVStage population; newer OVPhysX runtimes no longer bundle
 Task completion
 ---------------
 
-The backend requires the OVPhysX task API. ``PhysX.clone()`` and
-``PhysX.reset_stage()`` return ``Task`` receipts, which the backend passes to
+The backend requires the OVPhysX task API. ``PhysX.attach_ovstage()``,
+``PhysX.update_from_ovstage()``, ``PhysX.clone()``, and ``PhysX.detach_ovstage()``
+return ``Task`` receipts, which the backend passes to
 ``PhysX.wait_task()`` before continuing. Custom Python callers must pass the
 whole receipt to ``wait_task()`` instead of passing an integer to ``wait_op()``.
 A receipt records admission; execution failures are raised when the task is
 collected, even when the operation executes inline. Collect each task once.
+
+Stage reuse and shutdown release the stage's bindings, then collect the
+``PhysX.detach_ovstage()`` task before destroying the OVStage. Detach tears down
+the simulation's stage resources; it does not restore initial poses or reset
+simulation time. Attach and realize a new stage before resuming simulation.
 
 Simulation stepping continues to use ``PhysX.step_sync()``. The Python
 ``PhysX.update_articulations_kinematic()``, ``PhysX.read_sync()``, and
