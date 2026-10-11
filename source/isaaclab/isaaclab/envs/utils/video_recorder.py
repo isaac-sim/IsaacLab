@@ -171,6 +171,9 @@ class VideoRecorder:
         viz = candidates[0]
         if not sim.is_rendering:
             sim.forward()
+            # Continuous rendering dispatches marker callbacks in update_visualizers(); capture must too.
+            if viz.supports_markers():
+                sim.vis_marker_registry.dispatch_callbacks()
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
@@ -186,8 +189,7 @@ class VideoRecorder:
                     f"streaming_view is not enabled on the '{viz_type}' visualizer. "
                     f"Enable it by setting streaming_view=True on the visualizer config:\n\n"
                     f"    {cfg_name}(streaming_view=True, ...)\n\n"
-                    f"A streaming camera is auto-created from the streaming_cam_* fields. "
-                    f"To use an existing scene camera, set streaming_sensor_prim_path instead."
+                    "Declare a CameraCfg in the scene and select it with streaming_sensor_prim_path."
                 )
             return viz.render_tiled_rgb_array()
 
@@ -207,10 +209,10 @@ class VideoRecorder:
         return frame
 
     def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
+        from ...utils.images import sensor_key_for_gt_type
         from .camera_colorizer import (
             SUPPORTED_GT_TYPES,
             CameraFrameColorizer,
-            sensor_key_for_gt_type,
         )
 
         gt_type = gt_type or "rgb"

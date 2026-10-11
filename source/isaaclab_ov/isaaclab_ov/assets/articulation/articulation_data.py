@@ -80,7 +80,7 @@ class ArticulationData(BaseArticulationData):
         Outside CUDA graph capture, repeated Warp kernels that derive or reorder public data from
         those buffers reuse recorded launch commands. Direct ``TensorBinding`` reads continue to use
         :class:`OvPhysxView`'s object-identity cache. Recorded commands are discarded whenever ordering
-        buffers may be replaced or the data container is invalidated.
+        buffers may be replaced.
     """
 
     __backend_name__: str = "ovphysx"
@@ -1017,6 +1017,24 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_pose_w_ta
 
     @property
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._body_joint_wrench.data is None:
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_joint_wrench_backend = (
+                TimestampedBuffer(wp.empty_like(self._body_joint_wrench.data)) if self.has_body_ordering else None
+            )
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        self._refresh_reordered_body_buffer(
+            self._body_joint_wrench,
+            self._body_joint_wrench_backend,
+            TT.LINK_INCOMING_JOINT_FORCE,
+        )
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]`` [m/s^2, rad/s^2].
 
@@ -1724,8 +1742,8 @@ class ArticulationData(BaseArticulationData):
         # Friction: one buffer with three coefficients per joint; component views are created lazily.
         self._joint_friction_props_buf = TimestampedBuffer(wp.zeros((*joint_shape, 3), dtype=wp.float32, device=device))
         self._joint_friction_props_backend: TimestampedBuffer | None = None
-        # These are strided wp.array views into _joint_friction_props_buf.data; created in
-        # _pin_proxy_arrays after the buffer exists.
+        # Strided views into _joint_friction_props_buf.data, initialized below after
+        # the initial property reads populate the combined buffer.
         self._joint_friction_coeff: wp.array | None = None
         self._joint_dynamic_friction_coeff: wp.array | None = None
         self._joint_viscous_friction_coeff: wp.array | None = None
@@ -1823,7 +1841,141 @@ class ArticulationData(BaseArticulationData):
         # Read initial joint/body properties from bindings (one-time CPU reads).
         self._read_initial_properties()
         # Initialize ProxyArray wrappers (lazily created on first property access).
-        self._pin_proxy_arrays()
+        # Defaults
+        self._default_root_pose_ta: ProxyArray | None = None
+        self._default_root_vel_ta: ProxyArray | None = None
+        self._default_joint_pos_ta: ProxyArray | None = None
+        self._default_joint_vel_ta: ProxyArray | None = None
+        # Joint commands (set into simulation)
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
+        # Joint commands (explicit actuator model)
+        self._computed_torque_ta: ProxyArray | None = None
+        self._applied_torque_ta: ProxyArray | None = None
+        # Joint properties
+        self._joint_stiffness_ta: ProxyArray | None = None
+        self._joint_damping_ta: ProxyArray | None = None
+        self._joint_armature_ta: ProxyArray | None = None
+        self._joint_friction_coeff_ta: ProxyArray | None = None
+        self._joint_dynamic_friction_coeff_ta: ProxyArray | None = None
+        self._joint_viscous_friction_coeff_ta: ProxyArray | None = None
+        self._joint_pos_limits_ta: ProxyArray | None = None
+        self._joint_vel_limits_ta: ProxyArray | None = None
+        self._joint_effort_limits_ta: ProxyArray | None = None
+        # Joint properties (custom)
+        self._soft_joint_pos_limits_ta: ProxyArray | None = None
+        self._soft_joint_vel_limits_ta: ProxyArray | None = None
+        # Fixed tendon properties
+        self._fixed_tendon_stiffness_ta: ProxyArray | None = None
+        self._fixed_tendon_damping_ta: ProxyArray | None = None
+        self._fixed_tendon_limit_stiffness_ta: ProxyArray | None = None
+        self._fixed_tendon_rest_length_ta: ProxyArray | None = None
+        self._fixed_tendon_offset_ta: ProxyArray | None = None
+        self._fixed_tendon_pos_limits_ta: ProxyArray | None = None
+        # Spatial tendon properties
+        self._spatial_tendon_stiffness_ta: ProxyArray | None = None
+        self._spatial_tendon_damping_ta: ProxyArray | None = None
+        self._spatial_tendon_limit_stiffness_ta: ProxyArray | None = None
+        self._spatial_tendon_offset_ta: ProxyArray | None = None
+        # Root state (timestamped)
+        self._root_link_pose_w_ta: ProxyArray | None = None
+        self._root_link_vel_w_ta: ProxyArray | None = None
+        self._root_com_pose_w_ta: ProxyArray | None = None
+        self._root_com_vel_w_ta: ProxyArray | None = None
+        # Body state (timestamped)
+        self._body_link_pose_w_ta: ProxyArray | None = None
+        self._body_link_vel_w_ta: ProxyArray | None = None
+        self._body_com_pose_w_ta: ProxyArray | None = None
+        self._body_com_vel_w_ta: ProxyArray | None = None
+        self._body_com_acc_w_ta: ProxyArray | None = None
+        self._body_com_pose_b_ta: ProxyArray | None = None
+        # Dynamics quantities (task-space controllers)
+        self._body_link_jacobian_w: ProxyArray | None = None
+        # Body properties
+        self._body_mass_ta: ProxyArray | None = None
+        self._body_inertia_ta: ProxyArray | None = None
+        # Joint state (timestamped)
+        self._joint_pos_ta: ProxyArray | None = None
+        self._joint_vel_ta: ProxyArray | None = None
+        self._joint_acc_ta: ProxyArray | None = None
+        # Derived properties (timestamped)
+        self._projected_gravity_b_ta: ProxyArray | None = None
+        self._heading_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_b_ta: ProxyArray | None = None
+        self._root_link_ang_vel_b_ta: ProxyArray | None = None
+        self._root_com_lin_vel_b_ta: ProxyArray | None = None
+        self._root_com_ang_vel_b_ta: ProxyArray | None = None
+        # Sliced properties (root link)
+        self._root_link_pos_w_ta: ProxyArray | None = None
+        self._root_link_quat_w_ta: ProxyArray | None = None
+        self._root_link_lin_vel_w_ta: ProxyArray | None = None
+        self._root_link_ang_vel_w_ta: ProxyArray | None = None
+        # Sliced properties (root com)
+        self._root_com_pos_w_ta: ProxyArray | None = None
+        self._root_com_quat_w_ta: ProxyArray | None = None
+        self._root_com_lin_vel_w_ta: ProxyArray | None = None
+        self._root_com_ang_vel_w_ta: ProxyArray | None = None
+        # Sliced properties (body link)
+        self._body_link_pos_w_ta: ProxyArray | None = None
+        self._body_link_quat_w_ta: ProxyArray | None = None
+        self._body_link_lin_vel_w_ta: ProxyArray | None = None
+        self._body_link_ang_vel_w_ta: ProxyArray | None = None
+        # Sliced properties (body com)
+        self._body_com_pos_w_ta: ProxyArray | None = None
+        self._body_com_quat_w_ta: ProxyArray | None = None
+        self._body_com_lin_vel_w_ta: ProxyArray | None = None
+        self._body_com_ang_vel_w_ta: ProxyArray | None = None
+        self._body_com_lin_acc_w_ta: ProxyArray | None = None
+        self._body_com_ang_acc_w_ta: ProxyArray | None = None
+        # Sliced properties (body com in body frame)
+        self._body_com_pos_b_ta: ProxyArray | None = None
+        self._body_com_quat_b_ta: ProxyArray | None = None
+        # Deprecated state-concat properties
+        self._default_root_state_ta: ProxyArray | None = None
+        self._root_state_w_ta: ProxyArray | None = None
+        self._root_link_state_w_ta: ProxyArray | None = None
+        self._root_com_state_w_ta: ProxyArray | None = None
+        # Deprecated body state-concat properties
+        self._body_state_w_ta: ProxyArray | None = None
+        self._body_link_state_w_ta: ProxyArray | None = None
+        self._body_com_state_w_ta: ProxyArray | None = None
+
+        # Create strided wp.array views into _joint_friction_props_buf.data so that
+        # each friction component is accessible without copying data.  The combined
+        # buffer has shape (N, D, 3) and contiguous float32 storage, so component k
+        # lives at byte offset k*4 with strides (D*3*4, 3*4).
+        N = self._num_instances
+        D = self._num_joints
+        _fp = self._joint_friction_props_buf.data
+        _float_bytes = 4  # sizeof(float32)
+        _stride_row = D * 3 * _float_bytes  # bytes between rows
+        _stride_col = 3 * _float_bytes  # bytes between columns (elements)
+        _dev = str(_fp.device)
+        self._joint_friction_coeff = wp.array(
+            ptr=_fp.ptr,
+            shape=(N, D),
+            strides=(_stride_row, _stride_col),
+            dtype=wp.float32,
+            device=_dev,
+            copy=False,
+        )
+        self._joint_dynamic_friction_coeff = wp.array(
+            ptr=_fp.ptr + _float_bytes,
+            shape=(N, D),
+            strides=(_stride_row, _stride_col),
+            dtype=wp.float32,
+            device=_dev,
+            copy=False,
+        )
+        self._joint_viscous_friction_coeff = wp.array(
+            ptr=_fp.ptr + 2 * _float_bytes,
+            shape=(N, D),
+            strides=(_stride_row, _stride_col),
+            dtype=wp.float32,
+            device=_dev,
+            copy=False,
+        )
 
     def _binding_read(self, tensor_type: int, dst: wp.array) -> None:
         """Refresh *dst* from the binding via the view, staging for CPU-only bindings.
@@ -1992,7 +2144,7 @@ class ArticulationData(BaseArticulationData):
 
         # Friction: [N, D, 3] -> load directly into the combined TimestampedBuffer.
         # The strided per-component views (_joint_friction_coeff/dynamic/viscous) are
-        # created later in _pin_proxy_arrays, so we write to the combined buffer here.
+        # created later in _create_buffers, so we write to the combined buffer here.
         np_fric = _read_cpu(TT.DOF_FRICTION_PROPERTIES)
         if np_fric is not None:
             fric_contiguous = np.ascontiguousarray(np_fric.reshape(self._num_instances, self._num_joints, 3))
@@ -2150,165 +2302,6 @@ class ArticulationData(BaseArticulationData):
                 self._gravity_compensation_forces,
             ]
         )
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create pinned ProxyArray wrappers for all data buffers.
-
-        Called once from :meth:`_create_buffers` during initialization.
-        All ``_ta`` fields are lazily populated on first property access.
-        """
-        # Defaults
-        self._default_root_pose_ta: ProxyArray | None = None
-        self._default_root_vel_ta: ProxyArray | None = None
-        self._default_joint_pos_ta: ProxyArray | None = None
-        self._default_joint_vel_ta: ProxyArray | None = None
-        # Joint commands (set into simulation)
-        self._joint_pos_target_ta: ProxyArray | None = None
-        self._joint_vel_target_ta: ProxyArray | None = None
-        self._joint_effort_target_ta: ProxyArray | None = None
-        # Joint commands (explicit actuator model)
-        self._computed_torque_ta: ProxyArray | None = None
-        self._applied_torque_ta: ProxyArray | None = None
-        # Joint properties
-        self._joint_stiffness_ta: ProxyArray | None = None
-        self._joint_damping_ta: ProxyArray | None = None
-        self._joint_armature_ta: ProxyArray | None = None
-        self._joint_friction_coeff_ta: ProxyArray | None = None
-        self._joint_dynamic_friction_coeff_ta: ProxyArray | None = None
-        self._joint_viscous_friction_coeff_ta: ProxyArray | None = None
-        self._joint_pos_limits_ta: ProxyArray | None = None
-        self._joint_vel_limits_ta: ProxyArray | None = None
-        self._joint_effort_limits_ta: ProxyArray | None = None
-        # Joint properties (custom)
-        self._soft_joint_pos_limits_ta: ProxyArray | None = None
-        self._soft_joint_vel_limits_ta: ProxyArray | None = None
-        # Fixed tendon properties
-        self._fixed_tendon_stiffness_ta: ProxyArray | None = None
-        self._fixed_tendon_damping_ta: ProxyArray | None = None
-        self._fixed_tendon_limit_stiffness_ta: ProxyArray | None = None
-        self._fixed_tendon_rest_length_ta: ProxyArray | None = None
-        self._fixed_tendon_offset_ta: ProxyArray | None = None
-        self._fixed_tendon_pos_limits_ta: ProxyArray | None = None
-        # Spatial tendon properties
-        self._spatial_tendon_stiffness_ta: ProxyArray | None = None
-        self._spatial_tendon_damping_ta: ProxyArray | None = None
-        self._spatial_tendon_limit_stiffness_ta: ProxyArray | None = None
-        self._spatial_tendon_offset_ta: ProxyArray | None = None
-        # Root state (timestamped)
-        self._root_link_pose_w_ta: ProxyArray | None = None
-        self._root_link_vel_w_ta: ProxyArray | None = None
-        self._root_com_pose_w_ta: ProxyArray | None = None
-        self._root_com_vel_w_ta: ProxyArray | None = None
-        # Body state (timestamped)
-        self._body_link_pose_w_ta: ProxyArray | None = None
-        self._body_link_vel_w_ta: ProxyArray | None = None
-        self._body_com_pose_w_ta: ProxyArray | None = None
-        self._body_com_vel_w_ta: ProxyArray | None = None
-        self._body_com_acc_w_ta: ProxyArray | None = None
-        self._body_com_pose_b_ta: ProxyArray | None = None
-        # Dynamics quantities (task-space controllers)
-        self._body_link_jacobian_w: ProxyArray | None = None
-        # Body properties
-        self._body_mass_ta: ProxyArray | None = None
-        self._body_inertia_ta: ProxyArray | None = None
-        # Joint state (timestamped)
-        self._joint_pos_ta: ProxyArray | None = None
-        self._joint_vel_ta: ProxyArray | None = None
-        self._joint_acc_ta: ProxyArray | None = None
-        # Derived properties (timestamped)
-        self._projected_gravity_b_ta: ProxyArray | None = None
-        self._heading_w_ta: ProxyArray | None = None
-        self._root_link_lin_vel_b_ta: ProxyArray | None = None
-        self._root_link_ang_vel_b_ta: ProxyArray | None = None
-        self._root_com_lin_vel_b_ta: ProxyArray | None = None
-        self._root_com_ang_vel_b_ta: ProxyArray | None = None
-        # Sliced properties (root link)
-        self._root_link_pos_w_ta: ProxyArray | None = None
-        self._root_link_quat_w_ta: ProxyArray | None = None
-        self._root_link_lin_vel_w_ta: ProxyArray | None = None
-        self._root_link_ang_vel_w_ta: ProxyArray | None = None
-        # Sliced properties (root com)
-        self._root_com_pos_w_ta: ProxyArray | None = None
-        self._root_com_quat_w_ta: ProxyArray | None = None
-        self._root_com_lin_vel_w_ta: ProxyArray | None = None
-        self._root_com_ang_vel_w_ta: ProxyArray | None = None
-        # Sliced properties (body link)
-        self._body_link_pos_w_ta: ProxyArray | None = None
-        self._body_link_quat_w_ta: ProxyArray | None = None
-        self._body_link_lin_vel_w_ta: ProxyArray | None = None
-        self._body_link_ang_vel_w_ta: ProxyArray | None = None
-        # Sliced properties (body com)
-        self._body_com_pos_w_ta: ProxyArray | None = None
-        self._body_com_quat_w_ta: ProxyArray | None = None
-        self._body_com_lin_vel_w_ta: ProxyArray | None = None
-        self._body_com_ang_vel_w_ta: ProxyArray | None = None
-        self._body_com_lin_acc_w_ta: ProxyArray | None = None
-        self._body_com_ang_acc_w_ta: ProxyArray | None = None
-        # Sliced properties (body com in body frame)
-        self._body_com_pos_b_ta: ProxyArray | None = None
-        self._body_com_quat_b_ta: ProxyArray | None = None
-        # Deprecated state-concat properties
-        self._default_root_state_ta: ProxyArray | None = None
-        self._root_state_w_ta: ProxyArray | None = None
-        self._root_link_state_w_ta: ProxyArray | None = None
-        self._root_com_state_w_ta: ProxyArray | None = None
-        # Deprecated body state-concat properties
-        self._body_state_w_ta: ProxyArray | None = None
-        self._body_link_state_w_ta: ProxyArray | None = None
-        self._body_com_state_w_ta: ProxyArray | None = None
-
-        # Create strided wp.array views into _joint_friction_props_buf.data so that
-        # each friction component is accessible without copying data.  The combined
-        # buffer has shape (N, D, 3) and contiguous float32 storage, so component k
-        # lives at byte offset k*4 with strides (D*3*4, 3*4).
-        N = self._num_instances
-        D = self._num_joints
-        _fp = self._joint_friction_props_buf.data
-        _float_bytes = 4  # sizeof(float32)
-        _stride_row = D * 3 * _float_bytes  # bytes between rows
-        _stride_col = 3 * _float_bytes  # bytes between columns (elements)
-        _dev = str(_fp.device)
-        self._joint_friction_coeff = wp.array(
-            ptr=_fp.ptr,
-            shape=(N, D),
-            strides=(_stride_row, _stride_col),
-            dtype=wp.float32,
-            device=_dev,
-            copy=False,
-        )
-        self._joint_dynamic_friction_coeff = wp.array(
-            ptr=_fp.ptr + _float_bytes,
-            shape=(N, D),
-            strides=(_stride_row, _stride_col),
-            dtype=wp.float32,
-            device=_dev,
-            copy=False,
-        )
-        self._joint_viscous_friction_coeff = wp.array(
-            ptr=_fp.ptr + 2 * _float_bytes,
-            shape=(N, D),
-            strides=(_stride_row, _stride_col),
-            dtype=wp.float32,
-            device=_dev,
-            copy=False,
-        )
-
-    def _invalidate_initialize_callback(self, event) -> None:
-        """Invalidate cached buffers when the simulation is reinitialized.
-
-        Args:
-            event: Simulation event (unused).
-        """
-        self._read_launch_cache.clear()
-        self._is_primed = False
-        self._sim_timestamp = 0.0
-        # Reset every TimestampedBuffer timestamp so the next property access
-        # triggers a fresh pull from the binding.
-        for attr_name in dir(self):
-            if attr_name.startswith("_") and not attr_name.startswith("__"):
-                val = getattr(self, attr_name, None)
-                if isinstance(val, TimestampedBuffer):
-                    val.timestamp = -1.0
 
     def _get_binding(self, tensor_type: int):
         """Return the binding for :paramref:`tensor_type`, or ``None`` if unavailable.

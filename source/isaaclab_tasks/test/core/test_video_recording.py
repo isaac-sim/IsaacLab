@@ -13,6 +13,8 @@ reads them back to verify that they are non-black and, for synchronous render so
 # clean collection-time skip rather than an orphaned SimulationApp.
 import pytest
 
+from isaaclab.visualizers import WindowCfg
+
 try:
     from moviepy.editor import VideoFileClip
 except ImportError:
@@ -163,7 +165,7 @@ def test_headless_kit_physx_recorders_share_visualizer():
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg(num_envs=1)
-        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(headless=True, window_width=320, window_height=240)]
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(headless=True, window=WindowCfg(size=(320, 240)))]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="first"),
             _recorder_cfg(output_dir, "viz:kit", prefix="second"),
@@ -186,8 +188,8 @@ def test_newton_records_clip_and_warns_for_kit_capture(caplog):
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_cfg_newton(num_envs=1)
         env_cfg.sim.visualizer_cfgs = [
-            KitVisualizerCfg(window_width=320, window_height=240),
-            NewtonGLVisualizerCfg(window_width=320, window_height=240),
+            KitVisualizerCfg(window=WindowCfg(size=(320, 240))),
+            NewtonGLVisualizerCfg(window=WindowCfg(size=(320, 240))),
         ]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="kit"),
@@ -214,7 +216,7 @@ def test_multiple_recorders_simultaneous():
 
     with tempfile.TemporaryDirectory() as output_dir:
         env_cfg = _cartpole_camera_cfg_physx(num_envs=1)
-        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window_width=320, window_height=240)]
+        env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(window=WindowCfg(size=(320, 240)))]
         env_cfg.video_recorders = [
             _recorder_cfg(output_dir, "viz:kit", prefix="viewport"),
             _recorder_cfg(output_dir, "sensor:tiled_camera", prefix="sensor"),

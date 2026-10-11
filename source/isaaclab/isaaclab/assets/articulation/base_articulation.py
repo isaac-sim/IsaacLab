@@ -450,7 +450,9 @@ class BaseArticulation(AssetBase):
 
         A floating-base articulation can translate and rotate freely in space, so
         its base contributes 6 DoFs (3 linear, 3 angular). A fixed-base articulation
-        is bolted to the world and contributes 0.
+        is bolted to the world and contributes 0. A backend may also report 0 for a base
+        that is not fixed: Newton does for a root link jointed to the world by a non-free
+        joint (for example, a revolute joint), whose DoFs are regular joints.
 
         Use this to map an actuated-joint index ``j`` to its column in the Jacobian
         / mass matrix / gravity vector: ``column = j + num_base_dofs``.
