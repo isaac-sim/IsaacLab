@@ -40,9 +40,12 @@ parser.add_argument(
 )
 parser.add_argument(
     "--tissue_solver",
-    choices=["explicit", "implicit"],
+    choices=["explicit", "implicit", "vbd"],
     default="explicit",
-    help="Explicit MLS-MPM with frictional finger pads, or Newton's implicit MPM with clamped grasping",
+    help=(
+        "Explicit MLS-MPM with frictional finger pads, Newton's implicit MPM with clamped grasping, or Newton's VBD on"
+        " a tetrahedral mesh (elastic, without damage)"
+    ),
 )
 parser.add_argument(
     "--arm_speed", type=float, default=2.0, help="Arm speed multiplier; the gripper keeps its gentle closing pace"

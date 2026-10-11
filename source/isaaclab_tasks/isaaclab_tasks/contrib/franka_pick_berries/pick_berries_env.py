@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Single workcell environment: a Franka and deformable berry tissue on Newton's coupled MPM."""
+"""Single workcell environment: a Franka and deformable berry tissue on Newton's coupled MPM or VBD."""
 
 from isaaclab.envs import ManagerBasedRLEnv
 

@@ -115,8 +115,9 @@ class BerryPickEnvCfg(ManagerBasedRLEnvCfg):
     curriculum = None
 
     tissue_solver: str = "explicit"
-    """Tissue solver: ``explicit`` (explicit MLS-MPM with frictional finger pads, :mod:`.physics.grasp_explicit_mpm`)
-    or ``implicit`` (Newton's implicit MPM with clamped grasping, :mod:`.physics.grasp_implicit_mpm`)."""
+    """Tissue solver: ``explicit`` (explicit MLS-MPM with frictional finger pads, :mod:`.physics.grasp_explicit_mpm`),
+    ``implicit`` (Newton's implicit MPM with clamped grasping, :mod:`.physics.grasp_implicit_mpm`) or ``vbd``
+    (Newton's VBD on the berry's tetrahedral mesh, :mod:`.physics.grasp_vbd`)."""
     num_berries: int = 1
     """Number of raspberries in the punnet, 1 to 3."""
     randomize_layout: bool = True
@@ -147,4 +148,3 @@ class BerryPickEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = 4
         self.episode_length_s = 3600
         self.sim.physics = coupled_physics_cfg()
-        self.sim.physics.default_shape_cfg.gap = 0.0

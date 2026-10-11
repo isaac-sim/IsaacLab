@@ -3,13 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Read a berry's Gaussians and MPM tissue from its USD/USDZ asset, and turn its Gaussians' shading."""
+"""Read a berry's Gaussians, MPM tissue and tet mesh from its USD/USDZ asset, and turn its Gaussians' shading."""
 
 from pathlib import Path
 
 import numpy as np
 
-from pxr import Usd
+from pxr import Usd, UsdGeom
 
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -71,6 +71,23 @@ def load_berry_asset(path: str | Path) -> tuple[Usd.Stage, dict, dict, dict]:
     }
     particles["xyz"] = np.asarray(tissue.GetAttribute("points").Get(), dtype=np.float32).copy()
     return stage, gaussians, particles, _read_data(stage, "/Berry/TaskData/Profile")
+
+
+def load_berry_tetmesh(stage: Usd.Stage) -> dict:
+    """Read a berry's tetrahedral simulation mesh, which assets from v4 on add for the VBD tissue solver.
+
+    The Gaussians are bound to it by their ``tet`` and ``barycentric`` arrays, read by :func:`load_berry_asset`.
+
+    Returns:
+        The mesh's nodes at rest: ``xyz`` [m] and ``tets``, the four node indices of each tetrahedron.
+    """
+    mesh = UsdGeom.TetMesh.Get(stage, "/Berry/SimulationMesh")
+    if not mesh:
+        raise ValueError("The berry asset has no tetrahedral simulation mesh: the VBD solver needs a v4 asset")
+    return {
+        "xyz": np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float32).copy(),
+        "tets": np.asarray(mesh.GetTetVertexIndicesAttr().Get(), dtype=np.int32).reshape(-1, 4).copy(),
+    }
 
 
 def _sh_basis(directions: np.ndarray) -> np.ndarray:

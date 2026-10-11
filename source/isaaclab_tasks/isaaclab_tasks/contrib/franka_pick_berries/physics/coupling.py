@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """Coupled Newton physics: the Franka on MuJoCo-Warp and the berry tissue on explicit MPM
-(:mod:`.grasp_explicit_mpm`, the default) or implicit MPM (:mod:`.grasp_implicit_mpm`)."""
+(:mod:`.grasp_explicit_mpm`, the default), implicit MPM (:mod:`.grasp_implicit_mpm`) or VBD (:mod:`.grasp_vbd`)."""
 
 import newton
 import warp as wp
@@ -14,13 +14,17 @@ from isaaclab_newton.physics import (
     NewtonCollisionPipelineCfg,
     NewtonManager,
     NewtonMPMManager,
+    NewtonShapeCfg,
+    NewtonSoftContactCfg,
 )
+from newton.solvers import SolverVBD
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from . import grasp_explicit_mpm, grasp_implicit_mpm
 from .grasp_explicit_mpm import GraspExplicitMPMSolverCfg, SolverGraspExplicitMPM, explicit_solver_config
 from .grasp_implicit_mpm import GraspImplicitMPMSolverCfg, SolverGraspImplicitMPM
+from .grasp_vbd import GraspVBDSolverCfg
 
 ARM_ENTRY = "arm"
 TISSUE_ENTRY = "tissue"
@@ -53,9 +57,12 @@ def coupled_physics_cfg(solver: str = "explicit") -> NewtonCfg:
 
     Args:
         solver: ``"explicit"`` for the explicit MLS-MPM with frictional finger pads
-            (:class:`.grasp_explicit_mpm.SolverGraspExplicitMPM`), or ``"implicit"`` for Newton's implicit MPM with
-            clamped grasping (:class:`.grasp_implicit_mpm.SolverGraspImplicitMPM`).
+            (:class:`.grasp_explicit_mpm.SolverGraspExplicitMPM`), ``"implicit"`` for Newton's implicit MPM with
+            clamped grasping (:class:`.grasp_implicit_mpm.SolverGraspImplicitMPM`), or ``"vbd"`` for Newton's VBD on
+            the berries' tetrahedral meshes (:mod:`.grasp_vbd`).
     """
+    collision_cfg = NewtonCollisionPipelineCfg(soft_contact_max=0)
+    soft_contact_cfg = None
     if solver == "implicit":
         # One implicit solve per coupled substep (240 Hz); a single solve per 120 Hz physics step diverges.
         tissue = CouplerEntryCfg(
@@ -93,18 +100,49 @@ def coupled_physics_cfg(solver: str = "explicit") -> NewtonCfg:
         )
         # The explicit solver handles the tableware analytically; the arm collides with its static colliders.
         arm_substeps, coupled_substeps, arm_static_shapes = 4, 1, True
+    elif solver == "vbd":
+        # Eight VBD substeps per coupled substep (1920 Hz) resolve the finger contacts of the light, soft mesh.
+        tissue = CouplerEntryCfg(
+            name=TISSUE_ENTRY,
+            solver_cfg=GraspVBDSolverCfg(),
+            all_particles=True,
+            include_static_shapes=True,
+            substeps=8,
+        )
+        # The fingers and the table collide with the mesh's nodes as proxies; the static tableware, through the
+        # coupled step's soft contacts.
+        # The reaction fed back to the arm is under-relaxed: a berry of a few grams otherwise makes it jitter.
+        proxies = CouplerProxyMappingCfg(
+            source=ARM_ENTRY,
+            destination=TISSUE_ENTRY,
+            bodies=[_FINGERS, _TABLE],
+            mass_scale=100.0,
+            mode="staggered",
+            proxy_relaxation=0.2,
+            collide_interval=1,
+            collision_pipeline=NewtonCollisionPipelineCfg(),
+        )
+        collision_cfg = NewtonCollisionPipelineCfg()
+        # Damping sized for a berry of a few grams; the friction holds it between the fingers.
+        soft_contact_cfg = NewtonSoftContactCfg(soft_contact_ke=8.0e3, soft_contact_kd=0.5, soft_contact_mu=1.44)
+        # The tissue owns the static colliders, so the arm passes through the tableware with this solver.
+        arm_substeps, coupled_substeps, arm_static_shapes = 2, 2, False
     else:
         raise ValueError(f"Unknown tissue solver: {solver!r}")
-    return NewtonCfg(
+    physics = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
             entries=[_arm_entry(arm_substeps, arm_static_shapes), tissue], proxies=[proxies], iterations=1
         ),
-        collision_cfg=NewtonCollisionPipelineCfg(soft_contact_max=0),
+        collision_cfg=collision_cfg,
+        soft_contact_cfg=soft_contact_cfg,
         num_substeps=coupled_substeps,
+        # Shapes collide on contact only, without Newton's default 1 cm detection gap.
+        default_shape_cfg=NewtonShapeCfg(gap=0.0),
         use_cuda_graph=True,
         # The task draws with its own viewer, which the default (None) does not detect.
         load_visual_shapes=True,
     )
+    return physics
 
 
 def configure_tissue_solver(physics: NewtonCfg, specs) -> None:
@@ -112,13 +150,13 @@ def configure_tissue_solver(physics: NewtonCfg, specs) -> None:
 
     The implicit solver gets the grid spacing [m] of the coarsest berry, which keeps at least the required particles
     per cell for all of them, and active-cell room for each; the explicit solver gets its grid, rates, contacts and
-    fields.
+    fields; the VBD solver needs nothing more.
     """
     for entry in physics.solver_cfg.entries:
         if entry.name == TISSUE_ENTRY:
             if isinstance(entry.solver_cfg, GraspExplicitMPMSolverCfg):
                 entry.solver_cfg.solver_config = explicit_solver_config(specs, _FINGER)
-            else:
+            elif isinstance(entry.solver_cfg, GraspImplicitMPMSolverCfg):
                 entry.solver_cfg.voxel_size = max(spec.voxel_size for spec in specs)
                 entry.solver_cfg.max_active_cell_count = CELLS_PER_BERRY * len(specs)
             return
@@ -145,9 +183,12 @@ def register_tissues(tissues) -> None:
     """Set each berry's material on the tissue solver, and read its damage from the solver.
 
     Each berry is its own velocity field of the explicit solver, in frictional contact with the others; the implicit
-    solver shares one field.
+    solver shares one field. The VBD tissue's material is part of its mesh, and it has no damage: its berries stay
+    intact.
     """
     solver = tissue_solver()[0]
+    if isinstance(solver, SolverVBD):
+        return
     module = grasp_explicit_mpm if isinstance(solver, SolverGraspExplicitMPM) else grasp_implicit_mpm
     for field, tissue in enumerate(tissues):
         solver.set_tissue(
@@ -177,7 +218,7 @@ def check_tissue_solver() -> None:
 
 def reset_tissue_solver() -> None:
     """Reset the tissue solver's deformation and damage after the scene restored the particles."""
-    if isinstance(tissue_solver()[0], SolverGraspExplicitMPM):
+    if isinstance(tissue_solver()[0], (SolverGraspExplicitMPM, SolverVBD)):
         # The coupled reset passes the restored particles to the entry, which restores its own solver state.
         NewtonManager._solver.reset(NewtonManager.get_state_0(), flags=newton.StateFlags.PARTICLE)
     else:

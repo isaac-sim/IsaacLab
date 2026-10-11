@@ -3,30 +3,43 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Berry tissue as Newton MPM particles: loading, placement in the punnet, scene configuration and a runtime handle.
+"""Berry tissue as Newton MPM particles, or as the nodes of a tetrahedral mesh for VBD: loading, placement in the
+punnet, scene configuration and a runtime handle.
 
-The tissue solvers (:mod:`.grasp_explicit_mpm`, :mod:`.grasp_implicit_mpm`) model the tissue's deformation and
-damage; this module only describes and places the particles.
+The tissue solvers (:mod:`.grasp_explicit_mpm`, :mod:`.grasp_implicit_mpm`, :mod:`.grasp_vbd`) model the tissue's
+deformation and damage; this module only describes and places the particles or nodes.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import MISSING, dataclass, replace
 from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
 from isaaclab_newton.assets import MPMObjectCfg
+from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_newton.sim.spawners.mpm import MPMPointsCfg
 from scipy.spatial.transform import Rotation
 
-from ..assets.berry_asset import load_berry_asset, rotate_berry_sh
+from pxr import Usd, UsdGeom, Vt
+
+from isaaclab.assets import DeformableObjectCfg
+from isaaclab.sim.schemas import apply_volume_deformable_properties
+from isaaclab.sim.spawners.materials import spawn_physics_material
+from isaaclab.sim.spawners.spawner_cfg import DeformableObjectSpawnerCfg
+from isaaclab.sim.utils import bind_physics_material, clone, create_prim, get_current_stage
+from isaaclab.utils import configclass
+
+from ..assets.berry_asset import load_berry_asset, load_berry_tetmesh, rotate_berry_sh
 from ..scene.tableware import PUNNET
+from . import grasp_vbd
 from .materials import particle_material
 
 if TYPE_CHECKING:
-    from isaaclab_newton.assets import MPMObject
     from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg
+
+    from isaaclab.assets import BaseDeformableObject
 
     from ..pick_berries_env_cfg import BerryPickEnvCfg
 
@@ -46,10 +59,10 @@ class TissueSpec:
     """Gaussians at rest: ``xyz``, ``scales``, ``rotations``, ``alpha``, ``sh`` and ``regions`` arrays."""
     particles: dict
     """Tissue particles at rest: ``xyz`` [m], ``regions``, ``interface``, ``spacing`` [m] and ``particle_volume``
-    [m³]."""
+    [m³]; or, for VBD, the tetrahedral mesh's nodes at rest: ``xyz`` [m] and ``tets``."""
     profile: dict
     """The asset's simulation metadata."""
-    material: MPMParticleMaterialCfg
+    material: MPMParticleMaterialCfg | NewtonDeformableBodyMaterialCfg
     offset: tuple[float, float, float]
     """World position [m] of the berry's frame."""
 
@@ -75,8 +88,15 @@ class TissueSpec:
 
 
 def load_tissue(cfg: BerryPickEnvCfg, name: str, offset: tuple[float, float, float]) -> TissueSpec:
-    """Load one berry's asset, select its tissue particles and give it its material."""
+    """Load one berry's asset, select its tissue particles, or its tetrahedral mesh for VBD, and give it its
+    material."""
     stage, gaussians, particles, profile = load_berry_asset(cfg.berry_asset)
+    if cfg.tissue_solver == "vbd":
+        if cfg.tissue_resolution != "full":
+            raise ValueError("The VBD tissue solver uses the asset's tetrahedral mesh: use full tissue resolution")
+        return TissueSpec(
+            name, stage, gaussians, load_berry_tetmesh(stage), profile, grasp_vbd.tissue_material(profile), offset
+        )
     if cfg.tissue_resolution == "half":
         particles = _half_resolution(particles)
     elif cfg.tissue_resolution != "full":
@@ -168,8 +188,19 @@ def transform_tissue(spec: TissueSpec, rotation: np.ndarray, shift: np.ndarray, 
     return replace(spec, particles=particles, gaussians=gaussians, offset=tuple(offset))
 
 
-def tissue_object_cfg(spec: TissueSpec) -> MPMObjectCfg:
-    """Return the scene asset that spawns a berry's tissue particles at its world offset."""
+def tissue_object_cfg(spec: TissueSpec) -> MPMObjectCfg | DeformableObjectCfg:
+    """Return the scene asset that spawns a berry's tissue particles, or its tetrahedral mesh, at its world offset."""
+    if "tets" in spec.particles:
+        return DeformableObjectCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/{spec.scene_name}",
+            spawn=TetMeshCfg(
+                points=spec.particles["xyz"],
+                tets=spec.particles["tets"],
+                volume_deformable_props=[],
+                physics_material=spec.material,
+            ),
+            init_state=DeformableObjectCfg.InitialStateCfg(pos=spec.offset, rot=(0.0, 0.0, 0.0, 1.0)),
+        )
     return MPMObjectCfg(
         prim_path=f"{{ENV_REGEX_NS}}/{spec.scene_name}",
         spawn=MPMPointsCfg(
@@ -183,6 +214,43 @@ def tissue_object_cfg(spec: TissueSpec) -> MPMObjectCfg:
     )
 
 
+@clone
+def spawn_tet_mesh(
+    prim_path: str,
+    cfg: TetMeshCfg,
+    translation: tuple[float, float, float] | None = None,
+    orientation: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> Usd.Prim:
+    """Author a volume deformable from a given tetrahedral mesh, with its boundary as the (unrendered) visual mesh."""
+    stage = get_current_stage()
+    root = create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation)
+    mesh = UsdGeom.TetMesh.Define(stage, f"{prim_path}/sim_mesh")
+    mesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(np.ascontiguousarray(cfg.points, np.float32)))
+    mesh.CreateTetVertexIndicesAttr(Vt.Vec4iArray.FromNumpy(np.ascontiguousarray(cfg.tets, np.int32)))
+    mesh.CreateOrientationAttr(UsdGeom.Tokens.rightHanded)
+    # Simulates this mesh, and derives the visual mesh from its surface.
+    apply_volume_deformable_properties(prim_path, cfg.volume_deformable_props, create_if_missing=True, stage=stage)
+    UsdGeom.Imageable(stage.GetPrimAtPath(f"{prim_path}/vis_mesh")).MakeInvisible()
+    material_path = f"{prim_path}/physics_material"
+    spawn_physics_material(material_path, cfg.physics_material, stage=stage)
+    bind_physics_material(prim_path, material_path, stage=stage)
+    return root
+
+
+@configclass
+class TetMeshCfg(DeformableObjectSpawnerCfg):
+    """A volume deformable from a given tetrahedral mesh, for :func:`spawn_tet_mesh`."""
+
+    func = spawn_tet_mesh
+    points: np.ndarray = MISSING
+    """Node positions [m], in the asset's frame."""
+    tets: np.ndarray = MISSING
+    """The four node indices of each tetrahedron, with positive volume."""
+    physics_material: NewtonDeformableBodyMaterialCfg = MISSING
+    """The tissue's material, bound to the mesh."""
+
+
 @wp.kernel
 def _to_local(world: wp.array[wp.vec3], offset: wp.vec3, local: wp.array[wp.vec3]):
     i = wp.tid()
@@ -190,38 +258,39 @@ def _to_local(world: wp.array[wp.vec3], offset: wp.vec3, local: wp.array[wp.vec3
 
 
 class BerryTissue:
-    """Runtime handle over one berry's MPM particles, in the berry's own frame (world minus its offset).
+    """Runtime handle over one berry's MPM particles or mesh nodes, in the berry's own frame (world minus its offset).
 
     Args:
         spec: The berry's description.
-        mpm_object: The scene asset holding its particles.
+        asset: The scene asset holding its particles or nodes.
     """
 
-    def __init__(self, spec: TissueSpec, mpm_object: MPMObject):
+    def __init__(self, spec: TissueSpec, asset: BaseDeformableObject):
         self.name = spec.name
         self.stage = spec.stage
         self.gaussians = spec.gaussians
         self.particles = spec.particles
         self.profile = spec.profile
-        self.mpm_object = mpm_object
-        self.device = mpm_object.device
+        self.asset = asset
+        self.device = asset.device
         self.offset = np.asarray(spec.offset, np.float32)
         self.rest = np.asarray(spec.particles["xyz"], np.float32)
         """Particle rest positions in the berry frame [m]."""
-        self.particle_start = int(mpm_object._particle_offsets.numpy()[0])
+        self.particle_start = int(asset._particle_offsets.numpy()[0])
         """Index of the berry's first particle in the solver."""
-        self.damage = None
-        """Damage of each particle, from 0 (intact) to 1, on the device; set by :meth:`bind_damage`."""
+        self.damage = wp.zeros(len(self.rest), dtype=float, device=self.device)
+        """Damage of each particle, from 0 (intact) to 1, on the device; set by :meth:`bind_damage` for a solver that
+        models damage."""
         self._offset = wp.vec3(*self.offset)
         self._local = wp.zeros(len(self.rest), dtype=wp.vec3, device=self.device)
 
     def positions(self) -> np.ndarray:
         """Particle positions in the berry frame [m], on the host."""
-        return self.mpm_object.data.particle_pos_w.torch[0].cpu().numpy() - self.offset
+        return self.asset.data.nodal_pos_w.torch[0].cpu().numpy() - self.offset
 
     def positions_warp(self) -> wp.array:
         """Particle positions in the berry frame [m] as a device array, refreshed on every call."""
-        world = self.mpm_object.data.particle_pos_w.warp[0]
+        world = self.asset.data.nodal_pos_w.warp[0]
         wp.launch(_to_local, dim=len(self.rest), inputs=[world, self._offset, self._local], device=self.device)
         return self._local
 

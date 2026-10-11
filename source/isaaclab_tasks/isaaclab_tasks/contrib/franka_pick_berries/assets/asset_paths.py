@@ -17,16 +17,21 @@ import os
 _SHARED_BUNDLE_ROOT = "omniverse://content.ov.nvidia.com/Users/nicolasm@nvidia.com/isaaclab_assets/tasks"
 
 
+def _berry_root() -> str:
+    """The berry assets' root: ``ISAACLAB_BERRY_ASSET_ROOT`` if set, else the shared bundle's ``berry/`` subtree."""
+    override = os.environ.get("ISAACLAB_BERRY_ASSET_ROOT")
+    return override.rstrip("/") if override else f"{_SHARED_BUNDLE_ROOT}/berry"
+
+
 def raspberry_asset_path() -> str:
-    """Source of the raspberry USDZ package: Gaussians, tissue particles, simulation metadata and shader.
+    """Source of the raspberry USDZ package: Gaussians, tissue particles, tetrahedral mesh, simulation metadata and
+    shader.
 
     ``ISAACLAB_BERRY_ASSET_ROOT`` overrides the root with a berry-only one (a future clean republish, or a local
-    directory for testing), holding ``raspberry/raspberry_v3.usdz``. The default is the shared bundle's ``berry/``
+    directory for testing), holding ``raspberry/raspberry_v4.usdz``. The default is the shared bundle's ``berry/``
     subtree.
     """
-    override = os.environ.get("ISAACLAB_BERRY_ASSET_ROOT")
-    root = override.rstrip("/") if override else f"{_SHARED_BUNDLE_ROOT}/berry"
-    return f"{root}/raspberry/raspberry_v3.usdz"
+    return f"{_berry_root()}/raspberry/raspberry_v4.usdz"
 
 
 def room_scan_root() -> str:

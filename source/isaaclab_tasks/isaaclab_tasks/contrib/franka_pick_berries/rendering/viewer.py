@@ -72,6 +72,8 @@ class BerryViewer(ViewerRTX):
         ]
         super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
         self.set_model(NewtonManager.get_model())
+        # The berries appear as their Gaussians only, not as the VBD solver's tetrahedral mesh.
+        self.show_triangles = False
         # A scripted camera starts on the overview and is then moved with place_camera().
         self.set_camera_view("punnet_and_bowl" if camera == "scripted_camera" else camera)
         self.register_ui_callback(self.side_panel, position="side")

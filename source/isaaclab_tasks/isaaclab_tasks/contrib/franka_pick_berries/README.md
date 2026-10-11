@@ -76,8 +76,8 @@ live in a window.
 | `--mode {teleop_gamepad,teleop_keyboard,scripted_demo}` | `teleop_keyboard` | Teleoperate the robot, or watch the scripted demo |
 | `--num_berries {1,2,3}` | 1 (scripted_demo: 3) | Raspberries in the punnet |
 | `--layout_seed N`, `--fixed_layout` | 0 | Random punnet layout (reset replays it), or side by side |
-| `--tissue_resolution {full,half}` | `full` | Half the tissue particles, for speed; the Gaussians are unchanged |
-| `--tissue_solver {explicit,implicit}` | `explicit` | Tissue solver (see below) |
+| `--tissue_resolution {full,half}` | `full` | Half the tissue particles, for speed; the Gaussians are unchanged (MPM only) |
+| `--tissue_solver {explicit,implicit,vbd}` | `explicit` | Tissue solver (see below) |
 | `--arm_speed X` | 2 | Arm speed multiplier; the gripper keeps its gentle closing pace |
 | `--camera {punnet_and_bowl,berry_closeup,room,scripted_camera}` | `punnet_and_bowl` | Fixed views, a close-up following the handled berry, or a shot-by-shot film (scripted demo) |
 | `--bowl_material {glass,porcelain}` | `porcelain` | Material of the receiving bowl |
@@ -93,8 +93,8 @@ Frame rates while grasping, at 1280 × 720 on an RTX 6000 Ada: about 17 frames/s
 | Path | |
 |---|---|
 | `pick_berries_env_cfg.py`, `pick_berries_env.py` | The scene (robot, table, tableware, berries) and the environment |
-| `physics/` | **MPM tissue.** `tissue.py` turns the asset into Newton MPM particles; `grasp_explicit_mpm.py` simulates them; `coupling.py` couples them to the arm |
-| `gaussian_splats/` | **Gaussian appearance.** `mpm_binding.py` makes the Gaussians follow the particles; `render_delegate.py` publishes them to the renderer |
+| `physics/` | **Tissue.** `tissue.py` turns the asset into Newton MPM particles, or a tetrahedral mesh for VBD; `grasp_explicit_mpm.py` simulates the particles; `coupling.py` couples the tissue to the arm |
+| `gaussian_splats/` | **Gaussian appearance.** `mpm_binding.py` makes the Gaussians follow the particles, `vbd_binding.py` the VBD mesh; `render_delegate.py` publishes them to the renderer |
 | `mdp/actions.py` | Arm and gripper actions |
 | `control/` | `teleop_devices.py` (keyboard and gamepad) and `scripted_demo.py` |
 | `rendering/` | The viewer, and the scripted camera that films the demo |
@@ -110,15 +110,18 @@ The default **explicit** solver (`physics/grasp_explicit_mpm.py`) is an MLS-MPM 
 plasticity, damage (bruising and tearing) and frictional finger-pad contact; each berry is its own velocity field, in
 frictional contact with the others. The **implicit** solver (`physics/grasp_implicit_mpm.py`) builds on Newton's
 implicit MPM. It cannot yet hold a berry by friction, so while the fingers hold still the tissue they press is clamped
-to them. It is slower, and the arm passes through the tableware. Stiffnesses are empirical handling presets, not
+to them. It is slower, and the arm passes through the tableware. The **vbd** solver (`physics/grasp_vbd.py`) is
+Newton's VBD on a tetrahedral mesh of each berry, from its asset, gripped by friction; its Gaussians are skinned to
+the mesh (`gaussian_splats/vbd_binding.py`). Its tissue is damped elastic, without damage: a squeezed berry recovers
+its shape. The arm also passes through the tableware with it. Stiffnesses are empirical handling presets, not
 measured fruit properties.
 
 ### Assets
 
-The raspberry is one USDZ package: its Gaussians with degree-three spherical harmonics, its tissue particles,
-simulation metadata and MDL shader. The room is a Gaussian scan. Both are fetched from Nucleus on first use and cached
-(`assets/asset_paths.py`); `ISAACLAB_BERRY_ASSET_ROOT` points to another root, holding `raspberry/raspberry_v3.usdz`
-and `background/ebc/`.
+The raspberry is one USDZ package: its Gaussians with degree-three spherical harmonics, its tissue particles, its
+tetrahedral mesh with the Gaussians' binding to it, simulation metadata and MDL shader. The room is a Gaussian scan.
+Both are fetched from Nucleus on first use and cached (`assets/asset_paths.py`); `ISAACLAB_BERRY_ASSET_ROOT` points to
+another root, holding `raspberry/raspberry_v4.usdz` and `background/ebc/`.
 
 ### Known limitations
 

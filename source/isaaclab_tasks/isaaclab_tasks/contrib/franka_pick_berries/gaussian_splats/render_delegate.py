@@ -6,7 +6,8 @@
 """Publish one berry's deforming Gaussians to the RTX renderer on every frame, without leaving the GPU.
 
 The berry's Gaussians are authored once in the render stage, from its asset. On every frame
-:meth:`GaussianRenderDelegate.deform` deforms and shades them from the tissue particles (:mod:`.mpm_binding`), and
+:meth:`GaussianRenderDelegate.deform` deforms and shades them from the tissue particles (:mod:`.mpm_binding`), or
+from the nodes of the tissue's tetrahedral mesh with the VBD solver (:mod:`.vbd_binding`), and
 :meth:`GaussianRenderDelegate.publish` hands the renderer the resulting GPU arrays, which it reads in place. Only the
 per-frame attributes change: positions, scales, orientations and the shading quaternion; opacities and spherical
 harmonics stay as authored.
@@ -18,6 +19,7 @@ import warp as wp
 from pxr import Sdf, Usd, UsdGeom, UsdShade, Vt
 
 from .mpm_binding import MPMBinding
+from .vbd_binding import VBDBinding
 
 SHADING = "primvars:squishyShQuaternion"
 """Per-Gaussian SH rotation and bruise tint read by the berry's MDL shader."""
@@ -65,7 +67,11 @@ class GaussianRenderDelegate:
         self._bindings = {}
         gaussians = tissue.gaussians
         device = tissue.device
-        self.binding = MPMBinding(gaussians, tissue.particles["xyz"], tissue.particles["regions"], device)
+        particles = tissue.particles
+        if "tets" in particles:
+            self.binding = VBDBinding(gaussians, particles["xyz"], particles["tets"], device)
+        else:
+            self.binding = MPMBinding(gaussians, particles["xyz"], particles["regions"], device)
         # The renderer keeps the Gaussians' bounds from their authored extent. The deformed Gaussians are therefore
         # published in a local frame that keeps them inside their rest bounds, with a transform that moves them back
         # into place.
@@ -96,6 +102,7 @@ class GaussianRenderDelegate:
         # The physics data is not part of the render scene.
         stage.RemovePrim(f"{self.root_path}/TaskData")
         stage.RemovePrim(f"{self.root_path}/Tissue")
+        stage.RemovePrim(f"{self.root_path}/SimulationMesh")
         # The renderer only loads a Gaussian field copied on its own under a defined transform, not one copied as
         # part of the asset's tree.
         stage.RemovePrim(f"{self.root_path}/Gaussians")
