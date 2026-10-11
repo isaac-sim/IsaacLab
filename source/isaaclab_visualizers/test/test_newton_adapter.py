@@ -1347,7 +1347,7 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
 def test_newton_rtx_visualizer_rejects_kit_physics_backend():
     """Reject Kit physics before constructing the incompatible kitless RTX resources."""
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
-    sim = SimpleNamespace(physics_manager=SimpleNamespace(backend_name="physx"))
+    sim = SimpleNamespace(physics_manager=type("PhysxManager", (), {}))
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])

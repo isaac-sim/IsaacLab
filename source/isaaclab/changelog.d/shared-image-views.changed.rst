@@ -5,6 +5,3 @@
   Rejected mismatched channel batches, resolutions, and devices before GPU composition.
 * Bound camera references during simulation initialization and removed unused environment camera helpers.
   Kept image composition and channel selection in the shared image utilities.
-* **Breaking:** Declared physics backend identifiers on their managers, preserving backend dispatch and viewer
-  capabilities for solver subclasses with different names. Custom physics managers now declare
-  ``backend_name`` explicitly; solver subclasses inherit it from their backend manager.

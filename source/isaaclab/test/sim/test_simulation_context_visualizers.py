@@ -379,7 +379,7 @@ def web_backend(monkeypatch):
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
-        physics_manager=type("NewtonManager", (), {"backend_name": "newton"}),
+        physics_manager=type("NewtonManager", (), {}),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
         vis_marker_registry=VisMarkerRegistry(),
@@ -513,7 +513,7 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     visualizer.backend = SimpleNamespace(model="dummy-model")
     sim = Mock(
         stage=None,
-        physics_manager=type("NewtonManager", (), {"backend_name": "newton"}),
+        physics_manager=type("NewtonManager", (), {}),
         get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)),
     )
     BaseVisualizer.initialize(visualizer, sim, cameras=[])

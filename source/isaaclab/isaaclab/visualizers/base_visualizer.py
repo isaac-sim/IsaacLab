@@ -20,6 +20,7 @@ import numpy as np
 import warp as wp
 
 from ..utils import validate
+from ..utils.backend_utils import FactoryBase
 from .image_view import ImageView
 from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg
 
@@ -221,7 +222,7 @@ class BaseVisualizer(ABC):
         Returns:
             Backend name string, or ``None`` when no simulation context is active yet.
         """
-        return self._sim.physics_manager.backend_name if self._sim is not None else None
+        return FactoryBase._get_backend(sim=self._sim) if self._sim is not None else None
 
     def supports_markers(self) -> bool:
         """Check if visualizer supports VisualizationMarkers.

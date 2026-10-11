@@ -44,6 +44,7 @@ from pyglet.math import Vec3 as PygletVec3
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
@@ -1141,7 +1142,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
 
         if self._is_initialized:
             return
-        if sim.physics_manager.backend_name == "physx":
+        if FactoryBase._get_backend(sim=sim) == "physx":
             raise RuntimeError(
                 "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
             )
