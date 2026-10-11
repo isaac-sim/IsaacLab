@@ -145,6 +145,13 @@ class NewtonSolver:
     ignored_model_changes: ClassVar[dict[int, str]] = {}
     """Model changes the solver does not apply after construction, mapped to the warning logged once."""
 
+    captures_model_changes: ClassVar[bool] = False
+    """Whether ``notify_model_changed`` can be recorded into a CUDA graph.
+
+    When true, model changes are applied by a conditional graph gated on a device flag, so a masked change with
+    no selected world costs nothing and an outer capture can record it. Otherwise the solver is notified eagerly.
+    """
+
     def create_solver(
         self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
     ) -> SolverBase:

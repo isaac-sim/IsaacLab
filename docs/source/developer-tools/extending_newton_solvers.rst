@@ -226,6 +226,12 @@ from the defaults:
      - ``True`` if ``prepare_step()`` does work once per physics step.
    * - ``ignored_model_changes``
      - Model changes the solver does not apply after construction, mapped to a one-time warning.
+   * - ``supports_heterogeneous_worlds``
+     - ``True`` if one solver can step worlds with different contents.
+   * - ``captures_model_changes``
+     - ``True`` if ``notify_model_changed()`` can be recorded into a CUDA graph. Model changes then run in a
+       conditional graph that skips empty masks and can be recorded into an outer capture; otherwise the solver is
+       notified eagerly on the host.
    * - ``builder_attribute_solvers``
      - Newton solvers whose custom builder attributes are registered before import.
 

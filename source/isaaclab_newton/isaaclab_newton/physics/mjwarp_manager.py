@@ -37,6 +37,7 @@ class MJWarpSolverAdapter(NewtonSolver):
     builder_attribute_solvers = (SolverMuJoCo,)
     single_state = True
     supports_deterministic = True
+    captures_model_changes = True
 
     def create_solver(
         self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED

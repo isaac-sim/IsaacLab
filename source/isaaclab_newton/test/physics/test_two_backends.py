@@ -316,3 +316,25 @@ def test_masked_property_transaction_skips_empty_replays_and_combines_flags(monk
     assert refreshes.numpy()[0] == 1
     assert flags_seen == [newton.ModelFlags.BODY_INERTIAL_PROPERTIES | newton.ModelFlags.JOINT_DOF_PROPERTIES]
     backend.close()
+
+
+def test_model_changes_notify_eagerly_when_the_solver_cannot_record_them(monkeypatch):
+    """Solvers whose notification is not graph safe are notified on the host and refuse an outer capture."""
+    backend = _pendulums(_configs()[1][0], 1)
+    assert not backend.solver_adapter.captures_model_changes
+    flags_seen = []
+    monkeypatch.setattr(backend.solver, "notify_model_changed", flags_seen.append)
+    mask = wp.array([False, True, False, False], dtype=wp.bool, device=DEVICE)
+
+    nb.mark_model_changed(backend, newton.ModelFlags.BODY_INERTIAL_PROPERTIES, mask)
+    nb.notify_model_changes(backend)
+    assert flags_seen == [newton.ModelFlags.BODY_INERTIAL_PROPERTIES]
+    assert not backend.model_change_graphs
+
+    def edits():
+        nb.mark_model_changed(backend, newton.ModelFlags.BODY_INERTIAL_PROPERTIES, mask)
+        nb.notify_model_changes(backend)
+
+    with pytest.raises(RuntimeError, match="cannot record model changes"):
+        nb.capture_graph(DEVICE, edits)
+    backend.close()

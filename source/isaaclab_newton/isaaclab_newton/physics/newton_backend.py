@@ -694,22 +694,24 @@ def notify_model_changes(backend: NewtonBackend) -> None:
     def conditional_refresh():
         wp.capture_if(backend.model_dirty, refresh)
 
+    adapter = backend.solver_adapter
+    captures = backend.device.is_cuda and adapter.captures_model_changes and adapter.supports_graph_capture(backend)
     with wp.ScopedDevice(backend.device):
-        if not backend.device.is_cuda:
-            if backend.model_dirty.numpy()[0]:
-                refresh()
-        elif backend.device.is_capturing:
+        if backend.device.is_capturing:
+            if not captures:
+                raise RuntimeError(f"{type(adapter).__name__} cannot record model changes into a CUDA graph.")
             if not isinstance(wp.get_device_allocator(backend.device), _GraphAllocator):
                 raise RuntimeError(
                     "Record model-property edits with capture_graph() so conditional updates own their scratch storage."
                 )
             conditional_refresh()
-        elif backend.solver_adapter.supports_graph_capture(backend):
+        elif captures:
             graph = backend.model_change_graphs.get(flags)
             if graph is None:
                 graph = backend.model_change_graphs[flags] = capture_graph(backend.device, conditional_refresh)
             graph.launch()
-        elif backend.model_dirty.numpy()[0]:
+        else:
+            # Changes are queued on the host, so notifying without reading the device flag never synchronizes.
             refresh()
     backend.model_changes.clear()
 
