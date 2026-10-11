@@ -10,7 +10,7 @@ from __future__ import annotations
 import warnings
 
 from ...utils import configclass
-from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES
+from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg
 
 CAPTURE_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx")
 """Visualizer types a video can be recorded from; the streaming ``rerun`` and ``viser`` cannot."""
@@ -89,7 +89,10 @@ class VideoRecorderCfg:
     """
 
     source: str = "viz"
-    """Recording source.  See class docstring for the source string format."""
+    """Legacy recording source, used when :attr:`view` is None. Existing CLI source strings remain supported."""
+
+    view: ImageViewCfg | None = None
+    """Shared image view to record, independent of a window. Takes precedence over the default source='viz'."""
 
     output_dir: str | None = None
     """Directory for output mp4 files (created on demand).
@@ -178,6 +181,8 @@ class VideoRecorderCfg:
         Raises:
             ValueError: If a clip timing field is outside its documented range.
         """
+        if self.view is not None and self.source != "viz":
+            raise ValueError("Specify VideoRecorderCfg.view or a legacy source, not both.")
         minimums = {"video_length": 1, "frame_stride": 1, "video_interval": 0, "step_offset": 0}
         invalid = [f"{name}={getattr(self, name)!r}" for name, low in minimums.items() if getattr(self, name) < low]
         if invalid:
