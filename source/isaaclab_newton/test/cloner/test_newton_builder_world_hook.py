@@ -192,7 +192,8 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         UsdPhysics.Scene.Define(stage, "/physicsScene")
         volume_world = int(heterogeneous)
         volume_path = f"/World/env_{volume_world}/Volume"
-        _author_deformable(stage, "/World/env_0/Cloth", "surface")
+        cloth_name = "Robot/Cloth"
+        _author_deformable(stage, f"/World/env_0/{cloth_name}", "surface")
         _author_deformable(stage, volume_path, "volume")
         _author_deformable(stage, "/Shared/Cloth", "surface")
         positions = np.asarray([[0, 0, 0], [2, 0, 0], [4, 0, 0]], dtype=np.float32)
@@ -200,25 +201,36 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
             UsdGeom.Xform.Define(stage, "/World/env_1").AddTranslateOp().Set(tuple(positions[1].astype(float)))
         rotations = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
         assets = (
-            AssetBaseCfg(prim_path="/World/env_[^/]+/Cloth", spawn=SpawnerCfg(spawn_path="/World/env_0/Cloth")),
+            AssetBaseCfg(
+                prim_path=f"/World/env_[^/]+/{cloth_name}",
+                spawn=SpawnerCfg(spawn_path=f"/World/env_0/{cloth_name}"),
+            ),
             AssetBaseCfg(prim_path="/World/env_[^/]+/Volume", spawn=SpawnerCfg(spawn_path=volume_path)),
-            AssetBaseCfg(prim_path="/Shared/Cloth"),
+            AssetBaseCfg(prim_path="/Shared"),
+            AssetBaseCfg(prim_path="/World/env_[^/]+/Selected", spawn=SpawnerCfg(spawn_path="/Shared/Cloth")),
         )
-        prototypes = ((0,), (1,)) if heterogeneous else ((0, 1),)
+        assets += (AssetBaseCfg(prim_path="/World/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/env_0/Robot")),)
+        prototypes = ((4, 3), (0, 1, 3)) if heterogeneous else ((0, 1, 3, 4),)
         layout = np.array([0, int(heterogeneous), 0])
         placement = dict(env_template="/World/env_{}", positions=positions)
         plan = make_clone_plan(
             assets, prototypes, 3, shared_assets=(2,), clone_strategy=lambda _weights, _count: layout, **placement
         )
         sim.set_clone_plan(plan)
-        options = dict(plan=plan, asset_prototype_ids=(0, 1, 2), positions=positions, quaternions=rotations)
+        options = dict(
+            plan=plan, asset_prototype_ids=tuple(range(len(assets))), positions=positions, quaternions=rotations
+        )
         builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
         native = NewtonManager.backend
+        if not heterogeneous:
+            assert (
+                NewtonManager._cl_protos[f"/World/env_0/{cloth_name}"] is NewtonManager._cl_protos["/World/env_0/Robot"]
+            )
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 
-        expected_counts = [3, 4, 3] if heterogeneous else [7, 7, 7]
+        expected_counts = [6, 10, 6] if heterogeneous else [10, 10, 10]
         assert builder.particle_count == sum(expected_counts) + 3
         np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, *expected_counts])
         assert native.deformable_ranges["/Shared/Cloth"] == (0, 3, "surface")
@@ -226,20 +238,19 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         expected_paths = {"/Shared/Cloth/sim"}
         local_vertices = np.asarray([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)], dtype=np.float32)
         for world in range(3):
-            kinds = (
-                ("Volume",) if heterogeneous and world == 1 else ("Cloth",) if heterogeneous else ("Cloth", "Volume")
-            )
+            kinds = ("Cloth", "Selected") if heterogeneous and world != 1 else ("Cloth", "Volume", "Selected")
             for name in kinds:
-                path = f"/World/env_{world}/{name}"
+                relative_path = cloth_name if name == "Cloth" else name
+                path = f"/World/env_{world}/{relative_path}"
                 start, count, _ = native.deformable_ranges[path]
                 xform = wp.transform(positions[world], rotations[world])
                 expected = np.asarray([wp.transform_point(xform, wp.vec3(p)) for p in local_vertices[:count]])
                 np.testing.assert_allclose(
                     native.state_0.particle_q.numpy()[start : start + count], expected, atol=1e-6
                 )
-                visual_path = path + ("/sim" if name == "Cloth" else "/vis")
+                visual_path = path + ("/vis" if name == "Volume" else "/sim")
                 expected_paths.add(visual_path)
-                if name == "Cloth":
+                if name != "Volume":
                     assert points[visual_path].ptr == native.state_0.particle_q.ptr + start * 12
                     np.testing.assert_allclose(points[visual_path].numpy(), expected, atol=1e-6)
                 else:

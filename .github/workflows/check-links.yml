@@ -72,6 +72,7 @@ jobs:
       with:
         # Check all markdown files and documentation
         # Excluded are known crawl blockers
+        # Remove the SO-101 exclusion once NVIDIA/so101-typing-task is public.
         args: >-
           --verbose
           --no-progress
@@ -84,6 +85,7 @@ jobs:
           --exclude-loopback
           --exclude '^file://'
           --exclude '^mailto:'
+          --exclude '^https://github\.com/NVIDIA/so101-typing-task(?:\.git)?(?:[/?#]|$)'
           --exclude 'localhost'
           --exclude 'www\.tensorflow\.org/tensorboard'
           --exclude '127\.0\.0\.1'

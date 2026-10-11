@@ -367,7 +367,11 @@ class FisheyeCameraCfg(PinholeCameraCfg):
 
 @configclass
 class SensorFrameCfg(SpawnerCfg):
-    """Spawns a plain USD Xform as a sensor attachment frame.
+    """Spawn a plain USD Xform as a sensor attachment frame.
+
+    .. deprecated:: 3.0
+        Author and track an existing Xform instead. This configuration remains available during
+        the deprecation cycle.
 
     The spawned prim carries no rigid body or collision API. It serves as a
     non-physics child under a link so that :class:`~isaaclab.sim.views.FrameView`

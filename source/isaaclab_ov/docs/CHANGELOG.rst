@@ -3,6 +3,38 @@ Changelog
 
 .. towncrier release notes start
 
+5.1.4 (2026-10-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVPhysX contact sensors to report total contact forces as normal plus friction,
+  including filtered forces and histories. Added aggregate friction reporting without
+  contact filters and removed the detailed-contact capacity requirement for friction forces.
+  Requires OVPhysX 0.6.4.
+* Fixed ``friction_forces_w`` to return the documented aggregate vectors with shape
+  ``(E, S, 3)``. Use ``friction_force_matrix_w`` for filtered forces with shape ``(E, S, F, 3)``.
+
+
+5.1.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the optional OV dependencies to ``ovrtx==0.5.1.385782``, ``ovstage==0.2.1.385922``, and
+  ``ovphysx==0.6.4.72118723``. These versions form one compatibility set; upgrade them together with
+  ``uv sync --inexact --extra ov``.
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera outputs freezing after 500 frames. The OVRTX render products now disable RTX
+  eco mode, because OVRTX does not detect transform updates read from GPU as scene changes.
+* Selected the simulation's CUDA device for OVRTX rendering in multi-GPU runs.
+
+
 5.1.2 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

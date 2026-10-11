@@ -705,13 +705,15 @@ def test_newton_marker_render_defaults_to_first_prototype(monkeypatch: pytest.Mo
 
     marker.render(viewer, visible_env_ids=None, num_envs=4)
 
-    visible_instances = [call for call in viewer.instances if not call["hidden"]]
-    assert len(visible_instances) == 1
-    assert visible_instances[0]["batch_name"] == "/Visuals/marker::test/arrow"
-    assert visible_instances[0]["xforms"][:, 3:].tolist() == [[0.0, 0.0, 0.0, 1.0]] * 4
-    assert visible_instances[0]["scales"].tolist() == [[1.0, 1.0, 1.0]] * 4
-    hidden_batches = [call["batch_name"] for call in viewer.instances if call["hidden"]]
-    assert hidden_batches == ["/Visuals/marker::test/sphere"]
+    assert [call["batch_name"] for call in viewer.instances] == [
+        "/Visuals/marker::test/arrow",
+        "/Visuals/marker::test/sphere",
+    ]
+    assert [call["hidden"] for call in viewer.instances] == [False, False]
+    for call in viewer.instances:
+        assert call["xforms"][:, 3:].tolist() == [[0.0, 0.0, 0.0, 1.0]] * 4
+    assert viewer.instances[0]["scales"].tolist() == [[1.0, 1.0, 1.0]] * 4
+    assert viewer.instances[1]["scales"].tolist() == [[0.0, 0.0, 0.0]] * 4
 
 
 def test_newton_marker_render_keeps_global_batch_unmodified(monkeypatch: pytest.MonkeyPatch):
@@ -736,6 +738,7 @@ def test_newton_marker_render_keeps_global_batch_unmodified(monkeypatch: pytest.
 
 
 def test_newton_marker_render_routes_instances_by_prototype(monkeypatch: pytest.MonkeyPatch):
+    """Every prototype batch logs all markers and zero-scales the ones it does not show, so counts never change."""
     world_offsets = _patch_newton_marker_render_deps(monkeypatch)
     translations = torch.arange(4, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
     marker = _make_newton_marker_for_render(
@@ -746,18 +749,24 @@ def test_newton_marker_render_routes_instances_by_prototype(monkeypatch: pytest.
     viewer = _FakeNewtonMarkerViewer(world_offsets)
 
     marker.render(viewer, visible_env_ids=None, num_envs=4)
+    marker.marker_indices = torch.tensor([1, 1, 1, 0], dtype=torch.int32)
+    marker.render(viewer, visible_env_ids=None, num_envs=4)
 
-    visible_instances = [call for call in viewer.instances if not call["hidden"]]
-    assert [call["batch_name"] for call in visible_instances] == [
-        "/Visuals/marker::test/arrow",
-        "/Visuals/marker::test/sphere",
+    assert [call["batch_name"].rsplit("/", 1)[-1] for call in viewer.instances] == ["arrow", "sphere"] * 2
+    assert not any(call["hidden"] for call in viewer.instances)
+    for call in viewer.instances:
+        assert call["xforms"][:, 0].tolist() == [0.0, 1.0, 2.0, 3.0]
+    assert [(call["scales"][:, 0] > 0).tolist() for call in viewer.instances] == [
+        [True, False, True, False],
+        [False, True, False, True],
+        [False, False, False, True],
+        [True, True, True, False],
     ]
-    assert [call["xforms"].shape[0] for call in visible_instances] == [2, 2]
-    assert visible_instances[0]["materials"][:, 3].tolist() == [1.0, 1.0]
-    assert visible_instances[1]["materials"][:, 3].tolist() == [0.0, 0.0]
+    assert viewer.instances[0]["materials"][:, 3].tolist() == [1.0] * 4
+    assert viewer.instances[1]["materials"][:, 3].tolist() == [0.0] * 4
 
 
-def test_newton_marker_render_hides_unselected_prototypes(monkeypatch: pytest.MonkeyPatch):
+def test_newton_marker_render_zero_scales_unselected_prototypes(monkeypatch: pytest.MonkeyPatch):
     world_offsets = _patch_newton_marker_render_deps(monkeypatch)
     marker = _make_newton_marker_for_render(
         marker_names=["arrow", "sphere", "frame"],
@@ -768,15 +777,10 @@ def test_newton_marker_render_hides_unselected_prototypes(monkeypatch: pytest.Mo
 
     marker.render(viewer, visible_env_ids=None, num_envs=3)
 
-    hidden_instances = [call for call in viewer.instances if call["hidden"]]
-    assert [call["batch_name"] for call in hidden_instances] == ["/Visuals/marker::test/sphere"]
-    assert viewer.lines == [
-        {
-            "batch_name": "/Visuals/marker::test/frame",
-            "starts": None,
-            "ends": None,
-            "colors": None,
-            "width": None,
-            "hidden": True,
-        }
-    ]
+    sphere = viewer.instances[1]
+    assert (sphere["batch_name"], sphere["hidden"]) == ("/Visuals/marker::test/sphere", False)
+    assert sphere["scales"].tolist() == [[0.0, 0.0, 0.0]] * 3
+    [frame] = viewer.lines
+    assert (frame["batch_name"], frame["hidden"]) == ("/Visuals/marker::test/frame", False)
+    assert frame["starts"].shape[0] == 9
+    np.testing.assert_array_equal(frame["starts"], frame["ends"])

@@ -67,6 +67,16 @@ def test_spawn_cameras(sim):
     _validate_properties_on_prim(prim, cfg, CUSTOM_FISHEYE_CAMERA_ATTRIBUTES)
 
 
+def test_spawn_sensor_frame_remains_available_during_deprecation(sim):
+    cfg = sim_utils.SensorFrameCfg()
+
+    with pytest.warns(DeprecationWarning, match="spawn_sensor_frame is deprecated"):
+        prim = cfg.func("/World/sensor_frame", cfg)
+
+    assert prim.IsValid()
+    assert prim.GetTypeName() == "Xform"
+
+
 """
 Helper functions.
 """

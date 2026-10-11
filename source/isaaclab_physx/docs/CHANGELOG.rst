@@ -3,6 +3,23 @@ Changelog
 
 .. towncrier release notes start
 
+7.3.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.assets.Articulation.write_root_link_velocity_to_sim_index` and
+  :meth:`~isaaclab_physx.assets.Articulation.write_root_link_velocity_to_sim_mask` writing the link velocity into
+  PhysX, which stores the center-of-mass velocity. A root whose center of mass is offset from its link frame now
+  moves with the written link velocity.
+* Fixed missing LEAPP input semantics on PhysX deformable data by inheriting the backend-neutral data interface.
+* Fixed PhysX bodies rendering at their default pose in headless Kit video recordings.
+* Fixed :attr:`~isaaclab_physx.assets.ArticulationData.gravity_compensation_forces` having the wrong sign on
+  reversed joints (``physics:body0`` is the child link), because the PhysX values, already in the authored joint
+  direction, were flipped a second time.
+
+
 7.3.2 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

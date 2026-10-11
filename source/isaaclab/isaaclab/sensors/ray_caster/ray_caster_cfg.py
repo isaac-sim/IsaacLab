@@ -39,6 +39,10 @@ class RayCasterCfg(SensorBaseCfg):
     spawn: SensorFrameCfg | None = SensorFrameCfg()
     """Spawn configuration for the sensor Xform prim.
 
+    .. deprecated:: 3.0
+        Set this field to ``None`` and track an existing prim instead. Sensor-frame spawning remains
+        functional for compatibility during the deprecation cycle.
+
     A plain USD Xform is created at :attr:`prim_path` before initialization, matching the
     pattern used by :class:`~isaaclab.sensors.camera.camera_cfg.CameraCfg` (which spawns a
     Camera prim). The :attr:`prim_path` can be either:
