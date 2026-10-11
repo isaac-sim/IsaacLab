@@ -84,49 +84,49 @@ class BaseVisualizer(ABC):
         scene_data_provider = sim.get_scene_data_provider()
         self._sim = sim
 
-        cfg = self.cfg
         num_envs = scene_data_provider.num_envs
         self._env_ids = None
         if num_envs > 0:
-            count = num_envs if cfg.max_visible_envs is None else max(0, min(int(cfg.max_visible_envs), num_envs))
-            if cfg.visible_env_indices is not None:
-                self._env_ids = list(dict.fromkeys(i for i in cfg.visible_env_indices if 0 <= i < num_envs))[:count]
-            elif cfg.max_visible_envs is not None and cfg.randomly_sample_visible_envs:
+            count = num_envs
+            if self.cfg.max_visible_envs is not None:
+                count = max(0, min(int(self.cfg.max_visible_envs), num_envs))
+            if self.cfg.visible_env_indices is not None:
+                self._env_ids = [i for i in dict.fromkeys(self.cfg.visible_env_indices) if 0 <= i < num_envs][:count]
+            elif self.cfg.max_visible_envs is not None and self.cfg.randomly_sample_visible_envs:
                 self._env_ids = sorted(random.sample(range(num_envs), count))
-            elif cfg.max_visible_envs is not None:
+            elif self.cfg.max_visible_envs is not None:
                 self._env_ids = list(range(count))
 
         self._image_views.clear()
-        if cfg.view is not None:
-            camera = (
-                scene_data_provider.get_camera_sensors().get(cfg.view.source)
-                if isinstance(cfg.view.source, str)
-                else None
-            )
-            self.current_image_view = sim.get_or_create_backend(cfg.view, camera=camera)
+        if self.cfg.view is not None:
+            camera = None
+            if isinstance(self.cfg.view.source, str):
+                camera = scene_data_provider.get_camera_sensors().get(self.cfg.view.source)
+            self.current_image_view = sim.get_or_create_backend(self.cfg.view, camera=camera)
             self._image_views.append(self.current_image_view)
             return
         env_ids = []
         if any(not isinstance(camera, PerspectiveCameraCfg) for camera in cameras):
-            if isinstance(cfg.streaming_envs, list):
-                env_ids = sorted([i for i in cfg.streaming_envs if 0 <= i < num_envs][:_VISUALIZER_MAX_TILES])
+            if isinstance(self.cfg.streaming_envs, list):
+                env_ids = sorted([i for i in self.cfg.streaming_envs if 0 <= i < num_envs][:_VISUALIZER_MAX_TILES])
             else:
                 pool = self._env_ids if self._env_ids is not None else range(num_envs)
-                env_ids = sorted(random.sample(pool, min(int(cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))))
+                num_tiles = min(int(self.cfg.streaming_envs), _VISUALIZER_MAX_TILES, len(pool))
+                env_ids = sorted(random.sample(pool, num_tiles))
         for camera in cameras:
             if isinstance(camera, PerspectiveCameraCfg):
-                if cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
+                if self.cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
             else:
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=tuple(map(int, env_ids)),
-                    channels=tuple(cfg.streaming_gt_types),
-                    depth_range=(cfg.streaming_depth_min, cfg.streaming_depth_max),
+                    channels=tuple(self.cfg.streaming_gt_types),
+                    depth_range=(self.cfg.streaming_depth_min, self.cfg.streaming_depth_max),
                 )  # fmt: skip
                 view = sim.get_or_create_backend(view_cfg, camera=camera)
-            if cfg.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
-                view.aspect = cfg.window.size[0] / cfg.window.size[1]
+            if self.cfg.visualizer_type in ("newton_gl", "newton_rtx", "kit"):
+                view.aspect = self.cfg.window.size[0] / self.cfg.window.size[1]
             self._image_views.append(view)
         self.current_image_view = next((view for view in self._image_views if view.camera is not None), None)
 

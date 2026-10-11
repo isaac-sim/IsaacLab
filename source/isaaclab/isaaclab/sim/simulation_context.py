@@ -455,29 +455,31 @@ class SimulationContext:
                 initialize, e.g. only the consumers needed before graph capture. Defaults to None (all).
         """
         for visualizer in tuple(self._pending_visualizers):
-            cfg = visualizer.cfg
-            if config_filter is not None and not config_filter(cfg):
+            if config_filter is not None and not config_filter(visualizer.cfg):
                 continue
             cameras = []
-            if cfg.view is None:
-                cameras = list(
-                    cfg.cameras or [PerspectiveCameraCfg(eye=cfg.eye, lookat=cfg.lookat, focal_length=cfg.focal_length)]
-                )
-            if cfg.view is None and cfg.streaming_view:
+            if visualizer.cfg.view is None:
+                cameras = list(visualizer.cfg.cameras or [
+                    PerspectiveCameraCfg(
+                        eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
+                    )
+                ])  # fmt: skip
+            if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
-                for gt_type in cfg.streaming_gt_types:
+                for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
-                if cfg.cameras is None:
-                    if cfg.streaming_sensor_prim_path is not None:
-                        cameras.insert(0, SceneCameraCfg(prim_path=cfg.streaming_sensor_prim_path))
+                if visualizer.cfg.cameras is None:
+                    if visualizer.cfg.streaming_sensor_prim_path is not None:
+                        cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
                         for camera in sensors.values():
                             available = frozenset(camera.cfg.data_types)
-                            if all(
+                            has_requested_channels = all(
                                 sensor_key_for_gt_type(gt, available, required=False) is not None
-                                for gt in cfg.streaming_gt_types
-                            ):
+                                for gt in visualizer.cfg.streaming_gt_types
+                            )
+                            if has_requested_channels:
                                 cameras.append(camera)
                 for index, source in enumerate(cameras):
                     if not isinstance(source, SceneCameraCfg):
@@ -486,10 +488,12 @@ class SimulationContext:
                     pattern = path.replace("%d", "[^/]+").replace("{}", "[^/]+")
                     pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
                     for camera in sensors.values():
-                        if camera.cfg.prim_path == path or (
-                            camera._view is not None
-                            and any(re.fullmatch(pattern, str(prim.GetPath())) for prim in camera._view.prims)
-                        ):
+                        if camera.cfg.prim_path == path:
+                            break
+                        matches_prim_path = camera._view is not None and any(
+                            re.fullmatch(pattern, str(prim.GetPath())) for prim in camera._view.prims
+                        )
+                        if matches_prim_path:
                             break
                     else:
                         available_paths = sorted(camera.cfg.prim_path for camera in sensors.values())
