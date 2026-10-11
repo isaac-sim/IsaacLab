@@ -43,6 +43,19 @@ FRAME_MARKER_SMALL_CFG = clone(FRAME_MARKER_CFG)
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 """Frame marker for the end-effector and drawer-handle frame transformers."""
 
+CABINET_BODY_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetBody",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.78, 0.69, 0.56), roughness=0.55),
+)
+CABINET_FRONT_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetFront",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.52, 0.32, 0.18), roughness=0.4),
+)
+CABINET_HARDWARE_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetHardware",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.16, 0.10, 0.055), metallic=0.75, roughness=0.26),
+)
+
 CABINET_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Cabinet",
     spawn=sim_utils.UsdFileCfg(
@@ -176,18 +189,9 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = MISSING
     ee_frame: FrameTransformerCfg = MISSING
 
-    cabinet_body_material = VisualMaterialCfg(
-        prim_path="/World/Looks/CabinetBody",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.78, 0.69, 0.56), roughness=0.55),
-    )
-    cabinet_front_material = VisualMaterialCfg(
-        prim_path="/World/Looks/CabinetFront",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.52, 0.32, 0.18), roughness=0.4),
-    )
-    cabinet_hardware_material = VisualMaterialCfg(
-        prim_path="/World/Looks/CabinetHardware",
-        spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.16, 0.10, 0.055), metallic=0.75, roughness=0.26),
-    )
+    cabinet_body_material = CABINET_BODY_MATERIAL_CFG
+    cabinet_front_material = CABINET_FRONT_MATERIAL_CFG
+    cabinet_hardware_material = CABINET_HARDWARE_MATERIAL_CFG
     cabinet = CABINET_CFG
 
     # drawer handle frame, aligned with the end-effector frame

@@ -82,12 +82,11 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         super().__post_init__()
 
         # actions
-        self.actions.arm_action = mdp.RateLimitedJointPositionActionCfg(
+        self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             scale=1.0,
             use_default_offset=True,
-            max_velocity=0.25,
         )
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
@@ -108,7 +107,7 @@ class FrankaCabinetEnvCfg(CabinetEnvCfg):
         # Retract the hand so randomized resets clear the lower cabinet doors and knobs.
         self.scene.robot.init_state.joint_pos["panda_joint2"] = -1.1
         self.scene.robot.actuators["panda_arm"].damping = 80.0
-        # MJWarp does not enforce this limit; the action term bounds commanded motion instead.
+        # MJWarp does not enforce this limit; the velocity-limit reward penalizes excess speed.
         self.scene.robot.actuators["panda_arm"].joint_velocity_limit = 0.3
         self.episode_length_s = 16.0
 
