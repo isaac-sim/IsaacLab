@@ -72,10 +72,12 @@ def create_mock_newton_manager(
     mock_control = MagicMock()
 
     manager = MagicMock()
-    manager.get_model.return_value = mock_model
-    manager.get_state_0.return_value = mock_state
-    manager.get_control.return_value = mock_control
     manager.backend = SimpleNamespace(
-        is_stepping=False, transforms_may_change_on_graph_replay=False, device=wp.get_device(device)
+        model=mock_model,
+        state_0=mock_state,
+        control=mock_control,
+        is_stepping=False,
+        transforms_may_change_on_graph_replay=False,
+        device=wp.get_device(device),
     )
     return manager

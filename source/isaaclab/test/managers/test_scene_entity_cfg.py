@@ -19,6 +19,7 @@ from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
@@ -105,7 +106,8 @@ def test_external_force_uses_selected_body_count(scene):
     asset.device = "cpu"
     asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_mask=Mock())
     env = SimpleNamespace(scene=scene, num_envs=2)
-    apply_external_force_torque(env, torch.ones(2, dtype=torch.bool), (2.0, 2.0), (3.0, 3.0), cfg)
+    env_mask = ProxyArray(wp.ones(2, dtype=wp.bool, device="cpu"))
+    apply_external_force_torque(env, env_mask, (2.0, 2.0), (3.0, 3.0), cfg)
     kwargs = asset.permanent_wrench_composer.set_forces_and_torques_mask.call_args.kwargs
     torch.testing.assert_close(wp.to_torch(kwargs["forces"]), torch.full((2, 4, 3), 2.0))
     torch.testing.assert_close(wp.to_torch(kwargs["torques"]), torch.full((2, 4, 3), 3.0))
