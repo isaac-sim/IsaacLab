@@ -53,8 +53,8 @@ Compare five humanoid tablecloth pulls
 --------------------------------------
 
 This standalone example uses :class:`~isaaclab.scene.InteractiveScene` to build
-five side-by-side H2 Plus / SHARPA trials with the default Isaac Lab ground plane and SimReady
-kitchen assets. Newton VBD simulates the articulations, cloth, and tableware in a
+five side-by-side H2 Plus / SHARPA trials with the default Isaac Lab ground plane,
+wooden dining tables, and SimReady kitchenware. Newton VBD simulates the articulations, cloth, and tableware in a
 single solver. The Warp state machine and Newton IK run on the GPU inside the
 physics CUDA graph.
 It does not register an RL environment or require a trained policy.
@@ -84,6 +84,11 @@ asset's hardware torque limits or armature.
 
 Use ``--speeds 2.0`` for one robot, or ``--viz none`` for a complete headless
 run. The default run duration includes the slowest pull and a final hold.
+All lanes use the same object masses, friction, cloth mesh, and 0.48 × 0.84 m
+tabletop. Only the peak pull speed changes: the fastest pull leaves the arrangement
+nearly unchanged, the middle pulls produce more sliding, and the two slowest
+pulls carry the tableware off the table. The dining-table USD supplies the visuals;
+simple box proxies supply the tabletop and leg collisions.
 The pelvis is fixed with the feet at ground level: this demonstrates
 manipulation, not humanoid balance. Asset and cloth changes require revalidating
 the calibrated physical grasp. This experimental example checks material-point retention after

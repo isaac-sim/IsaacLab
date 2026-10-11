@@ -241,21 +241,35 @@ def spawn_tableware_from_usd(
 
 @configclass
 class TablewareUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD spawner config for SimReady visuals with analytic collision proxies."""
+    """USD spawner config for SimReady visuals with analytic collision proxies.
+
+    Proxy dimensions, offsets, center of mass, and inertia are authored in the
+    selected rigid body's local frame, before the USD asset's scale is applied.
+    """
 
     func: Callable | str = spawn_tableware_from_usd
     make_uninstanceable: bool = True
     rigid_props = {"(/.*)?": [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=False)]}
     mass: float = MISSING
+    """Mass of the selected rigid body [kg]."""
     collision_proxy_cfg: sim_utils.ShapeCfg = MISSING
+    """Primary collision proxy; dimensions are in local meters."""
     collision_proxy_position: tuple[float, float, float] = MISSING
+    """Primary collision proxy's body-local offset [m]."""
     additional_collision_proxy_cfgs: tuple[sim_utils.ShapeCfg, ...] = ()
+    """Additional collision proxies, paired with their respective offsets."""
     additional_collision_proxy_positions: tuple[tuple[float, float, float], ...] = ()
+    """Additional proxies' body-local offsets [m], in matching order."""
     center_of_mass: tuple[float, float, float] | None = None
+    """Body-local center of mass [m], or None to retain the asset's value."""
     diagonal_inertia: tuple[float, float, float] | None = None
+    """Diagonal inertia in the body-local axes [kg m²], or None to retain the asset's value."""
     visual_color: tuple[float, float, float] | None = None
+    """RGB visual color in [0, 1], or None to retain the asset's color."""
     visual_opacity: float | None = None
+    """Visual opacity in [0, 1], or None to retain the asset's opacity."""
     visual_roughness: float | None = None
+    """Visual roughness in [0, 1], or None to retain the asset's roughness."""
 
 
 FPS = 60
@@ -266,7 +280,6 @@ TABLE_TOP_Z = H1_STANDING_HEIGHT - 0.01
 TABLEWARE_CLEARANCE = 0.008
 # Start above the thin table contact skin and the cloth's 1 mm particle radius.
 CLOTH_Z = TABLE_TOP_Z + 0.004
-TABLEWARE_NAMES = ("bowl", "glass", "fork")
 
 TABLE_SCALE = (
     TABLE_SIZE[0] / TABLE_ASSET_SIZE[0],
@@ -279,10 +292,6 @@ HAND_OFFSETS = ((0.146273, -0.068447, 0.028077), (0.148808, 0.068652, 0.026675))
 H2_HAND_OFFSETS = (
     (0.0854352130714941, -0.004956624352234765, 0.11747110476887199),
     (0.08528776908502764, 0.0060654248588878044, 0.11775531545430512),
-)
-H2_PINCH_NORMALS = (
-    (-0.2177173497347232, 0.20510326213060795, 0.9542179035670372),
-    (-0.21041715932142208, -0.19846220463052672, 0.957255123985395),
 )
 # Measured native pulp pinch and unused-finger parking, inside native joint limits.
 H2_PINCH_JOINT_POS = {
@@ -770,7 +779,7 @@ class TableclothCfg(DeformableObjectCfg):
 CLOTH_CFG = TableclothCfg(
     prim_path="{ENV_REGEX_NS}/Cloth",
     spawn=sim_utils.MeshRectangleCfg(
-        # Balanced front/back overhangs provide a free hem below the countertop.
+        # The front overhang provides a free hem below the countertop.
         size=(0.56, TABLE_SIZE[1]),
         edge_refinement=64,
         deformable_props=NewtonDeformableBodyPropertiesCfg(),

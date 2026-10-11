@@ -28,7 +28,7 @@ import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("isaaclab.examples.tablecloth")
 
 parser = argparse.ArgumentParser(description="Five side-by-side GPU humanoid tablecloth pulls.")
 parser.add_argument(
@@ -67,7 +67,7 @@ from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMa
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import instantiate
+from isaaclab.utils import clone, instantiate
 from isaaclab.utils.version import standalone_importers_available
 from isaaclab.visualizers import VisualizerCfg
 
@@ -168,7 +168,7 @@ def main() -> None:
         sim_utils.standardize_xform_ops(
             scene.stage.GetPrimAtPath(scene.env_prim_paths[0]), translation=tuple(map(float, positions[0]))
         )
-        cfgs = {name: cfg.copy() for name, cfg in TABLECLOTH_ASSETS.items()}
+        cfgs = {name: clone(cfg) for name, cfg in TABLECLOTH_ASSETS.items()}
         if args_cli.robot == "h1":
             # H1's smaller hands use the original corner-grasp arrangement.
             cfgs["cloth"].spawn.size = (0.48, 0.80)
@@ -180,9 +180,9 @@ def main() -> None:
             material = cfgs["cloth"].spawn.physics_material
             defaults = NewtonSurfaceDeformableBodyMaterialCfg()
             material.tri_ke, material.tri_ka, material.tri_kd = defaults.tri_ke, defaults.tri_ka, defaults.tri_kd
-        cfgs["robot"] = (H2_CFG if args_cli.robot == "h2" else H1_CFG).copy()
+        cfgs["robot"] = clone(H2_CFG if args_cli.robot == "h2" else H1_CFG)
         cfgs["robot"].spawn.usd_path = usd_path
-        cfgs.update(ground=GROUND_CFG.copy(), light=LIGHT_CFG.copy())
+        cfgs.update(ground=clone(GROUND_CFG), light=clone(LIGHT_CFG))
         plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, cfgs.values(), len(speeds), 1.5, positions=positions)
         scene.articulations["robot"] = instantiate(cfgs["robot"])
         scene.deformable_objects["cloth"] = instantiate(cfgs["cloth"])

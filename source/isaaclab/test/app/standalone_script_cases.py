@@ -232,7 +232,7 @@ OVERRIDES = {
         visualizers=("newton_gl",),
     ),
     "examples/tablecloth.py": ScriptOverride(
-        args=("--max_steps", "2", "--viz", "none"),
+        args=("--speeds", "4.0", "0.5", "--max_steps", "2", "--viz", "none"),
         fixed_physics_backend="newton_vbd",
         visualizers=(None,),
         required_modules=("isaaclab_contrib",),
