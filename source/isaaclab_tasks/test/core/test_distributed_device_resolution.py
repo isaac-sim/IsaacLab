@@ -19,6 +19,7 @@ from unittest.mock import patch
 import pytest
 
 import isaaclab.app.sim_launcher as sim_launcher
+from isaaclab.physics import PhysicsCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 
 _RANK_ENV_VARS = ("LOCAL_RANK", "JAX_LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_RANK")
@@ -74,7 +75,7 @@ def _set_rank_env(monkeypatch, env: dict[str, str]):
         pytest.param({}, {"LOCAL_RANK": "1"}, 2, None, id="no_distributed_key"),
     ],
 )
-def test_resolve_distributed_device(monkeypatch, args, env, gpu_count, expected):
+def test_launch_selects_distributed_device(monkeypatch, args, env, gpu_count, expected):
     """A distributed run selects this rank's GPU in the launcher args and CUDA; other runs are left alone."""
     _set_rank_env(monkeypatch, env)
     args_dict = vars(args) if isinstance(args, argparse.Namespace) else args
@@ -83,7 +84,8 @@ def test_resolve_distributed_device(monkeypatch, args, env, gpu_count, expected)
         patch("torch.cuda.device_count", return_value=gpu_count),
         patch.object(sim_launcher, "set_cuda_device") as set_cuda_device,
     ):
-        sim_launcher._resolve_distributed_device(args_dict)
+        with sim_launcher.launch_simulation(PhysicsCfg(), args):
+            pass
 
     if expected is None:
         assert "device" not in args_dict

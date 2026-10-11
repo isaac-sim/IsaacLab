@@ -390,6 +390,7 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    backend_name = "ovphysx"
     clone_context_type = OvPhysxReplicateContext
 
     _cfg: ClassVar[OvPhysxCfg | None] = None

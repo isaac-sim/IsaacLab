@@ -526,6 +526,44 @@ def make_camera_output_grid(images: torch.Tensor) -> torch.Tensor:
     return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
 
 
+_CAMERA_CHANNEL_KEYS = {
+    "rgb": ("rgb", "rgba"),
+    "depth": ("depth", "distance_to_image_plane"),
+    "segmentation": ("semantic_segmentation",),
+    "normals": ("normals",),
+}
+
+
+def sensor_key_for_gt_type(
+    gt_type: str, available_keys: frozenset[str] | None = None, *, required: bool = True
+) -> str | None:
+    """Bind a display channel to its available sensor output.
+
+    Args:
+        gt_type: Display channel: rgb, depth, normals, or segmentation.
+        available_keys: Sensor output names. None returns the primary output name.
+        required: Whether a missing output raises; False skips incompatible automatic sources.
+
+    Returns:
+        The matching sensor key, or None when absent and not required.
+
+    Raises:
+        ValueError: If the display channel is unknown.
+        KeyError: If no matching output is available and required is True.
+    """
+    if gt_type not in _CAMERA_CHANNEL_KEYS:
+        raise ValueError(f"GT type {gt_type!r} is not supported. Valid types: {sorted(_CAMERA_CHANNEL_KEYS)}")
+    keys = _CAMERA_CHANNEL_KEYS[gt_type]
+    if available_keys is None:
+        return keys[0]
+    for key in keys:
+        if key in available_keys:
+            return key
+    if not required:
+        return None
+    raise KeyError(f"No sensor output found for GT type {gt_type!r}. Tried {keys}; available: {sorted(available_keys)}")
+
+
 def compose_image(
     output: wp.array,
     sources: tuple[wp.array, ...],

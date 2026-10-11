@@ -79,6 +79,9 @@ class PhysicsManager(ABC):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    backend_name: ClassVar[str]
+    """Asset backend identifier, shared by all solver subclasses of a physics manager."""
+
     _sim: ClassVar[SimulationContext | None] = None
     _cfg: ClassVar[Any] = None
     _device: ClassVar[str] = "cuda:0"

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gc
 import logging
+import re
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -19,8 +20,7 @@ import warp as wp
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
-from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
-from ..envs.utils.camera_view import resolve_camera_sources
+from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -28,10 +28,17 @@ from ..renderers.render_context import RenderContext
 from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
+from ..utils.images import sensor_key_for_gt_type
 from ..utils.string import clear_resolve_matching_names_cache
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
-from ..visualizers.visualizer_cfg import get_visualizer_install_hint, parse_visualizer_csv, resolve_visualizer_cfgs
+from ..visualizers.image_view import ImageView
+from ..visualizers.visualizer_cfg import (
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
+    get_visualizer_install_hint,
+    select_visualizer_cfgs,
+)
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -162,16 +169,16 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Normalize the visualizers to a list, applying the --visualizer selection a launch recorded for the
-        # config built afterwards. Without a selection (the setting absent or empty), a config built by the caller
-        # keeps the visualizers it lists.
+        # Bare-physics launches defer their CLI selection until this SimulationCfg exists.
+        if not isinstance(self.cfg.visualizer_cfgs, list):
+            self.cfg.visualizer_cfgs = [] if self.cfg.visualizer_cfgs is None else [self.cfg.visualizer_cfgs]
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
+        if pending_visualizers:
+            self.cfg.visualizer_cfgs = select_visualizer_cfgs(self.cfg.visualizer_cfgs, pending_visualizers.split(","))
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        self.cfg.visualizer_cfgs = resolve_visualizer_cfgs(
-            self.cfg.visualizer_cfgs,
-            parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
-            None if max_visible_envs is None or max_visible_envs < 0 else max_visible_envs,
-        )
+        if max_visible_envs is not None and max_visible_envs >= 0:
+            for visualizer in self.cfg.visualizer_cfgs:
+                visualizer.max_visible_envs = int(max_visible_envs)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -447,11 +454,49 @@ class SimulationContext:
                 initialize, e.g. only the consumers needed before graph capture. Defaults to None (all).
         """
         for visualizer in tuple(self._pending_visualizers):
-            if config_filter is not None and not config_filter(visualizer.cfg):
+            cfg = visualizer.cfg
+            if config_filter is not None and not config_filter(cfg):
                 continue
-            camera_sensors = self._scene_data_provider.get_camera_sensors() if visualizer.cfg.streaming_view else {}
-            env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
-            cameras = resolve_camera_sources(visualizer.cfg, camera_sensors, env_template=env_template)
+            cameras = []
+            if cfg.view is None:
+                cameras = list(
+                    cfg.cameras or [PerspectiveCameraCfg(eye=cfg.eye, lookat=cfg.lookat, focal_length=cfg.focal_length)]
+                )
+            if cfg.view is None and cfg.streaming_view:
+                sensors = self._scene_data_provider.get_camera_sensors()
+                env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
+                for gt_type in cfg.streaming_gt_types:
+                    sensor_key_for_gt_type(gt_type)
+                if cfg.cameras is None:
+                    if cfg.streaming_sensor_prim_path is not None:
+                        cameras.insert(0, SceneCameraCfg(prim_path=cfg.streaming_sensor_prim_path))
+                    else:
+                        for camera in sensors.values():
+                            available = frozenset(camera.cfg.data_types)
+                            if all(
+                                sensor_key_for_gt_type(gt, available, required=False) is not None
+                                for gt in cfg.streaming_gt_types
+                            ):
+                                cameras.append(camera)
+                for index, source in enumerate(cameras):
+                    if not isinstance(source, SceneCameraCfg):
+                        continue
+                    path = expand_env_regex_ns(source.prim_path, env_template)
+                    pattern = path.replace("%d", "[^/]+").replace("{}", "[^/]+")
+                    pattern = pattern.replace("/World/envs/*", "/World/envs/env_[^/]+")
+                    for camera in sensors.values():
+                        if camera.cfg.prim_path == path or (
+                            camera._view is not None
+                            and any(re.fullmatch(pattern, str(prim.GetPath())) for prim in camera._view.prims)
+                        ):
+                            break
+                    else:
+                        available_paths = sorted(camera.cfg.prim_path for camera in sensors.values())
+                        raise ValueError(
+                            f"No scene Camera matches prim_path={path!r}. "
+                            f"Declare a CameraCfg in the scene; available paths: {available_paths}."
+                        )
+                    cameras[index] = camera
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
@@ -535,11 +580,7 @@ class SimulationContext:
     @staticmethod
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
-        return (
-            cfg.visualizer_type == "newton_gl"
-            and bool(getattr(cfg, "enable_picking", False))
-            and not bool(getattr(cfg, "headless", False))
-        )
+        return cfg.visualizer_type == "newton_gl" and cfg.enable_picking and not cfg.headless
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.
@@ -548,6 +589,9 @@ class SimulationContext:
             soft: If True, skip full reinitialization.
         """
         self.physics_manager.reset(soft)
+        for _, resource in self._backend_registry:
+            if isinstance(resource, ImageView):
+                resource.invalidate()
         for viz in self._visualizers:
             viz.reset(soft)
         # Initialize visualizers not prepared by a backend-specific pre-capture hook.
@@ -623,7 +667,7 @@ class SimulationContext:
         for viz in self._visualizers:
             viz.flush_startup_messages()
 
-        if self._should_forward_before_visualizer_update():
+        if any(viz.requires_forward_before_step() for viz in self._visualizers):
             self.physics_manager.forward()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
@@ -667,10 +711,6 @@ class SimulationContext:
                 logger.info("Removed visualizer: %s", type(viz).__name__)
             except Exception as exc:
                 logger.error("Error closing visualizer: %s", exc)
-
-    def _should_forward_before_visualizer_update(self) -> bool:
-        """Return True if any visualizer requires pre-step forward kinematics."""
-        return any(viz.requires_forward_before_step() for viz in self._visualizers)
 
     def play(self) -> None:
         """Start or resume the simulation."""
@@ -734,7 +774,7 @@ class SimulationContext:
         """Get a setting value."""
         return self.settings.get(name)
 
-    def get_or_create_backend(self, cfg: Any) -> Any:
+    def get_or_create_backend(self, cfg: Any, **kwargs: Any) -> Any:
         """Return the simulation-owned object for a construction configuration.
 
         Equal configurations of the same concrete type share a resource. Finalize configurations
@@ -742,7 +782,8 @@ class SimulationContext:
         ``BackendCfg`` declares a resource requiring ``close()``; other cfgs declare Python-owned data.
 
         Args:
-            cfg: Construction inputs. A cache miss constructs ``instantiate(cfg)``.
+            cfg: Construction inputs. A cache miss constructs ``instantiate(cfg, **kwargs)``.
+            **kwargs: Simulation-owned dependencies, passed only on construction; cfg defines sharing.
 
         Returns:
             The existing or newly constructed resource.
@@ -752,7 +793,7 @@ class SimulationContext:
                 return resource
         if isinstance(cfg, RendererCfg):
             self._render_context.validate_renderer_cfg(cfg)
-        resource = instantiate(cfg)
+        resource = instantiate(cfg, **kwargs)
         self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):
             self._render_context.register_renderer(cfg, resource)

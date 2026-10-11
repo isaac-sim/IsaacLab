@@ -13,12 +13,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ..physics import PhysicsCfg
 from ..utils import configclass
-from ..visualizers import VisualizerCfg
 from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+if TYPE_CHECKING:
+    from ..visualizers import VisualizerCfg
 
 
 @configclass

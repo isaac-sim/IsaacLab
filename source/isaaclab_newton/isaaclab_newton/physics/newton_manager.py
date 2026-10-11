@@ -426,6 +426,8 @@ class NewtonManager(PhysicsManager):
         shadowing the base attributes on a concrete solver subclass.
     """
 
+    backend_name = "newton"
+
     @classmethod
     def provides_implicit_damping(cls) -> bool:
         # Newton's symplectic integrator has no implicit damping.

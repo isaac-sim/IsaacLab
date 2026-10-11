@@ -27,7 +27,9 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
+from isaaclab.app import scan
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers import WindowCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -141,6 +143,7 @@ class _FakeVisualizer(BaseVisualizer):
 
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
+    ctx._backend_registry = []
     ctx._visualizers = list(visualizers)
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
@@ -304,6 +307,10 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     """Initial visualizers must see the PhysX views created by reset before play() pumps timeline events."""
     events: list[str] = []
     ctx = object.__new__(SimulationContext)
+    from isaaclab.visualizers import ImageView
+
+    view = Mock(spec=ImageView, invalidate=Mock(side_effect=lambda: events.append("invalidate_image")))
+    ctx._backend_registry = [(object(), view)]
     ctx.cfg = SimpleNamespace(physics=object())
     ctx._visualizers = [
         SimpleNamespace(
@@ -340,7 +347,14 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     ctx.reset()
 
-    assert events == ["reset:False", "viewer_reset", "initialize_visualizers", "finalize_consumers:1:True", "play"]
+    assert events == [
+        "reset:False",
+        "invalidate_image",
+        "viewer_reset",
+        "initialize_visualizers",
+        "finalize_consumers:1:True",
+        "play",
+    ]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 
@@ -367,6 +381,7 @@ def web_backend(monkeypatch):
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
+        physics_manager=type("NewtonManager", (), {"backend_name": "newton"}),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
         vis_marker_registry=VisMarkerRegistry(),
@@ -498,7 +513,11 @@ def test_viser_visualizer_create_viewer_applies_visible_worlds(
     )
     visualizer = viser_visualizer.ViserVisualizer(cfg)
     visualizer.backend = SimpleNamespace(model="dummy-model")
-    sim = Mock(stage=None, get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)))
+    sim = Mock(
+        stage=None,
+        physics_manager=type("NewtonManager", (), {"backend_name": "newton"}),
+        get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)),
+    )
     BaseVisualizer.initialize(visualizer, sim, cameras=[])
     visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
 
@@ -571,15 +590,16 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["visible_worlds"] == expected_visible
 
 
-def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch: pytest.MonkeyPatch):
-    """Default ``--viz kit`` should work for envs without a camera prim."""
+@pytest.mark.parametrize("viewport", ["active", "unnamed", "missing", "headless"])
+def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monkeypatch, viewport):
+    """Use the active camera or Kit's default without requiring an authored scene camera."""
 
     class _FakeViewportApi:
         def __init__(self):
             self.set_active_camera_calls = []
 
         def get_active_camera(self):
-            return "/OmniverseKit_Persp"
+            return "/CustomPerspective" if viewport == "active" else ""
 
         def set_active_camera(self, camera_path):
             self.set_active_camera_calls.append(camera_path)
@@ -598,7 +618,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
         (),
         {
             "create_viewport_window": staticmethod(lambda **kwargs: viewport_window),
-            "get_active_viewport_window": staticmethod(lambda: viewport_window),
+            "get_active_viewport_window": staticmethod(lambda: None if viewport == "missing" else viewport_window),
         },
     )
     monkeypatch.setitem(sys.modules, "omni", type(sys)("omni"))
@@ -618,14 +638,16 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
     cfg = KitVisualizerCfg()
     visualizer = kit_visualizer.KitVisualizer(cfg)
     monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(stage=_FakeStage()))
-    visualizer._runtime_headless = False
+    visualizer._runtime_headless = viewport == "headless"
 
     visualizer._setup_viewport()
 
     assert not cfg.streaming_view
     assert applied_camera_poses == [(cfg.eye, cfg.lookat)]
     assert viewport_window.viewport_api.set_active_camera_calls == []
-    assert visualizer._controlled_camera_path == "/OmniverseKit_Persp"
+    assert visualizer._controlled_camera_path == (
+        "/CustomPerspective" if viewport == "active" else "/OmniverseKit_Persp"
+    )
 
 
 def test_kit_visualizer_default_camera_source_accepts_set_camera_view(monkeypatch: pytest.MonkeyPatch):
@@ -776,22 +798,60 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
 
     visualizer = ctx._pending_visualizers[0]
     if not fail_construct:
+        from pxr import Usd, UsdGeom
+
+        stage = Usd.Stage.CreateInMemory()
         ctx._clone_plan = SimpleNamespace(env_template="/Scenes/world_{}")
-        camera = SimpleNamespace(cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]))
+        ctx._scene_data_provider._num_envs = 4
+        camera = SimpleNamespace(
+            cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+            _view=SimpleNamespace(
+                prims=[UsdGeom.Camera.Define(stage, f"/Scenes/world_{i}/Camera").GetPrim() for i in range(4)]
+            ),
+        )
         ctx._scene_data_provider.get_camera_sensors = Mock(return_value={"camera": camera})
         source = SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")
         perspective = PerspectiveCameraCfg(eye=(1.0, 2.0, 3.0))
         cfg.cameras, cfg.streaming_view = [source, perspective], True
         ctx.initialize_visualizers()
         ctx.initialize_visualizers()
-        assert visualizer._cameras == [camera, perspective]
+        assert [view.camera for view in visualizer._image_views] == [camera]
         assert cfg.cameras == [source, perspective]
         assert source.prim_path == "{ENV_REGEX_NS}/Camera"
-        assert not {"_clone_plan", "_scene_stage", "_get_backend"}.intersection(vars(visualizer))
+        assert not {"_clone_plan", "_scene_stage", "_get_backend", "_camera_choices", "_streaming_frame"}.intersection(
+            vars(visualizer)
+        )
         ctx._scene_data_provider.get_camera_sensors.assert_called_once_with()
         assert visualizer._sim is ctx
         assert seen == [cfg]
         assert ctx._visualizers == [visualizer]
+
+        # Automatic choices skip unsupported channels; explicit references fail before viewer initialization.
+        for path, channel, expected, error in (
+            (None, "rgb", [camera], None),
+            (None, "depth", [], None),
+            ("/Missing/Camera", "rgb", None, (ValueError, "No scene Camera matches")),
+            ("{ENV_REGEX_NS}/Camera", "depth", None, (KeyError, "No sensor output")),
+            (None, "optical_flow", None, (ValueError, "optical_flow")),
+            ("/Scenes/world_2/Camera", "rgb", [camera], None),
+            ("/Scenes/world_.*/Camera", "rgb", [camera], None),
+        ):
+            cfg.cameras = [SceneCameraCfg(prim_path=path)] if path is not None else None
+            cfg.streaming_gt_types = (channel,)
+            pending = _FakeVisualizer(cfg)
+            ctx._pending_visualizers = [pending]
+            if error is not None:
+                with pytest.raises(error[0], match=error[1]):
+                    ctx.initialize_visualizers()
+                assert not pending.is_initialized
+                assert pending not in ctx.visualizers
+            else:
+                ctx.initialize_visualizers()
+                assert [view.camera for view in pending._image_views] == expected
+        cfg.cameras, cfg.streaming_sensor_prim_path = None, "/Scenes/world_2/Camera"
+        ctx._pending_visualizers = [_FakeVisualizer(cfg)]
+        ctx.initialize_visualizers()
+        assert ctx._visualizers[-1]._image_views[0].camera is camera
     assert visualizer.close_calls == 0
     SimulationContext.clear_instance()
     assert visualizer.close_calls == 1
@@ -818,6 +878,7 @@ def _make_context_with_settings(
         },
     )()
     ctx = object.__new__(SimulationContext)
+    ctx._backend_registry = []
     ctx.cfg = cfg
     ctx._has_gui = has_gui
     ctx._has_offscreen_render = has_offscreen_render
@@ -839,14 +900,12 @@ def _make_context_with_settings(
 
 
 def test_default_visualizer_cfg_applies_to_cli_created_configs():
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
         streaming_sensor_prim_path="/World/envs/*/Camera",
         window=WindowCfg(size=(640, 480), fps=60),
     )
-    visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl", "newton_rtx"])
+    visualizer_cfgs = scan(SimulationCfg(), {"visualizer": ["newton_gl", "newton_rtx"]}).visualizer_cfgs
     ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
 
     ctx._create_visualizers()
@@ -863,9 +922,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
 
 def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
     """Requesting 'newton_rtx' via CLI resolves to a NewtonRTXVisualizerCfg."""
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
-    cfgs = resolve_visualizer_cfgs([], ["newton_rtx"])
+    cfgs = scan(SimulationCfg(), {"visualizer": ["newton_rtx"]}).visualizer_cfgs
 
     assert len(cfgs) == 1
     assert isinstance(cfgs[0], NewtonRTXVisualizerCfg)
@@ -947,8 +1004,6 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     # Force import to fail for the rerun visualizer module
     import importlib
 
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
     real_import = importlib.import_module
 
     def _failing_import(name, *args, **kwargs):
@@ -959,7 +1014,7 @@ def test_explicit_missing_package_raises(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
     with pytest.raises(RuntimeError, match="rerun"):
-        resolve_visualizer_cfgs([], ["rerun"])
+        scan(SimulationCfg(), {"visualizer": ["rerun"]})
 
 
 def test_visualizer_init_keeps_requirements_published_before_reset():
@@ -1001,11 +1056,11 @@ def test_explicit_type_matches_existing_cfg():
     """Requesting 'newton_gl' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
     config selects and returns that exact instance, rather than discarding it and building a
     fresh default -- exercising the branch that filters pre-existing cfgs by type."""
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
-
-    existing_cfg = NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6))
-
-    cfgs = resolve_visualizer_cfgs([existing_cfg, KitVisualizerCfg()], ["newton_gl"])
+    sim_cfg = SimulationCfg(
+        visualizer_cfgs=[NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6)), KitVisualizerCfg()]
+    )
+    existing_cfg = sim_cfg.visualizer_cfgs[0]
+    cfgs = scan(sim_cfg, {"visualizer": ["newton_gl"]}).visualizer_cfgs
 
     assert len(cfgs) == 1
     assert cfgs[0] is existing_cfg
@@ -1017,8 +1072,6 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
     resolved still raises, exercising the branch that extends pre-existing cfgs with freshly-created
     defaults for the remaining requested types."""
     import importlib
-
-    from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
 
     real_import = importlib.import_module
     requested = []
@@ -1032,7 +1085,7 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
     monkeypatch.setattr(importlib, "import_module", _failing_import)
 
     with pytest.raises(RuntimeError) as exc_info:
-        resolve_visualizer_cfgs([_FakeVisualizerCfg("kit")], ["kit", "rerun"])
+        scan(SimulationCfg(visualizer_cfgs=[_FakeVisualizerCfg("kit")]), {"visualizer": ["kit", "rerun"]})
     # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is constructed and reported.
     assert "'rerun'" in str(exc_info.value)
     assert requested == ["isaaclab_visualizers.rerun"]

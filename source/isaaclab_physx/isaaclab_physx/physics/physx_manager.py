@@ -358,6 +358,7 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    backend_name = "physx"
     clone_context_type = PhysxReplicateContext
 
     _cfg: ClassVar[PhysxCfg | None] = None
