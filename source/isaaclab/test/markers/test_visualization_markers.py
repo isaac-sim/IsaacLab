@@ -29,6 +29,7 @@ from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG, POSITION_GOAL_MARKER_CFG
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.utils.math import random_orientation
+from isaaclab.visualizers import ImageView, ImageViewCfg, PerspectiveCameraCfg
 
 pytestmark = pytest.mark.integration
 
@@ -404,6 +405,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()
+    visualizer.current_image_view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
     visualizer._sim = SimpleNamespace(get_scene_data_provider=lambda: provider, get_physics_step_count=lambda: 1)
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]
