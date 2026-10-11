@@ -76,14 +76,14 @@ library. It does not use the `physicsnemo_robotics.isaaclab` adapter, and it cha
 publishes the learned solver with single-state stepping, no external body forces, and a collision
 pipeline only when the artifact consumes contacts. Before the first step it checks the artifact
 frame duration, the canonical frame, the solver-independent model identity, that the codec owns
-every dynamic Newton state row, and that no implicit position drive acts on targets the model does not see. Environment
-resets reach the solver through the inherited reset hook, CUDA graph capture is disabled, contact
-sensors are rejected, and a step with an external body wrench fails on the device.
+every dynamic Newton state row, and that no implicit position drive acts on targets the model does not
+see. Environment resets reach the solver through the inherited reset hook, CUDA graph capture is disabled,
+contact sensors are rejected, and a step with an external body wrench fails on the device.
 
 ## Installation
 
 PhysicsNeMo Robotics is not published on a package index and pins older Newton, Warp, and Torch
-releases than Isaac Lab. Check out the validated commit, install it into the Isaac Lab environment
+releases than Isaac Lab. Check out the validated tag, install it into the Isaac Lab environment
 without its dependency pins, then add its remaining dependencies. Isaac Lab keeps its own Newton, Warp,
 and Torch versions, and its locked environment already includes RSL-RL for the PPO examples.
 
@@ -158,10 +158,9 @@ the benchmark below repeats the study's configuration.
 The deployed model stays within 0.007 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
 random actions. PPO policies trained only in the learned environment balance the MuJoCo Warp Cartpole in
 99.8 and 100 % of 1,536 evaluation episodes, with returns of 4.93 and 4.95 against 4.94 and 4.95 for
-policies trained in MuJoCo Warp (seeds 42 and 43).
-In an earlier ablation with `4e4be69` and a fixed action scale of 0.5 (about 50 N), the model reached a lower
-E200 of 0.023, but the PPO
-policy exploited its errors at larger efforts and succeeded in only 55 % of MuJoCo Warp episodes.
+policies trained in MuJoCo Warp (seeds 42 and 43). In an earlier ablation with `4e4be69` and a fixed action
+scale of 0.5 (about 50 N), the model reached a lower E200 of 0.023, but the PPO policy exploited its errors
+at larger efforts and succeeded in only 55 % of MuJoCo Warp episodes.
 
 PPO training curves of these runs. Each return is measured in the physics the policy trains in, MuJoCo Warp
 on the left and the learned model on the right. All four runs pass a return of 4.8 between iterations 32
@@ -192,8 +191,8 @@ torchrun --standalone --nproc-per-node 2 $B --output /tmp/fnb-physicsnemo --stag
   --teacher physicsnemo --physicsnemo-root "$ROBOTICS_ROOT" --max-updates 5000000 --checkpoint-every 250000
 ```
 
-The `data` stage runs in one process (about ten minutes for either teacher); the `train` stage runs under `torchrun` for the study's two
-data-parallel ranks, or as a single process with the same global batch. Training uses FP16 autocast,
+The `data` stage runs in one process (about ten minutes for either teacher); the `train` stage runs under
+`torchrun` for the study's two data-parallel ranks, or as a single process with the same global batch. Training uses FP16 autocast,
 appends the held-out `E_H` of every checkpoint to `rollout_nrmse.jsonl`, prints the final table next to the
 paper's values, and resumes from its last checkpoint when rerun with the same arguments. The
 study's own teacher separates the training recipe from the difference in teacher systems. Five million
@@ -309,7 +308,7 @@ The image contains PhysicsNeMo Robotics sources, so publish it only to a private
 Deploy a recorded task with the same configuration it was recorded with:
 
 ```python
-from cartpole_env_cfg import CartpoleTeacherEnvCfg  # examples/cartpole
+from cartpole_env_cfg import CartpoleTeacherEnvCfg  # with examples/cartpole on the Python path
 
 from isaaclab_physicsnemo import apply_learned_physics, preflight_learned_physics
 
@@ -367,8 +366,9 @@ Recording and deployment may use different environment counts.
 
 ## Behavior the integration provides
 
-These behaviors make current Isaac Lab scenes deployable with PhysicsNeMo Robotics artifacts. The
-last two rows work around PhysicsNeMo Robotics behavior and can be removed when it changes upstream.
+These behaviors make current Isaac Lab scenes deployable with PhysicsNeMo Robotics artifacts. Handling of
+PhysicsNeMo Robotics behavior, and the private PhysicsNeMo Robotics functions it replaces, can be removed
+when that behavior changes upstream.
 
 | Isaac Lab or PhysicsNeMo Robotics behavior | Handling |
 | --- | --- |
@@ -383,6 +383,8 @@ last two rows work around PhysicsNeMo Robotics behavior and can be removed when 
 | A deployed solver starts each episode with a repeated first frame as history | Training includes these cold-start windows |
 | The PhysicsNeMo Robotics joint codec normalizes a free-root quaternion again when writing a prediction, so `continuity="verify"` rejects the solver's own output by one floating-point unit | Floating-base tasks deploy with `continuity="off"` (`ANYMAL_CONTINUITY`); Isaac Lab still reports every reset through the solver reset mask |
 | PhysicsNeMo Robotics compares model fingerprints bit for bit | The manager passes the rounded Isaac Lab signature to `DynamicsArtifact.as_solver` |
+| PhysicsNeMo Robotics scans every world for each world's shape pairs, labels, and entity counts, which takes over an hour for 16,384 environments | `isaaclab_canonical_view` replaces these private canonicalizers with single-pass equivalents that produce the same fingerprint |
+| FP16 attention scores of `ParallelNeRD` overflow to `nan` in mixed-precision training on some GPUs | Mixed-precision training computes the attention scores in FP32 and keeps the projections in FP16 |
 
 ## Tests
 
@@ -403,4 +405,4 @@ semantics, independently of model accuracy:
 | `test_memorized_trajectories_track_the_teacher` | A model fitted to a few episodes tracks them after deployment, which pins how training pairs states with efforts |
 | `test_recorded_targets_match_the_deployed_control` | ANYmal-C joint-position targets recorded by the teacher equal the targets the learned scene hands the model |
 
-The CUDA tests take about two minutes, most of it in the memorization fit.
+The whole suite takes under a minute on one GPU.
