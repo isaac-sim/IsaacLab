@@ -42,20 +42,20 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     # an undocumented alias of omitting --visualizer, kept so older commands keep running
     if names == ["none"]:
         return []
-    invalid = [name for name in names if name not in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES)]
-    if invalid:
-        raise argparse.ArgumentTypeError(
-            f"Invalid --visualizer value {value!r}: use a comma-separated list, without spaces, of "
-            f"{', '.join(VISUALIZER_TYPES)}."
-        )
-    for name in names:
+    for index, name in enumerate(names):
         if name in VISUALIZER_ALIASES:
             warnings.warn(
                 f"--viz '{name}' is deprecated. Use '--viz {VISUALIZER_ALIASES[name]}' instead.",
                 DeprecationWarning,
                 stacklevel=3,
             )
-    return list(dict.fromkeys(VISUALIZER_ALIASES.get(name, name) for name in names))
+            names[index] = VISUALIZER_ALIASES[name]
+        elif name not in VISUALIZER_TYPES:
+            raise argparse.ArgumentTypeError(
+                f"Invalid --visualizer value {value!r}: use a comma-separated list, without spaces, of "
+                f"{', '.join(VISUALIZER_TYPES)}."
+            )
+    return list(dict.fromkeys(names))
 
 
 @configclass

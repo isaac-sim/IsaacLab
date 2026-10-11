@@ -9,6 +9,7 @@ Kept apart from ``test_visualizer_integration_newton``: OVRTX cannot share a pro
 that module launches at import.
 """
 
+import logging
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,7 @@ import warp as wp  # noqa: E402
 from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg  # noqa: E402
 
 from isaaclab.assets import AssetBaseCfg  # noqa: E402
+from isaaclab.sim import create_new_stage  # noqa: E402
 from isaaclab.visualizers import SceneCameraCfg, WindowCfg  # noqa: E402
 
 _TEST_DIR = Path(__file__).resolve().parent
@@ -38,9 +40,37 @@ import visualizer_integration_utils as _viz_utils  # noqa: E402
 
 
 @pytest.mark.arm_ci
-def test_cartpole_env_newton_rtx_visualizer_motion_with_play_pause_newton(caplog: pytest.LogCaptureFixture) -> None:
+def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture) -> None:
     """Newton RTX frames are non-flat, move while playing, freeze while paused, and draw a marker."""
-    _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause("newton", caplog, visualizer_kinds=("newton_rtx",))
+    env = None
+    try:
+        _viz_utils._prepare_visualizer_test_process()
+        create_new_stage()
+        env = _viz_utils._make_cartpole_camera_env(visualizer_kind=("newton_rtx",), backend_kind="newton")
+        env.cfg.initial_pole_angle_range = _viz_utils._INTEGRATION_TEST_POLE_ANGLE_RANGE
+        env.cfg.initial_pole_velocity_range = _viz_utils._INTEGRATION_TEST_POLE_VELOCITY_RANGE
+        _viz_utils._configure_sim_for_visualizer_test(env)
+        with caplog.at_level(logging.WARNING):
+            env.reset()
+            visualizer = env.sim.visualizers[0]
+            actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
+            # The first async capture must succeed before warm-up can suppress its error.
+            first_frame = visualizer.render_rgb_array()
+            width, height = _viz_utils._CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
+            assert first_frame is not None and first_frame.shape == (height, width, 3)
+            _viz_utils._run_newton_viewer_frame_motion_test(
+                env,
+                visualizer._viewer,
+                visualizer=visualizer,
+                step_hook=lambda: env.step(action=actions),
+                get_physics_step_count=env.sim.get_physics_step_count,
+                physics_kind="newton",
+                viz_kind="newton_rtx",
+            )
+            _viz_utils._assert_newton_rtx_markers_drawn(env, visualizer, case_label="newton_rtx/newton")
+        _viz_utils._assert_no_visualizer_log_issues(caplog)
+    finally:
+        _viz_utils._cleanup_visualizer_test_process(env)
 
 
 @pytest.mark.rendering

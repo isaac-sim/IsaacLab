@@ -330,6 +330,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing
   required attribute; express optional fields explicitly in the interface.
+  Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
+  state, such as choosing an environment's frame rate or waiting for a client to connect.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.

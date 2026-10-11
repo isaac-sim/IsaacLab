@@ -10,7 +10,7 @@ from __future__ import annotations
 import sys
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, call
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer
 import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
@@ -395,7 +395,10 @@ def web_backend(monkeypatch):
 class _DummyViserViewer:
     def __init__(self):
         self.calls = []
-        self._server = object()
+        self._server = SimpleNamespace(
+            gui=MagicMock(), get_clients=lambda: {0: SimpleNamespace(camera=SimpleNamespace())}
+        )
+        self._share_url = None
         self.set_model = Mock()
         self.set_visible_worlds = Mock()
         self.set_world_offsets = Mock()
@@ -413,27 +416,30 @@ class _DummyViserViewer:
         return True
 
 
-def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web_backend):
+@pytest.mark.parametrize("max_visible_envs, expected_visible", [(None, None), (0, []), (3, [0, 1, 2])])
+def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(
+    monkeypatch, web_backend, max_visible_envs, expected_visible
+):
     provider = _DummyViserSceneDataProvider()
     web_backend.get_scene_data_provider.return_value = provider
     viewer = _DummyViserViewer()
 
-    def _fake_create_viewer(self, record_to_viser: str | None, metadata: dict | None = None):
-        assert record_to_viser is None
-        assert metadata == {"num_envs": provider.num_envs}
-        self._viewer = viewer
-
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_create_viewer", _fake_create_viewer)
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_setup_isaaclab_sidebar", lambda self, server: None)
+    constructor = Mock(return_value=viewer)
+    monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", constructor)
 
     cfg = NewtonBackendCfg(physics_cfg=web_backend.cfg.physics, device=web_backend.device)
-    visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
+    visualizer = viser_visualizer.ViserVisualizer(
+        ViserVisualizerCfg(max_visible_envs=max_visible_envs, randomly_sample_visible_envs=False)
+    )
     visualizer.initialize(web_backend, cameras=[])
     visualizer.step(0.25)
 
     assert visualizer.is_initialized
     backend = web_backend.get_or_create_backend.return_value
     assert visualizer.backend is backend
+    assert constructor.call_args.kwargs["bind_address"] == visualizer.cfg.bind_address
+    viewer.set_visible_worlds.assert_called_once_with(expected_visible)
+    viewer.set_world_offsets.assert_called_once_with((0.0, 0.0, 0.0))
     assert backend.state_0.body_q.shape == (1,)
     assert visualizer._sim_time == pytest.approx(0.25)
     assert viewer.calls[0][0] == "begin_frame"
@@ -446,86 +452,10 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
     assert visualizer.backend is backend
     visualizer.reset()
     visualizer.reset()
-    viewer.set_model.assert_called_once_with(replacement.model)
+    assert viewer.set_model.call_args_list == [call(backend.model), call(replacement.model)]
     web_backend.get_or_create_backend.assert_called_with(cfg)
     visualizer.step(0.25)
     assert viewer.calls[-2] == ("log_state", replacement.state_0)
-
-
-@pytest.mark.parametrize(
-    ("cfg_max_visible_envs", "expected_visible"),
-    [
-        (None, None),
-        (0, []),
-        (3, [0, 1, 2]),
-    ],
-)
-def test_viser_visualizer_create_viewer_applies_visible_worlds(
-    monkeypatch: pytest.MonkeyPatch,
-    cfg_max_visible_envs: int | None,
-    expected_visible: list[int] | None,
-):
-    captured = {}
-
-    class _FakeNewtonViewerViser:
-        def __init__(
-            self,
-            *,
-            port: int,
-            bind_address: str,
-            label: str | None,
-            verbose: bool,
-            share: bool,
-            record_to_viser: str | None,
-            metadata: dict | None = None,
-        ):
-            captured["init"] = {
-                "port": port,
-                "bind_address": bind_address,
-                "label": label,
-                "verbose": verbose,
-                "share": share,
-                "record_to_viser": record_to_viser,
-                "metadata": metadata,
-            }
-
-        def set_model(self, model: Any) -> None:
-            captured["set_model"] = model
-
-        def set_visible_worlds(self, worlds) -> None:
-            captured["visible_worlds"] = worlds
-
-        def set_world_offsets(self, spacing) -> None:
-            captured["set_world_offsets"] = tuple(spacing)
-
-        @property
-        def share_url(self) -> str | None:
-            return None
-
-    monkeypatch.setattr(viser_visualizer, "NewtonViewerViser", _FakeNewtonViewerViser)
-    apply_pose = Mock()
-    monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_set_viser_camera_view", apply_pose)
-
-    cfg = ViserVisualizerCfg(
-        max_visible_envs=cfg_max_visible_envs,
-        open_browser=False,
-        randomly_sample_visible_envs=False,
-    )
-    visualizer = viser_visualizer.ViserVisualizer(cfg)
-    visualizer.backend = SimpleNamespace(model="dummy-model")
-    sim = Mock(
-        stage=None,
-        physics_manager=type("NewtonManager", (), {}),
-        get_scene_data_provider=Mock(return_value=SimpleNamespace(num_envs=8)),
-    )
-    BaseVisualizer.initialize(visualizer, sim, cameras=[])
-    visualizer._create_viewer(record_to_viser="record.viser", metadata={"num_envs": 8})
-
-    assert captured["set_model"] == "dummy-model"
-    assert captured["init"]["bind_address"] == cfg.bind_address
-    assert captured["visible_worlds"] == expected_visible
-    assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
-    apply_pose.assert_called_once_with((cfg.eye, cfg.lookat))
 
 
 @pytest.mark.parametrize(

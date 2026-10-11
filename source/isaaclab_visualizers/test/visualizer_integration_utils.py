@@ -1734,30 +1734,6 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                         physics_kind=backend_kind,
                     )
 
-            if "newton_rtx" in visualizer_kinds:
-                rtx_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonRTXVisualizer)]
-                assert rtx_visualizers, "Expected an initialized Newton RTX visualizer."
-                rtx_viewer = getattr(rtx_visualizers[0], "_viewer", None)
-                assert rtx_viewer is not None, "Newton RTX viewer was not created."
-
-                with _visualizer_debug_case("newton_rtx", backend_kind):
-                    # The first async capture must succeed before warm-up can suppress its error.
-                    first_frame = rtx_visualizers[0].render_rgb_array()
-                    width, height = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
-                    assert first_frame is not None and first_frame.shape == (height, width, 3)
-                    _run_newton_viewer_frame_motion_test(
-                        env,
-                        rtx_viewer,
-                        visualizer=rtx_visualizers[0],
-                        step_hook=_step_env,
-                        get_physics_step_count=lambda: env.sim._physics_step_count,
-                        physics_kind=backend_kind,
-                        viz_kind="newton_rtx",
-                    )
-                    _assert_newton_rtx_markers_drawn(
-                        env, rtx_visualizers[0], case_label=_visualizer_case_label("newton_rtx", backend_kind)
-                    )
-
             if "rerun" in visualizer_kinds:
                 from isaaclab_visualizers.rerun import RerunVisualizer
 
