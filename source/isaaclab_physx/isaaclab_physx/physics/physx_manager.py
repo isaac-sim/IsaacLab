@@ -579,8 +579,10 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def play(cls) -> None:
         """Start or resume the timeline."""
-        # Re-attaching Fabric hides GPU tensor writes until the next physics step,
-        # so the first reset frame after start would show the spawn pose.
+        # Pause/resume still needs Fabric's stage reattach to unfreeze visuals (#4279).
+        # Reattaching on initial play hides GPU tensor reset poses until a physics step,
+        # so the first camera frame shows the spawn pose. A zero-step reset immediately
+        # after resume remains affected by the same Fabric limitation.
         resuming = not cls._timeline.is_playing() and not cls._timeline.is_stopped()
         cls._timeline.play()
         # Pump events so timeline callbacks fire synchronously

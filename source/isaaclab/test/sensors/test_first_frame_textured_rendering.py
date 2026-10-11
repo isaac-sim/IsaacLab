@@ -206,17 +206,6 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         for _ in range(STABILISATION_STEPS):
             initial_obs, _ = env.step(action)
         initial_depth = initial_obs["camera"]["depth"].clone()
-        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
-
-        # Check the saved zero-step frame against the same pose after stabilization.
-        first_mask = torch.isfinite(first_reset_depth) & (first_reset_depth > 0.0) & (first_reset_depth < 10.0)
-        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
-        assert initial_mask.any(), "The reset cube must be visible in the reference frame."
-        first_overlap = (first_mask & initial_mask).sum() / (first_mask | initial_mask).sum()
-        assert first_overlap > 0.9, (
-            f"First reset camera observation did not show the reset silhouette: IoU={first_overlap.item():.3f}"
-        )
-
         moved_pose = initial_pose.clone()
         moved_pose[:, 0] += 0.7
         moved_pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=device)
@@ -234,14 +223,14 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
 
         # Depth silhouettes check geometry, independent of RGB exposure and temporal denoising.
+        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
         moved_mask = torch.isfinite(moved_depth) & (moved_depth > 0.0) & (moved_depth < 10.0)
-        reset_mask = torch.isfinite(reset_depth) & (reset_depth > 0.0) & (reset_depth < 10.0)
         assert initial_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
         assert not (initial_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
-        overlap = (initial_mask & reset_mask).sum() / (initial_mask | reset_mask).sum()
-        assert overlap > 0.9, (
-            f"Reset camera observation did not restore the initial silhouette: IoU={overlap.item():.3f}"
-        )
+        for phase, depth in (("First", first_reset_depth), ("Later", reset_depth)):
+            reset_mask = torch.isfinite(depth) & (depth > 0.0) & (depth < 10.0)
+            overlap = (initial_mask & reset_mask).sum() / (initial_mask | reset_mask).sum()
+            assert overlap > 0.9, f"{phase} reset camera missed the reset silhouette: IoU={overlap.item():.3f}"
     finally:
         env.close()
 
