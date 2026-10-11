@@ -1327,10 +1327,10 @@ def _capture_visualizer_tiled_camera_rgb(visualizer) -> np.ndarray:
     """Converge the declared sensor and read the same composed frame used by its window."""
     view = visualizer.current_image_view
     assert view is not None and view.camera is not None, "Visualizer did not bind its declared scene camera."
-    if isinstance(visualizer, KitVisualizer):
-        _update_active_simulation_app()
     previous = None
     for index in range(_WARMUP_MAX_FRAMES):
+        if isinstance(visualizer, KitVisualizer):
+            _update_active_simulation_app()
         view.camera.update(dt=0.0, force_recompute=True)
         view.invalidate()
         frame = visualizer.render_tiled_rgb_array()
