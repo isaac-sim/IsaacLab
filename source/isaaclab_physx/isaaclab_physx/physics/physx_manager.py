@@ -1025,8 +1025,7 @@ class PhysxManager(PhysicsManager):
 
     def _invalidate_views(self) -> None:
         """Invalidate and clear simulation views."""
-        for key in [key for key in self.views if key[0] is self]:
-            del self.views[key]
+        self.views.clear()
         self._gpu_articulation_aliasing_tally.clear()
         self._gpu_articulation_aliasing_warning_logged.clear()
         if self._scene_data_backend is not None:

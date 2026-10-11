@@ -55,3 +55,7 @@
   storage. The helper returns a ``CapturedGraph`` with a ``launch()`` method.
 * ``POST_STEP`` callbacks and native sensors update after every physics step, keeping feedback current within the
   captured decimation loop. ``POST_ACTUATOR`` telemetry remains sampled on the last physics step.
+* A backend builds its own solver adapter from its configuration, and every adapter hook reads the solver settings
+  from :attr:`~isaaclab_newton.physics.NewtonSolver.cfg`. Kamino keeps its resolved ``use_fk_solver`` on the adapter
+  instead of rewriting the backend configuration. :attr:`~isaaclab_newton.physics.NewtonBackend.live` replaces the
+  repeated ``is_stepping or device.is_capturing`` check in asset data.

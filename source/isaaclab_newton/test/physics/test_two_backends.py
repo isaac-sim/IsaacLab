@@ -49,10 +49,9 @@ def _pendulums(
     ``links_per_world`` gives each world its own chain length; by default every world holds one link.
     """
     builder = _pendulum_builder(physics_cfg, num_worlds, links_per_world)
-    adapter = create_solver_adapter(physics_cfg.solver_cfg)
-    adapter.prepare_solver_builder(builder)
+    create_solver_adapter(physics_cfg.solver_cfg).prepare_solver_builder(builder)
     model = builder.finalize(device=DEVICE)
-    backend = NewtonBackend(model, physics_cfg, dt=DT, solver_adapter=adapter)
+    backend = NewtonBackend(model, physics_cfg, dt=DT)
     nb.init_solver(backend)
     backend.steps_per_call = steps
     if not captured:

@@ -68,8 +68,9 @@ class KaminoSolverAdapter(NewtonSolver):
         """
         solver_cfg: _KaminoSolverCfgBase = self.cfg
         if solver_cfg.use_fk_solver is None:
-            # Enable the FK solver for loop-closing articulations unless the user chose explicitly.
-            solver_cfg = solver_cfg.replace(use_fk_solver=_model_has_loop_closing_joints(model))
+            # Enable the FK solver for loop-closing articulations unless the user chose explicitly. The adapter keeps
+            # the resolved copy, so eval_fk follows the same choice; the user's configuration stays untouched.
+            solver_cfg = self.cfg = solver_cfg.replace(use_fk_solver=_model_has_loop_closing_joints(model))
         if solver_cfg.max_contacts_per_world is not None:
             model.rigid_contact_max = int(solver_cfg.max_contacts_per_world) * model.world_count
             logger.info(
@@ -86,16 +87,8 @@ class KaminoSolverAdapter(NewtonSolver):
             )
         return SolverKamino(model, solver_cfg.to_solver_config())
 
-    def validate_cfg(self, backend: NewtonBackend) -> None:
-        """Resolve the automatic FK-solver choice into the backend's configuration, leaving the user's untouched."""
-        super().validate_cfg(backend)
-        solver_cfg = backend.cfg.solver_cfg
-        if solver_cfg.use_fk_solver is None:
-            use_fk_solver = _model_has_loop_closing_joints(backend.model)
-            backend.cfg = backend.cfg.replace(solver_cfg=solver_cfg.replace(use_fk_solver=use_fk_solver))
-
     def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
-        return not backend.cfg.solver_cfg.use_collision_detector
+        return not self.cfg.use_collision_detector
 
     def initialize_output_state(self, backend: NewtonBackend, state: State) -> None:
         """Initialize the output state's persistent Kamino buffers; FK initializes the input state."""
@@ -114,7 +107,7 @@ class KaminoSolverAdapter(NewtonSolver):
         is responsible for constraint-consistent joint values.
         """
         solver = backend.solver
-        if backend.cfg.solver_cfg.use_fk_solver:
+        if self.cfg.use_fk_solver:
             solver.reset(state, world_mask=world_mask, config=SolverKamino.ResetConfig.from_joints())
             return
         eval_fk(backend.model, state.joint_q, state.joint_qd, state, fk_mask)

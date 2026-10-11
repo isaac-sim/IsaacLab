@@ -41,7 +41,7 @@ from isaaclab_newton.renderers.visual_material import (
 from . import newton_backend as nb
 from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback, StepPhase
 from .newton_scene_data import NewtonSceneDataBackend
-from .newton_solver import create_builder, create_solver_adapter
+from .newton_solver import NewtonSolver, create_builder, create_solver_adapter
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
@@ -105,11 +105,10 @@ class NewtonManager(PhysicsManager):
         """
         super().__init__()
         self._cfg = cfg if cfg is not None else NewtonCfg()
-        self.solver_adapter = create_solver_adapter(self._cfg.solver_cfg)
-        """Adapter of the configured solver type, shared by the backends this manager builds."""
         self._device = device
         self._dt = dt
         self._builder = builder
+        self._solver_adapter: NewtonSolver | None = None
         self.backend: NewtonBackend | None = None
         self._site_requests = {}
         self._site_index_map = {}
@@ -119,6 +118,13 @@ class NewtonManager(PhysicsManager):
         self._control_binding = None
         self._decimation = 1
         self._apply_every_physics_step = None
+
+    @property
+    def solver_adapter(self) -> NewtonSolver:
+        """Adapter of the configured solver, used for the builder before a backend exists."""
+        if self._solver_adapter is None or self._solver_adapter.cfg is not self._cfg.solver_cfg:
+            self._solver_adapter = create_solver_adapter(self._cfg.solver_cfg)
+        return self._solver_adapter
 
     # ----- Physics manager lifecycle ---------------------------------------------
 
@@ -133,7 +139,6 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         self.clone_context_type = NewtonReplicateContext
-        self.solver_adapter = create_solver_adapter(self._cfg.solver_cfg)
         self._dt = sim_context.cfg.dt
 
     def reset(self, soft: bool = False) -> None:
@@ -320,9 +325,7 @@ class NewtonManager(PhysicsManager):
 
     def _resolve_steps_per_call(self) -> None:
         """Set the physics steps of one :meth:`step` once the backend's consumers and the decimation are known."""
-        backend = self.backend
-        if backend.cfg is not None:
-            backend.steps_per_call = self._decimation if self.handles_decimation() else 1
+        self.backend.steps_per_call = self._decimation if self.handles_decimation() else 1
 
     # ----- Step callbacks and actuators -----------------------------------------------
 
@@ -438,15 +441,14 @@ class NewtonManager(PhysicsManager):
 
     def _mark_transforms_changed(self) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
-        if self._scene_data_backend is not None:
-            self._scene_data_backend.transforms_timestamp += 1
-            self._scene_data_backend.geometry_timestamp += 1
+        self._scene_data_backend.transforms_timestamp += 1
+        self._scene_data_backend.geometry_timestamp += 1
         self._flag_outer_capture()
 
     def _flag_outer_capture(self) -> None:
         """Remember writes recorded into an outer capture, whose replays bypass Python invalidation."""
         backend = self.backend
-        if backend is not None and backend.cfg is not None and backend.device.is_capturing:
+        if backend is not None and backend.device.is_capturing:
             backend.transforms_may_change_on_graph_replay = True
 
     # ----- Sensors ------------------------------------------------------------------
@@ -628,9 +630,7 @@ class NewtonManager(PhysicsManager):
             )
             for label, start, end in zip(labels, starts, ends, strict=True)
         }
-        return NewtonBackend(
-            model, self._cfg, dt=self._dt, deformable_ranges=ranges, solver_adapter=self.solver_adapter
-        )
+        return NewtonBackend(model, self._cfg, dt=self._dt, deformable_ranges=ranges)
 
     def get_physics_dt(self) -> float:
         """Return the physics timestep, including standalone simulations."""

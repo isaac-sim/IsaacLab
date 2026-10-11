@@ -172,7 +172,7 @@ class NewtonSolver:
         mode = backend.deterministic_mode
         if mode != wp.DeterministicMode.NOT_GUARANTEED and not self.supports_deterministic:
             raise ValueError(
-                f"Newton deterministic mode {mode.name} is not supported by {type(backend.cfg.solver_cfg).__name__}."
+                f"Newton deterministic mode {mode.name} is not supported by {type(self.cfg).__name__}."
                 " Use MJWarp on the GPU, XPBD, or Featherstone, or disable deterministic mode."
             )
 

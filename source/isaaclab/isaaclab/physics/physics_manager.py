@@ -89,7 +89,8 @@ class PhysicsManager(ABC):
         self._sim_time: float = 0.0
         self._callbacks: dict[int, tuple[Any, Callable, int, str | None, Any]] = {}
         self._callback_id: int = 0
-        self.views: dict[tuple[type, str], Any] = {}
+        self.views: dict[str, Any] = {}
+        """Backend views by prim path expression, shared by the consumers of this manager."""
 
     clone_context_type: ClassVar[type[object] | None] = None
 

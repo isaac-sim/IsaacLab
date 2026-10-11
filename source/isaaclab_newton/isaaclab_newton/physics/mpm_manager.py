@@ -175,7 +175,7 @@ class MPMSolverAdapter(NewtonSolver):
         the substep also hard-projects particles out of collider interiors, as in Newton's MPM examples.
         """
         backend.solver.step(state_in, state_out, backend.control, contacts, dt)
-        if backend.cfg.solver_cfg.project_outside_colliders:
+        if self.cfg.project_outside_colliders:
             backend.solver.project_outside(state_out, state_out, dt)
 
     def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:

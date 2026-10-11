@@ -6,3 +6,6 @@
   :class:`~isaaclab.envs.mdp.actions.JointPositionToLimitsAction` replacing their processed-action buffer on every
   step. When physics applied the actions inside a captured step, the graph kept reading the first step's buffer, so
   later actions were ignored.
+* Fixed :attr:`~isaaclab.physics.PhysicsManager.views` keys mixing prim path expressions with
+  ``(manager class, expression)`` tuples, so consumers sharing one articulation view never found it. Views are keyed
+  by prim path expression on each manager instance.

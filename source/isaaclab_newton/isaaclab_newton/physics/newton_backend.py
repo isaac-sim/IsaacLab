@@ -310,7 +310,6 @@ class NewtonBackend:
         *,
         dt: float | None = None,
         deformable_ranges: dict[str, tuple[int, int, str]] | None = None,
-        solver_adapter: NewtonSolver | None = None,
     ):
         """Bind native buffers to a finalized model.
 
@@ -320,8 +319,6 @@ class NewtonBackend:
                 ``physics_cfg.solver_cfg.class_type``; anything else makes it render-only.
             dt: Duration of one physics step [s]. Required for a simulation backend.
             deformable_ranges: Native ``(start, count, kind)`` particle range of each deformable mesh, by label.
-            solver_adapter: Adapter of the configured solver type, e.g. shared by the backends of one manager.
-                Defaults to a new adapter for ``physics_cfg.solver_cfg``.
         """
         self.model = model
         self.is_stepping = False
@@ -347,8 +344,8 @@ class NewtonBackend:
         if dt is None:
             raise ValueError("A simulation NewtonBackend requires the physics step duration dt.")
 
-        self.solver_adapter: NewtonSolver = solver_adapter or create_solver_adapter(physics_cfg.solver_cfg)
-        """Solver adapter whose hooks construct, step, and reset the solver of this backend."""
+        self.solver_adapter: NewtonSolver = create_solver_adapter(physics_cfg.solver_cfg)
+        """Adapter of :attr:`cfg`'s solver, whose hooks construct, step, and reset the solver of this backend."""
         self.dt = dt
         """Duration of one physics step [s]."""
         self.num_substeps = physics_cfg.num_substeps
@@ -403,6 +400,15 @@ class NewtonBackend:
         """Physics steps one :func:`step` advances, e.g. the environment's decimation when physics runs the loop."""
         self.capture: Callable[[Callable[[], None]], CapturedGraph] | None = None
         """Records step-graph segments into CUDA graphs; ``None`` steps eagerly. Set by :func:`init_solver`."""
+
+    @property
+    def live(self) -> bool:
+        """Whether derived data must be recomputed on read instead of taken from timestamp caches.
+
+        True inside :func:`step`, where callbacks read state between physics steps, and while a CUDA graph is being
+        recorded, whose replays bypass the host-side timestamps.
+        """
+        return self.is_stepping or self.device.is_capturing
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -1114,11 +1120,19 @@ class CapturedGraph:
         self.torch_graph = torch_graph
         self.warp_graph = warp_graph
         self.device = device
+        self.stream = wp.stream_to_torch(wp.get_stream(device))
+        """Simulation stream the graph replays on, resolved once instead of on every replay."""
 
     def launch(self) -> None:
         """Replay on the simulation stream, ordered with the caller's Torch work."""
-        with execution_stream(self.device):
+        caller = torch.cuda.current_stream(self.stream.device)
+        if caller.cuda_stream == self.stream.cuda_stream:
             self.torch_graph.replay()
+            return
+        self.stream.wait_stream(caller)
+        with torch.cuda.stream(self.stream):
+            self.torch_graph.replay()
+        caller.wait_stream(self.stream)
 
 
 @contextlib.contextmanager

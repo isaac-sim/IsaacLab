@@ -371,7 +371,7 @@ def test_fixed_joint_selection(sim, monkeypatch, root_type):
         sensor._joint_child.numpy(), [0, 2, 1] if root_type == newton.JointType.REVOLUTE else [2, 1]
     )
     # Sensing must not create a second view or include welds in the control-joint selection.
-    view = views[sensor_module.NewtonManager, root_expr]
+    view = views[root_expr]
     assert sensor._root_view is view
     assert view_factory.call_count == 1
     assert view.joint_count == int(root_type == newton.JointType.REVOLUTE)

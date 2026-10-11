@@ -30,7 +30,7 @@ class VBDSolverAdapter(NewtonSolver):
         builder.color(balance_colors=False)
 
     def supports_body_forces(self, backend: NewtonBackend) -> bool:
-        return not backend.cfg.solver_cfg.integrate_with_external_rigid_solver
+        return not self.cfg.integrate_with_external_rigid_solver
 
     def prepare_step(self, backend: NewtonBackend, state: State) -> None:
         """Rebuild the particle BVH before each physics step."""

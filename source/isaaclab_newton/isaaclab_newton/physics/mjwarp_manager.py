@@ -57,12 +57,12 @@ class MJWarpSolverAdapter(NewtonSolver):
         sensors read attributes that only MuJoCo's sensor stage fills."""
         super().validate_cfg(backend)
         cfg = backend.cfg
-        if cfg.solver_cfg.use_mujoco_contacts and cfg.collision_cfg is not None:
+        if self.cfg.use_mujoco_contacts and cfg.collision_cfg is not None:
             raise ValueError(
                 "NewtonCfg: collision_cfg cannot be set when solver_cfg.use_mujoco_contacts=True. Either set"
                 " use_mujoco_contacts=False or remove collision_cfg."
             )
-        if cfg.solver_cfg.use_mujoco_cpu and cfg.deterministic_mode != "not_guaranteed":
+        if self.cfg.use_mujoco_cpu and cfg.deterministic_mode != "not_guaranteed":
             logger.info("MuJoCo CPU backend is already reproducible; Newton's deterministic mode is not applied.")
         mode = backend.deterministic_mode
         blocked = set(backend.model.get_requested_state_attributes()) & _SENSORS_BY_STATE_ATTRIBUTE.keys()
@@ -77,10 +77,10 @@ class MJWarpSolverAdapter(NewtonSolver):
             )
 
     def supports_graph_capture(self, backend: NewtonBackend) -> bool:
-        return not backend.cfg.solver_cfg.use_mujoco_cpu
+        return not self.cfg.use_mujoco_cpu
 
     def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
-        return not backend.cfg.solver_cfg.use_mujoco_contacts
+        return not self.cfg.use_mujoco_contacts
 
     def create_contacts(self, backend: NewtonBackend) -> Contacts:
         """Allocate contacts sized to MuJoCo's contact buffer; ``solver.update_contacts`` fills them for sensors."""

@@ -84,7 +84,7 @@ class CouplerSolverAdapter(NewtonSolver):
 
     def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
         """Whether an entry that collides outside its proxies expects contacts from Newton's collision pipeline."""
-        solver_cfg = backend.cfg.solver_cfg
+        solver_cfg = self.cfg
         if not isinstance(solver_cfg, CouplerProxyCfg):
             return True
         directions = {(proxy.source, proxy.destination) for proxy in solver_cfg.proxies}
@@ -220,7 +220,7 @@ class CouplerSolverAdapter(NewtonSolver):
 
     def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
-        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in backend.cfg.solver_cfg.entries)
+        has_mpm_entry = any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in self.cfg.entries)
         if backend.model.world_count == 1 and has_mpm_entry:
             selected = world_mask.numpy()
             if not selected.any():

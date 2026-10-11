@@ -20,8 +20,6 @@ from pxr import UsdPhysics
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
-from isaaclab_newton.physics import NewtonManager
-
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
 
@@ -134,9 +132,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = self._physics_manager.views.get((NewtonManager, root_prim_path_expr))
+        self._root_view = self._physics_manager.views.get(root_prim_path_expr)
         if self._root_view is None:
-            self._root_view = self._physics_manager.views[NewtonManager, root_prim_path_expr] = ArticulationView(
+            self._root_view = self._physics_manager.views[root_prim_path_expr] = ArticulationView(
                 model,
                 re.compile(root_prim_path_expr),
                 verbose=False,
