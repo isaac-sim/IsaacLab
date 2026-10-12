@@ -73,7 +73,7 @@ To browse all registered environments and their presets at once, run:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/list_envs.py --show_presets
+   uv run isaaclab list_envs --show_presets
 
 An empty preset list is not an error. It means that the environment uses its
 registered default configuration and does not expose alternatives. Passing a

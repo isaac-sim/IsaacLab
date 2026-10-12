@@ -352,7 +352,7 @@ class KitLauncher(SimulationLauncher):
             "--visualizer",
             "--viz",
             type=parse_visualizer_csv,
-            default=None,
+            default=[],
             help=(
                 "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
                 " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."

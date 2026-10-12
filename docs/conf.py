@@ -410,6 +410,11 @@ isaaclab_doc_redirects = {
     "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
     "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
     "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
+    "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
+    "source/features/draw_markers": "source/how-to/create_visualization_markers",
+    "source/features/record_video": "source/how-to/record_video",
+    "source/features/visualizer_tiled_camera": "source/how-to/visualizer_streaming_camera_view",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
     "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
@@ -434,6 +439,8 @@ isaaclab_doc_redirects = {
     "source/tutorials/index": "source/how-to/index",
 }
 
+_streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
+
 # Sections of the former combined Docker page now live on separate pages.
 isaaclab_doc_redirect_fragments = {
     "source/features/docker_cloud": {
@@ -441,6 +448,20 @@ isaaclab_doc_redirect_fragments = {
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
         "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
         "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+    },
+    "source/features/record_video": {
+        "overview": "source/concepts/visualization#video-recording",
+        "record-video-cli": "source/concepts/visualization#record-video-cli",
+        "usage": "source/how-to/record_video#sources",
+        "source-types": "source/how-to/record_video#sources",
+        "limitations-and-compatibility": "source/how-to/record_video#limitations",
+    },
+    "source/features/visualizer_tiled_camera": {
+        "overview": "source/concepts/visualization#visualization-streaming-camera-view",
+        "usage": "source/concepts/visualization#visualization-streaming-camera-view",
+        "configuration-notes": f"{_streaming_how_to}#configuration",
+        "migration-from-generated-streaming-cameras": f"{_streaming_how_to}#migrating-from-generated-cameras",
+        "declared-display-sources": f"{_streaming_how_to}#display-sources",
     },
 }
 
