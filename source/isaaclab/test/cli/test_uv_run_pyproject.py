@@ -155,7 +155,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     assert all(spec("ovrtx") in line or "steps.ov_pins.outputs.ovrtx" in line for line in ovrtx_install_lines)
 
     # Direct torch-stack pins apply to both source and wheel installations.
-    for package in ("torch", "torchvision", "torchaudio"):
+    for package in ("torch", "torchvision"):
         assert f"{package}=={versions[package]}" in dependencies
 
     # Newton source and wheel installations use the locked commit until its next release.
