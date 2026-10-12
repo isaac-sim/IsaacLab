@@ -62,6 +62,8 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.test.utils.articulation_ordering import (  # noqa: E402
+    BRANCHING_ISAACSIM_PHYSX_BODY_NAMES,
+    BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES,
     BRANCHING_MJWARP_BODY_NAMES,
     BRANCHING_MJWARP_JOINT_NAMES,
     BRANCHING_PHYSX_BODY_NAMES,
@@ -1260,9 +1262,15 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     device = scene.device
     num_envs = articulation.num_instances
 
-    # OVPhysX exposes the native breadth-first PhysX order on the backend axis.
+    # OVPhysX exposes the native breadth-first PhysX order on the backend axis; the Isaac Sim PhysX
+    # authored order is resolved from the source USD.
     assert tuple(articulation.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
     assert tuple(articulation.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    isaacsim_joint_names = get_articulation_name_ordering(articulation, "isaacsim_physx", kind="joint")
+    assert isaacsim_joint_names == BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(articulation, "isaacsim_physx", kind="body") == (
+        BRANCHING_ISAACSIM_PHYSX_BODY_NAMES
+    )
 
     # Cross-backend Newton discovery resolves the depth-first MJWarp order and reorders the public axis.
     assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == BRANCHING_MJWARP_JOINT_NAMES

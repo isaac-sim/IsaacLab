@@ -492,21 +492,154 @@ def _get_names_from_newton_usd_builder(
     return {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)}
 
 
-def _get_physx_names_from_newton_usd_builder(
+_PHYSX_JOINT_TYPE_ORDER = (
+    "PhysicsFixedJoint",
+    "PhysicsRevoluteJoint",
+    "PhysicsPrismaticJoint",
+    "PhysicsSphericalJoint",
+    "PhysicsDistanceJoint",
+)
+"""Joint prim types in the order the ``"physx"`` convention visits sibling links; other types follow."""
+
+
+def _get_physx_sibling_key(joint_prim: Usd.Prim) -> tuple[int, str]:
+    """Return the ``"physx"`` sibling key of a joint prim: joint type, then prim path."""
+    type_name = joint_prim.GetTypeName()
+    known_type = type_name in _PHYSX_JOINT_TYPE_ORDER
+    rank = _PHYSX_JOINT_TYPE_ORDER.index(type_name) if known_type else len(_PHYSX_JOINT_TYPE_ORDER)
+    return rank, _get_prim_path_string(joint_prim)
+
+
+_AUTHORED_CHILD_ORDER_KEY = "isaaclab:authoredChildOrder"
+"""Custom-data key recording a prim's child order before :func:`author_physx_joint_traversal_order` changed it."""
+
+
+def _get_articulated_joint_prims(source_asset_prim: Usd.Prim) -> list[Usd.Prim]:
+    """Return the asset's articulated joint prims in authored stage traversal order."""
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+    joint_prims, stack = [], [source_asset_prim]
+    while stack:
+        prim = stack.pop()
+        if prim.IsA(UsdPhysics.Joint) and not UsdPhysics.Joint(prim).GetExcludeFromArticulationAttr().Get():
+            joint_prims.append(prim)
+        children = list(prim.GetFilteredChildren(Usd.TraverseInstanceProxies()))
+        authored_names = prim.GetCustomDataByKey(_AUTHORED_CHILD_ORDER_KEY) or ()
+        authored_order = {name: index for index, name in enumerate(authored_names)}
+        if authored_order:
+            children.sort(key=lambda child: authored_order.get(child.GetName(), len(authored_order)))
+        stack.extend(reversed(children))
+    return joint_prims
+
+
+def _get_usd_breadth_first_names(
     articulation: BaseArticulation,
+    convention: ArticulationOrderingConvention,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
-    """Build a lightweight Newton prototype view with PhysX-style articulation names."""
-    # NOTE: "bfs" assumes Newton's breadth-first USD traversal reproduces
-    # PhysX's native articulation-view order. Unlike the MJWarp constants
-    # below, this is not coupled to isaaclab_newton's NewtonManager: a live
-    # PhysX/OVPhysX backend never goes through Newton's ModelBuilder.add_usd,
-    # so there is no analogous "active backend already matches these
-    # arguments" identity path to keep in sync.
-    return _get_names_from_newton_usd_builder(
-        articulation,
-        joint_ordering="bfs",
-        bodies_follow_joint_ordering=True,
-    )
+    """Walk the source USD joint tree breadth-first and return PhysX-style articulation names.
+
+    ``"physx"`` visits the child links of each link by joint type, then joint prim path, as OVPhysX does.
+    ``"isaacsim_physx"`` visits them in stage traversal order, as Isaac Sim PhysX does. Multi-DoF joints
+    keep the active backend's DoF names and their backend order.
+    """
+    from pxr import UsdPhysics  # noqa: PLC0415
+
+    source_asset_prim = _get_source_asset_prim(articulation)
+    if source_asset_prim is None:
+        return None
+    stage = source_asset_prim.GetStage()
+
+    def get_body_path(joint_rel) -> str | None:
+        targets = joint_rel.GetTargets()
+        body = stage.GetPrimAtPath(targets[0]) if targets else None
+        return targets[0].pathString if body and body.HasAPI(UsdPhysics.RigidBodyAPI) else None
+
+    joint_prims = _get_articulated_joint_prims(source_asset_prim)
+    authored_index = {_get_prim_path_string(prim): index for index, prim in enumerate(joint_prims)}
+    links: dict[str, list[tuple[Usd.Prim, str]]] = {}
+    parents, children = set(), set()
+    root_body, root_joint = None, None
+    for prim in joint_prims:
+        joint = UsdPhysics.Joint(prim)
+        body0, body1 = get_body_path(joint.GetBody0Rel()), get_body_path(joint.GetBody1Rel())
+        if body0 is None or body1 is None:
+            if body0 or body1:
+                root_body, root_joint = body0 or body1, prim
+            continue
+        links.setdefault(body0, []).append((prim, body1))
+        links.setdefault(body1, []).append((prim, body0))
+        parents.add(body0)
+        children.add(body1)
+    if root_body is None:
+        # A floating base starts at its articulation-root body, else at the parent body that is never a child.
+        root_api_bodies = [
+            body for body in sorted(links) if stage.GetPrimAtPath(body).HasAPI(UsdPhysics.ArticulationRootAPI)
+        ]
+        candidates = root_api_bodies or sorted(parents - children)
+        if not candidates:
+            return None
+        root_body = candidates[0]
+
+    if convention is ArticulationOrderingConvention.PHYSX:
+        sort_key = _get_physx_sibling_key
+    else:
+        sort_key = lambda prim: authored_index[_get_prim_path_string(prim)]  # noqa: E731
+    bodies, joints = [root_body], [root_joint] if root_joint is not None else []
+    visited = {root_body}
+    for body in bodies:
+        for prim, child in sorted(links.get(body, ()), key=lambda link: sort_key(link[0])):
+            if child not in visited:
+                visited.add(child)
+                bodies.append(child)
+                joints.append(prim)
+
+    joint_names = [
+        name for prim in joints for name in articulation.backend_joint_names if name.split(":", 1)[0] == prim.GetName()
+    ]
+    # PhysX suffixes repeated link names in breadth-first order: base_link, base_link_0, base_link_1, ...
+    body_names, name_counts = [], {}
+    for path in bodies:
+        name = path.rsplit("/", 1)[-1]
+        count = name_counts.get(name, 0)
+        body_names.append(name if count == 0 else f"{name}_{count - 1}")
+        name_counts[name] = count + 1
+    return {"joint": tuple(joint_names), "body": tuple(body_names)}
+
+
+def author_physx_joint_traversal_order(source_asset_prim: Usd.Prim) -> int:
+    """Reorder sibling joint prims so stage traversal visits them in ``"physx"`` order.
+
+    Isaac Sim PhysX visits the child links of each link in stage traversal order. Reordering the joint
+    prims under each parent prim makes that native order match the ``"physx"`` convention without
+    renaming or moving prims; non-joint children keep their positions. Joints under instance proxies
+    cannot be reordered and are left to the articulation's ordering map. Each reordered parent records
+    its previous child order in custom data so ``"isaacsim_physx"`` still resolves.
+
+    Args:
+        source_asset_prim: Asset prim whose joints are reordered before physics parsing.
+
+    Returns:
+        Number of parent prims whose children were reordered.
+    """
+    from pxr import Usd, UsdPhysics, Vt  # noqa: PLC0415
+
+    num_reordered = 0
+    joint_parents = {prim.GetParent() for prim in _get_articulated_joint_prims(source_asset_prim)}
+    for parent in sorted(joint_parents, key=_get_prim_path_string):
+        if parent.IsInstanceProxy():
+            continue
+        children = list(parent.GetFilteredChildren(Usd.TraverseInstanceProxies()))
+        joint_slots = [index for index, child in enumerate(children) if child.IsA(UsdPhysics.Joint)]
+        joints = [children[index] for index in joint_slots]
+        sorted_joints = sorted(joints, key=_get_physx_sibling_key)
+        if joints == sorted_joints:
+            continue
+        parent.SetCustomDataByKey(_AUTHORED_CHILD_ORDER_KEY, Vt.StringArray([child.GetName() for child in children]))
+        for index, joint_prim in zip(joint_slots, sorted_joints):
+            children[index] = joint_prim
+        parent.SetChildrenReorder([child.GetName() for child in children])
+        num_reordered += 1
+    return num_reordered
 
 
 def _get_mjwarp_names_from_newton_usd_builder(
@@ -588,6 +721,71 @@ def _describe_newton_usd_builder_unavailability(articulation: BaseArticulation) 
     return "the Newton USD builder returned no articulation names"
 
 
+def _find_convention_names(
+    articulation: BaseArticulation,
+    convention: ArticulationOrderingConvention,
+    kind: _ArticulationElementKind,
+) -> tuple[tuple[str, ...] | None, list[str]]:
+    """Return a convention's complete names for one axis, or ``None`` and the reasons discovery failed.
+
+    A convention matching the active backend returns backend names without
+    discovery. Cross-backend resolution uses a validated per-articulation cache,
+    authored robot-schema relationships for robot_schema, a breadth-first walk of
+    the source USD joint tree for the PhysX conventions, or a temporary Newton USD
+    view for mjwarp. Discovered names are cached only when both joint and body
+    names are complete permutations.
+    """
+    if _backend_matches_ordering_convention(articulation, convention):
+        return kind.get_backend_names(articulation), []
+
+    backend_names = kind.get_backend_names(articulation)
+    resolution_failures: list[str] = []
+
+    cached_names = _get_cached_convention_names(articulation, convention, kind)
+    cached_names = _get_complete_convention_names(
+        kind=kind,
+        names=cached_names,
+        backend_names=backend_names,
+    )
+    if cached_names is not None:
+        return cached_names, []
+
+    if convention is ArticulationOrderingConvention.ROBOT_SCHEMA:
+        raw_robot_schema_names, robot_schema_failure_reason = _get_robot_schema_names(articulation, kind)
+        robot_schema_names = _get_complete_convention_names(
+            kind=kind,
+            names=raw_robot_schema_names,
+            backend_names=backend_names,
+        )
+        if robot_schema_names is not None:
+            _cache_convention_names(articulation, convention, {kind: robot_schema_names})
+            return robot_schema_names, []
+        resolution_failures.append(robot_schema_failure_reason)
+
+    # PhysX conventions walk the source USD joint tree; MJWarp builds a temporary Newton USD view.
+    if convention is not ArticulationOrderingConvention.ROBOT_SCHEMA:
+        if convention is ArticulationOrderingConvention.MJWARP:
+            provider_label = "mjwarp_usd_builder"
+            discovered_names = _get_mjwarp_names_from_newton_usd_builder(articulation)
+        else:
+            provider_label = f"{convention.value}_usd_walk"
+            discovered_names = _get_usd_breadth_first_names(articulation, convention)
+        if discovered_names is not None:
+            complete_names = _get_complete_convention_names_by_kind(articulation, discovered_names)
+            if len(complete_names) == 2:
+                _cache_convention_names(articulation, convention, complete_names)
+            if kind in complete_names:
+                return complete_names[kind], []
+            reason = _describe_incomplete_convention_names(kind, discovered_names.get(kind.label), backend_names)
+        elif convention is ArticulationOrderingConvention.MJWARP:
+            reason = _describe_newton_usd_builder_unavailability(articulation)
+        else:
+            reason = "source asset prim is unavailable"
+        resolution_failures.append(f"{provider_label}: {reason}")
+
+    return None, resolution_failures
+
+
 def _resolve_articulation_convention_name_ordering(
     *,
     articulation: BaseArticulation,
@@ -596,12 +794,7 @@ def _resolve_articulation_convention_name_ordering(
 ) -> tuple[str, ...]:
     """Resolve a symbolic convention to names for the public articulation axis.
 
-    A convention matching the active backend returns backend names without
-    discovery. Cross-backend resolution uses a validated per-articulation cache,
-    authored robot-schema relationships for robot_schema, or a temporary Newton
-    USD view. PhysX discovery uses breadth-first joint ordering and MJWarp
-    discovery uses depth-first ordering. Builder results are cached only when
-    both joint and body names are complete permutations.
+    See :func:`_find_convention_names` for the discovery strategies.
 
     Args:
         articulation: Articulation whose configured source asset is resolved.
@@ -627,57 +820,11 @@ def _resolve_articulation_convention_name_ordering(
     if parsed_convention is None:
         return kind.get_backend_names(articulation)
 
+    names, resolution_failures = _find_convention_names(articulation, parsed_convention, kind)
+    if names is not None:
+        return names
+
     active_backend_name = articulation.__backend_name__
-    if _backend_matches_ordering_convention(articulation, parsed_convention):
-        return kind.get_backend_names(articulation)
-
-    backend_names = kind.get_backend_names(articulation)
-    resolution_failures: list[str] = []
-
-    cached_names = _get_cached_convention_names(articulation, parsed_convention, kind)
-    cached_names = _get_complete_convention_names(
-        kind=kind,
-        names=cached_names,
-        backend_names=backend_names,
-    )
-    if cached_names is not None:
-        return cached_names
-
-    if parsed_convention is ArticulationOrderingConvention.ROBOT_SCHEMA:
-        raw_robot_schema_names, robot_schema_failure_reason = _get_robot_schema_names(articulation, kind)
-        robot_schema_names = _get_complete_convention_names(
-            kind=kind,
-            names=raw_robot_schema_names,
-            backend_names=backend_names,
-        )
-        if robot_schema_names is not None:
-            _cache_convention_names(articulation, parsed_convention, {kind: robot_schema_names})
-            return robot_schema_names
-        resolution_failures.append(robot_schema_failure_reason)
-
-    # PhysX and MJWarp both resolve through a temporary Newton USD build; they
-    # differ only in the provider function (breadth- vs depth-first joint
-    # ordering) and the failure-reason label.
-    newton_usd_builder_providers = {
-        ArticulationOrderingConvention.PHYSX: ("physx_usd_builder", _get_physx_names_from_newton_usd_builder),
-        ArticulationOrderingConvention.MJWARP: ("mjwarp_usd_builder", _get_mjwarp_names_from_newton_usd_builder),
-    }
-    builder_provider = newton_usd_builder_providers.get(parsed_convention)
-    if builder_provider is not None:
-        provider_label, provider = builder_provider
-        builder_names = provider(articulation)
-        if builder_names is not None:
-            complete_names = _get_complete_convention_names_by_kind(articulation, builder_names)
-            if len(complete_names) == 2:
-                _cache_convention_names(articulation, parsed_convention, complete_names)
-            if kind in complete_names:
-                return complete_names[kind]
-            reason = _describe_incomplete_convention_names(kind, builder_names.get(kind.label), backend_names)
-            resolution_failures.append(f"{provider_label}: {reason}")
-        else:
-            reason = _describe_newton_usd_builder_unavailability(articulation)
-            resolution_failures.append(f"{provider_label}: {reason}")
-
     config_field = kind.config_field
     attempted_resolutions = f" Attempted resolutions: {'; '.join(resolution_failures)}." if resolution_failures else ""
     raise NotImplementedError(
@@ -697,10 +844,15 @@ def get_articulation_name_ordering(
 
     The supported conventions are:
 
-    * ``"physx"`` -- PhysX or OVPhysX articulation-view order. PhysX and OVPhysX
-      articulations return active-backend names without discovery; other backends
-      discover the order from a temporary Newton USD view using breadth-first
-      joint ordering.
+    * ``"physx"`` -- OVPhysX articulation-view order: breadth-first from the root
+      link, visiting the child links of each link by joint type, then joint prim
+      path. OVPhysX articulations return active-backend names without discovery;
+      other backends walk the source USD joint tree. Isaac Sim PhysX articulations
+      reorder their joint prims at spawn so their native order already matches.
+    * ``"isaacsim_physx"`` -- Isaac Sim PhysX order for authored joint prims:
+      breadth-first from the root link, visiting the child links of each link in
+      stage traversal order. Selecting it on an Isaac Sim PhysX articulation keeps
+      the authored joint-prim order instead of reordering it at spawn.
     * ``"mjwarp"`` -- Newton or MJWarp articulation-view order. Newton
       articulations return active-backend names without discovery; other backends
       discover the order from a temporary Newton USD view using depth-first joint
@@ -712,16 +864,16 @@ def get_articulation_name_ordering(
       and skipped, and the remaining names must be a complete unique permutation
       of active-backend names.
 
-    Cross-backend discovery through the temporary Newton USD view requires a
-    source USD readable by the optional Newton and PXR dependencies, and a
-    complete joint-and-body result is cached per articulation.
+    Cross-backend discovery requires the source USD, and ``"mjwarp"`` also
+    requires the optional Newton dependency. A complete joint-and-body result is
+    cached per articulation.
 
     The result defines the public axis only; backend views remain in native order.
 
     Args:
         articulation: Articulation whose names are resolved.
-        convention: Convention alias (``"physx"``, ``"mjwarp"``, or
-            ``"robot_schema"``, matched case-insensitively) or
+        convention: Convention alias (``"physx"``, ``"isaacsim_physx"``,
+            ``"mjwarp"``, or ``"robot_schema"``, matched case-insensitively) or
             :class:`~isaaclab.assets.ArticulationOrderingConvention` member.
         kind: Element kind, either joint or body.
 

@@ -24,7 +24,11 @@ from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
 from . import ordering_kernels
 from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
-from .ordering_resolvers import _resolve_articulation_ordering_names
+from .ordering_resolvers import (
+    _ArticulationElementKind,
+    _find_convention_names,
+    _resolve_articulation_ordering_names,
+)
 
 if TYPE_CHECKING:
     from ...actuators import ActuatorCollection
@@ -116,6 +120,10 @@ class BaseArticulation(AssetBase):
     :class:`ArticulationOrderingConvention` values (e.g. ``("physx",)``) their
     solver-view order matches.
     """
+
+    __backend_default_ordering__: ArticulationOrderingConvention | None = None
+    """Convention applied when :attr:`ArticulationCfg.joint_ordering` or :attr:`ArticulationCfg.body_ordering` is
+    ``None``; native order is kept when it cannot be resolved."""
 
     actuators: ActuatorCollection
     """Runtime actuator collection for the articulation.
@@ -422,16 +430,24 @@ class BaseArticulation(AssetBase):
         """
         backend_names = tuple(self.backend_joint_names if kind == "joint" else self.backend_body_names)
         cfg_ordering = self.cfg.joint_ordering if kind == "joint" else self.cfg.body_ordering
-        if cfg_ordering is None:
+        if cfg_ordering is not None:
+            user_names = _resolve_articulation_ordering_names(
+                kind=kind,
+                backend_names=backend_names,
+                ordering=cfg_ordering,
+                active_backend_name=self.__backend_name__,
+                articulation=self,
+            )
+        elif self.__backend_default_ordering__ is not None:
+            convention, element_kind = self.__backend_default_ordering__, _ArticulationElementKind.resolve(kind)
+            user_names, failures = _find_convention_names(self, convention, element_kind)
+            if user_names is not None and kind == "body" and self.is_fixed_base and user_names[0] != backend_names[0]:
+                user_names, failures = None, [f"'{convention.value}' does not keep the fixed root body first"]
+            if user_names is None:
+                logger.info("Keeping native %s order for '%s': %s", kind, self.cfg.prim_path, "; ".join(failures))
+                return list(backend_names), None
+        else:
             return list(backend_names), None
-
-        user_names = _resolve_articulation_ordering_names(
-            kind=kind,
-            backend_names=backend_names,
-            ordering=cfg_ordering,
-            active_backend_name=self.__backend_name__,
-            articulation=self,
-        )
         ordering = build_articulation_name_map(
             kind=kind, backend_names=backend_names, user_names=user_names, device=self.device
         )

@@ -52,8 +52,10 @@ PANDA_BODY_NAMES = (
 PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (PANDA_BODY_NAMES[0], *reversed(PANDA_BODY_NAMES[1:]))
 
 BRANCHING_PHYSX_JOINT_NAMES = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
+BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES = ("right_shoulder", "left_shoulder", "right_elbow", "left_elbow")
 BRANCHING_MJWARP_JOINT_NAMES = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
 BRANCHING_PHYSX_BODY_NAMES = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
+BRANCHING_ISAACSIM_PHYSX_BODY_NAMES = ("base", "right_upper", "left_upper", "right_tip", "left_tip")
 BRANCHING_MJWARP_BODY_NAMES = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
 
 

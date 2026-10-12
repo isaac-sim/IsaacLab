@@ -23,7 +23,9 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.assets.articulation.ordering import ArticulationOrderingConvention
+from isaaclab.assets.articulation.ordering_resolvers import author_physx_joint_traversal_order
+from isaaclab.sim.utils.queries import find_matching_prims, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
@@ -102,8 +104,11 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
 
-    __backend_native_orderings__: tuple[str, ...] = ("physx",)
-    """PhysX tensor-view order already matches the ``"physx"`` convention."""
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """No convention is assumed; ``"physx"`` and ``"isaacsim_physx"`` are resolved from the source USD."""
+
+    __backend_default_ordering__: ArticulationOrderingConvention | None = ArticulationOrderingConvention.PHYSX
+    """Public order matches OVPhysX when no ordering is configured."""
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
@@ -122,6 +127,14 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
+
+        # Reorder joint prims before PhysX parses and clones them so native order matches "physx". Every
+        # existing match is reordered: scenes hold only the prototype here, direct spawns hold every copy.
+        authored = ArticulationOrderingConvention.ISAACSIM_PHYSX.value
+        orderings = (cfg.joint_ordering, cfg.body_ordering)
+        if not any(isinstance(ordering, str) and ordering.lower() == authored for ordering in orderings):
+            for prim in find_matching_prims(cfg.prim_path):
+                author_physx_joint_traversal_order(prim)
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None

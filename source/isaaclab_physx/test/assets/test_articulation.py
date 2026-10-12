@@ -17,6 +17,8 @@ and a new simulation context would replace the composite stage.
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 from isaaclab.test.utils.articulation_ordering import (
+    BRANCHING_ISAACSIM_PHYSX_BODY_NAMES,
+    BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES,
     BRANCHING_MJWARP_BODY_NAMES,
     BRANCHING_MJWARP_JOINT_NAMES,
     BRANCHING_PHYSX_BODY_NAMES,
@@ -423,8 +425,12 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
     assert scene.reordered.root_view.prim_paths[0] == "/World/Reordered/Env_0/Robot/base"
 
     ordered, floating = scene.ordered, scene.floating
+    # Joint prims are reordered at spawn, so the native order is the OVPhysX "physx" order on this fixture;
+    # "isaacsim_physx" still resolves the authored order recorded before the reorder.
     assert tuple(ordered.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
     assert tuple(ordered.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    assert get_articulation_name_ordering(ordered, "isaacsim_physx", "joint") == BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(ordered, "isaacsim_physx", "body") == BRANCHING_ISAACSIM_PHYSX_BODY_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
     assert tuple(ordered.joint_names) == BRANCHING_MJWARP_JOINT_NAMES

@@ -31,6 +31,13 @@ The backend selection described in :ref:`backend-architecture` controls which
 native view is created. The
 ordering selection controls how the high-level API presents that view.
 
+The PhysX backends also differ from each other. Both list links breadth-first,
+but Isaac Sim PhysX visits the child links of each link in authored joint-prim
+order, while OVPhysX visits them by joint type, then joint prim path. Isaac Lab
+defines ``"physx"`` as the OVPhysX order. Isaac Sim PhysX articulations reorder
+their joint prims at spawn so their native order already matches it, and use it
+as their public order when no ordering is configured.
+
 
 Public and Backend Order
 ------------------------
@@ -39,7 +46,11 @@ Set ``joint_ordering`` and ``body_ordering`` on
 :class:`~isaaclab.assets.ArticulationCfg`. Each field accepts one of:
 
 * ``None`` -- backend-native order and the zero-conversion default (see below).
-* ``"physx"`` -- PhysX or OVPhysX articulation-view order.
+  Isaac Sim PhysX applies ``"physx"`` instead, so it matches OVPhysX.
+* ``"physx"`` -- OVPhysX articulation-view order, resolved from the source USD
+  on every other backend.
+* ``"isaacsim_physx"`` -- Isaac Sim PhysX order for authored joint prims. Use it
+  for checkpoints trained on Isaac Sim PhysX before ``"physx"`` followed OVPhysX.
 * ``"mjwarp"`` -- Newton or MJWarp articulation-view order.
 * ``"robot_schema"`` -- the order authored on the asset's
   ``isaac:physics:robotJoints`` (joints) or ``isaac:physics:robotLinks``
@@ -95,7 +106,10 @@ Once initialized, the articulation and its
 
 ``None`` is the zero-conversion default. Public names follow the active
 backend, no ordering map is installed, no reorder staging is allocated, and no
-reorder kernel is launched. An explicit convention or name sequence that
+reorder kernel is launched. On Isaac Sim PhysX, ``None`` resolves ``"physx"``,
+which is the native order whenever the spawn-time joint reorder applies. Joints
+that cannot be reordered, such as joints of instanced assets or sibling joints
+under different parent prims, fall back to an ordering map. An explicit convention or name sequence that
 resolves to backend order is normalized to ``None`` at initialization after a
 one-time name resolution, so it reaches the exact same zero-conversion state:
 a non-``None`` ordering map always denotes an actual permutation.
