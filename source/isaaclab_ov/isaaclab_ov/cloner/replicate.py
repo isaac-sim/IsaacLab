@@ -205,6 +205,14 @@ def _serialize_stage(
     import all its assets together; its copies inherit one collision group and environment ID.
     CPU and features without native cloning import every declared world instead.
     """
+    if recipes and not full_stage:
+        # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
+        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
+            acceleration = prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring")
+            stiffness = prim.GetAttribute("physxMaterial:compliantContactStiffness")
+            if acceleration and acceleration.Get() and stiffness and (stiffness.Get() or 0.0) > 0.0:
+                full_stage = True
+                break
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
     sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
