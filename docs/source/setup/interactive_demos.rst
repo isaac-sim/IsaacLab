@@ -13,6 +13,8 @@ one self-contained Newton simulation with camera controls, pause, and reset.
 The simulation runs locally on the CPU through WebAssembly; no Isaac Lab
 installation or remote simulation server is needed.
 
+Open the `hosted gallery <https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/>`_ to browse all demos.
+
 These compact scenes illustrate individual effects. Use the full Isaac Lab
 examples and tasks for evaluation, training, and measured comparisons.
 
@@ -24,7 +26,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: VBD material stiffness
       :img-top: ../_static/browser_demos/previews/stiffness.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=stiffness
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=stiffness
 
       .. _interactive-demo-stiffness:
 
@@ -33,7 +35,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: VBD cloth bending
       :img-top: ../_static/browser_demos/previews/cloth_bending.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=cloth_bending
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=cloth_bending
 
       .. _interactive-demo-cloth-bending:
 
@@ -42,7 +44,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: MJWarp sliding friction
       :img-top: ../_static/browser_demos/previews/rigid_friction.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=rigid_friction
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=rigid_friction
 
       .. _interactive-demo-rigid-friction:
 
@@ -51,7 +53,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: Joint PD tuning
       :img-top: ../_static/browser_demos/previews/joint_pd.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=joint_pd
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=joint_pd
 
       .. _interactive-demo-joint-pd:
 
@@ -60,7 +62,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: MPM material response
       :img-top: ../_static/browser_demos/previews/mpm.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=mpm
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=mpm
 
       .. _interactive-demo-mpm:
 
@@ -80,7 +82,7 @@ Policy control
 
    .. grid-item-card:: Cartpole balancing
       :img-top: ../_static/browser_demos/previews/cartpole.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=cartpole
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=cartpole
 
       .. _interactive-demo-cartpole:
 
@@ -89,7 +91,7 @@ Policy control
 
    .. grid-item-card:: G1 velocity control
       :img-top: ../_static/browser_demos/previews/g1.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=g1
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=g1
 
       .. _interactive-demo-g1:
 
@@ -98,7 +100,7 @@ Policy control
 
    .. grid-item-card:: ANYmal-D velocity control
       :img-top: ../_static/browser_demos/previews/anymal.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=anymal
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=anymal
 
       .. _interactive-demo-anymal:
 
@@ -119,7 +121,7 @@ Manipulation
 
    .. grid-item-card:: Franka reach
       :img-top: ../_static/browser_demos/previews/franka_reach.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=franka_reach
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=franka_reach
 
       .. _interactive-demo-franka-reach:
 
@@ -128,7 +130,7 @@ Manipulation
 
    .. grid-item-card:: Franka lift
       :img-top: ../_static/browser_demos/previews/franka_lift.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=franka_lift
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=franka_lift
 
       .. _interactive-demo-franka-lift:
 
@@ -137,7 +139,7 @@ Manipulation
 
    .. grid-item-card:: Franka drawer opening
       :img-top: ../_static/browser_demos/previews/franka_drawer.jpg
-      :link: ../../_static/browser_demos/preview.html?demo=franka_drawer
+      :link: https://isaaclab-browser-demos-8f6dfe.gitlab-master-pages.nvidia.com/v1/?demo=franka_drawer
 
       .. _interactive-demo-franka-drawer:
 
@@ -153,15 +155,14 @@ reset managers are not exported. Browse their full task options in
 About these demos
 -----------------
 
-The documentation ships compiled simulation bundles and their browser viewer.
-Newton's captured Warp kernels advance the physics; Three.js displays the state,
-and a shared JavaScript evaluator runs the policy networks. Bundles include their
-required policies, geometry, and third-party license notices. Documentation
-builds copy these static files without running the simulator or export compiler.
+The demo site is deployed separately through NVIDIA GitLab Pages. It serves
+versioned simulation bundles, policies, geometry, and third-party license notices.
+Newton's captured Warp kernels advance the physics, Three.js displays the state,
+and a shared JavaScript evaluator runs the policy networks in the browser.
+The documentation gallery contains small thumbnails and links to these pages.
 
-The exporters, exact toolchain pins, source assets, and scene adaptations remain
-available in `draft PR #7974 <https://github.com/isaac-sim/IsaacLab/pull/7974>`_
-and its `reference implementation
-<https://github.com/maxkra15/IsaacLab/tree/d96b2443d/docs/contrib/browser_demos>`_.
-Rebuilding currently requires the pinned internal Newton Web compiler and
-Emscripten. A Python or Warp upgrade does not change the already compiled bundles.
+The demo application and deployment are maintained separately from Isaac Lab.
+The public `reference PR #7974 <https://github.com/isaac-sim/IsaacLab/pull/7974>`_
+records the original exporters, source assets, and scene adaptations.
+Rebuilding requires the pinned internal Newton Web compiler and Emscripten.
+Documentation links pin version 1; later releases retain earlier version URLs.
