@@ -470,6 +470,15 @@
     const updatePreview = () => {
         const previewImage = preview.querySelector("[data-preview-image]");
         const previewVideo = preview.querySelector("[data-preview-video]");
+        let interactive = false;
+        for (const policyPreview of preview.querySelectorAll("[data-policy-preview]")) {
+            const supportedPreset = fields.presets.value === (policyPreview.dataset.policyPreset || "");
+            const active = policyPreview.dataset.policyPreview === state.task && supportedPreset
+                && fields.rl.value === "rsl_rl" && fields.physics.value === "newton_mjwarp";
+            policyPreview.hidden = !active;
+            interactive ||= active;
+        }
+        preview.classList.toggle("has-interactive-preview", interactive);
         const videoUrl = previewVideoUrl(selectedTask());
         previewImage.src = previewImageUrl(selectedTask());
         previewImage.alt = `${state.task} preview`;
@@ -481,7 +490,7 @@
                 previewVideo.play().catch(() => {});
             }
         };
-        if (!failedPreviewVideos.has(videoUrl)) {
+        if (!interactive && !failedPreviewVideos.has(videoUrl)) {
             previewVideo.onerror = () => {
                 if (previewVideo.src === videoUrl) {
                     failedPreviewVideos.add(videoUrl);
@@ -503,7 +512,7 @@
             previewVideo.onloadeddata = null;
             previewVideo.pause();
             previewVideo.hidden = true;
-            previewImage.hidden = false;
+            previewImage.hidden = interactive;
         }
         preview.querySelector("[data-preview-task]").textContent = state.task;
         const supportsRl = selectedTask().rl.length > 0;
