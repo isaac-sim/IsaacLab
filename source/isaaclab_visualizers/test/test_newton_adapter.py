@@ -409,6 +409,45 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
+def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
+    from newton._src.viewer.camera import Camera
+    from newton._src.viewer.viewer_gui import ViewerGui
+    from pyglet.window import key
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.camera = Camera(width=64, height=64, up_axis="Z")
+    viewer._camera_speed = 1.0
+    viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
+
+    gui = ViewerGui.__new__(ViewerGui)
+    gui.ui = SimpleNamespace(
+        is_available=True,
+        is_capturing=lambda: True,
+        imgui=SimpleNamespace(get_current_context=lambda: object()),
+        io=SimpleNamespace(want_capture_mouse=True, want_capture_keyboard=False),
+    )
+    gui._viewer = viewer
+    gui._cam_vel = np.zeros(3, dtype=np.float32)
+    gui._cam_damp_tau = 0.01
+    fake_implot = SimpleNamespace(create_context=lambda: object(), set_imgui_context=lambda context: None)
+    monkeypatch.setitem(sys.modules, "imgui_bundle", SimpleNamespace(implot=fake_implot))
+    monkeypatch.setattr(
+        newton_visualizer_module.NewtonViewerUI,
+        "__init__",
+        lambda self, *args, **kwargs: setattr(self, "gui", gui),
+    )
+
+    start = np.asarray(viewer.camera.pos)
+    NewtonViewerGL.__init__(viewer)
+    viewer._update_camera(1.0)
+    moved = np.asarray(viewer.camera.pos)
+    assert not np.array_equal(moved, start)
+
+    gui.ui.io.want_capture_keyboard = True
+    viewer._update_camera(1.0)
+    np.testing.assert_array_equal(viewer.camera.pos, moved)
+
+
 class _FakeTrainingControlsImgui:
     """Minimal imgui double that drives ``_render_training_controls`` by label."""
 
@@ -455,6 +494,29 @@ def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
     resume_click = _FakeTrainingControlsImgui(clicked_label="Resume Rendering")
     viewer._render_training_controls(resume_click)
     assert viewer.is_rendering_paused() is False
+
+
+def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(monkeypatch):
+    """Clicks on a fullscreen sensor image, which Newton dispatches during ``end_frame()``, must not
+    pick in the hidden perspective scene, and picking must resume once a frame shows the scene again.
+    """
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._close_requested = False
+    viewer._fullscreen_image_active = False  # Set by NewtonViewerGL.__init__, which __new__ skips.
+    picks = []
+    monkeypatch.setattr(ViewerGL, "log_image", lambda self, name, image, *, fullscreen=False: None)
+    monkeypatch.setattr(ViewerGL, "on_mouse_press", lambda self, *args: picks.append(args))
+    # Newton dispatches window input from inside end_frame(), after the frame's images were logged.
+    monkeypatch.setattr(ViewerGL, "end_frame", lambda self: self.on_mouse_press(1, 2, 4, 0))
+
+    viewer.log_image("Streaming View", np.zeros((2, 2, 3), dtype=np.uint8), fullscreen=True)
+    viewer.end_frame()
+    assert picks == []
+
+    viewer.end_frame()
+    assert picks == [(1, 2, 4, 0)]
 
 
 def test_newton_viewer_particle_color_override(monkeypatch):
