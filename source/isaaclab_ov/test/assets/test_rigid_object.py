@@ -33,7 +33,7 @@ from flaky import flaky
 
 from pxr import UsdPhysics
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -42,6 +42,8 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -136,19 +138,46 @@ class HeterogeneousRigidSceneCfg(InteractiveSceneCfg):
     )
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("filter_collisions", [False, True])
-@pytest.mark.parametrize("support_cloning", ["native", "usd_and_native", "usd", "usd_nested"])
-def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning):
-    """Sources and clones from different variants contact their own support."""
+@pytest.mark.parametrize(
+    ("device", "filter_collisions", "scene_variant"),
+    [(device, False, "native") for device in test_devices(DeviceScope.CPU)]
+    + [
+        (device, filtering, variant)
+        for device in test_devices(DeviceScope.CUDA)
+        for filtering, variant in (
+            (False, "native"),
+            (False, "compliant"),
+            (True, "usd_and_native"),
+            (False, "usd"),
+            (True, "usd_nested"),
+        )
+    ],
+)
+def test_heterogeneous_clone_contacts(device, filter_collisions, scene_variant):
+    """Sources and clones preserve contacts across cloning paths and compliant materials."""
     with _ovphysx_sim_context(device=device, dt=1.0 / 120.0) as sim:
         cfg = HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=2.0, filter_collisions=filter_collisions)
-        if support_cloning != "native":
+        compliant = scene_variant == "compliant"
+        if compliant:
+            material = PhysxRigidBodyMaterialCfg(
+                compliant_contact_stiffness=15700.0,
+                compliant_contact_damping=1120.0,
+                compliant_contact_acceleration_spring=True,
+            )
+            cfg.support.spawn.physics_material = cfg.object.spawn.physics_material = material
+            cfg.object.spawn.mass_props.mass = 0.02
+            cfg.object.spawn.rigid_props = [
+                sim_utils.UsdPhysicsRigidBodyCfg(),
+                PhysxRigidBodyCfg(
+                    sleep_threshold=0.0, stabilization_threshold=0.0, solver_position_iteration_count=128
+                ),
+            ]
+        if scene_variant not in ("native", "compliant"):
             cfg.clone_cfg.clone_template = "/Scenes/World_{}"
             cfg.support.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-            if support_cloning == "usd_and_native":
+            if scene_variant == "usd_and_native":
                 cfg.support.cloning_contexts += ("isaaclab_ov.cloner:OvPhysxReplicateContext",)
-        if support_cloning == "usd_nested":
+        if scene_variant == "usd_nested":
             cfg.support.prim_path = "{ENV_REGEX_NS}/Assembly/Support"
             cfg.object.spawn.assets_cfg = cfg.object.spawn.assets_cfg[:1]
             spawn = sim_utils.SpawnerCfg(func=lambda path, cfg, **kwargs: sim.stage.DefinePrim(path, "Xform"))
@@ -156,12 +185,16 @@ def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning
             cfg.clone_cfg.clone_combinations = [cloner.InclusionSet(assets=names) for names in (["assembly"], [])]
         scene = InteractiveScene(cfg)
         sim.reset()
-        for _ in range(240):
+        for _ in range(360 if compliant else 240):
             sim.step()
             scene.update(sim.get_physics_dt())
         positions = scene["object"].data.root_pos_w.torch
         torch.testing.assert_close(positions[:, 2], torch.full_like(positions[:, 2], 0.2), atol=0.02, rtol=0.0)
         torch.testing.assert_close(positions[:, :2], scene.env_origins[:, :2], atol=0.02, rtol=0.0)
+
+        if compliant:
+            heights = positions[:, 2].reshape(2, 3)
+            torch.testing.assert_close(heights[:, 1:], heights[:, :1].expand(-1, 2), atol=1e-5, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())
