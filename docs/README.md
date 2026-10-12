@@ -9,6 +9,13 @@ dependencies into that environment. The project selects Python 3.12.
 
 ## Current-Version Documentation
 
+HTML builds also generate Markdown mirrors of the primary installation,
+quickstart, tutorial, editor setup, and troubleshooting pages. The index is
+`docs/_build/current/markdown.md`, and mirrors sit beside their HTML pages.
+Each mirrored HTML page includes a download link. Maintain the reStructuredText
+sources; the build expands directives, includes, and version pins automatically.
+The selected pages are listed in `isaaclab_markdown_pages` in `docs/conf.py`.
+
 This section describes how to build the documentation for the current version of the project.
 
 ```bash

@@ -136,6 +136,7 @@ dev = [
     "sphinx>=7.0,<9",
     "sphinx-book-theme>=1.1",
     "myst-parser",
+    "markdownify>=1.2,<2",  # Markdown mirrors of rendered documentation
     "sphinxcontrib-bibtex==2.5.0",
     "autodocsumm",
     "sphinx-copybutton",

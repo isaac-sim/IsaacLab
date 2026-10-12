@@ -55,6 +55,10 @@ detailed tutorials and step-by-step guides. Follow these links to learn more abo
 - [Tutorials and how-to guides](https://isaac-sim.github.io/IsaacLab/develop/source/how-to/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/setup/environments.html)
 
+Agents and other tools can use the [Markdown documentation index](https://isaac-sim.github.io/IsaacLab/develop/markdown.md)
+for mirrors of the installation, quickstart, tutorial, editor setup, and troubleshooting pages.
+These mirrors are generated from the same version of the documentation during each build.
+
 ## Performance Dashboard
 
 We continuously benchmark Isaac Lab across different physics backends, renderers, and data types.

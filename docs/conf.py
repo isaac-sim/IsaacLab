@@ -128,6 +128,16 @@ extensions = [
     "sphinx_tabs.tabs",  # backwards compatibility for building docs on v1.0.0
     "sphinx_multiversion",
     "isaaclab_docs",
+    "isaaclab_markdown",
+]
+
+# Generate mirrors from resolved HTML so includes and versioned commands stay in sync.
+isaaclab_markdown_pages = [
+    "source/setup/installation/index",
+    "source/setup/quickstart",
+    "source/setup/tutorial",
+    "source/developer-tools/editor_setup",
+    "source/refs/troubleshooting",
 ]
 
 # mathjax hacks
