@@ -113,6 +113,18 @@ class _ContextHold:
             self._device = None
 
 
+def host_id() -> str | None:
+    """Return this machine's boot ID, the same in every process on it, or None if unknown.
+
+    A local endpoint can be a tunnel to another machine, whose GPU can have the same PCI bus ID.
+    """
+    try:
+        with open("/proc/sys/kernel/random/boot_id") as file:
+            return file.read().strip() or None
+    except OSError:
+        return None
+
+
 def pci_bus_id(device_index: int) -> str:
     """Return the PCI bus ID of a CUDA device as seen by this process, for matching across processes."""
     with _Context(device_index) as driver:

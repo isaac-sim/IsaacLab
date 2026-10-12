@@ -22,7 +22,7 @@ from isaaclab_experimental.image_transfer import center_crop_resize, depth_to_co
 from .._protocol import CANVAS_ASPECT_RATIOS, DEFAULT_ENDPOINT, request
 from .control_profiles import blur_processor, depth_processor, edge_processor
 from .cosmos_model import service_endpoints, split_views
-from .cosmos_model_cfg import CosmosModelCfg
+from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
 
 logger = logging.getLogger(__name__)
@@ -215,12 +215,7 @@ def apply_cosmos(
         )
 
     # Count actual captures at the sensor's existing cadence.
-    step_dt = env_cfg.sim.dt * env_cfg.decimation
-    episode_steps = math.ceil(env_cfg.episode_length_s / step_dt - 1e-9)
-    # A sensor updates once its elapsed time reaches update_period - 1e-6 (see SensorBase).
-    steps_per_capture = max(1, math.ceil((camera_cfg.update_period - 1e-6) / step_dt - 1e-9))
-    frames = math.ceil(episode_steps / steps_per_capture) + 1
-    budget = 1 + 4 * math.ceil((frames - 1) / 4)
+    steps_per_capture, _, budget = episode_frame_budget(env_cfg, camera_cfg.update_period)
     model = replace(
         existing or CosmosModelCfg(),
         endpoint=endpoint,
@@ -254,7 +249,7 @@ def apply_cosmos(
             modifiers[input_name] = updated
         camera_cfg = replace(camera_cfg, modifiers=modifiers)
     setattr(env_cfg.scene, name, camera_cfg)
-    capture_hz = 1 / (steps_per_capture * step_dt)
+    capture_hz = 1 / (steps_per_capture * env_cfg.sim.dt * env_cfg.decimation)
     logger.info(
         "Cosmos camera %s: %d environment(s), %d-frame budget, %.3f captures/s, %.3f generated updates/s "
         "after the initial frame (simulation time).",

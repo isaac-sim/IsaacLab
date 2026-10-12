@@ -37,6 +37,7 @@ from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import depth_to_control
 from isaaclab_experimental.image_transfer import modifier as modifier_module
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.modifiers import ModifierCfg, ModifierChain
 
 pytestmark = pytest.mark.unit
@@ -455,7 +456,7 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
-_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.0"}
+_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "pci_bus_id": "0000:02:00.0"}
 
 
 @pytest.mark.parametrize(
@@ -465,6 +466,8 @@ _IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.
         ("auto", "cpu", _IPC_SERVICE, True, 0, True, "socket"),
         ("auto", "cuda:0", {"transports": ["socket"]}, True, 0, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, False, 0, True, "socket"),
+        # A local endpoint tunneled to another machine whose GPU has a PCI bus ID this machine also uses.
+        ("auto", "cuda:0", {**_IPC_SERVICE, "host_id": "other-boot"}, True, 1, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, None, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 1, False, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 0, False, "cuda_ipc"),
@@ -475,10 +478,11 @@ _IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.
 def test_transport_keeps_images_on_gpus_that_can_access_each_other(
     transport, device, capabilities, available, service_gpu, peer, expected, monkeypatch, caplog
 ):
-    """Auto uses CUDA IPC for a local service on this GPU or on a visible peer GPU; the socket is the fallback."""
+    """Auto uses CUDA IPC for a service on this machine and this or a peer GPU; the socket is the fallback."""
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
     # service_gpu is this process's index of the service's GPU, or None when this process cannot see it.
     monkeypatch.setattr(
         _cuda_ipc, "device_by_bus_id", lambda bus_id: service_gpu if bus_id == _IPC_SERVICE["pci_bus_id"] else None
@@ -640,27 +644,23 @@ class Model:
 serve(Model(), sys.argv[1])
 """
 
-_TWO_PEER_GPUS = (
-    sys.platform.startswith("linux")
-    and torch.cuda.device_count() >= 2
-    and torch.cuda.can_device_access_peer(0, 1)
-    and torch.cuda.can_device_access_peer(1, 0)
-)
-
-
 @pytest.mark.skipif(
     not (sys.platform.startswith("linux") and torch.cuda.is_available()), reason="CUDA IPC needs Linux and a GPU"
 )
-@pytest.mark.parametrize(
-    "service_device",
-    ["cuda:0", pytest.param("cuda:1", marks=pytest.mark.skipif(not _TWO_PEER_GPUS, reason="needs two peer GPUs"))],
-)
-def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(service_device):
-    """A service on the camera's GPU or a peer GPU exchanges images in shared GPU memory; no TCP is involved."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(device):
+    """A service on the camera's GPU or a peer GPU exchanges images in shared GPU memory; no TCP is involved.
+
+    The camera stays on the default GPU; ``device`` is the service's, the same GPU or a peer. Runs select peer GPUs
+    through ``ISAACLAB_TEST_DEVICES``, for example ``011`` for cuda:0 and cuda:1.
+    """
     import subprocess
 
+    index = torch.device(device).index
+    if index != 0 and not (torch.cuda.can_device_access_peer(0, index) and torch.cuda.can_device_access_peer(index, 0)):
+        pytest.skip(f"cuda:0 and {device} cannot access each other's memory directly")
     endpoint, directory = _unix_endpoint()
-    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint, service_device], env={**os.environ})
+    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint, device], env={**os.environ})
     try:
         deadline = time.monotonic() + 60
         while True:

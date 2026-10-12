@@ -388,11 +388,11 @@ The **transport** is how control images go to the service, and generated images 
 | `cuda_ipc` | Shared GPU buffers, opened once per session, ordered by interprocess CUDA events. Image transfer between the camera and service needs no host copies. Each step sends only a small message on the endpoint. | Service on the same Linux machine, on the camera's GPU or on another GPU with direct access to it; see [Cosmos on another GPU](#cosmos-on-another-gpu). |
 | `socket` | Images go through host memory in the endpoint's messages. | Any endpoint. |
 
-`CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it and uses the camera's GPU or
-a GPU with direct access to it, the socket otherwise. `cuda_ipc` fails when it is unavailable instead of falling
-back. `status` lists the service's transports. With the defaults on one Linux machine, image transport uses shared
-GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA IPC avoids the socket transport's
-16-view protocol limit; available GPU memory still limits the batch size.
+`CosmosModelCfg.transport` defaults to `auto`: CUDA IPC when the service reports it, runs on this machine (the same
+boot ID), and uses the camera's GPU or a GPU with direct access to it, the socket otherwise. `cuda_ipc` fails when
+it is unavailable instead of falling back. `status` lists the service's transports. With the defaults on one Linux
+machine, image transport uses shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA
+IPC avoids the socket transport's 16-view protocol limit; available GPU memory still limits the batch size.
 
 Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
 blur filtering copies RGB from GPU to CPU and back inside the service. CUDA IPC does not remove those copies
@@ -403,7 +403,8 @@ replying so GPU faults reach the client as errors; a complete inference step is 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
 `ssh -L 5555:/tmp/isaaclab-cosmos-<uid>.sock gpu-host`. Then set the camera's endpoint to `tcp://127.0.0.1:5555`;
-the protocol has no authentication, so do not open a public interface.
+the protocol has no authentication, so do not open a public interface. `auto` sees from the boot ID that a tunneled
+service runs on another machine and uses the socket.
 
 ### Cosmos on another GPU
 

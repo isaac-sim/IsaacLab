@@ -15,7 +15,7 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
@@ -29,6 +29,9 @@ from .._protocol import (
     receive_message,
     send_message,
 )
+
+if TYPE_CHECKING:
+    import torch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -79,7 +82,7 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
             if resource is None:
                 resource = model()
             state = _ServiceState(resource)
-            state.transports, state.pci_bus_id = state.executor.submit(_transports, resource).result()
+            state.transports, state.host_id, state.pci_bus_id = state.executor.submit(_transports, resource).result()
             if warmup:
                 _LOGGER.info("Cosmos warming up; the first compilation can take several minutes.")
                 state.executor.submit(resource.warmup).result()
@@ -148,9 +151,18 @@ def _bind_private_unix_socket(listener: socket.socket, path: str) -> None:
 
 
 class _Stream(Protocol):
+    """A generation session stepped with host arrays (socket) or CUDA views of the shared buffer (CUDA IPC).
+
+    Each step returns images of the same kind as its controls.
+    """
+
     def step(
-        self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...], **episode: object
-    ) -> list[np.ndarray]: ...
+        self,
+        controls: list[np.ndarray] | list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        **episode: object,
+    ) -> list[np.ndarray] | list[torch.Tensor]: ...
 
     def close(self) -> None: ...
 
@@ -183,11 +195,12 @@ class _ServiceState:
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="cosmos-inference")
         self.owner: object | None = None
         self.transports: list[str] = ["socket"]
+        self.host_id: str | None = None
         self.pci_bus_id: str | None = None
 
 
-def _transports(model: _Model) -> tuple[list[str], str | None]:
-    """Return the offered transports and, for CUDA IPC, the PCI bus ID of the model's GPU.
+def _transports(model: _Model) -> tuple[list[str], str | None, str | None]:
+    """Return the offered transports and, for CUDA IPC, the machine's boot ID and the PCI bus ID of the model's GPU.
 
     The device is read from its ``cuda:N`` name, so a service without Torch starts with the socket transport.
     """
@@ -195,8 +208,8 @@ def _transports(model: _Model) -> tuple[list[str], str | None]:
 
     kind, _, index = str(model.capabilities.get("device", "cpu")).partition(":")
     if kind != "cuda" or not _cuda_ipc.available():
-        return ["socket"], None
-    return ["socket", "cuda_ipc"], _cuda_ipc.pci_bus_id(int(index or 0))
+        return ["socket"], None, None
+    return ["socket", "cuda_ipc"], _cuda_ipc.host_id(), _cuda_ipc.pci_bus_id(int(index or 0))
 
 
 def _handle_connection(
@@ -226,6 +239,7 @@ def _handle_connection(
                         "capabilities": {
                             **state.model.capabilities,
                             "transports": state.transports,
+                            "host_id": state.host_id,
                             "pci_bus_id": state.pci_bus_id,
                         },
                         "session_active": active,
