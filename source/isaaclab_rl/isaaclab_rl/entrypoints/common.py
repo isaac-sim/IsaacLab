@@ -200,6 +200,15 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
         default=None,
         help="Repeat for prompts cycled per episode with one environment, or fixed per environment with several.",
     )
+    group.add_argument(
+        "--cosmos_prompt_file",
+        action="append",
+        default=None,
+        help=(
+            "Prompt file instead of --cosmos_prompt: .txt is used as written, .json is sent as-is. Repeat it, or pass"
+            ' a quoted pattern such as "prompts/*.json" or a list such as "[a.json,b.txt]"; one prompt per file.'
+        ),
+    )
     group.add_argument("--cosmos_camera", default=None, help="Scene camera name; defaults to the only rgb camera.")
     group.add_argument(
         "--cosmos_control",
@@ -398,7 +407,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
     if hasattr(args_cli, "cosmos"):
-        from isaaclab_experimental.cosmos import CosmosTransferModifierCfg, apply_cosmos
+        from isaaclab_experimental.cosmos import CosmosTransferModifierCfg, apply_cosmos, read_prompt_files
 
         preset_cameras = [
             name
@@ -409,12 +418,16 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
                 for item in chain
             )
         ]
-        options = ("prompt", "camera", "control", "near", "far", "endpoint", "transport")
+        options = ("prompt", "prompt_file", "camera", "control", "near", "far", "endpoint", "transport")
         if not args_cli.cosmos and not preset_cameras:
             if any(getattr(args_cli, f"cosmos_{option}", None) is not None for option in options):
                 raise ValueError("Cosmos options require --cosmos or a task configured with presets=cosmos.")
             return
         prompts = args_cli.cosmos_prompt
+        if args_cli.cosmos_prompt_file is not None:
+            if prompts is not None:
+                raise ValueError("Pass Cosmos prompts with --cosmos_prompt or --cosmos_prompt_file, not both.")
+            prompts = read_prompt_files(args_cli.cosmos_prompt_file)
         apply_cosmos(
             env_cfg,
             prompt=prompts[0] if prompts and len(prompts) == 1 else prompts,
