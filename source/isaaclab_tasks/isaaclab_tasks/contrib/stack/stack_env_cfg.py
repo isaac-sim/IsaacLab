@@ -3,7 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -11,7 +14,6 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -31,6 +33,9 @@ from isaaclab_tasks.utils import PresetCfg
 from . import mdp
 from .mdp import stack_events
 
+if TYPE_CHECKING:
+    from isaaclab_teleop import XrCfg
+
 # Shared rigid-body properties for the three stacking cubes (robot-neutral).
 _CUBE_PROPERTIES = [
     PhysxRigidBodyCfg(
@@ -42,6 +47,20 @@ _CUBE_PROPERTIES = [
         disable_gravity=False,
     )
 ]
+
+
+def _make_default_xr_cfg() -> XrCfg | None:
+    """Create the default stack XR configuration when Isaac Lab Teleop is installed."""
+    try:
+        from isaaclab_teleop import XrCfg
+    except ModuleNotFoundError as exc:
+        if exc.name != "isaaclab_teleop":
+            raise
+        return None
+    return XrCfg(
+        anchor_pos=(-0.1, -0.5, -1.05),
+        anchor_rot=(0, 0, -0.5, 0.866),
+    )
 
 
 def make_ee_frame_cfg(
@@ -76,7 +95,7 @@ def make_ee_frame_cfg(
     )
 
 
-def apply_default_semantics(scene: "ObjectTableSceneCfg") -> None:
+def apply_default_semantics(scene: ObjectTableSceneCfg) -> None:
     """Tag the table, ground, and robot with their semantic classes.
 
     Call this from a robot env cfg's ``__post_init__`` after the robot has been set (the robot is
@@ -376,10 +395,7 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
     events = None
     curriculum = None
 
-    xr: XrCfg = XrCfg(
-        anchor_pos=(-0.1, -0.5, -1.05),
-        anchor_rot=(0, 0, -0.5, 0.866),
-    )
+    xr: XrCfg | None = _make_default_xr_cfg()
 
     def __post_init__(self):
         """Post initialization."""
