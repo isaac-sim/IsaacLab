@@ -495,7 +495,7 @@ class _ShardedStream:
             except Exception:
                 for index, stream in enumerate(self._streams):
                     # A session still awaiting its reply cannot exchange a close message; its service closes the
-                    # session when the connection drops.
+                    # session when the connection drops, and the camera keeps the controls that service may still read.
                     awaiting_reply = received <= index < len(sent)
                     stream._release(notify=not awaiting_reply)
                 raise

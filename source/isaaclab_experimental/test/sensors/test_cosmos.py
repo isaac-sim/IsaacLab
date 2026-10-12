@@ -587,8 +587,13 @@ def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(
             raise ConnectionError("Cosmos connection closed")
         return {"ok": True}, []
 
+    def send(data):
+        raise ConnectionError("Cosmos connection closed")
+
+    # A step writes to the connection directly; closing exchanges a message.
     stream._exchange = exchange
-    stream._socket, stream._channel, stream._shape = SimpleNamespace(close=lambda: None), channel, (2, 3, 3)
+    connection = SimpleNamespace(close=lambda: None, sendall=send)
+    stream._socket, stream._channel, stream._shape = connection, channel, (2, 3, 3)
     if failure == "step":
         with pytest.raises(ConnectionError):
             stream.step([_controls()], (), ())
