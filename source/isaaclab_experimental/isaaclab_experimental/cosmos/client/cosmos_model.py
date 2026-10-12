@@ -318,8 +318,8 @@ class _CosmosStream:
             reply, generated = receive_message(self._socket)
             check_reply(reply)
             if self._channel is not None:
-                if generated or reply.get("frames") != sent.frames:
-                    raise ProtocolError("Cosmos returned images that do not match the control chunks.")
+                if generated:
+                    raise ProtocolError("Cosmos returned images through the socket in a CUDA IPC session.")
                 self._channel.output_ready.wait()
                 # From the service's GPU, the images copy directly to this one.
                 images = [
