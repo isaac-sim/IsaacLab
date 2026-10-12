@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, NoReturn
@@ -531,9 +532,11 @@ class NewtonWarpRenderer(BaseRenderer):
                 if prim.GetAttribute("omni:lensdistortion:model").Get() or (
                     schemas and any("LensDistortion" in name for name in schemas.GetAppliedItems())
                 ):
-                    logger.warning(
+                    warnings.warn(
                         "Newton Warp does not read lens distortion coefficients from camera USD assets. "
-                        "Configure spawn.distortion to apply the OpenCV camera model."
+                        "Configure spawn.distortion to apply the OpenCV camera model.",
+                        UserWarning,
+                        stacklevel=2,
                     )
                     break
         if spec.cfg.isp_cfg is None:

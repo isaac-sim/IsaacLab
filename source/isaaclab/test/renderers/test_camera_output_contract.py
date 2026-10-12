@@ -21,12 +21,22 @@ from isaaclab.utils import clone, validate
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
+_SPAWN = PinholeCameraCfg(
+    focal_length=24.0,
+    focus_distance=400.0,
+    horizontal_aperture=20.955,
+    clipping_range=(0.1, 1.0e5),
+)
+
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_hdr_background_preserves_unlit_geometry(background, device):
     """HDR misses use linear background color while unlit geometry remains black, including graph replay."""
     import numpy as np
+
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
@@ -69,14 +79,6 @@ def test_newton_hdr_background_preserves_unlit_geometry(background, device):
             pixels = camera.data.output["rgb_hdr"].warp.numpy()[0]
             np.testing.assert_allclose(pixels[16, 16], 0.0, atol=1e-6)
             np.testing.assert_allclose(pixels[0, 0], expected, atol=1e-6)
-
-
-_SPAWN = PinholeCameraCfg(
-    focal_length=24.0,
-    focus_distance=400.0,
-    horizontal_aperture=20.955,
-    clipping_range=(0.1, 1.0e5),
-)
 
 
 @pytest.mark.parametrize(
@@ -251,8 +253,7 @@ def test_newton_warp_wraps_requested_rgb_hdr_output():
     from isaaclab.utils.warp.proxy_array import ProxyArray
 
     fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
-    spawn = SimpleNamespace(distortion=None)
-    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn, isp_cfg=None)
+    camera_cfg = CameraCfg(width=4, height=3, prim_path="/World/Camera", spawn=_SPAWN)
     render_data = RenderData(fake_sensor, SimpleNamespace(cfg=camera_cfg))
     hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
 
