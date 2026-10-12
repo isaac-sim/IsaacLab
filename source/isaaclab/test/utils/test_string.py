@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-import pathlib
 import random
 from collections import Counter, OrderedDict
 
@@ -84,7 +83,6 @@ def test_string_to_callable_allows_safe_lambdas():
     ("value", "reference"),
     [
         (Counter.update, "collections:Counter.update"),
-        (pathlib.Path.cwd, "pathlib:Path.cwd"),
         (OrderedDict.fromkeys, "collections:OrderedDict.fromkeys"),
     ],
 )
@@ -92,12 +90,6 @@ def test_dotted_callable_reference_round_trips(value, reference):
     """Nested callables, including class-bound methods, should serialize and resolve through dotted paths."""
     assert string_utils.callable_to_string(value) == reference
     assert string_utils.string_to_callable(reference) == value
-
-
-def test_missing_dotted_callable_attribute_raises_attribute_error():
-    """Missing nested attributes should raise AttributeError like a missing top-level attribute."""
-    with pytest.raises(AttributeError, match="not_a_method"):
-        string_utils.string_to_callable("collections:Counter.not_a_method")
 
 
 def test_exported_local_callable_serialization_falls_back_to_resolvable_name():

@@ -129,9 +129,7 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         ValueError: When the input argument is not a callable object.
 
     Returns:
-        A string representation of the callable object. Nested attributes use
-        their qualified name only when that exact path resolves back to the same
-        callable. Otherwise the legacy simple-name representation is retained.
+        A string representation of the callable object.
     """
     # check if callable
     if not callable(value):
@@ -144,26 +142,21 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         lambda_line = re.sub(r"#.*$", "", lambda_line).rstrip()
         return f"lambda {lambda_line}"
     else:
+        # get the module and function name
         module_name = value.__module__
         function_name = value.__name__
         qualified_name = value.__qualname__
-        bound_instance = getattr(value, "__self__", None)
-        instance_bound_method = bound_instance is not None and not isinstance(bound_instance, type)
-        if isinstance(bound_instance, type):
-            # name class-bound methods through the class they are bound to (covers inherited and builtin ones)
-            module_name = bound_instance.__module__
-            qualified_name = f"{bound_instance.__qualname__}.{function_name}"
-
-        # A qualified name is safe only if the module exposes that exact path and
-        # it resolves to this same callable. This avoids serializing exported local
-        # aliases, hidden class paths, or instance-bound methods into a different
-        # callable than the one supplied by the user.
-        if "<locals>" not in qualified_name and not instance_bound_method:
-            try:
-                if string_to_callable(f"{module_name}{separator}{qualified_name}", separator) == value:
-                    function_name = qualified_name
-            except (ModuleNotFoundError, AttributeError):
-                pass
+        bound_to = getattr(value, "__self__", None)
+        if isinstance(bound_to, type):
+            # classmethods are named through the class they are bound to
+            module_name = bound_to.__module__
+            qualified_name = f"{bound_to.__qualname__}.{function_name}"
+        # use the qualified name only if loading it returns this same callable
+        try:
+            if string_to_callable(f"{module_name}{separator}{qualified_name}", separator) == value:
+                function_name = qualified_name
+        except (ModuleNotFoundError, AttributeError):
+            pass  # keep the plain name, as before, rather than fail the config dump
         # return the string
         return f"{module_name}{separator}{function_name}"
 
