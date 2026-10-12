@@ -520,7 +520,7 @@ Next steps
 
 * :doc:`/source/features/multi_gpu` covers multi-GPU and multi-node training.
 
-* :doc:`/source/features/reproducibility` covers reproducible experiments.
+* :doc:`/source/how-to/reproducibility` covers reproducible experiments.
 
 * :doc:`/source/how-to/capture_sensor_frames` covers image-observation
   diagnostics.
