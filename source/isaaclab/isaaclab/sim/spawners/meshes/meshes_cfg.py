@@ -27,6 +27,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     - Deformable body properties: Applied to the parent prim: ``{prim_path}``.
     - Collision properties: Applied to the simulation mesh ``{prim_path}/sim_mesh`` for deformable bodies,
       and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
+    - Mesh-collision properties: Applied to the mesh prim ``{prim_path}/geometry/mesh`` of rigid bodies,
+      overriding the default approximation the spawner picks for the shape. Not supported for deformable bodies.
     - Rigid body properties: Applied to the parent prim: ``{prim_path}``.
 
     where ``{prim_path}`` is the path to the prim in the USD stage and ``{prim_path}/geometry/mesh``
@@ -92,7 +94,8 @@ class MeshCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
 class MeshCustomCfg(MeshCfg):
     """Configuration parameters for a mesh authored from vertices and triangular faces.
 
-    See :meth:`spawn_mesh_custom` for more information.
+    Collision defaults to exact triangles. Use inherited ``mesh_collision_props``
+    to choose another collision approximation. See :meth:`spawn_mesh_custom` for more information.
     """
 
     func: Callable | str = "{DIR}.meshes:spawn_mesh_custom"
@@ -102,9 +105,6 @@ class MeshCustomCfg(MeshCfg):
 
     faces: tuple[tuple[int, int, int], ...] = MISSING
     """Triangle vertex indices with counter-clockwise front-face winding."""
-
-    collision_approximation: str = "none"
-    """Mesh collision approximation name. Defaults to ``"none"`` for exact triangle-mesh collision."""
 
     subdivision_scheme: Literal["none", "catmullClark", "loop", "bilinear"] = "none"
     """USD subdivision scheme. Defaults to ``"none"`` to preserve the authored surface."""

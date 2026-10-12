@@ -11,12 +11,21 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 
 import numpy as np
 import ovstage
 import warp as wp
 
+from pxr import Usd
+
+from isaaclab.cloner import ClonePlan
+from isaaclab.cloner.clone_plan import path as cloner_path
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
+
 from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
+from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +123,98 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
         A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
     """
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
+
+
+def _iter_clone_batches(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
+    """Yield native clone paths parent-first, omitting self-copies and children covered by their parent."""
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts, worlds, world_starts = cloner_path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        start, end = starts[group : group + 2]
+        targets = worlds[world_starts[group] : world_starts[group + 1]]
+        references = [
+            (sources[asset], templates[index])
+            for index, asset in enumerate(plan.topology.world_prototypes[start:end], start)
+        ]
+        parents = cloner_path.get_parent_indices([target for _, target in references])
+        for (source, target), parent in zip(references, parents, strict=True):
+            if parent != -1:
+                parent_source, parent_target = references[parent]
+                if source == cloner_path.rebase(target, parent_target, parent_source):
+                    continue
+            copies.setdefault((source, target), []).append(targets)
+    for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
+        worlds = np.concatenate(copies[source, template])
+        targets = [target for target in map(template.format, worlds) if target != source]
+        if targets:
+            yield source, targets
+
+
+def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) -> None:
+    """Clone the scene's prototypes and place environments on a native stage.
+
+    Args:
+        stage: Populated stage containing the authored prototypes.
+        plan: Scene topology and environment positions [m].
+        ordinal: Write ordinal for cloning and placement.
+    """
+    for source, targets in _iter_clone_batches(plan):
+        stage.clone(source, targets, ordinal=ordinal)
+    num_envs = len(plan.topology.world_prototype_layout)
+    xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+    xforms[:, 3, :3] = plan.positions
+    with ovstage.PathDictionary(stage) as paths:
+        env_paths = paths.create_path_list_from_strings([plan.env_template.format(i) for i in range(num_envs)])
+        try:
+            with stage.query_from_path_list(env_paths) as query:
+                stage.write_attribute(
+                    query,
+                    "omni:xform",
+                    ordinal=ordinal,
+                    tensors=xform_tensor_from_numpy(xforms),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()
+        finally:
+            paths.destroy_path_list(env_paths)
+
+
+@configclass
+class OvstageBackendCfg(BackendCfg):
+    """Identify the simulation-owned rendering stage for one visualizer instance."""
+
+    class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
+    viewer_id: int = 0
+
+
+class OvstageBackend:
+    """Own the native scene until the simulation has closed its borrowing viewers."""
+
+    def __init__(self, cfg: OvstageBackendCfg):
+        """Create an empty stage for the configured consumer."""
+        self.stage = create_ovstage("isaaclab.viewer")
+        self._populated = False
+
+    def populate(self, stage: Usd.Stage, plan: ClonePlan | None) -> None:
+        """Export and clone the authored scene before a viewer attaches to it."""
+        if self._populated:
+            return
+        num_envs = len(plan.topology.world_prototype_layout) if plan is not None else 1
+        sources = None
+        if plan is not None:
+            sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
+        usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
+        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
+        if num_envs > 1:
+            ovstage_replicate(self.stage, plan, ordinal=1)
+        self.stage.advance_write_floor(1).wait()
+        self._populated = True
+
+    def close(self) -> None:
+        """Release the stage after all viewers have detached."""
+        if self.stage is not None:
+            self.stage.destroy()
+            self.stage = None

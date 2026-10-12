@@ -3,6 +3,31 @@ Changelog
 
 .. towncrier release notes start
 
+5.0.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--seed`` to the RL-Games export command, matching the RSL-RL export command.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed the RSL-RL, RL-Games, and Stable-Baselines3 workflows to run the agent on the simulation's
+  device, as skrl and TorchRL do. They ignored ``--device`` for the agent outside distributed runs and used the
+  agent configuration's ``cuda:0``; pass ``--device`` to choose where both run.
+
+Fixed
+^^^^^
+
+* Fixed ``--checkpoint pretrained`` rejecting tasks that run on a Newton Kamino solver, such as
+  ``Isaac-Fourbar-Pole-Swingup``. Newton solvers are named after their config class, for example
+  ``newtonkaminopadmm``.
+* Fixed RLinf playback launched with ``uv run`` failing when Ray attempted to upload working directories larger
+  than 512 MiB. The upload is now disabled for both RLinf training and playback.
+
+
 4.0.1 (2026-10-06)
 ~~~~~~~~~~~~~~~~~~
 

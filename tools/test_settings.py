@@ -85,8 +85,6 @@ PER_TEST_STARTUP_TIMEOUTS = {
 PYTEST_WORKERS = {
     # Standalone launches already use independent subprocesses; overlap two simulator startups.
     "test_standalone_scripts.py": 2,
-    # 20 independent export round trips, ~18 min serially: the RL job's long pole.
-    "test_leapp_export_flow.py": 4,
     # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
     # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
     "test_contrib_environments_kit.py": 2,
@@ -104,6 +102,9 @@ EXCLUSIVE_TESTS = [
     # Both assert wall-clock limits, which other files running at the same time would eat into.
     "test_kit_startup_performance.py",
     "test_robot_load_performance.py",
+    # Kit's native extension loading and shutdown can deadlock when several apps run concurrently.
+    "test_leapp_export_flow.py",
+    "test_rmpflow_reset_stability.py",
 ]
 """Test files that run with no other test file alongside them, when a job runs several files at once."""
 
