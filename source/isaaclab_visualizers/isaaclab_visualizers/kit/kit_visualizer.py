@@ -63,7 +63,7 @@ class KitVisualizer(BaseVisualizer):
         self._point_instancer_invisible_ids_backup: dict[str, tuple[bool, object]] = {}
         self._runtime_headless = bool(cfg.headless)
         # USD path for the viewport's active camera, refreshed after setup (used by CI/tests).
-        self._controlled_camera_path: str | None = None
+        self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
         # Lazy Replicator render product + annotator for render_rgb_array().
         self._rgb_render_product = None
         self._rgb_annotator = None
@@ -131,7 +131,17 @@ class KitVisualizer(BaseVisualizer):
                 ("headless", self._runtime_headless),
             ],
         )
-        self._setup_streaming_view(num_envs)
+        if self.current_image_view is not None and not self._runtime_headless:
+            import omni.ui
+
+            title = self.cfg.viewport_name or "Streaming View"
+            self._camera_image_provider = omni.ui.ByteImageProvider()
+            self._camera_image_window = omni.ui.Window(
+                title, width=self.cfg.window.size[0], height=self.cfg.window.size[1]
+            )
+            with self._camera_image_window.frame:
+                omni.ui.ImageWithProvider(self._camera_image_provider)
+            asyncio.ensure_future(self._dock_window_async(title))
 
         from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
 
@@ -176,7 +186,18 @@ class KitVisualizer(BaseVisualizer):
                     self._app_pumped_this_step = True
             except (ImportError, AttributeError) as exc:
                 logger.debug("[KitVisualizer] App update skipped: %s", exc)
-        self._update_camera_image_panel()
+        if self._camera_image_provider is not None:
+            image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
+            if image is not None:
+                height, width = image.shape[:2]
+                if image.device.is_cuda:
+                    import omni.gpu_foundation_factory as gf
+
+                    self._camera_image_provider.set_bytes_data_from_gpu(
+                        image.ptr, [width, height], gf.TextureFormat.RGBA8_UNORM
+                    )
+                else:
+                    self._camera_image_provider.set_bytes_data(image.numpy().data, [width, height])
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
@@ -221,18 +242,21 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
+        if not self._sim.is_rendering:
+            self._sim.forward()
+            if self.supports_markers():
+                self._sim.vis_marker_registry.dispatch_callbacks()
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self._runtime_headless and self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
-        camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window.size
 
         # Create the render product and annotator before the app update so the first
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
-            self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
+            self._rgb_render_product = rep.create.render_product(self._controlled_camera_path, (w, h))
             self._apply_render_product_background(self._sim.stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
@@ -524,131 +548,33 @@ class KitVisualizer(BaseVisualizer):
 
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""
-        if self._runtime_headless:
-            # Headless: no viewport window; apply cfg pose to the default perspective camera path.
-            # omni.kit.viewport may not be loaded when the viewport extension is disabled
-            # (e.g. HEADLESS=1 without --video), so skip the import entirely.
-            self._viewport_window = None
-            self._viewport_api = None
-            if self.cfg.streaming_view:
-                logger.debug("[KitVisualizer] Camera image view requested in headless mode; no UI panel is created.")
+        # Headless Kit may not load the viewport extension; its camera is authored below.
+        if not self._runtime_headless:
+            self._write_desktop_entry()
+            import omni.kit.viewport.utility as vp_utils
+
+            if self.cfg.create_viewport:
+                name = self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
+                if not str(name).strip():
+                    raise RuntimeError(
+                        "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
+                    )
+                self._viewport_window = vp_utils.create_viewport_window(
+                    name=name, width=self.cfg.window.size[0], height=self.cfg.window.size[1],
+                    position_x=50, position_y=50, docked=True,
+                )  # fmt: skip
+                asyncio.ensure_future(self._dock_window_async(name, focus=True))
             else:
-                self._apply_cfg_camera_pose_if_configured()
-            self._refresh_controlled_camera_path()
-            return
+                self._viewport_window = vp_utils.get_active_viewport_window()
 
-        self._write_desktop_entry()
-        import omni.kit.viewport.utility as vp_utils
-        from omni.ui import DockPosition
-
-        effective_viewport_name = (
-            self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
-        )
-        if self.cfg.create_viewport:
-            if not str(effective_viewport_name).strip():
-                raise RuntimeError(
-                    "[KitVisualizer] viewport_name must be a non-empty string when create_viewport=True."
-                )
-            dock_position_name = self.cfg.dock_position.upper()
-            dock_position_map = {
-                "LEFT": DockPosition.LEFT,
-                "RIGHT": DockPosition.RIGHT,
-                "BOTTOM": DockPosition.BOTTOM,
-                "SAME": DockPosition.SAME,
-            }
-            dock_pos = dock_position_map.get(dock_position_name, DockPosition.SAME)
-
-            self._viewport_window = vp_utils.create_viewport_window(
-                name=effective_viewport_name,
-                width=self.cfg.window.size[0],
-                height=self.cfg.window.size[1],
-                position_x=50,
-                position_y=50,
-                docked=True,
-            )
-
-            asyncio.ensure_future(self._dock_viewport_async(effective_viewport_name, dock_pos))
-        else:
-            self._viewport_window = vp_utils.get_active_viewport_window()
-
-        if self._viewport_window is None:
-            logger.warning("[KitVisualizer] No active viewport window found.")
-            self._viewport_api = None
-            if not self.cfg.streaming_view:
-                self._apply_cfg_camera_pose_if_configured()
-            self._refresh_controlled_camera_path()
-            return
-        self._viewport_api = self._viewport_window.viewport_api
+            if self._viewport_window is None:
+                logger.warning("[KitVisualizer] No active viewport window found.")
+            else:
+                self._viewport_api = self._viewport_window.viewport_api
+                self._controlled_camera_path = self._viewport_api.get_active_camera() or _DEFAULT_VIEWPORT_CAMERA_PATH
+                asyncio.ensure_future(self._setup_backend_menubar_label_async())
         if not self.cfg.streaming_view:
-            self._apply_cfg_camera_pose_if_configured()
-        self._refresh_controlled_camera_path()
-        asyncio.ensure_future(self._setup_backend_menubar_label_async())
-
-    def _setup_streaming_view(self, num_envs: int) -> None:
-        """Bind a scene camera and create its Kit display panel."""
-        super()._setup_streaming_view(
-            num_envs,
-            visible_env_ids=self._env_ids,
-            target_aspect=self.cfg.window.size[0] / self.cfg.window.size[1],
-        )
-        if self._camera_sensor is None or self._runtime_headless:
-            return
-        import omni.ui
-
-        title = self.cfg.viewport_name or "Streaming View"
-        self._camera_image_provider = omni.ui.ByteImageProvider()
-        self._camera_image_window = omni.ui.Window(title, width=self.cfg.window.size[0], height=self.cfg.window.size[1])
-        with self._camera_image_window.frame:
-            omni.ui.ImageWithProvider(self._camera_image_provider)
-
-        dock_position_name = self.cfg.dock_position.upper()
-        dock_position_map = {
-            "LEFT": omni.ui.DockPosition.LEFT,
-            "RIGHT": omni.ui.DockPosition.RIGHT,
-            "BOTTOM": omni.ui.DockPosition.BOTTOM,
-            "SAME": omni.ui.DockPosition.SAME,
-        }
-        asyncio.ensure_future(
-            self._dock_image_window_async(title, dock_position_map.get(dock_position_name, omni.ui.DockPosition.SAME))
-        )
-
-    async def _dock_image_window_async(self, window_name: str, dock_position) -> None:
-        """Dock the camera image panel next to the main viewport."""
-        import omni.kit.app
-        import omni.ui
-
-        image_window = None
-        for _ in range(10):
-            image_window = omni.ui.Workspace.get_window(window_name)
-            if image_window:
-                break
-            await omni.kit.app.get_app().next_update_async()
-        main_viewport = omni.ui.Workspace.get_window("Viewport")
-        if image_window is not None and main_viewport is not None and image_window != main_viewport:
-            image_window.dock_in(main_viewport, dock_position, 0.5)
-
-    def _update_camera_image_panel(self) -> None:
-        """Present device pixels; CPU images are uploaded only for CPU-backed sources."""
-        image = self._streaming_frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
-        if image is None or self._camera_image_provider is None:
-            return
-        height, width = image.shape[:2]
-        if image.device.is_cuda:
-            import omni.gpu_foundation_factory as gf
-
-            self._camera_image_provider.set_bytes_data_from_gpu(
-                image.ptr, [width, height], gf.TextureFormat.RGBA8_UNORM
-            )
-        else:
-            self._camera_image_provider.set_bytes_data(image.numpy().data, [width, height])
-
-    def _refresh_controlled_camera_path(self) -> None:
-        """Cache :attr:`_controlled_camera_path` from the active viewport (or default persp)."""
-        if self._viewport_api is not None:
-            path = self._viewport_api.get_active_camera()
-            self._controlled_camera_path = path if path else _DEFAULT_VIEWPORT_CAMERA_PATH
-        else:
-            self._controlled_camera_path = _DEFAULT_VIEWPORT_CAMERA_PATH
+            self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
 
     def _apply_viewport_camera_scene_partition(self, usd_stage: Usd.Stage, num_envs: int) -> None:
         """Configure the viewport camera for partitioned or all-environment viewing.
@@ -661,7 +587,7 @@ class KitVisualizer(BaseVisualizer):
         Otherwise, the viewport is assigned to the first visible environment.
         """
 
-        if num_envs <= 0 or self._controlled_camera_path is None:
+        if num_envs <= 0:
             return
 
         env_prim = usd_stage.GetPrimAtPath("/World/envs/env_0")
@@ -696,20 +622,26 @@ class KitVisualizer(BaseVisualizer):
             attr = camera_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
         attr.Set(f"env_{env_id}")
 
-    async def _dock_viewport_async(self, viewport_name: str, dock_position) -> None:
-        """Dock a created viewport window relative to main viewport."""
+    async def _dock_window_async(self, window_name: str, *, focus: bool = False) -> None:
+        """Dock a viewport or image panel after Kit registers its window."""
         import omni.kit.app
         import omni.ui
 
-        viewport_window = None
+        dock_positions = {
+            "LEFT": omni.ui.DockPosition.LEFT,
+            "RIGHT": omni.ui.DockPosition.RIGHT,
+            "BOTTOM": omni.ui.DockPosition.BOTTOM,
+            "SAME": omni.ui.DockPosition.SAME,
+        }
+        window = None
         for _ in range(10):
-            viewport_window = omni.ui.Workspace.get_window(viewport_name)
-            if viewport_window:
+            window = omni.ui.Workspace.get_window(window_name)
+            if window:
                 break
             await omni.kit.app.get_app().next_update_async()
 
-        if not viewport_window:
-            logger.warning(f"[KitVisualizer] Could not find viewport window '{viewport_name}'.")
+        if not window:
+            logger.warning(f"[KitVisualizer] Could not find window '{window_name}'.")
             return
 
         main_viewport = omni.ui.Workspace.get_window("Viewport")
@@ -719,13 +651,16 @@ class KitVisualizer(BaseVisualizer):
                 if main_viewport:
                     break
 
-        if main_viewport and main_viewport != viewport_window:
-            viewport_window.dock_in(main_viewport, dock_position, 0.5)
-            await omni.kit.app.get_app().next_update_async()
-            viewport_window.focus()
-            viewport_window.visible = True
-            await omni.kit.app.get_app().next_update_async()
-            viewport_window.focus()
+        if main_viewport and main_viewport != window:
+            window.dock_in(
+                main_viewport, dock_positions.get(self.cfg.dock_position.upper(), omni.ui.DockPosition.SAME), 0.5
+            )
+            if focus:
+                await omni.kit.app.get_app().next_update_async()
+                window.focus()
+                window.visible = True
+                await omni.kit.app.get_app().next_update_async()
+                window.focus()
 
     def _set_viewport_camera(self, position: tuple[float, float, float], target: tuple[float, float, float]) -> None:
         """Apply eye/target camera view to the active viewport."""
@@ -810,24 +745,6 @@ class KitVisualizer(BaseVisualizer):
         translate_op.Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
         orient_op.Set(quat_gf)
         self._viewport_camera_pose_cache[camera_path] = pose_key
-        return True
-
-    def _apply_cfg_camera_pose_if_configured(self) -> None:
-        """Apply configured camera pose from eye/lookat."""
-        self._set_viewport_camera(self.cfg.eye, self.cfg.lookat)
-
-    def _set_active_camera_path(self, camera_path: str) -> bool:
-        """Set active camera path for viewport if the prim exists.
-
-        Returns:
-            ``True`` if camera was set, otherwise ``False``.
-        """
-        if self._viewport_api is None:
-            return False
-        camera_prim = self._sim.stage.GetPrimAtPath(camera_path)
-        if not camera_prim.IsValid():
-            return False
-        self._viewport_api.set_active_camera(camera_path)
         return True
 
     def _apply_env_visibility(self, usd_stage, num_envs: int, visible_env_ids: list[int]) -> None:

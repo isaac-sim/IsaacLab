@@ -2162,7 +2162,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "25.0.2"
+version = "25.0.3"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
