@@ -32,7 +32,7 @@ import omni.physx
 import omni.timeline
 import omni.usd
 import usdrt
-from pxr import Sdf, UsdPhysics, UsdUtils
+from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -1006,22 +1006,25 @@ class PhysxManager(PhysicsManager):
         # Register the complete tensor view only after PhysX has loaded the stage.
         cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend.backend = cls.backend
-        view = cls.backend.simulation_view.create_rigid_body_view("/**")
-        # PhysX returns a wrapper with no native handle for an empty selection.
-        cls._scene_data_backend._rigid_body_view = view if view._backend is not None else None
-        if view._backend is not None:
-            # Wildcard bindings expose articulation aliases; publish the actual root-link paths.
-            native = cls.backend.simulation_view
-            paths = view.prim_paths
-            articulation_type = omni.physics.tensors.ObjectType.Articulation
-            roots = [path for path in paths if native.get_object_type(path) == articulation_type]
-            if roots:
-                articulations = native.create_articulation_view(roots)
-                links = (body_paths[0] for body_paths in articulations.link_paths)
-                aliases = dict(zip(articulations.prim_paths, links, strict=True))
-                cls._scene_data_backend._rigid_body_view = native.create_rigid_body_view(
-                    [aliases.get(path, path) for path in paths]
-                )
+        # omni.physics.tensors logs errors for an empty selection, so static scenes skip the request.
+        prims = Usd.PrimRange.Stage(sim.stage, Usd.TraverseInstanceProxies())
+        if any(prim.HasAPI(UsdPhysics.RigidBodyAPI) for prim in prims):
+            view = cls.backend.simulation_view.create_rigid_body_view("/**")
+            # PhysX returns a wrapper with no native handle for an empty selection.
+            cls._scene_data_backend._rigid_body_view = view if view._backend is not None else None
+            if view._backend is not None:
+                # Wildcard bindings expose articulation aliases; publish the actual root-link paths.
+                native = cls.backend.simulation_view
+                paths = view.prim_paths
+                articulation_type = omni.physics.tensors.ObjectType.Articulation
+                roots = [path for path in paths if native.get_object_type(path) == articulation_type]
+                if roots:
+                    articulations = native.create_articulation_view(roots)
+                    links = (body_paths[0] for body_paths in articulations.link_paths)
+                    aliases = dict(zip(articulations.prim_paths, links, strict=True))
+                    cls._scene_data_backend._rigid_body_view = native.create_rigid_body_view(
+                        [aliases.get(path, path) for path in paths]
+                    )
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)

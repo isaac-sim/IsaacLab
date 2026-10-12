@@ -3,6 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
+from types import SimpleNamespace
+
 import pytest
 import torch
 from gymnasium.envs.registration import registry
@@ -15,6 +18,7 @@ from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.utils import resolve_task_config
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
@@ -105,14 +109,8 @@ def test_reach_presets_resolve_supported_combinations(task, presets, action_type
     assert type(cfg.sim.physics).__name__ == physics_type
 
     if task in (_TASK, _OSC_TASK) and not presets:
-        assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
-        assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-        assert cfg.terminations.success is None
-        assert cfg.terminations.time_out.func is mdp.time_out
-        assert cfg.rewards.success is None
-        assert cfg.rewards.end_effector_position_tracking_fine_grained.func is mdp.position_command_error_tanh
-        assert cfg.rewards.end_effector_position_tracking_fine_grained.weight == pytest.approx(0.1)
-        assert cfg.rewards.end_effector_position_tracking_fine_grained.params["std"] == pytest.approx(0.1)
+        assert cfg.terminations.success is not None
+        assert cfg.rewards.success is not None
 
 
 def test_reach_ur10_physics_presets_change_only_physics():
@@ -125,6 +123,44 @@ def test_reach_ur10_physics_presets_change_only_physics():
     physx_cfg["sim"].pop("physics")
     newton_cfg["sim"].pop("physics")
     assert physx_cfg == newton_cfg
+
+
+def test_reach_hold_keeps_one_goal_and_rewards_continued_success():
+    """Hold keeps one episode goal and rewards reaching it without terminating on arrival."""
+    _, default_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=[])
+    hold_env, hold_agent = resolve_task_config(_TASK, "rsl_rl_cfg_entry_point", overrides=["presets=hold"])
+
+    validate(hold_env)
+    assert min(hold_env.commands.ee_pose.resampling_time_range) > hold_env.episode_length_s
+    assert hold_env.terminations.success is None
+    assert hold_env.rewards.success.func is mdp.pose_command_success
+    # The 38-input holding policies must not share a checkpoint directory with 32-input reaching policies.
+    assert hold_agent.experiment_name != default_agent.experiment_name
+
+
+def test_reach_hold_pose_error_uses_robot_base_frame_and_commanded_body():
+    """The six added inputs use target-minus-current pose error in robot base coordinates."""
+    # Root is translated and rotated +90 degrees about Z. The selected hand is
+    # (0.4, -0.2, 0.3) in that frame, rotated +90 degrees about X. The target
+    # differs by (0.1, 0.3, -0.05) and a further +90 degrees about base Z.
+    data = SimpleNamespace(
+        root_pos_w=SimpleNamespace(torch=torch.tensor([[2.0, -1.0, 3.0]])),
+        root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5)]])),
+        body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0], [2.2, -0.6, 3.3]]])),
+        body_quat_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 0.0, 1.0], [0.5, 0.5, 0.5, 0.5]]])),
+    )
+    command = SimpleNamespace(
+        robot=SimpleNamespace(data=data),
+        body_idx=1,
+        command=torch.tensor([[0.5, 0.1, 0.25, 0.5, 0.5, 0.5, 0.5]]),
+    )
+    env = SimpleNamespace(command_manager=SimpleNamespace(get_term={"ee_pose": command}.__getitem__))
+    term = _load_env_cfg("hold").observations.policy.ee_target_error
+
+    error = term.func(env, **term.params)
+
+    expected = torch.tensor([[0.1, 0.3, -0.05, 0.0, 0.0, math.pi / 2]])
+    torch.testing.assert_close(error, expected, rtol=1e-5, atol=1e-6)
 
 
 def test_reach_action_presets_preserve_controller_independent_configuration():

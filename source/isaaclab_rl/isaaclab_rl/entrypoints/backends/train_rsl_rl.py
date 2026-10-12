@@ -67,6 +67,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
     )
+    parser.add_argument(
+        "--resume_optimizer_state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Restore the policy optimizer; disable to keep a fresh optimizer and configured learning rate.",
+    )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
     remaining_args_env_registration = cli_args.register_external_tasks(argv)
@@ -178,7 +184,13 @@ def _run(args_cli: argparse.Namespace) -> None:
             if resume_path is not None:
                 logger.info(f"Loading model checkpoint from: {resume_path}")
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
-                runner.load(resume_path, map_location=agent_cfg.device)
+                runner.load(
+                    resume_path,
+                    load_cfg=cli_args.checkpoint_load_cfg(
+                        args_cli.resume_optimizer_state, runner_class=agent_cfg.class_name
+                    ),
+                    map_location=agent_cfg.device,
+                )
             dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if agent_cfg.logger == "wandb":

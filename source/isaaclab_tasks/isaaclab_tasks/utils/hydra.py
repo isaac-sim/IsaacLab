@@ -573,6 +573,7 @@ def register_task(
         play_mode: Whether to apply the play-mode overrides defined by the environment
             configuration's ``play_mode`` method after loading. Defaults to False.
         overrides: Optional Hydra arguments to compose instead of :data:`sys.argv`.
+            Non-string literals replace resolved preset values; strings at preset paths select alternatives.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -607,7 +608,8 @@ def register_task(
         else:
             override_items.append((key, val, arg))
 
-    explicit = {key: val for key, val, _arg in override_items}
+    # Literal values replace the resolved value after presets and play-mode overrides.
+    explicit = {key: val for key, val, _arg in override_items if isinstance(_parse_val(val), str)}
     consumed_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
     consumed_explicit: set[str] = set()
@@ -666,11 +668,12 @@ def register_task(
 
     cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:
-        if key in consumed_explicit:
+        value = _parse_val(val)
+        if key in consumed_explicit and isinstance(value, str):
             continue
         if key.startswith(("env.", "agent.")) and not key.endswith("+"):
             sec, path = key.split(".", 1)
-            _setattr(cfgs[sec], path, _parse_val(val))
+            _setattr(cfgs[sec], path, value)
         else:
             hydra_args.append(arg)
 
