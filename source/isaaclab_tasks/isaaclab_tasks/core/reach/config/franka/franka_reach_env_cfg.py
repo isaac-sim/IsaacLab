@@ -128,7 +128,8 @@ class FrankaReachEnvCfg(ReachEnvCfg):
     without resetting on arrival. It adds six pose-error observations for 38-input
     joint-position policies, trained in the separate ``reach_franka_hold`` experiment.
     Train and play with the same preset and physics backend; default 32-input Reach
-    checkpoints cannot be loaded with ``hold``.
+    checkpoints cannot be loaded with ``hold``. Holding requires the Torch frontend;
+    train a policy or supply a local holding checkpoint until pretrained policies are published.
 
     Newton holding uses softer arm stiffness; PhysX holding retains authored stiffness
     and increases command-change penalties. These profiles modify only the task config.
