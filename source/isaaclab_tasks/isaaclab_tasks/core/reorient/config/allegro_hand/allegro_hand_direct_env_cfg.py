@@ -17,10 +17,11 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
-from ...utils import GOAL_MARKER_OFFSET, VISUALIZER_CFG
+from ...utils import VISUALIZER_CFG
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
+    GOAL_MARKER_OFFSET,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
