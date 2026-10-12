@@ -260,9 +260,9 @@ class Camera(SensorBase):
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
             with force_log_level(logging.INFO):
                 logger.info("Using renderer: %s", type(self._renderer).__name__)
-        # Render data â€” assigned in _initialize_impl.
+        # Render data — assigned in _initialize_impl.
         self._render_data = None
-        # Frame view â€” assigned in _initialize_impl.
+        # Frame view — assigned in _initialize_impl.
         self._view: FrameView | None = None
 
     def __del__(self, _sys=sys):
