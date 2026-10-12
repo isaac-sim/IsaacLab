@@ -410,6 +410,7 @@ isaaclab_doc_redirects = {
     "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
     "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
     "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/features/reproducibility": "source/how-to/reproducibility",
     "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/features/draw_markers": "source/how-to/create_visualization_markers",
