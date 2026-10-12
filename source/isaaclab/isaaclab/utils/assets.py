@@ -216,8 +216,10 @@ ISAACLAB_NUCLEUS_DIR: str = f"{ISAAC_NUCLEUS_DIR}/IsaacLab"
 NEWTON_ASSET_REPO_URL: str = "https://github.com/newton-physics/newton-assets.git"
 """URL of the Newton asset repository."""
 
-NEWTON_ASSET_DIR: str = os.environ.get("NEWTON_ASSET_DIR", NEWTON_ASSET_REPO_URL)
-"""Git repository URL or local checkout directory used for Newton assets."""
+_NEWTON_ASSET_HTTP_URL: str = "https://raw.githubusercontent.com/newton-physics/newton-assets/main"
+
+NEWTON_ASSET_DIR: str = os.environ.get("NEWTON_ASSET_DIR", _NEWTON_ASSET_HTTP_URL)
+"""URL or local checkout directory of the Newton asset repository; resolve files with :func:`retrieve_file_path`."""
 
 GIT_ASSET_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), "asset_cache")
 """Default local directory where git asset repositories are cached."""
@@ -251,7 +253,7 @@ def retrieve_git_asset_path(
     leave an incomplete cache at the final path.
 
     Args:
-        git_path: Git repository URL, SSH path, or existing local checkout directory.
+        git_path: Git repository URL, SSH path, existing local checkout directory, or :data:`NEWTON_ASSET_DIR`.
         local_path: Asset path relative to the git repository, or an absolute path inside it.
         cache_dir: Directory where remote repositories are cached. Defaults to
             :data:`GIT_ASSET_CACHE_DIR`.
@@ -266,6 +268,9 @@ def retrieve_git_asset_path(
         ValueError: When :paramref:`local_path` is a URL, resolves outside the git repository, or a cache directory
             cannot be derived from :paramref:`git_path`.
     """
+    # Keep the legacy helper compatible with the HTTPS default used by Newton asset configurations.
+    if git_path == _NEWTON_ASSET_HTTP_URL:
+        git_path = NEWTON_ASSET_REPO_URL
     if _is_git_remote_path(git_path):
         git_asset_dir = _get_git_asset_cache_dir(git_path, cache_dir)
         source_path = _resolve_git_asset_source_path(local_path, git_asset_dir)
