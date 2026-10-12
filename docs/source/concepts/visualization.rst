@@ -816,8 +816,9 @@ Scene Background
 
 Kit uses the solid sky-blue background from ``VisualizerCfg.background_color`` by default. The
 Newton visualizers override that default with ``None`` so Newton GL preserves its procedural sky
-and Newton RTX preserves its native background. Set an explicit normalized RGB color to override
-the visible background; scene lights continue to illuminate objects and contribute reflections:
+and Newton RTX preserves its native background. For any visualizer, set ``background_color`` to
+``None`` to preserve the backend's native background, or set an explicit normalized RGB color to
+override the visible background. Scene lights continue to illuminate objects and contribute reflections:
 
 .. code-block:: python
 
