@@ -34,6 +34,8 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -160,9 +162,6 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, scene_variant, f
 
     Scene variants cover cloning paths and compliant contacts; collision filtering varies independently.
     """
-    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
-    from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
-
     with build_simulation_context(
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
     ) as sim:
