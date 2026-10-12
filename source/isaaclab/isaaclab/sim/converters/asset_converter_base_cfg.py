@@ -53,9 +53,8 @@ class AssetConverterBaseCfg:
     force_usd_conversion: bool = False
     """Force the conversion of the asset file to usd. Defaults to False.
 
-    If True, then the USD file is always generated, and later lazy conversions with the same configuration reuse
-    it. Importers that do not overwrite earlier outputs, such as the URDF and MJCF importers, write it to a new
-    numbered folder.
+    If True, the USD file is always generated. Some importers write a new numbered output instead of overwriting
+    an existing one.
     """
 
     make_instanceable: bool = True
