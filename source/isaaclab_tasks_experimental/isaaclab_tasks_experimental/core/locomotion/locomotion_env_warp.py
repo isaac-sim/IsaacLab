@@ -9,6 +9,7 @@ import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.utils.seed import WarpRng
 from isaaclab.utils.string import resolve_matching_names_values
 
 
@@ -416,15 +417,12 @@ def survival_rate(
 
 
 @wp.kernel
-def initialize_state(
+def initialize_targets(
     env_origins: wp.array(dtype=wp.vec3f),
     targets: wp.array(dtype=wp.vec3f),
-    state: wp.array(dtype=wp.uint32),
-    seed: wp.int32,
 ):
-    """Initialize each env's RNG state and place its target far along +x from the env origin."""
+    """Place each env's target far along +x from the env origin."""
     env_index = wp.tid()
-    state[env_index] = wp.rand_init(seed, env_index)
     targets[env_index] = env_origins[env_index]
     targets[env_index] += wp.static(wp.vec3f(1000.0, 0.0, 0.0))
 
@@ -480,7 +478,6 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         )
         self.rewards = wp.zeros((self.num_envs), dtype=wp.float32, device=self.sim.device)
         self.actions = wp.zeros((self.num_envs, self.robot.num_joints), dtype=wp.float32, device=self.sim.device)
-        self.states = wp.zeros((self.num_envs), dtype=wp.uint32, device=self.sim.device)
         self.potentials = wp.zeros(self.num_envs, dtype=wp.float32, device=self.sim.device)
         self.prev_potentials = wp.zeros_like(self.potentials)
         self.targets = wp.zeros((self.num_envs), dtype=wp.vec3f, device=self.sim.device)
@@ -496,18 +493,13 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
         self.env_origins = wp.from_torch(self.scene.env_origins, dtype=wp.vec3f)
         self.actions_mapped = wp.zeros((self.num_envs, self.robot.num_joints), dtype=wp.float32, device=self.sim.device)
 
-        # Initial states and targets
-        if self.cfg.seed is None:
-            self.cfg.seed = -1
-
+        # Initial targets
         wp.launch(
-            initialize_state,
+            initialize_targets,
             dim=self.num_envs,
             inputs=[
                 self.env_origins,
                 self.targets,
-                self.states,
-                self.cfg.seed,
             ],
         )
 
@@ -684,7 +676,7 @@ class LocomotionWarpEnv(DirectRLEnvWarp):
                 self.soft_joint_vel_limits,
                 self.joint_pos,
                 self.joint_vel,
-                self.states,
+                WarpRng.state,
                 self.cfg.initial_joint_pos_range[0],
                 self.cfg.initial_joint_pos_range[1],
                 self.cfg.initial_joint_vel_range[0],
