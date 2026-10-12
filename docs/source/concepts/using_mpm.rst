@@ -212,7 +212,7 @@ This compact scene runs Newton's implicit MPM solver on the browser CPU.
 The cylinder, tub walls, and floor supply analytic surface distances and normals to
 Newton's grid contact solver. The grains use an instanced particle view;
 surface reconstruction remains a separate visualization choice. The source and rebuild instructions are in
-``contrib/browser_demos/``. See the :doc:`interactive examples guide
+``docs/contrib/browser_demos/``. See the :doc:`interactive examples guide
 </source/developer-tools/interactive_examples>` for the export workflow.
 
 .. isaaclab-browser-demo:: mpm
