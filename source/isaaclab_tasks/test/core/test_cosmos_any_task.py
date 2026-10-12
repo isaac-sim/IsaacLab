@@ -23,6 +23,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 KUKA_TASK = "Isaac-Reorient-KukaAllegro-Camera"
 KUKA_PRESETS = "presets=cube,single_camera,newton_mjwarp,newton_renderer,rgb64"
+KUKA_DUO_PRESETS = "presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64"
 
 
 def _kuka(**overrides):
@@ -193,11 +194,33 @@ def test_the_capture_count_uses_the_sensor_update_tolerance():
 
 
 def test_cosmos_needs_one_rgb_camera_or_an_explicit_choice():
-    env_cfg = parse_env_cfg(KUKA_TASK, overrides=("presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64",))
+    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,))
     with pytest.raises(ValueError, match="--cosmos_camera"):
         apply_cosmos(env_cfg, prompt="A lab.")
     apply_cosmos(env_cfg, prompt="A lab.", camera="wrist_camera")
     assert env_cfg.scene.wrist_camera.modifiers and not env_cfg.scene.base_camera.modifiers
+
+
+def test_all_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
+    """--cosmos_camera all puts every rgb camera in one session; a wider wrist camera renders at the shared canvas."""
+    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,))
+    env_cfg.scene.wrist_camera = env_cfg.scene.wrist_camera.replace(width=128)
+    apply_env_overrides(_cli(add_common_train_args, ["--cosmos", "--cosmos_camera", "all"]), env_cfg)
+    env_cfg.validate()
+
+    for name, size in (("base_camera", (64, 64)), ("wrist_camera", (128, 64))):
+        camera = getattr(env_cfg.scene, name)
+        chain = camera.modifiers["distance_to_image_plane"]
+        assert (camera.width, camera.height) == (640, 640)
+        assert chain[1].backend.cameras == ("base_camera", "wrist_camera")
+        assert (chain[-1].params["width"], chain[-1].params["height"]) == size
+
+    # Two cameras of two environments are four views, which need independent resets.
+    args = ["--cosmos", "--cosmos_camera", "wrist_camera", "--cosmos_camera", "base_camera", "--num_envs", "2"]
+    with pytest.raises(ValueError, match="without --no-compile"):
+        apply_env_overrides(_cli(add_common_train_args, args), parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,)))
+    with pytest.raises(ValueError, match='"all" alone'):
+        apply_cosmos(_kuka(), camera=["all", "base_camera"])
 
 
 def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):

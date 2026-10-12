@@ -14,7 +14,7 @@ import threading
 from collections.abc import Sequence
 from contextlib import ExitStack
 from itertools import pairwise
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from .._protocol import (
     MAX_CHUNK_FRAMES,
@@ -71,16 +71,24 @@ class CosmosModel:
             )
         if cfg.transport not in ("auto", "cuda_ipc", "socket"):
             raise ValueError("Cosmos transport must be auto, cuda_ipc, or socket.")
+        if (
+            not isinstance(cfg.cameras, (list, tuple))
+            or any(not isinstance(name, str) or not name for name in cfg.cameras)
+            or len(set(cfg.cameras)) != len(cfg.cameras)
+        ):
+            raise ValueError("Cosmos cameras sharing a session must be distinct scene camera names.")
         self._cfg = cfg
         self._lock = threading.Lock()
         self._streams: set[_CosmosStream] = set()
+        self._group: _CameraGroup | None = None
         self._closed = False
 
-    def open_stream(self, num_views: int, seeds: tuple[int, ...]) -> _CosmosStream | _ShardedStream:
+    def open_stream(self, num_views: int, seeds: tuple[int, ...]) -> _CosmosStream | _ShardedStream | _CameraStream:
         """Create one camera stream; connect on its first step when image dimensions are known.
 
         With several service endpoints, the views are split into contiguous shares of near-equal size, one per
-        service in endpoint order (see :func:`split_views`).
+        service in endpoint order (see :func:`split_views`). With :attr:`CosmosModelCfg.cameras`, the stream instead
+        joins the session those cameras share; the camera's modifier binds it to its camera.
 
         Args:
             num_views: Number of camera views. Each service generates its share as one batch, within GPU memory and
@@ -91,6 +99,21 @@ class CosmosModel:
             ValueError: If the view count or seeds are invalid, or there are fewer views than services.
             RuntimeError: If the client model has already closed.
         """
+        if self._cfg.cameras:
+            if type(num_views) is not int or num_views < 1:
+                raise ValueError("Cosmos needs a positive number of camera views.")
+            _validate_seeds(seeds, num_views)
+            with self._lock:
+                if self._closed:
+                    raise RuntimeError("Cosmos client model is closed.")
+                if self._group is None:
+                    self._group = _CameraGroup(self, tuple(self._cfg.cameras))
+                group = self._group
+            return group.join(num_views, seeds)
+        return self._open_session(num_views, seeds)
+
+    def _open_session(self, num_views: int, seeds: tuple[int, ...]) -> _CosmosStream | _ShardedStream:
+        """Create one session's stream, split across the services; see :meth:`open_stream`."""
         if type(num_views) is not int or num_views < 1:
             raise ValueError("Cosmos needs a positive number of camera views.")
         _validate_seeds(seeds, num_views)
@@ -113,6 +136,9 @@ class CosmosModel:
                 return
             self._closed = True
             streams = tuple(self._streams)
+            group = self._group
+        if group is not None:
+            group.close()
         for stream in streams:
             stream.close()
 
@@ -504,3 +530,146 @@ class _ShardedStream:
         """Close every service's session. Repeated calls are safe."""
         for stream in self._streams:
             stream.close()
+
+
+def _scene_cameras() -> dict[str, Any]:
+    """Return the scene's cameras by name, through the simulation's scene data provider."""
+    from isaaclab.sim import SimulationContext
+
+    sim = SimulationContext.instance()
+    return sim.get_scene_data_provider().get_camera_sensors() if sim is not None else {}
+
+
+class _CameraGroup:
+    """Cameras that share one session; every capture generates all their environments as one batch.
+
+    Each camera's modifier queues its own controls and steps its :class:`_CameraStream` once its chunk is complete.
+    The first camera to step updates the group's other cameras, whose modifiers then add their chunks; the last one
+    runs the batched step, and every camera returns its own views of it. All cameras thus publish images of the same
+    capture, so they must capture at the same steps. A failure closes the session for every camera.
+    """
+
+    def __init__(self, model: CosmosModel, cameras: tuple[str, ...]):
+        self._model = model
+        self._cameras = cameras
+        self._num_views: int | None = None
+        self._seeds: list[tuple[int, ...] | None] = [None] * len(cameras)
+        self._streams: list[_CameraStream | None] = [None] * len(cameras)
+        self._session: _CosmosStream | _ShardedStream | None = None
+        self._chunks: dict[int, tuple[list[torch.Tensor], tuple[int, ...], tuple[int, ...]]] = {}
+        self._images: dict[int, list[torch.Tensor]] | None = None
+        self._closed = False
+
+    @property
+    def transport(self) -> str | list[str | None] | None:
+        """Transport of the shared session; None before its first step."""
+        return None if self._session is None else self._session.transport
+
+    def join(self, num_views: int, seeds: tuple[int, ...]) -> _CameraStream:
+        """Return a camera's stream into the shared session; its camera binds it later."""
+        if self._num_views is None:
+            self._num_views = num_views
+        elif num_views != self._num_views:
+            raise ValueError("Cameras sharing a Cosmos session need the same number of environments.")
+        return _CameraStream(self, seeds)
+
+    def bind(self, stream: _CameraStream, sensor: Any) -> None:
+        """Assign ``stream`` the views of its camera, found by ``sensor`` among the scene's cameras."""
+        name = next((name for name, camera in _scene_cameras().items() if camera is sensor), None)
+        if name not in self._cameras:
+            raise ValueError(
+                f"Camera {name!r} is not one of the cameras sharing this Cosmos session {list(self._cameras)}."
+            )
+        index = self._cameras.index(name)
+        if self._streams[index] not in (None, stream):
+            raise ValueError(f"Camera {name!r} already joined its Cosmos session.")
+        self._streams[index] = stream
+        self._seeds[index] = stream.seeds
+        stream.index = index
+
+    def step(
+        self, stream: _CameraStream, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
+    ) -> list[torch.Tensor]:
+        """Add a camera's chunk, update the cameras that have not added theirs, and return this camera's images."""
+        if self._closed:
+            raise RuntimeError("The Cosmos session shared by these cameras is closed or failed.")
+        if stream.index is None:
+            raise RuntimeError("A camera sharing a Cosmos session must be bound to its camera before it steps.")
+        if stream.index in self._chunks:
+            raise RuntimeError("A camera stepped twice before every camera of its Cosmos session added its chunk.")
+        self._chunks[stream.index] = (controls, reset_rows, seeds)
+        try:
+            for index, name in enumerate(self._cameras):
+                if self._images is not None or index in self._chunks:
+                    continue
+                camera = _scene_cameras().get(name)
+                if camera is None:
+                    raise ValueError(f"Scene camera {name!r} of the Cosmos session does not exist.")
+                # Reading the camera's data updates it; its modifier then adds the camera's chunk to this one.
+                camera.data
+                if self._images is None and index not in self._chunks:
+                    raise RuntimeError(
+                        f"Camera {name!r} did not capture with the other cameras of its Cosmos session; cameras "
+                        "sharing a session need the same update period, and each must be read every capture."
+                    )
+            if self._images is None:
+                self._images = self._generate()
+            images = self._images.pop(stream.index)
+            if not self._images:
+                self._images = None
+                self._chunks.clear()
+            return images
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        """Close the shared session; every camera's stream then fails. Repeated calls are safe."""
+        self._closed = True
+        self._chunks.clear()
+        self._images = None
+        if self._session is not None:
+            self._session.close()
+
+    def _generate(self) -> dict[int, list[torch.Tensor]]:
+        """Step the shared session with every camera's chunk; camera ``k`` has rows ``k * n`` up to ``k * n + n``."""
+        num_views = self._num_views
+        if self._session is None:
+            seeds = tuple(seed for camera_seeds in self._seeds for seed in camera_seeds)
+            self._session = self._model._open_session(num_views * len(self._cameras), seeds)
+        controls, reset_rows, reset_seeds = [], [], []
+        for index in range(len(self._cameras)):
+            camera_controls, camera_rows, camera_seeds = self._chunks[index]
+            controls.extend(camera_controls)
+            reset_rows.extend(index * num_views + row for row in camera_rows)
+            reset_seeds.extend(camera_seeds)
+        images = self._session.step(controls, tuple(reset_rows), tuple(reset_seeds))
+        return {index: images[index * num_views : (index + 1) * num_views] for index in range(len(self._cameras))}
+
+
+class _CameraStream:
+    """One camera's stream into the session it shares with other cameras; see :class:`_CameraGroup`."""
+
+    def __init__(self, group: _CameraGroup, seeds: tuple[int, ...]):
+        self._group = group
+        self.seeds = seeds
+        self.index: int | None = None
+
+    @property
+    def transport(self) -> str | list[str | None] | None:
+        """Transport of the shared session; None before its first step."""
+        return self._group.transport
+
+    def bind_sensor(self, sensor: Any) -> None:
+        """Take the views of ``sensor``, the camera whose modifier owns this stream."""
+        self._group.bind(self, sensor)
+
+    def step(
+        self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
+    ) -> list[torch.Tensor]:
+        """Generate this camera's views together with the other cameras of its session."""
+        return self._group.step(self, controls, reset_rows, seeds)
+
+    def close(self) -> None:
+        """Close the shared session. Repeated calls are safe."""
+        self._group.close()

@@ -31,6 +31,7 @@ import pytest
 import torch
 from isaaclab_experimental.cosmos import CosmosModelCfg, CosmosTransferModifierCfg, _protocol
 from isaaclab_experimental.cosmos.client import CosmosModel
+from isaaclab_experimental.cosmos.client import cosmos_model as cosmos_model_module
 from isaaclab_experimental.cosmos.client.camera import service_capabilities
 from isaaclab_experimental.cosmos.client.cosmos_model import split_views
 from isaaclab_experimental.cosmos.server import serve
@@ -425,6 +426,111 @@ def test_camera_postprocessing_publishes_rgb_from_the_connected_service(cosmos_s
         chain.close()
     assert session.closed.wait(2)
     assert not cosmos_service.resource.closed.is_set()
+
+
+class LazyCamera:
+    """A scene camera that captures when its data is read, and only once per simulation step."""
+
+    def __init__(self, cfg, value):
+        self.chain = ModifierChain([CosmosTransferModifierCfg(backend=cfg)], device="cpu", sensor=self)
+        self.value = value
+        self.due = False
+        self.output = None
+
+    @property
+    def data(self):
+        if self.due:
+            self.due = False
+            self.output = self.chain(torch.full((2, 2, 3, 3), self.value, dtype=torch.uint8))
+        return self.output
+
+
+def _camera_group(cosmos_service, monkeypatch):
+    """A front and a wrist camera of two environments, sharing one session through their simulation's model."""
+    cfg = CosmosModelCfg(
+        max_episode_frames=13,
+        endpoint=cosmos_service.endpoint,
+        prompt=["Front 0.", "Front 1.", "Wrist 0.", "Wrist 1."],
+        modality="edge",
+        timeout=2,
+        cameras=("front", "wrist"),
+    )
+    model = CosmosModel(cfg)
+    sim = SimpleNamespace(get_or_create_backend=lambda backend: model)
+    monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: sim))
+    cameras = {"front": LazyCamera(cfg, 10), "wrist": LazyCamera(cfg, 20)}
+    monkeypatch.setattr(cosmos_model_module, "_scene_cameras", lambda: cameras)
+
+    def echo(stream, controls, reset_rows, seeds, **episode):
+        stream.steps.append((controls, reset_rows, seeds))
+        return [control.copy() for control in controls]
+
+    # The service echoes each view's control, so every camera can be checked for its own views.
+    monkeypatch.setattr(TransportStream, "step", echo)
+    return model, cameras
+
+
+def test_cameras_sharing_a_session_generate_all_their_views_in_one_batch(cosmos_service, monkeypatch):
+    """Whichever camera completes its chunk first updates the other; one 4-view step serves both cameras."""
+    model, cameras = _camera_group(cosmos_service, monkeypatch)
+    front, wrist = cameras["front"], cameras["wrist"]
+
+    def capture(*order):
+        front.due = wrist.due = True
+        for camera in order:
+            camera.data
+        front.value, wrist.value = front.value + 1, wrist.value + 1
+
+    try:
+        # The front camera completes the initial chunk first, the wrist camera the update.
+        capture(front, wrist)
+        for _ in range(4):
+            capture(wrist, front)
+        assert front.output[:, 0, 0, 0].tolist() == [14, 14] and wrist.output[:, 0, 0, 0].tolist() == [24, 24]
+        # Environment 1 resets on both cameras and restarts with its newest control.
+        for camera in (front, wrist):
+            camera.chain.reset([1])
+        for _ in range(4):
+            capture(front, wrist)
+        assert front.output[:, 0, 0, 0].tolist() == [18, 18] and wrist.output[:, 0, 0, 0].tolist() == [28, 28]
+    finally:
+        model.close()
+
+    assert len(cosmos_service.resource.streams) == 1
+    session = cosmos_service.resource.streams[0]
+    assert session.settings["num_views"] == 4
+    assert session.settings["prompt"] == ["Front 0.", "Front 1.", "Wrist 0.", "Wrist 1."]
+    # A camera's view takes its environment's seed, and an environment's reset restarts it on every camera.
+    seed = CosmosTransferModifierCfg().seed
+    assert session.settings["seeds"] == (seed, seed + 1, seed, seed + 1)
+    assert [len(controls) for controls, _, _ in session.steps] == [4, 4, 4]
+    assert [int(control[0, 0, 0, 0]) for control in session.steps[0][0]] == [10, 10, 20, 20]
+    assert [control.shape[0] for control in session.steps[2][0]] == [4, 1, 4, 1]
+    assert session.steps[2][1:] == ((1, 3), (seed + 3, seed + 3))
+    assert session.closed.wait(2)
+
+
+def test_a_camera_that_misses_a_shared_capture_fails_the_session_for_every_camera(cosmos_service, monkeypatch):
+    model, cameras = _camera_group(cosmos_service, monkeypatch)
+    front, wrist = cameras["front"], cameras["wrist"]
+    try:
+        front.due = wrist.due = True
+        front.data
+        for _ in range(3):
+            front.due = True
+            front.data
+        front.due = True
+        with pytest.raises(RuntimeError, match="'wrist' did not capture with the other cameras"):
+            front.data
+        for _ in range(3):
+            wrist.due = True
+            wrist.data
+        wrist.due = True
+        with pytest.raises(RuntimeError, match="shared by these cameras is closed or failed"):
+            wrist.data
+    finally:
+        model.close()
+    assert cosmos_service.resource.streams[0].closed.wait(2)
 
 
 def test_incompatible_cosmos_cadence_is_rejected_before_opening_a_session(cosmos_service, monkeypatch):

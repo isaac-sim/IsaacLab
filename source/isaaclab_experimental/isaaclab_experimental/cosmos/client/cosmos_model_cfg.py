@@ -70,6 +70,14 @@ class CosmosModelCfg(BackendCfg):
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
     resets. None omits an appearance description."""
 
+    cameras: tuple[str, ...] = ()
+    """Scene names of the cameras that share one session, each configured with this model. Defaults to none, which
+    gives each camera its own session. With several, every capture generates all their environments as one batch:
+    camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
+    takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
+    independently and need not agree with each other. The cameras need the same canvas, control type, and capture
+    rate; :func:`~isaaclab_experimental.cosmos.apply_cosmos` sets them up."""
+
     modality: Literal["edge", "blur", "depth", "seg"] = "depth"
     """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
     for blur the camera sends its RGB and the service applies the Framework's own blur filter."""

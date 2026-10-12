@@ -51,7 +51,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 |---|---|
 | `--cosmos` | Put Cosmos on the task's rgb camera |
 | `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
-| `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
+| `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras; repeat it, or pass `all`, for cameras sharing one session (see "Several cameras") |
 | `--cosmos_control depth\|edge\|blur` | Control prepared from the render (default `depth`); see "Controls and prompts" |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
 | `--cosmos_endpoint URL` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
@@ -371,6 +371,34 @@ its OpenGL context.
 
 Each reset shows black until the environment's next chunk. For a clip without mid-episode resets, add
 `env.fall_dist=10.0` so a dropped cube does not end the episode; environments then reset together at the time limit.
+
+## Several cameras
+
+Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
+environments as one batch. Repeat `--cosmos_camera` for the cameras to use, or pass `--cosmos_camera all` for every
+camera that publishes `rgb`:
+
+```bash
+uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl \
+  --cosmos --cosmos_camera all \
+  --cosmos_prompt "A KUKA arm with an Allegro hand turning a cube in a bright lab, seen from the side." \
+  --cosmos_prompt "A close-up of an Allegro hand turning a cube in a bright lab, seen from its wrist." \
+  presets=cube,duo_camera,rgb64
+```
+
+- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given (for `all`, the
+  scene's order). A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
+  the wrist camera.
+- Each camera keeps its own output size. One session has one canvas, so every camera renders at the canvas closest
+  to the first camera's aspect ratio; each camera's view is the canvas's center crop, scaled back to its size.
+- The cameras share the control type, depth range, and update period. `--cosmos_near` and `--cosmos_far` apply to
+  every camera, so choose a range that covers all of them. Each camera must be read at every capture, as observation
+  terms do; a camera that misses a shared capture stops the session with an error.
+- An environment's cameras share its seed and reset together. Cosmos generates each view on its own, so the images
+  of different cameras need not agree, for example on colors and materials.
+- The batch holds `num_cameras * num_envs` views, which need GPU memory like as many environments. With several
+  environments, the service needs independent resets (see [Several environments](#several-environments));
+  [several services](#several-gpus) split the views as they split environments.
 
 ## Endpoints and transports
 
