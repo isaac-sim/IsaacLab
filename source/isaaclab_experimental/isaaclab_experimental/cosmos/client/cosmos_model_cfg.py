@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+import math
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
@@ -16,6 +17,28 @@ from .._protocol import DEFAULT_ENDPOINT
 
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
+
+
+def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, int]:
+    """Count a camera's captures per episode and the Cosmos frame budget that holds them.
+
+    The episode lasts ``ceil(episode_length_s / step_dt)`` environment steps, as the environment counts them. The
+    camera captures at most once per step, once its elapsed time reaches ``update_period - 1e-6`` [s], the
+    threshold :class:`~isaaclab.sensors.SensorBase` uses.
+
+    Args:
+        env_cfg: Environment configuration with ``sim.dt``, ``decimation``, and ``episode_length_s``.
+        update_period: Camera update period [s]. Zero captures every step.
+
+    Returns:
+        Environment steps per capture, captures per episode including the initial capture, and the smallest
+        frame budget ``1 + 4*k`` that holds them.
+    """
+    step_dt = env_cfg.sim.dt * env_cfg.decimation
+    episode_steps = math.ceil(env_cfg.episode_length_s / step_dt)
+    steps_per_capture = max(1, math.ceil((update_period - 1e-6) / step_dt))
+    captures = math.ceil(episode_steps / steps_per_capture) + 1
+    return steps_per_capture, captures, 1 + 4 * math.ceil((captures - 1) / 4)
 
 
 @configclass
@@ -49,8 +72,9 @@ class CosmosModelCfg(BackendCfg):
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The
-    Shadow Hand preset derives it from the task duration and capture rate. Low-level callers must set it before
-    creating the client. The service tells the model the episode's duration from it and rejects frames beyond it.
+    Shadow Hand preset derives it from the task duration and capture rate with :func:`episode_frame_budget`.
+    Low-level callers must set it before creating the client. The service tells the model the episode's duration
+    from it and rejects frames beyond it.
     """
 
     transport: Literal["auto", "cuda_ipc", "socket"] = "auto"
