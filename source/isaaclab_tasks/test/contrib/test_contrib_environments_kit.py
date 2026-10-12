@@ -30,4 +30,4 @@ from env_test_utils import _run_environments  # isort: skip
 
 @pytest.mark.parametrize("task_name", contrib_environment_params("kit"))
 def test_contrib_environments_kit(task_name):
-    _run_environments(task_name, device="cuda", num_envs=num_envs(task_name))
+    _run_environments(task_name, device=None, num_envs=num_envs(task_name))
