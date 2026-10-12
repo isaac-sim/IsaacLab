@@ -22,14 +22,13 @@ import warp as wp
 from ..utils import validate
 from ..utils.backend_utils import FactoryBase
 from .image_view import ImageView
-from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg
+from .visualizer_cfg import ImageViewCfg, PerspectiveCameraCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..sensors import Camera
     from ..sim import SimulationContext
-    from .visualizer_cfg import VisualizerCfg
 
 
 logger = logging.getLogger(__name__)
