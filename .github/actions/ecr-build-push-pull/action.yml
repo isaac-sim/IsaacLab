@@ -231,8 +231,7 @@ runs:
           echo "deps-cache-hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"
-          echo "DEPS_ECR_IMAGE=${DEPS_ECR_IMAGE}" >> "$GITHUB_ENV"
-          echo "PUSH_DEPS_IMAGE=true"             >> "$GITHUB_ENV"
+          echo "publish-image=${DEPS_ECR_IMAGE}" >> "$GITHUB_OUTPUT"
         fi
 
     ##### 6: Full build (delegated to docker-build) #####
@@ -303,8 +302,10 @@ runs:
     # install inputs hit the fast path (step 5) instead of doing a full build.
 
     - name: Push deps tag
-      if: env.PUSH_DEPS_IMAGE == 'true'
+      if: steps.deps-cache.outputs.publish-image != ''
       shell: bash
+      env:
+        DEPS_ECR_IMAGE: ${{ steps.deps-cache.outputs.publish-image }}
       run: |
         echo "🔵 Pushing deps image for future cache hits: ${DEPS_ECR_IMAGE}"
         docker tag "${{ inputs.image-tag }}" "${DEPS_ECR_IMAGE}"
