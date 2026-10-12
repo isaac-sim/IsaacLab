@@ -412,23 +412,27 @@ class _CosmosStream:
         if self._closed:
             return
         self._closed = True
+        released = False
         try:
             if self._socket is not None:
                 try:
                     if self._channel is not None:
-                        # Unmap the service's output buffer before the service frees it when the session closes.
+                        # Release the service's output buffer before the service frees it when the session closes.
                         self._channel.close_opened()
                     if notify:
                         self._exchange({"op": "close"})
+                        # The service releases the control buffer before it confirms the close.
+                        released = True
                 except (OSError, ValueError, RuntimeError):
                     _LOGGER.debug("Cosmos session was already unavailable during close.", exc_info=True)
                 finally:
                     self._socket.close()
                     self._socket = None
         finally:
-            # The service unmaps the control buffer when the session closes; then this process frees it.
             if self._channel is not None:
-                self._channel.close()
+                # Without that confirmation the service may still read the control buffer, which then stays
+                # allocated until this process exits.
+                self._channel.close(peer_released=released)
                 self._channel = None
             self._model._discard_stream(self)
 

@@ -400,6 +400,11 @@ or their synchronization costs; it avoids CPU staging when exchanging images bet
 The camera-side IPC handoff orders GPU work with events. The service synchronizes its CUDA stream before
 replying so GPU faults reach the client as errors; a complete inference step is not free of host synchronization.
 
+Each process allocates the buffer it writes: the camera its controls, the service its generated images. CUDA
+leaves freeing memory that the other process still has open undefined, so each side releases the other's buffer
+first. After a failed session the service frees its buffer once the camera disconnects, and the camera keeps its
+controls until it exits, because the service may still be reading them.
+
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with
 `ssh -L 5555:/tmp/isaaclab-cosmos-<uid>.sock gpu-host`. Then set the camera's endpoint to `tcp://127.0.0.1:5555`;
