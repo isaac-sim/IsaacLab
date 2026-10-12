@@ -104,21 +104,15 @@ def collision_properties(
     ]
 
 
-def tabletop_collider_cfg(
-    size: tuple[float, float, float], *, friction: float, contact_stiffness: float, contact_damping: float
-) -> sim_utils.CuboidCfg:
+def tabletop_collider_cfg(size: tuple[float, float, float]) -> sim_utils.CuboidCfg:
     """Create a low-cost collision proxy for a visual-only table."""
     return sim_utils.CuboidCfg(
         size=size,
         visible=False,
         # Inflated rigid offsets must not support dishes above the cloth.
         collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
-        physics_material=rigid_material(
-            density=None,
-            friction=friction,
-            contact_stiffness=contact_stiffness,
-            contact_damping=contact_damping,
-        ),
+        # Newton's geometric-mean mixing gives 0.3 cloth-table friction.
+        physics_material=rigid_material(friction=0.45),
     )
 
 
@@ -154,7 +148,7 @@ def _configure_visuals(
 
 def spawn_visual_table_from_usd(
     prim_path: str,
-    cfg: VisualTableUsdFileCfg,
+    cfg: sim_utils.UsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs: object,
@@ -164,13 +158,6 @@ def spawn_visual_table_from_usd(
     for root in sim_utils.find_matching_prims(prim_path):
         _configure_visuals(root.GetPath().pathString)
     return prim
-
-
-@configclass
-class VisualTableUsdFileCfg(sim_utils.UsdFileCfg):
-    """USD spawner config for a visual-only dining table."""
-
-    func: Callable | str = spawn_visual_table_from_usd
 
 
 def spawn_tableware_from_usd(
@@ -212,9 +199,9 @@ def spawn_tableware_from_usd(
             mass_api.CreateDiagonalInertiaAttr(cfg.diagonal_inertia)
             mass_api.CreatePrincipalAxesAttr(Gf.Quatf(1.0, Gf.Vec3f(0.0)))
 
-        proxy_cfgs = (cfg.collision_proxy_cfg, *cfg.additional_collision_proxy_cfgs)
-        proxy_positions = (cfg.collision_proxy_position, *cfg.additional_collision_proxy_positions)
-        for index, (proxy_cfg, proxy_position) in enumerate(zip(proxy_cfgs, proxy_positions, strict=True)):
+        for index, (proxy_cfg, proxy_position) in enumerate(
+            zip(cfg.collision_proxy_cfgs, cfg.collision_proxy_positions, strict=True)
+        ):
             suffix = "" if index == 0 else str(index)
             proxy_cfg.func(
                 f"{body.GetPath()}/CollisionProxy{suffix}",
@@ -238,14 +225,10 @@ class TablewareUsdFileCfg(sim_utils.UsdFileCfg):
     rigid_props = {"(/.*)?": [UsdPhysicsRigidBodyCfg(rigid_body_enabled=True, kinematic_enabled=False)]}
     mass: float = MISSING
     """Mass of the selected rigid body [kg]."""
-    collision_proxy_cfg: sim_utils.ShapeCfg = MISSING
-    """Primary collision proxy; dimensions are in local meters."""
-    collision_proxy_position: tuple[float, float, float] = MISSING
-    """Primary collision proxy's body-local offset [m]."""
-    additional_collision_proxy_cfgs: tuple[sim_utils.ShapeCfg, ...] = ()
-    """Additional collision proxies, paired with their respective offsets."""
-    additional_collision_proxy_positions: tuple[tuple[float, float, float], ...] = ()
-    """Additional proxies' body-local offsets [m], in matching order."""
+    collision_proxy_cfgs: tuple[sim_utils.ShapeCfg, ...] = MISSING
+    """Collision proxies; dimensions are in local meters."""
+    collision_proxy_positions: tuple[tuple[float, float, float], ...] = MISSING
+    """Proxies' body-local offsets [m], in matching order."""
     center_of_mass: tuple[float, float, float] | None = None
     """Body-local center of mass [m], or None to retain the asset's value."""
     diagonal_inertia: tuple[float, float, float] | None = None
@@ -277,7 +260,7 @@ H2_HAND_OFFSETS = (
     (0.0854352130714941, -0.004956624352234765, 0.11747110476887199),
     (0.08528776908502764, 0.0060654248588878044, 0.11775531545430512),
 )
-# Measured native pulp pinch and unused-finger parking, inside native joint limits.
+# Measured native pulp pinch, inside native joint limits.
 H2_PINCH_JOINT_POS = {
     "left_thumb_CMC_FE": 1.8898998498916626,
     "left_thumb_CMC_AA": 0.31909996271133423,
@@ -297,6 +280,9 @@ H2_PINCH_JOINT_POS = {
     "right_index_MCP_AA": 0.2907813787460327,
     "right_index_PIP": 0.5469146966934204,
     "right_index_DIP": 0.029999999329447746,
+}
+# Unused fingers remain at these positions throughout the motion.
+H2_PARKED_JOINT_POS = {
     "left_middle_MCP_FE": 0.5188307166099548,
     "left_middle_MCP_AA": 0.30825042724609375,
     "left_middle_PIP": 1.3207045793533325,
@@ -334,25 +320,6 @@ H2_OPEN_JOINT_POS = {
     "right_thumb_CMC_AA": 0.2733340892195702,
     "right_thumb_MCP_AA": 0.0021895832382142384,
 }
-
-
-def _configure_robot_colliders(root_path: str, stage: Usd.Stage) -> None:
-    """Give robot meshes the SDF representation required by full-surface cloth contact."""
-    from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
-
-    from isaaclab.sim.schemas import apply_namespaced  # noqa: PLC0415
-
-    meshes = sim_utils.get_all_matching_child_prims(
-        root_path,
-        predicate=lambda prim: prim.IsA(UsdGeom.Mesh) and prim.HasAPI(UsdPhysics.CollisionAPI),
-        stage=stage,
-    )
-    for mesh in meshes:
-        mesh.RemoveAppliedSchema("NewtonMeshCollisionAPI")
-        UsdPhysics.MeshCollisionAPI(mesh).GetApproximationAttr().Set("none")
-        apply_namespaced(
-            NewtonSDFCollisionCfg(sdf_max_resolution=64, sdf_padding=0.012), mesh.GetPath().pathString, stage
-        )
 
 
 def enable_h2_fingertip_contacts(
@@ -469,7 +436,6 @@ class H2ArticulationCfg(ArticulationCfg):
     def _post_spawn(self, stage: Usd.Stage) -> None:
         super()._post_spawn(stage)
         root_path = self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path else self.prim_path
-        _configure_robot_colliders(root_path, stage)
         from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
 
         from isaaclab.sim.schemas import apply_namespaced  # noqa: PLC0415
@@ -493,6 +459,10 @@ class H2ArticulationCfg(ArticulationCfg):
             stage=stage,
         ):
             mesh_path = mesh.GetPath().pathString
+            # Full-surface cloth contact needs native meshes with SDFs, not convex hulls.
+            mesh.RemoveAppliedSchema("NewtonMeshCollisionAPI")
+            UsdPhysics.MeshCollisionAPI(mesh).GetApproximationAttr().Set("none")
+            apply_namespaced(NewtonSDFCollisionCfg(sdf_max_resolution=64, sdf_padding=0.012), mesh_path, stage)
             if any(
                 f"/{side}_{part}_" in mesh_path
                 for side in ("left", "right")
@@ -548,6 +518,7 @@ H2_CFG = H2ArticulationCfg(
             "right_wrist_pitch_joint": -0.0186706446,
             "right_wrist_yaw_joint": -0.8570303917,
             **H2_OPEN_JOINT_POS,
+            **H2_PARKED_JOINT_POS,
         },
     ),
     actuators={
@@ -585,7 +556,8 @@ GROUND_CFG = AssetBaseCfg(
 )
 TABLE_CFG = AssetBaseCfg(
     prim_path="{ENV_REGEX_NS}/Table",
-    spawn=VisualTableUsdFileCfg(
+    spawn=sim_utils.UsdFileCfg(
+        func=spawn_visual_table_from_usd,
         usd_path=TABLE_USD,
         scale=TABLE_SCALE,
         make_uninstanceable=True,
@@ -594,24 +566,13 @@ TABLE_CFG = AssetBaseCfg(
 )
 TABLETOP_COLLIDER_CFG = AssetBaseCfg(
     prim_path="{ENV_REGEX_NS}/Tabletop",
-    spawn=tabletop_collider_cfg(
-        (*TABLE_SIZE, TABLETOP_THICKNESS),
-        # Newton's geometric-mean mixing gives 0.3 cloth-table friction.
-        friction=0.45,
-        contact_stiffness=1.0e4,
-        contact_damping=1.0e1,
-    ),
+    spawn=tabletop_collider_cfg((*TABLE_SIZE, TABLETOP_THICKNESS)),
     init_state=AssetBaseCfg.InitialStateCfg(pos=(TABLE_CENTER_X, 0.0, TABLE_TOP_Z - 0.5 * TABLETOP_THICKNESS)),
 )
 TABLE_SUPPORT_CFGS = {
     f"table_leg_{index}": AssetBaseCfg(
         prim_path=f"{{ENV_REGEX_NS}}/TableLeg{index}",
-        spawn=tabletop_collider_cfg(
-            (0.024, 0.024, TABLE_TOP_Z - TABLETOP_THICKNESS),
-            friction=0.45,
-            contact_stiffness=1.0e4,
-            contact_damping=1.0e1,
-        ),
+        spawn=tabletop_collider_cfg((0.024, 0.024, TABLE_TOP_Z - TABLETOP_THICKNESS)),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(TABLE_CENTER_X + x, y, 0.5 * (TABLE_TOP_Z - TABLETOP_THICKNESS))),
     )
     # Four slender legs replace the old panel proxies; no invisible wall below the hem.
@@ -656,14 +617,16 @@ BOWL_CFG = RigidObjectCfg(
     spawn=TablewareUsdFileCfg(
         usd_path=BOWL_USD,
         mass=0.45,
-        collision_proxy_cfg=sim_utils.CylinderCfg(
-            radius=BOWL_LOCAL_RADIUS,
-            height=BOWL_LOCAL_HEIGHT,
-            visible=False,
-            collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
-            physics_material=rigid_material(friction=0.30),
+        collision_proxy_cfgs=(
+            sim_utils.CylinderCfg(
+                radius=BOWL_LOCAL_RADIUS,
+                height=BOWL_LOCAL_HEIGHT,
+                visible=False,
+                collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
+                physics_material=rigid_material(friction=0.30),
+            ),
         ),
-        collision_proxy_position=(0.0, 0.0, BOWL_LOCAL_Z_MIN + 0.5 * BOWL_LOCAL_HEIGHT),
+        collision_proxy_positions=((0.0, 0.0, BOWL_LOCAL_Z_MIN + 0.5 * BOWL_LOCAL_HEIGHT),),
         scale=(BOWL_SCALE,) * 3,
     ),
     init_state=RigidObjectCfg.InitialStateCfg(
@@ -675,18 +638,17 @@ GLASS_CFG = RigidObjectCfg(
     spawn=TablewareUsdFileCfg(
         usd_path=WINE_GLASS_USD,
         mass=0.35,
-        collision_proxy_cfg=sim_utils.CylinderCfg(
-            radius=0.040,
-            height=0.006,
-            visible=False,
-            collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
-            physics_material=rigid_material(friction=0.15),
-        ),
-        collision_proxy_position=(0.0, 0.0, 0.003),
         center_of_mass=WINE_GLASS_CENTER_OF_MASS,
         diagonal_inertia=WINE_GLASS_DIAGONAL_INERTIA,
         # A base-only proxy lets the visual stem/cup penetrate the ground after a fall.
-        additional_collision_proxy_cfgs=(
+        collision_proxy_cfgs=(
+            sim_utils.CylinderCfg(
+                radius=0.040,
+                height=0.006,
+                visible=False,
+                collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
+                physics_material=rigid_material(friction=0.15),
+            ),
             sim_utils.CylinderCfg(
                 radius=0.004,
                 height=0.096,
@@ -702,7 +664,7 @@ GLASS_CFG = RigidObjectCfg(
                 physics_material=rigid_material(friction=0.15),
             ),
         ),
-        additional_collision_proxy_positions=((0.0, 0.0, 0.054), (0.0, 0.0, 0.165)),
+        collision_proxy_positions=((0.0, 0.0, 0.003), (0.0, 0.0, 0.054), (0.0, 0.0, 0.165)),
         visual_color=(0.55, 0.75, 0.90),
         visual_opacity=0.90,
         visual_roughness=0.12,
@@ -716,13 +678,15 @@ FORK_CFG = RigidObjectCfg(
     spawn=TablewareUsdFileCfg(
         usd_path=FORK_USD,
         mass=0.07,
-        collision_proxy_cfg=sim_utils.CuboidCfg(
-            size=(0.014, 0.160, 0.003),
-            visible=False,
-            collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
-            physics_material=rigid_material(friction=0.25),
+        collision_proxy_cfgs=(
+            sim_utils.CuboidCfg(
+                size=(0.014, 0.160, 0.003),
+                visible=False,
+                collision_props=collision_properties(contact_margin=0.0002, contact_gap=0.0),
+                physics_material=rigid_material(friction=0.25),
+            ),
         ),
-        collision_proxy_position=(0.0, 0.0092, 0.0016),
+        collision_proxy_positions=((0.0, 0.0092, 0.0016),),
         scale=(FORK_SCALE,) * 3,
         center_of_mass=FORK_CENTER_OF_MASS,
         diagonal_inertia=FORK_DIAGONAL_INERTIA,

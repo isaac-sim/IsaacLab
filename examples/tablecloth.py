@@ -159,9 +159,7 @@ def main() -> None:
         # Fixed roots already have the cloned row origins; defaults are environment-local.
         sim.forward()
         controller = TableclothController(robot, usd_path, step_dt, speeds)
-        controller.observe_scene(NewtonManager.get_model(), NewtonManager.get_state_0(), scene.env_prim_paths)
-        controller.compute()
-        controller.bind_arm_substeps(
+        controller.initialize(
             NewtonManager.get_model(),
             NewtonManager.get_state_0(),
             NewtonManager.get_control(),
@@ -172,7 +170,7 @@ def main() -> None:
         NewtonManager.register_post_actuator_callback(controller.interpolate_arm_targets)
         NewtonManager.set_decimation(substeps)
         NewtonManager.register_post_step_callback(controller.compute)
-        grasp = GraspMonitor(NewtonManager.get_model(), NewtonManager.get_state_0(), controller, scene.env_prim_paths)
+        grasp = GraspMonitor(NewtonManager.get_model(), NewtonManager.get_state_0(), controller)
         NewtonManager.register_post_step_callback(grasp.compute)
         complete_steps = math.ceil(TableclothController.duration(speeds, step_dt) / step_dt)
         max_steps = args_cli.max_steps or complete_steps
