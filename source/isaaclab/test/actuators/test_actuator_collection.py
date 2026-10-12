@@ -918,57 +918,6 @@ def test_lab_executed_explicit_groups_warn_once():
     assert "execution of explicit actuator models is deprecated" in str(deprecations[0].message)
 
 
-@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA is unavailable")
-@pytest.mark.parametrize(
-    "actuator_cfg",
-    [
-        ImplicitActuatorCfg(joint_names_expr=["joint_0"], stiffness=2.0, damping=0.0),
-        IdealPDActuatorCfg(
-            joint_names_expr=["joint_0"],
-            stiffness=2.0,
-            damping=0.0,
-            actuator_effort_limit=100.0,
-            actuator_velocity_limit=10.0,
-        ),
-    ],
-    ids=["implicit", "explicit"],
-)
-def test_actuator_batch_rebinds_cuda_state_provider_on_request(
-    actuator_cfg: ImplicitActuatorCfg | IdealPDActuatorCfg,
-):
-    control = FakeActuatorControl(num_envs=1, joint_names=["joint_0"], device="cuda:0")
-    collection = ActuatorCollection({"all": actuator_cfg}, control)
-    collection.target_command.position.torch.fill_(3.0)
-
-    collection.compute()
-    control._joint_pos = ProxyArray(wp.full((1, 1), 2.0, dtype=wp.float32, device=control.device))
-    if isinstance(actuator_cfg, ImplicitActuatorCfg):
-        collection.target_command.velocity.torch.fill_(4.0)
-        collection.target_command.effort.torch.fill_(5.0)
-        control._joint_vel = ProxyArray(wp.full((1, 1), 1.0, dtype=wp.float32, device=control.device))
-        control._joint_stiffness = ProxyArray(wp.full((1, 1), 7.0, dtype=wp.float32, device=control.device))
-        control._joint_damping = ProxyArray(wp.full((1, 1), 11.0, dtype=wp.float32, device=control.device))
-        control._joint_effort_limits = ProxyArray(wp.full((1, 1), 13.0, dtype=wp.float32, device=control.device))
-    collection._rebind_state_inputs()
-
-    collection.compute()
-
-    expected_computed = 45.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
-    expected_applied = 13.0 if isinstance(actuator_cfg, ImplicitActuatorCfg) else 2.0
-    torch.testing.assert_close(
-        collection.computed_effort.torch,
-        torch.tensor([[expected_computed]], device=control.device),
-        rtol=0.0,
-        atol=0.0,
-    )
-    torch.testing.assert_close(
-        collection.applied_effort.torch,
-        torch.tensor([[expected_applied]], device=control.device),
-        rtol=0.0,
-        atol=0.0,
-    )
-
-
 def test_partial_coverage_explicit_group_reads_fresh_commands_each_compute():
     control = FakeActuatorControl(joint_names=[f"joint_{index}" for index in range(4)])
     collection = ActuatorCollection(

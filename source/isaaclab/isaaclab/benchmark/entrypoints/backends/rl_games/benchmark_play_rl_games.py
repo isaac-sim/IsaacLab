@@ -43,8 +43,7 @@ def _parse_args(argv: list[str]):
     from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RL-Games.")
-    parser.add_argument("--video", action="store_true", default=False, help="Record videos during play.")
-    parser.add_argument("--video_length", type=int, default=None, help="Recorded video length in environment steps.")
+    common.add_video_args(parser, action="play")
     help_requested = "-h" in argv or "--help" in argv
     parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
@@ -114,6 +113,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     from isaaclab.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, BenchmarkResult, builders, capture, stepping
     from isaaclab.benchmark.schema import StartupTime
 
+    from isaaclab_rl.entrypoints.backends import cli_args_rl_games as cli_args
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
 
     # Importing the task packages registers their gym environments so the
@@ -140,8 +140,7 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             if args_cli.num_envs is not None:
                 env_cfg.scene.num_envs = args_cli.num_envs
-            if args_cli.seed is not None:
-                agent_cfg["params"]["seed"] = args_cli.seed
+            agent_cfg = cli_args.update_rl_games_cfg(agent_cfg, args_cli)
             env_cfg.seed = agent_cfg["params"]["seed"]
 
             config_name = agent_cfg["params"]["config"]["name"]

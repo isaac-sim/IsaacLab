@@ -33,6 +33,48 @@ Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it b
 by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
 container.
 
+Direct builds use the same default paths as Compose:
+
+.. code:: bash
+
+    docker build --pull --file docker/Dockerfile.base --tag isaac-lab-base .
+
+Dependencies are installed from ``uv.lock`` with frozen resolution. To update the development
+container after pulling repository changes, rebuild it and recreate the service:
+
+.. code:: bash
+
+    ./docker/container.py stop base
+    ./docker/container.py build base --pull
+    ./docker/container.py start base
+
+Stopping now preserves named volumes; older versions deleted them on every stop. Compose
+caches, logs, and data use named volumes, whose existing ownership is unchanged by rebuilding.
+For a one-time upgrade from a root-run image, copy any results you need, stop other profiles
+without ``--remove-volumes`` (use ``docker rm <name>`` for already-stopped containers),
+then run ``./docker/container.py stop base --remove-volumes``
+before rebuilding and starting base. This deletes the project's caches, logs, and data so
+new volumes inherit uid/gid 1000 ownership. Cleanup requires the selected container to still
+exist and refuses to run while another container remains in the Compose project.
+
+If the selected container was already removed, start it again before requesting cleanup.
+For custom host bind-mounted caches, fix ownership on the host to uid/gid 1000 instead.
+
+With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its installation directory:
+
+.. code:: bash
+
+    cd /isaac-sim
+    ./runapp.sh
+
+The image redirects shared Python packages, including the direct ``omni.warp.core`` package,
+to the locked environment. Missing ``packaging/__init__.py`` or ``warp/_src/apic/__init__.py``
+errors indicate broken shared package files; recreating a container from a newly built image
+restores the package tree. An installer error about a whole-namespace NVIDIA symlink likewise
+requires restoring a clean Isaac Sim installation or rebuilding the image before retrying;
+removing the link alone does not restore Kit's CUDA 12 libraries. Cache-permission errors
+require the named-volume migration above or fixing ownership on custom host bind mounts.
+
 Kit-less image
 --------------
 
@@ -67,12 +109,14 @@ registry repository, distinguished by a ``-kitless`` tag suffix:
 
 Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
 NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
-that several commands can share it:
+that several commands can share it. The ``isaac-lab-kitless-logs`` named volume keeps checkpoints
+after the container is removed:
 
 .. code:: bash
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
+        -v isaac-lab-kitless-logs:/workspace/isaaclab/logs \
         nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
     docker exec isaac-lab-kitless \
@@ -88,12 +132,13 @@ Replay in a browser with:
         --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
 
 Viser is reachable through the host network without forwarding a desktop display. Stop playback
-with ``Ctrl+C`` without stopping the container.
+with ``Ctrl+C`` without stopping the container. Copy the logs to the host with
+``docker cp isaac-lab-kitless:/workspace/isaaclab/logs ./logs``.
 To build the image from the checkout instead of
 pulling it, run ``docker build --file docker/Dockerfile.kitless --tag isaac-lab-kitless .``.
 
-Only ``linux/amd64`` images are published. The Dockerfile itself is architecture-agnostic, but the
-published manifest is limited to the architecture that is validated in CI.
+Check which architectures a tag publishes with ``docker buildx imagetools inspect <image:tag>``
+before choosing a host.
 
 Pre-built image from NGC
 ------------------------
@@ -149,10 +194,10 @@ not require X11. Follow the graphics-driver requirements above for GL or RTX.
 Runtime user
 ------------
 
-The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000, which
-keeps bind-mounted workspaces writable on GitHub runners. When running one of these images directly
-with ``docker run`` from a host account whose uid differs, pass ``--user "$(id -u):1000"`` so that
-new files on bind mounts belong to your host user while the runtime home stays accessible.
+The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000. When running
+one of these images directly with ``docker run``, keep that default user instead of passing ``--user``,
+so that the runtime home and cache directories stay writable. Named volumes inherit the image's
+ownership; make host bind mounts writable with ``sudo chown -R 1000:1000 <directory>``.
 
 Python interpreter
 ------------------
@@ -160,5 +205,5 @@ Python interpreter
 Every image installs from ``uv.lock`` into a Python 3.12 virtual environment at
 ``/opt/isaaclab-venv``. On the Isaac Sim-based images the environment is built on Isaac Sim's own
 interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim`` symlink;
-``isaaclab.sh`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
+``uv run isaaclab`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
 to the right one, so scripts are run the same way regardless of image.

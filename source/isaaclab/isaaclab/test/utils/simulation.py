@@ -33,4 +33,4 @@ def launch_test_simulation(cfg=None, **launcher_args) -> None:
     if "device" not in launcher_args:
         launcher_args["device"] = resolve_test_sim_device()
     cfg = SimulationCfg() if cfg is None else cfg
-    _RUNTIME.enter_context(launch_simulation(cfg, {"headless": True, **launcher_args}))
+    _RUNTIME.enter_context(launch_simulation(cfg, launcher_args))

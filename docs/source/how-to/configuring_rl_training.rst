@@ -122,14 +122,6 @@ we can use the ``--agent`` argument to specify the configuration instance to use
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
             --run_name ppo
 
-     .. tab-item:: isaaclab.sh / isaaclab.bat
-
-        .. code-block:: bash
-
-          # standard PPO training
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole \
-            --run_name ppo
-
 * Training with the PPO configuration with symmetry augmentation:
 
   .. tab-set::
@@ -145,21 +137,6 @@ we can use the ``--agent`` argument to specify the configuration instance to use
 
           # you can use hydra to disable symmetry augmentation but enable mirror loss computation
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
-            --agent rsl_rl_with_symmetry_cfg_entry_point \
-            --run_name ppo_without_symmetry_data_augmentation \
-            agent.algorithm.symmetry_cfg.use_data_augmentation=false
-
-     .. tab-item:: isaaclab.sh / isaaclab.bat
-
-        .. code-block:: bash
-
-          # PPO training with symmetry augmentation
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole \
-            --agent rsl_rl_with_symmetry_cfg_entry_point \
-            --run_name ppo_with_symmetry_data_augmentation
-
-          # you can use hydra to disable symmetry augmentation but enable mirror loss computation
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole \
             --agent rsl_rl_with_symmetry_cfg_entry_point \
             --run_name ppo_without_symmetry_data_augmentation \
             agent.algorithm.symmetry_cfg.use_data_augmentation=false

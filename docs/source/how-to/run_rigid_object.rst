@@ -149,13 +149,6 @@ the Isaac Sim viewport shown below:
          uv run isaaclab -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_rigid_object.py --viz kit
-
-
 This should open a stage with a ground plane, lights, and several green cones. The cones must be dropping from
 a random height and settling on to the ground. Press ``Ctrl+C`` in the terminal to stop the simulation.
 

@@ -26,7 +26,7 @@ see :ref:`backends-and-presets`. This guide prepares an asset and task for
 ``physics=newton_mjwarp``. After both backends run the asset and task, use
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton` to transfer a policy checkpoint.
 For the conceptual differences that require target-solver validation, see
-:ref:`solver-differences`; use :doc:`/source/concepts/solver-tuning/tune_mjwarp` for the focused MJWarp tuning
+:ref:`solver-differences`; use :doc:`/source/how-to/solver_tuning_mjwarp` for the focused MJWarp tuning
 procedure.
 
 Import a multi-physics asset
@@ -48,19 +48,20 @@ nested rigid-body structure rather than the earlier flat USD structure. See
 Separate common and solver-specific properties
 -----------------------------------------------
 
-Put common USD Physics properties in solver-common configuration classes such as
-``RigidBodyBaseCfg`` and ``JointDriveBaseCfg``. Put backend-only properties in the matching
-subclasses:
+Put common USD Physics properties in solver-common fragments such as
+:class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` and
+:class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg`. Put backend-only properties in the matching
+backend fragments, passed alongside the common fragment(s) in the same spawner field:
 
-* Use ``MujocoRigidBodyPropertiesCfg``, ``MujocoJointDrivePropertiesCfg``, and
-  ``MujocoCollisionCfg`` for MJWarp-specific properties.
-* Use the matching ``Newton*PropertiesCfg`` classes for supported Newton-native collision,
-  material, articulation, and related properties.
+* Use ``MujocoRigidBodyCfg``, ``MujocoJointCfg``, and ``MujocoCollisionCfg`` for MJWarp-specific
+  properties.
+* Use the matching ``Newton*Cfg`` fragments for supported Newton-native collision, material,
+  articulation, and related properties.
 * Keep PhysX-only damping, stabilization, solver-iteration, friction-patch, and compliant-contact
-  properties in the matching ``Physx*PropertiesCfg`` classes.
+  properties in the matching ``Physx*Cfg`` fragments.
 
-For configuration hierarchy and parameter-to-USD routing, see
-:doc:`/source/concepts/schema_cfgs`. Check the
+For the fragment model and how multiple fragments combine on one spawner field, see
+:doc:`/source/concepts/schema_fragments`. Check the
 :doc:`Newton/MuJoCo schema API </source/api/lab_newton/isaaclab_newton.sim.schemas>` and
 :doc:`PhysX schema API </source/api/lab_physx/isaaclab_physx.sim.schemas>` for supported fields.
 A value present in a PhysX asset or imported Newton model is not proof that MJWarp consumes it.
@@ -127,8 +128,8 @@ Run the same fixed task state through both backends before training or transfer:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=physx
-   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 --viz none physics=newton_mjwarp
+   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=physx
+   uv run --extra isaacsim python scripts/environments/zero_agent.py --task TASK --num_envs 4 physics=newton_mjwarp
 
 Let each run cross multiple resets. Record object displacement, contact count, gripper effort,
 penetration, and success rate for the same fixed grasp. Also check for non-finite state, first-step

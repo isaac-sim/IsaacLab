@@ -41,12 +41,14 @@ To use Isaac Automator, first clone the repo:
       .. code-block:: bash
 
          git clone https://github.com/isaac-sim/IsaacAutomator.git
+         cd IsaacAutomator
 
    .. tab-item:: SSH
 
       .. code-block:: bash
 
          git clone git@github.com:isaac-sim/IsaacAutomator.git
+         cd IsaacAutomator
 
 
 Building the Container
@@ -132,7 +134,7 @@ Key deployment options:
 - ``--existing`` -- What to do if a deployment already exists: ``ask`` (default),
   ``repair``, ``modify``, ``replace``, or ``run_ansible``.
 - ``--from-image`` -- Deploy from a pre-built VM image for faster provisioning
-  (AWS only at this time).
+  (AWS, Azure, or GCP).
 
 Connecting to the Isaac Workstation
 -----------------------------------
@@ -155,7 +157,7 @@ To run Isaac Lab commands, open a terminal on the workstation:
 
 .. code-block:: bash
 
-   ~/IsaacLab/isaaclab.sh train --rl_library rsl_rl \
+   uv run --project ~/IsaacLab isaaclab train --rl_library rsl_rl \
      --task=Isaac-Cartpole-Direct
 
 

@@ -3,6 +3,38 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed a segmentation fault in :class:`~isaaclab_mimic.motion_planners.curobo.curobo_planner.CuroboPlanner`
+  when initializing the static collision world on simulations running with ``--device cpu`` in scenes that
+  contain non-triangular meshes, such as the sorting bin in the adaptive bin cube stacking task. cuRobo's
+  quad-mesh triangulation launches its Warp kernel on Warp's default device while its arrays live on CUDA,
+  so stage parsing now runs under ``wp.ScopedDevice`` pinned to cuRobo's CUDA device.
+
+
+2.1.2 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed warnings in the locomanipulation SDG path utilities and the cuRobo planner helpers to use
+  :mod:`logging` instead of ``print``.
+
+
+2.1.1 (2026-10-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Excluded the robot subtree from cuRobo world obstacles even when custom world ignore substrings were configured.
+
+
 2.1.0 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

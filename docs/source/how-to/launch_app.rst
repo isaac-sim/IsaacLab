@@ -124,42 +124,6 @@ custom arguments and the launcher options (abbreviated below).
                                  that order).
            ...
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: console
-
-         ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --help
-
-         usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}] [--xr]
-                              [--device DEVICE] [--visualizer VISUALIZER] [--verbose] [--info] [--experience EXPERIENCE]
-                              ...
-
-         Tutorial on configuring the simulator launch.
-
-         options:
-           -h, --help            show this help message and exit
-           --size SIZE           Side-length of cuboid
-           --width WIDTH         Width of the viewport and generated images. Defaults to 1280
-           --height HEIGHT       Height of the viewport and generated images. Defaults to 720
-
-         launcher arguments:
-           Arguments for the KitLauncher. For more details, please check the documentation.
-
-           --livestream {0,1,2}  Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment
-                                 variable.
-           --xr                  Enable XR mode for VR/AR applications.
-           --device DEVICE       The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID
-           --visualizer VISUALIZER, --viz VISUALIZER
-                                 Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).
-           --verbose             Enable verbose-level log output from the SimulationApp.
-           --info                Enable info-level log output from the SimulationApp.
-           --experience EXPERIENCE
-                                 The experience file to load when launching the SimulationApp. If an empty string is provided,
-                                 the experience file is determined from the resolved visualizer and XR settings. If a relative
-                                 path is provided, it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in
-                                 that order).
-           ...
-
 This readout details the ``--size``, ``--height``, and ``--width`` arguments defined in the script directly,
 as well as the launcher arguments.
 
@@ -204,12 +168,6 @@ We will now run the example script:
 
                LIVESTREAM=2 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
 
@@ -220,12 +178,6 @@ We will now run the example script:
             .. code-block:: console
 
                LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5
 
       .. note::
 
@@ -244,13 +196,6 @@ We will now run the example script:
 
                $env:LIVESTREAM = "2"
                uv run python scripts\tutorials\00_sim\launch_app.py --size 0.5
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: powershell
-
-               $env:LIVESTREAM = "2"
-               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5
 
 This will spawn a 0.5m\ :sup:`3` volume cuboid in the simulation. No GUI will appear, equivalent
 to omitting ``--visualizer`` in this setup because headlessness is implied by our ``LIVESTREAM``
@@ -279,12 +224,6 @@ Now, let's look at how the launcher handles conflicting commands:
 
                LIVESTREAM=0 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=0 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
 
@@ -295,12 +234,6 @@ Now, let's look at how the launcher handles conflicting commands:
             .. code-block:: console
 
                LIVESTREAM=0 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=0 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --livestream 2
 
       .. note::
 
@@ -319,13 +252,6 @@ Now, let's look at how the launcher handles conflicting commands:
 
                $env:LIVESTREAM = "0"
                uv run python scripts\tutorials\00_sim\launch_app.py --size 0.5 --livestream 2
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: powershell
-
-               $env:LIVESTREAM = "0"
-               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --livestream 2
 
 This will cause the same behavior as in the previous run, because although we have set ``LIVESTREAM=0``
 in our envars, CLI args such as ``--livestream`` take precedence in determining behavior. The process can
@@ -348,12 +274,6 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 
                LIVESTREAM=2 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
-
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
 
@@ -364,12 +284,6 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
             .. code-block:: console
 
                LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run python scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: console
-
-               LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 ./isaaclab.sh -p scripts/tutorials/00_sim/launch_app.py --size 0.5 --width 1920 --height 1080
 
       .. note::
 
@@ -388,13 +302,6 @@ Finally, we will examine passing arguments to :class:`~isaacsim.simulation_app.S
 
                $env:LIVESTREAM = "2"
                uv run python scripts\tutorials\00_sim\launch_app.py --size 0.5 --width 1920 --height 1080
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: powershell
-
-               $env:LIVESTREAM = "2"
-               .\isaaclab.bat -p scripts\tutorials\00_sim\launch_app.py --size 0.5 --width 1920 --height 1080
 
 This will cause the same behavior as before, but now the viewport will be rendered at 1920x1080p resolution.
 This can be useful when we want to gather high-resolution video, or we can specify a lower resolution if we

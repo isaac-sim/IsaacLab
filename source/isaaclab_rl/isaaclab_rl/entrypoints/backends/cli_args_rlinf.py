@@ -86,6 +86,11 @@ def configure_rlinf_environment(config_name: str, config_path: str | None) -> st
         config_path: Explicit configuration directory, or None to search for it.
     """
     config_dir = resolve_config_dir(config_name, config_path)
+    # Ray 2.47+ turns the current project into a ``working_dir`` runtime environment when the driver is
+    # launched through ``uv run``. An Isaac Lab checkout commonly contains a large ``.venv`` and local
+    # model checkpoints, which exceed Ray's 500 MiB upload limit. RLinf already selects the Python
+    # executable for each worker, so this upload is neither needed nor desirable.
+    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
     # required for RLinf to register Isaac Lab tasks and converters
     os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
     os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")
@@ -97,10 +102,11 @@ def configure_rlinf_environment(config_name: str, config_path: str | None) -> st
 
 
 def resolve_rlinf_checkpoint(checkpoint: str, *, log_root_path: str, task: str, config_name: str) -> str:
-    """Resolve an RLinf checkpoint selector or local path.
+    """Resolve a selector, weights file, or directory containing one weights file to an absolute path.
 
     Raises:
-        ValueError: If a published pre-trained checkpoint is requested; RLinf has none.
+        ValueError: If a pre-trained checkpoint is requested, or a directory does not contain exactly one weights file.
+        FileNotFoundError: If the checkpoint file does not exist.
     """
     if checkpoint == "pretrained":
         raise ValueError("Pre-trained checkpoints are not available for RLinf.")
@@ -114,9 +120,11 @@ def resolve_rlinf_checkpoint(checkpoint: str, *, log_root_path: str, task: str, 
             metadata={"config_name": config_name},
             recursive=True,
         )
-    checkpoint_path = Path(checkpoint)
+    checkpoint_path = Path(checkpoint).expanduser().resolve()
     if checkpoint_path.is_dir():
-        checkpoint_path = checkpoint_path / "full_weights.pt"
+        (checkpoint_path,) = (path for path in checkpoint_path.rglob("full_weights.pt") if path.is_file())
+    elif not checkpoint_path.is_file():
+        raise FileNotFoundError(f"RLinf checkpoint does not exist: {checkpoint_path}")
     return str(checkpoint_path)
 
 

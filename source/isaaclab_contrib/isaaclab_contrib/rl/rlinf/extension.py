@@ -165,18 +165,18 @@ def _patch_embodiment_tags(cfg: dict) -> None:
 def _patch_gr00t_get_model(cfg: dict) -> None:
     """Monkeypatch RLinf's GR00T ``get_model`` to support custom ``data_config``.
 
-    The patch is applied only when the user specifies a ``data_config_class`` in the
-    YAML config. Embodiment tags are always ensured to be registered.
+    N1.5 uses ``data_config_class`` from YAML. N1.7 keeps RLinf's native loader,
+    which reads the processor from the checkpoint. Embodiment tags are registered for both.
 
     Args:
         cfg: The IsaacLab-specific configuration dictionary (``env.train.isaaclab``).
     """
     # Always ensure embodiment tag is registered
     _patch_embodiment_tags(cfg)
-    # Only patch get_model if user wants custom data_config
+    # N1.7 owns model and processor loading in RLinf.
     data_config_class = cfg.get("data_config_class", "")
-    if not data_config_class:
-        logger.info("No data_config_class specified, using RLinf's default get_model")
+    model_type = _load_full_cfg().get("actor", {}).get("model", {}).get("model_type", "gr00t")
+    if not data_config_class or model_type == "gr00t_n1d7":
         return
 
     import rlinf.models.embodiment.gr00t as rlinf_gr00t_mod
@@ -201,7 +201,7 @@ def _patch_gr00t_get_model(cfg: dict) -> None:
 
         # Handle custom embodiment (we only get here if tag was not natively supported)
         from gr00t.experiment.data_config import load_data_config
-        from rlinf.models.embodiment.gr00t.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
+        from rlinf.models.embodiment.gr00t.gr00t_n1d5.gr00t_action_model import GR00T_N1_5_ForRLActionPrediction
         from rlinf.models.embodiment.gr00t.utils import replace_dropout_with_identity
         from rlinf.utils.patcher import Patcher
 
@@ -279,14 +279,9 @@ def _register_gr00t_converters(cfg: dict) -> None:
     from rlinf.models.embodiment.gr00t import simulation_io
 
     obs_converter_type = cfg.get("obs_converter_type", "dex3")
-
-    if obs_converter_type not in simulation_io.OBS_CONVERSION:
-        simulation_io.OBS_CONVERSION[obs_converter_type] = _convert_isaaclab_obs_to_gr00t
-        logger.info(f"Registered obs converter: {obs_converter_type}")
-
-    if obs_converter_type not in simulation_io.ACTION_CONVERSION:
-        simulation_io.ACTION_CONVERSION[obs_converter_type] = _convert_gr00t_to_isaaclab_action
-        logger.info(f"Registered action converter: {obs_converter_type}")
+    simulation_io.OBS_CONVERSION.setdefault(obs_converter_type, _convert_isaaclab_obs_to_gr00t)
+    for registry in (simulation_io.ACTION_CONVERSION_N1D5, simulation_io.ACTION_CONVERSION_N1D7):
+        registry.setdefault(obs_converter_type, _convert_gr00t_to_isaaclab_action)
 
 
 def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
@@ -341,7 +336,8 @@ def _convert_isaaclab_obs_to_gr00t(env_obs: dict) -> dict:
                     groot_obs[gr00t_key] = states_np[:, :, slice_range[0] : slice_range[1]]
 
     # Pass through task descriptions
-    groot_obs["annotation.human.action.task_description"] = env_obs.get("task_descriptions", [])
+    language_key = gr00t_mapping.get("language", "annotation.human.action.task_description")
+    groot_obs[language_key] = env_obs.get("task_descriptions", [])
 
     return groot_obs
 
@@ -350,7 +346,8 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
     """Convert GR00T action output to IsaacLab env action format.
 
     Uses ``action_mapping`` from the YAML config (``env.train.isaaclab.action_mapping``)
-    to apply optional prefix/suffix zero-padding to the concatenated action vector.
+    to select and order action parts by ``keys`` and apply optional prefix/suffix zero-padding.
+    Without ``keys``, the model's dictionary order is preserved.
 
     Args:
         action_chunk: Dictionary of action arrays from GR00T, each with shape
@@ -368,7 +365,7 @@ def _convert_gr00t_to_isaaclab_action(action_chunk: dict, chunk_size: int = 1) -
     suffix_pad = action_mapping.get("suffix_pad", 0)
 
     # Concatenate all action parts
-    action_parts = [v[:, :chunk_size, :] for v in action_chunk.values()]
+    action_parts = [action_chunk[key][:, :chunk_size, :] for key in action_mapping.get("keys", action_chunk)]
     action_concat = np.concatenate(action_parts, axis=-1)
 
     # Apply padding
@@ -455,9 +452,16 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """
             super().__init__(cfg, num_envs, seed_offset, total_num_processes, worker_info)
 
+            self._hold_pose_on_midchunk_reset = _get_isaaclab_cfg().get("hold_pose_on_midchunk_reset", False)
+            self._chunk_done = None
+            self._hold_actions = None
+
         def _record_metrics(self, step_reward, terminations, infos):
             """Override to use terminations (task completion) for success_once."""
 
+            # RLinf may suppress terminations after this callback; Isaac Lab has already reset.
+            if self._chunk_done is not None:
+                self._chunk_done |= terminations
             episode_info = {}
             self.returns += step_reward
             self.success_once = self.success_once | terminations.bool()
@@ -467,6 +471,24 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             episode_info["reward"] = episode_info["return"] / episode_info["episode_len"]
             infos["episode"] = episode_info
             return infos
+
+        def chunk_step(self, chunk_actions):
+            """Retire actions predicted for an episode once that episode has reset."""
+            if self._hold_pose_on_midchunk_reset:
+                self._chunk_done = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+            result = super().chunk_step(chunk_actions)
+            self._chunk_done = self._hold_actions = None
+            return result
+
+        def step(self, actions=None, auto_reset=True):
+            """Hold reset joints until the next chunk supplies actions for the new episode."""
+            if self._chunk_done is not None and self._hold_actions is not None:
+                actions = torch.where(self._chunk_done[:, None], self._hold_actions.to(actions), actions)
+            obs, reward, terminated, truncated, info = super().step(actions, auto_reset)
+            if self._chunk_done is not None:
+                self._chunk_done |= truncated
+                self._hold_actions = obs["states"]
+            return obs, reward, terminated, truncated, info
 
         def _make_env_function(self) -> collections.abc.Callable:
             """Create the environment factory function.

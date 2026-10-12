@@ -8,10 +8,11 @@
 from pathlib import Path
 
 import pytest
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoDVISolverCfg, KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
@@ -95,9 +96,10 @@ def test_get_pretrained_checkpoint_filename_requires_both_backends():
         )
 
 
-def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer():
-    """Test backend discovery for a state-only PhysX task."""
-    env_cfg = _EnvCfg(camera=None)
+@pytest.mark.parametrize("visualizer_cfgs", [[], [NewtonGLVisualizerCfg()]], ids=["no-visualizer", "visualizer"])
+def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer(visualizer_cfgs):
+    """Test backend discovery for a state-only PhysX task; a visualizer's renderer does not count."""
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=PhysxCfg(), visualizer_cfgs=visualizer_cfgs))
 
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("physx", "none")
 
@@ -112,12 +114,19 @@ def test_get_pretrained_checkpoint_backend_names_identifies_newton_renderer():
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("newtonmjwarp", "newton")
 
 
-def test_get_pretrained_checkpoint_backend_names_rejects_other_newton_solvers():
-    """Test that a non-MJWarp Newton solver is not mislabeled as MJWarp."""
-    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=KaminoPADMMSolverCfg())))
+@pytest.mark.parametrize(
+    "solver_cfg, expected",
+    [
+        (MJWarpSolverCfg(), "newtonmjwarp"),
+        (KaminoPADMMSolverCfg(), "newtonkaminopadmm"),
+        (KaminoDVISolverCfg(), "newtonkaminodvi"),
+    ],
+)
+def test_get_pretrained_checkpoint_backend_names_names_each_newton_solver(solver_cfg, expected):
+    """Test that each Newton solver gets its own checkpoint name rather than being mislabeled as MJWarp."""
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=solver_cfg)))
 
-    with pytest.raises(ValueError, match="Unsupported Newton solver"):
-        pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg)
+    assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == (expected, "none")
 
 
 def test_get_pretrained_checkpoint_backend_names_identifies_rtx_renderer():

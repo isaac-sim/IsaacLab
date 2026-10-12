@@ -12,8 +12,8 @@ same probes inside its prepared image.
 
 from __future__ import annotations
 
-import os
 import subprocess
+import sys
 from pathlib import Path
 
 _STATE_TRAIN_CMD = [
@@ -46,7 +46,7 @@ _CAMERA_TRAIN_CMD = [
 def _find_isaaclab_root() -> Path:
     """Return the repository root containing the Isaac Lab launcher."""
     for parent in Path(__file__).resolve().parents:
-        if (parent / "isaaclab.sh").exists() or (parent / "isaaclab.bat").exists():
+        if (parent / "uv.lock").is_file():
             return parent
     raise FileNotFoundError("Could not locate the Isaac Lab repository root")
 
@@ -62,9 +62,8 @@ def _assert_training_passed(result: subprocess.CompletedProcess[str]) -> None:
 def _run_training(command: list[str], timeout: int) -> None:
     """Run one training command in the caller's active environment."""
     isaaclab_root = _find_isaaclab_root()
-    launcher = isaaclab_root / ("isaaclab.bat" if os.name == "nt" else "isaaclab.sh")
     result = subprocess.run(
-        [str(launcher)] + command,
+        [sys.executable, "-m", "isaaclab", *command],
         cwd=isaaclab_root,
         text=True,
         capture_output=True,

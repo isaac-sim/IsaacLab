@@ -415,7 +415,7 @@ MINIMAL_PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(
 # Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
 # rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
 MPM_PARTICLE_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES, flaky=False),
 ]
 
 MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
@@ -1127,7 +1127,7 @@ def make_require_ovlibs_install_fixture():
     """Create an autouse fixture that fails fast when OV libraries are required but not installed.
 
     Only parametrized cases with ``renderer == "ovrtx_renderer"`` or ``physics_backend == "ovphysx"`` are checked.
-    Install with ``./isaaclab.sh -i 'ov[all]'`` (or the equivalent in your environment).
+    Install with ``uv sync --extra ov`` (or the equivalent in your environment).
     """
 
     @pytest.fixture(autouse=True)
@@ -1144,7 +1144,7 @@ def make_require_ovlibs_install_fixture():
             except ImportError as exc:
                 pytest.fail(
                     "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
-                    "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
+                    "Install with: uv sync --extra ovrtx\n"
                     f"ImportError: {exc}"
                 )
 
@@ -1156,7 +1156,7 @@ def make_require_ovlibs_install_fixture():
             except ImportError as exc:
                 pytest.fail(
                     "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
-                    "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"
+                    "Install with: uv sync --extra ovphysx\n"
                     f"ImportError: {exc}"
                 )
 
@@ -2314,7 +2314,7 @@ def rendering_test_mpm_particles(
 
     Covers the ``UsdGeom.Points`` clouds authored by
     MPM spawners and updated by the shared Fabric resource through SDP. The camera frames the
-    UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
+    UR10 particle pile and nearby wrist while keeping the rest of the workcell out of frame.
 
     MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins
     ``sim.physics`` directly rather than exposing physics presets; only the renderer is selected
@@ -2323,11 +2323,9 @@ def rendering_test_mpm_particles(
 
     Two properties of this suite are worth knowing before debugging a failure here:
 
-    * The retry from ``_FLAKY_MARK`` cannot rescue a failure. Only the first environment built in
-      a process reproduces the goldens; a second one renders RTX colour differently and lands
-      ~37 % of pixels away on ``rgb``/``rgba`` while the geometry AOVs still match exactly. Two
-      separate processes agree with each other, so a real regression and a retried failure look
-      alike. Compare a fresh process against the goldens rather than trusting the retries.
+    * Only the first environment built in a process reproduces the goldens; a second one renders
+      RTX colour differently. This case therefore has no flaky retry mark, so each comparison
+      uses a fresh process rather than a second environment in the same process.
     * ``semantic_segmentation`` and ``instance_segmentation`` carry only silhouette-level signal.
       Nothing in this scene is semantically tagged, so the pile shares one unlabelled region with
       the table and would barely move those AOVs if it stopped rendering. ``rgb``/``rgba`` and
@@ -2350,13 +2348,13 @@ def rendering_test_mpm_particles(
     )
     from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
-    # Orientation is the quaternion for eye (1.05, -0.50, 0.35) looking at the pile centre
-    # (0.70, 0.0, 0.03), i.e. the value create_rotation_matrix_from_view yields for that view.
+    # Look from (1.15, -0.80, 0.55) toward (0.62, 0.0, 0.18) to include the pile and wrist
+    # without the ground plane. Rotation is create_rotation_matrix_from_view's OpenGL quaternion.
     particle_camera_cfg = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         offset=CameraCfg.OffsetCfg(
-            pos=(1.05, -0.50, 0.35),
-            rot=(0.493575, 0.155586, 0.257249, 0.816088),
+            pos=(1.15, -0.80, 0.55),
+            rot=(0.541755, 0.163176, 0.237799, 0.789510),
             convention="opengl",
         ),
         data_types=list(data_types),
@@ -2406,6 +2404,7 @@ def rendering_test_mpm_particles(
 
     try:
         env = UR10ParticlePushEnv(env_cfg)
+        env.reset()
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2474,6 +2473,9 @@ def rendering_test_franka_cable(
     if env_cfg.curriculum is not None:
         env_cfg.curriculum.gravity = None
 
+    # Settling the USD pose must not trigger randomized RL resets during golden capture.
+    env_cfg.terminations.joint_vel_out_of_limit = None
+
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
     test_name = "franka_cable"
@@ -2496,7 +2498,8 @@ def rendering_test_franka_cable(
             return
 
         # Let the cable settle under gravity so golden frames are not first-frame spawn poses.
-        env.step(zero_actions)
+        _, _, terminated, truncated, _ = env.step(zero_actions)
+        assert not torch.any(terminated | truncated), "Cable golden capture unexpectedly reset the scene."
 
         validate_camera_outputs(
             test_name,

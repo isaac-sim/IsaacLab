@@ -231,7 +231,7 @@ def update_net_forces_kernel(
     history_length: int,
     contact_force_threshold: wp.float32,
     timestamp: wp.array(dtype=wp.float32),
-    timestamp_last_update: wp.array(dtype=wp.float32),
+    elapsed_since_update: wp.array(dtype=wp.float64),
     # out
     net_normal_forces_w: wp.array2d(dtype=wp.vec3f),
     net_normal_forces_w_history: wp.array3d(dtype=wp.vec3f),
@@ -256,7 +256,7 @@ def update_net_forces_kernel(
         history_length: Length of history.
         contact_force_threshold: Threshold for the contact force.
         timestamp: Timestamp array. Shape is (num_envs,).
-        timestamp_last_update: Timestamp last update array. Shape is (num_envs,).
+        elapsed_since_update: Time since the last sensor refresh [s]. Shape is (num_envs,).
         net_normal_forces_w: Net forces array. Shape is (num_envs, num_sensors).
         net_normal_forces_w_history: Net forces history array. Shape is (num_envs, history_length, num_sensors).
         normal_force_matrix_w: Force matrix array. Shape is (num_envs, num_sensors, num_filter_shapes).
@@ -298,7 +298,7 @@ def update_net_forces_kernel(
 
     # Update air/contact time tracking
     if current_air_time:
-        elapsed_time = timestamp[env] - timestamp_last_update[env]
+        elapsed_time = wp.float32(elapsed_since_update[env])
         in_contact = wp.length_sq(net_normal_forces_w[env, sensor]) > contact_force_threshold * contact_force_threshold
 
         cat = current_air_time[env, sensor]

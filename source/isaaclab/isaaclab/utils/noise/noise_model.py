@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -172,11 +173,10 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         Returns:
             The data with the noise applied. Shape is the same as the input data.
         """
-        # if sample_bias_per_component, on first apply, expand bias to match last dim of data
         if self._sample_bias_per_component and self._num_components is None:
-            *_, self._num_components = data.shape
-            # expand bias from (num_envs,1) to (num_envs, num_components)
+            self._num_components = math.prod(data.shape[1:])
             self._bias = self._bias.repeat(1, self._num_components)
-            # now re-sample that expanded bias in-place
             self.reset()
-        return super().__call__(data) + self._bias
+        # Keep the environment axis fixed while broadcasting over observation components.
+        bias_shape = data.shape if self._sample_bias_per_component else (self._num_envs,) + (1,) * (data.ndim - 1)
+        return super().__call__(data) + self._bias.view(bias_shape)

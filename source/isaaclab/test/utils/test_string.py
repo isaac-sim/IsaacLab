@@ -53,8 +53,9 @@ def test_resolvable_string_dunder_introspection_stays_lazy():
     # dunder attribute probe should not attempt import/resolve
     assert hasattr(ref, "__dataclass_fields__") is False
     # runtime use should still attempt resolve and fail
-    with pytest.raises(ValueError):
+    with pytest.raises(ModuleNotFoundError) as error:
         ref()
+    assert error.value.name == "not_a_real_module"
 
 
 def test_case_conversion():
@@ -85,9 +86,9 @@ def test_dotted_callable_reference_round_trips():
     assert string_utils.string_to_callable(reference) is Counter.update
 
 
-def test_missing_dotted_callable_attribute_raises_value_error():
-    """Missing nested attributes should use the public ValueError contract."""
-    with pytest.raises(ValueError, match="Could not resolve"):
+def test_missing_dotted_callable_attribute_raises_attribute_error():
+    """Missing nested attributes should raise AttributeError like a missing top-level attribute."""
+    with pytest.raises(AttributeError, match="not_a_method"):
         string_utils.string_to_callable("collections:Counter.not_a_method")
 
 

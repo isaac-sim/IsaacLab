@@ -3,6 +3,28 @@ Changelog
 
 .. towncrier release notes start
 
+0.10.3 (2026-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed Isaac Capture teleoperation sessions to set ``OXR_NO_PRINTING=true`` by default, which hides the
+  OpenXR runtime's per-call error messages, such as the ``XR_ERROR_FEATURE_UNSUPPORTED`` lines logged while
+  probing hand trackers at startup. To see these messages again, set ``OXR_NO_PRINTING=false`` before launching.
+
+
+0.10.2 (2026-10-02)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``uv run --extra teleop`` failing to build ``isaacteleop==1.4.98rc1`` when an index that
+  mirrors PyPI was searched before ``https://pypi.nvidia.com``. The ``teleop`` extra now requires
+  ``isaacteleop~=1.4.145``, which installs from a prebuilt wheel on every index.
+
+
 0.10.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~~
 

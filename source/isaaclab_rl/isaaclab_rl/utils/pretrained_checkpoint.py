@@ -19,6 +19,7 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, NUCLEUS_ASSET_ROOT_DIR, retrieve_file_path
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry  # noqa: F401
 
@@ -466,17 +467,18 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
 
 
 def _get_newton_solver_name(solver_cfg) -> str | None:
-    """Return the checkpoint name of a Newton solver config, or ``None`` when unpublished.
+    """Return the checkpoint name of a Newton solver config, or ``None`` without one.
 
-    A coupled solver is named by its entry solvers in order followed by its coupling
-    scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
+    A solver is named by its config class without ``SolverCfg``, so ``KaminoPADMMSolverCfg``
+    gives ``kaminopadmm``. A coupled solver is named by its entry solvers in order followed by
+    its coupling scheme, so a proxy coupler over MJWarp and VBD entries gives ``mjwarpvbdproxy``.
     """
     if solver_cfg is None:
         return None
     class_name = type(solver_cfg).__name__
     entries = getattr(solver_cfg, "entries", None)
     if entries is None:
-        return "mjwarp" if "mjwarp" in class_name.lower() else None
+        return class_name.removesuffix("SolverCfg").lower()
     families = (type(entry.solver_cfg).__name__.removesuffix("SolverCfg").lower() for entry in entries)
     return "".join(families) + class_name.removeprefix("Coupler").removesuffix("Cfg").lower()
 
@@ -501,6 +503,9 @@ def _find_renderer_cfgs(value, visited: set[int] | None = None) -> list[Renderer
 
     if isinstance(value, RendererCfg):
         return [value]
+    # a visualizer's streaming-camera renderer does not produce policy observations
+    if isinstance(value, VisualizerCfg):
+        return []
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         configs = []
         for field in dataclasses.fields(value):

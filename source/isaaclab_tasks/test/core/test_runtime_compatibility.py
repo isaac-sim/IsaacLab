@@ -221,16 +221,22 @@ def test_physx_plus_isaacsim_rtx_is_valid():
     assert config_scan.needs_kit is True
 
 
-def test_auto_physx_configured_kit_visualizer_resolves_to_isaac_sim_backends():
-    """Config-declared Kit visualizers should drive automatic PhysX and RTX resolution."""
-
+@pytest.mark.parametrize(
+    "visualizer, expected_physics, expected_renderer",
+    [(None, OvPhysxCfg, OVRTXRendererCfg), ("kit", PhysxCfg, IsaacRtxRendererCfg)],
+    ids=["unselected", "selected"],
+)
+def test_auto_physx_configured_kit_visualizer_counts_only_when_selected(
+    visualizer, expected_physics, expected_renderer
+):
+    """A configured Kit visualizer drives automatic PhysX and RTX resolution only when ``--viz`` selects it."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
     env_cfg.sim.visualizer_cfgs = VisualizerCfg(visualizer_type="kit")
-    config_scan = validate_runtime_compatibility(env_cfg)
+    config_scan = validate_runtime_compatibility(env_cfg, {"visualizer": visualizer})
 
-    assert isinstance(env_cfg.sim.physics, PhysxCfg)
-    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
+    assert isinstance(env_cfg.sim.physics, expected_physics)
+    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, expected_renderer)
+    assert config_scan.needs_kit is (visualizer == "kit")
 
 
 def test_auto_physx_livestream_without_launcher_args_resolves_to_isaac_sim_backends(

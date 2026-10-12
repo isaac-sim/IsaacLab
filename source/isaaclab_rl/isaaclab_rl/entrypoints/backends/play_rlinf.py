@@ -5,8 +5,7 @@
 
 """RLinf evaluation backend of the unified reinforcement learning entrypoint.
 
-Evaluation runs on RLinf's distributed infrastructure, which VLA model inference requires since the
-models are too large to run on a single GPU without FSDP.
+Evaluation uses RLinf's Ray-based worker infrastructure, including on a single GPU.
 
 Usage:
     # Evaluate a trained checkpoint (config YAML discovered in the isaaclab_tasks package)
@@ -25,10 +24,13 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 from datetime import datetime
 from pathlib import Path
 
 from . import cli_args_rlinf as cli_args
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -38,7 +40,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--num_episodes", type=int, default=None, help="Number of evaluation episodes (overrides the config if set)."
     )
-    parser.add_argument("--video", action="store_true", default=False, help="Enable video recording.")
+    parser.add_argument(
+        "--video",
+        action="store_true",
+        default=False,
+        help="Save the evaluation videos RLinf records (its env.eval.video_cfg); takes no source.",
+    )
     args_cli = parser.parse_args(argv)
     if not args_cli.config_name:
         parser.error("--config_name is required (e.g. --config_name isaaclab_ppo_gr00t_assemble_trocar)")
@@ -56,7 +63,7 @@ def run(argv: list[str]) -> None:
     import torch.multiprocessing as mp
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
-    from omegaconf import open_dict
+    from omegaconf import OmegaConf, open_dict
     from rlinf.config import validate_cfg
     from rlinf.runners.embodied_eval_runner import EmbodiedEvalRunner
     from rlinf.scheduler import Cluster
@@ -66,19 +73,19 @@ def run(argv: list[str]) -> None:
 
     mp.set_start_method("spawn", force=True)
 
-    print(f"[INFO] Using config: {config_name}")
-    print(f"[INFO] Config path: {config_dir}")
+    logger.info(f"Using config: {config_name}")
+    logger.info(f"Config path: {config_dir}")
     GlobalHydra.instance().clear()
     initialize_config_dir(config_dir=config_dir, version_base="1.1")
     cfg = compose(config_name=config_name)
 
     task_id = cfg.env.eval.init_params.id
-    print(f"[INFO] Task: {task_id}")
+    logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = Path("logs") / "rlinf" / "eval" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] Logging to: {log_dir}")
+    logger.info(f"Logging to: {log_dir}")
 
     with open_dict(cfg):
         cfg.runner.only_eval = True
@@ -86,7 +93,7 @@ def run(argv: list[str]) -> None:
         if args_cli.model_path:
             cfg.rollout.model.model_path = args_cli.model_path
         if args_cli.checkpoint:
-            cfg.runner.eval_policy_path = cli_args.resolve_rlinf_checkpoint(
+            cfg.runner.ckpt_path = cli_args.resolve_rlinf_checkpoint(
                 args_cli.checkpoint,
                 log_root_path=str(Path("logs") / "rlinf"),
                 task=args_cli.task or task_id,
@@ -104,13 +111,17 @@ def run(argv: list[str]) -> None:
             cfg.actor.seed = args_cli.seed
         if args_cli.num_episodes is not None:
             cfg.algorithm.eval_rollout_epoch = args_cli.num_episodes
+        cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
+        # Ray workers may launch from a different working directory.
+        for model in (cfg.actor.model, cfg.rollout.model):
+            model.model_path = str(Path(model.model_path).expanduser().resolve())
 
     cfg = validate_cfg(cfg)
     fields = {
         "Task": cfg.env.eval.init_params.id,
         "Num envs": cfg.env.eval.total_num_envs,
         "Model": cfg.rollout.model.model_path,
-        "Checkpoint": cfg.runner.eval_policy_path,
+        "Checkpoint": cfg.runner.get("ckpt_path"),
         "Videos": cfg.env.eval.video_cfg.save_video,
     }
     if cfg.env.eval.video_cfg.save_video:
@@ -129,5 +140,5 @@ def run(argv: list[str]) -> None:
 
     runner = EmbodiedEvalRunner(cfg=cfg, rollout=rollout_group, env=env_group)
     runner.init_workers()
-    print("[INFO] Policy playback is running, press Ctrl+C to exit...")
+    logger.info("Policy playback is running, press Ctrl+C to exit...")
     runner.run()

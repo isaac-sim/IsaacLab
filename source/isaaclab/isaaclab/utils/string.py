@@ -177,36 +177,23 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
         separator: The separator between the module path and the function name. Defaults to ":".
 
     Raises:
-        ValueError: When the resolved attribute is not a function.
-        ValueError: When the module or attribute cannot be found.
+        ValueError: If the reference is malformed or the lambda expression is unsafe.
+        ModuleNotFoundError: If the module or one of its dependencies cannot be found.
+        AttributeError: If the attribute is missing or is not callable.
 
     Returns:
         Callable: The function loaded from the module.
     """
-    name_is_lambda = is_lambda_expression(name)
-    if name_is_lambda:
+    if is_lambda_expression(name):
         _validate_lambda_expression(name)
-
-    try:
-        if name_is_lambda:
-            callable_object = eval(name, {"__builtins__": {}}, {})
-        else:
-            mod_name, attr_name = name.rsplit(separator, 1)
-            callable_object = importlib.import_module(mod_name)
-            for attr in attr_name.split("."):
-                callable_object = getattr(callable_object, attr)
-        # check if attribute is callable
-        if callable(callable_object):
-            return callable_object
-        else:
-            raise AttributeError(f"The imported object is not callable: '{name}'")
-    except (ValueError, ModuleNotFoundError, AttributeError) as e:
-        msg = (
-            f"Could not resolve the input string '{name}' into callable object."
-            " The format of input should be 'module:attribute_name'.\n"
-            f"Received the error:\n {e}."
-        )
-        raise ValueError(msg)
+        return eval(name, {"__builtins__": {}}, {})
+    mod_name, attr_name = name.rsplit(separator, 1)
+    callable_object = importlib.import_module(mod_name)
+    for attr in attr_name.split("."):
+        callable_object = getattr(callable_object, attr)
+    if not callable(callable_object):
+        raise AttributeError(f"The imported object is not callable: '{name}'")
+    return callable_object
 
 
 class ResolvableString(str):

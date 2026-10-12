@@ -1032,13 +1032,12 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate the cached buffer
-        self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
+        # Invalidate derived caches; preserve the COM timestamp so unread or stale entries refresh from PhysX.
         self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from instance order (num_instances, num_bodies, 7) to view order (num_bodies*num_instances, 7) for
         # PhysX.
-        com_view_order = self.reshape_data_to_view_2d(self.data._body_com_pose_b.data, device="cpu")  # (B*I, 7)
+        com_view_order = self.reshape_data_to_view_2d(self.data._body_com_pose_b.data, device="cpu").view(wp.float32)
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
         self.root_view.set_coms(com_view_order, indices=view_ids)
 
@@ -1128,10 +1127,14 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
-        # Convert from instance order (num_instances, num_bodies) to view order for PhysX.
-        inertia_view_order = self.reshape_data_to_view_2d(self.data._body_inertia, device="cpu")
+        # Convert from instance order (num_instances, num_bodies, 9) to view order (num_bodies*num_instances, 9) for
+        # PhysX.
+        inertia_view_order = self.reshape_data_to_view_3d(self.data._body_inertia, 9, device="cpu")
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device="cpu")
         self.root_view.set_inertias(inertia_view_order, indices=view_ids)
+        # PhysX recomputes the principal-axis rotation when setting inertia.
+        self.data._body_com_pose_b.timestamp = -1.0
+        self.data._reset_body_com_pose_b_dependents()
 
     def set_inertias_mask(
         self,

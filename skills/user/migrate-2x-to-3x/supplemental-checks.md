@@ -21,7 +21,7 @@ Use these checks to route investigation, not as standalone migration docs:
 | Quaternion order changed from WXYZ to XYZW | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `scripts/tools/find_quaternions.py` |
 | Asset or sensor data no longer behaves like plain tensors | `ProxyArray` sections in `docs/source/migration/migrating_to_isaaclab_3-0.rst` |
 | `root_physx_view` or object API warnings | asset view sections in `docs/source/migration/migrating_to_isaaclab_3-0.rst` |
-| RSL-RL config compatibility errors | `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py` |
+| RSL-RL config compatibility errors | `source/isaaclab_rl/isaaclab_rl/rsl_rl/rl_cfg.py` and `source/isaaclab_rl/isaaclab_rl/entrypoints/backends/train_rsl_rl.py` |
 | Pretrained checkpoint helper import path | `source/isaaclab_rl/isaaclab_rl/utils/pretrained_checkpoint.py` |
 
 ## Prototype-Skill Checks

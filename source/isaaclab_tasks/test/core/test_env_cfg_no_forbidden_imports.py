@@ -118,7 +118,7 @@ def _build_batch_script(task_names: list[str]) -> str:
             }}
 
         # Use a sentinel so the parser can find the JSON even when
-        # load_cfg_from_registry prints [INFO] lines to stdout.
+        # other output, such as log records, reaches stdout.
         print("__RESULTS__" + json.dumps(results))
     """)
 
@@ -133,7 +133,7 @@ def all_cfg_check_results() -> dict:
         text=True,
         timeout=300,
     )
-    # Find the sentinel line (load_cfg_from_registry emits [INFO] lines to stdout)
+    # Find the sentinel line (other output, such as log records, may precede it)
     json_line = None
     for line in result.stdout.splitlines():
         if line.startswith("__RESULTS__"):

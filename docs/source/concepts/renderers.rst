@@ -483,18 +483,18 @@ wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, publish
 on public PyPI) is **not** installed by default. You must request it
 explicitly — OVRTX does **not** require Isaac Sim.
 
-Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
+Add the ``ovrtx`` extra to the uv environment:
 
 .. code-block:: bash
 
    # Install the ovrtx runtime wheel on top of an existing install
-   ./isaaclab.sh -i ov[ovrtx]
+   uv sync --inexact --extra ovrtx
 
 .. note::
 
-   The bare ``ov`` token does **not** install any runtime wheel (the source
-   packages are already part of the core install). Use ``ov[ovrtx]`` (or ``ov[all]``)
-   to pull in the ``ovrtx`` dependency.
+   The ``ov`` extra installs both the OV PhysX and OVRTX runtimes. Use the
+   ``ovrtx`` extra to install only the OVRTX runtime. ``--inexact`` preserves
+   packages already installed through other extras.
 
 Or install the public ``ovrtx`` package directly from PyPI:
 
@@ -560,5 +560,5 @@ Physics can therefore update its live arrays while the previous capture renders.
 See Also
 --------
 
-- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows from physics backends to renderers
+- :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows from physics backends to renderers
 - :doc:`/source/concepts/visualization` — lightweight visualizer backends for interactive feedback

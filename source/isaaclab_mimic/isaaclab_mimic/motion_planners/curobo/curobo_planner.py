@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import warp as wp
 
 from curobo.cuda_robot_model.cuda_robot_model import CudaRobotModelState
 from curobo.geom.sdf.world import CollisionCheckerType
@@ -356,11 +357,17 @@ class CuroboPlanner(MotionPlannerBase):
             "/curobo",
         ]
 
-        self._static_world_config = self.usd_helper.get_obstacles_from_stage(
-            only_paths=[env_prim_path],
-            reference_prim_path=robot_prim_path,
-            ignore_substring=ignore_list,
-        )
+        # cuRobo's quad-mesh triangulation creates Warp arrays on CUDA but launches its
+        # kernel on Warp's default device, which Isaac Lab sets to the sim device. With
+        # --device cpu this mismatch segfaults, so pin the default device to cuRobo's GPU
+        # while parsing the stage.
+        with wp.ScopedDevice(f"cuda:{self.config.cuda_device}"):
+            self._static_world_config = self.usd_helper.get_obstacles_from_stage(
+                only_paths=[env_prim_path],
+                ignore_paths=[robot_prim_path],
+                reference_prim_path=robot_prim_path,
+                ignore_substring=ignore_list,
+            )
         self._static_world_config = self._static_world_config.get_collision_check_world()
 
         # Initialize cuRobo world with static geometry

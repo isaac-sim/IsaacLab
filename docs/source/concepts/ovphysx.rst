@@ -14,7 +14,7 @@ OvPhysX Backend
     ``physics=ovphysx --visualizer kit`` are unsupported because ovphysx
     loads USD-dependent PhysX plugins from its own package, while Kit already
     owns a separate USD/plugin stack in the same process. Use
-    ``--visualizer newton``, ``--visualizer rerun``, ``--visualizer viser``,
+    ``--visualizer newton_gl``, ``--visualizer rerun``, ``--visualizer viser``,
     or omit ``--visualizer`` for headless execution.
 
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
@@ -117,7 +117,7 @@ cloner.
 Installation
 ------------
 
-The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
+The ``ovphysx`` extra requires OvPhysX 0.6.4.72118723. Install it from the repository root with:
 
 .. code-block:: bash
 
@@ -125,10 +125,8 @@ The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository roo
 
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
-with this runtime combination. The legacy
-Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
-``./isaaclab.sh -i 'ov[all]'``.
+extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
+with this runtime combination.
 
 Testing the Installation
 ------------------------
@@ -143,12 +141,6 @@ First check that the Python package and runtime wheel import correctly:
 
           uv run --extra ovphysx --extra test python -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p -c "import ovphysx.types; from isaaclab_ov.physics import OvPhysxCfg; print('OvPhysX runtime OK')"
-
 Then run a small backend smoke test:
 
 .. tab-set::
@@ -157,13 +149,7 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
+          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
@@ -175,14 +161,7 @@ syntax as the other backends:
       .. code-block:: bash
 
           uv run --extra ovphysx isaaclab zero_agent --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct \
-              --num_envs 128 --max_steps 64 --viz none physics=ovphysx
+              --num_envs 128 --max_steps 64 physics=ovphysx
 
 This command runs a 64-step headless zero-action rollout and then exits.
 

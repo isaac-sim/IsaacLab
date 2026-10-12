@@ -8,12 +8,16 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 
 from ..common import write_run_manifest
 from . import cli_args_rlinf as cli_args
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -45,11 +49,6 @@ def _list_tasks() -> None:
 
 def run(argv: list[str]) -> None:
     """Launch RLinf training."""
-    # Ray 2.47+ turns the current project into a ``working_dir`` runtime environment when the driver is
-    # launched through ``uv run``. An Isaac Lab checkout commonly contains a large ``.venv`` and local
-    # model checkpoints, which exceed Ray's 500 MiB upload limit. RLinf already selects the Python
-    # executable for each worker, so this upload is neither needed nor desirable.
-    os.environ.setdefault("RAY_ENABLE_UV_RUN_RUNTIME_ENV", "0")
     # required for RLinf to register Isaac Lab tasks and converters
     os.environ.setdefault("RLINF_EXT_MODULE", "isaaclab_contrib.rl.rlinf.extension")
     args_cli = _parse_args(argv)
@@ -65,7 +64,7 @@ def run(argv: list[str]) -> None:
     import torch.multiprocessing as mp
     from hydra import compose, initialize_config_dir
     from hydra.core.global_hydra import GlobalHydra
-    from omegaconf import open_dict
+    from omegaconf import OmegaConf, open_dict
     from rlinf.config import validate_cfg
     from rlinf.runners.embodied_runner import EmbodiedRunner
     from rlinf.scheduler import Cluster
@@ -75,19 +74,19 @@ def run(argv: list[str]) -> None:
 
     mp.set_start_method("spawn", force=True)
 
-    print(f"[INFO] Using config: {config_name}")
-    print(f"[INFO] Config path: {config_dir}")
+    logger.info(f"Using config: {config_name}")
+    logger.info(f"Config path: {config_dir}")
     GlobalHydra.instance().clear()
     initialize_config_dir(config_dir=config_dir, version_base="1.1")
     cfg = compose(config_name=config_name)
 
     task_id = cfg.env.train.init_params.id
-    print(f"[INFO] Task: {task_id}")
+    logger.info(f"Task: {task_id}")
     # hyphens instead of colons in the time stamp; colons are invalid in Windows paths
     timestamp = datetime.now().strftime("%Y%m%d-%H-%M-%S")
     log_dir = Path("logs") / "rlinf" / f"{timestamp}-{task_id.replace('/', '_')}"
     log_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[INFO] Logging to: {log_dir}")
+    logger.info(f"Logging to: {log_dir}")
 
     with open_dict(cfg):
         cfg.runner.logger.log_path = str(log_dir)
@@ -113,7 +112,16 @@ def run(argv: list[str]) -> None:
                 task=args_cli.task or task_id,
                 config_name=config_name,
             )
-            cfg.runner.resume_dir = str(Path(checkpoint_path).parent)
+            for directory in Path(checkpoint_path).parents:
+                if re.fullmatch(r"global_step_\d+", directory.name):
+                    cfg.runner.resume_dir = str(directory)
+                    break
+            else:
+                raise ValueError(f"Cannot resume: {checkpoint_path} is not inside a global_step_<N> directory.")
+        cfg.rollout.model = OmegaConf.merge(cfg.actor.model, cfg.rollout.model)
+        # Ray workers may launch from a different working directory.
+        for model in (cfg.actor.model, cfg.rollout.model):
+            model.model_path = str(Path(model.model_path).expanduser().resolve())
 
     write_run_manifest(
         str(log_dir), library="rlinf", task=args_cli.task or task_id, metadata={"config_name": config_name}

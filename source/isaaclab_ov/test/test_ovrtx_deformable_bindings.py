@@ -182,7 +182,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
-    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
+    renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=0))
     renderer._use_ovstage = use_ovstage
     renderer._current_ordinal = 5
     writes = []
@@ -216,7 +216,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     expected[0, :3, :3] = np.diag([2, 3, 4])
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(matrices.numpy(), expected)
-    assert writes[0][2]["cuda_stream"] == 99
+    assert writes[0][2]["cuda_stream"] == 1  # Torch's default stream, not "no sync"
     if use_ovstage:
         assert writes[0][2]["ordinal"] == 5
     else:

@@ -44,7 +44,7 @@ inputs:
   test-k-expr:
     description: >-
       Global pytest -k expression applied inside every per-file pytest run
-      spawned by tools/conftest.py (combined with device-split selectors).
+      spawned by tools/conftest.py.
     default: ''
     required: false
   test-jobs:
@@ -132,8 +132,8 @@ inputs:
     default: ''
     required: false
   standalone-script-visualizer:
-    description: 'Visualizer slice used when standalone-script-scope is set'
-    default: 'none'
+    description: 'Visualizer slice used when standalone-script-scope is set; default launches without --viz'
+    default: 'default'
     required: false
   standalone-script-runtime-group:
     description: 'Run Kit-dependent or non-Kit standalone script cases'

@@ -74,11 +74,6 @@ def gallery_asset_name(renderer: str, output_name: str) -> str:
     return f"camera-renderer-{renderer_slug}{output_suffix}.{suffix}"
 
 
-def snapshot_camera_tensor(data: Any) -> Any:
-    """Copy a renderer-owned tensor to stable CPU storage."""
-    return data.detach().to(device="cpu", copy=True)
-
-
 def depth_display_bounds(data: Any) -> tuple[float, float]:
     """Return the minimum and maximum finite depths in a frame."""
     import torch
@@ -95,7 +90,7 @@ def motion_vectors_to_image(data: Any) -> Any:
     import torch
     from PIL import Image, ImageDraw
 
-    data = snapshot_camera_tensor(data)
+    data = data.detach().to(device="cpu", copy=True)
     uv = data[..., :2].float()
     raw_magnitude = torch.linalg.vector_norm(uv, dim=-1)
     max_magnitude = max(float(raw_magnitude.quantile(0.99)), 1.0e-6)
@@ -211,7 +206,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     add_gallery_arguments(parser)
     add_launcher_args(parser)
-    parser.set_defaults(enable_cameras=True, headless=True)
+    parser.set_defaults(enable_cameras=True)
     args = parser.parse_args()
     args.output_dir = args.output_dir.expanduser().resolve()
     if args.width < 1 or args.height < 1:
@@ -291,14 +286,16 @@ def _capture(args: argparse.Namespace) -> None:
     """Load the USD scene, render the selected outputs, and write documentation assets."""
     import numpy as np
     import torch
+    import warp as wp
+    from matplotlib import colormaps
     from PIL import Image
 
     import isaaclab.sim as sim_utils
     from isaaclab import cloner
     from isaaclab.assets import AssetBaseCfg
-    from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer
     from isaaclab.sensors import Camera, CameraCfg
     from isaaclab.utils import instantiate
+    from isaaclab.utils.images import compose_image
 
     if renderer_requires_kit(args.renderer_backend):
         sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, render_interval=1, device=args.device, use_fabric=True)
@@ -338,21 +335,24 @@ def _capture(args: argparse.Namespace) -> None:
     )
 
     def tensor_to_image(data: torch.Tensor, output_name: str) -> Image.Image:
-        data = snapshot_camera_tensor(data)
-        if output_name == "depth":
-            depth_min, depth_max = depth_display_bounds(data)
-            array = CameraFrameColorizer.colorize(data, "depth", depth_min=depth_min, depth_max=depth_max)
-        elif output_name == "normals":
-            array = CameraFrameColorizer.colorize(data, "normals")
-        elif output_name in {"semantic_segmentation", "instance_segmentation"}:
-            if data.ndim == 3 and data.shape[-1] >= 3 and data.dtype == torch.uint8:
-                array = data[..., :3].numpy()
-            else:
-                array = CameraFrameColorizer.colorize(data, "segmentation")
+        colored_segmentation = data.ndim == 3 and data.shape[-1] >= 3 and data.dtype == torch.uint8
+        segmentation_ids = output_name.endswith("segmentation") and not colored_segmentation
+        if output_name in {"depth", "normals"} or segmentation_ids:
+            channel = "segmentation" if segmentation_ids else output_name
+            depth_min, depth_max = depth_display_bounds(data) if channel == "depth" else (0.1, 10.0)
+            device = str(data.device)
+            pixels = wp.empty((*data.shape[:2], 4), dtype=wp.uint8, device=device)
+            colors = (colormaps["turbo"](np.arange(256) / 255.0)[..., :3] * 255).astype(np.uint8)
+            compose_image(
+                pixels, (wp.from_torch(data.reshape(1, *data.shape[:2], -1)),),
+                wp.zeros(1, dtype=wp.int32, device=device), (channel,), wp.array(colors, dtype=wp.uint8, device=device),
+                depth_min=depth_min, depth_max=depth_max,
+            )  # fmt: skip
+            array = pixels.numpy()[..., :3]
         elif output_name == "motion_vectors":
             return motion_vectors_to_image(data)
         else:
-            array = data[..., :3].numpy()
+            array = data[..., :3].detach().cpu().numpy()
             if array.dtype != np.uint8:
                 array = np.clip(array, 0.0, 1.0)
                 array = (array * 255).astype(np.uint8)

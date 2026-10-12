@@ -115,7 +115,7 @@ properly.
 .. note::
 
    :meth:`sim.SimulationContext.reset` is different from :meth:`sim.SimulationContext.play` method as the latter
-   only plays the timeline and does not initializes the physics handles.
+   only plays the timeline and does not initialize the physics handles.
 
 After playing the simulation timeline, we set up a simple simulation loop where the simulator is stepped repeatedly.
 The loop condition :meth:`sim.SimulationContext.is_running` keeps it running
@@ -160,9 +160,6 @@ selection:
 .. code-block:: bash
 
    python scripts/tutorials/00_sim/create_empty.py
-
-If a config or command selects a visualizer, force-disable all visualizers with
-``--visualizer none`` or ``--viz none``.
 
 Now that we have a basic understanding of how to run a simulation, let's move on to the
 following tutorial where we will learn how to add assets to the stage.

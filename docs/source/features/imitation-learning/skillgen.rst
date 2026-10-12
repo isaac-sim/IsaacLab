@@ -34,7 +34,7 @@ Before using SkillGen, you must understand:
 Installation
 ~~~~~~~~~~~~
 
-SkillGen requires Isaac Lab, Isaac Sim, and cuRobo. Follow these steps in your Isaac Lab environment (uv or conda), matching the installation method used in Step 1.
+SkillGen requires Isaac Lab, Isaac Sim, and cuRobo. Follow these steps in your Isaac Lab environment (uv), matching the installation method used in Step 1.
 
 Step 1: Install and verify Isaac Sim and Isaac Lab
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -56,9 +56,6 @@ Install the host compiler and Git on Ubuntu x86_64:
    sudo apt-get update
    sudo apt-get install -y build-essential git
 
-PyTorch 2.12 builds extensions as C++20. The commands below remove cuRobo's conflicting scalar ``lerp``
-overload while preserving its vector overloads, matching the cuRobo Docker image.
-
 .. tab-set::
 
    .. tab-item:: uv
@@ -77,67 +74,29 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
 
       .. code:: bash
 
-         uv sync && \
+         uv sync --extra isaacsim --extra mimic && \
          uv pip install setuptools wheel && \
          export CUDA_HOME=/usr/local/cuda-13.0 && \
          export PATH="$CUDA_HOME/bin:$PATH" && \
          export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
          git clone https://github.com/NVlabs/curobo.git src/nvidia-curobo && \
          git -C src/nvidia-curobo checkout ebb71702f3f70e767f40fd8e050674af0288abe8 && \
-         test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
-            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
-         sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
-            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h && \
          uv pip install -e ./src/nvidia-curobo --no-build-isolation
-
-   .. tab-item:: conda
-
-      .. code:: bash
-
-         conda install -c nvidia cuda-toolkit=13.0 -y && \
-         python -m pip install setuptools wheel && \
-         export CUDA_HOME="$CONDA_PREFIX" && \
-         export PATH="$CUDA_HOME/bin:$PATH" && \
-         export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
-         export CC=/usr/bin/gcc CXX=/usr/bin/g++ CUDAHOSTCXX=/usr/bin/g++ && \
-         git clone https://github.com/NVlabs/curobo.git src/nvidia-curobo && \
-         git -C src/nvidia-curobo checkout ebb71702f3f70e767f40fd8e050674af0288abe8 && \
-         test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
-            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
-         sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
-            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h && \
-         python -m pip install -e ./src/nvidia-curobo --no-build-isolation
 
 .. note::
    * The commit hash ``ebb71702f3f70e767f40fd8e050674af0288abe8`` is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.
 
-   * Use GCC 10–15 for CUDA 13.0 C++20 compilation, as specified by NVIDIA's `host compiler support policy
+   * Use a host compiler supported by CUDA 13.0, as specified by NVIDIA's `host compiler support policy
      <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#host-compiler-support-policy>`__
      and `C++ dialect requirements
      <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#supported-c-dialects>`__.
-     The system GCC on Ubuntu 22.04 and 24.04 is compatible. The conda commands explicitly select the system compiler.
+     The system GCC on Ubuntu 22.04 and 24.04 is compatible.
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
 
    * In the uv flow, cuRobo and Rerun (Step 3) are not part of the project's lockfile, so running ``uv sync`` after installing them removes them from the environment again. If that happens, re-run the ``uv pip install`` commands from Step 2 and Step 3 to reinstall them. ``uv run`` does not remove these packages and can be used normally.
 
    * ``TORCH_CUDA_ARCH_LIST`` in the above command should match your GPU's CUDA compute capability (e.g., ``8.0`` for A100, ``8.6`` for many RTX 30‑series, ``8.9`` for RTX 4090); the ``+PTX`` suffix embeds PTX for forward compatibility so newer GPUs can JIT‑compile when native SASS isn’t included.
-
-.. warning::
-
-   **cuRobo installation may fail if Isaac Sim environment scripts are sourced**
-
-   Sourcing Omniverse Kit/Isaac Sim environment scripts (for example, ``setup_conda_env.sh``) exports ``PYTHONHOME`` and ``PYTHONPATH`` to the Kit runtime and its pre-bundled Python packages. During cuRobo installation this can cause ``conda`` to import Omniverse's bundled libraries (e.g., ``requests``/``urllib3``) before initialization, resulting in a crash (often seen as a ``TypeError`` referencing ``omni.kit.pip_archive``).
-
-   Do one of the following:
-
-   - Install cuRobo from a clean shell that has not sourced any Omniverse/Isaac Sim scripts.
-   - Temporarily reset or ignore inherited Python environment variables (notably ``PYTHONPATH`` and ``PYTHONHOME``) before invoking Conda, so Kit's Python does not shadow your Conda environment.
-   - Use Conda mechanisms that do not rely on shell activation and avoid inheriting the current shell's Python variables.
-
-   After installation completes, you may source Isaac Lab/Isaac Sim scripts again for normal use.
-
-
 
 Step 3: Install Rerun
 ^^^^^^^^^^^^^^^^^^^^^
@@ -151,12 +110,6 @@ For trajectory visualization during development:
       .. code:: bash
 
          uv pip install rerun-sdk==0.23
-
-   .. tab-item:: conda
-
-      .. code:: bash
-
-         pip install rerun-sdk==0.23
 
 .. note::
 
@@ -181,23 +134,6 @@ Test that cuRobo works with Isaac Lab:
 
          # This should run without import errors
          uv run python -c "import curobo; print('cuRobo installed successfully')"
-
-   .. tab-item:: conda
-
-      .. code:: bash
-
-         # This should run without import errors
-         python -c "import curobo; print('cuRobo installed successfully')"
-
-.. tip::
-
-   In the conda flow, if you run into ``libstdc++.so.6: version 'GLIBCXX_3.4.30' not found`` error, you can try these commands to fix it:
-
-   .. code:: bash
-
-      conda config --env --set channel_priority strict
-      conda config --env --add channels conda-forge
-      conda install -y -c conda-forge "libstdcxx-ng>=12" "libgcc-ng>=12"
 
 Download the SkillGen Dataset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -261,17 +197,6 @@ Download and Setup
             --num_demos 10 \
             --visualizer kit
 
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code:: bash
-
-            ./isaaclab.sh -p scripts/tools/record_demos.py \
-            --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
-            --teleop_device spacemouse \
-            --dataset_file ./datasets/dataset_skillgen.hdf5 \
-            --num_demos 10 \
-            --visualizer kit
-
    **Annotate demonstrations for SkillGen** (writes both term and start boundaries):
 
    .. tab-set::
@@ -281,18 +206,6 @@ Download and Setup
          .. code:: bash
 
             uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-            --device cpu \
-            --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
-            --input_file ./datasets/dataset_skillgen.hdf5 \
-            --output_file ./datasets/annotated_dataset_skillgen.hdf5 \
-            --annotate_subtask_start_signals \
-            --visualizer kit
-
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code:: bash
-
-            ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
             --device cpu \
             --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
             --input_file ./datasets/dataset_skillgen.hdf5 \
@@ -362,7 +275,7 @@ Key parameters for SkillGen data generation:
 * ``--generation_num_trials``: Number of demonstrations to generate
 * ``--num_envs``: Parallel environments (tune based on GPU memory)
 * ``--device``: Computation device (cpu/cuda). Use cpu for stable physics
-* Visualization: Omit ``--visualizer`` / ``--viz`` for headless generation; use ``--viz none`` only when a config or command would otherwise launch visualizers
+* Visualization: Omit ``--visualizer`` / ``--viz`` for headless generation
 
 .. _task-basic-cube-stacking:
 
@@ -403,19 +316,6 @@ Start with a small dataset to verify everything works:
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
          --use_skillgen --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu \
-         --num_envs 1 \
-         --generation_num_trials 10 \
-         --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
-         --output_file ./datasets/generated_dataset_small_skillgen_cube_stack.hdf5 \
-         --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
-         --use_skillgen --visualizer kit
-
 Full-Scale Generation
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -428,19 +328,6 @@ Once satisfied with small-scale results, generate a full training dataset:
       .. code:: bash
 
          uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu \
-         --num_envs 1 \
-         --generation_num_trials 1000 \
-         --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
-         --output_file ./datasets/generated_dataset_skillgen_cube_stack.hdf5 \
-         --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
-         --use_skillgen
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 1000 \
@@ -490,19 +377,6 @@ Test the adaptive stacking setup:
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --use_skillgen --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu \
-         --num_envs 1 \
-         --generation_num_trials 10 \
-         --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
-         --output_file ./datasets/generated_dataset_small_skillgen_bin_cube_stack.hdf5 \
-         --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
-         --use_skillgen --visualizer kit
-
 Full-Scale Generation
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -515,19 +389,6 @@ Generate the complete adaptive stacking dataset:
       .. code:: bash
 
          uv run --extra isaacsim,mimic python scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --device cpu \
-         --num_envs 1 \
-         --generation_num_trials 1000 \
-         --input_file ./datasets/annotated_dataset_skillgen.hdf5 \
-         --output_file ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5 \
-         --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
-         --use_skillgen
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --device cpu \
          --num_envs 1 \
          --generation_num_trials 1000 \
@@ -575,15 +436,6 @@ Train a state-based policy for the basic cube stacking task:
          --algo bc \
          --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-         --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
-         --algo bc \
-         --dataset ./datasets/generated_dataset_skillgen_cube_stack.hdf5
-
 Adaptive Bin Cube Stacking Policy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -596,15 +448,6 @@ Train a policy for the more complex adaptive bin stacking:
       .. code:: bash
 
          uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
-         --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
-         --algo bc \
-         --dataset ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --algo bc \
          --dataset ./datasets/generated_dataset_skillgen_bin_cube_stack.hdf5
@@ -632,18 +475,6 @@ Test your trained policies:
          --checkpoint /path/to/model_checkpoint.pth \
          --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         # Basic cube stacking evaluation
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-         --device cpu \
-         --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen \
-         --num_rollouts 50 \
-         --checkpoint /path/to/model_checkpoint.pth \
-         --visualizer kit
-
 .. tab-set::
 
    .. tab-item:: uv (Recommended)
@@ -652,18 +483,6 @@ Test your trained policies:
 
          # Adaptive bin cube stacking evaluation
          uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/play.py \
-         --device cpu \
-         --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
-         --num_rollouts 50 \
-         --checkpoint /path/to/model_checkpoint.pth \
-         --visualizer kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-         # Adaptive bin cube stacking evaluation
-         ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
          --device cpu \
          --task IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic \
          --num_rollouts 50 \

@@ -97,9 +97,10 @@ sources and clip options.
     # record from a Kit visualizer with this camera pose
     env_cfg.sim.visualizer_cfgs = KitVisualizerCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
     env_cfg.video_recorders = [
-        VideoRecorderCfg(source="visualizer:kit", output_dir="videos/train", video_length=200, video_interval=1500)
+        VideoRecorderCfg(source="viz:kit", output_dir="videos/train", video_length=200, video_interval=1500)
     ]
-    with launch_simulation(env_cfg):
+    # select the Kit visualizer, as ``--viz kit`` does; the config above only sets its camera pose
+    with launch_simulation(env_cfg, {"visualizer": "kit"}):
         env = gym.make(task_name, cfg=env_cfg)
 
 

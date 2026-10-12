@@ -140,12 +140,14 @@ class ManagerBasedEnv:
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info(
+            "Base environment:\n"
+            f"\tEnvironment device    : {self.device}\n"
+            f"\tEnvironment seed      : {self.cfg.seed}\n"
+            f"\tPhysics step-size     : {self.physics_dt}\n"
+            f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}\n"
+            f"\tEnvironment step-size : {self.step_dt}"
+        )
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
                 f"The render interval ({self.cfg.sim.render_interval}) is smaller than the decimation "
@@ -174,7 +176,7 @@ class ManagerBasedEnv:
             with use_stage(self.sim.stage):
                 self.scene = InteractiveScene(self.cfg.scene)
             self.sim.register_interactive_scene(self.scene)
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info(f"Scene manager: {self.scene}")
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -184,8 +186,6 @@ class ManagerBasedEnv:
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
-
-        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
 
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
@@ -200,6 +200,8 @@ class ManagerBasedEnv:
             # this shouldn't cause an issue since later on, users do a reset over all the environments
             # so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        self.video_recorders: list[VideoRecorder] = [VideoRecorder(cfg, self) for cfg in self.cfg.video_recorders]
+
         # let the physics backend know about the env decimation so it can
         # fold the full loop into a single step() when possible
         self.sim.physics_manager.set_decimation(self.cfg.decimation)
@@ -330,7 +332,7 @@ class ManagerBasedEnv:
             os.makedirs(output_dir, exist_ok=True)
 
         with open(os.path.join(output_dir, "IO_descriptors.yaml"), "w") as f:
-            print(f"[INFO]: Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
+            logger.info(f"Exporting IO descriptors to {os.path.join(output_dir, 'IO_descriptors.yaml')}")
             yaml.safe_dump(IO_descriptors, f)
 
     """
@@ -355,16 +357,16 @@ class ManagerBasedEnv:
         """
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
-        print("[INFO] Event Manager: ", self.event_manager)
+        logger.info(f"Event Manager: {self.event_manager}")
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        print("[INFO] Recorder Manager: ", self.recorder_manager)
+        logger.info(f"Recorder Manager: {self.recorder_manager}")
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
-        print("[INFO] Action Manager: ", self.action_manager)
+        logger.info(f"Action Manager: {self.action_manager}")
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
-        print("[INFO] Observation Manager:", self.observation_manager)
+        logger.info(f"Observation Manager: {self.observation_manager}")
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -382,7 +384,11 @@ class ManagerBasedEnv:
 
         Does nothing when running truly headless (no Kit GUI and no standalone visualizers).
         """
-        if not self.sim.has_gui and not self.sim.has_active_visualizers():
+        if not (
+            self.sim.has_gui
+            or any(cfg.visualizer_type and not cfg.headless for cfg in self.sim.cfg.visualizer_cfgs)
+            or self.sim.get_setting("/isaaclab/video/auto_start_kit")
+        ):
             self.manager_visualizers = {}
             return
         managers = {

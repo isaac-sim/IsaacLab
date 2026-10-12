@@ -109,8 +109,7 @@ Visualization Options
 Visualization does not change the policy or its LEAPP inputs. Omit ``--viz`` for headless
 execution, use ``--viz kit`` for the Omniverse Kit viewport, or select ``newton_gl``,
 ``newton_rtx`` (experimental), ``rerun``, or ``viser`` when those visualizers are installed.
-Use ``--viz none`` to explicitly disable all visualizers, and ``--max_visible_envs <COUNT>``
-to limit displayed environments. Choose a visualizer compatible with the selected physics and
+Use ``--max_visible_envs <COUNT>`` to limit displayed environments. Choose a visualizer compatible with the selected physics and
 renderer backend.
 
 .. note::

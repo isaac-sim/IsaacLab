@@ -10,6 +10,7 @@ from __future__ import annotations
 import importlib
 import importlib.util
 import inspect
+import logging
 import os
 import re
 import warnings
@@ -23,6 +24,8 @@ from isaaclab_tasks.utils.hydra import resolve_task_config, user_stacklevel
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | object:
@@ -86,6 +89,17 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
     cfg_entry_point = spec.kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
+        rl_libraries = ("rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl")
+        supported_libraries = [
+            library for library in rl_libraries if spec.kwargs.get(f"{library}_cfg_entry_point") is not None
+        ]
+        if entry_point_key in {f"{library}_cfg_entry_point" for library in rl_libraries} and supported_libraries:
+            raise ValueError(
+                f"Could not find RL configuration '{entry_point_key}' for task '{task_name}'. "
+                f"This task supports {', '.join(supported_libraries)}; "
+                f"use {' or '.join(f'--rl_library {library}' for library in supported_libraries)}. "
+                "If you supplied --agent, remove it to use the selected library's default configuration."
+            )
         agent_entries = sorted(
             key for key in spec.kwargs if key.endswith("_cfg_entry_point") and key != "env_cfg_entry_point"
         )
@@ -110,7 +124,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             # obtain the configuration file path
             config_file = os.path.join(mod_path, file_name)
         # load the configuration
-        print(f"[INFO]: Parsing configuration from: {config_file}")
+        logger.info(f"Parsing configuration from: {config_file}")
         with open(config_file, encoding="utf-8") as f:
             cfg = yaml.full_load(f)
     else:
@@ -128,7 +142,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             else:
                 cfg_cls = cfg_entry_point
             # load the configuration
-            print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
+            logger.info(f"Parsing configuration from: {cfg_entry_point}")
             if callable(cfg_cls):
                 cfg = cfg_cls()
             else:
