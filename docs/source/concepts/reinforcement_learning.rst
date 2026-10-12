@@ -65,7 +65,7 @@ features your experiment needs, not on a single throughput result.
    * - **skrl**
      - JAX workflows or explicit multi-agent training
      - PPO, AMP, IPPO, and MAPPO with PyTorch or JAX
-     - ``--extra skrl``
+     - ``--extra skrl`` for PyTorch or ``--extra jax`` for JAX
    * - **RL-Games**
      - Existing RL-Games projects or population-based workflows
      - PPO, SAC, A2C, population-based training, distributed training, and Ray
@@ -91,6 +91,7 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
 .. code-block:: bash
 
    uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole
+   uv run --extra jax isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework jax
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
    uv run --extra torchrl isaaclab train --rl_library torchrl --task Isaac-Cartpole
@@ -386,22 +387,20 @@ compilation and execution:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train --rl_library skrl \
+   uv run --extra jax isaaclab train --rl_library skrl \
        --task Isaac-Reach-Franka \
        --ml_framework jax
 
 .. note::
 
-   Install JAX with CUDA support and the skrl JAX dependencies before using this workflow:
+   The ``jax`` extra installs JAX with CUDA 13 support and the skrl JAX
+   dependencies. Use it instead of the ``skrl`` extra for this workflow.
 
-   .. code-block:: bash
-
-      uv pip install -U "jax[cuda13]"
-      uv pip install "skrl[jax]"
-
-JAX preallocates GPU memory by default, so ensure that the simulation and learner can share the available memory.
-See the `skrl installation guide <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
-installation guide <https://docs.jax.dev/en/latest/installation.html>`__ for more information.
+JAX preallocates GPU memory by default, so ensure that the simulation and
+learner can share the available memory. See the `skrl installation guide
+<https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
+installation guide <https://docs.jax.dev/en/latest/installation.html>`__ for
+more information.
 
 RLinf VLA post-training
 ~~~~~~~~~~~~~~~~~~~~~~~

@@ -80,9 +80,9 @@ VS Code uses Pylance. Cursor users should install basedpyright instead. See
    For example, ``--extra ovphysx`` makes the OV PhysX integration available, while
    ``physics=ovphysx`` selects it for the task. You can combine extras as needed. The ``--extra all``
    shortcut installs the curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``,
-   and ``viser`` extras. Isaac Sim, standalone importers, and specialized extras such as ``rlinf``,
-   ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``, and ``torchrl`` are not
-   included; add them explicitly. See
+   and ``viser`` extras. Isaac Sim, standalone importers, and specialized extras such as ``jax``,
+   ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``, and ``torchrl``
+   are not included; add them explicitly. See
    :ref:`installation-optional-extras` for the complete list.
 
 Choose an RL library
@@ -105,7 +105,7 @@ and is a good starting point for GPU-based training.
      - ``uv run --extra rl-games isaaclab train --rl_library rl_games ...``
    * - ``skrl``
      - Broad algorithm support with PyTorch and JAX
-     - ``uv run --extra skrl isaaclab train --rl_library skrl ...``
+     - ``--extra skrl`` for PyTorch; ``--extra jax`` for JAX
    * - ``sb3``
      - Stable-Baselines3 and CPU-oriented experiments
      - ``uv run --extra sb3 isaaclab train --rl_library sb3 ...``
