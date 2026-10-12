@@ -13,10 +13,12 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs import ManagerBasedEnv, mdp
+from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg, mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
+from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
@@ -43,6 +45,12 @@ DOME_LIGHT_INTENSITY = 3000.0
 CUBE_TRANSLATION = (0.0, 0.0, 0.6)
 CUBE_ORIENTATION = (0.7071, 0.0, 0.7071, 0.0)  # rotate DexCube with its yellow "E" face texture up
 CUBE_SCALE = (0.9, 0.9, 0.9)
+
+# reset scenes: far camera clipping distance [m]
+DEPTH_FAR = 10.0
+
+# reset scenes: cube reset pose relative to its spawn pose along x [m]
+CUBE_RESET_X_OFFSET = 0.15
 
 
 def _is_grey(mean_rgb: torch.Tensor) -> bool:
@@ -135,22 +143,23 @@ def test_first_frame_is_textured_camera(setup_sim, device):
     _assert_first_frame_textured(first_frame, stable_frame)
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
-def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
-    """The first and subsequent resets must return the reset pose without stepping physics."""
+@configclass
+class _DepthObservationsCfg(ObservationGroupCfg):
+    """Camera geometry returned directly by environment reset."""
 
-    @configclass
-    class CameraObservationsCfg(ObservationGroupCfg):
-        """Camera geometry returned directly by environment reset."""
+    concatenate_terms = False
+    depth = ObservationTermCfg(
+        func=mdp.image_depth,
+        params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "distance_to_image_plane", "normalize": False},
+    )
 
-        concatenate_terms = False
-        depth = ObservationTermCfg(
-            func=mdp.image_depth,
-            params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "distance_to_image_plane", "normalize": False},
-        )
 
-    sim_utils.create_new_stage()
+class _StaleCameraFrameError(Exception):
+    """Raised when a reset camera observation does not show the reset pose."""
+
+
+def _make_reset_camera_env_cfg(device: str, camera_height: float = 2.0) -> ManagerBasedEnvCfg:
+    """Return a gravity-free Fabric scene whose top-down depth camera is observed on reset."""
     cfg = make_empty_manager_based_env_cfg(device=device)
     cfg.seed = 0
     cfg.decimation = 1
@@ -160,15 +169,26 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
     cfg.sim.gravity = (0.0, 0.0, 0.0)
     cfg.sim.visualizer_cfgs = []
     cfg.num_rerenders_on_reset = 2
-    cfg.observations = {"camera": CameraObservationsCfg()}
-    # A stale spawn-pose frame must differ from the first reset observation.
-    reset_x_offset = 0.15
+    cfg.observations = {"camera": _DepthObservationsCfg()}
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=HEIGHT,
+        width=WIDTH,
+        data_types=["distance_to_image_plane"],
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, camera_height), convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, DEPTH_FAR)),
+    )
+    return cfg
+
+
+def _add_reset_cube(cfg: ManagerBasedEnvCfg) -> None:
+    """Add a cube whose reset event moves it :data:`CUBE_RESET_X_OFFSET` away from its spawn pose."""
     cfg.events.reset_cube_pose = EventTermCfg(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("cube"),
-            "pose_range": {"x": (reset_x_offset, reset_x_offset)},
+            "pose_range": {"x": (CUBE_RESET_X_OFFSET, CUBE_RESET_X_OFFSET)},
             "velocity_range": {},
         },
     )
@@ -182,55 +202,163 @@ def test_env_reset_restores_initial_pose_in_camera_observation(device: str):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.35, 0.0, 0.2)),
     )
-    cfg.scene.camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Camera",
-        height=HEIGHT,
-        width=WIDTH,
-        data_types=["distance_to_image_plane"],
-        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
-        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, 10.0)),
-    )
+
+
+def _cube_reset_pose(env: ManagerBasedEnv) -> torch.Tensor:
+    """Return the world pose that the reset event writes for the cube."""
+    pose = env.scene["cube"].data.default_root_pose.torch.clone()
+    pose[:, :3] += env.scene.env_origins
+    pose[:, 0] += CUBE_RESET_X_OFFSET
+    return pose
+
+
+def _moved_cube_pose(reset_pose: torch.Tensor) -> torch.Tensor:
+    """Return a cube pose whose silhouette does not overlap the reset silhouette."""
+    pose = reset_pose.clone()
+    pose[:, 0] += 0.7
+    pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=pose.device)
+    return pose
+
+
+def _step_until_stable(env: ManagerBasedEnv) -> torch.Tensor:
+    """Step with zero actions and return a copy of the last camera depth observation."""
+    action = torch.zeros_like(env.action_manager.action)
+    for _ in range(STABILISATION_STEPS):
+        obs, _ = env.step(action)
+    return obs["camera"]["depth"].clone()
+
+
+def _silhouette(depth: torch.Tensor) -> torch.Tensor:
+    """Return the pixels hit inside the camera clipping range."""
+    return torch.isfinite(depth) & (depth > 0.0) & (depth < DEPTH_FAR)
+
+
+def _silhouette_iou(mask: torch.Tensor, reference_mask: torch.Tensor) -> float:
+    """Return the intersection over union of two silhouettes."""
+    return ((mask & reference_mask).sum() / (mask | reference_mask).sum()).item()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.isaacsim_ci
+def test_env_reset_shows_reset_pose_in_camera_observation(device: str):
+    """The first and subsequent resets must return the reset pose without stepping physics."""
+    sim_utils.create_new_stage()
+    cfg = _make_reset_camera_env_cfg(device)
+    _add_reset_cube(cfg)
     env = ManagerBasedEnv(cfg)
     try:
         cube = env.scene["cube"]
-        initial_pose = cube.data.default_root_pose.torch.clone()
-        initial_pose[:, :3] += env.scene.env_origins
-        initial_pose[:, 0] += reset_x_offset
+        reset_pose = _cube_reset_pose(env)
         first_reset_obs, _ = env.reset()
         first_reset_depth = first_reset_obs["camera"]["depth"].clone()
         assert env.sim.get_physics_step_count() == 0
-        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
 
-        action = torch.zeros_like(env.action_manager.action)
         # Establish rendered references at both poses before testing the reset boundary.
-        for _ in range(STABILISATION_STEPS):
-            initial_obs, _ = env.step(action)
-        initial_depth = initial_obs["camera"]["depth"].clone()
-        moved_pose = initial_pose.clone()
-        moved_pose[:, 0] += 0.7
-        moved_pose[:, 3:] = torch.tensor((0.0, 0.0, 2**-0.5, 2**-0.5), device=device)
+        reference_depth = _step_until_stable(env)
+        # The reference frame is valid only if the cube held the reset pose while stabilizing.
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
+        moved_pose = _moved_cube_pose(reset_pose)
         cube.write_root_pose_to_sim_index(root_pose=moved_pose)
-        for _ in range(STABILISATION_STEPS):
-            moved_obs, _ = env.step(action)
-        moved_depth = moved_obs["camera"]["depth"].clone()
+        moved_depth = _step_until_stable(env)
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, moved_pose)
 
         step_before_reset = env.sim.get_physics_step_count()
         reset_obs, _ = env.reset()
-        reset_depth = reset_obs["camera"]["depth"].clone()
+        reset_depth = reset_obs["camera"]["depth"]
 
         assert env.sim.get_physics_step_count() == step_before_reset
-        torch.testing.assert_close(cube.data.root_link_pose_w.torch, initial_pose)
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
 
         # Depth silhouettes check geometry, independent of RGB exposure and temporal denoising.
-        initial_mask = torch.isfinite(initial_depth) & (initial_depth > 0.0) & (initial_depth < 10.0)
-        moved_mask = torch.isfinite(moved_depth) & (moved_depth > 0.0) & (moved_depth < 10.0)
-        assert initial_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
-        assert not (initial_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
+        reference_mask, moved_mask = _silhouette(reference_depth), _silhouette(moved_depth)
+        assert reference_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
+        assert not (reference_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
         for phase, depth in (("First", first_reset_depth), ("Later", reset_depth)):
-            reset_mask = torch.isfinite(depth) & (depth > 0.0) & (depth < 10.0)
-            overlap = (initial_mask & reset_mask).sum() / (initial_mask | reset_mask).sum()
-            assert overlap > 0.9, f"{phase} reset camera missed the reset silhouette: IoU={overlap.item():.3f}"
+            overlap = _silhouette_iou(_silhouette(depth), reference_mask)
+            assert overlap > 0.9, f"{phase} reset camera missed the reset silhouette: IoU={overlap:.3f}"
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.isaacsim_ci
+def test_env_first_reset_shows_articulation_links_in_camera_observation(device: str):
+    """The first reset must show articulation links at their reset joint positions without stepping physics."""
+    sim_utils.create_new_stage()
+    # The higher camera keeps the cart and the pole inside the image at the reset joint positions.
+    cfg = _make_reset_camera_env_cfg(device, camera_height=6.0)
+    cfg.scene.robot = CartpoleTestSceneCfg().robot
+    # Link poses follow from joint positions through forward kinematics, not from root pose writes.
+    joint_offset = 0.8
+    cfg.events.reset_robot_joints = EventTermCfg(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "position_range": (joint_offset, joint_offset),
+            "velocity_range": (0.0, 0.0),
+        },
+    )
+    env = ManagerBasedEnv(cfg)
+    try:
+        robot = env.scene["robot"]
+        first_reset_obs, _ = env.reset()
+        first_reset_depth = first_reset_obs["camera"]["depth"].clone()
+        assert env.sim.get_physics_step_count() == 0
+        torch.testing.assert_close(robot.data.joint_pos.torch, robot.data.default_joint_pos.torch + joint_offset)
+        reset_link_poses = robot.data.body_link_pose_w.torch.clone()
+
+        reference_depth = _step_until_stable(env)
+        # Without gravity and drive stiffness the links hold still, so the later frame shows the reset pose.
+        torch.testing.assert_close(robot.data.body_link_pose_w.torch, reset_link_poses)
+
+        reference_mask = _silhouette(reference_depth)
+        assert reference_mask.any(), "The cartpole must be visible in the reference frame."
+        overlap = _silhouette_iou(_silhouette(first_reset_depth), reference_mask)
+        assert overlap > 0.9, f"First reset camera missed the reset link silhouette: IoU={overlap:.3f}"
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.isaacsim_ci
+@pytest.mark.xfail(
+    strict=True,
+    raises=_StaleCameraFrameError,
+    reason=(
+        "PhysX Fabric limitation (#8428): after the Fabric re-attach on resume, force_update() ignores GPU tensor"
+        " pose writes until the next simulate() call."
+    ),
+)
+def test_env_reset_after_resume_shows_reset_pose_in_camera_observation(device: str):
+    """A reset directly after pause and resume must return the reset pose without stepping physics."""
+    sim_utils.create_new_stage()
+    cfg = _make_reset_camera_env_cfg(device)
+    _add_reset_cube(cfg)
+    env = ManagerBasedEnv(cfg)
+    try:
+        cube = env.scene["cube"]
+        reset_pose = _cube_reset_pose(env)
+        env.reset()
+        # Fabric shows the moved pose before the pause, so a stale frame cannot match the reset pose.
+        cube.write_root_pose_to_sim_index(root_pose=_moved_cube_pose(reset_pose))
+        _step_until_stable(env)
+
+        env.sim.pause()
+        env.sim.play()
+        step_before_reset = env.sim.get_physics_step_count()
+        reset_obs, _ = env.reset()
+        reset_depth = reset_obs["camera"]["depth"].clone()
+        assert env.sim.get_physics_step_count() == step_before_reset
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
+
+        reference_depth = _step_until_stable(env)
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
+
+        overlap = _silhouette_iou(_silhouette(reset_depth), _silhouette(reference_depth))
+        if overlap <= 0.9:
+            raise _StaleCameraFrameError(f"Reset after resume missed the reset silhouette: IoU={overlap:.3f}")
     finally:
         env.close()
 
