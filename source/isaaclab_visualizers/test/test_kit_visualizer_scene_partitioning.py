@@ -111,6 +111,10 @@ def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeyp
 def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch):
     """Deliver Ctrl+C after Kit returns and arm the default handler until then."""
     visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._sim = MagicMock(render_generation=1)
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
     settings = MagicMock()
     settings.get.return_value = False
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
@@ -132,7 +136,7 @@ def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch):
     monkeypatch.setattr(omni, "kit", kit_module, raising=False)
 
     with pytest.raises(KeyboardInterrupt):
-        visualizer._pump_kit_app_update()
+        visualizer.step(0.1)
 
     assert signal.getsignal(signal.SIGINT) is previous_handler
     assert [call.args for call in settings.set.call_args_list] == [
