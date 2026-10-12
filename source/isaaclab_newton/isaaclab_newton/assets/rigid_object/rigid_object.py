@@ -19,7 +19,6 @@ from pxr import UsdPhysics
 
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
-from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -1079,13 +1078,6 @@ class RigidObject(BaseRigidObject):
         # container for data access
         self._data = RigidObjectData(self.root_view, self.device)
 
-        # Register callback to rebind simulation data after a full reset (model/state recreation).
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"rigid_object_rebind_{self.cfg.prim_path}",
-        )
-
         # create buffers
         self._create_buffers()
         # process configuration
@@ -1094,13 +1086,6 @@ class RigidObject(BaseRigidObject):
         self.update(0.0)
         # Let the rigid object data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
-
-    def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks, including the physics-ready rebind handle."""
-        super()._clear_callbacks()
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None
 
     def _create_buffers(self):
         """Create buffers for storing data."""

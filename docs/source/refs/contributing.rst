@@ -322,6 +322,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
   need to jump to another definition to understand the caller.
   When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
+  Name nontrivial predicates when that makes a branch easier to read, keeping the operation inline.
+  Avoid aliases such as ``cfg = visualizer.cfg`` that only shorten direct attribute access.
 * Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing
@@ -331,6 +333,10 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
+  Keep a single representation of the active selection alongside its available choices. Detach borrowed
+  callbacks when their producer closes; Python-owned arrays do not require a separate backend teardown.
+  Image processing belongs in ``utils.images`` and must not depend on ``envs.utils``. Bind scene references
+  in simulation initialization; core simulation must not depend on environment camera adapters.
   Before adding a parameter record and preparation helper for one consumer, check which values already
   exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
   the buffers or calculations that need reuse.
@@ -347,6 +353,10 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
+* Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
+  clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
+* Keep nested physics bodies in their owning source import. A second declaration only requires a
+  separate native copy when its source-to-destination mapping is not already covered by the parent.
 * Prefer existing project dependencies and the standard library. Do not add dependencies or compatibility
   layers for hypothetical future uses.
 

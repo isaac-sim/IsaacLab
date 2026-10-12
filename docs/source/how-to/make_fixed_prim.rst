@@ -31,7 +31,7 @@ For instance, to spawn a sphere static in the simulation world, the following co
 
     sphere_spawn_cfg = sim_utils.SphereCfg(
         radius=0.15,
-        collision_props=sim_utils.CollisionBaseCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     sphere_spawn_cfg.func(
@@ -43,7 +43,7 @@ Rigid object
 ------------
 
 Rigid objects (i.e. object only has a single body) can be made static by setting the parameter
-:attr:`sim.schemas.RigidBodyBaseCfg.kinematic_enabled` as True. This will make the object
+:attr:`sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled` as True. This will make the object
 kinematic: its motion is prescribed by user code rather than integrated from gravity and
 forces. Without prescribed motion, it stays fixed. It can still participate in collisions.
 
@@ -56,9 +56,9 @@ the following code can be used:
 
     sphere_spawn_cfg = sim_utils.SphereCfg(
         radius=0.15,
-        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionBaseCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
     )
     sphere_spawn_cfg.func(
@@ -70,8 +70,9 @@ Articulation
 ------------
 
 Fixing the root of an articulation requires having a fixed joint to the root rigid body link of the articulation.
-This can be achieved by setting the parameter :attr:`sim.schemas.ArticulationRootBaseCfg.fix_root_link`
-as True. Based on the value of this parameter, the following cases are possible:
+This can be achieved by setting the spawner-level
+:attr:`~isaaclab.sim.spawners.from_files.FileCfg.fix_root_link` flag as True. Based on the value of
+this parameter, the following cases are possible:
 
 * If set to :obj:`None`, the root link is not modified.
 * If the articulation already has a fixed root link, this flag will enable or disable the fixed joint.
@@ -83,12 +84,11 @@ For instance, to spawn an ANYmal robot and fix its base while leaving its joints
 .. code-block:: python
 
     import isaaclab.sim as sim_utils
-    from isaaclab.sim.schemas import ArticulationRootBaseCfg
     from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
     anymal_spawn_cfg = sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
-        articulation_props=ArticulationRootBaseCfg(fix_root_link=True),
+        fix_root_link=True,
     )
     anymal_spawn_cfg.func(
         "/World/ANYmal", anymal_spawn_cfg, translation=(0.0, 0.0, 0.8), orientation=(0.0, 0.0, 0.0, 1.0)
@@ -97,12 +97,8 @@ For instance, to spawn an ANYmal robot and fix its base while leaving its joints
 
 This creates a fixed joint between the world frame and the root link of the ANYmal robot.
 The joint is authored under a writable prim; its exact path depends on the asset's root
-and instancing layout.
-
-For a spawn configuration using schema fragments, or no ``articulation_props``, set
-``UsdFileCfg(fix_root_link=True, ...)`` instead. When using a legacy properties configuration
-as above, keep ``fix_root_link`` on that configuration. Both paths author the fixed joint
-before the backend imports the articulation.
+and instancing layout. ``fix_root_link`` is consumed on this path regardless of whether
+``articulation_props`` is set, empty, or carries other fragments.
 
 .. _further-notes:
 
@@ -168,7 +164,7 @@ before the backend imports the articulation.
    to consider the fixed joint as a part of the maximal coordinate tree. This is different from PhysX
    considering the articulation as a fixed-base system.
 
-   Internally, when the parameter :attr:`sim.schemas.ArticulationRootBaseCfg.fix_root_link` is set to True
+   Internally, when the parameter :attr:`~isaaclab.sim.spawners.from_files.FileCfg.fix_root_link` is set to True
    and the articulation is detected as a floating-base system, the fixed joint is created between the world frame
    the root rigid body link of the articulation. However, to make the PhysX parser consider the articulation as a
    fixed-base system, the articulation root properties are removed from the root rigid body prim and applied to

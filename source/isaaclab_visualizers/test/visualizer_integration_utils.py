@@ -46,7 +46,8 @@ from isaaclab_visualizers.newton import (
 )
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import (
@@ -56,6 +57,7 @@ from isaaclab.utils.math import (
     quat_from_matrix,
     quat_mul,
 )
+from isaaclab.visualizers import WindowCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
@@ -111,7 +113,7 @@ _CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit: Replicator ``render_product`` (width, height) for viewport RGB in the motion check."""
 
 _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE: tuple[int, int] = (400, 400)
-"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (window_width × window_height) for ``get_frame()``."""
+"""Newton: ``NewtonGLVisualizerCfg`` framebuffer (``window.size``) for ``get_frame()``."""
 
 _CARTPOLE_TILED_CAMERA_INTEGRATION_WH: tuple[int, int] = (400, 400)
 """Tiled camera per-env tile width/height (preset default is 96×96); keeps ``observation_space`` consistent."""
@@ -316,10 +318,12 @@ def _cartpole_integration_visualizer_camera_kwargs(
         return {
             "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
             "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
+            "background_color": (0.3, 0.55, 0.82),
         }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
+        "background_color": (0.3, 0.55, 0.82),
     }
 
 
@@ -371,8 +375,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         return (
             NewtonGLVisualizerCfg(
                 headless=True,
-                window_width=nw,
-                window_height=nh,
+                window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **tiled_cam,
                 **cam,
@@ -386,8 +389,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         return (
             NewtonRTXVisualizerCfg(
                 headless=True,
-                window_width=nw,
-                window_height=nh,
+                window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **cam,
             ),
@@ -421,8 +423,7 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         )
     return (
         KitVisualizerCfg(
-            window_width=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-            window_height=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+            window=WindowCfg(size=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION),
             randomly_sample_visible_envs=False,
             **tiled_cam,
             **cam,
@@ -694,7 +695,7 @@ def _select_newton_training_control_button(viewer, target_label: str) -> None:
         def button(self, label):
             return label == target_label
 
-        def slider_int(self, _label, value, _min_value, _max_value, _format):
+        def slider_float(self, _label, value, _min_value, _max_value, _format):
             return False, value
 
         def is_item_hovered(self):
@@ -1017,21 +1018,26 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
     """
     visualizer.step(0.0)
     if isinstance(visualizer, NewtonRTXVisualizer):
-        # Async OVRTX hands back the previous submission, so one extra capture pushes the latest state through.
+        # Async OVRTX displays the previous submission. Advance another display frame so the next
+        # capture observes the current state instead of rereading the shared cached image.
         visualizer.render_rgb_array()
+        visualizer.step(0.0)
 
 
 def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, case_label: str) -> None:
     """Fail unless a visualization marker shows up in the Newton RTX capture when it is made visible."""
-    from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-
     markers = VisualizationMarkers(
         VisualizationMarkersCfg(
             prim_path="/Visuals/rtx_marker_check",
             markers={
                 "sphere": sim_utils.SphereCfg(
                     radius=0.4, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0))
-                )
+                ),
+                "bar": sim_utils.CuboidCfg(
+                    size=(1.0, 0.3, 0.3),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
+                ),
+                "arrow": GREEN_ARROW_X_MARKER_CFG.markers["arrow"],
             },
         )
     )
@@ -1046,6 +1052,41 @@ def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, ca
     shown_frame = _capture(True)
     _assert_frames_differ(
         hidden_frame, shown_frame, case_label=case_label, phase="marker visible", debug_phase="marker"
+    )
+    red = (shown_frame[..., 0] > 50) & (shown_frame[..., 0] > 1.5 * shown_frame[..., 1])
+    red &= shown_frame[..., 0] > 1.5 * shown_frame[..., 2]
+    assert not red[3 * shown_frame.shape[0] // 4 :].any(), "Marker prototypes must not appear at the origin."
+    markers.visualize(marker_indices=[1])
+    bar_frame = _capture(True)
+    _assert_frames_differ(
+        shown_frame, bar_frame, case_label=case_label, phase="marker prototype changed", debug_phase="marker"
+    )
+    markers.visualize(
+        orientations=torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5]], device=env.device),
+        scales=torch.tensor([[2.0, 1.0, 1.0]], device=env.device),
+    )
+    rotated_frame = _capture(True)
+    widths = []
+    for image in (bar_frame, rotated_frame):
+        green = (image[..., 1] > 50) & (image[..., 1] > 1.5 * image[..., 0])
+        green &= image[..., 1] > 1.5 * image[..., 2]
+        columns = np.nonzero(green)[1]
+        assert columns.size, "The green marker must remain visible."
+        widths.append(np.ptp(columns))
+    assert widths[1] > 2 * widths[0], "Rotating the bar into the image plane must change its visible extent."
+    position = torch.tensor(_CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT, device=env.device)
+    positions = position.repeat(2, 1)
+    positions[1, 1] += 0.7
+    markers.visualize(
+        translations=positions,
+        orientations=positions.new_tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(2, 1),
+        scales=torch.ones_like(positions),
+        marker_indices=[0, 2],
+        environment_ids=[0, 0],
+    )
+    resized_frame = _capture(True)
+    _assert_frames_differ(
+        rotated_frame, resized_frame, case_label=case_label, phase="marker count changed", debug_phase="marker"
     )
 
 
@@ -1282,43 +1323,21 @@ def _capture_kit_viewport_rgb(annotator) -> np.ndarray:
     return frame
 
 
-def _pump_tiled_until_stable(camera_sensor, camera_indices: list[int]) -> np.ndarray:
-    """Pump ``camera_sensor.update()`` until two consecutive tiled frames converge.
-
-    Replaces the fixed :data:`_TILED_CAMERA_SENSOR_WARMUP_UPDATES` loop with an
-    adaptive one: stops as soon as two consecutive frames satisfy
-    :func:`_frames_converged`, or after :data:`_WARMUP_MAX_FRAMES` updates.
-    Returns the last captured frame.
-    """
-    prev: np.ndarray | None = None
-    last: np.ndarray | None = None
-    for i in range(_WARMUP_MAX_FRAMES):
-        camera_sensor.update(dt=0.0, force_recompute=True)
-        rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
-        curr = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()[..., :3]
-        if i >= _TILED_CAMERA_SENSOR_WARMUP_UPDATES and prev is not None and _frames_converged(prev, curr):
-            return curr
-        prev = curr
-        last = curr
-    return last
-
-
-def _capture_visualizer_tiled_camera_rgb(
-    visualizer, *, label: str = "capture", force_recompute: bool = True, paused: bool = False
-) -> np.ndarray:
-    """Capture the declared scene camera used by the visualizer."""
-    camera_sensor = visualizer._camera_sensor
-    assert camera_sensor is not None, "Visualizer did not bind its declared scene camera."
-    camera_indices = [int(index) for index in (visualizer._camera_sensor_indices or [0])]
-    if force_recompute:
-        if isinstance(visualizer, KitVisualizer):
-            _update_active_simulation_app()
-        return _pump_tiled_until_stable(camera_sensor, camera_indices)
-    rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
-    frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()
-    assert frame.ndim == 3, f"Expected tiled camera RGB frame to be HxWxC, got shape {frame.shape}."
-    assert frame.shape[-1] >= 3, f"Expected tiled camera RGB frame to have at least 3 channels, got {frame.shape}."
-    return frame[..., :3]
+def _capture_visualizer_tiled_camera_rgb(visualizer) -> np.ndarray:
+    """Converge the declared sensor and read the same composed frame used by its window."""
+    view = visualizer.current_image_view
+    assert view is not None and view.camera is not None, "Visualizer did not bind its declared scene camera."
+    if isinstance(visualizer, KitVisualizer):
+        _update_active_simulation_app()
+    previous = None
+    for index in range(_WARMUP_MAX_FRAMES):
+        view.camera.update(dt=0.0, force_recompute=True)
+        view.invalidate()
+        frame = visualizer.render_tiled_rgb_array()
+        if index >= _TILED_CAMERA_SENSOR_WARMUP_UPDATES and _frames_converged(previous, frame):
+            return frame
+        previous = frame
+    return frame
 
 
 def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: str, viz_kind: str) -> None:
@@ -1329,11 +1348,11 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
     for _ in range(_INTEGRATION_MOTION_BUFFER_STEPS):
         env.step(action=actions)
 
-    motion_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="1a_playing_frame_00")
+    motion_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
     for _ in range(PLAY_VIZ_N_STEP):
         env.step(action=actions)
     play_end_idx = PLAY_VIZ_N_STEP
-    motion_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="1b_playing_frame_20")
+    motion_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
     _save_visualizer_debug_phase_images(
         motion_start_frame,
         motion_end_frame,
@@ -1359,10 +1378,10 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
         # Re-render both paused captures: comparing the sensor's cached frame with itself cannot
         # detect a renderer that keeps changing the image after physics stops.  The denoiser residue
         # that motivated caching is handled by the per-channel threshold below (NVBUG 6570125).
-        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2a_pausing_frame_20", paused=True)
+        paused_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         for _ in range(PAUSE_VIZ_N_STEP):
             env.sim.render()
-        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="2b_pausing_frame_25", paused=True)
+        paused_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         _save_visualizer_debug_phase_images(
             paused_start_frame,
             paused_end_frame,
@@ -1397,10 +1416,10 @@ def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: s
 
     def _attempt_replay():
         _set_kit_simulation_paused(env, False)
-        play_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="3a_playing_frame_25")
+        play_start_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         for _ in range(PLAY_VIZ_N_STEP):
             env.step(action=actions)
-        play_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer, label="3b_playing_frame_45")
+        play_end_frame = _capture_visualizer_tiled_camera_rgb(visualizer)
         _save_visualizer_debug_phase_images(
             play_start_frame,
             play_end_frame,
@@ -1488,6 +1507,7 @@ def _make_shadow_hand_env(
     env_cfg.viewer.lookat = _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
+    cam["background_color"] = (0.3, 0.55, 0.82)  # Preserve the existing golden's explicit background.
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1505,8 +1525,7 @@ def _make_shadow_hand_env(
             visualizer_cfgs.append(
                 NewtonGLVisualizerCfg(
                     headless=True,
-                    window_width=nw,
-                    window_height=nh,
+                    window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1515,8 +1534,7 @@ def _make_shadow_hand_env(
         else:
             visualizer_cfgs.append(
                 KitVisualizerCfg(
-                    window_width=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    window=WindowCfg(size=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1554,6 +1572,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     env_cfg.viewer.lookat = _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
+    cam["background_color"] = (0.3, 0.55, 0.82)
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1571,8 +1590,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
             visualizer_cfgs.append(
                 NewtonGLVisualizerCfg(
                     headless=True,
-                    window_width=nw,
-                    window_height=nh,
+                    window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
@@ -1581,8 +1599,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
         else:
             visualizer_cfgs.append(
                 KitVisualizerCfg(
-                    window_width=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[0],
-                    window_height=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION[1],
+                    window=WindowCfg(size=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
