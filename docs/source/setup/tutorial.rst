@@ -156,15 +156,15 @@ The project keeps reusable task logic separate from SO-101-specific configuratio
 This boundary is intentional. A new robot gets a sibling of ``config/so101`` and reuses the vial-placement
 MDP. A different manipulation problem gets a sibling of ``tasks/place_vial`` and owns its task terms.
 
-The registration connects a task ID to the generic manager-based environment, the task configuration, and its
-default RSL-RL agent:
+The registration connects a task ID to the manager-based environment factory, the task configuration, and its
+default RSL-RL agent. The factory constructs the environment implementation selected by the configuration:
 
 .. code-block:: python
    :caption: src/isaaclab_tutorial/tasks/place_vial/config/so101/__init__.py
 
    gym.register(
        id="IsaacTutorial-Place-Vial-SO101",
-       entry_point="isaaclab.envs:ManagerBasedRLEnv",
+       entry_point="isaaclab.envs:make_manager_based_env",
        disable_env_checker=True,
        kwargs={
            "env_cfg_entry_point": f"{_PACKAGE}.env_cfg:SO101VialEnvCfg",

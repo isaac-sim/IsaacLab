@@ -32,7 +32,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Reorient-Cube-Allegro",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.allegro_hand_manager_env_cfg:AllegroHandManagerEnvCfg",

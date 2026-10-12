@@ -17,7 +17,7 @@ def test_command_lists_non_isaac_prefixed_task_from_current_project(tmp_path, mo
     task_id = "Example-Balance-Robot"
     gym.register(
         id=task_id,
-        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+        entry_point="isaaclab.envs:make_manager_based_env",
         kwargs={"env_cfg_entry_point": "example.tasks:BalanceEnvCfg"},
     )
     project_dir = tmp_path / "project"

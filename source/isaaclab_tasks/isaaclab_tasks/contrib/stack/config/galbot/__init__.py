@@ -16,7 +16,7 @@ import gymnasium as gym
 ##
 gym.register(
     id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:RmpFlowGalbotLeftArmCubeStackEnvCfg",
     },
@@ -26,7 +26,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:RmpFlowGalbotRightArmCubeStackEnvCfg",
     },
@@ -39,7 +39,7 @@ gym.register(
 ##
 gym.register(
     id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg",
     },
@@ -51,7 +51,7 @@ gym.register(
 ##
 gym.register(
     id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmJointPositionCubeStackVisuomotorEnvCfg"
@@ -65,7 +65,7 @@ gym.register(
 ##
 gym.register(
     id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg",
     },

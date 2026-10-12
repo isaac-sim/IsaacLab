@@ -15,6 +15,7 @@ __all__ = [
     "LeappDeploymentEnv",
     "ManagerBasedEnv",
     "ManagerBasedEnvCfg",
+    "make_manager_based_env",
     "ManagerBasedRLEnv",
     "ManagerBasedRLEnvCfg",
     "ManagerBasedRLMimicEnv",
@@ -38,7 +39,7 @@ from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .direct_rl_env import DirectRLEnv
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .leapp_deployment_env import LeappDeploymentEnv
-from .manager_based_env import ManagerBasedEnv
+from .manager_based_env import ManagerBasedEnv, make_manager_based_env
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .manager_based_rl_env import ManagerBasedRLEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg

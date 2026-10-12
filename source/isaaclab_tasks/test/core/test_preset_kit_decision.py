@@ -19,7 +19,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.physics import PhysicsCfg, PhysxAutoCfg
-from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -29,6 +28,7 @@ from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+_MANAGER_BASED_ENTRY_POINT = "isaaclab.envs:make_manager_based_env"
 
 
 def _physics_cfg(value):
@@ -137,15 +137,15 @@ def test_franka_cabinet_ik_preserves_newton_asset_variant(task_id):
     assert cfg.scene.robot.spawn.variants["Physics"] == "mujoco"
 
 
-def test_registered_manager_based_configs_name_their_env_class():
-    """A manager-based task's ``class_type`` constructs the env class its registration names."""
+def test_registered_manager_based_configs_use_config_factory():
+    """Manager-based registrations leave environment class selection to their configuration."""
 
     for task_id, task_spec in gym.registry.items():
         if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
             continue
         env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
         if isinstance(env_cfg, ManagerBasedEnvCfg):
-            assert string_to_callable(str(env_cfg.class_type)) is string_to_callable(task_spec.entry_point), task_id
+            assert task_spec.entry_point == _MANAGER_BASED_ENTRY_POINT, task_id
 
 
 def test_physx_and_isaacsim_physx_presets_conflict():

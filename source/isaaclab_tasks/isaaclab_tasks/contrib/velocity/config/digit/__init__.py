@@ -12,7 +12,7 @@ from . import agents
 ##
 gym.register(
     id="IsaacContrib-Velocity-Flat-Digit",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.flat_env_cfg:DigitFlatEnvCfg",
@@ -23,7 +23,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Velocity-Rough-Digit",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.rough_env_cfg:DigitRoughEnvCfg",

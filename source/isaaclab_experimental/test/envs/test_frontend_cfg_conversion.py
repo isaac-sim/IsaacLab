@@ -35,9 +35,9 @@ from isaaclab_newton.physics import NewtonCfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
-# Stable manager-based tasks resolve to this env class; direct tasks provide their own and
+# Stable manager-based tasks resolve through this config-owned factory; direct tasks provide their own class and
 # take the :meth:`WarpFrontend._resolve_direct_warp_class` path instead of cfg adaptation.
-_STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:ManagerBasedRLEnv"
+_STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:make_manager_based_env"
 
 # Stable task ids that adapt cleanly under ``--frontend warp``, as produced by
 # :func:`_sweep_warp_support`. Do not curate this by hand: when the test fails it prints the

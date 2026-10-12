@@ -31,6 +31,7 @@ def test_custom_coupling_is_opt_in() -> None:
 
         assert custom_id in gym.registry
         spec = gym.spec(custom_id)
+        assert spec.entry_point == "isaaclab.envs:make_manager_based_env"
         assert spec.kwargs["env_cfg_entry_point"] == (
             "isaaclab_contrib.custom_coupling.franka_soft_env_cfg:FrankaSoftCustomCouplingEnvCfg"
         )

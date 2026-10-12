@@ -11,7 +11,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-UR10-Particle-Push",
-    entry_point=f"{__name__}.ur10_particle_push_env:UR10ParticlePushEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ur10_particle_push_env_cfg:UR10ParticlePushEnvCfg",

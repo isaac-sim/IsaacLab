@@ -14,7 +14,7 @@ import gymnasium as gym
 
 gym.register(
     id="IsaacContrib-Stack-Cube-SO101-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_joint_pos_env_cfg:SO101CubeStackEnvCfg",
     },
@@ -27,7 +27,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-SO101-IK-Abs-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_abs_env_cfg:SO101CubeStackEnvCfg",
     },
@@ -40,7 +40,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_joint_teleop_env_cfg:SO101CubeStackEnvCfg",
     },

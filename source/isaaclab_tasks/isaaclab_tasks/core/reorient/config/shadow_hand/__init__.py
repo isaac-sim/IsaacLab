@@ -28,7 +28,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Reorient-Cube-Shadow",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_manager_env_cfg:ShadowHandManagerEnvPresetCfg",
@@ -57,7 +57,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Reorient-Cube-Shadow-Camera",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.shadow_hand_camera_manager_env_cfg:ShadowHandCameraManagerEnvCfg",

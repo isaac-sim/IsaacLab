@@ -93,10 +93,11 @@ For instance, for legged locomotion with ANYmal C on flat terrain, the environme
 variations of the same environment. Otherwise, the names of the environments can become too long
 and difficult to read.
 
-The ``entry_point`` argument is the entry point to the environment class. The entry point is a string
-of the form ``<module>:<class>``. In the case of the cartpole environment, the entry point is
-``isaaclab.envs:ManagerBasedRLEnv``. The entry point is used to import the environment class
-when creating the environment instance.
+The ``entry_point`` argument names the callable that creates the environment. The entry point is a string
+of the form ``<module>:<callable>``. Manager-based tasks use
+``isaaclab.envs:make_manager_based_env``, which constructs the implementation named by the environment
+configuration's :attr:`~isaaclab.envs.ManagerBasedEnvCfg.class_type`. Keeping the implementation on the
+configuration lets custom manager-based environments use the same registration entry point.
 
 The ``env_cfg_entry_point`` argument specifies the default configuration for the environment. The default
 configuration is loaded using the :meth:`isaaclab_tasks.utils.parse_env_cfg` function.

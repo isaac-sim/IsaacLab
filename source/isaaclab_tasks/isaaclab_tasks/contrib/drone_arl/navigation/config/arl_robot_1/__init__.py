@@ -13,7 +13,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-Navigation-3DObstacles-ARL-Robot-1",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.floating_obstacles_env_cfg:FloatingObstacleEnvCfg",

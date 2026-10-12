@@ -16,7 +16,7 @@ from isaaclab_tasks.contrib.lift.config.franka import agents
 
 gym.register(
     id="IsaacContrib-Lift-Cube-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCubeLiftEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubePPORunnerCfg",
@@ -33,7 +33,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Lift-Cube-Franka-IK-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaCubeLiftEnvCfg",
     },
@@ -46,7 +46,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Lift-Cube-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCubeLiftEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc.json",

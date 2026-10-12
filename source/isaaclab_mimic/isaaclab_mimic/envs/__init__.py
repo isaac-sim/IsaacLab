@@ -15,7 +15,7 @@ import isaaclab_tasks  # noqa: F401 -- ensures base gym registrations exist befo
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0",
-    entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_stack_ik_rel_mimic_env_cfg:FrankaCubeStackIKRelMimicEnvCfg",
     },
@@ -24,7 +24,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-Mimic-v0",
-    entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.franka_stack_ik_rel_blueprint_mimic_env_cfg:FrankaCubeStackIKRelBlueprintMimicEnvCfg"
@@ -35,7 +35,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Abs-Mimic-v0",
-    entry_point=f"{__name__}.franka_stack_ik_abs_mimic_env:FrankaCubeStackIKAbsMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_stack_ik_abs_mimic_env_cfg:FrankaCubeStackIKAbsMimicEnvCfg",
     },
@@ -44,7 +44,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0",
-    entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.franka_stack_ik_rel_visuomotor_mimic_env_cfg:FrankaCubeStackIKRelVisuomotorMimicEnvCfg"
@@ -55,7 +55,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0",
-    entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_stack_ik_rel_visuomotor_cosmos_mimic_env_cfg:FrankaCubeStackIKRelVisuomotorCosmosMimicEnvCfg",
     },
@@ -69,7 +69,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
-    entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_stack_ik_rel_skillgen_env_cfg:FrankaCubeStackIKRelSkillgenEnvCfg",
     },
@@ -78,7 +78,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
-    entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_bin_stack_ik_rel_mimic_env_cfg:FrankaBinStackIKRelMimicEnvCfg",
     },
@@ -91,7 +91,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-Rel-Mimic-v0",
-    entry_point=f"{__name__}.galbot_stack_rmp_rel_mimic_env:RmpFlowGalbotCubeStackRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.galbot_stack_rmp_rel_mimic_env_cfg:RmpFlowGalbotLeftArmGripperCubeStackRelMimicEnvCfg"
@@ -102,7 +102,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-Rel-Mimic-v0",
-    entry_point=f"{__name__}.galbot_stack_rmp_rel_mimic_env:RmpFlowGalbotCubeStackRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.galbot_stack_rmp_rel_mimic_env_cfg:RmpFlowGalbotRightArmSuctionCubeStackRelMimicEnvCfg"
@@ -117,7 +117,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-Abs-Mimic-v0",
-    entry_point=f"{__name__}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.galbot_stack_rmp_abs_mimic_env_cfg:RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg"
@@ -128,7 +128,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-Abs-Mimic-v0",
-    entry_point=f"{__name__}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.galbot_stack_rmp_abs_mimic_env_cfg:RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg"
@@ -142,7 +142,7 @@ gym.register(
 ##
 gym.register(
     id="Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-Rel-Mimic-v0",
-    entry_point=f"{__name__}.pick_place_mimic_env:PickPlaceRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.agibot_place_upright_mug_mimic_env_cfg:RmpFlowAgibotPlaceUprightMugMimicEnvCfg"
@@ -155,7 +155,7 @@ gym.register(
 ##
 gym.register(
     id="Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-Rel-Mimic-v0",
-    entry_point=f"{__name__}.pick_place_mimic_env:PickPlaceRelMimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.agibot_place_toy2box_mimic_env_cfg:RmpFlowAgibotPlaceToy2BoxMimicEnvCfg",
     },
@@ -168,7 +168,7 @@ gym.register(
 
 gym.register(
     id="Isaac-PickPlace-GR1T2-Abs-Mimic-v0",
-    entry_point=f"{__name__}.pickplace_gr1t2_mimic_env:PickPlaceGR1T2MimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.pickplace_gr1t2_mimic_env_cfg:PickPlaceGR1T2MimicEnvCfg",
     },
@@ -177,7 +177,7 @@ gym.register(
 
 gym.register(
     id="Isaac-PickPlace-GR1T2-WaistEnabled-Abs-Mimic-v0",
-    entry_point=f"{__name__}.pickplace_gr1t2_mimic_env:PickPlaceGR1T2MimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.pickplace_gr1t2_waist_enabled_mimic_env_cfg:PickPlaceGR1T2WaistEnabledMimicEnvCfg"
@@ -188,14 +188,14 @@ gym.register(
 
 gym.register(
     id="Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0",
-    entry_point=f"{__name__}.pickplace_gr1t2_mimic_env:PickPlaceGR1T2MimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={"env_cfg_entry_point": f"{__name__}.nutpour_gr1t2_mimic_env_cfg:NutPourGR1T2MimicEnvCfg"},
     disable_env_checker=True,
 )
 
 gym.register(
     id="Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-Mimic-v0",
-    entry_point=f"{__name__}.pickplace_gr1t2_mimic_env:PickPlaceGR1T2MimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={"env_cfg_entry_point": f"{__name__}.exhaustpipe_gr1t2_mimic_env_cfg:ExhaustPipeGR1T2MimicEnvCfg"},
     disable_env_checker=True,
 )
@@ -206,7 +206,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Locomanipulation-G1-Abs-Mimic-v0",
-    entry_point=f"{__name__}.locomanipulation_g1_mimic_env:LocomanipulationG1MimicEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={"env_cfg_entry_point": f"{__name__}.locomanipulation_g1_mimic_env_cfg:LocomanipulationG1MimicEnvCfg"},
     disable_env_checker=True,
 )

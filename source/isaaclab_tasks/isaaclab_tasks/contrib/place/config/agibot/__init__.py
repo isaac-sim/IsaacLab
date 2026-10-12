@@ -14,7 +14,7 @@ import gymnasium as gym
 ##
 gym.register(
     id="IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.place_toy2box_rmp_rel_env_cfg:RmpFlowAgibotPlaceToy2BoxEnvCfg",
     },
@@ -26,7 +26,7 @@ gym.register(
 ##
 gym.register(
     id="IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.place_upright_mug_rmp_rel_env_cfg:RmpFlowAgibotPlaceUprightMugEnvCfg",
     },

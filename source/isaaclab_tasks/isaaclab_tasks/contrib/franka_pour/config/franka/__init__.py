@@ -11,7 +11,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-Franka-Pour",
-    entry_point="isaaclab_tasks.contrib.franka_pour.pour_env:FrankaPourEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": "isaaclab_tasks.contrib.franka_pour.pour_env_cfg:FrankaPourResetDatasetEnvCfg",

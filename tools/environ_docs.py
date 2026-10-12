@@ -575,7 +575,9 @@ def _render_grid_row(cells: list[list[str]], widths: list[int], indent: str) -> 
 
 def get_workflow(entry_point: str | Callable[..., object]) -> str:
     """Return the human-readable workflow label for a Gym entry point."""
-    if isinstance(entry_point, str) and "ManagerBasedRLEnv" in entry_point:
+    if isinstance(entry_point, str) and (
+        "ManagerBasedRLEnv" in entry_point or entry_point == "isaaclab.envs:make_manager_based_env"
+    ):
         return "Manager Based"
 
     env_creator = entry_point

@@ -18,6 +18,33 @@ from isaaclab.envs import ManagerBasedRLEnv
 pytestmark = pytest.mark.unit
 
 
+class _ConfiguredEnv(ManagerBasedRLEnv):
+    def __init__(self, cfg, marker):
+        self.cfg = cfg
+        self.marker = marker
+
+
+def test_make_manager_based_env_constructs_configured_class():
+    """The shared Gym entry point delegates construction and arguments to ``cfg.class_type``."""
+    task_id = "Isaac-Test-ManagerBased-Factory-v0"
+    gym.register(
+        id=task_id,
+        entry_point="isaaclab.envs:make_manager_based_env",
+        disable_env_checker=True,
+        order_enforce=False,
+    )
+    cfg = SimpleNamespace(class_type=_ConfiguredEnv)
+
+    try:
+        env = gym.make(task_id, cfg=cfg, marker="configured")
+    finally:
+        del gym.registry[task_id]
+
+    assert isinstance(env, _ConfiguredEnv)
+    assert env.cfg is cfg
+    assert env.marker == "configured"
+
+
 def _make_env_with_policy_obs_terms(
     num_envs: int,
     terms: list[tuple[str, tuple[int, ...], tuple[float, float] | None]],

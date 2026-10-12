@@ -15,7 +15,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Fourbar-Pole-Swingup",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.fourbar_pole_manager_env_cfg:FourbarPoleSwingupEnvCfg",

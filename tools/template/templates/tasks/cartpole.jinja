@@ -430,6 +430,9 @@ class TerminationsCfg:
 class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cart-pole environment."""
 
+{% if task.amp_selected %}
+    class_type: type | str = "{DIR}.{{ task.env_filename }}:{{ task.classname }}Env"
+{% endif %}
     # Scene settings
     scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=4096, env_spacing=4.0)
     # Basic settings

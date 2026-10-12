@@ -16,7 +16,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_joint_pos_env_cfg:FrankaCubeStackEnvCfg",
     },
@@ -25,7 +25,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.stack_joint_pos_instance_randomize_env_cfg:FrankaCubeStackInstanceRandomizeEnvCfg"
@@ -41,7 +41,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -51,7 +51,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_visuomotor_env_cfg:FrankaCubeStackVisuomotorEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
@@ -61,7 +61,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.stack_ik_rel_visuomotor_cosmos_env_cfg:FrankaCubeStackVisuomotorCosmosEnvCfg"
@@ -73,7 +73,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackRedGreenEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -83,7 +83,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackRedGreenBlueEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -94,7 +94,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackBlueGreenEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -104,7 +104,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackBlueGreenRedEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -114,7 +114,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_abs_env_cfg:FrankaCubeStackEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -124,7 +124,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": (
             f"{__name__}.stack_ik_rel_instance_randomize_env_cfg:FrankaCubeStackInstanceRandomizeEnvCfg"
@@ -135,7 +135,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_blueprint_env_cfg:FrankaCubeStackBlueprintEnvCfg",
     },
@@ -144,7 +144,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg_skillgen:FrankaCubeStackSkillgenEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -154,7 +154,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.bin_stack_ik_rel_env_cfg:FrankaBinStackEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",

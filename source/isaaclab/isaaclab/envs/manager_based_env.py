@@ -18,7 +18,7 @@ from ..managers import ActionManager, EventManager, ObservationManager, Recorder
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
-from ..utils import validate
+from ..utils import instantiate, validate
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
@@ -31,6 +31,24 @@ from .utils.io_descriptors import (
 from .utils.video_recorder import VideoRecorder
 
 logger = logging.getLogger(__name__)
+
+
+def make_manager_based_env(cfg: ManagerBasedEnvCfg, *args: Any, **kwargs: Any) -> ManagerBasedEnv:
+    """Construct the manager-based environment selected by a configuration.
+
+    Use this function as the Gymnasium entry point for manager-based tasks so
+    :attr:`ManagerBasedEnvCfg.class_type` remains the single owner of the
+    environment implementation.
+
+    Args:
+        cfg: Environment configuration that selects the implementation class.
+        *args: Additional positional arguments forwarded to the environment constructor.
+        **kwargs: Additional keyword arguments forwarded to the environment constructor.
+
+    Returns:
+        The configured manager-based environment.
+    """
+    return instantiate(cfg, *args, **kwargs)
 
 
 class ManagerBasedEnv:

@@ -13,7 +13,7 @@ import gymnasium as gym
 
 gym.register(
     id="IsaacContrib-Lift-Soft-Franka-Custom-Coupling",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__package__}.franka_soft_env_cfg:FrankaSoftCustomCouplingEnvCfg",

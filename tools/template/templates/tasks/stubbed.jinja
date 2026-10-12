@@ -162,6 +162,9 @@ class TerminationsCfg:
 class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
     """Configure the manager-based task."""
 
+{% if task.amp_selected %}
+    class_type: type | str = "{DIR}.{{ task.env_filename }}:{{ task.classname }}Env"
+{% endif %}
     sim: SimulationCfg = SimulationCfg()
     scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=1, env_spacing=4.0)
     actions: ActionsCfg = ActionsCfg()

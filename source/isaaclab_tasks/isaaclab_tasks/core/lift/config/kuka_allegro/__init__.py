@@ -18,7 +18,7 @@ from .agents.rsl_rl_ppo_cfg import KukaAllegroDuoCameraPPORunnerCfg, KukaAllegro
 
 gym.register(
     id="Isaac-Reorient-KukaAllegro",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_env_cfg:KukaAllegroReorientEnvCfg",
@@ -29,7 +29,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-KukaAllegro",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_env_cfg:KukaAllegroLiftEnvCfg",
@@ -44,7 +44,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Reorient-KukaAllegro-Camera",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroReorientCameraEnvCfg",
@@ -59,7 +59,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-KukaAllegro-Camera",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kuka_allegro_camera_env_cfg:KukaAllegroLiftCameraEnvCfg",

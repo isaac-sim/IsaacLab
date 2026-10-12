@@ -17,7 +17,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-Open-Drawer-Franka-IK-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaCabinetEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCabinetIKAbsPPORunnerCfg",
@@ -31,7 +31,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-Open-Drawer-Franka-IK-Rel",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCabinetEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCabinetIKRelPPORunnerCfg",

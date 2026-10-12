@@ -82,17 +82,12 @@ def test_get_workflow_detects_custom_manager_based_subclass():
     assert get_workflow(CustomManagerBasedEnv) == "Manager Based"
 
 
-def test_collect_environment_doc_rows_detects_custom_manager_based_subclasses():
+def test_collect_environment_doc_rows_detects_manager_based_factory():
     specs = [
         EnvSpec(
             id="IsaacContrib-Franka-Pour",
-            entry_point="isaaclab_tasks.contrib.franka_pour.pour_env:FrankaPourEnv",
+            entry_point="isaaclab.envs:make_manager_based_env",
             kwargs={"env_cfg_entry_point": "cfg:FrankaPourResetDatasetEnvCfg"},
-        ),
-        EnvSpec(
-            id="IsaacContrib-UR10-Particle-Push",
-            entry_point="isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env:UR10ParticlePushEnv",
-            kwargs={"env_cfg_entry_point": "cfg:UR10ParticlePushEnvCfg"},
         ),
     ]
 
@@ -324,12 +319,12 @@ def test_collect_environment_doc_rows_excludes_deprecated_task_aliases():
     specs = [
         EnvSpec(
             id="Isaac-Example",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            entry_point="isaaclab.envs:make_manager_based_env",
             kwargs={"env_cfg_entry_point": "cfg:ExampleEnvCfg"},
         ),
         EnvSpec(
             id="Isaac-Example-v0",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            entry_point="isaaclab.envs:make_manager_based_env",
             kwargs={
                 "env_cfg_entry_point": "cfg:ExampleEnvCfg",
                 "deprecated": {"alias": "--task Isaac-Example"},
@@ -346,7 +341,7 @@ def test_collect_environment_doc_rows_applies_rlinf_override():
     specs = [
         EnvSpec(
             id="IsaacContrib-Assemble-Trocar-G129-Dex3",
-            entry_point="isaaclab.envs:ManagerBasedRLEnv",
+            entry_point="isaaclab.envs:make_manager_based_env",
             kwargs={"env_cfg_entry_point": "cfg:G1AssembleTrocarEnvCfg"},
         ),
     ]
@@ -552,7 +547,7 @@ def test_render_comprehensive_list_table_includes_header():
                 [
                     EnvSpec(
                         id="Isaac-Cartpole",
-                        entry_point="isaaclab.envs:ManagerBasedRLEnv",
+                        entry_point="isaaclab.envs:make_manager_based_env",
                         kwargs={
                             "env_cfg_entry_point": "cfg:CartpoleEnvCfg",
                             "rsl_rl_cfg_entry_point": "agents.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",

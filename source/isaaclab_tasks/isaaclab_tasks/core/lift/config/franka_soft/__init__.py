@@ -15,7 +15,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Lift-Soft-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_soft_env_cfg:FrankaSoftEnvCfg",
@@ -26,7 +26,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-Cloth-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cloth_env_cfg:FrankaClothEnvCfg",
@@ -37,7 +37,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-Cable-Franka",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cable_env_cfg:FrankaCableEnvCfg",
@@ -48,7 +48,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-Cable-Franka-Camera",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cable_env_cfg:FrankaCableCameraEnvCfg",
@@ -59,7 +59,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-Soft-Franka-Camera",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_soft_env_cfg:FrankaSoftCameraEnvCfg",
@@ -70,7 +70,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Lift-Cloth-Franka-Camera",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_cloth_env_cfg:FrankaClothCameraEnvCfg",

@@ -15,7 +15,7 @@ import gymnasium as gym
 
 gym.register(
     id="IsaacContrib-Reach-Franka-IK-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaReachEnvCfg",
         "deprecated": {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"},

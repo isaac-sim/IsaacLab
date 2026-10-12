@@ -12,7 +12,7 @@ from . import agents
 
 gym.register(
     id="IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.locomanipulation_g1_env_cfg:LocomanipulationG1EnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
@@ -22,7 +22,7 @@ gym.register(
 
 gym.register(
     id="IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point="isaaclab.envs:make_manager_based_env",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.fixed_base_upper_body_ik_g1_env_cfg:FixedBaseUpperBodyIKG1EnvCfg",
     },

@@ -195,7 +195,10 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         env_filename = "env" if external else f"{task_folder}_env"
         env_cfg_filename = "env_cfg" if external else f"{task_folder}_env_cfg"
 
-        assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
+        if workflow_name == "manager-based":
+            assert spec.entry_point == "isaaclab.envs:make_manager_based_env"
+        else:
+            assert spec.entry_point == f"{module_name}.{env_filename}:{task_class}Env"
 
         assert spec.kwargs["env_cfg_entry_point"] == f"{module_name}.{env_cfg_filename}:{task_class}EnvCfg"
         assert spec.kwargs["rl_games_cfg_entry_point"] == f"{agents_module}:rl_games_ppo_cfg.yaml"
@@ -212,6 +215,7 @@ def test_generator_registers_single_agent_rl_config_entry_points_for_all_librari
         if workflow_name == "manager-based":
             env_source = (task_dir / f"{env_filename}.py").read_text()
             env_cfg_source = (task_dir / f"{env_cfg_filename}.py").read_text()
+            assert f'class_type: type | str = "{{DIR}}.{env_filename}:{task_class}Env"' in env_cfg_source
             assert "self.amp_observation_space = spaces.Box" in env_source
             assert "def collect_reference_motions(" in env_source
             assert "compute_final_obs = True" in env_cfg_source
