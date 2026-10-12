@@ -191,8 +191,10 @@ capture-stable storage:
 
 * a ``"fixed"`` grid with a positive ``max_active_cell_count``; or
 * a ``"sparse"`` grid with a positive ``max_active_cell_count``,
-  ``grid_padding=0``, the ``"Q1"`` velocity basis, and supported strain and
-  collider bases.
+  ``grid_padding=0``, and the ``"Q1"`` velocity basis. The strain basis must
+  start with ``"pic"`` or be one of ``"P0"``, ``"P1d"``, ``"Q1d"``, or
+  ``"Q1"``. The collider basis must start with ``"pic"`` or be one of
+  ``"Q1"``, ``"S2"``, or ``"S3"``.
 
 Dense grids and unbounded grids run without capture.
 
@@ -379,15 +381,5 @@ callback or particle override is required:
 Limitations
 -----------
 
-* MPM support and rigid--MPM coupling are experimental, and their APIs may
-  change.
-* The MPM solver does not simulate rigid-body or articulation dynamics. Use a
-  coupler for two-way interaction with rigid bodies.
 * Coupled MPM entries must step in place and do not support
   ``project_outside_colliders``.
-* :class:`~isaaclab_newton.assets.MPMObject` does not support deformable
-  kinematic targets.
-* Solver history cannot be reset for a subset of worlds that share a grid.
-* CUDA graph capture requires the capture-stable grid settings above.
-* Surface reconstruction is a visualization pass, available in the Newton GL
-  and Newton RTX visualizers only.

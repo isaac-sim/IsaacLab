@@ -280,6 +280,6 @@ PhysX-specific and shared components
 Kit-hosted rendering, such as the
 :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg` renderer, also ships in
 ``isaaclab_physx`` because it requires Kit. Renderer selection is
-configured separately from the physics backend, but the kitless OVRTX renderer
+configured separately from the physics backend, but the kit-less OVRTX renderer
 cannot share a process with Isaac Sim PhysX. See :ref:`backend-architecture` for the
 factory and registry design that all backends share.

@@ -322,8 +322,8 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 
 .. _joint-and-body-ordering:
 
-Implementation detail: joint and body ordering
-----------------------------------------------
+Joint and body ordering
+-----------------------
 
 PhysX and MJWarp may order an articulation's joints and bodies differently. Set
 ``joint_ordering`` and ``body_ordering`` to keep names mapped to the same tensor elements
@@ -331,7 +331,7 @@ across backends. This section explains the supported conventions, conversion cos
 backend-view access. For backend selection and capabilities, see :ref:`physics-backends`.
 
 
-Why Articulation Orders Differ
+Why articulation orders differ
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Three facts explain why a checkpoint can need an ordering convention even when
@@ -350,7 +350,7 @@ native view is created. The
 ordering selection controls how the high-level API presents that view.
 
 
-Public and Backend Order
+Public and backend order
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 Set ``joint_ordering`` and ``body_ordering`` on
@@ -421,7 +421,7 @@ a non-``None`` ordering map always denotes an actual permutation.
     with ``backend_body_names``). Cross-backend conventions are resolved by
     emulation, so spot-check the result against the order your checkpoint expects.
 
-High-Level MDP Terms
+High-level MDP terms
 ^^^^^^^^^^^^^^^^^^^^
 
 Standard MDP terms that consume high-level articulation data use public
@@ -436,7 +436,7 @@ backend shape ranges. Custom or backend-specific MDP code that accesses
 indices and tensors.
 
 
-Conversion Cost
+Conversion cost
 ~~~~~~~~~~~~~~~
 
 Convention resolution and map construction are one-time initialization
@@ -457,7 +457,7 @@ specific task and access pattern; there is no hardware-independent
 steps-per-second number or fixed percentage overhead.
 
 
-Direct Backend-View Access
+Direct backend-view access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. warning::
@@ -479,7 +479,7 @@ with :meth:`~isaaclab.assets.Articulation.map_joint_ids_to_backend` or
 indexing the ordering maps by hand; both return the input unchanged under
 identity ordering.
 
-Torch Conversion
+Torch conversion
 ^^^^^^^^^^^^^^^^
 
 To gather a backend-order joint tensor into public order, enumerate public
@@ -509,7 +509,7 @@ Use ``robot.body_ordering`` in the same way for body-indexed axes. Keep the
 ``None`` guard because it avoids an unnecessary gather and means no map object
 exists.
 
-Warp Conversion
+Warp conversion
 ^^^^^^^^^^^^^^^
 
 The elementwise reorder kernels in
@@ -568,7 +568,7 @@ authoritative body-axis convention. High-level articulation data performs
 these conversions automatically.
 
 
-What Ordering Does Not Solve
+What ordering does not solve
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Ordering compatibility keeps names attached to the same vector elements;
@@ -587,7 +587,7 @@ Use :ref:`solver-differences` to diagnose and tune these
 differences rather than treating them as ordering failures.
 
 
-Verification and Troubleshooting
+Verification and troubleshooting
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When a transferred policy behaves unexpectedly, check these items in
