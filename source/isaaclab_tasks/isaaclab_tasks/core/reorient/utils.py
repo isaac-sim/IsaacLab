@@ -25,8 +25,11 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
 
-VISUALIZER_CFG = VisualizerCfg(eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0)
-"""Recording view of the hand and cube at the world origin, where the default grid places an environment."""
+VISUALIZER_CFG = VisualizerCfg(eye=(0.995, -0.80, 0.85), lookat=(0.375, -0.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the 50-environment play grid."""
+
+CAMERA_VISUALIZER_CFG = VisualizerCfg(eye=(1.62, -1.80, 0.85), lookat=(1.0, -1.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the camera tasks' 64-environment play grid."""
 
 
 class EpisodeErrorRecorder:

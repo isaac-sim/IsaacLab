@@ -16,6 +16,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
+from ...utils import CAMERA_VISUALIZER_CFG
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_env_cfg import (
     ShadowHandEnvCfg,
@@ -197,6 +198,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
         # scene
         self.scene.num_envs = 64
+        self.sim.default_visualizer_cfg = CAMERA_VISUALIZER_CFG
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

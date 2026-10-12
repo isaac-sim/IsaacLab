@@ -17,6 +17,7 @@ from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES
 
 from ... import mdp
 from ...reorient_manager_env_cfg import ReorientFullStateObsCfg, ReorientRobotObsCfg
+from ...utils import CAMERA_VISUALIZER_CFG
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_camera_env_cfg import (
     ShadowHandTiledCameraCfg,
@@ -127,6 +128,7 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
         super().play_mode()
         # the tiled camera needs more environments than the shared play default
         self.scene.num_envs = 64
+        self.sim.default_visualizer_cfg = CAMERA_VISUALIZER_CFG
         # mutate rather than replace: subclasses may have disabled the CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True
