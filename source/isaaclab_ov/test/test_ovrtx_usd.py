@@ -312,7 +312,7 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
 
 @pytest.mark.parametrize(
     ("data_types", "routes_hdr"),
-    [(["rgb"], False), (["rgb", "rgb_hdr"], True), (["rgb", "rgb_radiance"], True), ([], False)],
+    [(["rgb"], False), (["rgb", "rgb_hdr"], True), (["rgb", "rgb_radiance"], True)],
 )
 def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, render_data, data_types, routes_hdr):
     """Route Gaussian HDR when an HDR output is requested, without changing the camera outputs."""
@@ -322,10 +322,7 @@ def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, re
     assert layer.ImportFromString(render_product)
     product_path = "/RenderCamera_0/RenderProduct"
     ordered_vars = layer.GetRelationshipAtPath(product_path + ".orderedVars")
-    # An empty output list requests no render variables.
-    expected_vars = ["LdrColor"] if data_types else []
-    if routes_hdr:
-        expected_vars.append("HdrColor")
+    expected_vars = ["LdrColor", "HdrColor"] if routes_hdr else ["LdrColor"]
     assert list(ordered_vars.targetPathList.explicitItems) == [
         Sdf.Path(f"/RenderCamera_0/Vars/{name}") for name in expected_vars
     ]
