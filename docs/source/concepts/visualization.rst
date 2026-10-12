@@ -814,10 +814,10 @@ For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
-``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
-lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
-color directly, or set the field to ``None`` to preserve the backend's native background:
+Kit uses the solid sky-blue background from ``VisualizerCfg.background_color`` by default. The
+Newton visualizers override that default with ``None`` so Newton GL preserves its procedural sky
+and Newton RTX preserves its native background. Set an explicit normalized RGB color to override
+the visible background; scene lights continue to illuminate objects and contribute reflections:
 
 .. code-block:: python
 

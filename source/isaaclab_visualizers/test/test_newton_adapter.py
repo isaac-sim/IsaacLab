@@ -1049,8 +1049,12 @@ def test_ensure_mesh_registered_handles_none_normals_and_uvs(monkeypatch):
 
 
 def test_newton_visualizer_cfg_distinct_types():
-    assert NewtonGLVisualizerCfg().visualizer_type == "newton_gl"
-    assert NewtonRTXVisualizerCfg().visualizer_type == "newton_rtx"
+    gl_cfg = NewtonGLVisualizerCfg()
+    rtx_cfg = NewtonRTXVisualizerCfg()
+    assert gl_cfg.visualizer_type == "newton_gl"
+    assert rtx_cfg.visualizer_type == "newton_rtx"
+    assert gl_cfg.background_color is None
+    assert rtx_cfg.background_color is None
     # Public viewer options are accepted as cfg fields.
     NewtonGLVisualizerCfg(enable_picking=False, show_particles=True, particle_color=(0.1, 0.2, 0.3))
 

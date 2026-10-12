@@ -40,6 +40,12 @@ class NewtonVisualizerCfg(VisualizerCfg):
     streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
     """Renderer configuration for the auto-created streaming camera."""
 
+    background_color: tuple[float, float, float] | None = None
+    """Solid background color as normalized RGB values in ``[0, 1]``.
+
+    ``None`` preserves Newton GL's procedural sky or Newton RTX's native background.
+    """
+
     def __post_init__(self) -> None:
         super().__post_init__()
         if type(self) is NewtonVisualizerCfg:
