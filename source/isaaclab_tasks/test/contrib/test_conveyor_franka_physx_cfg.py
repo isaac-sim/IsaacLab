@@ -6,6 +6,7 @@
 """Native PhysX conveyor device and authored geometry contracts."""
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxSDFMeshCfg
 
 from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
 
@@ -38,8 +39,9 @@ def test_physx_preserves_cpu_policy_and_pivot_conventions():
             assert next(
                 props for props in spawn.rigid_props if isinstance(props, UsdPhysicsRigidBodyCfg)
             ).kinematic_enabled
-        assert (
-            getattr(cfg.scene, f"conveyor_{side.lower()}_right_turn_collision").spawn.collision_approximation == "sdf"
+        assert isinstance(
+            getattr(cfg.scene, f"conveyor_{side.lower()}_right_turn_collision").spawn.mesh_collision_props,
+            PhysxSDFMeshCfg,
         )
     cfg.sim.device = "cuda:0"
     with pytest.raises(ValueError, match="CPU-only.*--device cpu"):

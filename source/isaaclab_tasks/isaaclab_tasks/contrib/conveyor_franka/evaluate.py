@@ -95,11 +95,11 @@ def main() -> None:
             "nonfinite_observations": nonfinite_observations,
             "transfers_per_environment_minute": float(transfers.sum()) * 60.0 / seconds,
         }
-    report = json.dumps(result, indent=2)
-    print(report)
-    if args.output is not None:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(report + "\n")
+        report = json.dumps(result, indent=2)
+        print(report, flush=True)
+        if args.output is not None:
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(report + "\n")
 
 
 if __name__ == "__main__":
