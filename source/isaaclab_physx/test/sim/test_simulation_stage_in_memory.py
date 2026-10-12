@@ -64,7 +64,7 @@ def test_stage_in_memory_with_shapes(sim):
                     radius=0.3,
                     height=0.6,
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0)),
-                    physics_material=sim_utils.RigidBodyMaterialCfg(
+                    physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
                         friction_combine_mode="multiply",
                         restitution_combine_mode="multiply",
                         static_friction=1.0,
@@ -86,7 +86,7 @@ def test_stage_in_memory_with_shapes(sim):
                         project_uvw=True,
                         texture_scale=(0.25, 0.25),
                     ),
-                    physics_material=sim_utils.RigidBodyMaterialCfg(
+                    physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
                         friction_combine_mode="multiply",
                         restitution_combine_mode="multiply",
                         static_friction=1.0,

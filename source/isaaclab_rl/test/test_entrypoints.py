@@ -238,7 +238,7 @@ def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: py
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer is None
+    assert args.visualizer == []
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 

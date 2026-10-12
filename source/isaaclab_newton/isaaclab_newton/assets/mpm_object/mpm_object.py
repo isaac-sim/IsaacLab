@@ -14,7 +14,6 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -52,10 +51,6 @@ class MPMObject(BaseDeformableObject):
         **BaseDeformableObject._DTYPE_TO_TORCH_TRAILING_DIMS,
         vec6f: (6,),
     }
-
-    def __init__(self, cfg: MPMObjectCfg):
-        super().__init__(cfg)
-        self._physics_ready_handle = None
 
     @property
     def data(self) -> MPMObjectData:
@@ -252,12 +247,6 @@ class MPMObject(BaseDeformableObject):
         self._create_buffers()
         self.update(0.0)
 
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"mpm_object_rebind_{self.cfg.prim_path}",
-        )
-
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self._num_instances, dtype=np.int32), device=self.device)
         self._ALL_ENV_MASK = wp.ones((self._num_instances,), dtype=wp.bool, device=self.device)
@@ -337,9 +326,3 @@ class MPMObject(BaseDeformableObject):
 
     def _debug_vis_callback(self, event):
         raise NotImplementedError("Debug visualization is not implemented for MPMObject.")
-
-    def _clear_callbacks(self) -> None:
-        super()._clear_callbacks()
-        if self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None

@@ -902,15 +902,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._default_body_vel = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
 
         # Initialize ProxyArray wrappers.
-        self._pin_proxy_arrays()
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create pinned :class:`ProxyArray` wrappers for all data buffers.
-
-        This is called once from :meth:`_create_buffers` during initialization.
-        OVPhysX tensor API buffers have stable GPU pointers across simulation steps,
-        so no rebinding is needed (unlike Newton).
-        """
         # Defaults
         self._default_body_pose_ta: ProxyArray | None = None
         self._default_body_vel_ta: ProxyArray | None = None
