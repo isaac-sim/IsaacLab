@@ -278,13 +278,20 @@ class SharedEvent:
         self._hold.release()
 
 
+_KEPT: list[ExitStack] = []
+"""Buffers and events kept until this process exits because the other process may still have them open."""
+
+
 class SharedChannel:
     """The buffers and events of one camera session: controls in, generated images out.
 
     Each process creates the buffer it writes and the event it records on its own GPU: the camera creates
-    ``control`` and ``control_ready``, the service ``output`` and ``output_ready``. CUDA records an event only on the
-    device that created it, so this split also lets the two processes use different GPUs. Each process maps the
-    other's buffer on the GPU that holds it and imports the other's event on its own GPU, whose stream waits for it.
+    ``control`` and ``control_ready``, the service ``output`` and ``output_ready``. Neither process writes memory the
+    other can free. CUDA leaves freeing memory that another process still has open undefined, so each process
+    releases the other's buffer first and frees its own only after the other confirms it released it. CUDA records
+    an event only on the device that created it, so this split also lets the two processes use different GPUs. Each
+    process maps the other's buffer on the GPU that holds it and imports the other's event on its own GPU, whose
+    stream waits for it.
     """
 
     def __init__(self, device: torch.device, shape: tuple[int, ...], writes: str):
@@ -348,12 +355,20 @@ class SharedChannel:
         """Release the other process's buffer and event before that process frees them. Repeated calls are safe."""
         self._opened.close()
 
-    def close(self) -> None:
-        """Release every buffer and event, the other process's first. Repeated calls are safe."""
+    def close(self, *, peer_released: bool = True) -> None:
+        """Release the other process's buffer and event, then free this process's own. Repeated calls are safe.
+
+        Args:
+            peer_released: Whether the other process confirmed it released this process's buffer and event, or
+                never received their handles. Otherwise they stay allocated until this process exits.
+        """
         try:
             self._opened.close()
         finally:
-            self._created.close()
+            if peer_released:
+                self._created.close()
+            else:
+                _KEPT.append(self._created.pop_all())
 
     def _assign(self, name: str, buffer: SharedBuffer, event: SharedEvent) -> None:
         if name == "control":

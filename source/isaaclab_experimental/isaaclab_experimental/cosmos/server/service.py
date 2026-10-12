@@ -138,8 +138,14 @@ def _bind_private_unix_socket(listener: socket.socket, path: str) -> None:
             probe.settimeout(1.0)
             try:
                 probe.connect(path)
-            except OSError:
+            except ConnectionRefusedError:
+                # Nothing listens on the file: a stopped service left it behind.
                 os.unlink(path)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                # A busy or inaccessible service can still be running; replacing its file would strand it.
+                raise RuntimeError(f"Cannot tell whether a Cosmos service is running at unix://{path}.") from error
             else:
                 raise RuntimeError(f"A Cosmos service is already running at unix://{path}.")
     # The process umask applies to the socket file; owner-only from the start leaves no window for other users.
@@ -221,6 +227,7 @@ def _handle_connection(
     token = object()
     stream: _Stream | None = None
     channel = None
+    camera_released = False
     image_shape: tuple[int, int, int] | None = None
     num_views = 0
     try:
@@ -328,7 +335,14 @@ def _handle_connection(
                 break
             else:
                 raise ProtocolError("Unknown Cosmos operation; expected status, open, step, close, or shutdown.")
-    except (ConnectionError, TimeoutError, OSError):
+    except ConnectionError:
+        # The camera disconnected. It releases the output buffer first, and a process's mappings end with it.
+        camera_released = True
+    except TimeoutError:
+        # An idle camera learns at its next request that the session ended, while it still has its buffers open.
+        with suppress(OSError):
+            send_message(connection, {"ok": False, "error": "The Cosmos session was idle too long and closed."})
+    except OSError:
         pass
     except Exception as exc:
         # A failed generation may have advanced temporal state. End the session rather than retry.
@@ -341,16 +355,30 @@ def _handle_connection(
             if stream is not None:
                 state.executor.submit(stream.close).result()
             if channel is not None:
-                state.executor.submit(channel.close).result()
+                state.executor.submit(channel.close_opened).result()
         except Exception:
             _LOGGER.exception("Failed to close Cosmos generation state after a client disconnected.")
         finally:
             with state.ownership_lock:
                 if state.owner is token:
                     state.owner = None
-            with connections_lock:
-                connections.discard(connection)
-            connection.close()
+            try:
+                if channel is not None:
+                    if not camera_released:
+                        # The camera may still have the output buffer open; it releases it before disconnecting.
+                        _await_disconnect(connection)
+                    state.executor.submit(channel.close).result()
+            finally:
+                with connections_lock:
+                    connections.discard(connection)
+                connection.close()
+
+
+def _await_disconnect(connection: socket.socket) -> None:
+    """Wait until the camera closes the connection, discarding anything it still sends, up to the idle timeout."""
+    with suppress(OSError):
+        while connection.recv(65536):
+            pass
 
 
 def _open_channel(model: _Model, num_views: int, image_shape: tuple[int, int, int], handles: object):

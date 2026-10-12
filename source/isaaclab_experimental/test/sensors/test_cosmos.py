@@ -487,9 +487,9 @@ def test_transport_keeps_images_on_gpus_that_can_access_each_other(
         assert ("CUDA IPC" if expected == "cuda_ipc" else "through the socket") in caplog.text
 
 
-@pytest.mark.parametrize("fail", [None, "created", "opened"])
-def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_failure(monkeypatch, fail):
-    """Freeing memory another process still maps is undefined in CUDA, so each side unmaps the other's first."""
+@pytest.mark.parametrize("case", [None, "created", "opened", "unconfirmed"])
+def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_its_own_only_once_released(monkeypatch, case):
+    """Freeing memory another process still has open is undefined in CUDA, so each side releases the other's first."""
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     acquired, released = [], []
@@ -506,14 +506,15 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_f
 
     class Event(Resource):
         def __init__(self, device, handle=None):
-            if fail == ("opened" if handle else "created"):
+            if case == ("opened" if handle else "created"):
                 raise RuntimeError("Cannot get event")
             self.device, self.handle = device, handle or "control_ready"
             acquired.append(self)
 
     monkeypatch.setattr(_cuda_ipc, "SharedBuffer", Buffer)
     monkeypatch.setattr(_cuda_ipc, "SharedEvent", Event)
-    if fail == "created":
+    monkeypatch.setattr(_cuda_ipc, "_KEPT", [])
+    if case == "created":
         with pytest.raises(RuntimeError, match="Cannot get event"):
             _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3), writes="control")
         assert released == acquired
@@ -521,7 +522,7 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_f
     channel = _cuda_ipc.SharedChannel(torch.device("cuda:0"), (1, 4, 6, 3), writes="control")
     assert channel.handles == {"control": "control", "control_ready": "control_ready"}
     created = list(acquired)
-    if fail == "opened":
+    if case == "opened":
         with pytest.raises(RuntimeError, match="Cannot get event"):
             channel.open(torch.device("cuda:1"), {"output": "output", "output_ready": "output_ready"})
         assert released == acquired[2:]
@@ -530,6 +531,11 @@ def test_cuda_ipc_channel_releases_the_other_process_buffer_first_and_on_setup_f
         assert (channel.output.handle, channel.output_ready.handle) == ("output", "output_ready")
         # The buffer stays on the GPU that holds it; the event is imported on the GPU whose stream waits for it.
         assert (channel.output.device, channel.output_ready.device) == (torch.device("cuda:1"), torch.device("cuda:0"))
+    if case == "unconfirmed":
+        # Without confirmation that the other process released them, this process keeps its own until it exits.
+        channel.close(peer_released=False)
+        assert released == acquired[2:][::-1] and len(_cuda_ipc._KEPT) == 1
+        return
     channel.close()
     channel.close()
     assert set(released) == set(acquired) and released[-2:] == created[::-1]
@@ -548,6 +554,96 @@ def test_a_service_rejects_a_camera_gpu_it_cannot_reach_directly(monkeypatch, ca
     handles = {"pci_bus_id": "0000:01:00.0", "control": "unused", "control_ready": "unused"}
     with pytest.raises(ValueError, match=message):
         service._open_channel(SimpleNamespace(capabilities={"device": "cuda:1"}), 1, (4, 6, 3), handles)
+
+
+@pytest.mark.parametrize("failure", [None, "close", "step"])
+def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(failure):
+    """The service may read the controls until it confirms the close; without that they stay allocated."""
+    released = []
+    channel = SimpleNamespace(
+        control=SimpleNamespace(tensor=torch.zeros((1, 4, 2, 3, 3), dtype=torch.uint8)),
+        control_ready=SimpleNamespace(record=lambda: None),
+        close_opened=lambda: released.append("output"),
+        close=lambda *, peer_released: released.append(("control", peer_released)),
+    )
+    stream = CosmosModel(CosmosModelCfg(max_episode_frames=13)).open_stream(num_views=1, seeds=(1,))
+
+    def exchange(metadata, arrays=()):
+        if metadata["op"] == failure:
+            raise ConnectionError("Cosmos connection closed")
+        return {"ok": True}, []
+
+    stream._exchange = exchange
+    stream._socket, stream._channel, stream._shape = SimpleNamespace(close=lambda: None), channel, (2, 3, 3)
+    if failure == "step":
+        with pytest.raises(ConnectionError):
+            stream.step([_controls()], (), ())
+    else:
+        stream.close()
+    # The camera releases the service's output first; it frees its controls only after the confirmed close.
+    assert released == ["output", ("control", failure is None)]
+
+
+def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camera_disconnects(monkeypatch):
+    """The camera may have the output buffer open until it handles the error and disconnects."""
+    from isaaclab_experimental.cosmos.server import service
+
+    released = []
+
+    class Channel:
+        handles = {"output": "output", "output_ready": "output_ready"}
+
+        def close_opened(self):
+            if "control" not in released:
+                released.append("control")
+
+        def close(self):
+            self.close_opened()
+            released.append("output")
+
+    def fail(*args):
+        raise RuntimeError("generation failed")
+
+    monkeypatch.setattr(service, "_open_channel", lambda *args: Channel())
+    monkeypatch.setattr(service, "_step_channel", fail)
+    state = service._ServiceState(TransportResource())
+    state.transports = ["socket", "cuda_ipc"]
+    camera, connection = socket.socketpair()
+    handler = threading.Thread(
+        target=service._handle_connection, args=(connection, state, {connection}, threading.Lock())
+    )
+    handler.start()
+    try:
+        _protocol.send_message(
+            camera,
+            {
+                "op": "open",
+                "num_views": 1,
+                "seeds": [1],
+                "prompt": None,
+                "modality": "edge",
+                "height": 2,
+                "width": 3,
+                "max_episode_frames": 9,
+                "transport": "cuda_ipc",
+                "ipc": {"pci_bus_id": "0000:01:00.0", "control": "control", "control_ready": "control_ready"},
+            },
+        )
+        reply, _ = _protocol.receive_message(camera)
+        assert reply["ok"] and reply["ipc"] == Channel.handles
+        _protocol.send_message(camera, {"op": "step", "reset_rows": [], "seeds": [], "frames": [1]})
+        reply, _ = _protocol.receive_message(camera)
+        assert not reply["ok"] and "generation failed" in reply["error"]
+        deadline = time.monotonic() + 5
+        while state.owner is not None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        # The session ended and the camera's controls are released, but the output buffer waits for the camera.
+        assert state.owner is None and released == ["control"] and handler.is_alive()
+    finally:
+        camera.close()
+        handler.join(timeout=5)
+        state.executor.shutdown()
+    assert not handler.is_alive() and released == ["control", "output"]
 
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
