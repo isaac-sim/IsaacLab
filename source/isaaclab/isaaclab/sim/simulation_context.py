@@ -614,7 +614,15 @@ class SimulationContext:
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
         self.physics_manager.wait_for_playing()
-        self._wait_for_visualizers_playing()
+        visualizers_to_remove = []
+        for viz in self._visualizers:
+            try:
+                while viz.is_training_paused() and viz.is_running():
+                    viz.step(0.0)
+            except Exception as exc:
+                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
+                visualizers_to_remove.append(viz)
+        self._remove_visualizers(visualizers_to_remove)
         self._physics_step_count += 1
         self.physics_manager.step()
         if render and self.is_rendering:
@@ -704,18 +712,6 @@ class SimulationContext:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)
 
-        self._remove_visualizers(visualizers_to_remove)
-
-    def _wait_for_visualizers_playing(self) -> None:
-        """Block physics stepping while a visualizer has paused training."""
-        visualizers_to_remove = []
-        for viz in self._visualizers:
-            try:
-                while viz.is_training_paused() and viz.is_running():
-                    viz.step(0.0)
-            except Exception as exc:
-                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
-                visualizers_to_remove.append(viz)
         self._remove_visualizers(visualizers_to_remove)
 
     def _remove_visualizers(self, visualizers: list[BaseVisualizer]) -> None:

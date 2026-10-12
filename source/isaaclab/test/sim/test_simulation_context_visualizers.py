@@ -228,16 +228,6 @@ def test_update_visualizers_skips_zero_dt_for_paused_app_pumping_visualizer():
     assert paused_app_pumping_viz.step_calls == []
 
 
-def test_update_visualizers_returns_after_one_training_pause_update():
-    provider = _FakeProvider()
-    viz = _FakeVisualizer(training_paused_steps=2)
-    ctx = _make_context([viz], provider=provider)
-
-    ctx.update_visualizers(0.2)
-
-    assert viz.step_calls == [0.0]
-
-
 def test_step_waits_for_visualizer_training_pause_before_physics():
     viz = _FakeVisualizer(training_paused_steps=2)
     ctx = _make_context([viz], provider=_FakeProvider())

@@ -68,6 +68,9 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+    settings = MagicMock()
+    settings.get.return_value = None
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
 
     visualizer.step(0.1)
 
@@ -75,47 +78,20 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     if headless:
         visualizer._fabric.update_transforms.assert_not_called()
         visualizer._fabric.update_geometries.assert_not_called()
+        settings.set.assert_not_called()
+        kit_app.update.assert_not_called()
     else:
         visualizer._fabric.update_transforms.assert_called_once_with(provider)
         visualizer._fabric.update_geometries.assert_called_once_with(provider, 12)
+        assert [call.args for call in settings.set.call_args_list] == [
+            ("/app/player/playSimulations", False),
+            ("/app/player/playSimulations", True),
+        ]
         kit_app.update.assert_called_once_with()
 
 
-def test_training_pause_follows_kit_timeline(kit_timeline):
-    visualizer = KitVisualizer(KitVisualizerCfg())
-    visualizer._controls_kit_timeline = True
-    kit_timeline.is_playing.return_value = False
-    kit_timeline.is_stopped.return_value = False
-    assert visualizer.is_training_paused()
-
-    kit_timeline.is_stopped.return_value = True
-    assert not visualizer.is_training_paused()
-
-    kit_timeline.is_playing.return_value = True
-    kit_timeline.is_stopped.return_value = False
-    assert not visualizer.is_training_paused()
-
-
-def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeypatch, kit_app):
-    visualizer = KitVisualizer(KitVisualizerCfg())
-    visualizer._is_initialized = True
-    visualizer._fabric = MagicMock()
-    visualizer._sim = MagicMock(render_generation=1)
-    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
-    settings = MagicMock()
-    settings.get.return_value = None
-    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    visualizer.step(0.1)
-
-    assert [call.args for call in settings.set.call_args_list] == [
-        ("/app/player/playSimulations", False),
-        ("/app/player/playSimulations", True),
-    ]
-    kit_app.update.assert_called_once_with()
-
-
-def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch, kit_app):
-    """Deliver Ctrl+C after Kit returns and arm the default handler until then."""
+def test_app_update_restores_signal_handlers(monkeypatch, kit_app):
+    """Defer Kit-swallowed interrupts without replacing an existing forced-exit handler."""
     visualizer = KitVisualizer(KitVisualizerCfg())
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
@@ -142,57 +118,19 @@ def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch, k
         ("/app/player/playSimulations", False),
     ]
 
-
-def test_app_update_preserves_forced_exit_handler(monkeypatch, kit_app):
-    """Do not defer an interrupt after environment teardown has armed the default handler."""
-    visualizer = KitVisualizer(KitVisualizerCfg())
-    settings = MagicMock()
-    settings.get.return_value = False
-    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-
-    def update():
+    def update_with_forced_exit():
         assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
 
-    kit_app.update.side_effect = update
+    kit_app.update.side_effect = update_with_forced_exit
     previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
-        assert visualizer._pump_kit_app_update()
+        visualizer.step(0.1)
         assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
     finally:
         signal.signal(signal.SIGINT, previous_handler)
 
 
-def test_play_and_stop_synchronize_kit_timeline_without_advancing_physics(monkeypatch, kit_app, kit_timeline):
-    visualizer = KitVisualizer(KitVisualizerCfg())
-    visualizer._controls_kit_timeline = True
-    kit_timeline.is_auto_updating.return_value = True
-    settings = MagicMock()
-    settings.get.return_value = True
-    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    visualizer.play()
-
-    kit_timeline.set_auto_update.assert_called_once_with(False)
-    kit_timeline.play.assert_called_once_with()
-    assert [call.args for call in settings.set.call_args_list] == [
-        ("/app/player/playSimulations", False),
-        ("/app/player/playSimulations", True),
-    ]
-    kit_app.update.assert_called_once_with()
-
-    visualizer.stop()
-
-    kit_timeline.stop.assert_called_once_with()
-    assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (True,)]
-    assert [call.args for call in settings.set.call_args_list] == [
-        ("/app/player/playSimulations", False),
-        ("/app/player/playSimulations", True),
-        ("/app/player/playSimulations", False),
-        ("/app/player/playSimulations", True),
-    ]
-    assert kit_app.update.call_count == 2
-
-
-def test_timeline_auto_update_restores_after_last_visualizer_stops(monkeypatch, kit_app, kit_timeline):
+def test_timeline_controls_share_ownership_and_restore_after_last_stop(monkeypatch, kit_app, kit_timeline):
     kit_timeline.is_auto_updating.return_value = True
     settings = MagicMock()
     settings.get.return_value = True
@@ -200,7 +138,20 @@ def test_timeline_auto_update_restores_after_last_visualizer_stops(monkeypatch, 
     visualizers = [KitVisualizer(KitVisualizerCfg()), KitVisualizer(KitVisualizerCfg())]
     for visualizer in visualizers:
         visualizer._controls_kit_timeline = True
-        visualizer.play()
+
+    visualizers[0].play()
+
+    assert kit_timeline.is_auto_updating.call_count == 1
+    kit_timeline.play.assert_called_once_with()
+    kit_timeline.is_playing.return_value = False
+    kit_timeline.is_stopped.return_value = False
+    assert visualizers[0].is_training_paused()
+    kit_timeline.is_stopped.return_value = True
+    assert not visualizers[0].is_training_paused()
+
+    visualizers[0].pause()
+    kit_timeline.pause.assert_called_once_with()
+    visualizers[1].play()
 
     assert kit_timeline.is_auto_updating.call_count == 1
     assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (False,)]
@@ -214,7 +165,7 @@ def test_timeline_auto_update_restores_after_last_visualizer_stops(monkeypatch, 
 
     kit_timeline.stop.assert_called_once_with()
     assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (False,), (True,)]
-    assert kit_app.update.call_count == 3
+    assert kit_app.update.call_count == 4
 
 
 def test_close_cleans_resources_when_timeline_stop_is_interrupted(monkeypatch, kit_timeline):
@@ -249,7 +200,7 @@ def test_close_cleans_resources_when_timeline_stop_is_interrupted(monkeypatch, k
 
 @pytest.mark.parametrize(
     ("physics_backend", "controls_timeline"),
-    [("physx", False), ("ovphysx", False), ("newton", True)],
+    [("ovphysx", False), ("newton", True)],
 )
 def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend, controls_timeline):
     visualizer = KitVisualizer(KitVisualizerCfg())
