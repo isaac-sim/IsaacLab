@@ -11,7 +11,7 @@ import argparse
 import os
 from contextlib import ExitStack
 
-from isaaclab.app import add_launcher_args, launch_simulation, scan
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation task to load for data generation.")
@@ -396,11 +396,11 @@ def eval_policy(
 
 
 if __name__ == "__main__":
-    with ExitStack() as stack, torch.no_grad(), launch_simulation(None, args_cli):
-        env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
-        if env_name is None:
-            raise ValueError("Task/env name was not specified nor found in the dataset.")
-
+    env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
+    if env_name is None:
+        raise ValueError("Task/env name was not specified nor found in the dataset.")
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
+    with ExitStack() as stack, torch.no_grad(), launch_simulation(env_cfg, args_cli):
         if args_cli.policy_host is not None:
             from policy_client import PolicyClient
 
@@ -413,10 +413,6 @@ if __name__ == "__main__":
             from policy import Policy
 
             policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
-
-        env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
-        # resolve the config's automatic physics and renderer selections for the launched runtime
-        scan(env_cfg, args_cli)
         env_cfg.sim.device = args_cli.device
         # Drop the SDG output-data recorder term: it pulls env._locomanipulation_sdg_output_data,
         # which is only populated by the data-generation state machine, not during policy rollout.
