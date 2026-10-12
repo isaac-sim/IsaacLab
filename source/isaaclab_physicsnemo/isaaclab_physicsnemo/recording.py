@@ -21,7 +21,7 @@ from physicsnemo_robotics.dynamics import StateCodec, TrajectoryFieldSpec, Traje
 from physicsnemo_robotics.newton import NewtonStepContext, NewtonTimeSpec, field_to_torch
 
 from .binding import NewtonBinding
-from .physics import validate_effort_control
+from .physics import check_velocity_targets, validate_effort_control
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -203,6 +203,7 @@ class TrajectoryDatasetRecorder:
         Args:
             dones: Terminated or truncated environments returned by the step, shape [num_envs].
         """
+        check_velocity_targets(self.binding.model, self.binding.control)
         transitions = {self._control_key: self._control(), **self._pending_features}
         self._recorder.record(self.codec.read(self.binding.state), transitions=transitions)
         if bool(dones.any()):

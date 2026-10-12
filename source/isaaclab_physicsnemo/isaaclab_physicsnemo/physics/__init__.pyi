@@ -6,10 +6,11 @@
 __all__ = [
     "NewtonPhysicsNeMoManager",
     "PhysicsNeMoSolverCfg",
+    "check_velocity_targets",
     "validate_effort_control",
     "validate_state_ownership",
 ]
 
 from .physicsnemo_manager import NewtonPhysicsNeMoManager
 from .physicsnemo_manager_cfg import PhysicsNeMoSolverCfg
-from .state_ownership import validate_effort_control, validate_state_ownership
+from .state_ownership import check_velocity_targets, validate_effort_control, validate_state_ownership

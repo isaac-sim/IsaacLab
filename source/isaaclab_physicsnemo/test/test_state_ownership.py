@@ -11,7 +11,7 @@ pytest.importorskip("physicsnemo_robotics")
 
 import newton
 import warp as wp
-from isaaclab_physicsnemo.physics import validate_effort_control, validate_state_ownership
+from isaaclab_physicsnemo.physics import check_velocity_targets, validate_effort_control, validate_state_ownership
 from physicsnemo_robotics.dynamics import newton_state_codec
 
 
@@ -64,3 +64,17 @@ def test_implicit_position_drives_are_not_effort_control():
     wp.to_torch(model.joint_target_ke)[6] = 40.0
     with pytest.raises(ValueError, match=r"Joint DOFs \[6\] use implicit position drives"):
         validate_effort_control(model)
+
+
+def test_velocity_targets_of_damped_joints_are_rejected():
+    """A velocity target on a damped joint drives it without appearing in the recorded or modeled control."""
+    model = _two_world_robot()
+    wp.to_torch(model.joint_target_kd)[6] = 5.0
+    control = model.control()
+    check_velocity_targets(model, control)
+
+    wp.to_torch(control.joint_target_qd)[0] = 1.0  # an undamped joint
+    check_velocity_targets(model, control)
+    wp.to_torch(control.joint_target_qd)[6] = 1.0
+    with pytest.raises(RuntimeError, match="velocity targets"):
+        check_velocity_targets(model, control)

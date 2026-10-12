@@ -86,7 +86,8 @@ pipeline only when the artifact consumes contacts. Before the first step it chec
 frame duration, the canonical frame, the solver-independent model identity, that the codec owns
 every dynamic Newton state row, and that no implicit position drive acts on targets the model does not
 see. Environment resets reach the solver through the inherited reset hook, CUDA graph capture is disabled,
-contact sensors are rejected, and a step with an external body wrench fails on the device.
+contact sensors are rejected, and a step with an external body wrench or with a velocity target on a damped
+joint fails on the device.
 
 ## Installation
 
@@ -356,6 +357,7 @@ The image contains PhysicsNeMo Robotics sources, so publish it only to a private
 | `physics.PhysicsNeMoSolverCfg`, `physics.NewtonPhysicsNeMoManager` | Newton solver configuration and manager that run an artifact, optionally with FP16 projections (`inference_dtype`) |
 | `physics.validate_state_ownership` | Check that a codec owns every dynamic Newton state row |
 | `physics.validate_effort_control` | Check that no implicit position drive acts on targets the model does not see |
+| `physics.check_velocity_targets` | Fail on the device when a damped joint receives a velocity target the model does not see |
 | `TrajectoryDatasetRecorder`, `RecordedFeature` | Write the episodes of a running environment to a Zarr dataset, in shards with `shard_episodes`, with joint efforts or, with `control_targets`, joint-position targets, and additional inputs such as fixed contact probes |
 | `datasets.load_trajectory_datasets`, `datasets.expand_dataset_paths`, `datasets.dataset_versions` | Read recorded datasets and their shards into memory with worker processes and an optional cache; the versions identify the datasets a cache or a resumed training run was built from |
 | `SmoothRandomActions`, `UniformRandomActions` | Temporally correlated or independent uniform exploration actions |
@@ -416,7 +418,9 @@ A teacher configuration must satisfy the learned solver contract:
   applies external wrenches. State resets and velocity writes are supported.
 - The recorded control is the only actuation: no implicit position drives (`joint_target_ke` must be
   zero), so effort recordings use explicit actuators or effort control. Implicit joint damping with zero
-  velocity targets is allowed because it depends only on the state.
+  velocity targets is allowed because it depends only on the state; recording and deployment fail on the
+  device when a damped joint receives a nonzero velocity target (`check_velocity_targets`), as joint velocity
+  actions write.
 - Every environment replicates the same robot, and the teacher solver uses its internal contacts
   or no contacts, so no Newton collision pipeline is part of the recorded execution.
 - Articulations are trees that Newton forward kinematics rebuilds: one root, enabled joints, no
@@ -444,6 +448,7 @@ when that behavior changes upstream.
 | PhysicsNeMo Robotics fixed-probe geometry fingerprints use the raw model arrays | Probes are built, and artifacts rebuilt by the manager, inside `isaaclab_canonical_view` |
 | Isaac Lab notifies the solver with `JOINT_PROPERTIES` after every fixed-root pose write ([#7777](https://github.com/isaac-sim/IsaacLab/pull/7777)) | The manager drops the notification while the joint anchors `joint_X_p` and `joint_X_c` are unchanged and rejects every other model change |
 | Isaac Lab applies external body wrenches through `State.body_f`, which the learned model has no input for | The manager fails a step that carries an external body wrench instead of silently ignoring it |
+| Joint velocity actions write `control.joint_target_qd`, which implicit damping turns into a drive inside the solver that neither the recorded nor the modeled control contains | The recorder and the manager fail a step in which a damped joint has a nonzero velocity target |
 | Implicit position drives act on targets that never appear in `control.joint_f` | Recording and deployment reject nonzero `joint_target_ke` |
 | A deployed solver starts each episode with a repeated first frame as history | Training includes these cold-start windows |
 | The PhysicsNeMo Robotics joint codec normalizes a free-root quaternion again when writing a prediction, so `continuity="verify"` rejects the solver's own output by one floating-point unit | Floating-base tasks deploy with `continuity="off"` (`ANYMAL_CONTINUITY`); Isaac Lab still reports every reset through the solver reset mask |

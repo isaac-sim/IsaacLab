@@ -24,7 +24,7 @@ from isaaclab.utils.string import string_to_callable
 from ..heading import artifact_codec_factory, artifact_feature_factory
 from ..resident_training import _fp32_parallel_nerd_attention
 from ..signature import isaaclab_canonical_view
-from .state_ownership import validate_effort_control, validate_state_ownership
+from .state_ownership import check_velocity_targets, validate_effort_control, validate_state_ownership
 
 if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
@@ -41,7 +41,7 @@ class NewtonPhysicsNeMoManager(NewtonManager):
     * validates the live scene against the artifact identity, frame duration, state ownership, and
       effort-only actuation before the first step, and rejects contact sensors and extended state
       outputs it cannot produce;
-    * fails on external body wrenches, which are not model inputs;
+    * fails on external body wrenches and on velocity targets of damped joints, which are not model inputs;
     * runs eagerly, because the network call cannot be captured in a Warp CUDA graph;
     * forwards Isaac Lab environment resets through the inherited solver reset hook, so each reset
       environment restarts its model history;
@@ -94,7 +94,8 @@ class NewtonPhysicsNeMoManager(NewtonManager):
     def _step_solver(
         cls, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
     ) -> None:
-        """Advance one learned frame, failing on external body wrenches that the model cannot represent."""
+        """Advance one learned frame, failing on external body wrenches and velocity commands the model cannot see."""
+        check_velocity_targets(cls.get_model(), control)
         if state_0.body_f is not None:
             # Checked on the device, so the step never waits for the host.
             torch._assert_async(

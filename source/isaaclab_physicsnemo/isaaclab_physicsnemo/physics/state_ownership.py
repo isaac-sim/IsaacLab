@@ -12,6 +12,7 @@ from collections.abc import Iterator
 import newton
 import numpy as np
 import torch
+import warp as wp
 from physicsnemo_robotics.dynamics import CompositeStateCodec, StateCodec
 
 _JOINT_FIELDS = frozenset(("joint_q", "joint_qd"))
@@ -105,7 +106,8 @@ def validate_effort_control(model: newton.Model) -> None:
     Implicit position drives (nonzero ``model.joint_target_ke``) act inside the numerical solver on
     position targets that never appear in ``joint_f``, so neither recorded data nor a deployed model
     would see the command. Use explicit actuators or effort control instead. Joint damping
-    (``joint_target_kd``) with zero velocity targets is a function of the state and is allowed.
+    (``joint_target_kd``) with zero velocity targets is a function of the state and is allowed;
+    :func:`check_velocity_targets` rejects nonzero velocity targets on damped joints while stepping.
 
     Args:
         model: Finalized Newton model of the scene, after Isaac Lab applied its actuator gains.
@@ -121,6 +123,28 @@ def validate_effort_control(model: newton.Model) -> None:
             f"Joint DOFs {driven.tolist()} use implicit position drives, whose targets are not part of the applied"
             " joint efforts. Use explicit actuators or effort control."
         )
+
+
+def check_velocity_targets(model: newton.Model, control: newton.Control) -> None:
+    """Fail on the device when a damped joint receives a nonzero velocity target.
+
+    Joint damping drives a joint toward its velocity target inside the numerical solver. With zero targets it
+    depends only on the state, but a velocity command, such as Isaac Lab's joint velocity actions write, would
+    act without appearing in the recorded or modeled control. The check runs on the device, so stepping never
+    waits for the host; a violation fails the next synchronization.
+
+    Args:
+        model: Finalized Newton model of the scene.
+        control: Newton control of the step.
+    """
+    if model.joint_dof_count == 0 or control.joint_target_qd is None:
+        return
+    damped = wp.to_torch(model.joint_target_kd) != 0.0
+    commanded = wp.to_torch(control.joint_target_qd) != 0.0
+    torch._assert_async(
+        ~(damped & commanded).any(),
+        "Damped joints received nonzero velocity targets, which are not part of the recorded or modeled control.",
+    )
 
 
 def _leaf_codecs(codec: StateCodec) -> Iterator[StateCodec]:
