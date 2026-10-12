@@ -406,25 +406,31 @@ def get_reset_state(
 def set_reset_state(
     env: ManagerBasedEnv,
     states: torch.Tensor,
-    env_ids: torch.Tensor,
+    env_ids: torch.Tensor | None,
     reset_assets: Sequence[str],
     is_relative: bool = False,
+    env_mask: wp.array | None = None,
 ):
     """Split :paramref:`states` by scene asset and write the reset-state slices.
 
     Inverse of :func:`get_reset_state`; the layout and :paramref:`is_relative` convention
-    must match the call that produced :paramref:`states`.
+    must match the call that produced :paramref:`states`. Given :paramref:`env_mask`, :paramref:`states`
+    holds a row for every environment and only the selected ones are written, without waiting on the device.
     """
     offset = 0
+    if env_mask is None:
+        mode, selection, origins = "index", {"env_ids": env_ids}, env.scene.env_origins[env_ids]
+    else:
+        mode, selection, origins = "mask", {"env_mask": env_mask}, env.scene.env_origins
 
     def write_root(asset):
         nonlocal offset
         pose = states[:, offset : offset + 7].clone()
         if is_relative:
-            pose[:, :3] += env.scene.env_origins[env_ids]
-        asset.write_root_link_pose_to_sim_index(root_pose=pose, env_ids=env_ids)
-        asset.write_root_com_velocity_to_sim_index(
-            root_velocity=states[:, offset + 7 : offset + 13].contiguous(), env_ids=env_ids
+            pose[:, :3] += origins
+        getattr(asset, f"write_root_link_pose_to_sim_{mode}")(root_pose=pose, **selection)
+        getattr(asset, f"write_root_com_velocity_to_sim_{mode}")(
+            root_velocity=states[:, offset + 7 : offset + 13].contiguous(), **selection
         )
         offset += 13
 
@@ -432,58 +438,10 @@ def set_reset_state(
         if name in reset_assets:
             write_root(articulation)
             num_joints = articulation.num_joints
-            articulation.write_joint_state_to_sim_index(
+            getattr(articulation, f"write_joint_state_to_sim_{mode}")(
                 position=states[:, offset : offset + num_joints].contiguous(),
                 velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(),
-                env_ids=env_ids,
-            )
-            offset += 2 * num_joints
-    for name, rigid_object in env.scene.rigid_objects.items():
-        if name in reset_assets:
-            write_root(rigid_object)
-
-
-def set_reset_state_mask(
-    env: ManagerBasedEnv,
-    states: torch.Tensor,
-    env_mask: wp.array,
-    reset_assets: Sequence[str],
-    is_relative: bool = False,
-):
-    """Write the reset-state slices of :paramref:`states` to the environments selected by a mask.
-
-    Like :func:`set_reset_state`, but :paramref:`states` holds a row for every environment and only
-    the selected environments are written, so the call does not wait on the device.
-
-    Args:
-        env: The environment.
-        states: Reset states laid out like :func:`get_reset_state`. Shape is (num_envs, state_dim).
-        env_mask: Boolean mask of the environments to write, dtype ``wp.bool``. Shape is (num_envs,).
-        reset_assets: Names of the scene assets in :paramref:`states`.
-        is_relative: Whether root positions are relative to the environment origins.
-    """
-    offset = 0
-
-    def write_root(asset):
-        nonlocal offset
-        pose = states[:, offset : offset + 7].clone()
-        if is_relative:
-            pose[:, :3] += env.scene.env_origins
-        asset.write_root_link_pose_to_sim_mask(root_pose=pose, env_mask=env_mask)
-        asset.write_root_com_velocity_to_sim_mask(
-            root_velocity=states[:, offset + 7 : offset + 13].contiguous(), env_mask=env_mask
-        )
-        offset += 13
-
-    for name, articulation in env.scene.articulations.items():
-        if name in reset_assets:
-            write_root(articulation)
-            num_joints = articulation.num_joints
-            articulation.write_joint_position_to_sim_mask(
-                position=states[:, offset : offset + num_joints].contiguous(), env_mask=env_mask
-            )
-            articulation.write_joint_velocity_to_sim_mask(
-                velocity=states[:, offset + num_joints : offset + 2 * num_joints].contiguous(), env_mask=env_mask
+                **selection,
             )
             offset += 2 * num_joints
     for name, rigid_object in env.scene.rigid_objects.items():

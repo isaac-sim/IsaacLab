@@ -29,7 +29,7 @@ from .utils import (
     farthest_point_sampling,
     get_reset_state,
     sample_object_point_cloud,
-    set_reset_state_mask,
+    set_reset_state,
 )
 
 if TYPE_CHECKING:
@@ -486,7 +486,7 @@ class conditional_reset(ManagerTermBase):
             self._credit_episodes(env, env_mask, self._monitor, success_reward_term)
             rows = self._monitor.sample_by_target_rate(groups)
             torch.where(env_mask.torch, rows, self._playing_row, out=self._playing_row)
-        set_reset_state_mask(env, self._buffer[rows], env_mask.warp, self._reset_assets, is_relative=True)
+        set_reset_state(env, self._buffer[rows], None, self._reset_assets, is_relative=True, env_mask=env_mask.warp)
 
     def _keep_most_spread(self, num_groups: int, harvest_size: int, keep_size: int):
         """Thin each group's harvest down to the ``keep_size`` states most spread over the descriptor.

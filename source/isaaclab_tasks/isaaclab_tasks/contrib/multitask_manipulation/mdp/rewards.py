@@ -36,27 +36,14 @@ def _action_slice(env: ManagerBasedRLEnv, term_names: tuple[str, ...]) -> slice:
     return cache[term_names]
 
 
-def _masked_mean(values: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    """Return the mean of ``values`` over the environments selected by ``mask``, or zero if none is selected."""
-    return torch.where(mask, values, 0.0).sum() / mask.sum().clamp_min(1)
-
-
 def _log_masked_mean(
     env: ManagerBasedRLEnv, logged: dict[str, torch.Tensor], key: str, values: torch.Tensor, mask: torch.Tensor
 ) -> None:
-    """Log the mean of ``values`` over ``mask``, keeping the term's previous value when nothing is selected.
+    """Log the mean of ``values`` over ``mask``, keeping the previous value when ``mask`` selects nothing.
 
-    Each task logs only its own environments, so the environment-level blend, which keeps a value only when no
-    environment reset at all, is not enough when only other tasks' environments reset.
-
-    Args:
-        env: The environment.
-        logged: The term's previously logged values by key, updated in place.
-        key: Log key.
-        values: Per-environment values. Shape is (num_envs,).
-        mask: Boolean mask of the reset environments of this task. Shape is (num_envs,).
+    Each task logs only its own environments, so a reset of other tasks' environments must not clear its value.
     """
-    value = _masked_mean(values, mask)
+    value = torch.where(mask, values, 0.0).sum() / mask.sum().clamp_min(1)
     if key in logged:
         value = torch.where(mask.any(), value, logged[key])
     env.extras.setdefault("log", {})[key] = logged[key] = value

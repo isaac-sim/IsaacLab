@@ -22,29 +22,37 @@ from isaaclab_newton.physics import NewtonManager
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.contrib.newton_step.captured_cartpole import CapturedCartpole
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _OSC_TASK = "IsaacContrib-NewtonStep-Reach-Franka-NewtonOSC"
 
 
+def _make_env(task: str, num_envs: int, seed: int, configure=None) -> gym.Env:
+    """Create a Newton MJWarp environment of a registered task on a new stage; ``configure`` edits its cfg."""
+    sim_utils.create_new_stage()
+    env_cfg = resolve_presets(load_cfg_from_registry(task, "env_cfg_entry_point"), selected=("newton_mjwarp",))
+    env_cfg.sim.device = "cuda:0"
+    env_cfg.scene.num_envs = num_envs
+    env_cfg.seed = seed
+    if configure is not None:
+        configure(env_cfg)
+    env = gym.make(task, cfg=env_cfg)
+    env.unwrapped.sim._app_control_on_stop_handle = None
+    return env
+
+
 def _rollout_osc(num_steps: int, native: bool = True) -> tuple[torch.Tensor, bool]:
     """Step the Newton OSC reach task with fixed pose targets and return the arm trajectory and loop ownership."""
-    sim_utils.create_new_stage()
-    env_cfg = resolve_presets(load_cfg_from_registry(_OSC_TASK, "env_cfg_entry_point"), selected=("newton_mjwarp",))
-    env_cfg.sim.device = "cuda:0"
-    env_cfg.scene.num_envs = 4
-    env_cfg.sim.use_newton_actuators = native
-    if not native:
-        env_cfg.scene.robot.joint_ordering = [f"panda_joint{i}" for i in range(7, 0, -1)] + [
-            "panda_finger_joint1",
-            "panda_finger_joint2",
-        ]
-    env_cfg.seed = 7
-    env = gym.make(_OSC_TASK, cfg=env_cfg)
+
+    def configure(env_cfg):
+        env_cfg.sim.use_newton_actuators = native
+        if not native:
+            joints = [f"panda_joint{i}" for i in range(7, 0, -1)] + ["panda_finger_joint1", "panda_finger_joint2"]
+            env_cfg.scene.robot.joint_ordering = joints
+
+    env = _make_env(_OSC_TASK, num_envs=4, seed=7, configure=configure)
     try:
-        env.unwrapped.sim._app_control_on_stop_handle = None
         env.reset()
         robot = env.unwrapped.scene["robot"]
         generator = torch.Generator(device="cuda:0").manual_seed(0)
@@ -95,16 +103,8 @@ def test_newton_osc_in_step_matches_host_controller(monkeypatch: pytest.MonkeyPa
 
 def _rollout_joint_actions(num_steps: int) -> tuple[torch.Tensor, bool]:
     """Step the joint-position reach task with new random actions every step; return the arm trajectory."""
-    sim_utils.create_new_stage()
-    env_cfg = resolve_presets(
-        load_cfg_from_registry("Isaac-Reach-Franka", "env_cfg_entry_point"), selected=("newton_mjwarp",)
-    )
-    env_cfg.sim.device = "cuda:0"
-    env_cfg.scene.num_envs = 4
-    env_cfg.seed = 7
-    env = gym.make("Isaac-Reach-Franka", cfg=env_cfg)
+    env = _make_env("Isaac-Reach-Franka", num_envs=4, seed=7)
     try:
-        env.unwrapped.sim._app_control_on_stop_handle = None
         env.reset()
         robot = env.unwrapped.scene["robot"]
         generator = torch.Generator(device="cuda:0").manual_seed(0)
@@ -131,68 +131,18 @@ def test_bound_joint_actions_follow_each_new_action(monkeypatch: pytest.MonkeyPa
     torch.testing.assert_close(in_step, on_host, atol=1e-4, rtol=0.0)
 
 
-def _rollout_cartpole(actions: list[torch.Tensor], captured: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Step the Warp cart-pole MDP eagerly or as one captured environment-step graph."""
-    sim_utils.create_new_stage()
-    env_cfg = resolve_presets(
-        load_cfg_from_registry("Isaac-Cartpole", "env_cfg_entry_point"), selected=("newton_mjwarp",)
-    )
-    env_cfg.sim.device = "cuda:0"
-    env_cfg.scene.num_envs = 64
-    # Short episodes guarantee partial resets inside the rollout.
-    env_cfg.episode_length_s = 0.25
-    env_cfg.seed = 3
-    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
-    try:
-        env.unwrapped.sim._app_control_on_stop_handle = None
-        env.reset()
-        mdp = CapturedCartpole(env.unwrapped)
-        if captured:
-            mdp.capture()
-        obs, reward, done = [], [], []
-        for action in actions:
-            wp.copy(mdp.actions, wp.from_torch(action))
-            mdp.replay() if captured else mdp.step()
-            obs.append(wp.to_torch(mdp.obs).clone())
-            reward.append(wp.to_torch(mdp.reward).clone())
-            done.append(wp.to_torch(mdp.truncated).clone() | wp.to_torch(mdp.terminated))
-        return torch.stack(obs), torch.stack(reward), torch.stack(done)
-    finally:
-        env.close()
-
-
-def test_whole_environment_step_captures_with_newton_physics():
-    """An environment step with MDP stages, partial resets, and the Newton step replays as one graph.
-
-    The captured step records the physics step into the caller's graph and must reproduce eager stepping,
-    including worlds reset inside the graph.
-    """
-    generator = torch.Generator(device="cuda:0").manual_seed(0)
-    actions = [2 * torch.rand(64, 1, device="cuda:0", generator=generator) - 1 for _ in range(60)]
-    eager = _rollout_cartpole(actions, captured=False)
-    captured = _rollout_cartpole(actions, captured=True)
-
-    # Episodes last 15 steps, so every world resets several times.
-    assert int(eager[2].sum()) >= 3 * 64
-    for eager_values, captured_values in zip(eager, captured):
-        torch.testing.assert_close(captured_values, eager_values, atol=1e-5, rtol=0.0)
-
-
 def _rollout_env(task: str, captured: bool, num_steps: int) -> tuple[list[torch.Tensor], object]:
     """Step a manager-based task deterministically with random actions and short episodes."""
-    sim_utils.create_new_stage()
-    env_cfg = resolve_presets(load_cfg_from_registry(task, "env_cfg_entry_point"), selected=("newton_mjwarp",))
-    env_cfg.sim.device = "cuda:0"
-    env_cfg.scene.num_envs = 16
-    env_cfg.seed = 5
-    env_cfg.capture_step = captured
-    env_cfg.sim.physics.deterministic_mode = "run_to_run"
-    env_cfg.observations.policy.enable_corruption = False
-    # Short episodes guarantee resets inside the rollout.
-    env_cfg.episode_length_s = 8 * env_cfg.decimation * env_cfg.sim.dt
-    env = gym.make(task, cfg=env_cfg)
+
+    def configure(env_cfg):
+        env_cfg.capture_step = captured
+        env_cfg.sim.physics.deterministic_mode = "run_to_run"
+        env_cfg.observations.policy.enable_corruption = False
+        # Short episodes guarantee resets inside the rollout.
+        env_cfg.episode_length_s = 8 * env_cfg.decimation * env_cfg.sim.dt
+
+    env = _make_env(task, num_envs=16, seed=5, configure=configure)
     try:
-        env.unwrapped.sim._app_control_on_stop_handle = None
         env.reset()
         generator = torch.Generator(device="cuda:0").manual_seed(0)
         shape = env.action_space.shape

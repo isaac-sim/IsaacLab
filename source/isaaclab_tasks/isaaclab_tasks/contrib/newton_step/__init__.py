@@ -3,15 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tasks exercising work inside the Newton step: control callbacks, Newton actuators, and Newton sensors.
-
-They pair with existing tasks to compare work run inside the captured Newton step against host-side equivalents.
-"""
+"""A reach task whose operational-space controller runs inside the captured Newton step."""
 
 import gymnasium as gym
 
 from isaaclab_tasks.core.reach.config.franka import agents as franka_reach_agents
-from isaaclab_tasks.core.velocity.config.anymal_d import agents as anymal_d_agents
 
 gym.register(
     id="IsaacContrib-NewtonStep-Reach-Franka-NewtonOSC",
@@ -23,24 +19,3 @@ gym.register(
         "default_agent": "rsl_rl",
     },
 )
-
-gym.register(
-    id="IsaacContrib-NewtonStep-Velocity-Flat-AnymalD-Sensors",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.velocity_sensors_env_cfg:AnymalDSensorsEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{anymal_d_agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerCfg",
-    },
-)
-
-for name, cfg in (("DCMotor", "AnymalDDCMotorEnvCfg"), ("MixedActuators", "AnymalDMixedActuatorsEnvCfg")):
-    gym.register(
-        id=f"IsaacContrib-NewtonStep-Velocity-Flat-AnymalD-{name}",
-        entry_point="isaaclab.envs:ManagerBasedRLEnv",
-        disable_env_checker=True,
-        kwargs={
-            "env_cfg_entry_point": f"{__name__}.velocity_actuators_env_cfg:{cfg}",
-            "rsl_rl_cfg_entry_point": f"{anymal_d_agents.__name__}.rsl_rl_ppo_cfg:AnymalDFlatPPORunnerCfg",
-        },
-    )
