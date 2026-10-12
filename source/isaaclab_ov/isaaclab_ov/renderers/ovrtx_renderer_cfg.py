@@ -34,6 +34,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Whether the native resource owns a detached OVStage instead of the legacy internal stage."""
     read_gpu_transforms: bool = MISSING
     """Whether OVRTX reads its GPU transform cache, resolved before native construction."""
+    device: str = MISSING
+    """Normalized simulation device: ``cpu`` or ``cuda:<index>``."""
 
 
 @configclass

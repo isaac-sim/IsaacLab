@@ -20,6 +20,15 @@ The type is determined by the physics material assigned to the object:
 - :class:`~isaaclab_newton.sim.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
 - :class:`~isaaclab_newton.sim.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface deformables.
 
+.. important::
+
+   The ``*DeformableBodyPropertiesCfg`` classes and the ``deformable_props`` spawner field in this
+   section are themselves now deprecated in favor of the deformable schema fragments and the
+   ``volume_deformable_props`` / ``surface_deformable_props`` spawner slots, and will be removed in
+   3.2. Read this section to understand where a 2.x name went, then migrate to the fragments as
+   described in :ref:`schema fragments <schema-fragments-migration>`. The code samples below show
+   the intermediate step, not the recommended end state.
+
 .. rubric:: Import Changes
 
 Deformable object cfgs remain in ``isaaclab.assets``. Deformable schema and material cfgs are

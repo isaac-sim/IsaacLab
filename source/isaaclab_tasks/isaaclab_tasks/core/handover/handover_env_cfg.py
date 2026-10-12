@@ -18,8 +18,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
+from isaaclab.sim import RigidBodyMaterialBaseCfg, SimulationCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 from isaaclab.visualizers import VisualizerCfg
@@ -103,7 +102,7 @@ BALL_CFG = RigidObjectCfg(
     spawn=sim_utils.SphereCfg(
         radius=OBJECT_RADIUS,
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 1.0, 0.0)),
-        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.7),
+        physics_material=RigidBodyMaterialBaseCfg(static_friction=0.7),
         rigid_props=[
             sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False),
             PhysxRigidBodyCfg(

@@ -108,7 +108,6 @@ def create_visualizer_cfgs():
             streaming_view=False,
             show_particles=True,
             particle_color=PARTICLE_COLOR,
-            update_frequency=1,
         )
     ]
 

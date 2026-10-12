@@ -16,7 +16,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
-from isaaclab.scene_data.deformable_discovery import DeformableStageEntry, deformable_entry
+from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.utils.string import to_camel_case
 
@@ -27,30 +27,23 @@ from isaaclab_newton.sim.spawners.materials import (
 )
 
 
-def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_path: str) -> DeformableStageEntry:
-    """Import one declared deformable's geometry, Newton material, and native element ranges.
+def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, geometry: DeformableStageEntry) -> None:
+    """Add a discovered deformable's geometry, Newton material, and native element ranges.
 
     Args:
         builder: Source builder that receives the complete deformable prototype.
         stage: Stage containing the authored geometry and bound physics material.
-        root_path: Deformable-body prim path.
-
-    Returns:
-        Prototype geometry for SDP's visual-mesh binding.
+        geometry: Deformable prototype discovered beneath an imported source.
 
     Note:
         Replace this importer with native ``add_usd`` when Isaac Lab's authored schemas and
         Newton material attributes have parity (newton-physics/newton#3036 and #3038).
         The native USD importer landed in #3192; that alone does not establish material parity.
-        Remove private group recording when the pinned Newton includes #3326's native recording.
     """
-    prim = stage.GetPrimAtPath(root_path)
-    geometry = deformable_entry(prim)
-    if geometry is None:
-        raise ValueError(f"No simulation mesh found under deformable {root_path!r}.")
+    prim = stage.GetPrimAtPath(geometry.root_path)
     material = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose="physics")[0].GetPrim()
     if not material:
-        raise ValueError(f"Deformable {root_path!r} requires a bound Newton physics material.")
+        raise ValueError(f"Deformable {geometry.root_path!r} requires a bound Newton physics material.")
     if geometry.deformable_type == "volume":
         add_mesh = builder.add_soft_mesh
         defaults = NewtonDeformableBodyMaterialCfg()
@@ -64,8 +57,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         attr = material.GetAttribute(f"newton:{to_camel_case(name, to='cC')}")
         material_kwargs[name] = attr.Get() if attr.IsValid() else getattr(defaults, name)
 
-    particle_start, tri_start = builder.particle_count, len(builder.tri_indices)
-    edge_start, tet_start = len(builder.edge_indices), len(builder.tet_indices)
     add_mesh(
         vertices=geometry.vertices,
         indices=geometry.indices,
@@ -73,17 +64,31 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
         rot=wp.quat(*geometry.init_rot),
         scale=1.0,
         vel=wp.vec3(),
-        label=root_path,
+        label=geometry.root_path,
         **material_kwargs,
     )
-    particle_range = (particle_start, builder.particle_count)
-    if geometry.deformable_type == "volume":
-        builder._record_soft_group(root_path, particle_range, (tet_start, len(builder.tet_indices)))
-    else:
-        builder._record_cloth_group(
-            root_path, particle_range, (tri_start, len(builder.tri_indices)), (edge_start, len(builder.edge_indices))
-        )
-    return geometry
+
+
+def add_visual_deformables_to_sources(
+    builders: dict[str, ModelBuilder], entries: Sequence[DeformableStageEntry]
+) -> None:
+    """Add each visual deformable to every imported source containing its USD subtree."""
+    for entry in entries:
+        for path in reversed(Sdf.Path(entry.root_path).GetPrefixes()):
+            builder = builders.get(str(path))
+            if builder is None:
+                continue
+            pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
+            surface = entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path
+            if surface:
+                add_mesh = builder.add_cloth_mesh
+                mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
+                mesh.update(tri_ke=1e4, tri_ka=1e4, tri_kd=1.5e-6, edge_ke=5.0, edge_kd=1e-2, particle_radius=0.008)
+            else:
+                add_mesh = builder.add_soft_mesh
+                mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
+                mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
+            add_mesh(label=entry.vis_mesh_path, **mesh, **pose)
 
 
 def build_source_builders(
@@ -127,10 +132,7 @@ def build_source_builders(
             hide_collision_shapes=True,
             skip_mesh_approximation=skip_mesh_approximation,
             schema_resolvers=schema_resolvers,
-            ignore_paths=[
-                *(ignore_paths or ()),
-                *(path for path in sources if path != source and clone_path.relative_to(path, source) is not None),
-            ],
+            ignore_paths=ignore_paths or (),
             return_deformable_results=True,
         )
         replace_newton_builder_shape_colors(builder, stage)
@@ -294,6 +296,7 @@ def replicate_builder_mapping(
     num_worlds = len(layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
+    source_worlds = {str(env_id): world for world, env_id in enumerate(env_ids)}
     initial_sites = source_site_indices.get(id(builder), {})
     local_site_map = {label: [indices.copy() for _ in range(num_worlds)] for label, indices in initial_sites.items()}
     source_inverse = {}
@@ -304,16 +307,22 @@ def replicate_builder_mapping(
     for prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
         start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
-        components = [(source, template) for source, template in reference_paths if source in source_builders]
+        available = [(source, template) for source, template in reference_paths if source in source_builders]
+        # Newton source validation ensures a nested declaration belongs to its parent's subtree.
+        parents = clone_path.get_parent_indices([target for _, target in available])
+        components = [reference for reference, parent in zip(available, parents, strict=True) if parent == -1]
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, asset_offsets = {}, []
         for source, destination in components:
             # Remove the source world's placement before composing assets into other world prototypes.
             if source not in source_inverse:
+                match = clone_path.match(source, env_template)
+                # The first destination also covers plans that remap an authored source ID outside env_ids.
+                source_world = source_worlds.get(match.instance, first_world) if match is not None else None
                 source_inverse[source] = (
                     np.asarray(wp.transform(), dtype=np.float32)
-                    if first_world == -1 or clone_path.match(source, env_template) is None
-                    else np.asarray(wp.transform_inverse(world_xforms[first_world]), dtype=np.float32)
+                    if prototype_id == -1 or source_world is None
+                    else np.asarray(wp.transform_inverse(world_xforms[source_world]), dtype=np.float32)
                 )
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))

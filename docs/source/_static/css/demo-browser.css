@@ -37,6 +37,15 @@
     color: var(--environment-muted);
 }
 
+.demo-command-note {
+    margin: 1rem 0 0;
+}
+
+.demo-command-note[hidden],
+.demo-command-note [hidden] {
+    display: none;
+}
+
 .demo-card-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
@@ -81,6 +90,15 @@
 }
 
 @media (max-width: 640px) {
+    .demo-command-row {
+        grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .demo-command-row .environment-selector {
+        grid-column: 1 / -1;
+        justify-content: space-between;
+    }
+
     .demo-card-grid {
         grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
         gap: 0.7rem;
