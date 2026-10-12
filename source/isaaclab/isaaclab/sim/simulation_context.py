@@ -574,6 +574,14 @@ class SimulationContext:
         if render and self.is_rendering:
             self.render()
 
+    def finish_physics_step(self) -> None:
+        """Run the host bookkeeping of :meth:`step` after a caller ran the physics manager's step operations.
+
+        See :meth:`~isaaclab.physics.PhysicsManager.step_ops`.
+        """
+        self._physics_step_count += 1
+        self.physics_manager.finish_step()
+
     def render(self, mode: int | None = None, skip_app_pumping: bool = False) -> None:
         """Update visualizers and render the scene.
 

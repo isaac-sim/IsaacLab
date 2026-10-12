@@ -19,6 +19,7 @@ from ..sim.utils.stage import get_current_stage
 if TYPE_CHECKING:
     from ..scene_data import SceneDataBackend
     from ..sim.simulation_context import SimulationContext
+    from ..utils.step_graph import StepOp
 
 logger = logging.getLogger(__name__)
 
@@ -543,6 +544,28 @@ class PhysicsManager(ABC):
     def wait_for_playing(self) -> None:
         """Block until the timeline is playing. Default is no-op."""
         pass
+
+    def step_ops(self) -> list[StepOp] | None:
+        """Return one :meth:`step` as operations for a caller that schedules and captures them with its own work.
+
+        The caller runs the operations in order, eagerly or grouped into graphs from :meth:`capture_graph`, then calls
+        :meth:`finish_step`. The default returns None: the backend exposes no operations and callers use :meth:`step`.
+        """
+        return None
+
+    def capture_graph(self, fn: Callable[[], None]) -> Any | None:
+        """Record ``fn`` into a graph on the simulation device without executing it.
+
+        Args:
+            fn: Work to record.
+
+        Returns:
+            An object whose ``launch()`` replays the work, or None when the backend does not capture graphs.
+        """
+        return None
+
+    def finish_step(self) -> None:
+        """Run the host bookkeeping of :meth:`step`, such as simulation time, after a caller ran :meth:`step_ops`."""
 
     def bind_control(self, actions, scene) -> bool:
         """Bind action terms and command submission to the physics step when supported.

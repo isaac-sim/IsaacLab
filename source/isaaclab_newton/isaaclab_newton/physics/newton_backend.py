@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import contextlib
 import gc
-import itertools
 import logging
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields
 from functools import partial
 from typing import TYPE_CHECKING, Any
@@ -30,6 +29,7 @@ from newton import CollisionPipeline, Contacts, Model, ModelBuilder, ModelFlags,
 from newton.sensors import SensorContact, SensorIMU
 
 from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.step_graph import StepGraph, StepOp
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
@@ -179,81 +179,6 @@ class StepCallbacks:
     def lists(self) -> tuple[list[StepCallback], ...]:
         """Return every callback list, in execution order."""
         return tuple(getattr(self, f.name) for f in fields(self))
-
-
-@dataclass(frozen=True)
-class StepOp:
-    """One operation of a :class:`StepGraph`, with every buffer bound."""
-
-    fn: Callable[[], None]
-    graphable: bool
-    name: str
-
-
-class StepGraph:
-    """One call to :func:`step` as straight-line operations, grouped into CUDA graphs.
-
-    Consecutive graphable operations form a segment that replays from one captured graph. Other operations, such as
-    TorchScript actuators, run eagerly between segments, so the eager and captured paths run the same operations in
-    the same order.
-    """
-
-    def __init__(self, ops: Sequence[StepOp], steps: int):
-        """Initialize the graph.
-
-        Args:
-            ops: Operations in execution order.
-            steps: Physics steps one launch advances.
-        """
-        self.ops = tuple(ops)
-        self.steps = steps
-        self.segments = tuple(
-            (graphable, tuple(group)) for graphable, group in itertools.groupby(self.ops, key=lambda op: op.graphable)
-        )
-        self.graphable = all(op.graphable for op in self.ops)
-        self.graphs: tuple[CapturedGraph | None, ...] | None = None
-
-    @property
-    def captured(self) -> bool:
-        """Whether graphable segments replay from captured graphs."""
-        return self.graphs is not None
-
-    def capture(self, capture: Callable[[Callable[[], None]], CapturedGraph]) -> None:
-        """Record every graphable segment without executing it.
-
-        Args:
-            capture: Records a function into a graph on the simulation device.
-        """
-        self.graphs = tuple(capture(partial(_run, ops)) if graphable else None for graphable, ops in self.segments)
-
-    def launch(self) -> None:
-        """Advance :attr:`steps` physics steps, replaying captured segments."""
-        if self.graphs is None:
-            _run(self.ops)
-            return
-        for (_, ops), graph in zip(self.segments, self.graphs):
-            if graph is None:
-                _run(ops)
-            else:
-                graph.launch()
-
-    def record(self) -> None:
-        """Launch every operation so that the caller's active capture records them.
-
-        Raises:
-            RuntimeError: If an operation cannot be recorded into a CUDA graph.
-        """
-        if not self.graphable:
-            eager = sorted({op.name for op in self.ops if not op.graphable})
-            raise RuntimeError(
-                f"The Newton step cannot be recorded into an outer CUDA graph: {eager} are not graphable."
-            )
-        _run(self.ops)
-
-
-def _run(ops: Sequence[StepOp]) -> None:
-    for op in ops:
-        op.fn()
 
 
 # ----- Replication outputs ------------------------------------------------------
@@ -1073,6 +998,47 @@ def _step(backend: NewtonBackend) -> StepGraph:
     return graph
 
 
+def step_ops(backend: NewtonBackend) -> list[StepOp]:
+    """Return one :func:`step` as operations for a caller that schedules and captures them with its own work.
+
+    The caller runs the operations in order, eagerly or grouped into its own graphs, e.g. a whole environment step
+    with its graphable segments captured and its eager islands run in place. Like :func:`record_step`, the operations
+    run a forced masked :func:`forward`, so every launch applies state authored since the previous one. Model changes
+    queued on the host are applied by an eager operation first. Rebuilding the step graph (see :func:`prepare`)
+    invalidates the returned operations.
+
+    Args:
+        backend: Simulation backend with a solver.
+
+    Returns:
+        The operations of :attr:`NewtonBackend.steps_per_call` physics steps.
+    """
+    graph = prepare(backend)
+    backend.transforms_may_change_on_graph_replay = True
+    ops = [
+        StepOp(partial(notify_model_changes, backend), False, "notify_model_changes"),
+        StepOp(partial(_set_stepping, backend, True), True, "begin_step"),
+        StepOp(partial(forward, backend, force=True), True, "forward"),
+    ]
+    for op in graph.ops:
+        # Eager islands run outside the begin/end markers once captured, so they mark the step themselves.
+        ops.append(op if op.graphable else StepOp(partial(_run_stepping, backend, op.fn), False, op.name))
+    ops.append(StepOp(partial(_set_stepping, backend, False), True, "end_step"))
+    return ops
+
+
+def _set_stepping(backend: NewtonBackend, stepping: bool) -> None:
+    backend.is_stepping = stepping
+
+
+def _run_stepping(backend: NewtonBackend, fn: Callable[[], None]) -> None:
+    backend.is_stepping = True
+    try:
+        fn()
+    finally:
+        backend.is_stepping = False
+
+
 def record_step(backend: NewtonBackend) -> StepGraph:
     """Record :attr:`NewtonBackend.steps_per_call` physics steps into the caller's active CUDA graph capture.
 
@@ -1258,8 +1224,15 @@ def run_query(
         The consumer's captured query and pointer layout, or None for eager execution.
     """
     model, state = backend.model, backend.state_0
-    pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
     cached = backend.bvh_refit
+    if model.device.is_capturing:
+        # An outer capture records the work itself: graphs cannot be launched inside it, and its replays cannot
+        # consult the publication timestamp, so every replay refits.
+        refit_bvh(backend)
+        cached.timestamp = None
+        query()
+        return graph
+    pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
     if cached.timestamp != timestamp:
         if model.device.is_cuda and use_cuda_graph:
             if cached.data is None or cached.data[0] != pointers:

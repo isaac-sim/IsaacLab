@@ -47,6 +47,7 @@ if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
+    from isaaclab.utils.step_graph import StepOp
 
 
 logger = logging.getLogger(__name__)
@@ -122,6 +123,7 @@ class NewtonManager(PhysicsManager):
         self._control_binding = None
         self._decimation = 1
         self._apply_every_physics_step = None
+        self._step_ops: tuple[nb.StepGraph, list[StepOp]] | None = None
 
     @property
     def cfg(self) -> NewtonCfg:
@@ -196,12 +198,45 @@ class NewtonManager(PhysicsManager):
         if backend.device.is_capturing:
             # A caller records a larger graph, such as a whole environment step; record into it.
             self.record_step()
+            self._advance_host_time()
         else:
             graph = nb.step(backend)
-            backend.solver_adapter.check_status(backend, graph.captured)
-            if self.cfg.debug_mode:
-                backend.solver_adapter.log_debug(backend)
-        self._sim_time += backend.dt * backend.steps_per_call
+            self._finish_step(graph.captured)
+
+    def step_ops(self) -> list[StepOp]:
+        """Return one :meth:`step` as operations for a caller that schedules and captures them.
+
+        See :func:`newton_backend.step_ops`. The same list is returned until the step graph is rebuilt, so callers can
+        detect changes by identity. Call :meth:`finish_step` after each run of the operations.
+        """
+        backend = self.backend
+        graph = nb.prepare(backend)
+        if self._step_ops is None or self._step_ops[0] is not graph:
+            self._step_ops = graph, nb.step_ops(backend)
+        return self._step_ops[1]
+
+    def capture_graph(self, fn: Callable[[], None]) -> nb.CapturedGraph | None:
+        """Record ``fn`` into a CUDA graph on the simulation device, or return None when capture is disabled.
+
+        Args:
+            fn: Work to record without executing it.
+        """
+        capture = self.backend.capture
+        return None if capture is None else capture(fn)
+
+    def finish_step(self) -> None:
+        """Run the host bookkeeping of :meth:`step` after a caller ran :meth:`step_ops`."""
+        self._finish_step(captured=True)
+
+    def _finish_step(self, captured: bool) -> None:
+        backend = self.backend
+        backend.solver_adapter.check_status(backend, captured)
+        if self.cfg.debug_mode:
+            backend.solver_adapter.log_debug(backend)
+        self._advance_host_time()
+
+    def _advance_host_time(self) -> None:
+        self._sim_time += self.backend.dt * self.backend.steps_per_call
         scene_data = self._scene_data_backend
         scene_data.transforms_timestamp += 1
         scene_data.geometry_timestamp += 1
