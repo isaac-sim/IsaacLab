@@ -306,6 +306,27 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     root_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.12})
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
+    abnormal_joint_velocity = DoneTerm(
+        func=mdp.joint_vel_out_of_manual_limit,
+        params={"max_velocity": 100.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
+
+
+def _physx_terminations_cfg() -> TerminationsCfg:
+    """Return the PhysX termination profile."""
+    cfg = TerminationsCfg()
+    cfg.abnormal_joint_velocity = None
+    return cfg
+
+
+@configclass
+class DrLegsTerminationsCfg(PresetCfg):
+    """Backend-specific DR Legs termination presets."""
+
+    default: TerminationsCfg = TerminationsCfg()
+    newton_kamino: TerminationsCfg = TerminationsCfg()
+    physx: TerminationsCfg = _physx_terminations_cfg()
+    isaacsim_physx: TerminationsCfg = physx
 
 
 ##
@@ -322,7 +343,7 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     actions: DrLegsActionsCfg = DrLegsActionsCfg()
     events: DrLegsEventCfg = DrLegsEventCfg()
     rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
+    terminations: DrLegsTerminationsCfg = DrLegsTerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 150,
         render_interval=3,

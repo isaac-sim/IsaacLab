@@ -52,22 +52,23 @@ def test_dr_legs_base_tilt_randomization_matches_physics_backend(
 
 
 @pytest.mark.parametrize(
-    ("overrides", "expected_armature_randomization"),
+    ("overrides", "expected_armature_randomization", "expected_velocity_guard"),
     [
-        ((), False),
-        (("physics=newton_kamino",), False),
-        (("physics=isaacsim_physx",), True),
-        (("physics=physx",), True),
+        ((), False, True),
+        (("physics=newton_kamino",), False, True),
+        (("physics=isaacsim_physx",), True, False),
+        (("physics=physx",), True, False),
     ],
 )
-def test_dr_legs_joint_initialization_matches_physics_backend(
-    overrides: tuple[str, ...], expected_armature_randomization: bool
+def test_dr_legs_newton_stability_profile_matches_physics_backend(
+    overrides: tuple[str, ...], expected_armature_randomization: bool, expected_velocity_guard: bool
 ):
-    """Initialize closed-loop coordinates consistently for each physics backend."""
+    """Use stable initialization and an invalid-state guard only for Kamino."""
     env_cfg = parse_env_cfg("IsaacContrib-DrLegs-HoldPose", overrides=overrides)
     assert (env_cfg.events.randomize_joint_params is not None) is expected_armature_randomization
     assert env_cfg.events.reset_robot_joints.params["position_range"] == (0.0, 0.0)
     assert env_cfg.events.reset_robot_joints.params["velocity_range"] == (0.0, 0.0)
+    assert (env_cfg.terminations.abnormal_joint_velocity is not None) is expected_velocity_guard
 
 
 @pytest.mark.parametrize(
