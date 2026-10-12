@@ -53,9 +53,7 @@ def test_reset_without_rigid_bodies_skips_rigid_body_view(monkeypatch):
 
     monkeypatch.setattr(omni.physics.tensors, "create_simulation_view", _SimulationViewGuard)
     sim = SimulationContext()
-    ground_cfg = sim_utils.GroundPlaneCfg()
-    ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
-    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1))
+    cube_cfg = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg())
     cube_cfg.func("/World/Cube", cube_cfg)
 
     sim.reset()

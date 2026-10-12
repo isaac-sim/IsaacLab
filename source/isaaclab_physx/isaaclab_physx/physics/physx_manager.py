@@ -1006,10 +1006,9 @@ class PhysxManager(PhysicsManager):
         # Register the complete tensor view only after PhysX has loaded the stage.
         cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend.backend = cls.backend
-        # The native API logs errors instead of returning an empty view when no rigid bodies exist.
-        rigid_body_prims = Usd.PrimRange.Stage(sim.stage, Usd.TraverseInstanceProxies())
-        has_rigid_bodies = any(prim.HasAPI(UsdPhysics.RigidBodyAPI) for prim in rigid_body_prims)
-        if has_rigid_bodies:
+        # omni.physics.tensors logs errors for an empty selection, so static scenes skip the request.
+        prims = Usd.PrimRange.Stage(sim.stage, Usd.TraverseInstanceProxies())
+        if any(prim.HasAPI(UsdPhysics.RigidBodyAPI) for prim in prims):
             view = cls.backend.simulation_view.create_rigid_body_view("/**")
             # PhysX returns a wrapper with no native handle for an empty selection.
             cls._scene_data_backend._rigid_body_view = view if view._backend is not None else None
