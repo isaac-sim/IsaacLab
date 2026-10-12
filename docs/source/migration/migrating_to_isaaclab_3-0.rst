@@ -2794,10 +2794,16 @@ dragging; RTX retains visualization markers and camera controls.
 
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
-resolution follows its framebuffer. For windows sharing one sensor image selection, use
+resolution follows its framebuffer. For windows and recorders sharing one image selection, use
 ``ImageViewCfg`` as described in :doc:`/source/features/visualizer_tiled_camera`; existing CLI
-recording source strings remain supported. Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
-window settings control presentation independently of image selection.
+recording source strings remain supported. Pass the shared declaration as ``VideoRecorderCfg(source=view)``.
+Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
+window settings control presentation independently of image selection. Invalid recording sources or
+channel selections now raise an error during recorder construction instead of disabling recording.
+
+Visualizer imports and :func:`~isaaclab.utils.string.string_to_callable` now propagate the original
+``ModuleNotFoundError`` for missing modules or dependencies. Catch ``ModuleNotFoundError`` instead of
+the previous ``ValueError`` wrapper if your application handles these failures.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)
