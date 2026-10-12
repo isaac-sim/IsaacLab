@@ -125,36 +125,5 @@ Command Builder
          <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
          <span>Teapot Fill</span>
        </button>
-       <button type="button" class="demo-card" aria-pressed="false"
-               data-demo-name="Rizon Sharpa Teapot" data-demo-id="rizon-sharpa-teapot"
-               data-demo-physics="newton_coupler" data-demo-fixed-physics="true"
-               data-demo-visualizers="none,newton_gl,newton_rtx"
-               data-demo-args="--device cuda:0"
-               data-demo-description="Grasp a Utah teapot with an index finger and pour MPM water into a bowl during a 70 cm rise.">
-         <img src="../../_static/demos/teapot_fill.jpg" alt="Teapot and simulated water" loading="lazy">
-         <span>Rizon Sharpa Teapot</span>
-       </button>
      </div>
    </div>
-
-Rizon--Sharpa teapot
---------------------
-
-The Rizon--Sharpa demo physically grasps the Utah teapot with an index finger and pours
-MPM water into a bowl during a 70 cm rise. MJWarp resolves robot and teapot contacts;
-MPM receives the measured teapot pose and center-of-mass twist through one-way coupling.
-The simulation runs at 800 Hz with one rigid step and one fluid step per simulation step.
-
-The demo requires access to the NVIDIA-internal
-`Fabrics-Sim Rizon4s--Sharpa asset <https://gitlab-master.nvidia.com/dex/fabrics-sim/-/tree/d0dbd1ddaefc4996db546949a7dfb37e39afcbeb/src/fabrics_sim/models/robots/urdf/rizon4s_sharpa/rizon4s_sharpa_no_spheres>`__.
-The asset is proprietary and is not included in Isaac Lab. Obtain the generated USD and its
-``textures/`` directory from the asset maintainer under your applicable access and license terms.
-Keep ``rizon4s_sharpa_no_spheres_generated.usd`` at the bundle root, beside ``textures/``;
-the demo verifies both the USD and its 14 referenced textures against the pinned bundle digest
-``ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63``.
-Then point the demo at that directory:
-
-.. code-block:: bash
-
-   export ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT=/path/to/rizon4s_sharpa_no_spheres
-   uv run isaaclab demo rizon-sharpa-teapot

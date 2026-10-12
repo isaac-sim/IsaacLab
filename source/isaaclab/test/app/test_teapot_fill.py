@@ -14,7 +14,7 @@ import numpy as np
 
 
 def test_teapot_fill_preserves_kinematic_defaults(source_checkout_root, monkeypatch):
-    """The additional robot demo must preserve the existing solver and motion."""
+    """The additional robot example must preserve the existing solver and motion."""
     script = source_checkout_root / "examples/demos/teapot_fill.py"
     monkeypatch.setattr(sys, "argv", [str(script), "--device", "cpu", "--visualizer", "none"])
     demo = runpy.run_path(str(script))
@@ -45,8 +45,8 @@ def test_teapot_collider_sync_uses_measured_com_motion(source_checkout_root, mon
     """Fluid boundaries use the interval's beginning pose and measured COM twist."""
     import warp as wp
 
-    monkeypatch.syspath_prepend(str(source_checkout_root / "examples/demos"))
-    helper = importlib.import_module("rizon_sharpa_teapot")
+    monkeypatch.syspath_prepend(str(source_checkout_root / "examples"))
+    helper = importlib.import_module("_rizon_sharpa_teapot")
     # A quarter-turn moves this offset COM from (2.2, -0.9, 0.8) to (2.2, -1.0, 0.9).
     start = (2.0, -1.0, 0.5, 0.0, 0.0, 0.0, 1.0)
     end = (2.3, -1.2, 0.6, 0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))

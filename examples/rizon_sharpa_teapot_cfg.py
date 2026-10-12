@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Solver configuration for the physical Rizon--Sharpa teapot demonstration."""
+"""Solver configuration for the physical Rizon--Sharpa teapot example."""
 
 from __future__ import annotations
 
@@ -16,14 +16,14 @@ from isaaclab.utils import configclass
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 if TYPE_CHECKING:
-    from rizon_sharpa_teapot import NewtonTeapotCouplerManager
+    from _rizon_sharpa_teapot import NewtonTeapotCouplerManager
 
 
 @configclass
 class TeapotSolverCfg(CouplerProxyCfg):
     """Select convex rigid contacts and the exact MPM shell after simulation launch."""
 
-    class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot:NewtonTeapotCouplerManager"
+    class_type: type[NewtonTeapotCouplerManager] | str = "_rizon_sharpa_teapot:NewtonTeapotCouplerManager"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:

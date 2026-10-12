@@ -1,1 +1,1 @@
-* Added the Rizon--Sharpa teapot demo with a fixed physical index-finger grasp, a 70 cm rising pour, and one-way MPM collider synchronization.
+* Added an experimental Rizon--Sharpa teapot example with a physical index-finger grasp and one-way MPM collider synchronization.

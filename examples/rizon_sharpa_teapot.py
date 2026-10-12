@@ -5,9 +5,17 @@
 
 """Physically grasp the Utah teapot and pour MPM water during a 70 cm rise.
 
-Run with ``uv run isaaclab demo rizon-sharpa-teapot``. The licensed robot bundle
-is configured through ``ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT``; see the demo
-documentation for asset prerequisites. The index grasp and motion are fixed.
+Run with ``uv run isaaclab example rizon-sharpa-teapot``. This experimental
+example uses a fixed index grasp and motion.
+
+The proprietary robot bundle is not distributed with Isaac Lab. Obtain the
+generated USD and its ``textures/`` directory from the Fabrics-Sim asset
+maintainer under your applicable access and license terms:
+https://gitlab-master.nvidia.com/dex/fabrics-sim/-/tree/d0dbd1ddaefc4996db546949a7dfb37e39afcbeb/src/fabrics_sim/models/robots/urdf/rizon4s_sharpa/rizon4s_sharpa_no_spheres
+
+Keep ``rizon4s_sharpa_no_spheres_generated.usd`` beside ``textures/`` and set
+``ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`` to that directory. The example checks
+the USD and its textures against the pinned bundle digest before launching.
 """
 
 from __future__ import annotations
@@ -133,7 +141,7 @@ def main() -> None:
         str(round(800 * SEQUENCE_DURATION)),
     ]
     try:
-        runpy.run_path(str(Path(__file__).with_name("teapot_fill.py")), run_name="__main__")
+        runpy.run_path(str(Path(__file__).parent / "demos" / "teapot_fill.py"), run_name="__main__")
     finally:
         sys.argv[:] = original_args
 

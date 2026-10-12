@@ -26,8 +26,10 @@ from __future__ import annotations
 
 import argparse
 import math
+import sys
 from collections.abc import Callable
 from dataclasses import MISSING
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -205,7 +207,9 @@ CAMERA_EYE = (0.0, -0.72, 1.18)
 CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 
 if ROBOT_ENABLED:
-    from rizon_sharpa_teapot_demo import BOWL_BASE_POS, ROBOT_BASE_POS, pose_at_time
+    # The optional robot example and its helpers live outside the curated demos.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from rizon_sharpa_teapot import BOWL_BASE_POS, ROBOT_BASE_POS, pose_at_time
 
     CAMERA_EYE = (0.55, -1.5, 1.72)
     CAMERA_TARGET = (-0.28, 0.0, 1.22)
@@ -842,10 +846,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
 
     cfg = TeapotFillSceneCfg(num_envs=1, env_spacing=0.0)
     if ROBOT_ENABLED:
-        from pathlib import Path
-
+        from _rizon_sharpa_teapot import get_robot_cfg, prepared_contact_path
         from isaaclab_newton.sim.schemas import MujocoCollisionCfg
-        from rizon_sharpa_teapot import get_robot_cfg, prepared_contact_path
 
         cfg.robot = get_robot_cfg(base_position=ROBOT_BASE_POS)
         cfg.tabletop_collider.spawn.collision_props[1].contact_gap = 0.001
@@ -915,7 +917,7 @@ def run_simulator(sim, scene, surface_renderer: FluidSurfaceRenderer | None, rob
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
     if ROBOT_ENABLED:
-        from rizon_sharpa_teapot import configured_asset_path
+        from _rizon_sharpa_teapot import configured_asset_path
 
         configured_asset_path()
     sim_cfg = create_sim_cfg()
@@ -945,8 +947,8 @@ def main() -> None:
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:
-            from rizon_sharpa_teapot import TeapotPourMotion
-            from rizon_sharpa_teapot_demo import (
+            from _rizon_sharpa_teapot import TeapotPourMotion
+            from rizon_sharpa_teapot import (
                 PICKUP_TIME,
                 POUR_PREFIX_TIME,
                 SEQUENCE_DURATION,

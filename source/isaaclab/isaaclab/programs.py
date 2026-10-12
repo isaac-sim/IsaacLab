@@ -106,12 +106,6 @@ DEMOS = (
         "Smash rigid crates with MPM snowballs.",
     ),
     ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
-    ProgramSpec(
-        "rizon-sharpa-teapot",
-        "examples/demos/rizon_sharpa_teapot_demo.py",
-        "Grasp a teapot with Rizon--Sharpa and pour during a 70 cm rise.",
-        required_modules=("isaaclab_contrib",),
-    ),
 )
 
 
@@ -139,6 +133,12 @@ EXAMPLES = (
     ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
+    ProgramSpec(
+        "rizon-sharpa-teapot",
+        "examples/rizon_sharpa_teapot.py",
+        "Explore physical Rizon--Sharpa grasping with one-way MPM fluid coupling.",
+        required_modules=("isaaclab_contrib",),
+    ),
     ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",

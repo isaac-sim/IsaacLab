@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Rizon4s/Sharpa asset contract for the teapot demonstration.
+"""Rizon4s/Sharpa assets and physical control for the teapot example.
 
 The USD and textures remain in the user's asset cache because the upstream
 Fabrics-Sim asset is NVIDIA proprietary. The bundle is shared with the Rizon–Sharpa coffee and RJ45 demonstrations.
