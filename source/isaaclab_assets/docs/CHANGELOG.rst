@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+2.0.1 (2026-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed DR Legs and four-bar pole imports to defer Newton USD downloads until the assets spawn.
+
+
 2.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

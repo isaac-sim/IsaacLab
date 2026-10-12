@@ -3,6 +3,17 @@ Changelog
 
 .. towncrier release notes start
 
+27.0.4 (2026-10-12)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed LEAPP export of EMA joint position actions by preserving the previous target as feedback state.
+* Fixed stale Newton asset caches by using the raw HTTPS asset root by default while
+  preserving :func:`~isaaclab.utils.assets.retrieve_git_asset_path` for compatibility.
+
+
 27.0.3 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~~
 
