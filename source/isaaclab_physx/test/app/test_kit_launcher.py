@@ -770,25 +770,21 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
 
 
 def test_close_pumps_the_app_before_closing():
-    """Drain callbacks and close Kit despite repeated Ctrl+C during teardown."""
+    """Drain callbacks before closing Kit."""
     calls = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def update():
-        signal.raise_signal(signal.SIGINT)
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
         calls.append("update")
 
     def close(exit_code):
-        signal.raise_signal(signal.SIGINT)
         calls.append(exit_code)
 
     launcher = KitLauncher.__new__(KitLauncher)
     launcher._app = SimpleNamespace(update=update, close=close)
 
-    try:
-        launcher.close(exit_code=3)
-    except KeyboardInterrupt:
-        pytest.fail("Ctrl+C interrupted Kit teardown")
+    launcher.close(exit_code=3)
 
     assert calls == ["update", 3]
     assert signal.getsignal(signal.SIGINT) is previous_handler

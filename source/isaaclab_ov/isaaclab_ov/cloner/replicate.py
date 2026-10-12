@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,9 @@ from isaaclab_ov._clone import CloneRecipe
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
+
+
+logger = logging.getLogger(__name__)
 
 
 def _clone_recipes(
@@ -203,8 +207,22 @@ def _serialize_stage(
 
     Parsed bodies have native environment ID zero. An original-bearing world must therefore
     import all its assets together; its copies inherit one collision group and environment ID.
-    CPU and features without native cloning import every declared world instead.
+    CPU, features without native cloning, and acceleration-spring materials with positive
+    compliant-contact stiffness import every declared world instead.
     """
+    if recipes and not full_stage:
+        # Native clones lose acceleration-spring material behavior in OVPhysX 0.6.3.
+        for prim in stage.Traverse(Usd.TraverseInstanceProxies()):
+            acceleration = prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring")
+            stiffness = prim.GetAttribute("physxMaterial:compliantContactStiffness")
+            if acceleration and acceleration.Get() and stiffness and (stiffness.Get() or 0.0) > 0.0:
+                logger.warning(
+                    "Importing the full scene through USD to preserve acceleration-spring contact behavior "
+                    "for material %s. Native-cloning startup savings are disabled.",
+                    prim.GetPath(),
+                )
+                full_stage = True
+                break
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
     sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
