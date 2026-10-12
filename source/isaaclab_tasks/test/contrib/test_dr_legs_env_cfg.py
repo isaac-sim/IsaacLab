@@ -104,6 +104,6 @@ def test_dr_legs_walk_training_profile_matches_physics_backend(
     assert env_cfg.observations.policy.gait_phase.params["period"] == expected_gait_period
     assert (env_cfg.observations.policy.base_lin_vel is not None) is expected_velocity_feedback
     assert env_cfg.commands.base_velocity.ranges.heading == (
-        (0.0, 0.0) if expected_velocity_feedback else (-math.pi, math.pi)
+        None if expected_velocity_feedback else (-math.pi, math.pi)
     )
     assert agent_cfg.actor.distribution_cfg.init_std == expected_init_std

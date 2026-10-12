@@ -118,7 +118,7 @@ def _newton_commands_cfg() -> CommandsCfg:
     """Return commands without heading conversion for Newton walking."""
     cfg = CommandsCfg()
     cfg.base_velocity.heading_command = False
-    cfg.base_velocity.ranges.heading = (0.0, 0.0)
+    cfg.base_velocity.ranges.heading = None
     return cfg
 
 
