@@ -412,6 +412,7 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
 def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     from newton._src.viewer.camera import Camera
     from newton._src.viewer.viewer_gui import ViewerGui
+    from newton.viewer import ViewerGL
     from pyglet.window import key
 
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
@@ -431,11 +432,11 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     gui._cam_damp_tau = 0.01
     fake_implot = SimpleNamespace(create_context=lambda: object(), set_imgui_context=lambda context: None)
     monkeypatch.setitem(sys.modules, "imgui_bundle", SimpleNamespace(implot=fake_implot))
-    monkeypatch.setattr(
-        newton_visualizer_module.NewtonViewerUI,
-        "__init__",
-        lambda self, *args, **kwargs: setattr(self, "gui", gui),
-    )
+    monkeypatch.setattr(ViewerGL, "__init__", lambda self, *args, **kwargs: setattr(self, "gui", gui))
+    monkeypatch.setattr(NewtonViewerGL, "_patch_scalar_plot_width", lambda self: None)
+    monkeypatch.setattr(NewtonViewerGL, "_patch_viewer_panel", lambda self: None)
+    monkeypatch.setattr(NewtonViewerGL, "_patch_image_logger", lambda self: None)
+    monkeypatch.setattr(NewtonViewerGL, "register_ui_callback", lambda self, *args, **kwargs: None)
 
     start = np.asarray(viewer.camera.pos)
     NewtonViewerGL.__init__(viewer)
