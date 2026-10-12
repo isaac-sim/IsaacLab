@@ -90,6 +90,7 @@ def test_wheel_trains(installed_wheel: tuple[str, Path, Path], run: Callable[...
         "physics=newton_mjwarp",
         cwd=directory,
         timeout=900,
+        retry_cuda_oom=True,
     )
     assert "Training time:" in output
     assert "Traceback (most recent call last):" not in output

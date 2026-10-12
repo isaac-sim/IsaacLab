@@ -60,6 +60,7 @@ def test_workspace_trains(workspace: tuple[str, Path, dict[str, str]], checkout:
         cwd=checkout,
         env=env,
         timeout=900,
+        retry_cuda_oom=True,
     )
     assert "Training time:" in output
     assert "Traceback (most recent call last):" not in output

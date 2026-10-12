@@ -9,11 +9,15 @@ import os
 import platform
 import shutil
 import subprocess
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
 import tomllib
+
+_CUDA_OOM_ERRORS = ("CUDA error: out of memory", "CUDA out of memory")
+_CUDA_OOM_RETRY_DELAY_S = 30
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -34,7 +38,7 @@ def checkout() -> Path:
 
 @pytest.fixture(scope="session")
 def run() -> Callable[..., str]:
-    """Run with bounded capture and no inherited Python environment or package indexes."""
+    """Run with bounded capture, clean package settings, and opt-in transient CUDA OOM recovery."""
     clean_env = {
         key: value
         for key, value in os.environ.items()
@@ -57,19 +61,36 @@ def run() -> Callable[..., str]:
     if platform.machine().lower() in ("aarch64", "arm64"):
         clean_env["LD_PRELOAD"] = "/lib/aarch64-linux-gnu/libgomp.so.1"
 
-    def execute(*args: str, cwd: Path, env: dict[str, str] | None = None, timeout: int = 900) -> str:
-        result = subprocess.run(
-            args,
-            cwd=cwd,
-            env={**clean_env, **(env or {})},
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            timeout=timeout,
-            check=False,
-        )
-        assert result.returncode == 0, f"{args} exited with {result.returncode}:\n{result.stdout}"
-        return result.stdout
+    def execute(
+        *args: str,
+        cwd: Path,
+        env: dict[str, str] | None = None,
+        timeout: int = 900,
+        retry_cuda_oom: bool = False,
+    ) -> str:
+        attempts = 2 if retry_cuda_oom else 1
+        outputs = []
+        for attempt in range(attempts):
+            result = subprocess.run(
+                args,
+                cwd=cwd,
+                env={**clean_env, **(env or {})},
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=timeout,
+                check=False,
+            )
+            outputs.append(result.stdout)
+            if result.returncode == 0:
+                return result.stdout
+            if attempt + 1 < attempts and any(error in result.stdout for error in _CUDA_OOM_ERRORS):
+                time.sleep(_CUDA_OOM_RETRY_DELAY_S)
+                continue
+            break
+
+        output = "\n\n".join(f"Attempt {index}:\n{value}" for index, value in enumerate(outputs, start=1))
+        pytest.fail(f"{args} exited with {result.returncode}:\n{output}")
 
     return execute
 
