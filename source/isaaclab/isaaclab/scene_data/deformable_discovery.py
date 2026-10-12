@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -257,6 +257,8 @@ def expand_deformable_entries(
     plan: ClonePlan,
     env_ids: np.ndarray,
     positions: np.ndarray | None = None,
+    *,
+    imported_sources: Collection[str] | None = None,
 ) -> list[DeformableStageEntry]:
     """Expand backend-owned prototype geometry without copying its vertex arrays or reading USD.
 
@@ -265,6 +267,7 @@ def expand_deformable_entries(
         plan: Declared asset prototypes and their world topology.
         env_ids: Target environment ids.
         positions: Environment origins [m], shape [num_envs, 3].
+        imported_sources: Source builders owned by this backend. When omitted, use all plan sources.
 
     Returns:
         Destination geometry records, including shared geometry once. Parent-frame world poses [m, xyzw]
@@ -272,6 +275,7 @@ def expand_deformable_entries(
     """
     entries: dict[str, tuple[str, DeformableStageEntry]] = {}
     source_instances = defaultdict(list)
+    source_worlds = {str(env_id): world for world, env_id in enumerate(env_ids)}
     sources = cloner_path.get_asset_prototype_paths(plan)
     templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
         plan, include_world_indices=True
@@ -280,26 +284,36 @@ def expand_deformable_entries(
         columns = world_ids[world_starts[group] : world_starts[group + 1]]
         for index in range(*starts[group : group + 2]):
             source = sources[plan.topology.world_prototypes[index]]
+            if imported_sources is not None and source not in imported_sources:
+                continue
             source_instances[Sdf.Path(source)].append((source, templates[index], columns))
     for entry in prototypes:
-        owner = Sdf.Path(entry.root_path)
-        while owner != Sdf.Path.absoluteRootPath and owner not in source_instances:
-            owner = owner.GetParentPath()
-        if owner not in source_instances:
+        # An imported parent and child can own this prototype in different world compositions.
+        owners = [path for path in Sdf.Path(entry.root_path).GetPrefixes() if path in source_instances]
+        if not owners:
             entries[entry.root_path] = (entry.root_path, entry)
             continue
-        source_column = source_instances[owner][0][2][0]
-        for source, template, columns in source_instances[owner]:
-            for column in columns:
-                target = template.format(int(env_ids[column]))
-                offset = 0 if positions is None else positions[column] - positions[source_column]
-                cloned = replace(
-                    entry,
-                    root_path=cloner_path.rebase(entry.root_path, source, target),
-                    sim_mesh_path=cloner_path.rebase(entry.sim_mesh_path, source, target),
-                    vis_mesh_path=cloner_path.rebase(entry.vis_mesh_path, source, target),
-                    init_pos=tuple(np.asarray(entry.init_pos) + offset),
-                )
-                if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):
-                    entries[cloned.root_path] = (target, cloned)
+        for owner in owners:
+            source = source_instances[owner][0][0]
+            match = cloner_path.match(source, plan.env_template)
+            # Match the authored source world; remapped IDs retain the first destination convention.
+            source_world = source_worlds.get(match.instance, source_instances[owner][0][2][0]) if match else None
+            for source, template, columns in source_instances[owner]:
+                for column in columns:
+                    target = template.format(int(env_ids[column]))
+                    offset = (
+                        0
+                        if positions is None
+                        else positions[column] - (positions[source_world] if source_world is not None else 0)
+                    )
+                    cloned = replace(
+                        entry,
+                        root_path=cloner_path.rebase(entry.root_path, source, target),
+                        sim_mesh_path=cloner_path.rebase(entry.sim_mesh_path, source, target),
+                        vis_mesh_path=cloner_path.rebase(entry.vis_mesh_path, source, target),
+                        init_pos=tuple(np.asarray(entry.init_pos) + offset),
+                    )
+                    # An overlapping child declaration wins within the same destination.
+                    if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):
+                        entries[cloned.root_path] = (target, cloned)
     return [entry for _, entry in entries.values()]

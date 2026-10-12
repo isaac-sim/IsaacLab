@@ -15,6 +15,8 @@ We will use the :class:`controllers.DifferentialIKController` class to track a d
 end-effector pose command.
 
 This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
+For controller selection and the control-loop walkthrough, see
+:doc:`../concepts/motion_generators`.
 
 
 The Code
@@ -92,7 +94,7 @@ and :meth:`~assets.Articulation.find_bodies`. These methods take in the names of
 and bodies and return their corresponding indices.
 
 While you may directly use these methods to obtain the indices, we recommend using the
-:attr:`~managers.SceneEntityCfg` class to resolve the indices. This class is used in various
+:class:`~managers.SceneEntityCfg` class to resolve the indices. This class is used in various
 places in the APIs to extract certain information from a scene entity. Internally, it
 calls the above methods to obtain the indices. However, it also performs some additional
 checks to ensure that the provided names are valid. Thus, it is a safer option to use
@@ -156,8 +158,9 @@ Now that we have gone through the code, let's run the script and see the result:
          uv run isaaclab -p scripts/tutorials/05_controllers/run_diff_ik.py --robot franka_panda --num_envs 128 --viz kit
 
 The script will start a simulation with 128 robots. The robots will be controlled using the IK controller.
-The current and desired end-effector poses should be displayed using frame markers. When the robot reaches
-the desired pose, the command should cycle through to the next pose specified in the script.
+The current and desired end-effector poses should be displayed using frame markers.
+The script resets and changes goals every 150 simulation steps, cycling through
+the poses specified in the script.
 
 .. figure:: ../_static/tutorials/tutorial_task_space_controller.jpg
     :align: center

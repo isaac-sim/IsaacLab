@@ -228,7 +228,7 @@ Current Limitations
 For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in
+For renders at lower resolutions, we advise setting the ``antialiasing_mode`` attribute in
 :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
 quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in

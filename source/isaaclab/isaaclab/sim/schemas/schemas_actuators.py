@@ -25,11 +25,15 @@ import re
 import tempfile
 from typing import Any
 
+import torch
+from torch._export.converter import TS2EPConverter
+
 from pxr import Sdf, Usd, UsdPhysics
 
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
 from ...utils import clone
+from ...utils.assets import retrieve_file_path
 from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable, to_camel_case
 from .schemas import drive_instance_name
 
@@ -397,24 +401,23 @@ def _remove_actuator_prims_for_joints(
         prim.SetActive(False)
 
 
-def resave_checkpoint_with_metadata(
-    original_path: str,
-    metadata: dict[str, Any],
-) -> str:
+def resave_checkpoint_with_metadata(original_path: str, metadata: dict[str, Any]) -> str:
     """Re-save a neural-network checkpoint with updated metadata.
 
     Resolves the configured path through the shared asset cache, loads the
     original TorchScript checkpoint, merges *metadata* into any existing
-    metadata (Lab config values take precedence), and writes the result to a
-    temporary ``.pt`` file that persists for the lifetime of the process.
+    metadata (Lab config values take precedence), and exports Newton's ``.pt2``
+    format with a dynamic batch dimension. The temporary file persists for the
+    lifetime of the process.
+
+    Args:
+        original_path: Path or URL of a TorchScript actuator checkpoint.
+        metadata: Overrides for the checkpoint's metadata. The merged metadata must include
+            ``model_type`` (``"mlp"`` or ``"lstm"``) and, for MLP models, ``input_idx``.
 
     Returns:
-        Path to the temporary checkpoint file.
+        Path to the temporary ``.pt2`` checkpoint.
     """
-    import torch  # noqa: PLC0415
-
-    from ...utils.assets import retrieve_file_path  # noqa: PLC0415
-
     local_path = retrieve_file_path(original_path)
 
     extra_files: dict[str, str] = {"metadata.json": ""}
@@ -425,10 +428,35 @@ def resave_checkpoint_with_metadata(
         raise ValueError(f"Cannot load checkpoint at '{original_path}'; expected a TorchScript archive") from exc
 
     merged = {**existing_meta, **metadata}
+    batch = torch.export.Dim("batch")
+    if merged["model_type"] == "lstm":
+        weights = net.lstm.state_dict()
+        merged["num_layers"] = len(weights) // 4
+        merged["hidden_size"] = weights["weight_hh_l0"].shape[1]
+        state_shape = (merged["num_layers"], 3, merged["hidden_size"])
+        inputs = (torch.zeros(3, 1, 2), (torch.zeros(state_shape), torch.zeros(state_shape)))
+        dynamic_shapes = ({0: batch}, ({1: batch}, {1: batch}))
+    else:
+        inputs = (torch.zeros(3, 2 * len(merged["input_idx"])),)
+        dynamic_shapes = ({0: batch},)
 
-    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as tmp:
+    converter = TS2EPConverter(net.eval(), inputs)
+    # Fold TorchScript's rank checks before converting LSTM control flow.
+    torch._C._jit_pass_peephole(converter.ts_graph, False)
+    torch._C._jit_pass_constant_propagation(converter.ts_graph)
+    program = converter.convert()
+    graph = program.module(check_guards=False)
+    # Lifted LSTM weights must move with the module when Newton selects its device.
+    for name, tensor in program.constants.items():
+        if isinstance(tensor, torch.Tensor):
+            delattr(graph, name)
+            graph.register_buffer(name, tensor)
+    # The converter specializes LSTM batches; export the graph with an explicit batch contract.
+    program = torch.export.export(graph, inputs, dynamic_shapes=dynamic_shapes)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt2", delete=False) as tmp:
         tmp_path = tmp.name
     extra_out = {"metadata.json": json.dumps(merged)}
-    torch.jit.save(net, tmp_path, _extra_files=extra_out)
+    torch.export.save(program, tmp_path, extra_files=extra_out)
 
     return tmp_path
