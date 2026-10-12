@@ -294,7 +294,7 @@ The PhysX Tensor API provides typed views for data paths and capabilities that
 require engine-native access.
 
 Mental model
-~~~~~~~~~~~~
+^^^^^^^^^^^^
 
 The API starts from a ``SimulationView`` and creates typed views over selected
 physics objects. Access is entirely method-based: a getter pulls data from the
@@ -303,7 +303,7 @@ live pointers, so editing a getter result does not update the simulation. Raw
 views select objects with PhysX Tensor API wildcard patterns.
 
 Lifecycle prerequisite
-~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 
 :class:`~isaaclab_physx.physics.PhysxManager` creates its
 ``SimulationView`` with the Warp frontend. Low-level
@@ -319,7 +319,7 @@ PhysX Tensor API view has been created:
        raise RuntimeError("PhysX Tensor API is not ready; initialize and reset the simulation first.")
 
 Reuse Isaac Lab-owned access
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 When an Isaac Lab asset already has the desired selection, reuse its
 :attr:`~isaaclab_physx.assets.Articulation.root_view` rather than creating a
@@ -337,7 +337,7 @@ can expose a different native PhysX view type, so choose methods that match the
 returned view rather than assuming one common interface.
 
 Create raw access
-~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^
 
 Create a view directly only when no Isaac Lab-owned selection matches the
 needed objects or capability. In this Tensor API pattern, ``*`` selects the
@@ -350,7 +350,7 @@ matching object below every cloned environment:
    )
 
 Read/write semantics
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 Each getter and setter is a separate operation. Clone a returned Warp buffer
 before editing it locally, then call the matching setter to publish the result:
@@ -377,7 +377,7 @@ Not every setter requires that refresh; follow the method-level behavior in the
 upstream reference.
 
 Access the contact view
-~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^
 
 The PhysX contact sensor exposes its native ``RigidContactView`` through
 :attr:`~isaaclab_physx.sensors.ContactSensor.contact_view`. Use it when the
@@ -394,7 +394,7 @@ Other Isaac Lab sensors may use ordinary rigid-body or articulation views
 internally, but those views are not sensor-specific low-level interfaces.
 
 Ownership, synchronization, and invalidation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Preserve a view's expected selection ordering, device, dtype, and tensor shape
 when supplying values to a setter. Check and reacquire views after a hard
@@ -402,6 +402,6 @@ reset, object removal, stage reload, or manager teardown. Prefer public Isaac
 Lab sensor data when direct native contact or motion data is not required.
 
 Authoritative references
-~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 * `Omni Physics Python API reference <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/pythonapi.html>`_
