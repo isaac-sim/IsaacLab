@@ -20,7 +20,7 @@ The extension is experimental and depends on an unreleased PhysicsNeMo Robotics.
 | Integration (manager, preflight, model identity, recording, training, deployment) | Complete for whole-scene learned physics of joint-backed robots; covered by CPU tests and CUDA tests of the data semantics |
 | Cartpole | Usable: a PPO policy trained only in learned physics transfers to MuJoCo Warp with the same return |
 | FlashNeRD CartPole benchmark | Reproduced: on the study's own teacher the recipe improves on every horizon of the paper's Table I |
-| ANYmal-C locomotion with target control | Partial: a PPO policy trained only in learned physics reaches 89 % of the MuJoCo Warp policy's return in MuJoCo Warp (one seed), see below |
+| ANYmal-C locomotion with target control | Usable: PPO policies trained only in learned physics reach 97 and 93 % of the MuJoCo Warp policies' return in MuJoCo Warp (two seeds), see below |
 | Variable contact tokens, hybrid learned/Newton coupling | Not supported |
 
 Known limitations:
@@ -253,7 +253,8 @@ python $E/train_policy.py --output /tmp/anymal-c/eval-mjwarp --checkpoint /tmp/a
 ```
 
 For ten million transitions, record with several processes per GPU, each with its own seed and with
-bounded shards, and train on all of them; FP16 projections halve the cost of each learned step:
+bounded shards, and train on all of them for 200,000 updates; FP16 projections halve the cost of each learned
+step:
 
 ```bash
 for seed in 7 8 9 10; do
@@ -262,7 +263,7 @@ for seed in 7 8 9 10; do
 done
 wait
 torchrun --standalone --nproc-per-node 2 $E/train.py --dataset /tmp/anymal-c/data/seed-* --output /tmp/anymal-c/train \
-  --normalizer-windows 2000000
+  --normalizer-windows 2000000 --max-updates 200000
 python $E/train_policy.py --output /tmp/anymal-c/ppo-learned --artifact /tmp/anymal-c/train/artifact \
   --inference-dtype float16
 ```
@@ -281,7 +282,7 @@ python $E/train_policy.py --output /tmp/anymal-c/ppo-learned --artifact /tmp/any
 | Frame and control | 20 ms, joint-position targets | Same: `TrajectoryDatasetRecorder(control_targets=...)` records Newton `joint_target_q`, and the learned scene (`AnymalCTargetControlEnvCfg`) forwards targets through zero-gain implicit actuators, which leaves the Newton model identical |
 | Data | Randomized base poses, velocities, joints; targets within 0.75 rad every 20 ms; up to 100 steps; falls kept | Same (`AnymalCExplorationEnvCfg`), 8 x 2,048 x 618 control periods (ten million transitions) |
 | Contact and inputs | Four fixed foot-sphere probes | Same, with heading-frame state and base-frame gravity |
-| Model | FlashNeRD 8.88M, 13-frame receptive field, 60,000 updates, 5 % validation | ParallelNeRD with the study's G1 geometry and spans (4, 4, 4, 4), 10.7M parameters, 13 frames, 60,000 updates of 4,096 windows, 5 % validation |
+| Model | FlashNeRD 8.88M, 13-frame receptive field, 60,000 updates, 5 % validation | ParallelNeRD with the study's G1 geometry and spans (4, 4, 4, 4), 10.7M parameters, 13 frames, 200,000 updates of 4,096 windows, 5 % validation |
 | PPO | 16,384 environments, 300 iterations, reward not published | Same, with the Isaac Lab ANYmal-D flat reward: the joint-torque penalty is removed, because target control does not expose torques, and the joint-acceleration penalty is differenced over the control period (`control_period_joint_acc_l2`) |
 
 The recorded targets equal what the learned scene hands the model, element for element
@@ -290,12 +291,14 @@ The recorded targets equal what the learned scene hands the model, element for e
 Data. With 2.46 million transitions (4,096 x 600 control periods) the model overfits: from 10,000 to 60,000
 updates the training RMSE of the normalized one-step prediction falls from 0.24 to 0.11 while the validation
 RMSE rises from 0.281 to 0.286. With ten million transitions (8 x 2,048 x 618, the commands above) the
-validation RMSE keeps falling, to 0.262, 0.231, and 0.213 after 10,000, 30,000, and 60,000 updates, with a
-training RMSE of 0.178. The results below use this model.
+validation RMSE keeps falling, to 0.213 after 60,000 updates. On a second recording with the same settings,
+200,000 updates (94 minutes on two L40S GPUs) end at 0.217, flat after 120,000 updates while the training RMSE
+falls to 0.13, but lower the open-loop error of 64 random-target rollouts after 2 s from 0.114 to 0.103 rad in joint positions and from
+0.023 to 0.018 m in base height. The results below use the 200,000-update model.
 
 Reward. Isaac Lab differences joint velocities over every physics step for `joint_acc`, 5 ms in MuJoCo
 Warp but 20 ms in the learned model, so the ANYmal-D `dof_acc_l2` penalty measures different quantities in
-the two physics. With it, the same MuJoCo Warp policy loses 0.057 per step to the penalty in MuJoCo Warp and
+the two physics. With it and the 60,000-update model, the same MuJoCo Warp policy loses 0.057 per step to the penalty in MuJoCo Warp and
 0.010 in learned physics, and PPO in learned physics found a crouched, fast-stepping gait whose 5 ms
 accelerations cost 0.95 per step in MuJoCo Warp: its policies scored 28 in learned physics and 8.2 and
 -1.7 in MuJoCo Warp, while tracking velocity better than the MuJoCo Warp policies. `control_period_joint_acc_l2`
@@ -303,29 +306,30 @@ differences over the 20 ms environment step in both physics, with the weight sca
 walking gait's squared accelerations at the two intervals; the same MuJoCo Warp policy then loses 0.056 and
 0.050 per step.
 
-With this reward, seed 42, every result over 256 environments and 1,000 steps with mean actions; the two PPO runs
-took 41 minutes in parallel on two L40S GPUs:
+With this reward, every result over 256 environments and 1,000 steps with mean actions; each seed's two PPO
+runs took 40 minutes in parallel on two L40S GPUs:
 
-| Policy | Return in MuJoCo Warp | Velocity tracking error | Fall rate | Return in learned physics |
+| Policy, seed | Return in MuJoCo Warp | Velocity tracking error | Fall rate | Return in learned physics |
 | --- | --- | --- | --- | --- |
-| Trained in MuJoCo Warp | 27.05 | 0.089 m/s | 0 % | 27.03 |
-| Trained in learned physics | 24.05 | 0.110 m/s | 2.0 % | 27.31 |
+| Trained in MuJoCo Warp, 42 / 43 | 27.15 / 27.09 | 0.086 / 0.083 m/s | 0 / 0.4 % | 27.01 / 27.14 |
+| Trained in learned physics, 42 / 43 | 26.28 / 25.26 | 0.089 / 0.108 m/s | 1.6 / 1.6 % | 27.54 / 26.97 |
 
-The learned environment reproduces the MuJoCo Warp policy, and the policy trained only in learned physics
-keeps 89 % of the MuJoCo Warp return when it runs in MuJoCo Warp, against parity (28.0 and 27.8) in the
-FlashNeRD paper. About half of its loss in MuJoCo Warp (0.07 of 0.15 per step) is the acceleration
-penalty: for its crouched gait (base 0.37 m high against 0.47 m) the model predicts 2.6 times smaller
-control-period accelerations than MuJoCo Warp produces; velocity tracking and base orientation account for
-most of the rest. These are single-seed results; seeds of the earlier reward differed by up to 21 in return.
+The learned environment reproduces the MuJoCo Warp policies within 0.15, and the policies trained only in
+learned physics keep 97 and 93 % of the MuJoCo Warp return when they run in MuJoCo Warp, against parity (28.0
+and 27.8) in the FlashNeRD paper. The longer-trained model matters: with the 60,000-update model, the seed-42
+policy kept 89 % (24.05 against 27.05). For the seed-42 policy, the loss in MuJoCo Warp shrinks from 0.15 to
+0.05 per step, of which the acceleration penalty is 0.02: for its lower gait (base 0.41 m high against 0.50 m)
+the model predicts 1.5 times smaller control-period accelerations than MuJoCo Warp produces, against 2.6 times
+with the 60,000-update model.
 
-PPO training curves of these runs, each measured in the physics the policy trains in; dotted lines are the
-final policies' returns in MuJoCo Warp:
+PPO training curves of these runs, each measured in the physics the policy trains in; diamonds are the final
+policies' returns in MuJoCo Warp:
 
 ![ANYmal-C PPO training return in MuJoCo Warp and in learned physics](media/anymal_c_ppo_reward.png)
 
-The three evaluations side by side, recorded with the Newton GL visualizer over a visual-only floor: the
-MuJoCo Warp policy in MuJoCo Warp, the learned-physics policy in learned physics (replayed in the MuJoCo
-Warp scene), and the learned-physics policy in MuJoCo Warp ([mp4](media/anymal_c_policies_side_by_side.mp4)):
+The three evaluations of seed 42 side by side, recorded with the Newton GL visualizer over a visual-only
+floor: the MuJoCo Warp policy in MuJoCo Warp, the learned-physics policy in learned physics (replayed in the
+MuJoCo Warp scene), and the learned-physics policy in MuJoCo Warp ([mp4](media/anymal_c_policies_side_by_side.mp4)):
 
 ![ANYmal-C policies trained in MuJoCo Warp and in learned physics](media/anymal_c_policies_side_by_side.gif)
 
