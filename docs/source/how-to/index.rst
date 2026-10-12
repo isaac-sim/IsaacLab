@@ -252,9 +252,13 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`MicroDuck flat walking </source/how-to/microduck_flat_walk>`
+         :doc:`MicroDuck walking </source/how-to/microduck_flat_walk>`
 
-         Train the BAM-actuated walking robot and check its policy interface.
+         Train the BAM-actuated MicroDuck on flat or rough terrain, with optional gearbox backlash.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 

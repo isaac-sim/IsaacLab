@@ -429,7 +429,8 @@ Known constraints
 * **Supply and delay are per drive, not per robot.** Newton builds one drive per set of structurally
   identical BAM joints. Groups with different motor fits get separate drives, so each sags and delays
   independently even on one robot. Robots that merge into one drive share its supply and delay within
-  an environment, and must use the same start-up ranges and ``stiff_frictionloss``.
+  an environment, and must use the same start-up ranges, ``stiff_frictionloss``, and
+  ``backlash_joint_template``. Every BAM group on one articulation must agree on these as well.
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 
@@ -693,7 +694,7 @@ Group access
 whoever owns the group. Isaac Lab-executed groups map to their
 :class:`~isaaclab.actuators.ActuatorBase` model instances. Newton-executed groups map to the
 Newton ``Actuator`` objects that drive their joints — no Isaac Lab model exists for them, so
-their controller parameters are read and modified on the owning object (see
+their drive parameters are read and modified on the owning object (see
 :ref:`actuators-native`). Membership is fixed after construction, so you can look up and iterate
 groups but not add, replace, or delete them:
 
@@ -769,7 +770,7 @@ implicit actuators, these are approximate efforts recorded for rewards and telem
 
 **Randomizing gains.** Gain updates depend on the actuator implementation. Managed environments
 should use the ``randomize_actuator_gains`` event. It updates actuator-owned gains, implicit solver
-drives, or native-controller parameters as appropriate. There is no generic collection-level
+drives, or native drive parameters as appropriate. There is no generic collection-level
 stiffness or damping writer.
 
 **Lifecycle.** Do not call ``compute()`` or ``submit_commands()`` directly. The articulation resets

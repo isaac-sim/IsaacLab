@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Stock manager terms and the terms needed for MicroDuck flat walking."""
+"""Stock manager terms and the terms needed for MicroDuck flat and rough walking."""
 
 from isaaclab.utils.module import lazy_export
 
