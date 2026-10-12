@@ -45,6 +45,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "dev",
         "sb3",
         "skrl",
+        "skrl-jax",
         "rl-games",
         "wandb",
         "rsl-rl",
@@ -70,6 +71,8 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     # ``ov`` installs both Omniverse backends and ``ovstage``, which both backends need.
     # The single-backend ``ovphysx`` / ``ovrtx`` extras are checked against the pinned versions below.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
+    assert any(dep.startswith("jax[cuda13]") for dep in optional_dependencies["skrl-jax"])
+    assert any(dep.startswith("skrl[jax]") for dep in optional_dependencies["skrl-jax"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
@@ -88,6 +91,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
         "torchrl",
+        "skrl-jax",
         "isaacsim",
         "importers",
         "mimic",
