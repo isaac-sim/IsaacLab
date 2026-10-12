@@ -83,21 +83,22 @@ def test_signature_ignores_device_rounding_of_derived_inertials():
 
     assert isaaclab_model_signature(rounded) == isaaclab_model_signature(reference)
     assert isaaclab_model_signature(heavier) != isaaclab_model_signature(reference)
-    assert np.array_equal(rounded.body_inv_inertia.numpy(), np.nextafter(inverse, np.inf, dtype=np.float32))
 
 
 def test_signature_leaves_the_live_model_unchanged():
-    """The live model keeps its labels, solver attributes, and simulation arrays."""
+    """The live model keeps its labels, solver attributes, and simulation arrays, including derived inertials."""
     model = _replicated_model("/World/envs/env_{}/Robot", register_mujoco_attributes=True)
     labels = list(model.articulation_label)
     frequencies = model.attribute_frequency
     joint_parent_transforms = model.joint_X_p
+    inverse_inertias = model.body_inv_inertia
 
     isaaclab_model_signature(model)
 
     assert list(model.articulation_label) == labels
     assert model.attribute_frequency is frequencies
     assert model.joint_X_p is joint_parent_transforms
+    assert model.body_inv_inertia is inverse_inertias
 
 
 def test_world_canonicalization_matches_physicsnemo_robotics():

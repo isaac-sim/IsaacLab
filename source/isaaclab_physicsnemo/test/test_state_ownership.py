@@ -32,14 +32,10 @@ def _two_world_robot(*, root_anchor: wp.transform | None = None, hinge_enabled: 
     return scene.finalize(device="cpu")
 
 
-def test_joint_state_owns_every_articulated_world():
-    model = _two_world_robot()
-    validate_state_ownership(model, newton_state_codec(model, "joint"))
-
-
 def test_body_state_cannot_drive_joint_backed_assets():
     """Isaac Lab reads articulations through joint state, which a body-state model would leave stale."""
     model = _two_world_robot()
+    validate_state_ownership(model, newton_state_codec(model, "joint"))
     with pytest.raises(ValueError, match="joint-backed"):
         validate_state_ownership(model, newton_state_codec(model, "body"))
 
