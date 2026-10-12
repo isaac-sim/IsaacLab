@@ -21,9 +21,9 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import NEWTON_ASSET_DIR, retrieve_git_asset_path
+from isaaclab.utils.assets import NEWTON_ASSET_DIR
 
-_DR_LEGS_USD_PATH = retrieve_git_asset_path(NEWTON_ASSET_DIR, "disneyresearch/dr_legs/usd/dr_legs.usda")
+_DR_LEGS_USD_PATH = f"{NEWTON_ASSET_DIR}/disneyresearch/dr_legs/usd/dr_legs.usda"
 
 DR_LEGS_JOINT_ORDER: list[str] = [
     "j1_l_i",
