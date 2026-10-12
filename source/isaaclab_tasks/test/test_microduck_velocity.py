@@ -5,7 +5,8 @@
 
 """MicroDuck walking: deployed policy interface, rough-terrain foot sensing, and the backlash preset.
 
-Stepping every registered contributed task is covered by ``test/contrib/test_contrib_environments_kitless.py``.
+``test/contrib/test_contrib_environments_kitless.py`` steps one task per family, the rough task here, so the flat
+task steps its default robot below and the backlash test steps the play-hinge robot.
 """
 
 from types import SimpleNamespace
@@ -53,7 +54,7 @@ def _make_env(task: str, device: str, num_envs: int, overrides: tuple[str, ...] 
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_microduck_deploy_interface_and_friction_reset(device):
-    """The deployed policy's 61/76 inputs and joint order hold, and each reset redraws BAM friction."""
+    """The deployed policy's 61/76 inputs and joint order hold, resets redraw BAM friction, and steps stay finite."""
     env = _make_env(TASK, device, num_envs=2)
     try:
         obs, _ = env.reset()
@@ -69,6 +70,12 @@ def test_microduck_deploy_interface_and_friction_reset(device):
         assert not (before == after).all()
         assert (after == after[:, :1]).all(), "one friction scale per environment"
         assert ((after >= 0.9) & (after <= 1.1)).all()
+
+        with torch.inference_mode():
+            for _ in range(20):
+                obs, reward, *_ = env.step(torch.randn(2, 14, device=env.device) * 0.1)
+                assert all(torch.isfinite(value).all() for value in obs.values())
+                assert torch.isfinite(reward).all()
     finally:
         env.close()
         SimulationContext.clear_instance()
