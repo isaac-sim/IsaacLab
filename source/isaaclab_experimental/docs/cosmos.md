@@ -309,8 +309,9 @@ uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-w
 default window of 30 latent frames, which remembers more of each episode.
 
 A camera with a Cosmos chain requests one view per environment when its session opens. The server uses that
-count without a separate view setting. After closing the session, another run can request a different count
-without restarting the server. A new batch size can trigger compilation on its first use. Available GPU memory
+count without a separate view setting. A compiled server compiles again for each new count, and Torch limits how
+often it recompiles: a server that has served one count can fail on another with `recompile_limit reached`. Restart
+the server when the number of views changes. Available GPU memory
 limits the batch: allocation can fail during generation as history grows, so a successful connection alone does
 not establish that a full episode fits.
 
@@ -370,7 +371,9 @@ a screen, such as over SSH, run `unset DISPLAY` first: with `DISPLAY` set, the h
 its OpenGL context.
 
 Each reset shows black until the environment's next chunk. For a clip without mid-episode resets, add
-`env.fall_dist=10.0` so a dropped cube does not end the episode; environments then reset together at the time limit.
+`env.fall_dist=1000.0`: a dropped cube keeps falling, but within a 10-second episode it falls less than 500 m, so it
+does not end the episode. Training also starts environments at random points of their episodes; add
+`agent.init_at_random_ep_len=false` so they all run until the time limit and reset together.
 
 ## Several cameras
 
