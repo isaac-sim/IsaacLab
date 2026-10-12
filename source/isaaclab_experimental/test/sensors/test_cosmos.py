@@ -726,6 +726,7 @@ class Model:
 serve(Model(), sys.argv[1])
 """
 
+
 @pytest.mark.skipif(
     not (sys.platform.startswith("linux") and torch.cuda.is_available()), reason="CUDA IPC needs Linux and a GPU"
 )
