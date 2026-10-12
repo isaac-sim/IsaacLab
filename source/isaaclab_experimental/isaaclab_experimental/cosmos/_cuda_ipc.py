@@ -6,10 +6,10 @@
 """GPU memory and events shared between the camera and the Cosmos service on one machine.
 
 The two processes use different PyTorch builds, so sharing goes through the CUDA driver API, which only
-depends on the installed driver: one process allocates buffers and interprocess events and exports their
-handles; the other opens them. Buffers appear in both processes as zero-copy uint8 tensors, and events
-order the producer's and consumer's CUDA streams without synchronizing the host. CUDA IPC is available
-on Linux; on other platforms :func:`available` returns False and images go through the socket.
+depends on the installed driver: each process allocates the buffer it writes and the interprocess event it
+records and exports their handles; the other process opens them. Buffers appear in both processes as zero-copy
+uint8 tensors, and events order the producer's and consumer's CUDA streams without synchronizing the host. CUDA
+IPC is available on Linux; on other platforms :func:`available` returns False and images go through the socket.
 """
 
 from __future__ import annotations
@@ -249,39 +249,94 @@ class SharedEvent:
         self._hold.release()
 
 
-class SharedChannel:
-    """The buffers and events of one camera session: controls in, generated images out."""
+_KEPT: list[ExitStack] = []
+"""Buffers and events kept until this process exits because the other process may still have them open."""
 
-    def __init__(self, device: torch.device, shape: tuple[int, ...], handles: dict | None = None):
-        """Create the session's buffers and events, or open them from the other process's handles.
+
+class SharedChannel:
+    """The buffers and events of one camera session: controls in, generated images out.
+
+    Each process creates the buffer it writes and the event it records: the camera creates ``control`` and
+    ``control_ready``, the service ``output`` and ``output_ready``. Neither process writes memory the other can free.
+    CUDA leaves freeing memory that another process still has open undefined, so each process releases the other's
+    buffer first and frees its own only after the other confirms it released it.
+    """
+
+    def __init__(self, device: torch.device, shape: tuple[int, ...], writes: str):
+        """Create the buffer and event this process writes; :meth:`open` adds the other process's.
 
         Args:
-            device: CUDA device of this process holding the memory.
-            shape: Largest chunk ``(frames, height, width, 3)``.
-            handles: Handles from :attr:`handles` of the creating process. Defaults to None, which creates them.
+            device: CUDA device of this process that holds them.
+            shape: Largest chunk of every view, ``(views, frames, height, width, 3)``.
+            writes: ``"control"`` for the camera, ``"output"`` for the service.
+
+        Raises:
+            ValueError: If ``writes`` names neither buffer.
         """
-        handles = handles or {}
-        with ExitStack() as resources:
-            self.control = SharedBuffer(device, shape, handles.get("control"))
-            resources.callback(self.control.close)
-            self.output = SharedBuffer(device, shape, handles.get("output"))
-            resources.callback(self.output.close)
-            self.control_ready = SharedEvent(device, handles.get("control_ready"))
-            resources.callback(self.control_ready.close)
-            self.output_ready = SharedEvent(device, handles.get("output_ready"))
-            resources.callback(self.output_ready.close)
-            self._resources = resources.pop_all()
+        if writes not in ("control", "output"):
+            raise ValueError("A CUDA IPC channel writes either control or output.")
+        self._writes = writes
+        self._device = device
+        self._shape = tuple(shape)
+        self.control = self.control_ready = self.output = self.output_ready = None
+        self._opened = ExitStack()
+        with ExitStack() as created:
+            buffer = SharedBuffer(device, self._shape)
+            created.callback(buffer.close)
+            event = SharedEvent(device)
+            created.callback(event.close)
+            self._created = created.pop_all()
+        self._own = (buffer, event)
+        self._assign(writes, buffer, event)
 
     @property
-    def handles(self) -> dict:
-        """Handles the other process opens."""
-        return {
-            "control": self.control.handle,
-            "output": self.output.handle,
-            "control_ready": self.control_ready.handle,
-            "output_ready": self.output_ready.handle,
-        }
+    def handles(self) -> dict[str, str]:
+        """Handles of the buffer and event this process created, for the other process to open."""
+        buffer, event = self._own
+        return {self._writes: buffer.handle, f"{self._writes}_ready": event.handle}
 
-    def close(self) -> None:
-        """Release every buffer and event. Repeated calls are safe."""
-        self._resources.close()
+    def open(self, handles: dict) -> None:
+        """Open the other process's buffer and event from its :attr:`handles`.
+
+        Raises:
+            ValueError: If the handles do not name the other process's buffer and event.
+        """
+        reads = "output" if self._writes == "control" else "control"
+        if (
+            not isinstance(handles, dict)
+            or set(handles) != {reads, f"{reads}_ready"}
+            or not all(isinstance(value, str) for value in handles.values())
+        ):
+            raise ValueError(f"CUDA IPC needs the other process's {reads} and {reads}_ready handles.")
+        with ExitStack() as opened:
+            buffer = SharedBuffer(self._device, self._shape, handles[reads])
+            opened.callback(buffer.close)
+            event = SharedEvent(self._device, handles[f"{reads}_ready"])
+            opened.callback(event.close)
+            self._opened = opened.pop_all()
+        self._assign(reads, buffer, event)
+
+    def close_opened(self) -> None:
+        """Release the other process's buffer and event before that process frees them. Repeated calls are safe."""
+        self._opened.close()
+
+    def close(self, *, peer_released: bool = True) -> None:
+        """Release the other process's buffer and event, then free this process's own. Repeated calls are safe.
+
+        Args:
+            peer_released: Whether the other process confirmed it released this process's buffer and event, or
+                never received their handles. Otherwise they stay allocated until this process exits.
+        """
+        try:
+            self._opened.close()
+        finally:
+            if peer_released:
+                self._created.close()
+            else:
+                _KEPT.append(self._created.pop_all())
+
+    def _assign(self, name: str, buffer: SharedBuffer, event: SharedEvent) -> None:
+        if name == "control":
+            self.control, self.control_ready = buffer, event
+        else:
+            self.output, self.output_ready = buffer, event

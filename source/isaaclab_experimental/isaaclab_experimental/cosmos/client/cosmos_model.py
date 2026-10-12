@@ -183,13 +183,20 @@ class _CosmosStream:
                     }
                     self.transport = self._select_transport(control.device)
                     if self.transport == "cuda_ipc":
-                        from .._cuda_ipc import SharedChannel
+                        from .. import _cuda_ipc
 
-                        self._channel = SharedChannel(control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape))
-                        request.update(transport="cuda_ipc", ipc=self._channel.handles)
-                    _, arrays = self._exchange(request)
+                        self._channel = _cuda_ipc.SharedChannel(
+                            control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
+                        )
+                        # The service checks by PCI bus ID that the controls are on its GPU.
+                        ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(control.device.index or 0)}
+                        request.update(transport="cuda_ipc", ipc=ipc)
+                    reply, arrays = self._exchange(request)
                     if arrays:
                         raise ProtocolError("Cosmos open reply must not contain image arrays.")
+                    if self._channel is not None:
+                        # The service writes generated images into a buffer it allocates.
+                        self._channel.open(reply.get("ipc"))
                     self._shape = image_shape
                 frames = [view.shape[0] for view in controls]
                 if max(frames) > MAX_CHUNK_FRAMES:
@@ -288,19 +295,26 @@ class _CosmosStream:
         if self._closed:
             return
         self._closed = True
+        released = False
         try:
             if self._socket is not None:
                 try:
+                    if self._channel is not None:
+                        # Release the service's output buffer before the service frees it when the session closes.
+                        self._channel.close_opened()
                     if notify:
                         self._exchange({"op": "close"})
+                        # The service releases the control buffer before it confirms the close.
+                        released = True
                 except (OSError, ValueError, RuntimeError):
                     _LOGGER.debug("Cosmos session was already unavailable during close.", exc_info=True)
                 finally:
                     self._socket.close()
                     self._socket = None
         finally:
-            # The service unmaps the shared memory when the session closes; then this process frees it.
             if self._channel is not None:
-                self._channel.close()
+                # Without that confirmation the service may still read the control buffer, which then stays
+                # allocated until this process exits.
+                self._channel.close(peer_released=released)
                 self._channel = None
             self._model._discard_stream(self)
