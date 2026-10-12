@@ -1662,13 +1662,14 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                 env.step(action=actions)
 
             if "kit" in visualizer_kinds:
-                import omni.timeline
-
                 kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
                 assert kit_visualizers, "Expected an initialized Kit visualizer."
-                assert omni.timeline.get_timeline_interface().is_playing(), (
-                    "The Kit toolbar must show Pause while the simulation is running."
-                )
+                if env.sim.has_gui:
+                    import omni.timeline
+
+                    assert omni.timeline.get_timeline_interface().is_playing(), (
+                        "The Kit toolbar must show Pause while the simulation is running."
+                    )
                 with _visualizer_debug_case("kit", backend_kind):
                     _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
 
