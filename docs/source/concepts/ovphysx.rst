@@ -14,7 +14,7 @@ OvPhysX Backend
     ``physics=ovphysx --visualizer kit`` are unsupported because ovphysx
     loads USD-dependent PhysX plugins from its own package, while Kit already
     owns a separate USD/plugin stack in the same process. Use
-    ``--visualizer newton``, ``--visualizer rerun``, ``--visualizer viser``,
+    ``--visualizer newton_gl``, ``--visualizer rerun``, ``--visualizer viser``,
     or omit ``--visualizer`` for headless execution.
 
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
@@ -117,7 +117,7 @@ cloner.
 Installation
 ------------
 
-The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository root with:
+The ``ovphysx`` extra requires OvPhysX 0.6.4.72118723. Install it from the repository root with:
 
 .. code-block:: bash
 
@@ -125,7 +125,7 @@ The ``ovphysx`` extra requires OvPhysX 0.6.3. Install it from the repository roo
 
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.5.0.377615 with OVStage 0.2; OVRTX 0.4.1 is not compatible
+extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
 with this runtime combination.
 
 Testing the Installation
