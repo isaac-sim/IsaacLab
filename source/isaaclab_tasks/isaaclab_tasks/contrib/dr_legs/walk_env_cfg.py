@@ -9,8 +9,6 @@ Extends the hold-pose task with a base-velocity command, a gait-phase clock, a f
 contact sensor, and gait / contact / foot-clearance rewards.
 """
 
-import math
-
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
 
@@ -31,8 +29,7 @@ from .hold_pose_env_cfg import ActionsCfg, DrLegsHoldPoseEnvCfg, HoldPoseSceneCf
 ##
 
 # Full left+right gait cycle [s]. Shared by the gait-phase observation and the rewards.
-_NEWTON_GAIT_PERIOD = 0.6
-_PHYSX_GAIT_PERIOD = 1.0
+_GAIT_PERIOD = 0.6
 
 # The 12 servo-driven joints (used by the implicit-PD effort proxy).
 _ACTUATED_JOINT_CFG = SceneEntityCfg("robot", joint_names=DR_LEGS_ACTUATED_JOINTS, preserve_order=True)
@@ -81,7 +78,7 @@ def _newton_walk_actions_cfg() -> ActionsCfg:
 def _physx_walk_actions_cfg() -> ActionsCfg:
     """Return the PhysX walking action profile."""
     cfg = ActionsCfg()
-    cfg.joint_pos.scale = 0.1
+    cfg.joint_pos.scale = 0.3
     return cfg
 
 
@@ -102,65 +99,28 @@ class CommandsCfg:
         resampling_time_range=(10.0, 10.0),
         rel_standing_envs=0.1,
         rel_heading_envs=1.0,
-        heading_command=True,
+        heading_command=False,
         heading_control_stiffness=0.5,
         debug_vis=False,
         ranges=mdp.UniformVelocityCommandCfg.Ranges(
             lin_vel_x=(-0.3, 0.3),
             lin_vel_y=(-0.3, 0.3),
             ang_vel_z=(-0.8, 0.8),
-            heading=(-math.pi, math.pi),
+            heading=None,
         ),
     )
-
-
-def _newton_commands_cfg() -> CommandsCfg:
-    """Return commands without heading conversion for Newton walking."""
-    cfg = CommandsCfg()
-    cfg.base_velocity.heading_command = False
-    cfg.base_velocity.ranges.heading = None
-    return cfg
-
-
-@configclass
-class DrLegsCommandsCfg(PresetCfg):
-    """Backend-specific DR Legs walking command configurations."""
-
-    default: CommandsCfg = _newton_commands_cfg()
-    newton_kamino: CommandsCfg = default
-    physx: CommandsCfg = CommandsCfg()
-    isaacsim_physx: CommandsCfg = physx
 
 
 @configclass
 class WalkObservationsCfg(ObservationsCfg):
     @configclass
     class WalkPolicyCfg(ObservationsCfg.PolicyCfg):
-        base_lin_vel: ObsTerm | None = None
+        base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         velocity_commands = ObsTerm(func=mdp.generated_commands, params={"command_name": "base_velocity"})
-        gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": _PHYSX_GAIT_PERIOD})
-        joint_vel: ObsTerm | None = None
+        gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": _GAIT_PERIOD, "num_harmonics": 2})
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _ACTUATED_JOINT_CFG}, scale=0.2)
 
     policy: WalkPolicyCfg = WalkPolicyCfg()
-
-
-def _newton_walk_observations_cfg() -> WalkObservationsCfg:
-    """Return Newton walking observations with velocity feedback and a richer gait clock."""
-    cfg = WalkObservationsCfg()
-    cfg.policy.base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
-    cfg.policy.gait_phase.params = {"period": _NEWTON_GAIT_PERIOD, "num_harmonics": 2}
-    cfg.policy.joint_vel = ObsTerm(func=mdp.joint_vel_rel, params={"asset_cfg": _ACTUATED_JOINT_CFG}, scale=0.2)
-    return cfg
-
-
-@configclass
-class DrLegsWalkObservationsCfg(PresetCfg):
-    """Backend-specific DR Legs walking observation configurations."""
-
-    default: WalkObservationsCfg = _newton_walk_observations_cfg()
-    newton_kamino: WalkObservationsCfg = default
-    physx: WalkObservationsCfg = WalkObservationsCfg()
-    isaacsim_physx: WalkObservationsCfg = physx
 
 
 @configclass
@@ -168,46 +128,46 @@ class WalkRewardsCfg:
     """Gait / contact / feet reward suite for velocity-tracking walking."""
 
     # -- positive (task / gait)
-    termination_penalty: RewTerm | None = None
-    survival = RewTerm(func=mdp.is_alive, weight=10.0)
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
+    survival = RewTerm(func=mdp.is_alive, weight=0.0)
     contact_matching = RewTerm(
         func=mdp.contact_matching,
         weight=10.0,
-        params={"sensor_cfg": _FOOT_SENSOR_CFG, "threshold": 1.0, "gait_period": _PHYSX_GAIT_PERIOD},
+        params={"sensor_cfg": _FOOT_SENSOR_CFG, "threshold": 1.0, "gait_period": _GAIT_PERIOD},
     )
     track_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
-        weight=5.0,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.125)},
+        weight=20.0,
+        params={"command_name": "base_velocity", "std": 0.2},
     )
     root_orientation = RewTerm(
         func=mdp.root_orientation_exp,
-        weight=5.0,
+        weight=1.0,
         params={"asset_cfg": SceneEntityCfg("robot"), "sigma": 0.2},
     )
     foot_clearance = RewTerm(
         func=mdp.foot_clearance,
-        weight=5.0,
+        weight=2.0,
         params={
             "asset_cfg": _FOOT_ASSET_CFG,
             "target_height": 0.065,
             "sigma": 0.01,
-            "gait_period": _PHYSX_GAIT_PERIOD,
+            "gait_period": _GAIT_PERIOD,
         },
     )
     track_ang_vel_z = RewTerm(
         func=mdp.track_ang_vel_z_exp,
-        weight=2.0,
-        params={"command_name": "base_velocity", "std": math.sqrt(0.5)},
+        weight=10.0,
+        params={"command_name": "base_velocity", "std": 0.5},
     )
     feet_parallel = RewTerm(
         func=mdp.feet_parallel,
-        weight=2.0,
+        weight=0.5,
         params={"asset_cfg": _FOOT_ASSET_CFG, "sigma": 0.2},
     )
     feet_flat = RewTerm(
         func=mdp.feet_flat,
-        weight=2.0,
+        weight=0.5,
         params={"asset_cfg": _FOOT_ASSET_CFG, "sigma": 0.2},
     )
 
@@ -235,7 +195,7 @@ class WalkRewardsCfg:
             "command_name": "base_velocity",
             "asset_cfg": SceneEntityCfg("robot"),
             "sensor_cfg": _FOOT_SENSOR_CFG,
-            "gait_period": _PHYSX_GAIT_PERIOD,
+            "gait_period": _GAIT_PERIOD,
             "contact_threshold": 1.0,
             "vel_xy_threshold": 0.15,
             "vel_yaw_threshold": 0.4,
@@ -244,41 +204,12 @@ class WalkRewardsCfg:
     )
 
 
-def _newton_walk_rewards_cfg() -> WalkRewardsCfg:
-    """Return the Newton reward profile for stable gait and velocity tracking."""
-    cfg = WalkRewardsCfg()
-    cfg.termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
-    cfg.survival.weight = 0.0
-    cfg.contact_matching.params["gait_period"] = _NEWTON_GAIT_PERIOD
-    cfg.track_lin_vel_xy.weight = 20.0
-    cfg.track_lin_vel_xy.params["std"] = 0.2
-    cfg.root_orientation.weight = 1.0
-    cfg.foot_clearance.weight = 2.0
-    cfg.foot_clearance.params["gait_period"] = _NEWTON_GAIT_PERIOD
-    cfg.track_ang_vel_z.weight = 10.0
-    cfg.track_ang_vel_z.params["std"] = 0.5
-    cfg.feet_parallel.weight = 0.5
-    cfg.feet_flat.weight = 0.5
-    cfg.success_rate.params["gait_period"] = _NEWTON_GAIT_PERIOD
-    return cfg
-
-
-@configclass
-class DrLegsWalkRewardsCfg(PresetCfg):
-    """Backend-specific DR Legs walking reward configurations."""
-
-    default: WalkRewardsCfg = _newton_walk_rewards_cfg()
-    newton_kamino: WalkRewardsCfg = default
-    physx: WalkRewardsCfg = WalkRewardsCfg()
-    isaacsim_physx: WalkRewardsCfg = physx
-
-
 @configclass
 class DrLegsWalkEnvCfg(DrLegsHoldPoseEnvCfg):
     """DR Legs velocity-tracking walk environment."""
 
     scene: WalkSceneCfg = WalkSceneCfg(num_envs=4096, env_spacing=2.0)
-    observations: DrLegsWalkObservationsCfg = DrLegsWalkObservationsCfg()
+    observations: WalkObservationsCfg = WalkObservationsCfg()
     actions: WalkActionsCfg = WalkActionsCfg()
-    commands: DrLegsCommandsCfg = DrLegsCommandsCfg()
-    rewards: DrLegsWalkRewardsCfg = DrLegsWalkRewardsCfg()
+    commands: CommandsCfg = CommandsCfg()
+    rewards: WalkRewardsCfg = WalkRewardsCfg()

@@ -59,5 +59,5 @@ class DrLegsWalkPPORunnerCfg(PresetCfg):
 
     default = _walk_runner_cfg(init_std=0.2)
     newton_kamino = default
-    physx = _walk_runner_cfg(init_std=1.0)
+    physx = _walk_runner_cfg(init_std=0.5)
     isaacsim_physx = physx

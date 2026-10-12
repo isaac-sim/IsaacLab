@@ -6,6 +6,7 @@
 """Tests for the DR Legs task configuration."""
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -14,6 +15,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.dr_legs.dr_legs_env import DrLegsRLEnv
+from isaaclab_tasks.contrib.dr_legs.mdp.rewards import walk_success_rate
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -71,19 +73,38 @@ def test_dr_legs_discards_non_finite_rewards_only_for_terminated_envs(monkeypatc
     assert torch.isnan(actual_rewards[4])
 
 
+def test_dr_legs_walk_success_metric_does_not_overwrite_command_success():
+    """Keep the strict walk metric distinct from the command term's success metric."""
+    term = object.__new__(walk_success_rate)
+    term._env = SimpleNamespace(
+        extras={"log": {"Metrics/success_rate": 0.25}},
+        termination_manager=SimpleNamespace(time_outs=torch.tensor([True])),
+    )
+    term._err_xy_sum = torch.zeros(1)
+    term._err_yaw_sum = torch.zeros(1)
+    term._contact_sum = torch.ones(1)
+    term._steps = torch.ones(1)
+    term._vel_xy_threshold = 0.15
+    term._vel_yaw_threshold = 0.4
+    term._contact_match_threshold = 0.7
+
+    term.reset(torch.tensor([0]))
+
+    assert term._env.extras["log"]["Metrics/success_rate"] == 0.25
+    assert term._env.extras["log"]["Metrics/walk_success_rate"] == 1.0
+
+
 @pytest.mark.parametrize(
     (
         "overrides",
         "expected_action_scale",
         "expected_stiffness",
         "expected_armature",
-        "expected_gait_period",
-        "expected_velocity_feedback",
         "expected_init_std",
     ),
     [
-        ((), 0.4, 15.0, 0.01, 0.6, True, 0.2),
-        (("physics=physx",), 0.1, 5.0, None, 1.0, False, 1.0),
+        ((), 0.4, 15.0, 0.01, 0.2),
+        (("physics=physx",), 0.3, 5.0, None, 0.5),
     ],
 )
 def test_dr_legs_walk_training_profile_matches_physics_backend(
@@ -91,19 +112,15 @@ def test_dr_legs_walk_training_profile_matches_physics_backend(
     expected_action_scale: float,
     expected_stiffness: float,
     expected_armature: float | None,
-    expected_gait_period: float,
-    expected_velocity_feedback: bool,
     expected_init_std: float,
 ):
-    """Resolve the stable Newton walking profile without changing the PhysX profile."""
+    """Resolve backend-specific controls with shared locomotion feedback."""
     env_cfg, agent_cfg = resolve_task_config("IsaacContrib-DrLegs-Walk", "rsl_rl_cfg_entry_point", overrides=overrides)
 
     assert env_cfg.actions.joint_pos.scale == expected_action_scale
     assert env_cfg.scene.robot.actuators["driven_joints"].stiffness == expected_stiffness
     assert env_cfg.scene.robot.actuators["driven_joints"].armature == expected_armature
-    assert env_cfg.observations.policy.gait_phase.params["period"] == expected_gait_period
-    assert (env_cfg.observations.policy.base_lin_vel is not None) is expected_velocity_feedback
-    assert env_cfg.commands.base_velocity.ranges.heading == (
-        None if expected_velocity_feedback else (-math.pi, math.pi)
-    )
+    assert env_cfg.observations.policy.gait_phase.params["period"] == 0.6
+    assert env_cfg.observations.policy.base_lin_vel is not None
+    assert env_cfg.commands.base_velocity.ranges.heading is None
     assert agent_cfg.actor.distribution_cfg.init_std == expected_init_std
