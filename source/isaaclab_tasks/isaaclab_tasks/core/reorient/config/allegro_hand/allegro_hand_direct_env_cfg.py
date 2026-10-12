@@ -17,7 +17,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
-from ...utils import GOAL_MARKER_POS, VISUALIZER_CFG
+from ...utils import GOAL_MARKER_OFFSET, VISUALIZER_CFG
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
@@ -87,8 +87,10 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     max_consecutive_success = 0
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
-    goal_marker_position: tuple[float, float, float] = GOAL_MARKER_POS
-    """Fixed goal-marker display position [m], environment frame."""
+    goal_marker_position: tuple[float, float, float] | None = None
+    """Fixed goal-marker display position [m], environment frame, or ``None`` to follow the hand."""
+    goal_marker_offset: tuple[float, float, float] = GOAL_MARKER_OFFSET
+    """Goal-marker display offset from the in-hand position [m], used when no fixed position is set."""
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0

@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
 
-GOAL_MARKER_POS = (-0.2, 0.1, 0.6)
-"""Goal-cube display position [m], environment frame, inside the Shadow Hand camera frustum."""
+GOAL_MARKER_OFFSET = (-0.08, -0.09, 0.06)
+"""Goal-cube display offset from the in-hand position [m], beside the hand in the recording view."""
 
 VISUALIZER_CFG = VisualizerCfg(eye=(0.995, -0.80, 0.85), lookat=(0.375, -0.28, 0.53), focal_length=35.0)
 """Recording view of an environment in the 50-environment play grid."""
