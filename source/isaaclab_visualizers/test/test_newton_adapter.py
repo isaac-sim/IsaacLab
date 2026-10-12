@@ -1252,3 +1252,38 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+def test_newton_rtx_visualizer_redirects_shader_cache_before_viewer(monkeypatch):
+    """Redirect the OVRTX shader cache with Newton's renderer config before Newton creates its renderer."""
+    from isaaclab_ov.renderers import ovrtx_shader_cache
+
+    calls = []
+    monkeypatch.setitem(sys.modules, "ovrtx", SimpleNamespace(RendererConfig=lambda: SimpleNamespace(log_level=None)))
+    monkeypatch.setattr(
+        ovrtx_shader_cache, "redirect_shader_cache", lambda cfg: calls.append(("redirect", cfg.log_level))
+    )
+
+    def build_viewer(**_kwargs):
+        calls.append(("viewer",))
+        raise RuntimeError("viewer constructed")
+
+    monkeypatch.setattr(newton_visualizer_module, "NewtonViewerRTX", build_viewer)
+    monkeypatch.setattr(
+        newton_visualizer_module.NewtonVisualizerBase,
+        "initialize",
+        lambda self, sim, cameras: (setattr(self, "_sim", sim), setattr(self, "_runtime_headless", True)),
+    )
+    scene = SimpleNamespace(populate=lambda *_args: None, stage=None)
+    sim = SimpleNamespace(
+        physics_manager=type("NewtonManager", (), {}),
+        stage=None,
+        cfg=SimpleNamespace(gravity=(0.0, 0.0, -9.81)),
+        get_scene_data_provider=lambda: SimpleNamespace(num_envs=1),
+        get_or_create_backend=lambda _cfg: scene,
+        get_clone_plan=lambda: None,
+    )
+
+    with pytest.raises(RuntimeError, match="viewer constructed"):
+        NewtonRTXVisualizer(NewtonRTXVisualizerCfg()).initialize(sim, cameras=[])
+    assert calls == [("redirect", "error"), ("viewer",)]

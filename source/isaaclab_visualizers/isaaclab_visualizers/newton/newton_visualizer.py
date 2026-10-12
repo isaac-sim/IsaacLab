@@ -1167,7 +1167,8 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
-        # Newton builds its own ovrtx.Renderer with this config; redirect the shader cache before it does.
+        # Newton's ViewerRTX builds its own ovrtx.Renderer with this config, and the redirect must run first
+        # with the same config because it may be what initializes the native library.
         renderer_config = ovrtx.RendererConfig()
         renderer_config.log_level = "error"
         redirect_shader_cache(renderer_config)
