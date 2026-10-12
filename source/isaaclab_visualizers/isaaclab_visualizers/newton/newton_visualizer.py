@@ -1138,8 +1138,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Attach to the populated scene and bind the model used to publish body poses."""
-        import ovrtx
-        from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
         from isaaclab_ov.stage import OvstageBackendCfg
 
         if self._is_initialized:
@@ -1157,10 +1155,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
-        # Newton builds its own ovrtx.Renderer with this config; redirect the shader cache before it does.
-        renderer_config = ovrtx.RendererConfig()
-        renderer_config.log_level = "error"
-        redirect_shader_cache(renderer_config)
         self._viewer = NewtonViewerRTX(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
