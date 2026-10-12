@@ -73,7 +73,7 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
                 endpoint = f"tcp://{address[0]}:{listener.getsockname()[1]}"
             else:
                 _bind_private_unix_socket(listener, address)
-                socket_path = address
+                socket_path, socket_inode = address, os.stat(address).st_ino
             listener.listen(16)
             listener.settimeout(0.25)
             _LOGGER.info(
@@ -126,7 +126,9 @@ def serve(model: _Model | Callable[[], _Model], endpoint: str = DEFAULT_ENDPOINT
                 state.executor.shutdown(wait=True)
             if socket_path is not None:
                 with suppress(OSError):
-                    os.unlink(socket_path)
+                    # Another service may have replaced the file meanwhile; its socket stays.
+                    if os.stat(socket_path).st_ino == socket_inode:
+                        os.unlink(socket_path)
 
 
 def _bind_private_unix_socket(listener: socket.socket, path: str) -> None:
@@ -308,7 +310,7 @@ def _handle_connection(
                 if channel is not None:
                     frames = _channel_frames(metadata["frames"], num_views)
                     state.executor.submit(_step_channel, stream, channel, frames, resets, seeds, episode).result()
-                    send_message(connection, {"ok": True, "frames": metadata["frames"]})
+                    send_message(connection, {"ok": True})
                     continue
                 if len(arrays) != num_views or any(array.shape[1:] != image_shape for array in arrays):
                     raise ValueError("Cosmos controls must hold one chunk per view at the configured image size.")
@@ -336,8 +338,9 @@ def _handle_connection(
             else:
                 raise ProtocolError("Unknown Cosmos operation; expected status, open, step, close, or shutdown.")
     except ConnectionError:
-        # The camera disconnected. It releases the output buffer first, and a process's mappings end with it.
-        camera_released = True
+        # The camera disconnected. It releases the output buffer first, and a process's mappings end with it. The
+        # service's own shutdown also ends the connection, which confirms nothing.
+        camera_released = not state.stopping.is_set()
     except TimeoutError:
         # An idle camera learns at its next request that the session ended, while it still has its buffers open.
         with suppress(OSError):
@@ -364,21 +367,32 @@ def _handle_connection(
                     state.owner = None
             try:
                 if channel is not None:
-                    if not camera_released:
-                        # The camera may still have the output buffer open; it releases it before disconnecting.
-                        _await_disconnect(connection)
-                    state.executor.submit(channel.close).result()
+                    # The camera may still have the output buffer open; it releases it before disconnecting. Without
+                    # that confirmation, the buffer stays allocated until this service exits.
+                    released = camera_released or _await_disconnect(connection, state.stopping)
+                    state.executor.submit(channel.close, peer_released=released).result()
             finally:
                 with connections_lock:
                     connections.discard(connection)
                 connection.close()
 
 
-def _await_disconnect(connection: socket.socket) -> None:
-    """Wait until the camera closes the connection, discarding anything it still sends, up to the idle timeout."""
-    with suppress(OSError):
+def _await_disconnect(connection: socket.socket, stopping: threading.Event) -> bool:
+    """Wait until the camera closes the connection, discarding anything it still sends, up to the idle timeout.
+
+    Returns:
+        Whether the camera closed the connection, which confirms that it released this service's buffers. An idle
+        timeout or the service's own shutdown confirms nothing.
+    """
+    try:
         while connection.recv(65536):
             pass
+    except ConnectionError:
+        # The camera's process reset the connection; its mappings end with it.
+        pass
+    except OSError:
+        return False
+    return not stopping.is_set()
 
 
 def _open_channel(model: _Model, num_views: int, image_shape: tuple[int, int, int], handles: object):
@@ -455,8 +469,7 @@ def _episode_arguments(metadata: dict, resets: tuple[int, ...]) -> dict:
 
 
 def _channel_frames(frames: object, num_views: int) -> list[int]:
-    """Return one frame count per view of a CUDA IPC step; a single integer is the one-view form."""
-    frames = [frames] if type(frames) is int else frames
+    """Return one frame count per view of a CUDA IPC step."""
     if (
         not isinstance(frames, list)
         or len(frames) != num_views
