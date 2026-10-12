@@ -7,4 +7,4 @@
 Page Moved
 ==========
 
-This page moved to :ref:`ovphysx-native-access`.
+This page moved to :ref:`OvPhysX native access <ovphysx-native-access>`.

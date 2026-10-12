@@ -7,4 +7,4 @@
 Page Moved
 ==========
 
-This page moved to :ref:`newton-native-access`.
+This page moved to :ref:`Newton native access <newton-native-access>`.

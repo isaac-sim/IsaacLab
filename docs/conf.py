@@ -445,8 +445,16 @@ isaaclab_doc_redirects = {
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
-# Sections of the former combined Docker page now live on separate pages.
+# Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/native-physics-api/newton": {
+        "": "source/concepts/physics-backends/newton#newton-native-access",
+        "newton-native-data-and-selection-api": "source/concepts/physics-backends/newton#newton-native-access",
+    },
+    "source/concepts/native-physics-api/ovphysx": {
+        "": "source/concepts/ovphysx#ovphysx-native-access",
+        "ovphysx-tensor-bindings": "source/concepts/ovphysx#ovphysx-native-access",
+    },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
