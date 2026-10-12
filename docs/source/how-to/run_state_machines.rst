@@ -10,9 +10,9 @@ environment's observations and action interface without training a policy. The
 state transitions run in parallel across environments as Warp kernels, which
 keeps the examples efficient at larger environment counts.
 
-Run these commands from the Isaac Lab repository root. Use ``--num_envs`` to
-change the number of parallel environments and ``--viz`` to select a
-visualizer.
+Run these commands from the Isaac Lab repository root. Use ``--viz`` to select
+a visualizer. The task scripts accept ``--num_envs`` to change the number of
+parallel environments.
 
 Pick and lift a rigid cube
 --------------------------
@@ -52,12 +52,12 @@ and releases it:
 Compare five humanoid tablecloth pulls
 --------------------------------------
 
-This standalone example uses :class:`~isaaclab.scene.InteractiveScene` to build
-five side-by-side H2 Plus / SHARPA trials with the default Isaac Lab ground plane,
-wooden dining tables, and SimReady kitchenware. Newton VBD simulates the
-articulations, cloth, and tableware in a single solver. The Warp state machine
-and Newton IK run on the GPU inside the physics CUDA graph. It does not register
-an RL environment or require a trained policy.
+This standalone example builds five side-by-side H2 Plus / SHARPA trials with
+:class:`~isaaclab.scene.InteractiveScene`, the default Isaac Lab ground plane,
+wooden dining tables, and SimReady kitchenware. Newton VBD simulates the robot
+articulations, cloth, and tableware together. Newton IK and the Warp state machine
+run on the GPU inside the physics CUDA graph. This is a scripted manipulation
+example, not an RL task.
 
 .. figure:: ../_static/examples/tablecloth_h2.jpg
    :alt: Five side-by-side H2 Plus robots grasping red tablecloths beside kitchen tables.
@@ -69,31 +69,28 @@ an RL environment or require a trained policy.
 .. code-block:: bash
 
    uv run isaaclab example tablecloth --device cuda:0
-   uv run --extra importers isaaclab example tablecloth --robot h1 --device cuda:0
 
-The default robot uses the manufacturer's articulated `H2 Plus USD with SHARPA hands
+The example downloads and caches the manufacturer's articulated `H2 Plus USD with SHARPA hands
 <https://github.com/unitreerobotics/unitree_model/tree/b6a8942b0803b6c137e58cef12beb4b03e4a2fa7/H2_Plus>`__,
-downloaded and cached by Isaac Lab. ``--robot h1`` explicitly selects the existing H1 fallback;
-it requires the ``importers`` extra. Both use physical contact-only grips, without cloth attachments.
-The H2 index fingers start beneath the hem; the thumbs close against their native
-rubber surfaces before the lift and pull. This is a calibrated pinch-and-pull example,
-not a general-purpose grasp planner. The H2 configuration uses 64 physics ticks
-per 60 Hz control frame to resolve the fastest pull. Native fingertip contacts
-are computationally expensive; this configuration does not target real-time
-playback. Its position drives are simulation settings: direct VBD with
-compliant-ALM rigid dynamics does not enforce the asset's hardware torque limits
-or armature.
+then starts with the hands clear of the cloth and a fixed 20-degree forward waist
+bend. After the free hem settles, the hands approach, slide their native index
+fingertips underneath, and close the thumbs before lifting and pulling. The grasp
+uses physical contact with the native fingertip surfaces, without cloth
+attachments or added rubber pads.
 
-Use ``--speeds 2.0`` for one robot, or ``--viz none`` for a complete headless
-run. The default run duration includes the slowest pull and a final hold.
-All H2 lanes use the same object masses, friction, cloth mesh, and 0.48 × 0.84 m
-tabletop. Only the peak pull speed changes: the fastest pull leaves the arrangement
-nearly unchanged, the middle pulls produce more sliding, and the two slowest
-pulls carry the tableware off the table. The dining-table USD supplies the visuals;
-simple box proxies supply the tabletop and leg collisions.
-The pelvis is fixed with the feet at ground level: this demonstrates
-manipulation, not humanoid balance. Asset and cloth changes require revalidating
-the calibrated physical grasp. This experimental example checks material-point
-retention after a complete run and reports grasp failures; successful IK tracking
-alone does not establish a grasp. Kit uses Catmull-Clark subdivision for cloth
-rendering without refining the physics mesh.
+Use ``--speeds 2.0`` for one robot, ``--viz none`` for a headless run, or
+``--viz kit`` for Kit rendering. The default run completes the slowest pull and a
+final hold. Only the peak pull speed differs between lanes: the fastest pull
+leaves the arrangement nearly unchanged, while the two slowest carry the tableware
+off the table. The 0.48 × 0.84 m dining-table visuals use simple box collision
+proxies. Kit smooths the cloth with Catmull-Clark subdivision without refining
+the physics mesh.
+
+The pelvis is fixed with the feet at ground level; this does not demonstrate
+humanoid balance or general-purpose grasp planning. The 64 physics ticks per
+60 Hz control frame favor contact accuracy over real-time playback. Position
+drives are simulation settings: direct VBD with compliant-ALM rigid dynamics does
+not enforce the asset's hardware torque limits or armature. Changes to the assets,
+cloth, or contact settings require revalidating the grasp. The example checks
+cloth material-point retention after a complete run and reports grasp failures;
+successful IK tracking alone does not establish a grasp.

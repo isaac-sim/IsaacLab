@@ -1,3 +1,3 @@
-* Added experimental fixed-base H2 Plus / SHARPA and H1 tablecloth asset configurations and a GPU
-  state-machine controller for the standalone example, using direct VBD articulation dynamics and
-  contact-only grasps with native fingertip surfaces.
+* Added experimental fixed-base H2 Plus / SHARPA tablecloth assets and a GPU state-machine controller
+  for the standalone five-speed example, using Newton VBD articulation dynamics and contact-only
+  grasps with native fingertip surfaces.

@@ -38,7 +38,6 @@ if TYPE_CHECKING:
     from pxr import Usd
 
 RIGID_GAP = 0.001
-H1_PELVIS_HEIGHT = 1.1
 CLOTH_FRICTION = 0.20
 GRIP_FRICTION = 1.2
 # Pin the manufacturer's articulated H2 Plus / SHARPA model; do not vendor its meshes.
@@ -103,19 +102,6 @@ def collision_properties(
         UsdPhysicsCollisionCfg(collision_enabled=True),
         NewtonCollisionCfg(contact_margin=contact_margin, contact_gap=contact_gap),
     ]
-
-
-def spawn_h1_from_usd(
-    prim_path: str,
-    cfg: sim_utils.UsdFileCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs: object,
-) -> Usd.Prim:
-    """Spawn H1 while accounting for the MJCF's pelvis-height transform."""
-    if translation is not None:
-        translation = (translation[0], translation[1], translation[2] - H1_PELVIS_HEIGHT)
-    return sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
 
 
 def tabletop_collider_cfg(
@@ -273,10 +259,9 @@ class TablewareUsdFileCfg(sim_utils.UsdFileCfg):
 
 
 FPS = 60
-SUBSTEPS = 16
-# The straight-leg H1 sole is 1.0442 m below its pelvis; keep the tabletop 1 cm below the pelvis.
-H1_STANDING_HEIGHT = 1.0442 + RIGID_GAP
-TABLE_TOP_Z = H1_STANDING_HEIGHT - 0.01
+SUBSTEPS = 64
+# Table height calibrated for the fixed-pelvis H2 stance and native fingertip pinch.
+TABLE_TOP_Z = 1.0352
 TABLEWARE_CLEARANCE = 0.008
 # Start above the thin table contact skin and the cloth's 1 mm particle radius.
 CLOTH_Z = TABLE_TOP_Z + 0.004
@@ -288,7 +273,6 @@ TABLE_SCALE = (
 )
 TABLETOP_THICKNESS = TABLE_ASSET_TOP_THICKNESS * TABLE_SCALE[2]
 
-HAND_OFFSETS = ((0.146273, -0.068447, 0.028077), (0.148808, 0.068652, 0.026675))
 H2_HAND_OFFSETS = (
     (0.0854352130714941, -0.004956624352234765, 0.11747110476887199),
     (0.08528776908502764, 0.0060654248588878044, 0.11775531545430512),
@@ -350,85 +334,6 @@ H2_OPEN_JOINT_POS = {
     "right_thumb_CMC_AA": 0.2733340892195702,
     "right_thumb_MCP_AA": 0.0021895832382142384,
 }
-FINGER_JOINT_NAMES = [
-    f"{side}_{joint}"
-    for side in ("L", "R")
-    for joint in (
-        "thumb_proximal_yaw_joint",
-        "thumb_proximal_pitch_joint",
-        "thumb_intermediate_joint",
-        "thumb_distal_joint",
-        "index_proximal_joint",
-        "index_intermediate_joint",
-        "middle_proximal_joint",
-        "middle_intermediate_joint",
-        "ring_proximal_joint",
-        "ring_intermediate_joint",
-        "pinky_proximal_joint",
-        "pinky_intermediate_joint",
-    )
-]
-
-
-@configclass
-class H1ArticulationCfg(ArticulationCfg):
-    """Fixed-base H1 with SDF hand collisions and a localized grasp material."""
-
-    def _post_spawn(self, stage: Usd.Stage) -> None:
-        super()._post_spawn(stage)
-        from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
-
-        from isaaclab.sim.schemas import apply_namespaced  # noqa: PLC0415
-        from isaaclab.sim.spawners.materials.physics_materials import (  # noqa: PLC0415
-            spawn_physics_material_from_fragments,
-        )
-
-        root_path = self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path else self.prim_path
-        meshes = sim_utils.get_all_matching_child_prims(
-            root_path,
-            predicate=lambda prim: prim.IsA(UsdGeom.Mesh),
-            stage=stage,
-        )
-        for mesh in meshes:
-            mesh_path = mesh.GetPath().pathString
-            if "/left_hand_link/" in mesh_path or "/right_hand_link/" in mesh_path:
-                usd_mesh = UsdGeom.Mesh(mesh)
-                usd_mesh.CreateDisplayColorAttr([(0.0100228, 0.0100228, 0.0100228)])
-                usd_mesh.CreateDisplayOpacityAttr([1.0])
-
-        _configure_robot_colliders(root_path, stage)
-
-        # VBD geometrically mixes shape and cloth friction. Author the shape
-        # coefficient for an effective 1.2 grip, not the former artificial 4.47.
-        grasp_material_path = f"{root_path}/GraspMaterial"
-        spawn_physics_material_from_fragments(
-            grasp_material_path,
-            rigid_material(
-                density=None,
-                friction=GRIP_FRICTION**2 / CLOTH_FRICTION,
-                contact_stiffness=8.0e3,
-                contact_damping=2.0e1,
-            ),
-            stage=stage,
-        )
-        grasp_roots = {"L_thumb_proximal_base", "L_index_proximal", "R_thumb_proximal_base", "R_index_proximal"}
-        finger_prims = sim_utils.get_all_matching_child_prims(
-            root_path,
-            predicate=lambda prim: prim.GetName() in grasp_roots,
-            stage=stage,
-        )
-        if len(finger_prims) != len(grasp_roots):
-            raise RuntimeError(f"Expected {len(grasp_roots)} H1 grasp roots, found {len(finger_prims)}")
-        for prim in finger_prims:
-            sim_utils.bind_physics_material(prim.GetPath(), grasp_material_path, stage=stage)
-            # Millimeter-scale contact skins must not push the sheet out of a
-            # physical pinch whose closed-jaw gap is only 1.5--1.8 mm.
-            for collider in sim_utils.get_all_matching_child_prims(
-                prim.GetPath().pathString,
-                predicate=lambda child: child.HasAPI(UsdPhysics.CollisionAPI),
-                stage=stage,
-            ):
-                apply_namespaced(NewtonCollisionCfg(contact_margin=0.0002), collider.GetPath().pathString, stage)
 
 
 def _configure_robot_colliders(root_path: str, stage: Usd.Stage) -> None:
@@ -538,7 +443,7 @@ def prepare_native_h2_contacts(
         cooked = mesh_sdf_cache.get(key)
         if cooked is None:
             cooked = source.copy(recompute_inertia=False)
-            # Stock Newton 1.6.1 leaves baked SDF gradients unnormalized in soft contact.
+            # The pinned Newton soft-contact path leaves baked SDF gradients unnormalized.
             # Public unbaked cooking uses its normalized runtime-scale branch instead.
             cooked.build_sdf(
                 device=device,
@@ -615,9 +520,11 @@ H2_CFG = H2ArticulationCfg(
     ),
     # A grounded shallow stance clears the pelvis from the cloth while keeping both soles flat.
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(-0.9, 0.0, 0.9297120821774005),
+        pos=(-0.80, 0.0, 0.9297120821774005),
         joint_pos={
-            "(waist|head)_.*": 0.0,
+            "waist_(roll|yaw)_joint": 0.0,
+            "head_.*": 0.0,
+            "waist_pitch_joint": 0.35,
             "(left|right)_hip_pitch_joint": -0.5,
             "(left|right)_hip_roll_joint": 0.0,
             "(left|right)_hip_yaw_joint": 0.0,
@@ -625,20 +532,21 @@ H2_CFG = H2ArticulationCfg(
             "(left|right)_ankle_pitch_joint": -0.5702976584434509,
             "left_ankle_roll_joint": 0.06301647424697876,
             "right_ankle_roll_joint": -0.06301647424697876,
-            "left_shoulder_pitch_joint": -0.6441314816474915,
-            "left_shoulder_roll_joint": 0.16728058457374573,
-            "left_shoulder_yaw_joint": -0.017775176092982292,
-            "left_elbow_joint": 1.1064139604568481,
-            "left_wrist_roll_joint": -1.6087414026260376,
-            "left_wrist_pitch_joint": -0.11290059983730316,
-            "left_wrist_yaw_joint": 0.35488787293434143,
-            "right_shoulder_pitch_joint": -0.6399306058883667,
-            "right_shoulder_roll_joint": -0.10742256790399551,
-            "right_shoulder_yaw_joint": -0.38055047392845154,
-            "right_elbow_joint": 1.0646650791168213,
-            "right_wrist_roll_joint": 1.1797376871109009,
-            "right_wrist_pitch_joint": 0.06415408104658127,
-            "right_wrist_yaw_joint": -0.3517419993877411,
+            # A measured ready pose keeps the open fingertips clear of the cloth at reset.
+            "left_shoulder_pitch_joint": 0.0324070528,
+            "left_shoulder_roll_joint": -0.1293495595,
+            "left_shoulder_yaw_joint": 0.3300454915,
+            "left_elbow_joint": -0.4972611964,
+            "left_wrist_roll_joint": -1.3867278099,
+            "left_wrist_pitch_joint": 0.3297203779,
+            "left_wrist_yaw_joint": 0.8414497375,
+            "right_shoulder_pitch_joint": 0.0907456726,
+            "right_shoulder_roll_joint": -0.2215068787,
+            "right_shoulder_yaw_joint": -0.0401092954,
+            "right_elbow_joint": -0.4736894071,
+            "right_wrist_roll_joint": 1.5572344065,
+            "right_wrist_pitch_joint": -0.0186706446,
+            "right_wrist_yaw_joint": -0.8570303917,
             **H2_OPEN_JOINT_POS,
         },
     ),
@@ -665,56 +573,6 @@ H2_CFG = H2ArticulationCfg(
             # Simulation drives only: direct VBD does not enforce native hardware torque caps.
             stiffness=400.0,
             damping=0.3,
-        ),
-    },
-)
-
-
-H1_CFG = H1ArticulationCfg(
-    prim_path="{ENV_REGEX_NS}/Robot",
-    articulation_root_prim_path="/fix_base_joint",
-    spawn=sim_utils.UsdFileCfg(
-        func=spawn_h1_from_usd,
-        usd_path="",
-        make_uninstanceable=True,
-        fix_root_link=True,
-        # A compliant VBD world joint alone lets the base bounce under manipulation loads.
-        rigid_props={"/Geometry/pelvis": [sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)]},
-        collision_props=collision_properties(),
-        physics_material=rigid_material(friction=0.50, contact_stiffness=1.0e3, contact_damping=1.0e-2),
-    ),
-    init_state=ArticulationCfg.InitialStateCfg(
-        pos=(-0.75, 0.0, H1_STANDING_HEIGHT),
-        joint_pos={
-            ".*(hip|knee|ankle).*": 0.0,
-            "torso_joint": 0.0,
-            "left_shoulder_pitch_joint": -0.333745,
-            "left_shoulder_roll_joint": 1.362674,
-            "left_shoulder_yaw_joint": -1.246960,
-            "left_elbow_joint": -0.403194,
-            "left_hand_joint": -1.755706,
-            "right_shoulder_pitch_joint": -0.347129,
-            "right_shoulder_roll_joint": -1.375690,
-            "right_shoulder_yaw_joint": 1.260851,
-            "right_elbow_joint": -0.409848,
-            "right_hand_joint": 1.769167,
-        },
-    ),
-    actuators={
-        "body": ImplicitActuatorCfg(
-            joint_names_expr=[r"(?!torso_joint$)(?![LR]_(?:thumb|index|middle|ring|pinky)_).+"],
-            stiffness=5.0e4,
-            damping=5.0e2,
-        ),
-        "torso": ImplicitActuatorCfg(
-            joint_names_expr=["torso_joint"],
-            stiffness=2.0e5,
-            damping=2.0e3,
-        ),
-        "fingers": ImplicitActuatorCfg(
-            joint_names_expr=[r"[LR]_(?:thumb|index|middle|ring|pinky)_.+"],
-            stiffness=1.0e3,
-            damping=2.0,
         ),
     },
 )
@@ -779,22 +637,19 @@ class TableclothCfg(DeformableObjectCfg):
 CLOTH_CFG = TableclothCfg(
     prim_path="{ENV_REGEX_NS}/Cloth",
     spawn=sim_utils.MeshRectangleCfg(
-        # The front overhang provides a free hem below the countertop.
-        size=(0.56, TABLE_SIZE[1]),
+        # A 4 cm free hem settles before the scripted hands approach.
+        size=(0.46, TABLE_SIZE[1]),
         edge_refinement=64,
         deformable_props=NewtonDeformableBodyPropertiesCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.76, 0.05, 0.05)),
         physics_material=NewtonSurfaceDeformableBodyMaterialCfg(
             density=0.24,
             particle_radius=0.001,
-            tri_ke=5.0e4,
-            tri_ka=5.0e4,
-            tri_kd=5.0e1,
             edge_ke=0.01,
             edge_kd=5.0e-3,
         ),
     ),
-    init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, CLOTH_Z)),
+    init_state=DeformableObjectCfg.InitialStateCfg(pos=(-0.01, 0.0, CLOTH_Z)),
 )
 BOWL_CFG = RigidObjectCfg(
     prim_path="{ENV_REGEX_NS}/Bowl",
@@ -883,7 +738,7 @@ LIGHT_CFG = AssetBaseCfg(
 
 
 TABLECLOTH_ASSETS = {
-    "robot": H1_CFG,
+    "robot": H2_CFG,
     "table": TABLE_CFG,
     "tabletop": TABLETOP_COLLIDER_CFG,
     **TABLE_SUPPORT_CFGS,
