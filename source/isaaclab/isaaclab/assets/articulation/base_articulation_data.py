@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from ...utils.buffers import TimestampedBuffer
 from ...utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
@@ -29,7 +30,6 @@ from . import ordering_kernels
 
 if TYPE_CHECKING:
     from ...actuators import ActuatorCollection
-    from ...utils.buffers import TimestampedBuffer
     from .ordering import ArticulationNameMap
 
 
@@ -70,6 +70,8 @@ class BaseArticulationData(ABC):
         self._joint_pos_target_ta: ProxyArray | None = None
         self._joint_vel_target_ta: ProxyArray | None = None
         self._joint_effort_target_ta: ProxyArray | None = None
+        self._body_joint_wrench = TimestampedBuffer()
+        self._body_joint_wrench_ta: ProxyArray | None = None
 
     def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
         """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
@@ -846,6 +848,23 @@ class BaseArticulationData(ABC):
     @leapp_tensor_semantics(kind="state/body/com_state")
     def body_com_state_w(self) -> ProxyArray:
         """Deprecated, same as :attr:`body_com_pose_w` and :attr:`body_com_vel_w`."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrench ``[force, torque]`` for each body.
+
+        Shape is (num_instances, num_bodies), dtype = ``wp.spatial_vectorf``. In torch this
+        resolves to (num_instances, num_bodies, 6). Entries follow :attr:`body_names`.
+        Force [N] and torque [N*m] are expressed in the child-side joint frame, with torque
+        referenced at the child-side joint anchor. This is not the applied actuator effort.
+
+        Newton requires :attr:`ArticulationCfg.enable_joint_wrench` before simulation startup.
+        Its free and world-fixed root entries are zero; loop-closing constraints are excluded.
+        PhysX and OVPhysX include the backend's root reaction. Values describe the last physics
+        step, so step the simulation after resetting or writing state before reading them.
+        """
         raise NotImplementedError
 
     @property

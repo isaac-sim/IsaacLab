@@ -29,7 +29,7 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole \
-       --checkpoint latest --num_envs 32 --viz newton
+       --checkpoint latest --num_envs 32 --viz newton_gl
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
@@ -274,11 +274,12 @@ creating one from scratch.
 Discover tasks and agents
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-List registered tasks, then inspect the task-specific help:
+List registered tasks, then inspect the task-specific help. The list includes an RL Libraries column,
+since each task supports only the libraries it registers a config for:
 
 .. code-block:: bash
 
-   uv run python scripts/environments/list_envs.py
+   uv run isaaclab list_envs --show_presets
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --help
 
 Use ``--agent`` to select an alternate registered configuration. For example:
@@ -566,7 +567,7 @@ Next steps
 
 * :doc:`/source/features/multi_gpu` covers multi-GPU and multi-node training.
 
-* :doc:`/source/features/reproducibility` covers reproducible experiments.
+* :doc:`/source/how-to/reproducibility` covers reproducible experiments.
 
 * :doc:`/source/how-to/capture_sensor_frames` covers image-observation
   diagnostics.

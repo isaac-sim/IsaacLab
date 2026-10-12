@@ -40,7 +40,10 @@ when the renderer must be fixed:
      - Kit-less Warp rasterization through Newton
 
 For an environment that exposes renderer presets, select the renderer at launch instead of editing
-the scene configuration:
+the scene configuration. Pass ``physics=`` and ``renderer=`` together, since the renderer must match
+your setup path. The command below is for the kit-less Newton path; for Isaac Sim, use
+``physics=isaacsim_physx renderer=isaacsim_rtx`` with ``--extra isaacsim``. See
+:doc:`/source/how-to/configure_rendering` for each pairing:
 
 .. tab-set::
    :sync-group: os
@@ -51,7 +54,8 @@ the scene configuration:
       .. code-block:: bash
 
          uv run isaaclab train --rl_library rsl_rl \
-             --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+             --task Isaac-Cartpole-Camera-Direct \
+             physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -59,7 +63,8 @@ the scene configuration:
       .. code-block:: batch
 
          uv run isaaclab train --rl_library rsl_rl ^
-             --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+             --task Isaac-Cartpole-Camera-Direct ^
+             physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 Images are not written to disk by default. Set ``env.write_image_to_file=true`` to write
 ``cartpole_<data_type>.png`` in the current working directory.
@@ -117,6 +122,11 @@ configurations, including output types and backgrounds, remain per sensor.
 
 Read camera data
 ----------------
+
+``camera.get_world_poses(convention="opengl")`` reads the current world poses without capturing images
+or changing cached measurement poses. This includes motion of the camera's parent body even when
+``update_latest_camera_pose=False``. It accepts the same orientation conventions as
+``set_world_poses`` and returns device tensors for positions and quaternions.
 
 :attr:`~sensors.CameraData.output` maps each requested name to a
 :class:`~isaaclab.utils.warp.ProxyArray`. For ``N`` camera views, height ``H``, width ``W``, and

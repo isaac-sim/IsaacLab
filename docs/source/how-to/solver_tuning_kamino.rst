@@ -35,7 +35,7 @@ Run one small visual smoke test before training or benchmarking:
 
 .. code-block:: bash
 
-    uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 4 --viz newton physics=newton_kamino
+    uv run python scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 4 --viz newton_gl physics=newton_kamino
 
 Then fix the initial state, seed, action sequence, and reset distribution. For
 that reproduction, record penetration, slip, energy, a task metric, a

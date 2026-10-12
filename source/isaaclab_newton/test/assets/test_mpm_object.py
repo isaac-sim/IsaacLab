@@ -55,18 +55,29 @@ def test_mpm_object_initializes_from_interactive_scene():
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
         assert not sim.get_scene_data_provider().get_geometry_points()
 
-        default_state = media.data.default_particle_state_w.torch.clone()
-        shifted_state = default_state[0:1].clone()
-        shifted_state[..., 2] += 0.05
+        callback_count = len(NewtonMPMManager._callbacks)
+        for _ in range(2):
+            old_data = media.data
+            sim.reset()
+            assert media.data is not old_data
+            assert len(NewtonMPMManager._callbacks) == callback_count
 
-        media.write_particle_state_to_sim_index(
-            shifted_state,
-            env_ids=torch.tensor([0], device=sim.device, dtype=torch.int32),
-        )
-        torch.testing.assert_close(media.data.particle_state_w.torch[0:1], shifted_state)
+            default_state = media.data.default_particle_state_w.torch.clone()
+            shifted_state = default_state[0:1].clone()
+            shifted_state[..., 2] += 0.05
 
-        media.reset(env_ids=[0])
-        torch.testing.assert_close(media.data.particle_state_w.torch[0], default_state[0])
+            media.write_particle_state_to_sim_index(
+                shifted_state,
+                env_ids=torch.tensor([0], device=sim.device, dtype=torch.int32),
+            )
+            torch.testing.assert_close(media.data.particle_state_w.torch[0:1], shifted_state)
+
+            media.reset(env_ids=[0])
+            torch.testing.assert_close(media.data.particle_state_w.torch[0], default_state[0])
+
+            sim.step(render=False)
+            scene.update(sim.cfg.dt)
+            assert torch.all(media.data.particle_pos_w.torch[..., 2] < default_state[..., 2])
 
 
 def test_mpm_solver_refreshes_kinematic_rigid_body_transforms():
