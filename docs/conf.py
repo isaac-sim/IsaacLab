@@ -405,7 +405,7 @@ html_sidebars = {
 isaaclab_doc_redirects = {
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
     "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
-    "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx_native_access",
+    "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx",
     "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
     "source/concepts/warp_environment_migration": "source/concepts/warp_environments",
@@ -457,6 +457,10 @@ isaaclab_doc_redirect_fragments = {
     "source/concepts/native-physics-api/ovphysx": {
         "": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
         "ovphysx-tensor-bindings": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+    },
+    "source/concepts/native-physics-api/physx": {
+        "": "source/concepts/physics-backends/physx#physx-native-access",
+        "physx-tensor-api": "source/concepts/physics-backends/physx#physx-native-access",
     },
     "source/concepts/joint_and_body_ordering": {
         "": "source/how-to/transfer_policies_between_physx_and_newton#joint-and-body-ordering",
