@@ -612,6 +612,7 @@ class NewtonManager(PhysicsManager):
                 # Assets recreate these views and hooks on PHYSICS_READY for the new model.
                 for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
                     del NewtonManager.views[key]
+                NewtonManager._pre_actuator_callbacks.clear()
                 NewtonManager._post_actuator_callbacks.clear()
                 NewtonManager._post_step_callbacks.clear()
             # Release the cached collision pipeline, contacts and CUDA graph;
@@ -1933,7 +1934,12 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def register_pre_actuator_callback(cls, callback: Callable[[], None]) -> None:
-        """Append a hook invoked before the actuator step on every iteration, inside the captured graph."""
+        """Append a hook invoked before the actuator step.
+
+        Each callback runs inside the captured CUDA graph once per decimation iteration when
+        :meth:`_is_all_graphable` is ``True``, and eagerly once per step otherwise.
+        Hard resets discard these hooks; register them again when the new model is ready.
+        """
         cls._pre_actuator_callbacks.append(callback)
 
     @classmethod

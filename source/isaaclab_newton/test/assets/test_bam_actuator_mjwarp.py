@@ -184,10 +184,20 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_articulations_sharing_one_actuator_bind_once(native_sim, device, pendulum_usd):
-    """Identical robots merge into one Newton actuator whose drive is bound to the solver."""
+    """Identical robots merge into one Newton actuator whose drive is bound to the solver, again after hard resets."""
     robot_a, robot_b = _spawn_pendulums(native_sim, pendulum_usd, {"RobotA": _make_cfg(), "RobotB": _make_cfg()})
-    assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
-    assert robot_a.actuators["servo"].drive.external_torque is not None
+    hook_counts = (len(NewtonManager._pre_actuator_callbacks), len(NewtonManager._post_actuator_callbacks))
+    for reset_index in range(3):
+        if reset_index:
+            # A hard reset rebuilds the model and drives; the bridge hooks must be replaced, not appended.
+            native_sim.reset()
+            assert hook_counts == (
+                len(NewtonManager._pre_actuator_callbacks),
+                len(NewtonManager._post_actuator_callbacks),
+            )
+        assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
+        assert robot_a.actuators["servo"].drive.external_torque is not None
+        native_sim.step()
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
