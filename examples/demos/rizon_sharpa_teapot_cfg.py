@@ -13,7 +13,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
 
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 if TYPE_CHECKING:
     from rizon_sharpa_teapot import NewtonTeapotCouplerManager
@@ -26,10 +26,8 @@ class TeapotSolverCfg(CouplerProxyCfg):
     class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot:NewtonTeapotCouplerManager"
 
 
-def make_solver_cfg(
-    mpm_cfg: MPMSolverCfg, *, fluid_coupling: str = "one_way", rigid_substeps: int = 1
-) -> TeapotSolverCfg:
-    """Resolve hand--pot contacts and select measured sync or liquid feedback."""
+def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
+    """Resolve rigid hand--pot contacts and synchronize the measured fluid boundary."""
     return TeapotSolverCfg(
         entries=[
             CouplerEntryCfg(
@@ -46,7 +44,7 @@ def make_solver_cfg(
                     nconmax=256,
                 ),
                 bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/PourContainer"],
-                substeps=rigid_substeps,
+                substeps=1,
             ),
             CouplerEntryCfg(
                 name="fluid",
@@ -56,18 +54,4 @@ def make_solver_cfg(
                 in_place=True,
             ),
         ],
-        proxies=[
-            CouplerProxyMappingCfg(
-                source="robot",
-                destination="fluid",
-                bodies=[r"/World/envs/env_.*/PourContainer"],
-                # Match the supported-cup profile in the coupled Franka pouring task.
-                # Scale only the MPM proxy mass/inertia; MJWarp retains the configured pot.
-                mass_scale=1000.0,
-                mode="staggered",
-                collision_pipeline=None,
-            )
-        ]
-        if fluid_coupling == "two_way"
-        else [],
     )

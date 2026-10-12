@@ -427,7 +427,7 @@ def module_is_available(module: str) -> bool:
 
 def visualizer_is_available(visualizer: str | None) -> bool:
     """Return whether the package implementing a visualizer is importable."""
-    if visualizer is None:
+    if visualizer in (None, "none"):
         return True
     if visualizer == "kit":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()

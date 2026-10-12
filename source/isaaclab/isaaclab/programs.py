@@ -109,7 +109,7 @@ DEMOS = (
     ProgramSpec(
         "rizon-sharpa-teapot",
         "examples/demos/rizon_sharpa_teapot_demo.py",
-        "Grasp and pour a teapot with Rizon--Sharpa and water closeups.",
+        "Grasp a teapot with Rizon--Sharpa and pour during a 70 cm rise.",
         required_modules=("isaaclab_contrib",),
     ),
 )

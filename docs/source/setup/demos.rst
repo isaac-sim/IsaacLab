@@ -130,7 +130,7 @@ Command Builder
                data-demo-physics="newton_coupler" data-demo-fixed-physics="true"
                data-demo-visualizers="none,newton_gl,newton_rtx"
                data-demo-args="--device cuda:0"
-               data-demo-description="Grasp the stock teapot physically, pour while rising, and inspect water particles and their reconstructed surface.">
+               data-demo-description="Grasp a Utah teapot with an index finger and pour MPM water into a bowl during a 70 cm rise.">
          <img src="../../_static/demos/teapot_fill.jpg" alt="Teapot and simulated water" loading="lazy">
          <span>Rizon Sharpa Teapot</span>
        </button>
@@ -140,7 +140,12 @@ Command Builder
 Rizon--Sharpa teapot
 --------------------
 
-This additional demo requires access to the NVIDIA-internal
+The Rizon--Sharpa demo physically grasps the Utah teapot with an index finger and pours
+MPM water into a bowl during a 70 cm rise. MJWarp resolves robot and teapot contacts;
+MPM receives the measured teapot pose and center-of-mass twist through one-way coupling.
+The simulation runs at 800 Hz with one rigid step and one fluid step per simulation step.
+
+The demo requires access to the NVIDIA-internal
 `Fabrics-Sim Rizon4s--Sharpa asset <https://gitlab-master.nvidia.com/dex/fabrics-sim/-/tree/d0dbd1ddaefc4996db546949a7dfb37e39afcbeb/src/fabrics_sim/models/robots/urdf/rizon4s_sharpa/rizon4s_sharpa_no_spheres>`__.
 The asset is proprietary and is not included in Isaac Lab. Obtain the generated USD and its
 ``textures/`` directory from the asset maintainer under your applicable access and license terms.
@@ -153,52 +158,3 @@ Then point the demo at that directory:
 
    export ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT=/path/to/rizon4s_sharpa_no_spheres
    uv run isaaclab demo rizon-sharpa-teapot
-
-Without this asset, the original ``uv run isaaclab demo teapot-fill`` remains available.
-The robot demo's startup smoke test is skipped when the asset directory is not configured.
-
-The Rizon--Sharpa teapot demo reuses the teapot-fill simulation with a physical index-finger
-grasp. The pot weighs 450 g with proportionally scaled inertia, reducing rocking during
-pickup while retaining the stock geometry, center of mass, and principal axes. Use
-``--teapot_mass 0.35`` to restore its original mass. The pot reaches a 54-degree tilt
-smoothly over four seconds. During the 70 cm rise
-over twelve seconds, it eases to 49 degrees before the high pour. The initial fill is
-``0.35`` (approximately 168 ml at the default particle resolution), leaving room below
-the stock teapot's open rim. The longer rising pour gives the water time to drain before
-the pot returns upright. Override ``--fill_level`` or ``--pour_rise_time`` to adjust these defaults.
-The closeup camera shows reconstructed water for two seconds during the rising pour,
-then returns to particles entering the bowl. The robot USD and textures
-remain in the existing licensed asset cache; the demo does not redistribute them.
-Select ``--grasp_finger middle`` to use the original grasp, or ``--presentation default``
-for the original camera and fixed fluid-rendering mode. Adjust ``--pour_angle``,
-``--pour_tilt_time``, ``--pour_upper_angle``, ``--pour_rise_time``, and ``--pour_aim_offset_x`` to change the pour;
-validate modified trajectories with ``--motion_report``.
-This report samples contacts at outer-step boundaries; when additional substeps are selected,
-it does not measure the intervening rigid-step peaks.
-
-MJWarp resolves robot and teapot contacts. By default, MPM receives the measured teapot
-pose and velocity at every fluid substep, without returning fluid forces to the robot.
-``--fluid_coupling two_way`` selects the experimental proxy path, which requires its own
-complete-playback validation. Its supported-pot mass scaling is applied only within MPM.
-
-The default outer and fluid frequency is 800 Hz. For timestep experiments,
-``--physics_hz`` selects the outer frequency and ``--physics_substeps`` divides
-each outer step into coupled fluid/rigid steps. ``--rigid_substeps`` adds contact
-steps inside each coupled step without advancing the fluid again.
-``--controller_hz`` must divide the outer frequency exactly.
-With one-way coupling, arm position targets are interpolated at each rigid
-substep, and the measured start/end teapot poses determine the collider's
-center-of-mass and angular velocities for each fluid interval.
-Lower fluid frequencies change settling and delivered water, so validate the
-complete pour before selecting a faster configuration. ``--benchmark`` reports
-the actual solver frequencies and simulated time per wall-clock second;
-use ``--visualizer none`` to exclude rendering.
-These timing options use the installed Newton solver; they do not enable the
-unmerged MPM stabilization settings used in experimental recordings.
-
-Record with Newton RTX:
-
-.. code-block:: bash
-
-   uv run --extra ovrtx --with imageio-ffmpeg isaaclab demo rizon-sharpa-teapot \
-       --visualizer newton_rtx --video logs/teapot/pour_closeups.mp4

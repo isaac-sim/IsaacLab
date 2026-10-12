@@ -67,19 +67,3 @@ def test_teapot_collider_sync_uses_measured_com_motion(source_checkout_root, mon
     np.testing.assert_allclose(fluid_velocity.numpy()[0], (0.0, -0.4, 0.4, 0.0, 0.0, 2.0 * math.pi), atol=2.0e-6)
     np.testing.assert_array_equal(fluid_pose.numpy()[1], (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0))
     np.testing.assert_array_equal(fluid_velocity.numpy()[1], np.zeros(6))
-
-
-def test_teapot_arm_interpolation_preserves_unmapped_hand_targets(source_checkout_root, monkeypatch):
-    """Mapped arm targets follow their velocities while finger targets stay fixed."""
-    import warp as wp
-
-    monkeypatch.syspath_prepend(str(source_checkout_root / "examples/demos"))
-    helper = importlib.import_module("rizon_sharpa_teapot")
-    indices = wp.array([(3, 0), (0, 2)], dtype=wp.vec2i, device="cpu")
-    position = wp.array([0.3, 0.2, 0.1, 0.4], dtype=wp.float32, device="cpu")
-    velocity = wp.array([0.8, 0.4, -0.4], dtype=wp.float32, device="cpu")
-
-    wp.launch(helper._interpolate_arm_control, dim=2, inputs=[indices, position, velocity, 0.125], device="cpu")
-
-    np.testing.assert_allclose(position.numpy(), (0.25, 0.2, 0.1, 0.5), atol=1.0e-7)
-    np.testing.assert_allclose(velocity.numpy(), (0.8, 0.4, -0.4), atol=1.0e-7)
