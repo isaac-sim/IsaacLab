@@ -35,6 +35,33 @@ Kit-only demos are not shown.
 
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
+MicroDuck factory rendering
+---------------------------
+
+The factory demo loads a static scene, including the duck's final looking-up pose, without advancing
+physics. Until the asset is published, supply the local ``microduck_factory_static.usdc`` and keep
+its ``textures/`` directory alongside it. The same ``--usd_path`` option accepts a Nucleus or HTTPS URL.
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc
+   uv run --extra isaacsim isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc renderer=isaacsim_rtx presets=minimal
+   uv run --extra isaacsim isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc renderer=isaacsim_rtx presets=path_traced
+   uv run isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc renderer=newton_renderer presets=depth
+
+Select ``renderer=ovrtx``, ``renderer=isaacsim_rtx``, or ``renderer=newton_renderer`` independently
+from the viewer selected by ``--viz``. The default Newton GL window displays the selected camera
+renderer's output; it does not replace it with OpenGL shading. Use the existing viewer controls to
+inspect the image. ``presets=aisle`` selects the saved aisle view; the default is the final poster view.
+
+Output presets include ``rgb``, ``minimal`` (full MDL shading), ``depth``, ``normals``,
+``semantic_segmentation``, and ``instance_segmentation``. Minimal shading requires an RTX renderer;
+``path_traced`` selects Kit path tracing with ``renderer=isaacsim_rtx``. OVRTX RGB uses its real-time
+path tracer. Use Kit RTX for minimal shading of this scene; the current OVRTX minimal output clips
+heavily with its lighting. Presets can be combined, for example ``presets=aisle,depth``. Normal configuration
+overrides remain available, including ``env.scene.camera.width=1920 env.scene.camera.height=1080``.
+The USD and images are not bundled with the demo; its NVIDIA-hosted dependencies require server access.
+
 Command Builder
 ---------------
 
