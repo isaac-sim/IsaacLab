@@ -168,13 +168,21 @@ runs:
           BUILD_ARGS+=( --cache-to "${{ inputs.cache-to }}" )
         fi
 
-        BUILDER_NAME="docker-build-${{ github.run_id }}-${{ github.job }}"
-        docker buildx create --use --driver docker-container --name "${BUILDER_NAME}" \
-          || docker buildx use "${BUILDER_NAME}"
-        trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
+        # Registry cache export needs a docker-container builder, whose image must
+        # then be exported and loaded into the daemon. Without one, build in the
+        # daemon itself so the image, layer cache and uv cache mount stay local.
+        if [ -n "${{ inputs.cache-from }}${{ inputs.cache-to }}" ]; then
+          BUILDER_NAME="docker-build-${{ github.run_id }}-${{ github.job }}"
+          docker buildx create --driver docker-container --name "${BUILDER_NAME}" \
+            || true
+          trap 'docker buildx rm "${BUILDER_NAME}" || true' EXIT
+          BUILD_ARGS+=( --builder "${BUILDER_NAME}" --load )
+        else
+          BUILD_ARGS+=( --builder default )
+        fi
 
         echo "🔵 Building ${{ inputs.image-tag }}..."
-        docker buildx build --load "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
+        docker buildx build "${BUILD_ARGS[@]}" "${{ inputs.context-path }}"
         echo "was-built=true" >> "$GITHUB_OUTPUT"
 
     ##### 6: Layer the CI pytest harness onto the built image #####
