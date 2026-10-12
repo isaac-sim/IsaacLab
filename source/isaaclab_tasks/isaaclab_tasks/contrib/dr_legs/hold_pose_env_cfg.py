@@ -129,7 +129,7 @@ class ActionsCfg:
 
 
 def _physx_actions_cfg() -> ActionsCfg:
-    """Return the reduced PhysX joint-target action profile."""
+    """Return the PhysX joint-target action profile."""
     cfg = ActionsCfg()
     cfg.joint_pos.scale = 0.1
     return cfg
@@ -242,8 +242,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "position_range": (-0.1, 0.1),
-            "velocity_range": (-0.05, 0.05),
+            "position_range": (0.0, 0.0),
+            "velocity_range": (0.0, 0.0),
         },
     )
 
@@ -255,16 +255,6 @@ def _newton_event_cfg() -> EventCfg:
     # Tilted initialization can destabilize the closed-loop Kamino P-ADMM solve.
     cfg.reset_base.params["pose_range"].pop("roll")
     cfg.reset_base.params["pose_range"].pop("pitch")
-    cfg.reset_robot_joints.params["position_range"] = (0.0, 0.0)
-    cfg.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
-    return cfg
-
-
-def _physx_event_cfg() -> EventCfg:
-    """Return the PhysX reset profile with assembled joint coordinates."""
-    cfg = EventCfg()
-    cfg.reset_robot_joints.params["position_range"] = (0.0, 0.0)
-    cfg.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
     return cfg
 
 
@@ -274,7 +264,7 @@ class DrLegsEventCfg(PresetCfg):
 
     default: EventCfg = _newton_event_cfg()
     newton_kamino: EventCfg = _newton_event_cfg()
-    physx: EventCfg = _physx_event_cfg()
+    physx: EventCfg = EventCfg()
     isaacsim_physx: EventCfg = physx
 
 
@@ -312,23 +302,6 @@ class TerminationsCfg:
     )
 
 
-def _physx_terminations_cfg() -> TerminationsCfg:
-    """Return the PhysX termination profile."""
-    cfg = TerminationsCfg()
-    cfg.abnormal_joint_velocity = None
-    return cfg
-
-
-@configclass
-class DrLegsTerminationsCfg(PresetCfg):
-    """Backend-specific DR Legs termination presets."""
-
-    default: TerminationsCfg = TerminationsCfg()
-    newton_kamino: TerminationsCfg = TerminationsCfg()
-    physx: TerminationsCfg = _physx_terminations_cfg()
-    isaacsim_physx: TerminationsCfg = physx
-
-
 ##
 # Environment configuration
 ##
@@ -343,7 +316,7 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     actions: DrLegsActionsCfg = DrLegsActionsCfg()
     events: DrLegsEventCfg = DrLegsEventCfg()
     rewards: RewardsCfg = RewardsCfg()
-    terminations: DrLegsTerminationsCfg = DrLegsTerminationsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 150,
         render_interval=3,
