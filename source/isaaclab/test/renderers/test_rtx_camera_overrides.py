@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the RTX-side camera-exposure overrides applied when PPISP is active."""
-
-from isaaclab_ppisp import apply_rtx_exposure_overrides
+"""Tests for the RTX camera-exposure overrides used for scene-linear color outputs."""
 
 from pxr import Sdf, Usd, UsdGeom
 
+from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
+
 
 def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
-    """When PPISP is the ISP authority, the camera prim's RTX-side exposure must be neutral."""
+    """Scene-linear outputs require neutral RTX-side exposure on the camera prim."""
     stage = Usd.Stage.CreateInMemory()
     cam = UsdGeom.Camera.Define(stage, "/World/Camera")
     prim = cam.GetPrim()
@@ -23,7 +23,7 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     prim.CreateAttribute("exposure:time", Sdf.ValueTypeNames.Float).Set(1.0 / 60.0)
     prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
 
-    apply_rtx_exposure_overrides(stage, ["/World/Camera"])
+    _apply_rtx_exposure_overrides(stage, ["/World/Camera"])
 
     assert prim.GetAttribute("exposure").Get() == 0.0
     assert prim.GetAttribute("exposure:fStop").Get() == 1.0
@@ -31,7 +31,7 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     assert prim.GetAttribute("exposure:responsivity").Get() == 1.0
     assert prim.GetAttribute("exposure:time").Get() == 1.0
     assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
-    # The PPISP API schemas must also be applied — that is what makes Kit's
+    # The RTX exposure API schemas must also be applied — that is what makes Kit's
     # USD watcher route the camera prim's ``exposure:*`` and
     # ``omni:rtx:autoExposure:*`` attributes into the per-camera carb
     # settings RTX consumes.

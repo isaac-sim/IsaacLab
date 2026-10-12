@@ -7,10 +7,11 @@ __all__ = [
     "PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN",
     "PPISP_DEFAULT_INPUTS",
     "PpispCfg",
+    "PpispModifier",
+    "PpispModifierCfg",
     "PpispPipeline",
     "apply_ppisp_to_rgba",
     "apply_ppisp_to_rgba_with_controller_params",
-    "apply_rtx_exposure_overrides",
     "auto_any_ppisp_cfg",
     "auto_camera_ppisp_cfg",
     "compute_ppisp_controller_params",
@@ -19,13 +20,13 @@ __all__ = [
     "normalize_ppisp_cfg",
     "ppisp_cfg_from_usd_camera",
     "ppisp_cfg_from_usd_stage",
-    "resolve_and_normalize",
 ]
 
 from .cfg import (
     PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN,
     PPISP_DEFAULT_INPUTS,
     PpispCfg,
+    PpispModifierCfg,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -33,8 +34,7 @@ from .cfg import (
     normalize_ppisp_cfg,
     ppisp_cfg_from_usd_camera,
     ppisp_cfg_from_usd_stage,
-    resolve_and_normalize,
 )
 from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
+from .modifier import PpispModifier
 from .pipeline import PpispPipeline
-from .rtx_camera_overrides import apply_rtx_exposure_overrides

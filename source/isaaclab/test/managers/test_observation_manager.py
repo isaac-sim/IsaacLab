@@ -1010,3 +1010,112 @@ def test_positional_out_does_not_enable_destination_writes(setup_env):
     result = manager.compute()["policy"]
     setup_env.data.pos_w.zero_()
     torch.testing.assert_close(result, expected)
+
+
+class AppendOnesModifier(modifiers.ModifierBase):
+    """Class modifier that widens the last dimension and records its lifecycle."""
+
+    closed = 0
+
+    @property
+    def output_dim(self) -> tuple[int, ...]:
+        return (*self._data_dim[:-1], self._data_dim[-1] + 1)
+
+    def reset(self, env_ids=None) -> None:
+        pass
+
+    def close(self) -> None:
+        AppendOnesModifier.closed += 1
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return torch.cat([data, torch.ones_like(data[..., :1])], dim=-1)
+
+
+def test_class_modifiers_propagate_their_output_shape_and_close(setup_env):
+    """Later modifiers, scale, and the reported term shape follow a modifier that changes the shape."""
+    env = setup_env
+    AppendOnesModifier.closed = 0
+
+    @configclass
+    class MyObservationManagerCfg:
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            concatenate_terms = False
+            term = ObservationTermCfg(
+                func=pos_w_data,
+                modifiers=[modifiers.ModifierCfg(func=AppendOnesModifier), modifiers.IntegratorCfg(dt=1.0)],
+                scale=(1.0, 1.0, 1.0, 2.0),
+            )
+
+        policy: ObservationGroupCfg = PolicyCfg()
+
+    obs_man = ObservationManager(MyObservationManagerCfg(), env)
+    obs = obs_man.compute()["policy"]["term"]
+
+    assert obs_man.group_obs_term_dim["policy"] == [(4,)]
+    assert obs.shape == (env.num_envs, 4)
+    torch.testing.assert_close(obs[:, 3], torch.ones(env.num_envs))
+
+    obs_man.close()
+    obs_man.close()
+    assert AppendOnesModifier.closed == 1
+
+
+class FailingCloseModifier(AppendOnesModifier):
+    """Resource owner whose release fails."""
+
+    def close(self) -> None:
+        super().close()
+        raise RuntimeError("close failed")
+
+    @property
+    def output_dim(self) -> tuple[int, ...]:
+        return self._data_dim
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return data
+
+
+def test_close_releases_every_modifier_and_env_teardown_completes(setup_env):
+    """A failing modifier close neither skips later modifiers nor stops environment teardown."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from isaaclab.envs import ManagerBasedEnv
+
+    AppendOnesModifier.closed = 0
+
+    @configclass
+    class MyObservationManagerCfg:
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            concatenate_terms = False
+            term = ObservationTermCfg(
+                func=pos_w_data,
+                modifiers=[
+                    modifiers.ModifierCfg(func=FailingCloseModifier),
+                    modifiers.ModifierCfg(func=AppendOnesModifier),
+                ],
+            )
+
+        policy: ObservationGroupCfg = PolicyCfg()
+
+    obs_man = ObservationManager(MyObservationManagerCfg(), setup_env)
+    sim = MagicMock()
+    env = SimpleNamespace(
+        _is_closed=False,
+        sim=sim,
+        observation_manager=obs_man,
+        action_manager=None,
+        event_manager=None,
+        recorder_manager=None,
+        scene=None,
+        _window=None,
+    )
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        ManagerBasedEnv.close(env)
+
+    assert AppendOnesModifier.closed == 2
+    sim.clear_instance.assert_called_once_with()
+    assert env._is_closed

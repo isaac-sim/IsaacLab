@@ -7,15 +7,15 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import MISSING, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from ...renderers import RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
-from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
+    from ...utils.modifiers import ModifierCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
@@ -199,28 +199,38 @@ class CameraCfg(SensorBaseCfg):
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 
-    isp_cfg: Any | CameraISPMode | None = None
-    """Post-render ISP cfg applied by the renderer backend after it produces HDR output.
+    modifiers: dict[str, list[ModifierCfg]] = {}
+    """Modifier chains applied once per captured image, keyed by the camera output each chain reads.
 
-    Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
-    :class:`CameraISPMode` sentinel — see below.
+    The camera requests every key from its renderer, runs the chain after each new capture, and
+    publishes the result in :attr:`CameraData.output` under the ``output`` name declared by the last
+    modifier in the chain that declares one, or under the key otherwise. Outputs produced by a chain
+    are not requested from the renderer. For example, PPISP turns ``rgb_radiance`` into ``rgb``:
 
-    Accepted values:
+    .. code-block:: python
 
-    * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
-      tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — the renderer backend walks the USD stage to
-      discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
-    * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
+        CameraCfg(data_types=["rgb"], modifiers={"rgb_radiance": [PpispModifierCfg()]}, ...)
 
-    The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
-    scalar coefficients, so every cloned view in a tiled batch shares the same
-    ISP configuration — there is no per-view ISP today.
-
-    :mod:`isaaclab.sensors.camera` does not depend on any ISP implementation; the
-    annotation is intentionally loose (``Any``) so the sensor layer can carry the
-    cfg through to a renderer that knows what to do with it.
+    Chain inputs are camera buffers, so modifiers must not change their input in place. Inputs that only
+    modifiers read are not published in :attr:`CameraData.output` unless listed in :attr:`data_types`.
+    Class modifiers are constructed on the first capture and reset with the camera.
     """
+
+    def modifier_outputs(self) -> dict[str, str]:
+        """Return the output name produced by each modifier chain, keyed by the chain's input."""
+        outputs = {}
+        for data_type, chain in self.modifiers.items():
+            declared = [cfg.output for cfg in chain if getattr(cfg, "output", None) is not None]
+            outputs[data_type] = declared[-1] if declared else data_type
+        if len(set(outputs.values())) != len(outputs):
+            raise ValueError(f"Camera modifier chains must produce distinct outputs, got {outputs}.")
+        return outputs
+
+    def render_data_types(self) -> list[str]:
+        """Return the outputs the renderer must produce: requested outputs not made by modifiers, and chain inputs."""
+        produced = {output for data_type, output in self.modifier_outputs().items() if output != data_type}
+        requested = [data_type for data_type in self.data_types if data_type not in produced]
+        return list(dict.fromkeys([*requested, *self.modifiers]))
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
@@ -259,7 +269,7 @@ class CameraCfg(SensorBaseCfg):
         if supported_specs is None:
             return
         supported = {str(kind) for kind in supported_specs}
-        unsupported = sorted(set(self.data_types) - supported)
+        unsupported = sorted(set(self.render_data_types()) - supported)
         if unsupported:
             raise ValueError(
                 f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "

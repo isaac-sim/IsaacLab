@@ -291,6 +291,7 @@ class _CpuCamera(Camera):
         self._is_visualizing = False
         self._renderer = renderer
         self._render_data = SimpleNamespace(name=name, pose=None)
+        self._modifier_chains = {}
         self._data = CameraData()
         self._data.create_buffers(2, "cpu")
         self._data.info = {}

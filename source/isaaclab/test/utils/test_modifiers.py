@@ -116,3 +116,108 @@ def test_integral(device):
 
         # check if the modified data is close to the expected result
         torch.testing.assert_close(processed_data, test_cfg.result)
+
+
+def test_modifier_chain_builds_class_modifiers_from_the_tensor_they_receive():
+    """Class modifiers are built lazily with their input shape, after earlier modifiers change it."""
+    chain = modifiers.ModifierChain(
+        [
+            modifiers.ModifierCfg(func=lambda data, width: data[..., :width], params={"width": 2}),
+            modifiers.IntegratorCfg(dt=1.0),
+        ],
+        "cpu",
+    )
+    data = torch.ones(3, 4)
+
+    assert torch.equal(chain(data), torch.full((3, 2), 0.5))
+    assert torch.equal(chain(data), torch.full((3, 2), 1.5))
+    assert chain._instances[0]._data_dim == (3, 2)
+    assert torch.equal(data, torch.ones(3, 4))
+
+    chain.reset([1])
+    torch.testing.assert_close(chain(data)[:, 0], torch.tensor([2.5, 0.5, 2.5]))
+
+
+def test_modifier_chain_rejects_entries_that_are_not_modifier_configs():
+    with pytest.raises(TypeError, match="ModifierCfg"):
+        modifiers.ModifierChain([lambda data: data], "cpu")
+
+
+def test_modifier_chain_close_releases_constructed_modifiers():
+    """Closing releases each constructed class modifier once; a later call builds fresh ones."""
+    closed = []
+
+    class Recording(modifiers.ModifierBase):
+        def reset(self, env_ids=None):
+            pass
+
+        def close(self):
+            closed.append(self)
+
+        def __call__(self, data):
+            return data
+
+    chain = modifiers.ModifierChain([modifiers.ModifierCfg(func=Recording)], "cpu")
+    chain(torch.ones(2, 3))
+    first = chain._instances[0]
+
+    chain.close()
+    chain.close()
+    chain(torch.ones(2, 3))
+
+    assert closed == [first]
+    assert chain._instances[0] is not first
+
+
+def test_modifier_chain_binds_its_sensor_before_the_first_call():
+    calls = []
+
+    class Bound(modifiers.ModifierBase):
+        def bind_sensor(self, sensor):
+            calls.append(("bind", sensor))
+
+        def reset(self, env_ids=None):
+            pass
+
+        def __call__(self, data):
+            calls.append(("call", None))
+            return data
+
+    sensor = object()
+    modifiers.ModifierChain([modifiers.ModifierCfg(func=Bound)], "cpu", sensor=sensor)(torch.ones(2, 3))
+
+    assert calls == [("bind", sensor), ("call", None)]
+
+
+class _Closer(modifiers.ModifierBase):
+    """Class modifier that records closing and can fail to close."""
+
+    def __init__(self, cfg, data_dim, device):
+        super().__init__(cfg, data_dim, device)
+        self.closed = 0
+
+    def reset(self, env_ids=None):
+        pass
+
+    def close(self):
+        self.closed += 1
+        if self._cfg.params.get("fail"):
+            raise RuntimeError("close failed")
+
+    def __call__(self, data):
+        return data
+
+
+def test_modifier_chain_closes_every_modifier_before_raising():
+    """A failing close does not keep later modifiers open; retrying does not close them twice."""
+    chain = modifiers.ModifierChain(
+        [modifiers.ModifierCfg(func=_Closer, params={"fail": True}), modifiers.ModifierCfg(func=_Closer)], "cpu"
+    )
+    chain(torch.ones(2, 3))
+    failing, owner = chain._instances
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        chain.close()
+    chain.close()
+
+    assert failing.closed == 1 and owner.closed == 1
