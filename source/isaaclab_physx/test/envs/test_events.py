@@ -208,3 +208,24 @@ def test_fixed_tendon_parameters(env: ManagerBasedEnv) -> None:
     expected_length[1] = 0.5
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_limit_stiffnesses()), expected_stiffness)
     torch.testing.assert_close(wp.to_torch(asset.root_view.get_fixed_tendon_rest_lengths()), expected_length)
+
+    # repeated scaling samples around the values read at creation, not around the previous sample
+    base_params = dict(
+        asset_cfg=SceneEntityCfg("identity"),
+        stiffness_distribution_params=(1.0, 1.0),
+        damping_distribution_params=(1.0, 1.0),
+        operation="abs",
+    )
+    mdp.randomize_fixed_tendon_parameters(
+        EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=base_params), env
+    )(env, None, **base_params)
+    scale_params = dict(
+        base_params, stiffness_distribution_params=(2.0, 2.0), damping_distribution_params=(2.0, 2.0), operation="scale"
+    )
+    scale = mdp.randomize_fixed_tendon_parameters(
+        EventTermCfg(func=mdp.randomize_fixed_tendon_parameters, params=scale_params), env
+    )
+    for _ in range(3):
+        scale(env, None, **scale_params)
+    for values in (asset.root_view.get_fixed_tendon_stiffnesses(), asset.root_view.get_fixed_tendon_dampings()):
+        torch.testing.assert_close(wp.to_torch(values), torch.full_like(wp.to_torch(values), 2.0))

@@ -107,7 +107,6 @@ def test_native_conveyor_controls_rebind_and_reset_independently(monkeypatch):
             for callback, _, unregister in observers:
                 unregister(callback)
                 unregister(callback)
-            NewtonManager._post_actuator_callbacks.remove(actuator)
             previous_calls = list(calls)
             sim.step(render=False)
             sim.reset()

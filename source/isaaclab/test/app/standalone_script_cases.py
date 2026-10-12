@@ -216,7 +216,7 @@ OVERRIDES = {
         required_modules=("isaaclab_contrib",),
     ),
     # Smoke launches retain every robot family and MPM solver path with smaller scenes.
-    "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1")),
+    "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),

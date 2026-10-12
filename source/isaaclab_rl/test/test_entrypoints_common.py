@@ -295,9 +295,9 @@ def test_run_summary_reports_the_launch_resolved_visualizers_and_device() -> Non
     """A run without visualizers shows headless, and the device is the one the launch resolved (e.g. per rank)."""
     from isaaclab.app import launch_simulation
 
-    sim_cfg = SimulationCfg(physics=NewtonCfg(), device="cuda:0")
+    sim_cfg = SimulationCfg(physics=NewtonCfg(), device="cpu")
     env_cfg = SimpleNamespace(sim=sim_cfg, scene=SimpleNamespace(num_envs=4))
-    args_cli = argparse.Namespace(task="Isaac-Test", device="cuda:0", num_envs=None, visualizer=None)
+    args_cli = argparse.Namespace(task="Isaac-Test", device="cpu", num_envs=None, visualizer=None)
     screen = _RecordingScreen()
 
     with launch_simulation(env_cfg, args_cli):

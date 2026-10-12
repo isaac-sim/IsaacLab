@@ -63,10 +63,8 @@ youngs_modulus = 1e5
 poissons_ratio = 0.4
 density = 500.0
 if args_cli.backend == "newton_vbd":
-    from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 
-    deformable_props = NewtonDeformableBodyPropertiesCfg()
     # Newton's VBD path skips the simulation mesh collider, so collision offsets do not apply
     collision_props = None
     physics_material = NewtonDeformableBodyMaterialCfg(
@@ -75,10 +73,9 @@ if args_cli.backend == "newton_vbd":
         density=density,
     )
 else:
-    from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPropertiesCfg
+    from isaaclab_physx.sim.schemas import PhysxCollisionCfg
     from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
-    deformable_props = PhysxDeformableBodyPropertiesCfg()
     collision_props = [PhysxCollisionCfg(rest_offset=0.0, contact_offset=0.001)]
     physics_material = PhysxDeformableBodyMaterialCfg(
         poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
@@ -104,7 +101,7 @@ class DeformableSceneCfg(InteractiveSceneCfg):
         cloning_contexts=("isaaclab.cloner:UsdReplicateContext",) if args_cli.backend == "physx" else None,
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=deformable_props,
+            volume_deformable_props=[],
             collision_props=collision_props,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
             physics_material=physics_material,
