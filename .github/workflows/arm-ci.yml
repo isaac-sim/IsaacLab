@@ -190,8 +190,8 @@ jobs:
         test-k-expr: not ovstage
         test-jobs: "4"
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        warp-cache: save  # TEMP(8233 warm benchmark): revert before merge
-        ovrtx-shader-cache: save  # TEMP(8233 warm benchmark): revert before merge
+        warp-cache: ${{ github.event_name == 'push' && 'save' || 'restore' }}
+        ovrtx-shader-cache: ${{ github.event_name == 'push' && 'save' || 'restore' }}
         ovrtx-shader-cache-trees: kitless
         smoke-test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
         result-file: arm-ci-report.xml
