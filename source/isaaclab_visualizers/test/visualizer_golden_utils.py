@@ -51,9 +51,8 @@ _MAX_DIFF_PCT_OVERRIDES: dict[str, float] = {
     "cartpole-kit-tiled": 3.0,
     # RTX TAA history from prior tiled tests contaminates the viewport; observed 1.35–5.83%.
     "cartpole-kit-viewport": 7.0,
-    # AnymalD tiled RTX warm-up varies across CI runners; observed up to 13.40%.
-    # The paired SSIM threshold still rejects structural and pose regressions.
-    "anymal_d-kit-tiled": 14.0,
+    # AnymalD: golden captured warm, first attempt runs cold; observed up to 9.61%.
+    "anymal_d-kit-tiled": 12.0,
     "anymal_d-kit-viewport": 4.5,
     # Newton GL tiled output differs by 0.64% between the L40S CI runner and the golden.
     # Keep this narrow 1.0% tolerance paired with an SSIM guard for scene regressions.
