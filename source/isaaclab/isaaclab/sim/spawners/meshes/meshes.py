@@ -22,7 +22,14 @@ from ..materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from ..materials.physics_materials import spawn_physics_material
-from ..utils import apply_schema_props, fragment_mapping, props_expr, resolve_deformable_slot
+from ..utils import (
+    apply_mesh_collision_props,
+    apply_schema_props,
+    fragment_mapping,
+    props_expr,
+    resolve_deformable_slot,
+)
+from .meshes_cfg import MeshCustomCfg
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -55,22 +62,22 @@ def spawn_mesh_custom(
 
     Raises:
         ValueError: If the vertex or face arrays are malformed, a face index is
-            out of range, or the collision approximation is unknown.
+            out of range.
     """
     del kwargs
-    vertices = np.asarray(cfg.vertices, dtype=np.float32)
-    faces = np.asarray(cfg.faces, dtype=np.int64)
+    with np.errstate(over="ignore"):
+        vertices = np.asarray(cfg.vertices, dtype=np.float32)
+    if not np.isfinite(vertices).all():
+        raise ValueError("Custom mesh vertices must be finite USD float32 points.")
+    faces = np.asarray(cfg.faces)
+    if not np.issubdtype(faces.dtype, np.integer):
+        raise ValueError("Custom mesh face indices must be integers.")
     if vertices.ndim != 2 or vertices.shape[1:] != (3,) or len(vertices) < 3:
         raise ValueError(f"Custom mesh vertices must have shape (N, 3) with N >= 3, got {vertices.shape}.")
     if faces.ndim != 2 or faces.shape[1:] != (3,) or len(faces) < 1:
         raise ValueError(f"Custom mesh faces must have shape (M, 3) with M >= 1, got {faces.shape}.")
     if np.any(faces < 0) or np.any(faces >= len(vertices)):
         raise ValueError(f"Custom mesh face indices must be in [0, {len(vertices) - 1}].")
-    if cfg.collision_approximation not in schemas.MESH_APPROXIMATION_TOKENS:
-        raise ValueError(
-            f"Unknown mesh collision approximation {cfg.collision_approximation!r}. "
-            f"Valid options are: {list(schemas.MESH_APPROXIMATION_TOKENS)}"
-        )
 
     mesh = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
     stage = get_current_stage()
@@ -377,6 +384,8 @@ def _spawn_mesh_geom_from_mesh(
     - Deformable body properties: The properties are applied to the parent prim: ``{prim_path}``.
     - Collision properties: The properties are applied to the simulation mesh ``{prim_path}/sim_mesh`` for
       deformable bodies, and to the mesh prim ``{prim_path}/geometry/mesh`` otherwise.
+    - Mesh-collision properties: The properties are applied to the mesh prim ``{prim_path}/geometry/mesh`` of
+      rigid bodies, after the default approximation for the shape.
     - Rigid body properties: The properties are applied to the parent prim: ``{prim_path}``.
 
     Args:
@@ -401,6 +410,7 @@ def _spawn_mesh_geom_from_mesh(
         ValueError: If the physics material is not of the correct type. Deformable properties require a deformable
             physics material, and rigid properties require a rigid physics material.
         ValueError: If deformable properties are used with non-fragment collision properties.
+        ValueError: If deformable properties are used with mesh-collision properties.
 
     .. _USDGeomMesh: https://openusd.org/dev/api/class_usd_geom_mesh.html
     """
@@ -416,6 +426,8 @@ def _spawn_mesh_geom_from_mesh(
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
         if fragment_mapping(cfg.collision_props) is None:
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.mesh_collision_props is not None:
+        raise ValueError("Deformable bodies collide through their simulation mesh and take no 'mesh_collision_props'.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
@@ -474,15 +486,15 @@ def _spawn_mesh_geom_from_mesh(
         )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
-        collision_approximation = getattr(cfg, "collision_approximation", None)
-        if collision_approximation is None:
-            if cfg.__class__.__name__ == "MeshSphereCfg":
-                collision_approximation = "boundingSphere"
-            elif cfg.__class__.__name__ == "MeshCuboidCfg":
-                collision_approximation = "boundingCube"
-            else:
-                # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
-                collision_approximation = "convexHull"
+        if isinstance(cfg, MeshCustomCfg):
+            collision_approximation = "none"
+        elif cfg.__class__.__name__ == "MeshSphereCfg":
+            collision_approximation = "boundingSphere"
+        elif cfg.__class__.__name__ == "MeshCuboidCfg":
+            collision_approximation = "boundingCube"
+        else:
+            # for: MeshCylinderCfg, MeshCapsuleCfg, MeshConeCfg
+            collision_approximation = "convexHull"
         # apply collision approximation to mesh
         # note: for primitives, we use the convex hull approximation -- this should be sufficient for most cases.
         UsdPhysics.MeshCollisionAPI.Apply(mesh_prim).GetApproximationAttr().Set(collision_approximation)
@@ -494,6 +506,9 @@ def _spawn_mesh_geom_from_mesh(
             schemas.define_collision_properties,
             stage,
         )
+    # mesh-collision properties override the default approximation chosen above (rigid colliders only)
+    if cfg.mesh_collision_props is not None:
+        apply_mesh_collision_props(cfg.mesh_collision_props, mesh_prim_path, "", stage)
 
     if deformable_slot is not None or cfg.deformable_props is not None:
         if cfg.collision_props is not None:

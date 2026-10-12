@@ -65,7 +65,7 @@ def tool_velocity(
     """Return tool-center linear and angular velocity [m/s, rad/s]."""
     robot, body_id, offset = _end_effector_cache_entry(env, robot_cfg, body_name, body_offset)
     orientation = robot.data.body_quat_w.torch[:, body_id]
-    body_velocity = robot.data.body_vel_w.torch[:, body_id]
+    body_velocity = robot.data.body_link_vel_w.torch[:, body_id]
     offset_world = math_utils.quat_apply(orientation, offset.expand(env.num_envs, -1))
     linear_velocity = body_velocity[:, :3] + torch.linalg.cross(body_velocity[:, 3:], offset_world)
     return torch.cat((linear_velocity, body_velocity[:, 3:]), dim=1)

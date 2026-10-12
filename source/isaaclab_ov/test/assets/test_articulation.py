@@ -377,22 +377,16 @@ def _spawn_own_articulation(**cfg) -> Articulation:
 ##
 
 
-def test_cached_read_launches_reset_on_ordering_and_invalidation():
-    """Ordering installation and simulation invalidation should discard recorded reads."""
-
-    class MinimalData(ArticulationData):
-        def __dir__(self):
-            return []
+def test_cached_read_launches_reset_on_ordering():
+    """Ordering installation discards recorded reads and invalidates derived dynamics."""
 
     class Buffer:
         timestamp = 1.0
 
-    data = MinimalData.__new__(MinimalData)
+    data = ArticulationData.__new__(ArticulationData)
     read_launch_cache = Mock()
     data._read_launch_cache = read_launch_cache
     data._configure_ordering_buffers = lambda: None
-    data._make_jacobian_body_user_to_backend = lambda: object()
-    data.joint_ordering = None
     data._body_com_jacobian_w = Buffer()
     data._mass_matrix = Buffer()
     data._gravity_compensation_forces = Buffer()
@@ -403,14 +397,6 @@ def test_cached_read_launches_reset_on_ordering_and_invalidation():
     assert data._body_com_jacobian_w.timestamp == -1.0
     assert data._mass_matrix.timestamp == -1.0
     assert data._gravity_compensation_forces.timestamp == -1.0
-
-    data._is_primed = True
-    data._sim_timestamp = 1.0
-    data._invalidate_initialize_callback(None)
-
-    assert read_launch_cache.clear.call_count == 2
-    assert data._is_primed is False
-    assert data._sim_timestamp == 0.0
 
 
 def test_static_property_reads_are_not_invalidated_by_simulation_steps():

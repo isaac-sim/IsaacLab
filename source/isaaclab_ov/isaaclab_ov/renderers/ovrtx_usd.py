@@ -197,6 +197,9 @@ def build_render_product_as_string(
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
+    # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
+    render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
+
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
@@ -290,7 +293,8 @@ def create_scene_partition_attributes(
     # Create the attributes and set the default values.
     with Sdf.ChangeBlock():
         for attr_path, scene_partition in attr_updates:
-            Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
+            if root_layer.GetAttributeAtPath(attr_path) is None:
+                Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
             root_layer.GetAttributeAtPath(attr_path).default = scene_partition
             logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
 

@@ -109,7 +109,7 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
     def _setup_goal_selector(self) -> None:
         """Attach one task panel to the first supported interactive visualizer."""
         for visualizer in self.sim.visualizers:
-            if getattr(visualizer.cfg, "visualizer_type", None) not in {"newton_gl", "newton_rtx"}:
+            if visualizer.cfg.visualizer_type not in {"newton_gl", "newton_rtx"}:
                 continue
             register_callback = getattr(visualizer, "register_ui_callback", None)
             if register_callback is None:
@@ -126,13 +126,13 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             env_ids = self.scene._ALL_INDICES[env_ids]
         super()._reset_idx(env_ids)
 
-        conveyor_driver = getattr(self, "_conveyor_driver", None)
+        conveyor_driver = self._conveyor_driver
         if conveyor_driver is not None:
             conveyor_driver.reset(env_ids)
 
     def close(self):
         """Release conveyor callbacks before the physics scene is destroyed."""
-        conveyor_driver = getattr(self, "_conveyor_driver", None)
+        conveyor_driver = self._conveyor_driver
         if conveyor_driver is not None:
             conveyor_driver.close()
             self._conveyor_driver = None
