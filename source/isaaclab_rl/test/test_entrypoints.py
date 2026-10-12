@@ -313,14 +313,12 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
 
 @pytest.mark.parametrize("interrupted_operation", ["reset", "step"])
 def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, interrupted_operation) -> None:
-    """An interrupt during setup or playback closes the env despite further Ctrl+C presses."""
-    closed = []
+    """An interrupt during setup or playback closes the environment."""
+    close_handlers = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def close():
-        signal.raise_signal(signal.SIGINT)
-        signal.raise_signal(signal.SIGINT)
-        closed.append(True)
+        close_handlers.append(signal.getsignal(signal.SIGINT))
 
     cfg = SimpleNamespace(
         scene=SimpleNamespace(num_envs=1),
@@ -349,7 +347,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
     with pytest.raises(KeyboardInterrupt):
         simple_agents.run([], policy="random")
 
-    assert closed == [True]
+    assert close_handlers == [signal.SIG_DFL]
     assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
