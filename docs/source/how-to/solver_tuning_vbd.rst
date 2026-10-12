@@ -5,8 +5,8 @@
 VBD Solver
 ==========
 
-Vertex Block Descent (VBD) is a Newton solver for cloth, soft bodies, and rigid-body
-simulation, including articulations. In Isaac Lab, VBD is enabled by selecting a
+Vertex Block Descent (VBD) is a Newton solver for cloth and soft-body
+simulation. In Isaac Lab, VBD is enabled by selecting a
 :class:`~isaaclab_newton.physics.NewtonCfg` whose ``solver_cfg`` is a
 :class:`~isaaclab_newton.physics.VBDSolverCfg`.
 
@@ -15,10 +15,9 @@ deformable assets, materials, contacts, and coupling tuned before it works well
 with VBD.
 
 VBD is usually exposed through a task-specific physics preset rather than a
-general ``newton_vbd`` preset. Scenes can use
-:class:`~isaaclab_newton.physics.VBDSolverCfg` directly for both deformable and
-articulated rigid-body dynamics, as in the experimental :ref:`tablecloth example <tablecloth-example>`.
-To use a separate rigid-body solver, the named-entry coupling options are:
+general ``newton_vbd`` preset. Deformable-only scenes can use
+:class:`~isaaclab_newton.physics.VBDSolverCfg` directly. For robot or
+rigid-body scenes, the named-entry coupling options are:
 
 * :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` for the proxy coupling
   used by the core Franka tasks.
