@@ -32,7 +32,6 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
     monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
-    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
     app = MagicMock()
     app.is_running.return_value = True
@@ -58,6 +57,7 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
 
 def test_training_pause_follows_kit_timeline(monkeypatch):
     visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._controls_kit_timeline = True
     timeline = MagicMock()
     timeline_module = ModuleType("omni.timeline")
     timeline_module.get_timeline_interface = lambda: timeline
@@ -83,7 +83,6 @@ def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeyp
     visualizer._fabric = MagicMock()
     visualizer._sim = MagicMock(render_generation=1)
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: training_paused)
-    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
     settings = MagicMock()
     settings.get.return_value = None
@@ -107,9 +106,11 @@ def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeyp
     app.update.assert_called_once_with()
 
 
-def test_play_synchronizes_kit_timeline_without_advancing_physics(monkeypatch):
+def test_play_and_stop_synchronize_kit_timeline_without_advancing_physics(monkeypatch):
     visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._controls_kit_timeline = True
     timeline = MagicMock()
+    timeline.is_auto_updating.return_value = True
     timeline_module = ModuleType("omni.timeline")
     timeline_module.get_timeline_interface = lambda: timeline
     monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
@@ -129,12 +130,25 @@ def test_play_synchronizes_kit_timeline_without_advancing_physics(monkeypatch):
 
     visualizer.play()
 
+    timeline.set_auto_update.assert_called_once_with(False)
     timeline.play.assert_called_once_with()
     assert [call.args for call in settings.set.call_args_list] == [
         ("/app/player/playSimulations", False),
         ("/app/player/playSimulations", True),
     ]
     app.update.assert_called_once_with()
+
+    visualizer.stop()
+
+    timeline.stop.assert_called_once_with()
+    assert [call.args for call in timeline.set_auto_update.call_args_list] == [(False,), (True,)]
+    assert [call.args for call in settings.set.call_args_list] == [
+        ("/app/player/playSimulations", False),
+        ("/app/player/playSimulations", True),
+        ("/app/player/playSimulations", False),
+        ("/app/player/playSimulations", True),
+    ]
+    assert app.update.call_count == 2
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])

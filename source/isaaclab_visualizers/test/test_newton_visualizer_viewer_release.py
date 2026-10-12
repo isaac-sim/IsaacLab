@@ -49,8 +49,9 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     """Teardown is idempotent and leaves borrowed sensor references untouched, even when one release fails."""
     visualizer = NewtonRTXVisualizer(NewtonRTXVisualizerCfg())
     viewer = visualizer._viewer = Mock()
-    camera = visualizer._camera_sensor = Mock()
-    visualizer._cameras = [camera]
+    camera = Mock()
+    visualizer.current_image_view = Mock(camera=camera)
+    visualizer._image_views = [visualizer.current_image_view]
     visualizer._sim = Mock()
     if failure:
         viewer.close.side_effect = RuntimeError("release failed")
@@ -64,6 +65,6 @@ def test_close_releases_owned_resources_even_on_failure(failure):
     viewer.close.assert_called_once()
     camera.close.assert_not_called()
     assert visualizer._viewer is visualizer.backend is None
-    assert visualizer._sim is visualizer._camera_sensor is None
-    assert not visualizer._cameras
+    assert visualizer._sim is visualizer.current_image_view is None
+    assert not visualizer._image_views
     assert visualizer._is_closed

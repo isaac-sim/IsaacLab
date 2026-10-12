@@ -209,10 +209,10 @@ class VideoRecorder:
         return frame
 
     def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
+        from ...utils.images import sensor_key_for_gt_type
         from .camera_colorizer import (
             SUPPORTED_GT_TYPES,
             CameraFrameColorizer,
-            sensor_key_for_gt_type,
         )
 
         gt_type = gt_type or "rgb"
