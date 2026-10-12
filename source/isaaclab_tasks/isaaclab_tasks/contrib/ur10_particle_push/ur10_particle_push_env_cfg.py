@@ -607,6 +607,8 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     # Treat the deadline as a training truncation. The actor has no remaining-time observation,
     # so assigning a hidden finite-horizon terminal value would make the value function non-Markov.
     is_finite_horizon = False
+    # The task memoizes its state per host step counter and keeps a host-side heightmap history pointer.
+    capture_step = False
     # 50 x 86 cells at 20 mm resolution; channels are current surface, delayed surface, and bin mask.
     heightmap_shape: tuple[int, int] = (50, 86)
     heightmap_history_steps: int = 4

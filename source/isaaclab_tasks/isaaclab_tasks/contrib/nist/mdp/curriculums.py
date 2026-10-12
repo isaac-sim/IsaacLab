@@ -52,6 +52,9 @@ def initial_final_interpolate_fn(
 class DifficultyScheduler(ManagerTermBase):
     """Adjust difficulty from the reset bank's mean success rate."""
 
+    supports_graph_capture = False
+    """The difficulty fraction and success callback are evaluated on the host."""
+
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
         init_difficulty = self.cfg.params["init_difficulty"]

@@ -367,6 +367,9 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
     env steps, allowing the reward to grow in importance as training progresses.
     """
 
+    supports_graph_capture = False
+    """The reward ramp is scheduled on the host from the step counter."""
+
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         ManagerTermBase.__init__(self, cfg, env)
 

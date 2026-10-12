@@ -92,6 +92,8 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         if not math.isfinite(self._contact_min_deflection) or self._contact_min_deflection <= 0.0:
             raise ValueError("contact_min_deflection must be finite and positive.")
         self._processed_actions.fill_(default_position)
+        # filtered target of the previous step; the binary command overwrites the processed actions in place
+        self._previous_target = self._processed_actions.clone()
 
     @property
     def commanded_position(self) -> torch.Tensor:
@@ -147,7 +149,6 @@ class CurriculumGripperPositionAction(BinaryJointPositionAction):
         self._processed_actions[selected] = expanded
 
     def process_actions(self, actions: torch.Tensor) -> None:
-        previous_target = self._processed_actions
+        self._previous_target.copy_(self._processed_actions)
         super().process_actions(actions)
-        previous_target.lerp_(self._processed_actions, self._alpha)
-        self._processed_actions = previous_target
+        torch.lerp(self._previous_target, self._processed_actions, self._alpha, out=self._processed_actions)

@@ -587,6 +587,8 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4
         self.episode_length_s = 12.0
         self.is_finite_horizon = False
+        # The particle observations cache per host step counter and are invalidated by the eager reset.
+        self.capture_step = False
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
         self.sim.use_newton_actuators = True

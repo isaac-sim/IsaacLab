@@ -65,7 +65,7 @@ class ResetSampledConstantNoiseModel(NoiseModel):
             # sample noise for all environments and keep it for the selected ones
             dummy_data = torch.zeros((self._num_envs, 1), device=self._device)
             sampled_noise = self._noise_model_cfg.noise_cfg.func(dummy_data, self._noise_model_cfg.noise_cfg)
-            self._sampled_noise = torch.where(env_mask.torch[:, None], sampled_noise, self._sampled_noise)
+            torch.where(env_mask.torch[:, None], sampled_noise, self._sampled_noise, out=self._sampled_noise)
             return
         # resolve the environment ids
         if env_ids is None:

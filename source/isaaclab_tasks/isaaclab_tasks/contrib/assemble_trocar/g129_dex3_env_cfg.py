@@ -388,6 +388,8 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 4
         self.episode_length_s = 20.0
+        # The staged rewards keep their task stage in host-held state objects that they rebind every step.
+        self.capture_step = False
         # simulation settings
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
