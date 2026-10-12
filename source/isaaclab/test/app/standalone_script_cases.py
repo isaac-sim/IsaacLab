@@ -235,7 +235,6 @@ OVERRIDES = {
         args=("--speeds", "4.0", "0.5", "--max_steps", "2", "--viz", "none"),
         fixed_physics_backend="newton_vbd",
         visualizers=(None,),
-        required_modules=("isaaclab_contrib",),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(

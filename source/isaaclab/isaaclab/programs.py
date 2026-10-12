@@ -138,7 +138,6 @@ EXAMPLES = (
         "tablecloth",
         "examples/tablecloth.py",
         "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
-        required_modules=("isaaclab_contrib",),
     ),
     ProgramSpec(
         "visual-color-randomization",
