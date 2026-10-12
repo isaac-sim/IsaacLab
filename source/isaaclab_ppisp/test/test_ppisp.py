@@ -29,6 +29,8 @@ from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN
 
 from pxr import Gf, Sdf, Usd, Vt
 
+from isaaclab.test.utils import DeviceScope, test_devices
+
 _PPISP_FLOAT2_ATTRS = {
     "vignettingCenterR",
     "vignettingCenterG",
@@ -271,18 +273,18 @@ def test_ppisp_modifier_reports_its_output_shape(monkeypatch):
     assert PpispModifier(PpispModifierCfg(output="rgba"), (2, 4, 5, 3), "cpu").output_dim == (2, 4, 5, 4)
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="The PPISP kernel runs on CUDA devices.")
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("output", ["rgb", "rgba"])
-def test_ppisp_modifier_matches_the_pipeline(monkeypatch, output):
-    """The modifier writes the pipeline's 8-bit output for the requested channels."""
+def test_ppisp_modifier_matches_the_pipeline(monkeypatch, output, device):
+    """The modifier writes the pipeline's 8-bit output for the requested channels; the kernel runs on CUDA."""
     monkeypatch.setattr(modifier_module, "SimulationContext", SimpleNamespace(instance=lambda: None))
     isp_cfg = PpispCfg(inputs={"exposureOffset": 1.0})
-    modifier = PpispModifier(PpispModifierCfg(isp_cfg=isp_cfg, output=output), (2, 4, 5, 3), "cuda:0")
-    radiance = torch.rand(2, 4, 5, 3, device="cuda:0")
+    modifier = PpispModifier(PpispModifierCfg(isp_cfg=isp_cfg, output=output), (2, 4, 5, 3), device)
+    radiance = torch.rand(2, 4, 5, 3, device=device)
 
     result = modifier(radiance)
 
-    expected = wp.zeros((2, 4, 5, 4), dtype=wp.uint8, device="cuda:0")
+    expected = wp.zeros((2, 4, 5, 4), dtype=wp.uint8, device=device)
     PpispPipeline(normalize_ppisp_cfg(isp_cfg.copy())).apply(wp.from_torch(radiance), expected)
     torch.testing.assert_close(result, wp.to_torch(expected)[..., : 3 if output == "rgb" else 4])
     with pytest.raises(ValueError, match="float32"):
