@@ -193,7 +193,7 @@ class NewtonViewerUI:
                 live_plots_cb(imgui)
 
             # --- Model overlays ---------------------------------------------
-            if isinstance(viewer, NewtonViewerGL) and viewer.model is not None and viewer._is_perspective_view_active():
+            if isinstance(viewer, NewtonViewerGL) and viewer.model is not None and not viewer._fullscreen_image_active:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Model Overlays"):
                     imgui.separator()
@@ -286,7 +286,7 @@ class NewtonViewerUI:
                 if (
                     isinstance(viewer, NewtonViewerGL)
                     and viewer.picking_enabled
-                    and viewer._is_perspective_view_active()
+                    and not viewer._fullscreen_image_active
                 ):
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
@@ -406,7 +406,8 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         if self.gui is not None:
             from imgui_bundle import implot
 
-            self._configure_camera_input_capture()
+            # Keep camera keys active while ImGui captures mouse input for its controls.
+            self.gui.is_capturing = self.gui.should_ignore_keyboard_input
             self._implot = implot
             self._implot_ctx = implot.create_context()
             implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
@@ -435,13 +436,9 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         if fullscreen:
             self._fullscreen_image_active = True
 
-    def _is_perspective_view_active(self) -> bool:
-        """Return whether the current frame shows the perspective scene."""
-        return not self._fullscreen_image_active
-
     def on_mouse_press(self, x, y, button, modifiers):
         """Image coordinates must not pick objects in the hidden perspective scene."""
-        if self._is_perspective_view_active():
+        if not self._fullscreen_image_active:
             super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
@@ -486,10 +483,6 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
             self._mpm_particles_all_active = bool(((flags & int(nt.ParticleFlags.ACTIVE)) != 0).all())
             self._mpm_particle_flags_cache_key = cache_key
         return self._mpm_particles_all_active
-
-    def _configure_camera_input_capture(self) -> None:
-        """Let Newton's camera keys operate while ImGui captures only mouse input."""
-        self.gui.is_capturing = self.gui.should_ignore_keyboard_input
 
     def _log_particles(self, state):
         """Log MPM particles without per-frame active-flag compaction when all particles are active.

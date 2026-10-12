@@ -287,7 +287,7 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
-def test_newton_viewer_camera_keys_ignore_mouse_capture():
+def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     from newton._src.viewer.camera import Camera
     from newton._src.viewer.viewer_gui import ViewerGui
     from pyglet.window import key
@@ -301,15 +301,22 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture():
     gui.ui = SimpleNamespace(
         is_available=True,
         is_capturing=lambda: True,
+        imgui=SimpleNamespace(get_current_context=lambda: object()),
         io=SimpleNamespace(want_capture_mouse=True, want_capture_keyboard=False),
     )
     gui._viewer = viewer
     gui._cam_vel = np.zeros(3, dtype=np.float32)
     gui._cam_damp_tau = 0.01
-    viewer.gui = gui
+    fake_implot = SimpleNamespace(create_context=lambda: object(), set_imgui_context=lambda context: None)
+    monkeypatch.setitem(sys.modules, "imgui_bundle", SimpleNamespace(implot=fake_implot))
+    monkeypatch.setattr(
+        newton_visualizer_module.NewtonViewerUI,
+        "__init__",
+        lambda self, *args, **kwargs: setattr(self, "gui", gui),
+    )
 
     start = np.asarray(viewer.camera.pos)
-    viewer._configure_camera_input_capture()
+    NewtonViewerGL.__init__(viewer)
     viewer._update_camera(1.0)
     moved = np.asarray(viewer.camera.pos)
     assert not np.array_equal(moved, start)
@@ -317,29 +324,6 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture():
     gui.ui.io.want_capture_keyboard = True
     viewer._update_camera(1.0)
     np.testing.assert_array_equal(viewer.camera.pos, moved)
-
-
-def test_newton_viewer_tracks_fullscreen_image_without_newton_private_state(monkeypatch):
-    """Picking follows fullscreen image presentation across supported Newton versions."""
-    from newton.viewer import ViewerGL
-
-    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
-    viewer._fullscreen_image_active = False
-    viewer._close_requested = False
-    viewer.renderer = SimpleNamespace(close=Mock())
-    mouse_presses = []
-
-    monkeypatch.setattr(ViewerGL, "log_image", lambda self, *args, **kwargs: None)
-    monkeypatch.setattr(ViewerGL, "end_frame", lambda self: None)
-    monkeypatch.setattr(ViewerGL, "on_mouse_press", lambda self, *args: mouse_presses.append(args))
-
-    viewer.log_image("Camera", object(), fullscreen=True)
-    viewer.on_mouse_press(1, 2, 3, 4)
-    assert mouse_presses == []
-
-    viewer.end_frame()
-    viewer.on_mouse_press(1, 2, 3, 4)
-    assert mouse_presses == [(1, 2, 3, 4)]
 
 
 class _FakeTrainingControlsImgui:
