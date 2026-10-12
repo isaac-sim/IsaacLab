@@ -10,6 +10,7 @@ __all__ = [
     "PpispPipeline",
     "apply_ppisp_to_rgba",
     "apply_ppisp_to_rgba_with_controller_params",
+    "apply_rtx_exposure_overrides",
     "auto_any_ppisp_cfg",
     "auto_camera_ppisp_cfg",
     "compute_ppisp_controller_params",
@@ -36,3 +37,4 @@ from .cfg import (
 )
 from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
 from .pipeline import PpispPipeline
+from .rtx_camera_overrides import apply_rtx_exposure_overrides
