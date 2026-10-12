@@ -119,10 +119,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
     @property
     def step_graph(self) -> StepGraph | None:
-        """The operations :meth:`step` runs, grouped into CUDA graphs, or None while stepping eagerly.
-
-        See :attr:`~isaaclab.envs.ManagerBasedRLEnvCfg.capture_step`.
-        """
+        """The step's operations grouped into CUDA graphs, or None while stepping eagerly."""
         return self._step_capture.graph
 
     @property
@@ -409,13 +406,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
     def _reset_terminated_envs(self, reset: torch.Tensor):
-        """Reset the environments selected by ``env_mask`` within :meth:`step`.
-
-        Subclasses that override :meth:`_reset_idx` keep receiving indices, which waits on the device.
-
-        Args:
-            reset: Boolean flags of the environments to reset. Shape is (num_envs,).
-        """
+        """Reset the flagged environments; an overridden :meth:`_reset_idx` still gets indices, which syncs."""
         env_mask = self._step_reset_mask
         env_mask.torch.copy_(reset)
         recording = len(self.recorder_manager.active_terms) > 0
@@ -438,20 +429,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
 
     def _reset_mask(self, env_mask: ProxyArray):
-        """Reset the environments selected by a boolean mask.
-
-        Args:
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
-        """
+        """Reset the environments selected by a boolean mask of shape (num_envs,)."""
         for op in self._reset_mask_ops(env_mask):
             op.fn()
 
     def _reset_mask_ops(self, env_mask: ProxyArray) -> list[StepOp]:
-        """Return the masked reset as operations, flagged by whether a CUDA graph can record them.
-
-        Args:
-            env_mask: Boolean mask of the environments to reset, a stable buffer when the operations are recorded.
-        """
+        """Return the masked reset as operations, flagged by whether a CUDA graph can record them."""
         # note: This is order-sensitive! Certain things need be reset before others.
         managers = (
             self.observation_manager,
@@ -492,15 +475,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         ops.append(StepOp(partial(self.episode_length_buf.masked_fill_, env_mask.torch, 0), True, "episode_length"))
         return ops
 
-    """
-    Operations - Captured step.
-    """
-
     def invalidate_step_graph(self) -> None:
-        """Record the captured step again before the next step.
+        """Record the captured step again before the next step, e.g. after changing a constant that terms read.
 
-        Call it after changing host state that captured work reads as a constant, such as a manager term's
-        configuration. :meth:`~isaaclab.managers.ManagerBase` setters such as ``set_term_cfg`` call it already.
+        :meth:`~isaaclab.managers.ManagerBase.set_term_cfg` calls it already.
         """
         self._step_capture.invalidate()
 
@@ -510,37 +488,22 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             return "recorder terms are active"
         if type(self)._reset_idx is not ManagerBasedRLEnv._reset_idx:
             return f"{type(self).__name__} overrides _reset_idx, which resets by index"
-        if not self.scene.cfg.lazy_sensor_update:
-            return "the scene updates sensors eagerly (lazy_sensor_update is False)"
-        if self.has_rtx_sensors:
-            return "camera sensors render on the host"
-        for name, sensor in self.scene.sensors.items():
-            if not sensor.supports_graph_capture:
-                return f"sensor '{name}' ({type(sensor).__name__}) cannot be recorded"
         return None
 
     def _step_ops(self, physics_ops: list[StepOp]) -> list[StepOp]:
         """Return one environment step as operations, flagged by whether a CUDA graph can record them."""
         actions = self.action_manager
-        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
-        process_action = partial(actions.process_action, self._step_capture.action)
-        process = StepOp(process_action, actions.supports_graph_capture, "actions")
-        # Physics may open with eager host work (e.g. model-change notification) that actions do not depend on;
-        # processing actions after it lets them share a graph with the physics step.
-        leading = next((i for i, op in enumerate(physics_ops) if op.graphable), len(physics_ops))
-        ops = list(physics_ops[:leading])
-        for _ in range(self.cfg.decimation // steps_per_call):
-            if process is not None:
-                ops.append(process)
-                process = None
-            elif leading:
-                ops.extend(physics_ops[:leading])
-            if not self._physics_handles_actions:
-                ops.append(StepOp(actions.apply_action, actions.supports_graph_capture, "actions.apply"))
-                writes = all(asset.supports_graph_capture for asset in self.scene.assets.values())
-                ops.append(StepOp(self.scene.write_data_to_sim, writes, "scene.write"))
-            ops.extend(physics_ops[leading:])
-            ops.append(StepOp(partial(self.scene.update, dt=self.physics_dt * steps_per_call), True, "scene.update"))
+        process = StepOp(
+            partial(actions.process_action, self._step_capture.action), actions.supports_graph_capture, "actions"
+        )
+        writes = []
+        if not self._physics_handles_actions:
+            scene_writes = all(asset.supports_graph_capture for asset in self.scene.assets.values())
+            writes = [
+                StepOp(actions.apply_action, actions.supports_graph_capture, "actions.apply"),
+                StepOp(self.scene.write_data_to_sim, scene_writes, "scene.write"),
+            ]
+        ops = self._step_capture.decimation_ops(physics_ops, process, writes)
         ops.append(StepOp(self._advance_episode, True, "episode"))
         terminations, rewards, observations = self.termination_manager, self.reward_manager, self.observation_manager
         ops.append(StepOp(self._compute_terminations, terminations.supports_graph_capture, "terminations"))

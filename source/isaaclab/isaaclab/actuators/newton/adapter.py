@@ -98,10 +98,9 @@ class NewtonActuatorAdapter:
         self._dof_offset = dof_offset
         self._device = device
 
-        self._dof_reset_masks: list[wp.array] | None = None
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
-        # Per-DOF reset masks, rewritten by every masked reset so a reset does not allocate.
+        # Per-DOF reset masks, rewritten by every reset so a reset does not allocate.
         self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
@@ -156,11 +155,7 @@ class NewtonActuatorAdapter:
 
     @property
     def state_buffers(self) -> tuple[list[Any], list[Any]]:
-        """The current and next actuator history buffers, one entry per actuator (``None`` when stateless).
-
-        Callers that bind buffers explicitly, such as a compiled Newton step program, alternate between the two and
-        end with the history in the current buffers.
-        """
+        """The current and next actuator history buffers, one entry per actuator (``None`` when stateless)."""
         return self._states_a, self._states_b
 
     @property
@@ -169,11 +164,7 @@ class NewtonActuatorAdapter:
         return self._computed_effort
 
     def zero_outputs(self, sim_control: Any) -> None:
-        """Zero the computed-effort buffer and the actuated DOFs of ``joint_f`` before actuators scatter-add.
-
-        Args:
-            sim_control: Object with ``joint_f``; see :meth:`step`.
-        """
+        """Zero the computed-effort buffer and the actuated DOFs of ``sim_control.joint_f`` before scatter-adds."""
         self._computed_effort.zero_()
         for act in self.actuators:
             wp.launch(
@@ -186,11 +177,7 @@ class NewtonActuatorAdapter:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
         self._states_a, self._states_b = self._states_b, self._states_a
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | torch.Tensor | slice | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None, env_mask: wp.array | None = None):
         """Reset actuator states for the given environments.
 
         Args:
@@ -237,11 +224,7 @@ class NewtonActuatorAdapter:
         self._reset_states(env_mask)
 
     def _reset_states(self, env_mask: wp.array) -> None:
-        """Reset the actuator states of the environments selected by a boolean mask.
-
-        Args:
-            env_mask: Boolean environment mask. Shape is (num_envs,).
-        """
+        """Reset the actuator states of the environments selected by a boolean mask of shape (num_envs,)."""
         for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
             wp.launch(
                 build_per_dof_env_mask_kernel,
@@ -255,20 +238,12 @@ class NewtonActuatorAdapter:
                 sb.reset(per_dof_mask)
 
     def reset_dofs(self, dof_mask: wp.array) -> None:
-        """Reset actuator history for selected DOFs of the flat DOF space.
-
-        Unlike :meth:`reset`, this does not assume every environment repeats one DOF layout, so it serves models
-        whose worlds hold different robots.
+        """Reset actuator history for selected DOFs of the flat DOF space, for worlds with different layouts.
 
         Args:
             dof_mask: Per-DOF selection over the flat DOF space the actuator indices address.
         """
-        if self._dof_reset_masks is None:
-            # Allocate once so resets on the hot path only launch kernels.
-            self._dof_reset_masks = [
-                wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device) for act in self.actuators
-            ]
-        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._dof_reset_masks):
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
             if sa is None and sb is None:
                 continue
             wp.launch(

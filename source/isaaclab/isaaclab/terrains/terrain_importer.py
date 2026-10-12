@@ -376,31 +376,24 @@ class TerrainImporter:
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
 
     def update_env_origins_mask(self, env_mask: wp.array, move_up: torch.Tensor, move_down: torch.Tensor):
-        """Update the environment origins of the selected environments based on the terrain levels.
-
-        Unlike :meth:`update_env_origins`, this does not synchronize the device. Unselected environments keep
-        their terrain levels and origins.
+        """Like :meth:`update_env_origins` for the selected environments, without synchronizing the device.
 
         Args:
             env_mask: Boolean mask of the environments to update, dtype ``wp.bool``. Shape is (num_envs,).
             move_up: Whether each environment moves to a harder terrain level. Shape is (num_envs,).
             move_down: Whether each environment moves to an easier terrain level. Shape is (num_envs,).
         """
-        # check if grid-like spawning
         if self.terrain_origins is None:
             return
         selected = wp.to_torch(env_mask)
-        # update terrain level for the envs
+        # robots that solve the last level are sent to a random one; the minimum level is zero
         terrain_levels = self.terrain_levels + 1 * move_up - 1 * move_down
-        # robots that solve the last level are sent to a random one
-        # the minimum level is zero
         terrain_levels = torch.where(
             terrain_levels >= self.max_terrain_level,
             torch.randint_like(terrain_levels, self.max_terrain_level),
             torch.clip(terrain_levels, 0),
         )
         torch.where(selected, terrain_levels, self.terrain_levels, out=self.terrain_levels)
-        # update the env origins
         env_origins = self.terrain_origins[self.terrain_levels, self.terrain_types]
         torch.where(selected[:, None], env_origins, self.env_origins, out=self.env_origins)
 

@@ -26,11 +26,7 @@ if TYPE_CHECKING:
 
 
 class modify_reward_weight(ManagerTermBase):
-    """Curriculum that modifies the reward weight based on a step-wise schedule.
-
-    The schedule depends only on :attr:`~isaaclab.envs.ManagerBasedRLEnv.common_step_counter`, so the term
-    ignores the selected environments and applies the weight on the first update after ``num_steps``.
-    """
+    """Curriculum that modifies the reward weight based on a step-wise schedule."""
 
     supports_graph_capture = False
     """The schedule is decided on the host from the step counter."""
@@ -84,10 +80,8 @@ class modify_env_param(ManagerTermBase):
     the new value to be set for the target attribute, or the special token ``modify_env_param.NO_CHANGE``
     to indicate that the value should not be changed.
 
-    A ``modify_fn`` that names its second parameter ``env_mask`` is called on every curriculum update, including
-    updates where no environment is reset, without synchronizing the device. Otherwise the function receives the
-    selected environment indices, which synchronizes the device, and is called only when an environment is
-    selected.
+    A ``modify_fn`` whose second parameter is named ``env_ids`` instead receives the selected indices, which
+    synchronizes the device, and is skipped when no environment is selected.
 
     At the first call to the term after initialization, it compiles getter and setter functions
     for the target attribute specified by the ``address`` parameter. The getter retrieves the
@@ -172,8 +166,6 @@ class modify_env_param(ManagerTermBase):
         modify_fn: callable,
         modify_params: dict | None = None,
     ):
-        # resolve the environment selection for the modify function
-        # note: functions that take indices are skipped when no environment is selected
         selection = env_selection_kwargs(modify_fn, env_mask)
         if selection is None:
             return
@@ -194,9 +186,8 @@ class modify_env_param(ManagerTermBase):
         if new_val is not self.NO_CHANGE:
             self._set_fn(new_val)
             if not _same_value(data, new_val):
-                # Captured steps baked the old value in; record them again.
-                invalidate = getattr(env, "invalidate_step_graph", None)
-                if invalidate is not None:
+                # captured steps baked the old value in; record them again
+                if (invalidate := getattr(env, "invalidate_step_graph", None)) is not None:
                     invalidate()
 
     """
@@ -280,8 +271,7 @@ class modify_env_param(ManagerTermBase):
 
 
 def _same_value(old: Any, new: Any) -> bool:
-    """Whether a curriculum write leaves the value unchanged; tensors and other values without a plain truth value
-    compare as changed."""
+    """Whether a write leaves the value unchanged; values without a plain truth value compare as changed."""
     if old is new:
         return True
     try:

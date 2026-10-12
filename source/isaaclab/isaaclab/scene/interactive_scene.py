@@ -444,9 +444,6 @@ class InteractiveScene:
     ):
         """Resets the scene entities.
 
-        Entities whose ``reset`` takes ``env_mask`` receive the mask and reset without synchronizing the device.
-        Other entities receive the selected indices.
-
         Args:
             env_ids: The indices of the environments to reset.
                 Defaults to None (all instances).

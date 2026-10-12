@@ -85,8 +85,8 @@ class ManagerBasedEnv:
 
         Args:
             cfg: The configuration object for the environment.
-            physics_manager: Physics manager for the simulation context the environment creates, e.g. one the task
-                prepared before the scene is built. Defaults to the manager selected by ``cfg.sim.physics``.
+            physics_manager: Physics manager for the simulation context the environment creates. Defaults to the
+                manager selected by ``cfg.sim.physics``.
 
         Raises:
             RuntimeError: If a simulation context already exists. The environment must always create one
@@ -645,14 +645,7 @@ class ManagerBasedEnv:
         self._reset_mask(env_mask_from_ids(env_ids, self.num_envs, self.device))
 
     def _reset_mask(self, env_mask: ProxyArray):
-        """Reset the environments selected by a boolean mask.
-
-        The reset runs on every call, and unselected environments are left unchanged, so it never waits on the
-        device unless a scene entity or manager term only accepts indices.
-
-        Args:
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
-        """
+        """Reset the environments selected by a boolean mask of shape (num_envs,)."""
         # reset the internal buffers of the scene elements
         self.scene.reset(env_mask=env_mask.warp)
 
@@ -668,17 +661,7 @@ class ManagerBasedEnv:
         self._reset_managers(env_mask, managers)
 
     def _reset_managers(self, env_mask: ProxyArray, managers: Sequence[ManagerBase]):
-        """Reset ``managers`` in order and store their logs in ``extras["log"]``.
-
-        Terms may also write into ``extras["log"]`` while resetting. A logged tensor keeps its previous value
-        when no environment was reset, and a key that no term logged this time (an index-based term with nothing
-        selected) keeps its previous value, so logs describe the last completed episodes without reading the mask
-        on the host.
-
-        Args:
-            env_mask: Boolean mask of the reset environments. Shape is (num_envs,).
-            managers: Managers to reset, in order.
-        """
+        """Reset ``managers`` in order into ``extras["log"]``; logs keep their values while nothing resets."""
         previous = self.extras.get("log", {})
         log = self.extras["log"] = {}
         for manager in managers:

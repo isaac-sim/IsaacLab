@@ -126,13 +126,7 @@ class PhysxActuatorRuntime:
         self._run_native_actuator_kernels(collection, dt)
 
     def reset(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
-        """Reset selected native actuator state.
-
-        Args:
-            env_ids: Environments to reset.
-            env_mask: Boolean mask of the environments to reset. Takes precedence over ``env_ids``.
-                Shape is (num_instances,). Defaults to None.
-        """
+        """Reset selected native actuator state; ``env_mask`` takes precedence over ``env_ids``."""
         if self.adapter is not None:
             self.adapter.reset(env_ids, env_mask=env_mask)
 

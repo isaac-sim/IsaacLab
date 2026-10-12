@@ -123,11 +123,7 @@ class WrenchComposer:
 
     @property
     def used(self) -> bool:
-        """Whether forces or torques were ever written through an ``add_*`` or ``set_*`` method.
-
-        Unlike :attr:`active`, resets do not clear it, so consumers that record their work into a CUDA graph can
-        leave the wrench work out until it is first needed.
-        """
+        """Whether forces or torques were ever written; unlike :attr:`active`, resets do not clear it."""
         return self._used
 
     @property

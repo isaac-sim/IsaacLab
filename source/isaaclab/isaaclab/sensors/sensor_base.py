@@ -211,9 +211,6 @@ class SensorBase(ABC):
     def notify_update_replayed(self, dt: float) -> None:
         """Mark the data stale after a captured :meth:`update` replayed on the device.
 
-        The update timers live on the device, so a replay advances them; only the host's dirty flag needs setting
-        for later reads outside the graph to refresh the outdated environments.
-
         Args:
             dt: Time the replayed update advanced [s].
         """
@@ -352,7 +349,6 @@ class SensorBase(ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        # Resolve the owning context once; the sensor reaches it and its physics manager through these afterwards.
         self._sim = sim_utils.SimulationContext.instance()
         physics_mgr_cls = self._physics_manager = self._sim.physics_manager
 

@@ -488,14 +488,9 @@ class BaseArticulation(AssetBase):
 
     @abstractmethod
     def reset(
-        self,
-        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
-        env_mask: wp.array | None = None,
+        self, env_ids: Sequence[int] | torch.Tensor | wp.array | None = None, env_mask: wp.array | None = None
     ) -> None:
         """Reset the articulation.
-
-        This resets the actuator states and external wrenches of the selected environments. A mask leaves the
-        unselected environments unchanged and does not synchronize the device.
 
         .. caution::
             If both `env_ids` and `env_mask` are provided, then `env_mask` takes precedence over `env_ids`.

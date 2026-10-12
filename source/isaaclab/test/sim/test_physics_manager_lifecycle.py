@@ -154,20 +154,14 @@ def test_physics_manager_close_only_clears_its_own_binding():
     assert second._sim is second._cfg is None
 
 
-def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):
+def test_close_runs_all_live_stop_listeners_and_aggregates_failures():
     """STOP fan-out and shared-state cleanup survive an individual listener failure."""
-
-    class TestManager(_LifecycleManager):
-        pass
-
-    manager = TestManager()
+    manager = _LifecycleManager()
     events = []
-    manager._callbacks = {}
-    manager._callback_id = 0
     manager._sim = SimpleNamespace(physics_manager=manager)
     manager._cfg = object()
     manager._sim_time = 1.0
-    manager.views = {(TestManager, "/World/Robot"): object()}
+    manager.views = {"/World/Robot": object()}
 
     manager.register_callback(
         lambda _payload: events.append("first"),
@@ -209,14 +203,11 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch)
 
     assert isinstance(exc_info.value.__cause__, ReferenceError)
     assert events == ["first", "failed", "last"]
-    assert manager._callbacks == {}
-    assert manager._sim is None
-    assert manager._cfg is None
-    assert manager._sim_time == 0.0
-    assert manager.views == {}
+    assert manager._callbacks == {} and manager.views == {}
+    assert (manager._sim, manager._cfg, manager._sim_time) == (None, None, 0.0)
 
 
-def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
+def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke():
     """STOP failures stored for an external event bus are drained during close."""
 
     class TestManager(_LifecycleManager):
@@ -233,8 +224,6 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
 
     manager = TestManager()
     events = []
-    manager._callbacks = {}
-    manager._callback_id = 0
     manager._sim = SimpleNamespace(physics_manager=manager)
 
     def fail_stop(_payload):

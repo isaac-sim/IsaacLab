@@ -98,8 +98,7 @@ class CurriculumManager(ManagerBase):
         """Returns the current state of individual curriculum terms.
 
         Note:
-            The logged state covers all the terms regardless of the selected environments. The selection only
-            resets the class terms.
+            The logged state covers all the terms; the selection only resets the class terms.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case all environments are considered.
@@ -133,8 +132,7 @@ class CurriculumManager(ManagerBase):
     def compute(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None):
         """Update the curriculum terms.
 
-        This function calls each curriculum term managed by the class. Terms that take ``env_mask`` are called
-        on every update; terms that take indices are skipped when no environment is selected.
+        This function calls each curriculum term managed by the class.
 
         Args:
             env_ids: The list of environment IDs to update.

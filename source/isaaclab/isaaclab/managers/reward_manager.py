@@ -112,8 +112,7 @@ class RewardManager(ManagerBase):
                 ``env_ids``.
 
         Returns:
-            Dictionary of episodic sum of individual reward terms, averaged over the reset environments. The
-            averages are zero when no environment is selected.
+            Dictionary of episodic sum of individual reward terms (zero when no environment is selected).
         """
         env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # average of r_1 + r_2 + ... + r_n over the selected environments, for all terms at once

@@ -51,15 +51,12 @@ inner dictionary are the source backend (``np.ndarray``, ``torch.Tensor``, ``wp.
 def env_mask_from_ids(
     env_ids: Sequence[int] | torch.Tensor | slice | None, num_envs: int, device: torch.device | str
 ) -> ProxyArray:
-    """Return a Warp boolean mask that selects ``env_ids`` without synchronizing the device.
+    """Return a Warp boolean mask of shape (num_envs,) that selects ``env_ids`` without synchronizing the device.
 
     Args:
         env_ids: Integer indices, a boolean mask, or a slice. None selects every environment.
         num_envs: Number of environments.
         device: Device of the mask.
-
-    Returns:
-        Boolean mask with a cached Torch view. Shape is (num_envs,).
     """
     mask = ProxyArray(wp.zeros(num_envs, dtype=wp.bool, device=str(device)))
     if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
@@ -70,20 +67,12 @@ def env_mask_from_ids(
 
 
 def env_ids_from_mask(env_mask: ProxyArray | None) -> torch.Tensor | slice:
-    """Return the indices selected by ``env_mask``.
-
-    This synchronizes the device, since the number of indices is data dependent. Use it only for consumers that
-    take indices.
+    """Return the indices selected by ``env_mask`` (``slice(None)`` for None); this synchronizes the device.
 
     Args:
         env_mask: Boolean mask. None selects every environment.
-
-    Returns:
-        Long indices on the mask's device, or ``slice(None)`` when ``env_mask`` is None.
     """
-    if env_mask is None:
-        return slice(None)
-    return env_mask.torch.nonzero().squeeze(-1)
+    return slice(None) if env_mask is None else env_mask.torch.nonzero().squeeze(-1)
 
 
 def index_fill_(
@@ -177,10 +166,8 @@ def env_selection_kwargs(
 ) -> dict[str, Any] | None:
     """Return the keyword argument that selects environments for ``fn``.
 
-    Callables that declare an ``env_mask`` parameter receive the boolean mask and must leave unselected
-    environments unchanged. They run on every reset, so the environment step never waits on the device. Other
-    callables receive indices as ``env_ids``: the caller's ``env_ids`` when given, else the indices selected by
-    ``env_mask``. Computing those synchronizes the device, and the call is skipped when none are selected.
+    Callables declaring ``env_mask`` get the mask and must leave unselected environments unchanged. Others get
+    ``env_ids``: the caller's when given, else the mask's indices, which synchronizes the device.
 
     Args:
         fn: Term function, term instance, or term method.
@@ -208,16 +195,11 @@ def takes_env_mask(fn: Callable[..., Any]) -> bool:
     """
     if isinstance(fn, functools.partial):
         return "env_mask" in inspect.signature(fn).parameters
-    return _declares_env_mask(_signature_target(fn))
-
-
-def _signature_target(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Return the plain function whose signature describes calling ``fn``; cached by identity."""
     if inspect.ismethod(fn):
-        return fn.__func__
-    if inspect.isfunction(fn):
-        return fn
-    return (fn if inspect.isclass(fn) else type(fn)).__call__
+        fn = fn.__func__
+    elif not inspect.isfunction(fn):
+        fn = (fn if inspect.isclass(fn) else type(fn)).__call__
+    return _declares_env_mask(fn)
 
 
 @functools.cache

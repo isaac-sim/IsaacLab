@@ -96,9 +96,6 @@ class ManagerTermBase(ABC):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> None:
         """Resets the manager term.
 
-        Managers pass ``env_mask`` to terms whose ``reset`` declares it, and indices otherwise. See
-        :func:`~isaaclab.utils.env_selection_kwargs`.
-
         Args:
             env_ids: The environment ids. Defaults to None, in which case all environments are considered.
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Defaults to None, in which
@@ -234,15 +231,7 @@ class ManagerBase(ABC):
     def _env_selection(
         self, env_ids: Sequence[int] | torch.Tensor | slice | None, env_mask: ProxyArray | None
     ) -> tuple[ProxyArray, Sequence[int] | torch.Tensor | slice | None]:
-        """Resolve a reset selection.
-
-        Args:
-            env_ids: Indices or a slice. None selects every environment.
-            env_mask: Boolean mask. Shape is (num_envs,). Takes precedence over ``env_ids``.
-
-        Returns:
-            The boolean mask, and the caller's indices for index-based terms, or None when ``env_mask`` was given.
-        """
+        """Return the mask, and the caller's indices for index-based terms (None when ``env_mask`` was given)."""
         if env_mask is not None:
             return env_mask, None
         env_ids = slice(None) if env_ids is None else env_ids
@@ -251,18 +240,7 @@ class ManagerBase(ABC):
     def _reset_term(
         self, term: Any, env_mask: ProxyArray, env_ids: Sequence[int] | torch.Tensor | slice | None = None
     ) -> Any:
-        """Reset a term (or modifier) with the selection its ``reset`` takes.
-
-        See :func:`~isaaclab.utils.env_selection_kwargs`.
-
-        Args:
-            term: Object with a ``reset`` method.
-            env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
-            env_ids: The caller's indices that ``env_mask`` was built from, if any.
-
-        Returns:
-            What ``reset`` returns, or None when it was skipped because no environment was selected.
-        """
+        """Reset a term with the selection its ``reset`` takes; None when skipped for an empty selection."""
         selection = env_selection_kwargs(term.reset, env_mask, env_ids)
         return None if selection is None else term.reset(**selection)
 
@@ -270,9 +248,8 @@ class ManagerBase(ABC):
     def supports_graph_capture(self) -> bool:
         """Whether this manager's per-step work can be recorded into a CUDA graph.
 
-        It can when every term allows it. Term functions and term classes opt out with
-        ``supports_graph_capture = False``, for example when they branch on host state that changes between steps,
-        such as :attr:`~isaaclab.envs.ManagerBasedRLEnv.common_step_counter`.
+        Term functions and classes opt out with ``supports_graph_capture = False``, e.g. when they branch on host
+        state that changes between steps.
         """
         return all(getattr(term, "supports_graph_capture", True) for term in self._graph_capture_terms())
 
@@ -281,9 +258,7 @@ class ManagerBase(ABC):
         return (term_cfg.func for term_cfg in getattr(self, "_term_cfgs", ()))
 
     def _invalidate_step_graph(self) -> None:
-        """Have the environment record its captured step again, e.g. after a term configuration changed."""
-        invalidate = getattr(self._env, "invalidate_step_graph", None)
-        if invalidate is not None:
+        if (invalidate := getattr(self._env, "invalidate_step_graph", None)) is not None:
             invalidate()
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:

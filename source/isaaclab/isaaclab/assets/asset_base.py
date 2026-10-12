@@ -84,11 +84,7 @@ class AssetBase(Asset, ABC):
 
     @property
     def reset_supports_graph_capture(self) -> bool:
-        """Whether a masked :meth:`reset` can be recorded into a CUDA graph.
-
-        Assets whose command writers can be recorded reset with device kernels on a mask; an asset whose reset
-        takes only indices synchronizes the device and cannot be recorded.
-        """
+        """Whether a masked :meth:`reset` can be recorded into a CUDA graph."""
         return self.supports_graph_capture and takes_env_mask(self.reset)
 
     def __init__(self, cfg: AssetBaseCfg):
@@ -228,17 +224,10 @@ class AssetBase(Asset, ABC):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         """Resets all internal buffers of selected environments.
 
-        Implementations that take ``env_mask`` reset the selected environments without synchronizing the device;
-        :class:`~isaaclab.scene.InteractiveScene` passes them the reset mask. Implementations that only take
-        ``env_ids`` receive indices instead, which synchronizes the device.
-
-        .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
-
         Args:
             env_ids: The indices of the object to reset. Defaults to None (all instances).
             env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_instances,).
-                Defaults to None, in which case ``env_ids`` selects the environments.
+                Takes precedence over ``env_ids``.
         """
         raise NotImplementedError
 
@@ -248,10 +237,7 @@ class AssetBase(Asset, ABC):
         raise NotImplementedError
 
     def notify_update_replayed(self, dt: float) -> None:
-        """Advance host bookkeeping after a captured :meth:`update` replayed on the device.
-
-        A graph replays the device work of :meth:`update` without running Python, so data that caches derived
-        quantities by a host timestamp advances it here; later reads outside the graph then recompute them.
+        """Advance host timestamps after a captured :meth:`update` replayed on the device without running Python.
 
         Args:
             dt: Time the replayed update advanced [s].
@@ -390,7 +376,6 @@ class AssetBase(Asset, ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        # Resolve the owning context once; the asset reaches it and its physics manager through these afterwards.
         self._sim = SimulationContext.instance()
         physics_mgr_cls = self._physics_manager = self._sim.physics_manager
 

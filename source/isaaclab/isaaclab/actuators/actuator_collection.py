@@ -180,22 +180,13 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     # Lifecycle.
 
-    def reset(
-        self,
-        env_ids: Sequence[int] | slice | None = None,
-        env_mask: wp.array | None = None,
-    ) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
-
-        A mask resets only the selected environments without synchronizing the device.
-
-        .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environment indices to reset. Defaults to all environments.
             env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_instances,).
-                Defaults to None.
+                Takes precedence over ``env_ids``.
         """
         if env_mask is not None:
             env_ids_selected = None

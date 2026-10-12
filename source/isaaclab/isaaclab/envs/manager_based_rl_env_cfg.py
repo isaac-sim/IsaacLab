@@ -47,15 +47,10 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     capture_step: bool = True
     """Whether to run :meth:`~isaaclab.envs.ManagerBasedRLEnv.step` from CUDA graphs when the physics backend allows.
 
-    The step is built as operations: actions, the physics step, the scene update, terminations, rewards, the masked
-    reset, commands, and observations. Consecutive operations that a graph can record replay from one graph, and the
-    others (terms that set ``supports_graph_capture = False``, entities whose reset cannot be recorded) run eagerly in
-    place. The first step after a structural change runs eagerly and records the graphs. The environment steps eagerly
-    when the physics backend exposes no step operations (PhysX), while rendering or recording video, when recorder
-    terms are active, or when a sensor cannot be recorded.
-
-    With a captured step, the returned observations, rewards, and done flags are buffers that the next step
-    overwrites; copy them to keep them. Defaults to True.
+    Terms that set ``supports_graph_capture = False`` and entities whose reset cannot be recorded run eagerly in
+    place. The environment steps eagerly without physics step operations (PhysX), while rendering or recording video,
+    with active recorder terms, or with a sensor that cannot be recorded. Returned buffers are overwritten by the next
+    step. Defaults to True.
     """
 
     compute_final_obs: bool = False

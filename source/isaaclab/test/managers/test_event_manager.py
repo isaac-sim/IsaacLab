@@ -449,10 +449,7 @@ def reset_dummy1_to_zero_masked(env, env_mask: ProxyArray):
 
 @pytest.mark.parametrize("device_count", [False, True], ids=["host-count", "device-count"])
 def test_apply_reset_mode_with_mask_terms(env, device_count):
-    """Mask terms run on every reset, see the cooldown-filtered mask, and leave unselected environments alone.
-
-    The step count may live on the device, as for a captured environment step.
-    """
+    """Mask terms run on every reset with the cooldown-filtered mask; the step count may live on the device."""
     calls = []
 
     def increment(env, env_mask: ProxyArray):
@@ -466,26 +463,20 @@ def test_apply_reset_mode_with_mask_terms(env, device_count):
         },
         env,
     )
-    expected = [0] * env.num_envs
-    last_step = [0] * env.num_envs
-    triggered = [False] * env.num_envs
+    expected, last_step, triggered = [0] * env.num_envs, [0] * env.num_envs, [False] * env.num_envs
     for count in range(23):
         selected = [i for i in range(env.num_envs) if (i + count) % 3 == 0] if count % 4 else []
         env_mask = env_mask_from_ids(selected, env.num_envs, env.device)
         step_count = torch.tensor(count, device=env.device) if device_count else count
         event_man.apply("reset", env_mask=env_mask, global_env_step_count=step_count)
-
         # an empty selection still calls the mask term, with an all-False mask
         assert torch.equal(calls[-1], env_mask.torch)
         for i in selected:
             expected[i] += 1
             if not triggered[i] or count - last_step[i] >= 10:
-                expected[i] = 0
-                last_step[i] = count
-                triggered[i] = True
-        torch.testing.assert_close(
-            env.dummy1, torch.tensor(expected, dtype=env.dummy1.dtype, device=env.device)[:, None].expand_as(env.dummy1)
-        )
+                expected[i], last_step[i], triggered[i] = 0, count, True
+        expected_t = torch.tensor(expected, dtype=env.dummy1.dtype, device=env.device)[:, None]
+        torch.testing.assert_close(env.dummy1, expected_t.expand_as(env.dummy1))
     assert len(calls) == 23
 
 
@@ -500,31 +491,17 @@ def test_apply_interval_mode_with_mask_term(env):
     for _ in range(4):
         event_man.apply("interval", dt=0.01)
     torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))
-    torch.testing.assert_close(
-        event_man._interval_term_time_left[0], torch.tensor([0.07, 0.08, 0.09, 0.1], device=env.device)
-    )
+    expected_time_left = torch.tensor([0.07, 0.08, 0.09, 0.1], device=env.device)
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_time_left)
 
 
-def test_apply_startup_mode_with_mask_term(env):
-    """A mask term in startup mode receives an all-True mask."""
-    event_man = EventManager(
-        {"term_1": EventTermCfg(func=increment_dummy1_by_one_masked, mode="startup")},
-        env,
-    )
-    event_man.apply("startup")
-    torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))
-
-
-def test_apply_interval_mode_with_global_time_mask_term(env):
-    """A mask term on a global-time interval receives an all-True mask."""
-    event_man = EventManager(
-        {
-            "term_1": EventTermCfg(
-                func=increment_dummy1_by_one_masked, mode="interval", interval_range_s=(0.1, 0.1), is_global_time=True
-            )
-        },
-        env,
-    )
-    for _ in range(10):
-        event_man.apply("interval", dt=0.01)
+@pytest.mark.parametrize("mode", ["startup", "global-interval"])
+def test_mask_term_without_selection_gets_all_true_mask(env, mode):
+    """Mask terms in startup mode or on a global-time interval receive an all-True mask."""
+    interval = mode == "global-interval"
+    kwargs = {"interval_range_s": (0.1, 0.1), "is_global_time": True} if interval else {}
+    term = EventTermCfg(func=increment_dummy1_by_one_masked, mode="interval" if interval else mode, **kwargs)
+    event_man = EventManager({"term_1": term}, env)
+    for _ in range(10 if interval else 1):
+        event_man.apply("interval", dt=0.01) if interval else event_man.apply(mode)
     torch.testing.assert_close(env.dummy1, torch.ones_like(env.dummy1))

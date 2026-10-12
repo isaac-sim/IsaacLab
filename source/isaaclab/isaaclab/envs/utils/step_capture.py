@@ -11,6 +11,7 @@ import inspect
 import logging
 import warnings
 from collections.abc import Callable
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import torch
@@ -25,22 +26,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_REBUILD_WINDOW = 50
-"""Environment steps within which repeated rebuilds disable capture."""
-
-_MAX_REBUILDS = 3
-"""Rebuilds tolerated within :data:`_REBUILD_WINDOW` steps before stepping eagerly."""
+# Step outputs that each step binds anew and that no earlier operation of the step reads.
+_OUTPUTS = frozenset(f"env.{n}" for n in ("obs_buf", "reward_buf", "reset_buf", "reset_terminated", "reset_time_outs"))
 
 
 class EnvStepCapture:
     """Run an environment step as a :class:`~isaaclab.utils.StepGraph` around the physics step's operations.
 
-    The environment supplies its step as operations; the physics manager supplies the physics step's operations
-    (:meth:`~isaaclab.physics.PhysicsManager.step_ops`). Consecutive graphable operations replay from one CUDA graph and
-    the rest run eagerly in place. The first launch after a (re)build runs eagerly, which also performs lazy allocations
-    and turns operations that synchronize the device into eager islands; the next launch records the graphs and replays
-    them. The step is rebuilt when the physics operations change or :meth:`invalidate` is called, and steps eagerly
-    for good when rebuilds recur every few steps or recording fails.
+    Consecutive graphable operations replay from one CUDA graph; the rest run eagerly in place. The first launch after a
+    (re)build runs eagerly and turns operations that synchronize the device into eager islands; the next launch records
+    the graphs and replays them. The step is rebuilt when the physics operations change or :meth:`invalidate` is called,
+    and steps eagerly for good when rebuilds recur every few steps or recording fails.
     """
 
     def __init__(
@@ -54,10 +50,9 @@ class EnvStepCapture:
 
         Args:
             env: Environment whose step is captured.
-            build_ops: Returns the environment step as operations around the physics step's operations. The operations
-                read the action from :attr:`action`.
-            blocker: Returns why the step cannot be captured at all, or None. Evaluated when the graph is built.
-            enabled: Whether to capture; False always steps eagerly.
+            build_ops: Returns the step as operations around the physics operations; they read :attr:`action`.
+            blocker: Returns why the step cannot be captured at all, or None.
+            enabled: Whether to capture.
         """
         self._env = env
         self._build_ops = build_ops
@@ -88,56 +83,54 @@ class EnvStepCapture:
             action: The step's actions, used to size :attr:`action`.
         """
         env = self._env
-        if self.disabled_reason is not None:
-            return None
-        if env.sim.is_rendering or env.video_recorders:
-            # rendering and video run on the host on their own cadence
+        if self.disabled_reason is not None or env.sim.is_rendering or env.video_recorders:
             return None
         physics_ops = env.sim.physics_manager.step_ops()
         if physics_ops is None:
-            self.disable("the physics backend exposes no step operations")
-            return None
-        if self.graph is not None and physics_ops is self._physics_ops:
-            return self.graph
+            return self.disable("the physics backend exposes no step operations")
         if self.graph is not None:
+            if physics_ops is self._physics_ops:
+                return self.graph
             self._rebuilds.append(env.common_step_counter)
-        recent = [step for step in self._rebuilds if env.common_step_counter - step < _REBUILD_WINDOW]
-        if len(recent) > _MAX_REBUILDS:
-            # rebuilding every few steps costs more than it saves: some term keeps changing captured constants
-            self.disable("the captured step is invalidated every few steps")
-            return None
-        reason = self._blocker()
-        if reason is not None:
-            self.disable(reason)
-            return None
+        # rebuilding every few steps costs more than it saves: some term keeps changing captured constants
+        if sum(env.common_step_counter - step < 50 for step in self._rebuilds) > 3:
+            return self.disable("the captured step is invalidated every few steps")
+        if (reason := self._blocker() or self._scene_blocker()) is not None:
+            return self.disable(reason)
         if self.action is None or self.action.shape != action.shape:
             self.action = torch.zeros(action.shape, dtype=torch.float32, device=env.device)
         self._physics_ops = physics_ops
         self.graph = self._graph_from(self._build_ops(physics_ops))
         return self.graph
 
-    def disable(self, reason: str) -> None:
-        """Step eagerly from now on.
+    def decimation_ops(self, physics_ops: list[StepOp], first: StepOp, writes: list[StepOp]) -> list[StepOp]:
+        """Lay out the decimation loop: ``first`` once, then per physics call ``writes``, physics and scene update.
 
-        Args:
-            reason: Why, logged once.
+        Physics may open with eager host work (e.g. model-change notification) that ``first`` does not depend on;
+        running ``first`` after it lets it share a graph with the physics step.
         """
+        env = self._env
+        steps_per_call = env.cfg.decimation if env._physics_handles_decimation else 1
+        leading = next((i for i, op in enumerate(physics_ops) if op.graphable), len(physics_ops))
+        update = StepOp(partial(env.scene.update, dt=env.physics_dt * steps_per_call), True, "scene.update")
+        ops = [*physics_ops[:leading], first]
+        for i in range(env.cfg.decimation // steps_per_call):
+            ops += [*(physics_ops[:leading] if i else ()), *writes, *physics_ops[leading:], update]
+        return ops
+
+    def disable(self, reason: str) -> None:
+        """Step eagerly from now on, logging ``reason`` once."""
         logger.warning("Stepping %s eagerly: %s.", type(self._env).__name__, reason)
         self.disabled_reason = reason
         self.graph = None
 
     def launch(self, graph: StepGraph, action: torch.Tensor) -> None:
-        """Run one environment step from ``graph``, then the host bookkeeping that replayed operations skip.
-
-        Args:
-            graph: Graph from :meth:`prepare`.
-            action: The step's actions.
-        """
+        """Run one environment step from ``graph``, then the host bookkeeping that replayed operations skip."""
         env = self._env
         self.action.copy_(action)
         if not graph.captured and self._warm is graph:
-            # The previous step ran the operations eagerly; record them now and replay, so that every returned buffer
-            # holds executed work.
+            # the previous step ran the operations eagerly; record them now and replay, so returned buffers hold
+            # executed work
             try:
                 bound = self._buffers()
                 graph.capture(self._capture)
@@ -161,16 +154,26 @@ class EnvStepCapture:
                 env.scene.notify_update_replayed(dt=env.physics_dt * steps_per_call)
         env.common_step_counter += 1
 
+    def _scene_blocker(self) -> str | None:
+        scene = self._env.scene
+        if not scene.cfg.lazy_sensor_update:
+            return "the scene updates sensors eagerly (lazy_sensor_update is False)"
+        if self._env.has_rtx_sensors:
+            return "camera sensors render on the host"
+        for name, sensor in scene.sensors.items():
+            if not sensor.supports_graph_capture:
+                return f"sensor '{name}' ({type(sensor).__name__}) cannot be recorded"
+        return None
+
     def _graph_from(self, ops: list[StepOp]) -> StepGraph:
         """Group operations into a step graph, keeping operations known to synchronize the device eager."""
-        sync = self._sync_ops
-        return StepGraph([StepOp(op.fn, False, op.name) if op.graphable and op.name in sync else op for op in ops])
+        return StepGraph([StepOp(op.fn, False, op.name) if op.name in self._sync_ops else op for op in ops])
 
     def _launch_watching_syncs(self, graph: StepGraph) -> StepGraph:
-        """Run the operations eagerly and return the graph with operations that synchronized the device made eager.
+        """Run the operations eagerly; operations that synchronized the device become eager islands.
 
-        A synchronizing operation (e.g. a term that selects environments by index) would fail inside a capture, so it
-        becomes an eager island instead of preventing the capture.
+        An eager island that rebinds buffers every step would leave recorded readers on stale tensors, so it disables
+        capture.
         """
         if "cuda" not in str(self._env.device):
             graph.launch()
@@ -183,13 +186,12 @@ class EnvStepCapture:
             torch.cuda.set_sync_debug_mode("warn")
             try:
                 for op in graph.ops:
-                    count, before = len(caught), self._buffer_ids()
+                    count, before = len(caught), self._buffers()
                     op.fn()
-                    after = self._buffer_ids()
-                    rebound = {name for name in before.keys() & after.keys() if before[name] != after[name]}
-                    rebound = {name for name in rebound if name.split("[")[0] not in self._outputs}
-                    if rebound:
-                        rebinds.setdefault(op.name, set()).update(rebound)
+                    after = self._buffers()
+                    rebinds.setdefault(op.name, set()).update(
+                        n for n, b in before.items() if n in after and after[n] is not b
+                    )
                     if op.graphable and any("synchroniz" in str(w.message) for w in caught[count:]):
                         synced.add(op.name)
             finally:
@@ -198,29 +200,23 @@ class EnvStepCapture:
             logger.info("Running %s eagerly in the captured step: they synchronize the device.", sorted(synced))
             self._sync_ops |= synced
             graph = self.graph = self._graph_from(graph.ops)
-        # Recorded operations keep reading the buffers bound when they were recorded. An eager operation that binds new
-        # tensors every step leaves the recorded readers on stale ones.
         for op in graph.ops:
-            if not op.graphable and op.name in rebinds:
+            if not op.graphable and rebinds.get(op.name):
                 attributes = ", ".join(sorted(rebinds[op.name]))
                 self.disable(f"'{op.name}' runs eagerly and rebinds {attributes}; write them in place to capture")
-                return graph
+                break
         return graph
 
     def _capture_carry(self, before: dict[str, Any], after: dict[str, Any]) -> Any | None:
-        """Record copies that carry rebound buffers into the buffers that recorded readers hold.
+        """Record copies of rebound buffers into the buffers that operations recorded before the rebinding read.
 
-        Recording binds a buffer that the step replaces (e.g. ``self.x = f(self.x)``) to a new tensor. Operations
-        recorded before the replacement keep reading the old tensor, so each replay ends by copying the new value into
-        it, as eager stepping would hand the new tensor to the next step's readers.
-
-        Raises:
-            RuntimeError: If a rebound buffer changes shape or type, so its value cannot be carried.
+        A step that replaces a buffer (``self.x = f(self.x)``) leaves earlier recorded readers on the old tensor, so
+        each replay ends by copying the new value into it, as eager stepping would hand it to the next step's readers.
         """
         pairs = []
         for name, old in before.items():
             new = after.get(name)
-            if new is None or new is old or name.split("[")[0] in self._outputs:
+            if new is None or new is old:
                 continue
             if type(new) is not type(old) or new.shape != old.shape or new.dtype != old.dtype:
                 raise RuntimeError(f"{name} is rebound to a buffer of another shape or type")
@@ -229,58 +225,36 @@ class EnvStepCapture:
         self._carry_pairs = pairs
         if not pairs:
             return None
-
-        def carry():
-            for old, new in pairs:
-                if isinstance(old, torch.Tensor):
-                    old.copy_(new)
-                else:
-                    wp.copy(old, new)
-
-        return self._capture(carry)
-
-    def _buffer_ids(self) -> dict[str, int]:
-        """Identities of the tensors held by the environment, its managers, and their terms."""
-        return {name: id(value) for name, value in self._buffers().items()}
+        return self._capture(lambda: [o.copy_(n) if isinstance(o, torch.Tensor) else wp.copy(o, n) for o, n in pairs])
 
     def _buffers(self) -> dict[str, Any]:
-        """Tensors held by the environment, its managers, and their terms, by attribute path."""
-        buffers = (torch.Tensor, wp.array)
+        """Tensors held by the environment, its managers and their terms, by attribute path, except step outputs."""
         found = {}
         for owner_name, owner in self._buffer_owners():
             for name, value in vars(owner).items():
-                if isinstance(value, buffers):
-                    found[f"{owner_name}.{name}"] = value
-                elif isinstance(value, dict):
-                    for key, item in value.items():
-                        if isinstance(item, buffers):
-                            found[f"{owner_name}.{name}[{key!r}]"] = item
+                items = value.items() if isinstance(value, dict) else [(None, value)]
+                for key, item in items:
+                    path = f"{owner_name}.{name}"
+                    if isinstance(item, (torch.Tensor, wp.array)) and path not in _OUTPUTS:
+                        found[path if key is None else f"{path}[{key!r}]"] = item
         return found
 
     def _buffer_owners(self):
-        """Yield the environment, its managers, and their term objects with readable names."""
-        env = self._env
-        yield "env", env
-        for manager_name, manager in vars(env).items():
+        """Yield the environment, its managers and their term objects with readable names."""
+        yield "env", self._env
+        for manager_name, manager in vars(self._env).items():
             if not isinstance(manager, ManagerBase):
                 continue
             yield manager_name, manager
             for name, value in vars(manager).items():
                 values = value.values() if isinstance(value, dict) else value if isinstance(value, list) else ()
                 for index, item in enumerate(values):
-                    items = item if isinstance(item, list) else [item]
-                    for term in items:
+                    for term in item if isinstance(item, list) else [item]:
                         term = getattr(term, "func", term)
                         if hasattr(term, "__dict__") and not inspect.isroutine(term) and not inspect.isclass(term):
                             yield f"{manager_name}.{name}[{index}]:{type(term).__name__}", term
 
-    _outputs = frozenset(
-        f"env.{name}" for name in ("obs_buf", "reward_buf", "reset_buf", "reset_terminated", "reset_time_outs")
-    )
-    """Step outputs that each step binds anew and that no earlier operation of the step reads."""
-
     def _capture(self, fn: Callable[[], None]) -> Any:
-        graph = self._env.sim.physics_manager.capture_graph(fn)
-        if graph is None:
+        if (graph := self._env.sim.physics_manager.capture_graph(fn)) is None:
             raise RuntimeError("the physics backend does not capture graphs")
         return graph

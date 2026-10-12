@@ -28,8 +28,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# stand-in for a term whose schedule is decided on the host
 _HOST_TIMED = SimpleNamespace(supports_graph_capture=False)
-"""Stand-in for a term whose schedule is decided on the host."""
 
 
 class EventManager(ManagerBase):
@@ -174,9 +174,7 @@ class EventManager(ManagerBase):
         """Calls each event term in the specified mode.
 
         This function iterates over all the event terms in the specified mode and calls the function
-        corresponding to the term. Terms that declare an ``env_mask`` parameter receive a boolean mask of the
-        selected environments and are called on every application. Other terms receive the selected indices
-        and are skipped when no environment is selected; see
+        corresponding to the term, with the environments to apply the event to; see
         :func:`~isaaclab.utils.env_selection_kwargs`.
 
         For the "interval" mode, the function is called when the time interval has passed. This requires
@@ -248,10 +246,8 @@ class EventManager(ManagerBase):
                     if time_left < 1e-6:
                         time_left[:] = self._sample_interval(term_cfg, time_left)
                         # call the event term on every environment (index-based terms receive None)
-                        if takes_env_mask(term_cfg.func):
-                            term_cfg.func(self._env, self._env_selection(None, None)[0], **term_cfg.params)
-                        else:
-                            term_cfg.func(self._env, None, **term_cfg.params)
+                        selection = self._env_selection(None, None)[0] if takes_env_mask(term_cfg.func) else None
+                        term_cfg.func(self._env, selection, **term_cfg.params)
                 else:
                     due = self._interval_term_due[index]
                     torch.lt(time_left, 1e-6, out=due.torch)

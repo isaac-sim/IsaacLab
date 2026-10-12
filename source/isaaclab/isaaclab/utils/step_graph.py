@@ -34,12 +34,7 @@ class StepGraph:
     """
 
     def __init__(self, ops: Sequence[StepOp], steps: int = 1):
-        """Initialize the graph.
-
-        Args:
-            ops: Operations in execution order.
-            steps: Steps one launch advances, e.g. physics steps.
-        """
+        """Initialize the graph from ``ops`` in execution order; one launch advances ``steps`` (e.g. physics) steps."""
         self.ops = tuple(ops)
         self.steps = steps
         self.segments = tuple(
@@ -76,7 +71,7 @@ class StepGraph:
         """Launch every operation so that the caller's active capture records them.
 
         Raises:
-            RuntimeError: If an operation cannot be recorded into a CUDA graph.
+            RuntimeError: If an operation is not graphable.
         """
         if not self.graphable:
             eager = sorted({op.name for op in self.ops if not op.graphable})

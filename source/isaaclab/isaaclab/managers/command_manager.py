@@ -130,8 +130,8 @@ class CommandTerm(ManagerTermBase):
                 ``env_ids``.
 
         Returns:
-            A dictionary containing the information to log under the "{name}" key. Metrics are averaged over the
-            reset environments, and are zero when no environment is selected.
+            A dictionary containing the information to log under the "{name}" key (zero when no environment is
+            selected).
         """
         if env_mask is None:
             env_ids = slice(None) if env_ids is None else env_ids
@@ -179,9 +179,6 @@ class CommandTerm(ManagerTermBase):
     def _resample(self, env_mask: ProxyArray, env_ids: Sequence[int] | slice | None = None):
         """Resample the command and the time for which it is applied in the selected environments.
 
-        Terms whose :meth:`_resample_command` takes ``env_mask`` resample without synchronizing the device. Terms
-        that take ``env_ids`` resample only when an environment is selected.
-
         Args:
             env_mask: Boolean mask of the environments to resample. Shape is (num_envs,).
             env_ids: The indices ``env_mask`` was selected with, if any, passed to index-based terms.
@@ -210,9 +207,8 @@ class CommandTerm(ManagerTermBase):
     def _resample_command(self, env_mask: ProxyArray):
         """Resample the command for the selected environments.
 
-        Implementations take either ``env_mask``, a boolean mask of shape (num_envs,), and leave unselected
-        environments unchanged, or ``env_ids``, the selected indices. Taking indices synchronizes the device
-        whenever the command is resampled.
+        Implementations take ``env_mask`` (shape (num_envs,); leave unselected environments unchanged) or
+        ``env_ids``, which synchronizes the device.
         """
         raise NotImplementedError
 

@@ -219,7 +219,7 @@ class DirectRLEnv(gym.Env):
         # -- counter for curriculum
         self.common_step_counter = 0
         # captured step (see ``DirectRLEnvCfg.capture_step``)
-        self._step_capture = EnvStepCapture(self, self._step_ops, self._step_graph_blocker, self.cfg.capture_step)
+        self._step_capture = EnvStepCapture(self, self._step_ops, lambda: None, self.cfg.capture_step)
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
@@ -480,47 +480,25 @@ class DirectRLEnv(gym.Env):
 
     @property
     def step_graph(self) -> StepGraph | None:
-        """The operations :meth:`step` runs, grouped into CUDA graphs, or None while stepping eagerly.
-
-        See :attr:`~isaaclab.envs.DirectRLEnvCfg.capture_step`.
-        """
+        """The step's operations grouped into CUDA graphs, or None while stepping eagerly."""
         return self._step_capture.graph
 
     def invalidate_step_graph(self) -> None:
-        """Record the captured step again before the next step, e.g. after changing a value the hooks read as a
-        constant."""
+        """Record the captured step again before the next step, e.g. after changing a constant the hooks read."""
         self._step_capture.invalidate()
-
-    def _step_graph_blocker(self) -> str | None:
-        """Return why the step cannot run as a captured graph, or None."""
-        if not self.scene.cfg.lazy_sensor_update:
-            return "the scene updates sensors eagerly (lazy_sensor_update is False)"
-        if self.has_rtx_sensors:
-            return "camera sensors render on the host"
-        for name, sensor in self.scene.sensors.items():
-            if not sensor.supports_graph_capture:
-                return f"sensor '{name}' ({type(sensor).__name__}) cannot be recorded"
-        return None
 
     def _step_ops(self, physics_ops: list[StepOp]) -> list[StepOp]:
         """Return one environment step as operations, flagged by whether a CUDA graph can record them."""
-        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         writes = all(asset.supports_graph_capture for asset in self.scene.assets.values())
-        pre_physics = StepOp(self._pre_physics_step_from_buffer, True, "pre_physics_step")
-        # Physics may open with eager host work (e.g. model-change notification) that the actions do not depend on.
-        leading = next((i for i, op in enumerate(physics_ops) if op.graphable), len(physics_ops))
-        ops = list(physics_ops[:leading])
-        for _ in range(self.cfg.decimation // steps_per_call):
-            if pre_physics is not None:
-                ops.append(pre_physics)
-                pre_physics = None
-            elif leading:
-                ops.extend(physics_ops[:leading])
-            ops.append(StepOp(self._apply_action, True, "apply_action"))
-            ops.append(StepOp(self.scene.write_data_to_sim, writes, "scene.write"))
-            ops.extend(physics_ops[leading:])
-            ops.append(StepOp(partial(self.scene.update, dt=self.physics_dt * steps_per_call), True, "scene.update"))
-        ops.append(StepOp(self._advance_episode, True, "episode"))
+        ops = self._step_capture.decimation_ops(
+            physics_ops,
+            StepOp(self._pre_physics_step_from_buffer, True, "pre_physics_step"),
+            [
+                StepOp(self._apply_action, True, "apply_action"),
+                StepOp(self.scene.write_data_to_sim, writes, "scene.write"),
+            ],
+        )
+        ops.append(StepOp(partial(self.episode_length_buf.add_, 1), True, "episode"))
         ops.append(StepOp(self._compute_dones_and_rewards, True, "dones_and_rewards"))
         # the default reset compacts the mask into indices, which synchronizes, so it becomes an eager island
         ops.append(StepOp(self._reset_envs_from_buffer, True, "reset"))
@@ -546,9 +524,6 @@ class DirectRLEnv(gym.Env):
         if self.cfg.action_noise_model:
             action = self._action_noise_model(action)
         self._pre_physics_step(action)
-
-    def _advance_episode(self) -> None:
-        self.episode_length_buf += 1
 
     def _compute_dones_and_rewards(self) -> None:
         self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
@@ -627,9 +602,11 @@ class DirectRLEnv(gym.Env):
         """
         scalars = {
             "episode": {
-                "mean_reward": lambda: float(getattr(self, "reward_buf", None).mean())
-                if getattr(self, "reward_buf", None) is not None
-                else 0.0,
+                "mean_reward": lambda: (
+                    float(getattr(self, "reward_buf", None).mean())
+                    if getattr(self, "reward_buf", None) is not None
+                    else 0.0
+                ),
                 "episode_length": lambda: float(self.episode_length_buf.float().mean()),
             }
         }

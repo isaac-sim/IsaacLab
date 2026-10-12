@@ -44,7 +44,9 @@ class _Env:
         physics_ops: list[StepOp] = []
         physics = SimpleNamespace(step_ops=lambda: physics_ops, capture_graph=_TorchGraph)
         self.sim = SimpleNamespace(is_rendering=False, physics_manager=physics, finish_physics_step=lambda: None)
-        self.scene = SimpleNamespace(notify_update_replayed=lambda dt: None)
+        self.has_rtx_sensors = False
+        scene_cfg = SimpleNamespace(lazy_sensor_update=True)
+        self.scene = SimpleNamespace(cfg=scene_cfg, sensors={}, notify_update_replayed=lambda dt: None)
         self.state = torch.zeros(4, device=self.device)
         self.observed = torch.zeros(4, device=self.device)
 

@@ -606,9 +606,7 @@ class Camera(SensorBase):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
-        # The hook takes plain id sequences, so a slice resolves to its range. A mask resolves to the
-        # selected ids, which waits on the device (as reading rendered frames does), and the hook is
-        # skipped when nothing is selected so that pending asynchronous renders are kept.
+        # The hook takes plain id sequences; an empty mask skips it to keep pending asynchronous renders.
         if env_mask is not None:
             renderer_env_ids = wp.to_torch(env_mask).nonzero().squeeze(-1).tolist()
             if renderer_env_ids:

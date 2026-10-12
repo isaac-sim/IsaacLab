@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import functools
+
 import numpy as np
 import pytest
 import torch
@@ -78,7 +80,7 @@ def test_env_mask_round_trip(env_ids):
 def test_env_selection_kwargs():
     """Mask callables get the mask; index callables get the caller's or the selected indices, or are skipped."""
 
-    def by_mask(env, env_mask):
+    def by_mask(env, env_mask, scale=1.0):
         pass
 
     def by_ids(env, env_ids):
@@ -93,18 +95,9 @@ def test_env_selection_kwargs():
 
     mask = env_mask_from_ids([1, 3], 4, "cpu")
     assert takes_env_mask(by_mask) and takes_env_mask(Term()) and takes_env_mask(Term)
+    assert takes_env_mask(functools.partial(by_mask, scale=2.0))
     assert not takes_env_mask(by_ids) and not takes_env_mask(Term().reset)
     assert env_selection_kwargs(by_mask, mask) == {"env_mask": mask}
     assert torch.equal(env_selection_kwargs(by_ids, mask)["env_ids"], torch.tensor([1, 3]))
     assert env_selection_kwargs(by_ids, mask, slice(None)) == {"env_ids": slice(None)}
     assert env_selection_kwargs(Term().reset, env_mask_from_ids([], 4, "cpu")) is None
-
-
-def test_takes_env_mask_sees_through_partial():
-    """A partial of a mask-native function is recognized as mask-native."""
-    import functools
-
-    def by_mask(env, env_mask, scale):
-        pass
-
-    assert takes_env_mask(functools.partial(by_mask, scale=2.0))

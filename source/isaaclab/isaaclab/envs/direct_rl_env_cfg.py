@@ -82,16 +82,10 @@ class DirectRLEnvCfg:
     capture_step: bool = True
     """Whether to run :meth:`~isaaclab.envs.DirectRLEnv.step` from CUDA graphs when the physics backend allows.
 
-    The step is laid out as operations around the physics step's own:
-    :meth:`~isaaclab.envs.DirectRLEnv._pre_physics_step`, :meth:`~isaaclab.envs.DirectRLEnv._apply_action`, the scene
-    update, the done and reward computations, the reset, interval events, and the observations. Consecutive operations
-    that a CUDA graph can record replay from one graph; operations that synchronize the device, such as the default
-    index-based reset, run eagerly in place. The hooks must
-    not branch on host state that changes between steps; set this to False for tasks whose hooks do.
-
-    The environment steps eagerly when the physics backend exposes no step operations (PhysX), while rendering or
-    recording video, or when a sensor cannot be recorded. With a captured step, the returned observations, rewards and
-    done flags are buffers that the next step overwrites. Defaults to True.
+    Operations that synchronize the device, such as the default index-based reset, run eagerly in place. The hooks
+    must not branch on host state that changes between steps. The environment steps eagerly without physics step
+    operations (PhysX), while rendering or recording video, or with a sensor that cannot be recorded. Returned
+    buffers are overwritten by the next step. Defaults to True.
     """
 
     compute_final_obs: bool = False

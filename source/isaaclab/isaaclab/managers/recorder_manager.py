@@ -273,8 +273,6 @@ class RecorderManager(ManagerBase):
     ) -> dict[str, torch.Tensor]:
         """Resets the recorder data.
 
-        Recorded episodes live on the host, so a mask is converted to indices when recorder terms are active.
-
         Args:
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.

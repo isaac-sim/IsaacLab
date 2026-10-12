@@ -286,15 +286,11 @@ class ActuatorBase(ABC):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         """Reset the internals within the group.
 
-        .. caution::
-            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
-
         Args:
             env_ids: Environment indices or a slice selecting the environments to reset. Defaults to None,
                 which resets all environments.
-            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,).
-                Implementations must reset from it without synchronizing the device and leave the unselected
-                environments unchanged.
+            env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,). Takes
+                precedence over ``env_ids``; implementations must not synchronize the device.
         """
         raise NotImplementedError
 

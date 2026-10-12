@@ -123,17 +123,14 @@ def test_integral(device):
 )
 def test_stateful_modifier_mask_reset(cfg):
     """A mask reset clears the history of the selected environments only."""
-    modifier_obj = cfg.func(cfg, (3, 2), device="cpu")
-    reference = cfg.func(cfg, (3, 2), device="cpu")
+    modifier_obj, reference = (cfg.func(cfg, (3, 2), device="cpu") for _ in range(2))
     data = torch.ones(3, 2)
-    first_output = reference(data).clone()
-    reference(data)
-    third_output = reference(data).clone()
-    modifier_obj(data)
-    modifier_obj(data)
+    expected = [reference(data).clone() for _ in range(3)]
+    for _ in range(2):
+        modifier_obj(data)
 
     modifier_obj.reset(env_mask=env_mask_from_ids([0, 2], 3, "cpu"))
     output = modifier_obj(data)
 
-    torch.testing.assert_close(output[[0, 2]], first_output[[0, 2]])
-    torch.testing.assert_close(output[1], third_output[1])
+    torch.testing.assert_close(output[[0, 2]], expected[0][[0, 2]])
+    torch.testing.assert_close(output[1], expected[2][1])

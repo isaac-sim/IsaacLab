@@ -338,9 +338,6 @@ class ObservationManager(ManagerBase):
             env_ids: The environment ids. Defaults to None, in which case all environments are considered.
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,). Takes precedence over
                 ``env_ids``.
-
-        Returns:
-            An empty dictionary.
         """
         env_mask, env_ids = self._env_selection(env_ids, env_mask)
         # call all terms that are classes
