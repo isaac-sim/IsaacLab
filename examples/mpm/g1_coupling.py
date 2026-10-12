@@ -21,12 +21,16 @@ robot. Compare its progress and balance with ``--coupling one_way`` and
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app.logging_utils import configure_console_logging
+
+logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
 TASK = "Isaac-Velocity-Flat-G1"
 POLICY_BACKEND_NAMES = ("newtonmjwarp", "none")
@@ -300,14 +304,12 @@ def _configure_common_environment(env_cfg: Any) -> None:
             if name not in {"newton", "newton_gl", "newton_rtx"}:
                 continue
             cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-            # Keep the standalone comparison independent of optional HDR assets.
-            visualizer_kwargs = {"rtx_environment": "studio"} if name == "newton_rtx" else {}
+            visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
             visualizer_cfgs.append(
                 cfg_type(
                     eye=CAMERA_EYE,
                     lookat=CAMERA_TARGET,
                     streaming_view=False,
-                    show_particles=True,
                     **visualizer_kwargs,
                 )
             )
@@ -484,6 +486,7 @@ def _tracking_camera_pose(base_x: float) -> tuple[tuple[float, float, float], tu
 
 def main() -> None:
     """Load the published policy and play the selected coupling variant."""
+    configure_console_logging(vars(args_cli))
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
@@ -499,12 +502,13 @@ def main() -> None:
         if not checkpoint.is_file():
             raise FileNotFoundError(f"G1 checkpoint not found: {checkpoint}")
     configure_environment(env_cfg)
-    print("[INFO]: Configured G1 rigid/MPM environment; launching visualizer.", flush=True)
+    logger.info("Configured G1 rigid/MPM environment; launching visualizer.")
     env_cfg.seed = args_cli.seed
     agent_cfg.seed = args_cli.seed
     env_cfg.sim.device = args_cli.device
 
     with launch_simulation(env_cfg, args_cli):
+        agent_cfg.device = env_cfg.sim.device
         import torch
         from rsl_rl.runners import OnPolicyRunner
 
@@ -523,7 +527,7 @@ def main() -> None:
             if published_checkpoint is None:
                 raise FileNotFoundError(f"No published rsl_rl checkpoint is available for {TASK!r}.")
             checkpoint = Path(published_checkpoint).resolve()
-        print(f"[INFO]: Resolved G1 checkpoint: {checkpoint}", flush=True)
+        logger.info(f"Resolved G1 checkpoint: {checkpoint}")
 
         base_env = ManagerBasedRLEnv(cfg=env_cfg)
         env = RslRlVecEnvWrapper(base_env, clip_actions=agent_cfg.clip_actions)
@@ -537,10 +541,9 @@ def main() -> None:
         strip_particle_counts = {
             name: env.unwrapped.scene[f"{name}_strip"].particles_per_object for name in STRIP_NAMES
         }
-        print(
-            f"[INFO]: G1 {args_cli.coupling} playback ready with {sum(strip_particle_counts.values())} particles; "
+        logger.info(
+            f"G1 {args_cli.coupling} playback ready with {sum(strip_particle_counts.values())} particles; "
             f"{1000 * args_cli.voxel_size:g} mm voxels and {100 * STRIP_THICKNESS:g} cm strips.",
-            flush=True,
         )
 
         step = 0
@@ -559,10 +562,9 @@ def main() -> None:
             robot = env.unwrapped.scene["robot"]
             root_pos = robot.data.root_pos_w.torch[0]
             root_velocity = robot.data.root_lin_vel_w.torch[0]
-            print(
-                f"[INFO]: G1 stopped after {step} steps at x={float(root_pos[0]):.3f} m, "
+            logger.info(
+                f"G1 stopped after {step} steps at x={float(root_pos[0]):.3f} m, "
                 f"height={float(root_pos[2]):.3f} m, forward speed={float(root_velocity[0]):.3f} m/s.",
-                flush=True,
             )
             env.close()
 

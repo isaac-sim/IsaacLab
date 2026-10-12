@@ -20,12 +20,16 @@ total mass.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 from typing import NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app.logging_utils import configure_console_logging
+
+logger = logging.getLogger("isaaclab.tutorials.mpm.rigid_body_equivalence")
 
 
 class ShapeSpec(NamedTuple):
@@ -216,14 +220,12 @@ def create_visualizer_cfgs():
         if name not in {"newton", "newton_gl", "newton_rtx"}:
             continue
         cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        visualizer_kwargs = {"rtx_environment": "studio"} if name == "newton_rtx" else {}
+        visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
         cfgs.append(
             cfg_type(
                 eye=CAMERA_EYE,
                 lookat=CAMERA_TARGET,
                 streaming_view=False,
-                show_particles=True,
-                update_frequency=1,
                 **visualizer_kwargs,
             )
         )
@@ -448,6 +450,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch the rigid-body versus nearly rigid MPM comparison."""
+    configure_console_logging(vars(args_cli))
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
@@ -458,16 +461,14 @@ def main() -> None:
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         particle_count = sum(len(points) for points in SHAPE_POINTS.values())
-        print(
-            f"[INFO]: Rigid-versus-MPM comparison ready: {particle_count} MPM particles across {len(SHAPES)} pairs.",
-            flush=True,
+        logger.info(
+            f"Rigid-versus-MPM comparison ready: {particle_count} MPM particles across {len(SHAPES)} pairs.",
         )
-        print("[INFO]: Left lane = MJWarp rigid bodies; right lane = nearly rigid MPM.", flush=True)
-        print(
-            f"[INFO]: MPM settings: voxel={1000 * args_cli.voxel_size:g} mm, "
+        logger.info("Left lane = MJWarp rigid bodies; right lane = nearly rigid MPM.")
+        logger.info(
+            f"MPM settings: voxel={1000 * args_cli.voxel_size:g} mm, "
             f"{PARTICLES_PER_VOXEL_AXIS:g} particles/voxel axis, E={args_cli.mpm_young_modulus:.0e} Pa, "
             f"yield pressure={args_cli.mpm_yield_pressure:.0e} Pa.",
-            flush=True,
         )
         run_simulator(sim, scene)
 

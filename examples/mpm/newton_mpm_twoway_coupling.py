@@ -100,16 +100,14 @@ def create_visualizer_cfgs():
     if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
         return []
 
-    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            eye=CAMERA_EYE,
-            lookat=CAMERA_TARGET,
-            streaming_view=False,
-            show_particles=True,
-            particle_color=PARTICLE_COLOR,
-        )
-    ]
+    cfgs = []
+    for name in requested:
+        if name not in {"newton", "newton_gl", "newton_rtx"}:
+            continue
+        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
+        particle_options = {} if name == "newton_rtx" else {"show_particles": True, "particle_color": PARTICLE_COLOR}
+        cfgs.append(cfg_type(eye=CAMERA_EYE, lookat=CAMERA_TARGET, streaming_view=False, **particle_options))
+    return cfgs
 
 
 def create_sim_cfg():

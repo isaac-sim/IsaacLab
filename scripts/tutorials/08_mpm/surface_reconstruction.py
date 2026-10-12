@@ -21,15 +21,19 @@ Use ``--fluid_render_mode both`` to view the surface and its source particles.
 from __future__ import annotations
 
 import argparse
+import logging
 import math
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app.logging_utils import configure_console_logging
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
+
+logger = logging.getLogger("isaaclab.tutorials.mpm.surface_reconstruction")
 
 
 class SurfacePreset(NamedTuple):
@@ -220,9 +224,6 @@ def create_visualizer_cfgs():
         "eye": CAMERA_EYE,
         "lookat": CAMERA_TARGET,
         "focal_length": 30.0,
-        "show_particles": SHOW_PARTICLES,
-        "particle_color": WATER_COLOR,
-        "enable_live_plots": False,
     }
     cfgs = []
     if "kit" in (args_cli.visualizer or []):
@@ -236,11 +237,19 @@ def create_visualizer_cfgs():
 
     for name in args_cli.visualizer or []:
         if name in ("newton", "newton_gl"):
-            cfgs.append(NewtonGLVisualizerCfg(streaming_view=False, background_color=None, **common))
+            cfgs.append(
+                NewtonGLVisualizerCfg(
+                    streaming_view=False,
+                    background_color=None,
+                    show_particles=SHOW_PARTICLES,
+                    particle_color=WATER_COLOR,
+                    enable_live_plots=False,
+                    **common,
+                )
+            )
         elif name == "newton_rtx":
             cfgs.append(
                 NewtonRTXVisualizerCfg(
-                    rtx_environment="studio",
                     render_settings={
                         "omni:rtx:quality": ("Int", args_cli.rtx_quality),
                         "omni:rtx:rt:reflections:enabled": ("Bool", True),
@@ -441,6 +450,7 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
                     tensile_yield_ratio=1.0,
                 ),
                 visual_color=WATER_COLOR,
+                visible=SHOW_PARTICLES,
                 visual_material=sim_utils.PreviewSurfaceCfg(
                     diffuse_color=WATER_COLOR,
                     roughness=0.08,
@@ -453,6 +463,10 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
             prim_path="/World/Ground",
             spawn=sim_utils.GroundPlaneCfg(size=(10.0, 10.0)),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -0.11)),
+        )
+        dome_light = AssetBaseCfg(
+            prim_path="/World/DomeLight",
+            spawn=sim_utils.DomeLightCfg(intensity=1800.0, color=(0.82, 0.84, 0.88)),
         )
 
     return SurfaceSplashSceneCfg(num_envs=1, env_spacing=0.0)
@@ -530,6 +544,7 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None) 
 
 def main() -> None:
     """Launch the surface-reconstruction study."""
+    configure_console_logging(vars(args_cli))
     points, velocities, blob_particle_count = create_fluid_points()
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
@@ -541,21 +556,19 @@ def main() -> None:
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = create_surface_renderer(sim) if SHOW_SURFACE else None
-        print(
-            f"[INFO]: Surface splash ready: {points.shape[0]} particles ({blob_particle_count} airborne), "
+        logger.info(
+            f"Surface splash ready: {points.shape[0]} particles ({blob_particle_count} airborne), "
             f"{args_cli.fluid_render_mode} mode, {args_cli.surface_preset} preset.",
-            flush=True,
         )
         if SHOW_SURFACE:
-            print(f"[INFO]: Surface settings: {SURFACE_CFG._asdict()}.", flush=True)
+            logger.info(f"Surface settings: {SURFACE_CFG._asdict()}.")
         final_metrics = run_simulator(sim, scene, surface_renderer)
-        print(
-            "[INFO]: Surface splash final bounds: "
+        logger.info(
+            "Surface splash final bounds: "
             f"({float(final_metrics['fluid_aabb_x_m']):.3f}, "
             f"{float(final_metrics['fluid_aabb_y_m']):.3f}, "
             f"{float(final_metrics['fluid_aabb_z_m']):.3f}) m; "
             f"triangles={int(final_metrics['surface_triangle_count'])}.",
-            flush=True,
         )
 
 

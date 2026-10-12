@@ -87,6 +87,10 @@ def _python(source: str) -> list[str]:
     [
         "scripts/tutorials/08_mpm/material_parameters.py",
         "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
+        "scripts/tutorials/08_mpm/surface_reconstruction.py",
+        "examples/demos/teapot_fill.py",
+        "examples/mpm/newton_mpm_granular.py",
+        "examples/mpm/newton_mpm_twoway_coupling.py",
         "examples/mpm/g1_coupling.py",
     ],
 )
@@ -103,7 +107,9 @@ import runpy
 import sys
 
 script = sys.argv[1]
-sys.argv = [script, '--voxel_size', '0.1', '--visualizer', 'newton_gl,newton_rtx']
+sys.argv = [script, '--visualizer', 'newton_gl,newton_rtx']
+if not script.endswith('surface_reconstruction.py'):
+    sys.argv.extend(['--voxel_size', '0.1'])
 namespace = runpy.run_path(script)
 if 'create_visualizer_cfgs' in namespace:
     configs = namespace['create_visualizer_cfgs']()

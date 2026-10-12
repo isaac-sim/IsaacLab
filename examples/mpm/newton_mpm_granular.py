@@ -82,15 +82,14 @@ def create_visualizer_cfgs():
 
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            eye=CAMERA_EYE,
-            lookat=CAMERA_TARGET,
-            show_particles=True,
-            particle_color=PARTICLE_COLOR,
-        )
-    ]
+    cfgs = []
+    for name in args_cli.visualizer or []:
+        if name not in {"newton", "newton_gl", "newton_rtx"}:
+            continue
+        cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
+        particle_options = {} if name == "newton_rtx" else {"show_particles": True, "particle_color": PARTICLE_COLOR}
+        cfgs.append(cfg_type(eye=CAMERA_EYE, lookat=CAMERA_TARGET, **particle_options))
+    return cfgs
 
 
 def create_sim_cfg():

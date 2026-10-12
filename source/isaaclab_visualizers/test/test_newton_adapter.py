@@ -89,7 +89,10 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
         visualizer.log_mesh("/surface", points, indices)
 
 
-def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("visualizer_cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
+def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(
+    monkeypatch: pytest.MonkeyPatch, visualizer_cfg_type
+):
     """A reusable extractor must stage visible and empty meshes through the viewer API."""
     model = SimpleNamespace(
         device=wp.get_device("cpu"),
@@ -102,7 +105,7 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
     monkeypatch.setattr(particle_surface_module.NewtonManager, "get_state_0", lambda: state)
 
     viewer = _Viewer()
-    visualizer = _make_newton_visualizer(viewer)
+    visualizer = _make_newton_visualizer(viewer, cfg=visualizer_cfg_type(enable_markers=False))
     surface = Mock(world_count=2)
     mesh = surface.extract.return_value
     vertices = wp.zeros(4, dtype=wp.vec3)
@@ -113,7 +116,9 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
         [visualizer], surface, path="/water", color=(0.1, 0.2, 0.8), opacity=0.65, use_cuda_graph=False
     )
 
+    assert viewer.events == []
     assert renderer.update() == 2
+    assert viewer.events == []
     surface.extract.assert_called_with(
         state.particle_q,
         model.particle_radius,
@@ -125,6 +130,7 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
     assert viewer.logged_mesh[1] is vertices
     assert viewer.logged_mesh[3]["dynamic"] and not viewer.logged_mesh[3]["hidden"]
     assert viewer.logged_mesh[3]["opacity"] == 0.65
+    assert viewer.events == ["begin_frame", "log_state", "log_mesh", "end_frame"]
 
     assert renderer.update() == 0
     visualizer.step(0.1)
@@ -585,7 +591,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
     view.render = visualizer._capture_perspective
     visualizer.current_image_view, visualizer._image_views = view, [view]
-    if viewer is not None:
+    if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
     return visualizer
 

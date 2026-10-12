@@ -19,11 +19,15 @@ compressibility comparison to observe the response to sustained compression.
 from __future__ import annotations
 
 import argparse
+import logging
 from typing import NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.app.logging_utils import configure_console_logging
+
+logger = logging.getLogger("isaaclab.tutorials.mpm.material_parameters")
 
 
 class TuningPreset(NamedTuple):
@@ -317,13 +321,12 @@ def create_visualizer_cfgs():
         if name not in {"newton", "newton_gl", "newton_rtx"}:
             continue
         cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-        visualizer_kwargs = {"rtx_environment": "studio"} if name == "newton_rtx" else {}
+        visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
         cfgs.append(
             cfg_type(
                 eye=CAMERA_EYE,
                 lookat=CAMERA_TARGET,
                 streaming_view=False,
-                show_particles=True,
                 **visualizer_kwargs,
             )
         )
@@ -576,6 +579,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch the selected MPM material comparison."""
+    configure_console_logging(vars(args_cli))
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
@@ -586,13 +590,12 @@ def main() -> None:
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         particle_count = sum(scene[name].particles_per_object for name in SPECIMEN_NAMES)
-        print(
-            f"[INFO]: {PRESET.title}: {PRESET.subtitle}. "
+        logger.info(
+            f"{PRESET.title}: {PRESET.subtitle}. "
             f"Spawned {len(SPECIMEN_NAMES)} specimens with {particle_count} particles.",
-            flush=True,
         )
         for index in ACTIVE_VARIANT_INDICES:
-            print(f"[INFO]: {PRESET.labels[index]}", flush=True)
+            logger.info(PRESET.labels[index])
         run_simulator(sim, scene)
 
 

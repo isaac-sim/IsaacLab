@@ -222,15 +222,13 @@ def create_visualizer_cfgs():
 
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
-    cfg_types = {"newton_gl": NewtonGLVisualizerCfg, "newton_rtx": NewtonRTXVisualizerCfg}
-    return [
-        cfg_types[name](
-            show_particles=SHOW_FLUID_PARTICLES,
-            particle_color=WATER_COLOR,
-        )
-        for name in requested
-        if name in cfg_types
-    ]
+    cfgs = []
+    for name in requested:
+        if name == "newton_gl":
+            cfgs.append(NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR))
+        elif name == "newton_rtx":
+            cfgs.append(NewtonRTXVisualizerCfg())
+    return cfgs
 
 
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
@@ -683,6 +681,7 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
         fluid = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
+                visible=SHOW_FLUID_PARTICLES,
                 positions=fluid_points.tolist(),
                 mass=particle_mass,
                 radius=particle_radius,
