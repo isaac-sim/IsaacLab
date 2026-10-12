@@ -38,11 +38,11 @@ def main() -> None:
         # Kit's launcher resolves its app window from HEADLESS and the visualizer selection.
         os.environ["HEADLESS"] = "1"
     with launch_simulation(cfg, args), ExitStack() as stack:
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env import CoffeeDemoEnv
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeePresentation
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.scripted import CoffeeScoopDemo
 
-        env = CoffeeEnv(cfg)
+        env = CoffeeDemoEnv(cfg)
         stack.callback(env.close)
         env.reset()
         if visualizers and cfg.grains_per_particle:
@@ -86,6 +86,17 @@ def main() -> None:
             while step < args.max_steps:
                 if not env.sim.is_running():
                     break
+                if env.sim.consume_reset_request():
+                    env.reset()
+                    if controller is not None:
+                        controller.reset()
+                    if device is not None:
+                        device.reset()
+                        teleop_controller.reset()
+                    if camera is not None:
+                        camera.reset()
+                    recording.previous_phase = None
+                    presentation_elapsed = 0.0
                 if device is not None:
                     action = device.advance()
                     events = poll_control_events(device)
@@ -95,6 +106,8 @@ def main() -> None:
                         teleop_controller.reset()
                         if camera is not None:
                             camera.reset()
+                        recording.previous_phase = None
+                        presentation_elapsed = 0.0
                     if action is None or events.is_active is False:
                         env.sim.render()
                         continue
@@ -107,28 +120,9 @@ def main() -> None:
                         controller.phase if controller is not None else "teleoperation",
                         env.step_dt,
                     )
-                observations, reward, terminated, truncated, _ = env.step(env.actions_from_targets(action))
-                if not torch.isfinite(observations["policy"]).all() or not torch.isfinite(reward).all():
-                    raise RuntimeError("Coffee rollout produced a nonfinite observation or reward.")
-                if bool(terminated.any()) or bool(truncated.any()):
-                    if controller is not None:
-                        reasons = [
-                            name
-                            for name in env.termination_manager.active_terms
-                            if bool(env.termination_manager.get_term(name).any())
-                        ]
-                        if not reasons:
-                            # Desktop Reset is an episode boundary, not a failed simulation.
-                            controller.reset()
-                            if camera is not None:
-                                camera.reset()
-                            recording.previous_phase = None
-                            presentation_elapsed = 0.0
-                            step += 1
-                            continue
-                        raise RuntimeError(f"Scripted rollout ended at step {step}: {', '.join(reasons)}.")
-                    device.reset()
-                    teleop_controller.reset()
+                env.step(action)
+                if not env.is_state_finite().all():
+                    raise RuntimeError("Coffee rollout produced nonfinite robot or material positions.")
                 phase = str(controller.phase) if controller is not None else "teleoperation"
                 presentation_elapsed += env.step_dt
                 # Surface reconstruction is only needed for frames that are recorded.
@@ -139,7 +133,7 @@ def main() -> None:
                     presentation_elapsed = 0.0
                 recording.update(step, phase)
                 if controller is not None and controller.finished:
-                    if env.particle_fractions()[0, 2] < cfg.success_fraction:
+                    if env.particle_fractions()[0, 2] < cfg.min_delivered_fraction:
                         raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
                     recording.close()
                     # Capture the complete sequence; desktop Reset can replay it independently.
@@ -306,9 +300,9 @@ def _parse_args():
 
 
 def _make_env_cfg(args, parser, video_stride):
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeDemoEnvCfg
 
-    cfg = CoffeeEnvCfg(water_enabled=args.water)
+    cfg = CoffeeDemoEnvCfg(water_enabled=args.water)
     cfg.seed = 7
     cfg.sim.device = args.device
     cfg.voxel_size = args.voxel_size
@@ -339,8 +333,6 @@ def _make_env_cfg(args, parser, video_stride):
         media.max_active_cell_count = 98304
     if args.mpm_substeps is not None:
         cfg.sim.physics.solver_cfg.entries[1].substeps = args.mpm_substeps
-    cfg.terminations.success = None
-    cfg.episode_length_s = max(40.0, args.max_steps * cfg.sim.dt * cfg.decimation + 1.0)
     if args.video:
         # Render at the recording cadence, independently of the physics tick rate.
         cfg.sim.render_interval = video_stride * cfg.decimation
@@ -563,8 +555,8 @@ class _DemoRecording(ExitStack):
         if self._output is not None:
             self._output.mkdir(parents=True, exist_ok=True)
             metadata = dict(
-                schema_version=2,
-                task="IsaacContrib-Rizon-Sharpa-Coffee",
+                schema_version=3,
+                demo="rizon-sharpa-coffee",
                 arguments=vars(args),
                 simulation=cfg.sim.to_dict(),
                 seed=cfg.seed,
@@ -577,7 +569,7 @@ class _DemoRecording(ExitStack):
                 water_particles=len(cfg.scene.water.spawn.positions) if cfg.water_enabled else 0,
                 water_fill_height_m=cfg.water_fill_height if cfg.water_enabled else None,
                 control_dt_s=env.step_dt,
-                policy_actions=env.action_manager.total_action_dim,
+                command_dim=env.action_manager.total_action_dim,
                 video_fps=self._fps,
                 video_stride_steps=stride,
                 video_timebase="simulation",

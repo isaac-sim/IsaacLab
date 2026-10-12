@@ -5,12 +5,13 @@
 
 """Batched coffee dynamics, tool retention, contact release and partial reset."""
 
-import gymnasium as gym
 import pytest
 import torch
 from isaaclab_newton.physics import NewtonMPMManager
 
 from isaaclab.app import launch_simulation
+from isaaclab.envs import mdp
+from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import (
     apply_delta_pose,
@@ -21,9 +22,20 @@ from isaaclab.utils.math import (
 )
 
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import SPOON_BOWL_DEPTH, SPOON_BOWL_LENGTH, SPOON_BOWL_WIDTH
-from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeDemoEnvCfg
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.grasp_reset import configured_hand_targets, default_grasp_reset
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.robot import ARM_JOINT_NAMES, HAND_JOINT_NAMES, configured_asset_path
+
+
+def _startup_joint_offset(env, env_ids, asset_cfg):
+    """Adapt the native joint-reset term's selector to the global startup event."""
+    mdp.reset_joints_by_offset(
+        env,
+        slice(None) if env_ids is None else env_ids,
+        position_range=(0.001, 0.001),
+        velocity_range=(0.0, 0.0),
+        asset_cfg=asset_cfg,
+    )
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -31,7 +43,7 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
     """Robot and coffee advance; the measured spoon follows, and reset stays local."""
     if not configured_asset_path(verify=False).is_file():
         pytest.skip("Requires the workstation's licensed RJ45 Rizon/Sharpa USD bundle.")
-    cfg = CoffeeEnvCfg()
+    cfg = CoffeeDemoEnvCfg()
     cfg.seed = 7
     cfg.scene.num_envs = 2
     cfg.voxel_size = 0.005
@@ -45,12 +57,27 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
     reset_path = tmp_path / "grasp_reset.json"
     reset.save(reset_path)
     cfg.grasp_reset_path = str(reset_path)
+    cfg.events.startup = EventTermCfg(
+        func=_startup_joint_offset,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=list(ARM_JOINT_NAMES)),
+        },
+    )
     with launch_simulation(cfg, {"headless": True, "visualizer": []}):
-        from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env import CoffeeDemoEnv
 
-        task = gym.make("IsaacContrib-Rizon-Sharpa-Coffee", cfg=cfg)
-        env = task.unwrapped
+        env = CoffeeDemoEnv(cfg)
         try:
+            robot = env.scene["robot"]
+            arm_ids, _ = robot.find_joints(list(ARM_JOINT_NAMES), preserve_order=True)
+            # Configured startup events must change real state before the first reset.
+            torch.testing.assert_close(
+                robot.data.joint_pos.torch[:, arm_ids] - robot.data.default_joint_pos.torch[:, arm_ids],
+                torch.full((2, len(arm_ids)), 0.001, device=device),
+                rtol=0,
+                atol=1.0e-6,
+            )
             env.reset()
             robot, coffee, spoon = env.scene["robot"], env.scene["coffee"], env.scene["spoon"]
             thumb_id = robot.find_joints("right_thumb_IP")[0][0]
@@ -68,19 +95,8 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
             command_pos, command_quat = apply_delta_pose(initial_palm[:, :3], initial_palm[:, 3:], delta)
             command = torch.cat((command_pos, command_quat), dim=-1)
             action = torch.cat((command, robot.data.default_joint_pos.torch[:, hand_ids]), dim=-1)
-            encoded = env.actions_from_targets(action)
-            assert env.action_manager.total_action_dim == 28
-            assert encoded.shape == (2, 28)
-            env.action_manager.process_action(encoded)
-            arm = env.action_manager.get_term("arm")
-            reconstructed_pos, reconstructed_quat = apply_delta_pose(
-                initial_palm[:, :3], initial_palm[:, 3:], arm.processed_actions
-            )
-            torch.testing.assert_close(reconstructed_pos, command[:, :3])
-            assert (torch.abs((reconstructed_quat * command[:, 3:]).sum(dim=-1)) > 0.999999).all()
-            torch.testing.assert_close(env.action_manager.get_term("hand").processed_actions, action[:, 7:])
             for _ in range(8):
-                env.step(env.actions_from_targets(action))
+                env.step(action)
             particles = coffee.data.particle_state_w.torch.clone()
             assert torch.isfinite(particles).all()
             assert ((particles - initial_particles).abs().amax(dim=(1, 2)) > 1.0e-5).all()
@@ -98,8 +114,6 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
             assert ((spoon_pose[:, :3] - desired_pos).norm(dim=-1) < 0.003).all()
             assert (torch.abs((spoon_pose[:, 3:] * desired_quat).sum(dim=-1)) > 0.999).all()
 
-            env.delivery_dwell[1] = 0.17
-            preserved_dwell = env.delivery_dwell[1].clone()
             env.action_manager.apply_action()
             preserved_targets = robot.actuators.target_command.position.torch[1].clone()
             env.reset(env_ids=torch.tensor([0], device=device))
@@ -108,11 +122,9 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
             )
             torch.testing.assert_close(coffee.data.particle_state_w.torch[0], initial_particles[0], rtol=0, atol=0)
             torch.testing.assert_close(coffee.data.particle_state_w.torch[1], particles[1], rtol=0, atol=0)
-            torch.testing.assert_close(env.delivery_dwell[1], preserved_dwell, rtol=0, atol=0)
-            assert env.delivery_dwell[0] == 0
             env.action_manager.apply_action()
             torch.testing.assert_close(robot.actuators.target_command.position.torch[1], preserved_targets)
-            env.step(env.actions_from_targets(action))
+            env.step(action)
             assert torch.isfinite(coffee.data.particle_state_w.torch).all()
             assert (coffee.data.particle_state_w.torch[0] - initial_particles[0]).abs().max() > 1.0e-5
 
@@ -121,7 +133,7 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
             # this existing scene; there is no need to move the robot there.
             unreachable = action.clone()
             unreachable[:, 0] += 2.0
-            env.action_manager.process_action(env.actions_from_targets(unreachable))
+            env.action_manager.process_action(unreachable)
             env.action_manager.apply_action()
             arm_ids, _ = robot.find_joints(list(ARM_JOINT_NAMES), preserve_order=True)
             targets = robot.actuators.target_command.position.torch[:, arm_ids]
@@ -135,23 +147,15 @@ def test_batched_dynamics_attachment_and_partial_reset(device, tmp_path):
             velocity = torch.zeros_like(coffee.data.particle_vel_w.torch)
             velocity[..., 2] = 4.0
             coffee.write_particle_velocity_to_sim_index(velocity)
-            env.step(env.actions_from_targets(action))
+            env.step(action)
             assert coffee.data.particle_vel_w.torch.norm(dim=-1).max() <= 0.5001
 
-            # Exercise the registered task through PPO's actual vector wrapper.
-            # A timeout must reset just its world and remain bootstrappable.
-            rl_env = RslRlVecEnvWrapper(task, clip_actions=1.0)
-            assert rl_env.get_observations()["policy"].shape == (2, 110)
-            env.episode_length_buf[0] = env.max_episode_length - 1
-            env.episode_length_buf[1] = 0
-            obs, reward, done, extras = rl_env.step(torch.full((2, 28), 2.0, device=device))
-            assert torch.isfinite(obs["policy"]).all() and torch.isfinite(reward).all()
-            assert done.tolist() == [1, 0]
-            assert extras["time_outs"].tolist() == [True, False]
-            assert env.episode_length_buf.tolist() == [0, 1]
-            assert env.action_manager.action[1].abs().max() == 1.0
+            invalid = action.clone()
+            invalid[:, 0] = torch.nan
+            with pytest.raises(ValueError, match="Palm IK targets must be finite"):
+                env.action_manager.process_action(invalid)
         finally:
-            task.close()
+            env.close()
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -159,7 +163,7 @@ def test_contact_grasp_holds_releases_and_resets_locally(device):
     """A contact-held spoon retains coffee; opening one hand releases only its tool."""
     if not configured_asset_path(verify=False).is_file():
         pytest.skip("Requires the workstation's licensed RJ45 Rizon/Sharpa USD bundle.")
-    cfg = CoffeeEnvCfg()
+    cfg = CoffeeDemoEnvCfg()
     cfg.seed = 7
     cfg.scene.num_envs = 2
     cfg.voxel_size = 0.002
@@ -168,9 +172,9 @@ def test_contact_grasp_holds_releases_and_resets_locally(device):
     cfg.sim.device = device
     cfg.sim.physics.load_visual_shapes = False
     with launch_simulation(cfg, {"headless": True, "visualizer": []}):
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env import CoffeeEnv
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env import CoffeeDemoEnv
 
-        env = CoffeeEnv(cfg)
+        env = CoffeeDemoEnv(cfg)
         try:
             env.reset()
             robot, spoon = env.scene["robot"], env.scene["spoon"]
@@ -209,7 +213,7 @@ def test_contact_grasp_holds_releases_and_resets_locally(device):
                 (env.palm_pose(), torch.tensor(configured_hand_targets(cfg), device=device).expand(2, -1)), dim=-1
             )
             for _ in range(500):
-                env.step(env.actions_from_targets(action))
+                env.step(action)
             # The five-second hold must preserve both the tool and its contents.
             assert ((spoon.data.root_link_pos_w.torch - initial_spoon[:, :3]).norm(dim=-1) < 0.01).all()
             pose = spoon.data.root_link_pose_w.torch
@@ -230,7 +234,7 @@ def test_contact_grasp_holds_releases_and_resets_locally(device):
                 opened[1, 7 + HAND_JOINT_NAMES.index(name)] = 0.0
             for step in range(40):
                 targets = torch.lerp(action, opened, min((step + 1) / 20.0, 1.0))
-                env.step(env.actions_from_targets(targets))
+                env.step(targets)
             actual = spoon.data.root_link_pose_w.torch.clone()
             palm = robot.data.body_link_pose_w.torch[:, palm_id]
             offset, _ = subtract_frame_transforms(palm[:, :3], palm[:, 3:], actual[:, :3], actual[:, 3:])
@@ -244,7 +248,7 @@ def test_contact_grasp_holds_releases_and_resets_locally(device):
             torch.testing.assert_close(spoon.data.root_link_pose_w.torch[0], actual[0], rtol=0, atol=0)
             torch.testing.assert_close(spoon.data.root_link_pose_w.torch[1], initial_spoon[1], rtol=0, atol=1.0e-6)
             for _ in range(20):
-                env.step(env.actions_from_targets(action))
+                env.step(action)
             assert ((spoon.data.root_link_pos_w.torch - initial_spoon[:, :3]).norm(dim=-1) < 0.01).all()
         finally:
             env.close()

@@ -16,14 +16,13 @@ from isaaclab.utils import math as math_utils
 
 from .assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION, SPOON_BOWL_WIDTH
 from .grasp_reset import configured_hand_targets
-from .mdp import spoon_pose
 
 if TYPE_CHECKING:
-    from .coffee_env import CoffeeEnv
+    from .demo_env import CoffeeDemoEnv
 
 
 class CoffeeScoopDemo:
-    """Generate absolute palm and hand targets for the task's action encoder.
+    """Generate absolute palm and finger targets for the demo's IK controller.
 
     Waypoints describe the spoon cavity in the environment frame. Each command
     is converted through the measured robot root and palm/tool transform, so IK
@@ -32,7 +31,7 @@ class CoffeeScoopDemo:
     Phase transitions require both elapsed motion time and measured arrival.
     """
 
-    def __init__(self, env: CoffeeEnv) -> None:
+    def __init__(self, env: CoffeeDemoEnv) -> None:
         self._env = env
         self._offset_pos = torch.tensor(env.cfg.spoon_offset_pos, device=env.device).expand(env.num_envs, -1)
         self._offset_quat = torch.tensor(env.cfg.spoon_offset_rot, device=env.device).expand(env.num_envs, -1)
@@ -52,7 +51,7 @@ class CoffeeScoopDemo:
 
     def reset(self) -> None:
         """Restart from the current physical spoon pose after an environment reset."""
-        initial = spoon_pose(self._env)
+        initial = self._env.spoon_pose()
         source_x, source_y, source_z = BOWL_POSITION
         cup_x, cup_y, cup_z = CUP_POSITION
         level = (0.0, 0.0, 0.0, 1.0)
@@ -165,7 +164,7 @@ class CoffeeScoopDemo:
                 six additional seconds, its state becomes invalid, or the
                 contact grasp exceeds the allowed slip/rotation bounds.
         """
-        actual = spoon_pose(self._env)
+        actual = self._env.spoon_pose()
         if not torch.isfinite(actual).all():
             raise RuntimeError(f"Coffee demo has an invalid spoon pose in phase {self.phase!r}.")
         if not self.finished:

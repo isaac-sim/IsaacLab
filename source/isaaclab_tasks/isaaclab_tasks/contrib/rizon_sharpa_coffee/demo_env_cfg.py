@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manager-based Rizon–Sharpa coffee tool-use configuration."""
+"""Reusable scene and IK control configuration for the coffee demonstration."""
 
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 from typing import Literal
 
 import numpy as np
@@ -18,8 +19,8 @@ import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, RewardTermCfg, TerminationTermCfg
+from isaaclab.envs import ManagerBasedEnvCfg
+from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
@@ -37,7 +38,7 @@ from .robot import (
 
 @configclass
 class CoffeeSceneCfg(InteractiveSceneCfg):
-    """Task assets; local USD files are resolved after the simulation launcher."""
+    """Reusable assets; local USD files are resolved after the simulation launcher."""
 
     robot: ArticulationCfg | None = None
     table: AssetBaseCfg | None = None
@@ -59,92 +60,43 @@ class CoffeeSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class CoffeeActionsCfg:
-    """Six scaled palm increments and 22 finger positions normalized to joint limits."""
+    """Absolute robot-base palm XYZ/XYZW followed by 22 named finger angles."""
 
     arm = common_mdp.DifferentialInverseKinematicsActionCfg(
-        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:PalmPoseIKAction",
+        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.control:PalmPoseIKAction",
         asset_name="robot",
         joint_names=list(ARM_JOINT_NAMES),
         body_name=PALM_BODY_NAME,
-        scale=(0.005, 0.005, 0.005, 0.03, 0.03, 0.03),
+        scale=1.0,
         controller=DifferentialIKControllerCfg(
-            command_type="pose", use_relative_mode=True, ik_method="dls", ik_params={"lambda_val": 0.05}
+            command_type="pose", use_relative_mode=False, ik_method="dls", ik_params={"lambda_val": 0.05}
         ),
     )
     hand = common_mdp.JointPositionActionCfg(
-        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:HandPositionAction",
         asset_name="robot",
         joint_names=list(HAND_JOINT_NAMES),
         preserve_order=True,
         use_default_offset=False,
-        scale={
-            name: (upper - lower) / 2.0
-            for name, (lower, upper) in zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)
-        },
-        offset={
-            name: (upper + lower) / 2.0
-            for name, (lower, upper) in zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)
-        },
         clip=dict(zip(HAND_JOINT_NAMES, HAND_JOINT_LIMITS, strict=True)),
     )
 
 
 @configclass
-class CoffeeObservationsCfg:
-    @configclass
-    class PolicyCfg(ObservationGroupCfg):
-        joint_pos = ObservationTermCfg(func=common_mdp.joint_pos_rel)
-        joint_vel = ObservationTermCfg(func=common_mdp.joint_vel_rel)
-        palm = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:palm_pose")
-        spoon = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:spoon_pose")
-        targets = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:target_vectors")
-        coffee = ObservationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:particle_fractions")
-        last_action = ObservationTermCfg(func=common_mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = True
-
-    policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
-class CoffeeRewardsCfg:
-    approach = RewardTermCfg(
-        func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:approach", weight=0.1, params={"std": 0.1}
-    )
-    delivered = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:delivery", weight=20.0)
-    carried = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:spoon_load", weight=2.0)
-    spilled = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:spill", weight=-10.0)
-    succeeded = RewardTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:success", weight=1000.0)
-    action_rate = RewardTermCfg(func=common_mdp.action_rate_l2, weight=-0.001)
-
-
-@configclass
-class CoffeeTerminationsCfg:
-    time_out = TerminationTermCfg(func=common_mdp.time_out, time_out=True)
-    success = TerminationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:success")
-    invalid = TerminationTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:invalid_state")
-
-
-@configclass
 class CoffeeEventsCfg:
-    reset = EventTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.mdp:reset_task", mode="reset")
+    reset = EventTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.control:reset_scene", mode="reset")
 
 
 @configclass
-class CoffeeEnvCfg(ManagerBasedRLEnvCfg):
+class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
     """Fine MPM tool-use scene with independently simulated arm and material."""
 
-    class_type: str = "{DIR}.coffee_env:CoffeeEnv"
+    class_type: str = "{DIR}.demo_env:CoffeeDemoEnv"
     scene: CoffeeSceneCfg = CoffeeSceneCfg(num_envs=1, env_spacing=2.0)
     actions: CoffeeActionsCfg = CoffeeActionsCfg()
-    observations: CoffeeObservationsCfg = CoffeeObservationsCfg()
-    rewards: CoffeeRewardsCfg = CoffeeRewardsCfg()
-    terminations: CoffeeTerminationsCfg = CoffeeTerminationsCfg()
+    observations: object = SimpleNamespace()
     events: CoffeeEventsCfg = CoffeeEventsCfg()
 
-    voxel_size: float = 0.002
+    voxel_size: float = 0.004
     spoon_margin_voxels: float = 1.2
     """Spoon collision expansion in grid cells, separate from the container margins."""
     spoon_rim_margin_scale: float = 0.0
@@ -162,21 +114,20 @@ class CoffeeEnvCfg(ManagerBasedRLEnvCfg):
     coffee_fill_height: float = 0.065
     water_fill_height: float = 0.075
     """Initial water seed height [m]; gravity spreads the fill to a lower free surface."""
-    success_fraction: float = 0.005
-    success_dwell_s: float = 0.5
+    min_delivered_fraction: float = 0.005
+    """Minimum cup fraction required for the scripted demo to report completion."""
     spoon_offset_pos: tuple[float, float, float] = DEFAULT_SPOON_OFFSET_POS
     spoon_offset_rot: tuple[float, float, float, float] = DEFAULT_SPOON_OFFSET_ROT
 
     def __post_init__(self):
         self.decimation = 8
-        self.episode_length_s = 40.0
         self.sim.dt = 1.0 / 800.0
         self.sim.render_interval = 16
         self.sim.use_newton_actuators = True
         self.sim.physics = make_physics_cfg(self.voxel_size, water=None)
 
 
-def configure_scene(cfg: CoffeeEnvCfg) -> None:
+def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     """Resolve generated assets and sample collision-free fill volumes."""
     from .assets import build_coffee_assets
     from .robot import get_robot_cfg
@@ -193,10 +144,8 @@ def configure_scene(cfg: CoffeeEnvCfg) -> None:
         raise ValueError("coffee_fill_height must be between 9 and 75 mm.")
     if not 0.012 <= cfg.water_fill_height <= 0.079:
         raise ValueError("water_fill_height must be between 12 and 79 mm.")
-    if not 0.0 < cfg.success_fraction <= 1.0:
-        raise ValueError("success_fraction must be in (0, 1].")
-    if not math.isfinite(cfg.success_dwell_s) or cfg.success_dwell_s <= 0.0:
-        raise ValueError("success_dwell_s must be finite and positive.")
+    if not 0.0 < cfg.min_delivered_fraction <= 1.0:
+        raise ValueError("min_delivered_fraction must be in (0, 1].")
     paths = build_coffee_assets()
     cfg.scene.robot = get_robot_cfg(contact_grasp=cfg.grasp_mode == "contact")
     from .grasp_reset import configure_grasp_reset

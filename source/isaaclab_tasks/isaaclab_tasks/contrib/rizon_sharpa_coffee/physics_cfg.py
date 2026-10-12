@@ -80,7 +80,7 @@ def configure_contact_grasp(physics: NewtonCfg, *, rigid_substeps: int = 2, mass
 
 
 def make_physics_cfg(voxel_size: float, *, water: bool | None = False) -> NewtonCfg:
-    """Configure coupling; ``water=None`` defers task defaults until after overrides."""
+    """Configure coupling; ``water=None`` defers scene defaults until after overrides."""
     return NewtonCfg(
         solver_cfg=CoffeeCouplerCfg(
             entries=[

@@ -42,7 +42,6 @@ _SKIPPED_TASK_SUBSTRINGS = {
 }
 _COVERED_TASKS = [
     "IsaacContrib-Lift-Cube-Franka",  # Already covered by test_environment_determinism.py
-    "IsaacContrib-Rizon-Sharpa-Coffee",  # Licensed asset; covered by test_rizon_sharpa_coffee_env.py.
 ]
 
 

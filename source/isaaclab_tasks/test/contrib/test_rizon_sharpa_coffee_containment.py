@@ -26,7 +26,7 @@ from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import (
     SPOON_BOWL_WIDTH,
     build_coffee_assets,
 )
-from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg, _particle_cfg
+from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeDemoEnvCfg, _particle_cfg
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import CoffeeMPMSolver, configure_spoon_rim_margin
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics_cfg import make_physics_cfg
 
@@ -77,7 +77,7 @@ def _sample_sdf(
 
 def test_native_contact_margin_reduces_only_near_spoon_rim():
     """Actual signed contact clearance changes at the lip, preserving floor and handle."""
-    cfg = CoffeeEnvCfg()
+    cfg = CoffeeDemoEnvCfg()
     cfg.voxel_size = 0.003
     model = _make_model(np.array([[0, 0, 0.2]]), cfg, "cpu")
     solver = CoffeeMPMSolver(
@@ -153,8 +153,8 @@ def _observe_floor(
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_spoon_holds_coffee_through_motion_and_releases_when_tipped(device):
-    """The configured grid resolves the thin imported spoon without pinning coffee."""
-    cfg = CoffeeEnvCfg()
+    """The fine 2 mm grid resolves the thin imported spoon without pinning coffee."""
+    cfg = CoffeeDemoEnvCfg(voxel_size=0.002)
     spacing = cfg.voxel_size / 2.0
     points = np.stack(
         np.meshgrid(
@@ -242,7 +242,7 @@ def _stir_spoon(pose: wp.array[wp.transform], tick: wp.array[int], dt: float):
 )
 def test_water_level_survives_stirring_with_native_profile(device, voxel_size, physics_hz, iterations, capacity):
     """A full-size fill retains its settled level after three turns and tool withdrawal."""
-    cfg = CoffeeEnvCfg(water_enabled=True, voxel_size=voxel_size)
+    cfg = CoffeeDemoEnvCfg(water_enabled=True, voxel_size=voxel_size)
     cfg.spoon_margin_voxels = 0.0036 / voxel_size
     dt = 1.0 / physics_hz
     water = _particle_cfg(

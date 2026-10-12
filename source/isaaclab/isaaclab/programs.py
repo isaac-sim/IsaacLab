@@ -104,7 +104,7 @@ DEMOS = (
     ProgramSpec(
         "rizon-sharpa-coffee",
         "examples/demos/rizon_sharpa_coffee.py",
-        "Scoop, dissolve and stir coffee with a Rizon arm and Sharpa hand (external robot assets required).",
+        "Scoop, dissolve and stir coffee using IK (external Rizon/Sharpa robot assets required).",
     ),
 )
 

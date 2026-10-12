@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Manager-based coffee scooping with a mounted or contact-held teaspoon."""
+"""Non-learning coffee scene with IK control and reusable physics/reset setup."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import warp as wp
 from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
 
-from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.utils import math as math_utils
 
 from .assets import (
@@ -34,13 +34,13 @@ from .assets import (
     SPOON_BOWL_WIDTH,
 )
 from .attachment import MountedSpoonAttachment
-from .coffee_env_cfg import CoffeeEnvCfg, configure_scene
+from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
 from .physics import CoffeeMPMSolver, configure_grasp_contacts, configure_spoon_rim_margin
 from .robot import PALM_BODY_NAME
 
 
-class CoffeeEnv(ManagerBasedRLEnv):
-    """Lean tool-use environment with a 28-dimensional policy action interface.
+class CoffeeDemoEnv(ManagerBasedEnv):
+    """Control an already-held spoon using absolute palm and finger targets.
 
     MJWarp advances the arm and hand; implicit MPM advances the material. Mounted
     mode makes the spoon follow the palm. Contact mode instead gives the free
@@ -48,9 +48,9 @@ class CoffeeEnv(ManagerBasedRLEnv):
     Both modes start with an already-held spoon; acquisition is a separate task.
     """
 
-    cfg: CoffeeEnvCfg
+    cfg: CoffeeDemoEnvCfg
 
-    def __init__(self, cfg: CoffeeEnvCfg, render_mode: str | None = None, **kwargs):
+    def __init__(self, cfg: CoffeeDemoEnvCfg):
         configure_scene(cfg)
         self.presentation = None
         self.dissolution = None
@@ -58,7 +58,7 @@ class CoffeeEnv(ManagerBasedRLEnv):
         self._margin = cfg.voxel_size * 0.3
         self._spoon_margin = cfg.voxel_size * cfg.spoon_margin_voxels
         with newton_builder_world_hook(self._configure_colliders):
-            super().__init__(cfg, render_mode=render_mode, **kwargs)
+            super().__init__(cfg)
 
     def load_managers(self) -> None:
         robot = self.scene["robot"]
@@ -72,14 +72,9 @@ class CoffeeEnv(ManagerBasedRLEnv):
             (BOWL_INNER_RADIUS * BOWL_SCALE[0], BOWL_INNER_RADIUS * BOWL_SCALE[1]), device=self.device
         )
         self._cup_position = torch.tensor(CUP_POSITION, device=self.device)
-        self.tool_targets = torch.stack((self._bowl_position, self._cup_position)).clone()
-        self.tool_targets[0, 2] += 0.7 * self.cfg.coffee_fill_height
-        self.tool_targets[1, 2] += CUP_HEIGHT + 0.020
         self._source_top = max(BOWL_HEIGHT + 0.002, self.cfg.coffee_fill_height + 0.010)
-        self.delivery_dwell = torch.zeros(self.num_envs, device=self.device)
         self._fraction_cache = None
         self._fraction_step = -1
-        self._dwell_step = 0
         self.sync_spoon()
         if self.cfg.grasp_mode == "mounted":
             self._attachment = MountedSpoonAttachment(
@@ -101,9 +96,11 @@ class CoffeeEnv(ManagerBasedRLEnv):
             )
             self.dissolution = solver.dissolution
         super().load_managers()
+        if "startup" in self.event_manager.available_modes:
+            self.event_manager.apply(mode="startup")
 
     def particle_ids(self, asset_name: str) -> wp.array:
-        """Global Newton particle indices for an MPM asset across all task worlds."""
+        """Global Newton particle indices for an MPM asset across all scene worlds."""
         expression = re.compile(self.scene[asset_name].cfg.prim_path + r"/.*")
         ranges = [
             np.arange(start, start + count, dtype=np.int32)
@@ -145,23 +142,19 @@ class CoffeeEnv(ManagerBasedRLEnv):
         pos, quat = math_utils.subtract_frame_transforms(root[:, :3], root[:, 3:], palm[:, :3], palm[:, 3:])
         return torch.cat((pos, quat), dim=-1)
 
-    def actions_from_targets(self, targets: torch.Tensor) -> torch.Tensor:
-        """Encode absolute palm XYZ/XYZW and 22 finger angles into task actions.
+    def spoon_pose(self) -> torch.Tensor:
+        """Measured spoon cavity pose relative to its scene origin, shape (N, 7)."""
+        pose = self.scene["spoon"].data.root_link_pose_w.torch.clone()
+        pose[:, :3] -= self.scene.env_origins
+        return pose
 
-        Args:
-            targets: Robot-base palm pose followed by named hand positions [rad],
-                shape (num_envs, 29). Recompute the encoding before every step.
-
-        Returns:
-            Scaled relative palm control and normalized hand positions, shape
-            (num_envs, 28). The policy wrapper clips exploration to [-1, 1];
-            scripted and teleoperated targets retain their full pose errors.
-        """
-        if targets.shape != (self.num_envs, 29):
-            raise ValueError(f"Expected targets with shape ({self.num_envs}, 29), received {tuple(targets.shape)}.")
-        arm = self.action_manager.get_term("arm").actions_from_pose(targets[:, :7])
-        hand = self.action_manager.get_term("hand").actions_from_positions(targets[:, 7:])
-        return torch.cat((arm, hand), dim=-1)
+    def is_state_finite(self) -> torch.Tensor:
+        """Check robot and material positions for each scene, shape (N,)."""
+        finite = torch.isfinite(self.scene["robot"].data.joint_pos.torch).all(dim=1)
+        finite &= torch.isfinite(self.scene["coffee"].data.particle_pos_w.torch).all(dim=(1, 2))
+        if self.cfg.water_enabled:
+            finite &= torch.isfinite(self.scene["water"].data.particle_pos_w.torch).all(dim=(1, 2))
+        return finite
 
     def sync_spoon(self, env_ids=None) -> None:
         """Initialize the spoon from the palm during construction or episode reset."""
@@ -180,7 +173,7 @@ class CoffeeEnv(ManagerBasedRLEnv):
 
     def particle_fractions(self) -> torch.Tensor:
         """Measure source, carried, delivered and spilled coffee once per step."""
-        if self._fraction_step == self.common_step_counter and self._fraction_cache is not None:
+        if self._fraction_step == self._sim_step_counter and self._fraction_cache is not None:
             return self._fraction_cache
         points = self.scene["coffee"].data.particle_pos_w.torch - self.scene.env_origins[:, None, :]
         spoon = self.scene["spoon"].data.root_link_pose_w.torch
@@ -212,14 +205,10 @@ class CoffeeEnv(ManagerBasedRLEnv):
         )
         spilled = ~source & ~carried & ~delivered & (points[..., 2] < 0.005)
         self._fraction_cache = torch.stack((source, carried, delivered, spilled), dim=-1).float().mean(dim=1)
-        qualified = self._fraction_cache[:, 2] >= self.cfg.success_fraction
-        if self._dwell_step != self.common_step_counter:
-            self.delivery_dwell.copy_(torch.where(qualified, self.delivery_dwell + self.step_dt, 0.0))
-            self._dwell_step = self.common_step_counter
-        self._fraction_step = self.common_step_counter
+        self._fraction_step = self._sim_step_counter
         return self._fraction_cache
 
-    def reset_task(self, env_ids: torch.Tensor | slice) -> None:
+    def reset_scene(self, env_ids: torch.Tensor | slice) -> None:
         """Reset selected robot and tool state, particle history and appearance."""
         robot = self.scene["robot"]
         q = robot.data.default_joint_pos.torch[env_ids].clone()
@@ -238,7 +227,6 @@ class CoffeeEnv(ManagerBasedRLEnv):
         NewtonMPMManager.reset_solver_state(
             world_mask=wp.from_torch(mask, dtype=wp.bool), flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE
         )
-        self.delivery_dwell[env_ids] = 0.0
         self._fraction_cache = None
         self._fraction_step = -1
         if self.presentation is not None:

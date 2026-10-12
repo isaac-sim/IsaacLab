@@ -1,13 +1,13 @@
-# Rizon–Sharpa coffee scooping
+# Rizon–Sharpa coffee IK demo
 
-`IsaacContrib-Rizon-Sharpa-Coffee` is a manager-based tool-use environment with a
+`uv run isaaclab demo rizon-sharpa-coffee` runs an IK demonstration with a
 Rizon4s arm, a 22-joint right Sharpa Wave hand, a shallow steel spoon, an open
 coffee bowl and a ceramic cup. Newton MPM simulates the coffee and optional
 water; MJWarp simulates the robot. A scripted IK controller performs one scoop
 and pour, followed by stirring when water is enabled. Apple Vision Pro input
 uses the same action interface.
 
-![Kit capture of the coffee task in the kitchen](../../../../../docs/source/_static/environment-previews/rizon_sharpa_coffee.jpg)
+![Kit capture of the coffee demo in the kitchen](../../../../../docs/source/_static/environment-previews/rizon_sharpa_coffee.jpg)
 
 The motion enters steeply, advances
 about 15 mm while rotating flat **inside** the pile, then lifts level. The original
@@ -15,20 +15,21 @@ about 15 mm while rotating flat **inside** the pile, then lifts level. The origi
 1.8 mm shell are retained. A delivered dose of 8–10 g per scoop has not been
 established with this spoon.
 
-## Task and demo
+## Scene and control
 
-The Gym registration points to `CoffeeEnv`, a `ManagerBasedRLEnv`, and
-`CoffeeEnvCfg`. The task owns the action interface, observations, rewards,
-terminations, scene resets and coupled physics. `mdp.py` defines its manager
-terms; `dissolution.py` performs physical material conversion independently of
-rendering. A registered RSL-RL PPO configuration uses this same environment.
+`CoffeeDemoEnv` uses the non-learning `ManagerBasedEnv` for stepping, IK actions
+and scene resets. `CoffeeDemoEnvCfg` separates the reusable `CoffeeSceneCfg`,
+physics configuration and absolute control interface. There are no policy
+observations, rewards, episode termination, Gym registration or PPO configuration.
+`control.py` contains the IK/reset terms; `dissolution.py` performs physical
+material conversion independently of rendering.
 
 `examples/demos/rizon_sharpa_coffee.py` is the demonstration runner, launched with
 `uv run isaaclab demo rizon-sharpa-coffee`. It selects
 scripted IK or AVP input, configures optional presentation, follows the spoon
 with a camera and records video. Both controllers send actions through the same
-task interface. Grain rendering, colour transport and surface reconstruction
-are optional presentation resources; learning can run with no visualizer and
+absolute pose interface. Grain rendering, colour transport and surface reconstruction
+are optional presentation resources; physics-only runs use no visualizer and
 `grains_per_particle = 0`.
 
 ## Requirements and assets
@@ -44,7 +45,7 @@ On another workstation, set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` to the comp
 asset directory. `robot.py` declares the default cache location and validates
 the USD-plus-texture bundle's SHA-256. A cached USD override repairs malformed
 visual normals without modifying the source asset. The procedural tableware
-is generated locally. This is an experimental contributed task that requires
+is generated locally. This demo requires
 an externally provisioned robot; the public kitchen and Sharpa URDF do not
 supply the combined Rizon/Sharpa USD. Obtain the bundle through your authorized
 Fabrics-Sim asset access and retain its relative `textures/` directory. This
@@ -68,7 +69,7 @@ after Newton constructs the physics model. Authored room collisions and rigid
 bodies are disabled; the sample island, apple and decorative coffee cups are
 excluded so the original worktable and task geometry remain usable. Matte sage
 cabinets, warm plaster and brass accents complement the tableware. Rendering adds geometry and texture memory,
-but no solver bodies, contacts or particles. Headless learning does not load it.
+but no solver bodies, contacts or particles. Physics-only runs do not load it.
 Use `--visualizer kit --backdrop kitchen` for this presentation, or
 `--backdrop studio` to keep the previous studio and avoid the public asset download.
 
@@ -92,7 +93,7 @@ The teleoperation pipeline verifies the upstream SHA-256 before using the model.
 It caches the same kinematics with unused visual and collision elements removed,
 so DexPilot does not try to resolve the upstream STL bundle.
 Set `ISAACLAB_SHARPA_RIGHT_URDF` for a different local path to the same file.
-Scripted operation and PPO require only the robot USD bundle.
+Scripted operation requires only the robot USD bundle.
 
 ## Run and record
 
@@ -222,7 +223,7 @@ Broad spoon faces use a margin of 1.2 physics voxels; container margins are
 rim**, keeping the contact lip at the actual mesh rather than supporting coffee
 beyond its edge. Broad faces retain their clearance against tunneling.
 Native per-face collider materials implement the taper before graph capture;
-the closed shell and handle retain their geometry. `CoffeeEnvCfg.spoon_margin_voxels`
+the closed shell and handle retain their geometry. `CoffeeDemoEnvCfg.spoon_margin_voxels`
 and `--spoon_rim_margin_scale` control these values. `--spoon_margin` overrides the
 broad margin in metres, preserving a useful tool clearance on larger grids.
 Reducing the timestep rate or margin requires checking loaded-tool containment
@@ -237,7 +238,7 @@ with 205.5762 g total mass and density 450 kg/m³. Supported grids span 1–10 m
 Coarser grids resample the fill at half-voxel spacing while retaining density.
 Grain rendering only decorates
 those physical particles. `--grains_per_particle 0` disables presentation for
-learning; factors 1, 3, 5, 10, 20, 64 and 128 change visual sampling without increasing
+physics-only debugging; factors 1, 3, 5, 10, 20, 64 and 128 change visual sampling without increasing
 physical contact resolution.
 The visible grains are passive samples of each deformed physical particle, not
 independently colliding bodies. Some visual overhang can therefore remain even
@@ -249,7 +250,7 @@ grain stays within the lip.
 `--water` initializes a fuller cup with a 75 mm seed height and a 37 mm seed
 radius. The free surface settles below the seed height within the cup's 39 mm
 interior radius; headroom remains for pouring and stirring.
-Construct `CoffeeEnvCfg(water_enabled=True)` to select the liquid pressure profile.
+Construct `CoffeeDemoEnvCfg(water_enabled=True)` to select the liquid pressure profile.
 The wet 3 mm demo uses 400 Hz MPM and eight physical particles per cell. A 200 Hz
 step with a small iteration budget can lose visible liquid volume during stirring
 despite conserving mass. Smaller voxels or more particles alone do not correct an
@@ -315,17 +316,12 @@ transport.
 
 The default spoon follows the **measured** palm through a graph-safe kinematic
 attachment at every physics tick, with the correct centre-of-mass twist. It
-does not apply reaction force to the hand. The task accepts 28 actions: three
-robot-base translation increments, three axis-angle rotation increments and
-22 named finger controls. At the default 100 Hz policy rate, unit arm actions
-represent 5 mm or 0.03 rad. Finger actions in `[-1, 1]` map to the authored joint
-limits. IK targets remain within the articulation's soft joint limits.
-
-The scripted and AVP controllers produce absolute palm XYZ/XYZW and finger
-angle targets. The runner calls `env.actions_from_targets()` before each step
-to encode them into the task interface. This preserves the existing pose
-trajectories. PPO clips exploration to `[-1, 1]`; absolute demonstration targets
-retain their full pose error.
+does not apply reaction force to the hand. Scripted and AVP controllers produce
+absolute robot-base palm XYZ/XYZW followed by 22 named finger angles [rad],
+shape `(num_envs, 29)`. The runner passes these directly to `env.step(targets)`.
+IK drives are clamped to the articulation's soft joint limits, and finger
+commands to the authored joint limits. Control runs at 100 Hz by default or
+60 Hz with the 120 Hz physics profile.
 
 Author a named grasp candidate with independent initial positions and motor
 preload targets:
@@ -347,56 +343,46 @@ proxy coupling with finite proxy inertia. Moving grasp retention and hand/bowl
 clearance remain limitations of that mode; the mounted script is the supported
 demonstration.
 
-## Learning and validation
+## Starting a future RL task
 
-The task provides observation, reward, action, reset and termination managers
-and a state-based RSL-RL PPO baseline. It does not bundle a trained policy. The
-110 policy observations include joints, palm and spoon poses, vectors to the
-source and cup, coffee fractions and the previous action. Success requires the
-configured coffee fraction in the cup for a dwell period. A small approach reward
-guides an empty spoon to the source and a loaded spoon to the cup, using measured
-contents rather than scripted phases. Other rewards use delivery, retention,
-spill, action changes and success. Dose reporting is independent of the success
-threshold. The demo disables success termination so it can complete
-the scoop and optional stirring; PPO retains success, invalid-state and timeout resets.
+Copy `demo_env.py` and `demo_env_cfg.py` into a task package and change their bases
+to `ManagerBasedRLEnv` and `ManagerBasedRLEnvCfg`. Adapt the copied constructor to
+accept and forward `render_mode` and `**kwargs` as required by the RL/Gym entrypoints.
+Update module imports and callable/`class_type` paths for the copied package.
+Remove the demo's explicit startup dispatch from `load_managers()` when changing
+its base: `ManagerBasedRLEnv` dispatches those events after loading the RL managers.
+Reuse `CoffeeSceneCfg`,
+`configure_scene`, `CoffeeActionsCfg`, the physics factories and the reset setup.
+Scene preparation must run after final configuration overrides and before
+construction so the particle fills, collider margins and liquid profile agree.
 
-Train the dry mounted task without presentation resources:
+Add task-specific observation, reward and termination terms, an episode length,
+Gym registration and an agent configuration. `palm_pose()`, `spoon_pose()`,
+`particle_fractions()` and `is_state_finite()` expose the measured state needed
+by those terms. The absolute action interface can be reused or replaced with
+relative/normalized actions for the chosen policy. Scripted waypoints remain
+isolated in `scripted.py`; presentation is optional and supports one demo world,
+while physics and selective resets support batched scenes.
 
-```bash
-uv run --no-sync isaaclab train --rl_library rsl_rl \
-    --task IsaacContrib-Rizon-Sharpa-Coffee --num_envs 4 --visualizer none
-```
+For an initial physics-only task, disable visualizers and set
+`grains_per_particle=0`. Keep environment counts small initially because each
+world owns a fine MPM grid. Grid and solver changes require independent
+containment and liquid-level checks. Final scene preparation selects
+Gauss–Seidel with 500 pressure iterations for water or the automatic solver with
+100 iterations for dry coffee; explicit tuning takes precedence.
 
-The baseline uses normalized actor and critic observations, a 28-action Gaussian
-policy, and the native PPO runner and vector wrapper. `agents/rsl_rl_ppo_cfg.py`
-defines its hyperparameters. They are a starting point; successful learning
-and a target delivered dose have not been established. Keep environment counts
-small initially because each world owns a fine MPM grid. Larger voxel sizes can
-reduce training cost but change spoon containment and must be validated before
-using them for policy development. Optional water conversion is enabled with
-`env.water_enabled=True`; the final scene preparation selects Gauss–Seidel with
-500 pressure iterations for water, or the automatic solver with 100 iterations
-for dry coffee. Explicit solver and iteration overrides take precedence.
-The dry task is the default learning configuration.
+## Validation
 
 The current workstation also uses pinned Newton main and Warp nightly builds
 for MPM optimizations. Their revisions are declared in the root `pyproject.toml`
 and `uv.lock`. Include that dependency update in review or land it as a
 prerequisite; the captured material-conversion regression does not pass on the
-earlier Newton 1.6 / Warp 1.17 combination. The task does not
+earlier Newton 1.6 / Warp 1.17 combination. The demo does not
 patch Newton itself.
-
-Play a saved policy with the standard runner:
-
-```bash
-uv run --no-sync isaaclab play --rl_library rsl_rl \
-    --task IsaacContrib-Rizon-Sharpa-Coffee --num_envs 1 \
-    --checkpoint /path/to/model.pt --visualizer newton
-```
 
 Focused tests are in `source/isaaclab_tasks/test/contrib/test_rizon_sharpa_coffee_*.py`.
 They cover asset geometry and clearance, native loaded-spoon containment,
-batched mounted dynamics, action encoding, PPO timeout resets, contact hold/release, physical
+batched absolute IK, mounted dynamics, selective resets, contact hold/release, physical
 dissolution during graph replay, conservative colour transport, spatial surface
 history, GL texture upload and retargeting conventions. Robot integration tests
 require the licensed asset bundle; the other contracts use generated fixtures.

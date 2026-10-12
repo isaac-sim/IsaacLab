@@ -52,7 +52,7 @@ def right_hand_urdf() -> Path:
     if not path.is_file():
         raise FileNotFoundError(
             f"Sharpa retargeting URDF not found at {path}. Follow the coffee task README's asset setup or set"
-            " ISAACLAB_SHARPA_RIGHT_URDF. Scripted operation and PPO do not require this model."
+            " ISAACLAB_SHARPA_RIGHT_URDF. Scripted operation does not require this model."
         )
     if hashlib.sha256(path.read_bytes()).hexdigest() != SHARPA_URDF_SHA256:
         raise ValueError(f"Sharpa retargeting URDF at {path} does not match pinned revision {SHARPA_URDF_REVISION}.")

@@ -23,7 +23,7 @@ from .physics import CoffeeMPMSolver
 from .surface import SurfaceHistory
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 COFFEE_COLOR = (0.095, 0.032, 0.012)
 WATER_COLOR = (0.66, 0.83, 0.88)
@@ -137,7 +137,7 @@ class CoffeePresentation:
     motion advects it and symmetric neighbour exchanges diffuse it.
 
     Args:
-        env: Task environment with ``coffee`` and optionally ``water`` MPM assets.
+        env: Demo environment with ``coffee`` and optionally ``water`` MPM assets.
         voxel_size: Physics grid spacing [m].
         color_mass_scale: Uniformly mixed tracer mass [kg] producing 63% of the final tint.
             This is an adjustable display normalization, not a physical calibration.
@@ -147,7 +147,7 @@ class CoffeePresentation:
 
     def __init__(
         self,
-        env: ManagerBasedRLEnv,
+        env: ManagerBasedEnv,
         *,
         voxel_size: float = 0.0025,
         color_mass_scale: float = 0.0015,
