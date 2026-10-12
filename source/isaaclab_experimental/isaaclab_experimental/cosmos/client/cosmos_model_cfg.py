@@ -83,8 +83,9 @@ class CosmosModelCfg(BackendCfg):
     Linux machine and GPU. The service synchronizes its CUDA stream before replying to report GPU faults. Control
     preprocessing can still use the CPU: edge extraction in the camera process and blur filtering in the service
     copy images to the CPU and back. ``"socket"`` sends images through host memory in the endpoint's messages,
-    which also works across machines. ``"auto"`` (default) uses CUDA IPC when the service supports it and shares
-    the camera's GPU, and the socket otherwise. The endpoint carries the small step messages in both cases."""
+    which also works across machines. ``"auto"`` (default) uses CUDA IPC when the service supports it, runs on
+    this machine, and shares the camera's GPU, and the socket otherwise. The endpoint carries the small step
+    messages in both cases."""
 
     timeout: float = 600.0
     """Maximum wait per network operation [s], including the first generation."""

@@ -437,25 +437,31 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
+_SAME_GPU = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "pci_bus_id": "0000:01:00.0"}
+
+
 @pytest.mark.parametrize(
     "transport,device,capabilities,available,expected",
     [
-        ("socket", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "socket"),
-        ("auto", "cpu", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "socket"),
+        ("socket", "cuda:0", _SAME_GPU, True, "socket"),
+        ("auto", "cpu", _SAME_GPU, True, "socket"),
         ("auto", "cuda:0", {"transports": ["socket"]}, True, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.0"}, True, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, False, "socket"),
-        ("auto", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "cuda_ipc"),
-        ("cuda_ipc", "cuda:0", {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:01:00.0"}, True, "cuda_ipc"),
+        ("auto", "cuda:0", {**_SAME_GPU, "pci_bus_id": "0000:02:00.0"}, True, "socket"),
+        # A local endpoint tunneled to another machine whose GPU has the same PCI bus ID.
+        ("auto", "cuda:0", {**_SAME_GPU, "host_id": "other-boot"}, True, "socket"),
+        ("auto", "cuda:0", _SAME_GPU, False, "socket"),
+        ("auto", "cuda:0", _SAME_GPU, True, "cuda_ipc"),
+        ("cuda_ipc", "cuda:0", _SAME_GPU, True, "cuda_ipc"),
     ],
 )
 def test_transport_keeps_images_on_the_gpu_only_when_the_service_shares_this_gpu(
     transport, device, capabilities, available, expected, monkeypatch, caplog
 ):
-    """Auto uses CUDA IPC only for a local service on the same GPU; the socket is the fallback."""
+    """Auto uses CUDA IPC only for a service on this machine and the same GPU; the socket is the fallback."""
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
     monkeypatch.setattr(_cuda_ipc, "pci_bus_id", lambda index: "0000:01:00.0")
     stream = CosmosModel(CosmosModelCfg(max_episode_frames=13, transport=transport)).open_stream(
         num_views=1, seeds=(1,)
