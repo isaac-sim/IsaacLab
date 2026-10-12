@@ -14,8 +14,8 @@ How-to Guides
 .. container:: guide-browser-intro
 
    Find step-by-step guides for building with Isaac Lab. Search by topic, then open a guide without leaving this page.
-   Tags name the physics backend each example runs on and whether it needs Isaac Sim;
-   Newton examples run without Isaac Sim.
+   Backend tags identify the physics backends covered by each guide, and ``Isaac Sim`` marks guides whose
+   documented workflow requires the Isaac Sim runtime. Guides without tags cover backend-independent concepts.
 
 .. raw:: html
 
@@ -112,7 +112,7 @@ How-to Guides
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -132,7 +132,7 @@ How-to Guides
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -218,7 +218,7 @@ How-to Guides
 
          .. container:: guide-metadata
 
-            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 

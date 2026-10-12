@@ -57,7 +57,8 @@ Choosing a controller
      - Jacobian; pose and velocity for motion control; mass matrix for inertial decoupling;
        gravity vector, contact force, and joint state as required by enabled features
 
-Joint-space control has no controller class; set joint targets on the actuators
+Basic joint-space control sets joint targets directly on the actuators.
+For joint-space impedance control, use :class:`JointImpedanceController`
 (see `Joint-space controllers`_).
 
 Start with differential IK for reaching or teleoperation with position-controlled
