@@ -19,9 +19,14 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
+from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+
+
+VISUALIZER_CFG = VisualizerCfg(eye=(0.62, -0.80, 0.85), lookat=(0.0, -0.28, 0.53), focal_length=35.0)
+"""Recording view of the hand and cube at the world origin, where the default grid places an environment."""
 
 
 class EpisodeErrorRecorder:
