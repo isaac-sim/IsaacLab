@@ -1,7 +1,7 @@
 # Isaac Lab PhysicsNeMo
 
 This extension connects Isaac Lab Newton environments to
-[PhysicsNeMo Robotics](https://github.com/NVIDIA/physicsnemo-robotics) learned dynamics. It
+PhysicsNeMo Robotics learned dynamics. It
 records environment episodes as PhysicsNeMo trajectory datasets, trains a control-conditioned
 Neural Robot Dynamics model on them (NeRD, or the FlashNeRD `ParallelNeRD`), and runs the
 resulting dynamics artifact as the Newton solver of the same environment through an ordinary `NewtonCfg`.
