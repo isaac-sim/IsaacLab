@@ -122,7 +122,17 @@ class FrankaReachRewardsCfg(RewardsCfg):
 
 @configclass
 class FrankaReachEnvCfg(ReachEnvCfg):
-    """Franka Reach configuration with selectable arm and physics presets."""
+    """Franka Reach configuration with selectable arm and physics presets.
+
+    The ``hold`` preset keeps one goal throughout the episode and rewards pose success
+    without resetting on arrival. It adds six pose-error observations for 38-input
+    joint-position policies, trained in the separate ``reach_franka_hold`` experiment.
+    Train and play with the same preset and physics backend; default 32-input Reach
+    checkpoints cannot be loaded with ``hold``.
+
+    Newton holding uses softer arm stiffness; PhysX holding retains authored stiffness
+    and increases command-change penalties. These profiles modify only the task config.
+    """
 
     def validate_config(self) -> None:
         """Validate the selected controller and physics backend."""
