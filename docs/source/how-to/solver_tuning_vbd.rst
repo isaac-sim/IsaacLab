@@ -176,6 +176,11 @@ Core Solve
     * - ``integrate_with_external_rigid_solver``
       - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
 
+Structural joint stiffness keeps rigid links attached; actuator stiffness drives
+the allowed joint coordinates toward their targets. Tune these separately under
+the intended contact loads. Higher structural stiffness can require more solver
+iterations for drive and contact convergence. Set it before creating the
+simulation because Newton captures these material values during solver construction.
 
 Rigid Cables
 ^^^^^^^^^^^^
@@ -227,6 +232,19 @@ Self-Contact
       - Default: ``2``. Filters contacts between mesh primitives that are close in topology. Increase this to suppress contact between neighboring elements of the same surface. Values greater than ``3`` can significantly increase compute time.
     * - ``particle_rest_shape_contact_exclusion_radius``
       - Default: ``0.0`` [m]. Filters self-contact candidates whose rest-configuration distance is shorter than this distance. Increase it when rest-neighbor contacts produce unwanted resistance.
+
+
+Contact Scheduling
+------------------
+
+Contact scheduling belongs to :class:`~isaaclab_newton.physics.NewtonCfg`,
+not :class:`~isaaclab_newton.physics.VBDSolverCfg`.
+:attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` controls how
+often the collision pipeline refreshes contacts within a physics tick. ``0``
+runs collision once per tick. A positive value ``k`` re-runs it every ``k``
+solver substeps. Use ``1`` for fast or thin rigid-soft interactions that can
+cross the contact band within one substep; increase it only after verifying that
+the cheaper, staler contact set does not cause tunneling or ejection.
 
 
 Custom MJWarp + VBD Parameters
