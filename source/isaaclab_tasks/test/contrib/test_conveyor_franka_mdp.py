@@ -129,6 +129,18 @@ def test_checkpoint_interface_and_invalid_action_recovery():
         robot.write_joint_position_to_sim_index(position=joints)
         env.sim.forward()
         env.scene.update(env.step_dt)
+        if env.spec.id == _BASE:
+            # Differentiate the independent reset FK rather than repeating the velocity shift.
+            rates = torch.tensor([0.5, -0.4, 0.3, -0.2, 0.4, -0.5, 0.2]).repeat(2, 1)
+            velocity = torch.zeros_like(robot.data.joint_vel.torch)
+            velocity[:, joint_ids] = rates
+            robot.write_joint_velocity_to_sim_index(velocity=velocity)
+            env.sim.forward()
+            env.scene.update(env.step_dt)
+            expected_velocity = (
+                franka_tool_position(initial + 1e-3 * rates) - franka_tool_position(initial - 1e-3 * rates)
+            ) / 2e-3
+            torch.testing.assert_close(mdp.end_effector_velocity(env)[:, :3], expected_velocity, atol=1e-4, rtol=1e-3)
         env.action_manager.process_action(bad)
         torch.testing.assert_close(
             arm.processed_actions, initial + torch.tensor([[0, 0.12, -0.12, 0.12, -0.12, 0.06, -0.06], [0.06] * 7])

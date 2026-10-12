@@ -148,11 +148,8 @@ def _physx_conveyor_collision(
             faces=geometry.faces,
             visible=False,
             rigid_props=_PHYSX_KINEMATIC_PROPERTIES,
-            collision_props=[
-                *_physx_collision_properties(contact_offset=_CONTACT_GAP),
-                PhysxSDFMeshCfg(sdf_resolution=128, sdf_subgrid_resolution=6),
-            ],
-            collision_approximation="sdf",
+            collision_props=_physx_collision_properties(contact_offset=_CONTACT_GAP),
+            mesh_collision_props=PhysxSDFMeshCfg(sdf_resolution=128, sdf_subgrid_resolution=6),
             physics_material=_physx_material(friction),
         )
     spawn.func = functools.partial(_spawn_physx_conveyor, belt_spec=section.belt)
@@ -170,7 +167,6 @@ def _physx_guard_collision(prim_path: str, spec: MeshSpec) -> AssetBaseCfg:
         faces=spec.faces,
         visible=False,
         collision_props=_physx_collision_properties(),
-        collision_approximation="none",
         physics_material=_physx_material(1.1e-5),
     )
     spawn.func = _spawn_hidden_collision_mesh
