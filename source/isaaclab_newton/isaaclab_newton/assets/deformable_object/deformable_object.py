@@ -16,7 +16,6 @@ import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.markers import VisualizationMarkers
-from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.warp import ProxyArray
 
 from ...physics.newton_manager import NewtonManager as SimulationManager
@@ -477,13 +476,6 @@ class DeformableObject(BaseDeformableObject):
         # Update data once
         self.update(0.0)
 
-        # Register rebind callback for full resets
-        self._physics_ready_handle = SimulationManager.register_callback(
-            lambda _: self._data._create_simulation_bindings(),
-            PhysicsEvent.PHYSICS_READY,
-            name=f"deformable_object_rebind_{self.cfg.prim_path}",
-        )
-
     def _create_buffers(self):
         """Create buffers for storing data."""
         # Constants
@@ -544,10 +536,3 @@ class DeformableObject(BaseDeformableObject):
         else:
             positions = kinematic_target_torch[targets_enabled][..., :3]
         self.target_visualizer.visualize(positions)
-
-    def _clear_callbacks(self) -> None:
-        """Clears all registered callbacks."""
-        super()._clear_callbacks()
-        if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
-            self._physics_ready_handle.deregister()
-            self._physics_ready_handle = None

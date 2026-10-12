@@ -20,6 +20,12 @@ focused programs for learning an API or tuning a feature in directories such as 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
 
+Unlike ``train`` and ``play``, demos and examples usually open a visualizer by default, since they
+are meant to be watched. Demos mostly default to Newton GL (``newton_gl``), with Kit for some such as
+``pick-and-place``. The ``h1-locomotion`` demo defaults to Kit with PhysX and Newton GL with Newton.
+Examples default to Kit or Newton GL depending on the program, and a few, such as ``ppisp-camera``
+and ``tacsl-sensor``, run without a visualizer. Pass ``--viz`` to pick a different one.
+
 In any packaged demo or example running with ``--viz newton_gl``, the **Isaac Lab Programs**
 panel shows the core showcases first, with focused examples in a separate collapsed section.
 Selecting one closes the current simulation and relaunches it with ``--viz newton_gl``.
@@ -59,6 +65,16 @@ Command Builder
            </button>
          </div>
        </div>
+       <aside class="admonition note demo-command-note" data-demo-note="h1-locomotion" hidden>
+         <p class="admonition-title">H1 locomotion</p>
+         <p>H1 locomotion uses a published policy. For autonomous H1 task playback, use <code>isaaclab play</code>.</p>
+         <p data-demo-note-visualizers="newton_gl,newton_rtx" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
+           <kbd>I</kbd>/<kbd>J</kbd>/<kbd>L</kbd> to walk forward or turn, <kbd>K</kbd> to stop, and <kbd>C</kbd> to toggle the follow camera.</p>
+       </aside>
+       <aside class="admonition note demo-command-note" data-demo-note="pick-and-place" hidden>
+         <p class="admonition-title">Pick and place</p>
+         <p>Pick and place requires Kit input.</p>
+       </aside>
      </section>
 
      <div class="demo-card-grid" data-demo-list>
@@ -69,7 +85,7 @@ Command Builder
                data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
                data-demo-visualizers-newton-mjwarp="kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
-         <img src="../../_static/demos/arms.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
+         <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
          <span>Zoo</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
@@ -117,6 +133,3 @@ Command Builder
        </button>
      </div>
    </div>
-
-H1 locomotion uses a published policy. In the Newton viewer, press N to select a robot, I/J/L to walk
-forward or turn, K to stop, and C to toggle the follow camera. Pick and place requires Kit input. For autonomous H1 task playback, use ``isaaclab play``.

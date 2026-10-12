@@ -1,0 +1,954 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+{# Task modules for every workflow. Rendered files are exported in the files mapping below. #}
+{% macro env_cfg() %}
+{% if task.workflow.name == 'direct' and task.workflow.type == 'single-agent' %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+{% set ns = namespace(amp_selected=false) %}
+{% for rl_library in rl_libraries %}
+{% if rl_library.name == "skrl" and "amp" in rl_library.algorithms %}
+{% set ns.amp_selected = true %}
+{% endif %}
+{% endfor %}
+
+from __future__ import annotations
+
+import math
+
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
+
+@configclass
+class {{ task.classname }}PhysicsCfg(PresetCfg):
+    """Physics presets for the cart-pole environment."""
+
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default: NewtonCfg = newton_mjwarp
+
+
+@configclass
+class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
+    """Scene configuration for the cart-pole environment."""
+
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ground: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
+class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
+    """Configuration for the cart-pole environment."""
+
+    # env
+    decimation = 2
+    episode_length_s = 5.0
+    # - spaces definition
+    action_space = 1
+    observation_space = 4
+    state_space = 0
+    {% if ns.amp_selected %}
+    # -- AMP observation space
+    num_amp_observations = 2
+    amp_observation_space = 4
+    {% endif %}
+
+    # simulation
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics={{ task.classname }}PhysicsCfg())
+
+    # scene
+    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(
+        num_envs=4096, env_spacing=4.0, replicate_physics=True
+    )
+
+    # custom parameters/scales
+    # - controllable joints
+    cart_dof_name = "slider_to_cart"
+    pole_dof_name = "cart_to_pole"
+    # - action scale
+    action_scale = 100.0  # [N]
+    # - reward scales
+    rew_scale_alive = 1.0
+    rew_scale_terminated = -2.0
+    rew_scale_pole_pos = -1.0
+    rew_scale_cart_vel = -0.01
+    rew_scale_pole_vel = -0.005
+    # - reset states/conditions
+    initial_cart_position_range = (-1.0, 1.0)  # [m]
+    initial_cart_velocity_range = (-0.5, 0.5)  # [m/s]
+    initial_pole_angle_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad]
+    initial_pole_velocity_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad/s]
+    max_cart_pos = 3.0  # reset if cart exceeds this position [m]
+
+    def __post_init__(self) -> None:
+        """Configure the default visualizer camera."""
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
+{% elif task.workflow.name == 'direct' and task.workflow.type == 'multi-agent' %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import math
+
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.physics import PhysxAutoCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab_tasks.utils import PresetCfg
+
+from isaaclab_assets.robots.cart_double_pendulum import CART_DOUBLE_PENDULUM_CFG
+
+
+@configclass
+class {{ task.classname }}PhysicsCfg(PresetCfg):
+    """Physics presets for the multi-agent environment."""
+
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default: NewtonCfg = newton_mjwarp
+
+
+@configclass
+class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
+    """Scene configuration for the multi-agent environment."""
+
+    robot: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ground: AssetBaseCfg = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
+    light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+    )
+
+
+@configclass
+class {{ task.classname }}EnvCfg(DirectMARLEnvCfg):
+    """Configuration for the multi-agent environment."""
+
+    # env
+    decimation = 2
+    episode_length_s = 5.0
+    # multi-agent specification and spaces definition
+    possible_agents = ["cart", "pendulum"]
+    action_spaces = {"cart": 1, "pendulum": 1}
+    observation_spaces = {"cart": 4, "pendulum": 3}
+    state_space = -1
+
+    # simulation
+    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics={{ task.classname }}PhysicsCfg())
+
+    # scene
+    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(
+        num_envs=4096, env_spacing=4.0, replicate_physics=True
+    )
+
+    # custom parameters/scales
+    # - controllable joint
+    cart_dof_name = "slider_to_cart"
+    pole_dof_name = "cart_to_pole"
+    pendulum_dof_name = "pole_to_pendulum"
+    # - action scale
+    cart_action_scale = 100.0  # [N]
+    pendulum_action_scale = 50.0  # [Nm]
+    # - reward scales
+    rew_scale_alive = 1.0
+    rew_scale_terminated = -2.0
+    rew_scale_cart_pos = 0.0
+    rew_scale_cart_vel = -0.01
+    rew_scale_pole_pos = 1.0
+    rew_scale_pole_vel = -0.01
+    rew_scale_pendulum_pos = 1.0
+    rew_scale_pendulum_vel = -0.01
+    rew_scale_upright = 1.0
+    rew_scale_action = -0.01
+    # - reset states/conditions
+    initial_pendulum_angle_range = [-0.25, 0.25]  # pendulum angle sample range on reset [rad]
+    initial_pole_angle_range = [-0.25, 0.25]  # pole angle sample range on reset [rad]
+    max_cart_pos = 3.0  # reset if cart exceeds this position [m]
+    success_upright_angle = math.pi / 12  # [rad]
+    success_duration_s = 1.0  # [s]
+{% elif task.workflow.name == 'manager-based' and task.workflow.type == 'single-agent' %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import math
+
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.physics import PhysxAutoCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
+
+from isaaclab_tasks.utils import PresetCfg
+
+from ... import mdp
+
+##
+# Pre-defined configs
+##
+
+from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
+
+
+@configclass
+class {{ task.classname }}PhysicsCfg(PresetCfg):
+    """Physics presets for the cart-pole environment."""
+
+    isaacsim_physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=5,
+            nconmax=3,
+            cone="pyramidal",
+            impratio=1,
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoPADMMSolverCfg(sparse_jacobian=True),
+        debug_mode=False,
+        use_cuda_graph=True,
+    )
+    default: NewtonCfg = newton_mjwarp
+
+
+##
+# Scene definition
+##
+
+
+@configclass
+class {{ task.classname }}SceneCfg(InteractiveSceneCfg):
+    """Configuration for a cart-pole scene."""
+
+    # ground plane
+    ground = AssetBaseCfg(
+        prim_path="/World/ground",
+        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+    )
+
+    # robot
+    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # lights
+    dome_light = AssetBaseCfg(
+        prim_path="/World/DomeLight",
+        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    )
+
+
+##
+# MDP settings
+##
+
+
+@configclass
+class ActionsCfg:
+    """Action specifications for the MDP."""
+
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+
+
+@configclass
+class ObservationsCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        # observation terms (order preserved)
+        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
+
+        def __post_init__(self) -> None:
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class EventCfg:
+    """Configuration for events."""
+
+    # reset
+    reset_cart_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
+            "position_range": (-1.0, 1.0),
+            "velocity_range": (-0.5, 0.5),
+        },
+    )
+
+    reset_pole_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
+            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
+            "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
+        },
+    )
+
+
+@configclass
+class RewardsCfg:
+    """Reward terms for the MDP."""
+
+    # (1) Constant running reward
+    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    # (2) Failure penalty
+    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+    # (3) Primary task: keep pole upright
+    pole_pos = RewTerm(
+        func=mdp.joint_pos_target_l2,
+        weight=-1.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
+    )
+    # (4) Shaping tasks: lower cart velocity
+    cart_vel = RewTerm(
+        func=mdp.joint_vel_l1,
+        weight=-0.01,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
+    )
+    # (5) Shaping tasks: lower pole angular velocity
+    pole_vel = RewTerm(
+        func=mdp.joint_vel_l1,
+        weight=-0.005,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
+    )
+
+
+@configclass
+class TerminationsCfg:
+    """Termination terms for the MDP."""
+
+    # (1) Time out
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    # (2) Cart out of bounds
+    cart_out_of_bounds = DoneTerm(
+        func=mdp.joint_pos_out_of_manual_limit,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
+    )
+
+
+##
+# Environment configuration
+##
+
+
+@configclass
+class {{ task.classname }}EnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the cart-pole environment."""
+
+    # Scene settings
+    scene: {{ task.classname }}SceneCfg = {{ task.classname }}SceneCfg(num_envs=4096, env_spacing=4.0)
+    # Basic settings
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    events: EventCfg = EventCfg()
+    # MDP settings
+    rewards: RewardsCfg = RewardsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+{% if task.amp_selected %}
+
+    # AMP settings
+    compute_final_obs = True
+    num_amp_observations = 2
+{% endif %}
+
+    # Post initialization
+    def __post_init__(self) -> None:
+        """Post initialization."""
+        # general settings
+        self.decimation = 2
+        self.episode_length_s = 5
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
+        # simulation settings
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
+        self.sim.physics = {{ task.classname }}PhysicsCfg()
+{% endif %}
+{% endmacro %}
+
+{% macro env() %}
+{% if task.workflow.name == 'direct' and task.workflow.type == 'single-agent' %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+{% set ns = namespace(amp_selected=false) %}
+{% for rl_library in rl_libraries %}
+{% if rl_library.name == "skrl" and "amp" in rl_library.algorithms %}
+{% set ns.amp_selected = true %}
+{% endif %}
+{% endfor %}
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+{% if ns.amp_selected %}
+import gymnasium as gym
+import numpy as np
+import torch
+{% else %}
+import torch
+{% endif %}
+
+from isaaclab.envs import DirectRLEnv
+from isaaclab.utils.math import sample_uniform, wrap_to_pi
+
+if TYPE_CHECKING:
+    from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
+
+
+class {{ task.classname }}Env(DirectRLEnv):
+    """Cart-pole balancing environment."""
+
+    cfg: {{ task.classname }}EnvCfg
+
+    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
+        super().__init__(cfg, render_mode, **kwargs)
+        self.robot = self.scene["robot"]
+
+        self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
+        self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
+
+        self.joint_pos = self.robot.data.joint_pos.torch
+        self.joint_vel = self.robot.data.joint_vel.torch
+        {% if ns.amp_selected %}
+
+        # reconfigure AMP observation space according to the number of observations and create the buffer
+        self.amp_observation_size = self.cfg.num_amp_observations * self.cfg.amp_observation_space
+        self.amp_observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.amp_observation_size,))
+        self.amp_observation_buffer = torch.zeros(
+            (self.num_envs, self.cfg.num_amp_observations, self.cfg.amp_observation_space), device=self.device
+        )
+        {% endif %}
+
+    def _pre_physics_step(self, actions: torch.Tensor) -> None:
+        self.actions = self.cfg.action_scale * actions.clone()
+
+    def _apply_action(self) -> None:
+        self.robot.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
+
+    def _get_observations(self) -> dict:
+        obs = torch.cat(
+            (
+                self.joint_pos[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+            ),
+            dim=-1,
+        )
+        {% if ns.amp_selected %}
+
+        for i in reversed(range(self.cfg.num_amp_observations - 1)):
+            self.amp_observation_buffer[:, i + 1] = self.amp_observation_buffer[:, i]
+        self.amp_observation_buffer[:, 0] = obs.clone()
+        self.extras = {"amp_obs": self.amp_observation_buffer.view(-1, self.amp_observation_size)}
+
+        {% endif %}
+        observations = {"policy": obs}
+        return observations
+
+    def _get_rewards(self) -> torch.Tensor:
+        total_reward = compute_rewards(
+            self.cfg.rew_scale_alive,
+            self.cfg.rew_scale_terminated,
+            self.cfg.rew_scale_pole_pos,
+            self.cfg.rew_scale_cart_vel,
+            self.cfg.rew_scale_pole_vel,
+            self.joint_pos[:, self._pole_dof_idx[0]],
+            self.joint_vel[:, self._pole_dof_idx[0]],
+            self.joint_pos[:, self._cart_dof_idx[0]],
+            self.joint_vel[:, self._cart_dof_idx[0]],
+            self.reset_terminated,
+            self.step_dt,
+        )
+        return total_reward
+
+    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        self.joint_pos = self.robot.data.joint_pos.torch
+        self.joint_vel = self.robot.data.joint_vel.torch
+
+        time_out = self.episode_length_buf >= self.max_episode_length
+        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
+        return out_of_bounds, time_out
+
+    def _reset_idx(self, env_ids: Sequence[int] | None):
+        if env_ids is None:
+            env_ids = self.robot._ALL_INDICES
+        super()._reset_idx(env_ids)
+
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
+        joint_pos[:, self._cart_dof_idx] += sample_uniform(
+            self.cfg.initial_cart_position_range[0],
+            self.cfg.initial_cart_position_range[1],
+            joint_pos[:, self._cart_dof_idx].shape,
+            joint_pos.device,
+        )
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
+        joint_vel[:, self._cart_dof_idx] += sample_uniform(
+            self.cfg.initial_cart_velocity_range[0],
+            self.cfg.initial_cart_velocity_range[1],
+            joint_vel[:, self._cart_dof_idx].shape,
+            joint_vel.device,
+        )
+        joint_pos[:, self._pole_dof_idx] += sample_uniform(
+            self.cfg.initial_pole_angle_range[0],
+            self.cfg.initial_pole_angle_range[1],
+            joint_pos[:, self._pole_dof_idx].shape,
+            joint_pos.device,
+        )
+        joint_vel[:, self._pole_dof_idx] += sample_uniform(
+            self.cfg.initial_pole_velocity_range[0],
+            self.cfg.initial_pole_velocity_range[1],
+            joint_vel[:, self._pole_dof_idx].shape,
+            joint_vel.device,
+        )
+
+        joint_pos_limits = self.robot.data.soft_joint_pos_limits.torch[env_ids]
+        joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+        joint_vel_limits = self.robot.data.soft_joint_vel_limits.torch[env_ids]
+        joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
+
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
+
+        self.joint_pos[env_ids] = joint_pos
+        self.joint_vel[env_ids] = joint_vel
+
+        self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+
+{% if ns.amp_selected %}
+    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
+        # note: This is a placeholder for the reference motions. It should be implemented for the specific task.
+        # Refer to the `collect_reference_motions` method in the Humanoid-AMP task for an example.
+        return torch.zeros((num_samples, self.amp_observation_size), device=self.device)
+{% endif %}
+
+@torch.jit.script
+def compute_rewards(
+    rew_scale_alive: float,
+    rew_scale_terminated: float,
+    rew_scale_pole_pos: float,
+    rew_scale_cart_vel: float,
+    rew_scale_pole_vel: float,
+    pole_pos: torch.Tensor,
+    pole_vel: torch.Tensor,
+    cart_pos: torch.Tensor,
+    cart_vel: torch.Tensor,
+    reset_terminated: torch.Tensor,
+    step_dt: float,
+):
+    pole_pos = wrap_to_pi(pole_pos)
+    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
+    rew_termination = rew_scale_terminated * reset_terminated.float()
+    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
+    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
+    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    total_reward = (rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt
+    return total_reward
+{% elif task.workflow.name == 'direct' and task.workflow.type == 'multi-agent' %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import math
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+import torch
+
+from isaaclab.envs import DirectMARLEnv
+from isaaclab.utils.math import sample_uniform
+
+if TYPE_CHECKING:
+    from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
+
+
+class {{ task.classname }}Env(DirectMARLEnv):
+    """Cooperative cart-double-pendulum environment."""
+
+    cfg: {{ task.classname }}EnvCfg
+
+    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
+        super().__init__(cfg, render_mode, **kwargs)
+        self.robot = self.scene["robot"]
+
+        self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
+        self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
+        self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
+
+        self.joint_pos = self.robot.data.joint_pos.torch
+        self.joint_vel = self.robot.data.joint_vel.torch
+
+    def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
+        self.actions = actions
+
+    def _apply_action(self) -> None:
+        self.robot.set_joint_effort_target_index(
+            target=self.actions["cart"] * self.cfg.cart_action_scale, joint_ids=self._cart_dof_idx
+        )
+        self.robot.set_joint_effort_target_index(
+            target=self.actions["pendulum"] * self.cfg.pendulum_action_scale, joint_ids=self._pendulum_dof_idx
+        )
+
+    def _get_observations(self) -> dict[str, torch.Tensor]:
+        pole_joint_pos = normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]].unsqueeze(dim=1))
+        pendulum_joint_pos = normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1))
+        observations = {
+            "cart": torch.cat(
+                (
+                    self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                    self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                    pole_joint_pos,
+                    self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                ),
+                dim=-1,
+            ),
+            "pendulum": torch.cat(
+                (
+                    pole_joint_pos + pendulum_joint_pos,
+                    pendulum_joint_pos,
+                    self.joint_vel[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1),
+                ),
+                dim=-1,
+            ),
+        }
+        return observations
+
+    def _get_rewards(self) -> dict[str, torch.Tensor]:
+        total_reward = compute_rewards(
+            self.cfg.rew_scale_alive,
+            self.cfg.rew_scale_terminated,
+            self.cfg.rew_scale_cart_pos,
+            self.cfg.rew_scale_cart_vel,
+            self.cfg.rew_scale_pole_pos,
+            self.cfg.rew_scale_pole_vel,
+            self.cfg.rew_scale_pendulum_pos,
+            self.cfg.rew_scale_pendulum_vel,
+            self.joint_pos[:, self._cart_dof_idx[0]],
+            self.joint_vel[:, self._cart_dof_idx[0]],
+            normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
+            self.joint_vel[:, self._pole_dof_idx[0]],
+            normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]),
+            self.joint_vel[:, self._pendulum_dof_idx[0]],
+            math.prod(self.terminated_dict.values()),
+        )
+        return total_reward
+
+    def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+        self.joint_pos = self.robot.data.joint_pos.torch
+        self.joint_vel = self.robot.data.joint_vel.torch
+
+        time_out = self.episode_length_buf >= self.max_episode_length - 1
+        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
+        out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
+
+        terminated = {agent: out_of_bounds for agent in self.cfg.possible_agents}
+        time_outs = {agent: time_out for agent in self.cfg.possible_agents}
+        return terminated, time_outs
+
+    def _reset_idx(self, env_ids: Sequence[int] | None):
+        if env_ids is None:
+            env_ids = self.robot._ALL_INDICES
+        super()._reset_idx(env_ids)
+
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
+        joint_pos[:, self._pole_dof_idx] += sample_uniform(
+            self.cfg.initial_pole_angle_range[0] * math.pi,
+            self.cfg.initial_pole_angle_range[1] * math.pi,
+            joint_pos[:, self._pole_dof_idx].shape,
+            joint_pos.device,
+        )
+        joint_pos[:, self._pendulum_dof_idx] += sample_uniform(
+            self.cfg.initial_pendulum_angle_range[0] * math.pi,
+            self.cfg.initial_pendulum_angle_range[1] * math.pi,
+            joint_pos[:, self._pendulum_dof_idx].shape,
+            joint_pos.device,
+        )
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
+
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
+        default_root_pose[:, :3] += self.scene.env_origins[env_ids]
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
+
+        self.joint_pos[env_ids] = joint_pos
+        self.joint_vel[env_ids] = joint_vel
+
+        self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
+        self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
+        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+
+
+@torch.jit.script
+def normalize_angle(angle: torch.Tensor) -> torch.Tensor:
+    """Wrap angles [rad] to the range ``[-pi, pi]``."""
+    return (angle + math.pi) % (2 * math.pi) - math.pi
+
+
+@torch.jit.script
+def compute_rewards(
+    rew_scale_alive: float,
+    rew_scale_terminated: float,
+    rew_scale_cart_pos: float,
+    rew_scale_cart_vel: float,
+    rew_scale_pole_pos: float,
+    rew_scale_pole_vel: float,
+    rew_scale_pendulum_pos: float,
+    rew_scale_pendulum_vel: float,
+    cart_pos: torch.Tensor,
+    cart_vel: torch.Tensor,
+    pole_pos: torch.Tensor,
+    pole_vel: torch.Tensor,
+    pendulum_pos: torch.Tensor,
+    pendulum_vel: torch.Tensor,
+    reset_terminated: torch.Tensor,
+):
+    rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
+    rew_termination = rew_scale_terminated * reset_terminated.float()
+    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
+    rew_pendulum_pos = rew_scale_pendulum_pos * torch.sum(
+        torch.square(pole_pos + pendulum_pos).unsqueeze(dim=1), dim=-1
+    )
+    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
+    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    rew_pendulum_vel = rew_scale_pendulum_vel * torch.sum(torch.abs(pendulum_vel).unsqueeze(dim=1), dim=-1)
+
+    total_reward = {
+        "cart": rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel,
+        "pendulum": rew_alive + rew_termination + rew_pendulum_pos + rew_pendulum_vel,
+    }
+    return total_reward
+{% elif task.workflow.name == 'manager-based' and task.workflow.type == 'single-agent' %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+import numpy as np
+import torch
+from gymnasium import spaces
+
+from isaaclab.envs import ManagerBasedRLEnv
+
+from .{{ task.env_cfg_filename }} import {{ task.classname }}EnvCfg
+
+
+class {{ task.classname }}Env(ManagerBasedRLEnv):
+    """Manager-based cart-pole environment with the interface required by skrl AMP."""
+
+    cfg: {{ task.classname }}EnvCfg
+
+    def __init__(self, cfg: {{ task.classname }}EnvCfg, render_mode: str | None = None, **kwargs):
+        super().__init__(cfg, render_mode, **kwargs)
+
+        observation_size = spaces.flatdim(self.single_observation_space["policy"])
+        self.amp_observation_size = self.cfg.num_amp_observations * observation_size
+        self.amp_observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.amp_observation_size,))
+        self.amp_observation_buffer = torch.zeros(
+            (self.num_envs, self.cfg.num_amp_observations, observation_size), device=self.device
+        )
+
+    def step(self, action: torch.Tensor):
+        observations, rewards, terminated, truncated, extras = super().step(action)
+
+        for index in reversed(range(self.cfg.num_amp_observations - 1)):
+            self.amp_observation_buffer[:, index + 1] = self.amp_observation_buffer[:, index]
+        policy_observations = observations["policy"].reshape(self.num_envs, -1)
+        self.amp_observation_buffer[:, 0] = policy_observations
+        reset_env_ids = (terminated | truncated).nonzero(as_tuple=False).squeeze(-1)
+        if len(reset_env_ids) > 0:
+            final_policy_observations = extras["final_obs"]["policy"].reshape(self.num_envs, -1)
+            self.amp_observation_buffer[reset_env_ids, 0] = final_policy_observations[reset_env_ids]
+            amp_observations = self.amp_observation_buffer.view(-1, self.amp_observation_size).clone()
+            self.amp_observation_buffer[reset_env_ids] = policy_observations[reset_env_ids].unsqueeze(1)
+        else:
+            amp_observations = self.amp_observation_buffer.view(-1, self.amp_observation_size)
+        extras["amp_obs"] = amp_observations
+        return observations, rewards, terminated, truncated, extras
+
+    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
+        # This placeholder should be replaced with reference motions for the specific task.
+        # See the Humanoid-AMP task's implementation for a complete example.
+        return torch.zeros((num_samples, self.amp_observation_size), device=self.device)
+{% endif %}
+{% endmacro %}
+
+{% macro mdp_init() %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""This sub-module contains the functions that are specific to the environment."""
+
+from isaaclab.utils.module import lazy_export
+
+lazy_export()
+{% endmacro %}
+
+{% macro mdp_init_types() %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+__all__ = [
+    "joint_pos_target_l2",
+]
+
+# Forward stable MDP terms lazily, then override with environment-specific terms below.
+from isaaclab.envs.mdp import *  # noqa: F401, F403
+
+from .rewards import joint_pos_target_l2
+{% endmacro %}
+
+{% macro mdp_rewards() %}
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import torch
+
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils.math import wrap_to_pi
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
+    from isaaclab.envs import ManagerBasedRLEnv
+
+
+def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize joint position deviation from a target value."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    # wrap the joint positions to (-pi, pi)
+    joint_pos = wrap_to_pi(asset.data.joint_pos.torch[:, asset_cfg.joint_ids])
+    # compute the reward
+    return torch.sum(torch.square(joint_pos - target), dim=1)
+{% endmacro %}
+
+{% set config_dir = 'config/' ~ (robot_name | default('cartpole')) ~ '/' %}
+{% set files = {config_dir ~ task.env_cfg_filename ~ '.py': env_cfg()} %}
+{% if task.workflow.name == 'direct' or task.amp_selected %}
+{% set _ = files.update({config_dir ~ task.env_filename ~ '.py': env()}) %}
+{% endif %}
+{% if task.workflow.name == 'manager-based' %}
+{% set _ = files.update({
+    'mdp/__init__.py': mdp_init(),
+    'mdp/__init__.pyi': mdp_init_types(),
+    'mdp/rewards.py': mdp_rewards(),
+}) %}
+{% endif %}

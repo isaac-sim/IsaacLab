@@ -3,6 +3,102 @@ Changelog
 
 .. towncrier release notes start
 
+26.0.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both Franka drawer workflows with the existing EMA joint-position action,
+  stronger motion and joint-limit penalties, increased arm damping, and 16-second episodes.
+  Actions now map to soft joint limits and are smoothed before application. Retrain existing
+  policies for the changed action semantics, rewards, and reset pose. Direct configurations
+  now use ``arm_action`` in place of ``arm_joint_names`` and ``arm_action_scale``.
+  The 0.3 rad/s actuator limit is not a hard physical speed bound in MJWarp.
+* Gave both cabinet workflows light-brown satin fronts, a cream body, and bronze hardware
+  using shared materials, without changing cabinet physics or the default floor.
+
+Fixed
+^^^^^
+
+* Retracted the initial Franka shoulder pose in both cabinet workflows to prevent randomized
+  hand poses from penetrating the lower cabinet doors and knobs with the shared Franka asset.
+* Fixed the Anymal-C direct rough-terrain task loading its shingles material from the relocated Isaac Sim 6.2 asset path.
+
+
+25.0.3 (2026-10-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed unintended stacking cubes in Agibot Toy2Box and upright mug place tasks, including
+  their Mimic variants, by using a dedicated place scene configuration.
+
+
+25.0.2 (2026-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``IsaacContrib-Factory-Franka`` asset configuration to author its Newton collision settings
+  through collision and mesh-collision schema fragments instead of the deprecated
+  ``CollisionPropertiesCfg`` / ``NewtonSDFCollisionPropertiesCfg`` cfgs. The authored USD is unchanged.
+* Migrated bundled task configurations off the deprecated ``RigidBodyMaterialCfg`` alias to
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` (configurations using
+  PhysX-only friction/restitution combine modes) or
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common properties
+  only), so loading these tasks no longer emits a ``DeprecationWarning``. The authored USD material
+  attributes are unchanged.
+
+Fixed
+^^^^^
+
+* Fixed the ANYmal symmetry augmentation in :mod:`isaaclab_tasks.core.velocity.mdp.symmetry.anymal` mirroring
+  the wrong joints when the articulation's joint order is not the PhysX order, such as on the default Newton
+  backend. The left-right and front-back joint permutations are now resolved from the joint names.
+* Fixed missing RL configuration errors to suggest compatible ``--rl_library`` selections.
+* Fixed the Shadow Hand ``randomized`` preset setting the hand and cube restitution to 1.0, which bounced the cube off
+  the hand on PhysX and OvPhysX and slowed learning; it now keeps the unrandomized value of 0.0.
+* Removed GL-only particle options from the Franka pour and UR10 particle push RTX playback configs.
+  RTX used the particle appearance authored in the shared scene.
+* Kept playback camera defaults on their existing configuration instead of rebuilding an RTX configuration
+  from the same values. Removed the soft-body lift task's redundant window configuration subclass.
+
+
+25.0.1 (2026-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Franka Pour's default particle density for higher simulation throughput while
+  keeping ``env.source_fill_level=0.70`` as the default fill and the voxel size fixed at
+  15 mm. Set ``env.scene.media.spawn.particles_per_cell=3`` and
+  ``env.scene.media.spawn.jitter=0.0015`` to restore the previous particle density.
+* Reduced the default UR10 Particle Push sparse-grid reservations to improve large-batch
+  memory use and throughput while retaining bounded topology for CUDA graph capture. Set
+  ``mpm_active_cell_count_per_world=3072``, ``mpm_leaf_node_count_per_world=512``,
+  ``mpm_lower_node_count_per_world=64``, and ``mpm_upper_node_count_per_world=8`` to retain
+  the previous reservation sizes.
+
+Fixed
+^^^^^
+
+* Matched Franka Pour's invisible particle-only spill floor to the ground plane and extended
+  the particle workspace to include it, so particles falling off the table remained counted as spills.
+* Kept the UR10 Particle Push sparse-grid capacity hierarchy valid for small environment
+  counts, including headroom for pile spreading in single-environment play and evaluation.
+* Kept global entities out of Franka Pour and UR10 Particle Push's local-world reset masks
+  when resetting all environments with a slice, fixing single-environment playback.
+* Fixed the UR10 particle-push paddle and its visual becoming world-fixed during per-asset
+  Newton cloning by authoring both inside the robot prototype. Paddle geometry overrides
+  now live under ``scene.robot.spawn.paddle`` and ``scene.robot.spawn.paddle_visual``.
+* Made Franka Pour's stationary table a static collider, retaining its collision geometry
+  without adding unnecessary rigid-body degrees of freedom before the robot.
+
+
 25.0.0 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~~
 

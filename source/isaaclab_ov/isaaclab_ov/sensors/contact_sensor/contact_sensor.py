@@ -33,7 +33,6 @@ from .kernels import (
     reset_contact_sensor_kernel,
     split_flat_pose_to_pos_quat,
     unpack_contact_buffer_data,
-    update_filtered_force_history_kernel,
     update_net_forces_ovphysx_kernel,
 )
 
@@ -46,7 +45,7 @@ logger = logging.getLogger(__name__)
 class ContactSensor(BaseContactSensor):
     """An ovphysx contact reporting sensor.
 
-    Reports normal contact forces in world frame using the ovphysx
+    Reports normal, friction, and total contact forces in world frame using the ovphysx
     :class:`ContactBinding` API. The `PhysxContactReportAPI` USD schema must
     be applied to each sensor body (set
     :attr:`isaaclab.sim.spawner.RigidObjectSpawnerCfg.activate_contact_sensors`
@@ -56,14 +55,16 @@ class ContactSensor(BaseContactSensor):
 
     * ``track_pose`` — sensor body pose via a ``RIGID_BODY_POSE`` tensor binding.
     * ``filter_prim_paths_expr`` — per-partner filtered forces via
-      :meth:`ContactBinding.read_force_matrix`.
+      :meth:`ContactBinding.read_normal_force_matrix` and
+      :meth:`ContactBinding.read_friction_force_matrix`.
     * ``track_air_time`` — air/contact time tracking and
       :meth:`compute_first_contact` / :meth:`compute_first_air`.
     * ``track_contact_points`` — average contact positions [m] per sensor/filter pair.
-    * ``track_friction_forces`` — summed friction forces [N] per sensor/filter pair, including history.
+    * ``track_friction_forces`` - aggregate and per-filter friction forces [N], including history.
 
-    Contact-point and friction-force tracking require non-empty filters and a positive
-    ``max_contact_data_count_per_prim``. Aggregate friction forces are not supported.
+    Total forces always include normal and friction components. Aggregate force reads do
+    not depend on detailed-contact capacity. Only contact-point tracking requires non-empty
+    filters and a positive ``max_contact_data_count_per_prim``.
     The SDK warns and truncates detailed contacts when capacity is exceeded; increase
     ``max_contact_data_count_per_prim`` before recreating the sensor to retain all contacts.
     """
@@ -92,11 +93,12 @@ class ContactSensor(BaseContactSensor):
         # is a separate wheel API the view does not wrap.
         self._root_view: OvPhysxView | None = None
         # Pre-allocated read buffers, populated in _create_buffers.
-        self._net_forces_flat_buf: wp.array | None = None
-        self._force_matrix_flat_buf: wp.array | None = None
+        self._net_normal_forces_flat_buf: wp.array | None = None
+        self._net_friction_forces_flat_buf: wp.array | None = None
+        self._normal_force_matrix_flat_buf: wp.array | None = None
+        self._friction_force_matrix_flat_buf: wp.array | None = None
         self._poses_flat_buf: wp.array | None = None
         self._contact_data_buffers: tuple[wp.array, ...] | None = None
-        self._friction_data_buffers: tuple[wp.array, ...] | None = None
         # Body names (resolved during init).
         self._body_names: list[str] = []
         # Default backend tunables matching the PhysX backend.
@@ -104,15 +106,11 @@ class ContactSensor(BaseContactSensor):
             self.cfg.max_contact_data_count_per_prim = 4
         if self.cfg.force_threshold is None:
             self.cfg.force_threshold = 1.0
-        if self.cfg.track_contact_points or self.cfg.track_friction_forces:
+        if self.cfg.track_contact_points:
             if not self.cfg.filter_prim_paths_expr:
-                raise ValueError(
-                    "'filter_prim_paths_expr' must be non-empty to track contact points or friction forces."
-                )
+                raise ValueError("'filter_prim_paths_expr' must be non-empty to track contact points.")
             if self.cfg.max_contact_data_count_per_prim < 1:
-                raise ValueError(
-                    "'max_contact_data_count_per_prim' must be positive to track contact points or friction forces."
-                )
+                raise ValueError("'max_contact_data_count_per_prim' must be positive to track contact points.")
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -288,9 +286,7 @@ class ContactSensor(BaseContactSensor):
             self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
             self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
             self._reset_mask_torch = wp.to_torch(self._reset_mask)
-            self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-            self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-            self._timestamp_last_update = wp.zeros_like(self._timestamp)
+            self._create_timing_buffers()
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.
         # ovphysx fnmatch does not brace-expand, so we cannot match multiple
@@ -341,29 +337,26 @@ class ContactSensor(BaseContactSensor):
         # them once here and reuse every step. Shape: [S, 3] for net forces,
         # [S, F, 3] for the force matrix (S = num_envs * num_sensors).
         flat_count = self._num_envs * self._num_sensors
-        self._net_forces_flat_buf = wp.zeros((flat_count, 3), dtype=wp.float32, device=self._device)
+        self._net_normal_forces_flat_buf = wp.zeros((flat_count, 3), dtype=wp.float32, device=self._device)
+        self._net_friction_forces_flat_buf = wp.zeros((flat_count, 3), dtype=wp.float32, device=self._device)
         if self._num_filter_shapes > 0:
-            self._force_matrix_flat_buf = wp.zeros(
+            self._normal_force_matrix_flat_buf = wp.zeros(
                 (flat_count, self._num_filter_shapes, 3),
                 dtype=wp.float32,
                 device=self._device,
             )
+            self._friction_force_matrix_flat_buf = wp.zeros_like(self._normal_force_matrix_flat_buf)
         else:
-            self._force_matrix_flat_buf = None
+            self._normal_force_matrix_flat_buf = None
+            self._friction_force_matrix_flat_buf = None
 
         capacity = self._contact_binding.max_contact_data_count
         pair_shape = (flat_count, self._num_filter_shapes)
         self._contact_data_buffers = None
-        self._friction_data_buffers = None
         if self.cfg.track_contact_points:
             self._contact_data_buffers = tuple(
                 wp.zeros((capacity, width), dtype=wp.float32, device=self._device) for width in (1, 3, 3, 1)
             ) + tuple(wp.zeros(pair_shape, dtype=wp.uint32, device=self._device) for _ in range(2))
-        if self.cfg.track_friction_forces:
-            self._friction_data_buffers = tuple(
-                wp.zeros((capacity, 3), dtype=wp.float32, device=self._device) for _ in range(2)
-            ) + tuple(wp.zeros(pair_shape, dtype=wp.uint32, device=self._device) for _ in range(2))
-
         # Pose buffer: [S, 7] for RIGID_BODY_POSE (px,py,pz,qx,qy,qz,qw).
         if self.cfg.track_pose:
             self._poses_flat_buf = wp.zeros((flat_count, 7), dtype=wp.float32, device=self._device)
@@ -383,9 +376,11 @@ class ContactSensor(BaseContactSensor):
         """
         # Pull aggregate forces into the pre-allocated flat buffer:
         # shape [num_envs * num_sensors, 3] float32.
-        self._contact_binding.read_net_forces(self._net_forces_flat_buf)
-        if self._force_matrix_flat_buf is not None:
-            self._contact_binding.read_force_matrix(self._force_matrix_flat_buf)
+        self._contact_binding.read_net_normal_forces(self._net_normal_forces_flat_buf)
+        self._contact_binding.read_net_friction_forces(self._net_friction_forces_flat_buf)
+        if self._normal_force_matrix_flat_buf is not None:
+            self._contact_binding.read_normal_force_matrix(self._normal_force_matrix_flat_buf)
+            self._contact_binding.read_friction_force_matrix(self._friction_force_matrix_flat_buf)
         if self.cfg.track_pose and include_pose:
             # Read pose into [num_envs * num_sensors, 7] float32.
             assert self._root_view is not None
@@ -397,34 +392,37 @@ class ContactSensor(BaseContactSensor):
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
         if self._contact_data_buffers is not None:
-            self._contact_binding.read_contact_data(*self._contact_data_buffers)
-        if self._friction_data_buffers is not None:
-            self._contact_binding.read_friction_data(*self._friction_data_buffers)
+            self._contact_binding.read_normal_contact_data(*self._contact_data_buffers)
 
         # Pull aggregate forces into the pre-allocated flat buffer:
         # shape [num_envs * num_sensors, 3] float32 -> [num_envs * num_sensors] vec3f.
         self._fetch_ovphysx_buffers()
-        assert self._net_forces_flat_buf is not None
-        net_forces_flat = self._net_forces_flat_buf.view(wp.vec3f)
-        if self._force_matrix_flat_buf is not None:
-            force_matrix_flat = self._force_matrix_flat_buf.view(wp.vec3f)
+        assert self._net_normal_forces_flat_buf is not None
+        assert self._net_friction_forces_flat_buf is not None
+        normal_forces_flat = self._net_normal_forces_flat_buf.view(wp.vec3f)
+        friction_forces_flat = self._net_friction_forces_flat_buf.view(wp.vec3f)
+        if self._normal_force_matrix_flat_buf is not None:
+            normal_matrix_flat = self._normal_force_matrix_flat_buf.view(wp.vec3f)
+            friction_matrix_flat = self._friction_force_matrix_flat_buf.view(wp.vec3f)
         else:
-            force_matrix_flat = None
+            normal_matrix_flat = None
+            friction_matrix_flat = None
 
         wp.launch(
             update_net_forces_ovphysx_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                net_forces_flat,
-                force_matrix_flat,
+                normal_forces_flat,
+                friction_forces_flat,
+                normal_matrix_flat,
+                friction_matrix_flat,
                 env_mask,
                 self._num_envs,
-                self._num_sensors,
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
                 self._timestamp,
-                self._timestamp_last_update,
+                self._elapsed_since_update,
             ],
             outputs=[
                 self._data._net_normal_forces_w,
@@ -435,39 +433,31 @@ class ContactSensor(BaseContactSensor):
                 self._data._current_contact_time,
                 self._data._last_air_time,
                 self._data._last_contact_time,
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._net_friction_forces_w,
+                self._data._net_friction_forces_w_history,
+                self._data._friction_force_matrix_w,
+                self._data._friction_force_matrix_w_history,
             ],
             device=self._device,
         )
 
         contact_buffers = self._contact_data_buffers
-        friction_buffers = self._friction_data_buffers
-        if contact_buffers is not None or friction_buffers is not None:
+        if contact_buffers is not None:
             wp.launch(
                 unpack_contact_buffer_data,
                 dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
                 inputs=[
-                    contact_buffers[1].view(wp.vec3f) if contact_buffers is not None else None,
-                    contact_buffers[-2] if contact_buffers is not None else None,
-                    contact_buffers[-1] if contact_buffers is not None else None,
-                    friction_buffers[0].view(wp.vec3f) if friction_buffers is not None else None,
-                    friction_buffers[-2] if friction_buffers is not None else None,
-                    friction_buffers[-1] if friction_buffers is not None else None,
+                    contact_buffers[1].view(wp.vec3f),
+                    contact_buffers[-2],
+                    contact_buffers[-1],
                     env_mask,
                     self._num_envs,
                 ],
-                outputs=[self._data._contact_pos_w, self._data._friction_force_matrix_w],
-                device=self._device,
-            )
-        if self._friction_data_buffers is not None:
-            wp.launch(
-                update_filtered_force_history_kernel,
-                dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
-                inputs=[
-                    env_mask,
-                    self._history_length,
-                    self._data._friction_force_matrix_w,
-                    self._data._friction_force_matrix_w_history,
-                ],
+                outputs=[self._data._contact_pos_w],
                 device=self._device,
             )
 
@@ -532,6 +522,12 @@ class ContactSensor(BaseContactSensor):
                 self._data._friction_force_matrix_w,
                 self._data._friction_force_matrix_w_history,
                 self._data._contact_pos_w,
+                self._data._net_forces_w,
+                self._data._net_forces_w_history,
+                self._data._force_matrix_w,
+                self._data._force_matrix_w_history,
+                self._data._net_friction_forces_w,
+                self._data._net_friction_forces_w_history,
             ],
             device=self._device,
         )
@@ -653,4 +649,3 @@ class ContactSensor(BaseContactSensor):
         self._root_view = None
         self._physx_instance = None
         self._contact_data_buffers = None
-        self._friction_data_buffers = None

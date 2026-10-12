@@ -1,7 +1,37 @@
 Agent Skills
 ============
 
-Isaac Lab agent skills are repository-owned instructions that help coding agents follow Isaac Lab workflows. They are markdown guidance assets, not runtime Python packages.
+Isaac Lab agent skills are repository-owned instructions that help coding agents follow Isaac Lab
+workflows. They are markdown guidance assets, not runtime Python packages. The library covers
+installing, building environments, training, debugging, migrating, and contributing. Codex and
+Claude discover the skills automatically from a repository checkout (see `Discovery`_). The full
+catalog is in ``skills/README.md``.
+
+Skill categories
+----------------
+
+Skills typically fall into two groups: ones you invoke and ones the agent applies automatically.
+The groups are not exclusive. The audience directory (``user/`` or ``developer/``) says who a skill
+is for.
+
+Typically user-invoked skills
+  Ask for these by task or by name, for example ``/isaaclab-installing-isaac-lab`` in Claude Code.
+  They cover work you start yourself: installing Isaac Lab, creating and converting environments,
+  training and debugging RL, choosing backends and presets, preparing assets for Newton, migrating from
+  Isaac Gym or Isaac Lab 2.x, and troubleshooting setup. They live under ``skills/user/``. Some
+  maintainer tasks under ``skills/developer/`` are also run on request: ``isaaclab-auditing-an-issue``
+  and ``isaaclab-triaging-issue-backlog``.
+
+Typically agent-automated skills
+  The agent usually loads these on its own when a task matches the skill description, following ``AGENTS.md``.
+  They cover contribution conventions: coding style, test audits, changelog fragments, environment
+  docs synchronization, and PR preparation. They live under ``skills/developer/``.
+
+User skills also trigger automatically when a request matches their description, so naming a skill is
+optional. Name it when you want to be sure it is used.
+
+Layout
+------
 
 Skills live under the repository-level ``skills/`` directory:
 
@@ -18,12 +48,6 @@ Skills live under the repository-level ``skills/`` directory:
            ├── evaluations.md
            ├── reference.md       # optional, recommended for longer guidance
            └── examples.md        # optional, recommended for concrete workflows
-
-Developer skills
-  Help contributors and maintainers follow Isaac Lab workflows such as PR preparation, changelog fragments, testing, and documentation rules.
-
-User skills
-  Ship with the repository as supported guidance for users building on top of Isaac Lab. Some user skills are intentionally router-only and may only need ``SKILL.md`` plus ``evaluations.md`` when the official docs and source examples already contain the details.
 
 Skill files
 -----------
@@ -192,7 +216,13 @@ Validate skills locally with:
 
    uv run --no-project python tools/skills/cli.py check
 
-The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, native Codex and Claude aliases, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
+The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, catalog completeness, native Codex and Claude aliases, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
+
+Structural validation does not establish whether a skill improves agent behavior. When changing a
+workflow, exercise representative requests and inspect the resulting actions and artifacts. Include
+cases that should not activate the skill. Compare correctness, completion, unnecessary scope changes,
+tool calls, uncached input and output tokens, and validation time. Keep cached input separate from
+uncached input, and compare similar tasks before claiming an efficiency improvement.
 
 Run the validator tests with:
 

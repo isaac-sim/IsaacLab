@@ -94,6 +94,7 @@ def update_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, args_cli: argparse.Namespac
     Returns:
         The updated RSL-RL agent configuration.
     """
+    agent_cfg.device = args_cli.device
     if getattr(args_cli, "seed", None) is not None:
         args_cli.seed = resolve_seed(args_cli.seed)
         agent_cfg.seed = args_cli.seed

@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -42,12 +42,6 @@ class MPMObjectData(BaseDeformableObjectData):
         self.default_nodal_state_w: ProxyArray | None = None
         self.default_particle_state_w: ProxyArray | None = None
         self.nodal_kinematic_target: ProxyArray | None = None
-
-    def _create_simulation_bindings(self) -> None:
-        """Invalidate gathered buffers after model reinitialization."""
-        reset_timestamps(
-            (self._particle_pos_w, self._particle_vel_w, self._particle_state_w, self._root_pos_w, self._root_vel_w)
-        )
 
     @property
     def particle_pos_w(self) -> ProxyArray:
