@@ -36,6 +36,7 @@ from isaaclab_experimental.cosmos.server import serve
 from isaaclab_experimental.image_transfer import depth_to_control
 from isaaclab_experimental.image_transfer import modifier as modifier_module
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.modifiers import ModifierCfg, ModifierChain
 
 pytestmark = pytest.mark.unit
@@ -629,27 +630,23 @@ class Model:
 serve(Model(), sys.argv[1])
 """
 
-_TWO_PEER_GPUS = (
-    sys.platform.startswith("linux")
-    and torch.cuda.device_count() >= 2
-    and torch.cuda.can_device_access_peer(0, 1)
-    and torch.cuda.can_device_access_peer(1, 0)
-)
-
-
 @pytest.mark.skipif(
     not (sys.platform.startswith("linux") and torch.cuda.is_available()), reason="CUDA IPC needs Linux and a GPU"
 )
-@pytest.mark.parametrize(
-    "service_device",
-    ["cuda:0", pytest.param("cuda:1", marks=pytest.mark.skipif(not _TWO_PEER_GPUS, reason="needs two peer GPUs"))],
-)
-def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(service_device):
-    """A service on the camera's GPU or a peer GPU exchanges images in shared GPU memory; no TCP is involved."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_cuda_ipc_round_trip_keeps_controls_and_images_on_the_gpu(device):
+    """A service on the camera's GPU or a peer GPU exchanges images in shared GPU memory; no TCP is involved.
+
+    The camera stays on the default GPU; ``device`` is the service's, the same GPU or a peer. Runs select peer GPUs
+    through ``ISAACLAB_TEST_DEVICES``, for example ``011`` for cuda:0 and cuda:1.
+    """
     import subprocess
 
+    index = torch.device(device).index
+    if index != 0 and not (torch.cuda.can_device_access_peer(0, index) and torch.cuda.can_device_access_peer(index, 0)):
+        pytest.skip(f"cuda:0 and {device} cannot access each other's memory directly")
     endpoint, directory = _unix_endpoint()
-    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint, service_device], env={**os.environ})
+    service = subprocess.Popen([sys.executable, "-c", _GPU_SERVICE, endpoint, device], env={**os.environ})
     try:
         deadline = time.monotonic() + 60
         while True:
