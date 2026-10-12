@@ -1,5 +1,5 @@
 * Added reusable non-learning scene helpers for a Rizon-Sharpa coffee IK demo
-  with coupled Newton MPM/MJWarp, hosted tableware, absolute palm and finger
+  with coupled Newton MPM/MJWarp, external tableware, absolute palm and finger
   controls, and per-world resets. The licensed robot bundle remains external.
 * Added a single-scoop scripted controller, Apple Vision Pro retargeting,
   physical soluble-coffee conversion, and experimental contact grasping.

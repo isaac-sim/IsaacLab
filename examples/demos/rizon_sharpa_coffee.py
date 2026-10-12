@@ -42,9 +42,7 @@ def main() -> None:
         stack.callback(env.close)
         env.reset()
         if visualizers and cfg.grains_per_particle:
-            env.presentation = CoffeePresentation(
-                env, voxel_size=cfg.voxel_size, surface_smoothing_time=args.surface_smoothing_time
-            )
+            env.presentation = CoffeePresentation(env, voxel_size=cfg.voxel_size)
         if visualizers:
             env.sim.render()
         controller = CoffeeScoopDemo(env) if args.mode == "scripted" else None
@@ -137,25 +135,7 @@ def _parse_args():
         action="store_true",
         help="Fill the cup, dissolve wet coffee into liquid, diffuse its colour and stir.",
     )
-    parser.add_argument(
-        "--water_fill_height", type=float, default=None, help="Override the task's water seed height [m]."
-    )
     parser.add_argument("--voxel_size", type=float, default=0.004)
-    parser.add_argument(
-        "--spoon_margin", type=float, default=None, help="Override the broad spoon collision margin [m]."
-    )
-    parser.add_argument(
-        "--spoon_rim_margin_scale",
-        type=float,
-        default=0.0,
-        help="Relative rim margin; zero uses the actual mesh at the lip.",
-    )
-    parser.add_argument(
-        "--coffee_wetting_time",
-        type=float,
-        default=0.02,
-        help="Accumulated water contact before coffee becomes liquid [s].",
-    )
     parser.add_argument(
         "--physics_hz",
         type=int,
@@ -163,43 +143,8 @@ def _parse_args():
         default=None,
         help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm mounted scripts, otherwise 800 Hz.",
     )
-    parser.add_argument(
-        "--rigid_hz",
-        type=int,
-        choices=(400, 800, 840),
-        default=None,
-        help="Mounted robot integration rate [Hz]; default 840 with 120 Hz physics, otherwise 800.",
-    )
-    parser.add_argument("--mpm_substeps", type=int, default=None, help="MPM substeps per physics tick.")
-    parser.add_argument(
-        "--mpm_iterations",
-        type=int,
-        default=None,
-        help="Maximum MPM solver iterations; default 500 with water, 100 dry.",
-    )
-    parser.add_argument(
-        "--spoon_proxy_mass_scale",
-        type=float,
-        default=None,
-        help="Contact-grasp MPM inertia multiplier; default 20. The rigid spoon remains 25 g.",
-    )
-    parser.add_argument(
-        "--mpm_grid_capacity",
-        type=int,
-        default=None,
-        help=(
-            "Active-cell budget; default 98304 for the dry 2 mm script, otherwise automatic."
-            " Zero uses the full particle budget."
-        ),
-    )
     parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 3, 5, 10, 20, 64, 128), default=5)
     parser.add_argument("--render_samples", type=int, default=4)
-    parser.add_argument(
-        "--surface_smoothing_time",
-        type=float,
-        default=0.06,
-        help="Liquid render-field smoothing time [s]; zero disables.",
-    )
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
     parser.add_argument("--backdrop", choices=("kitchen", "studio"), default="kitchen", help="Kit render backdrop.")
@@ -228,38 +173,18 @@ def _parse_args():
         )
         args.physics_hz = 400 if fast_script else 800
     args.control_hz = 60 if args.physics_hz == 120 else 100
-    if args.rigid_hz is None:
-        args.rigid_hz = 840 if args.physics_hz == 120 else 800
     if args.video_fps is None:
         args.video_fps = 30 if args.physics_hz == 120 else 25
     if args.control_hz % args.video_fps:
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
-    if args.grasp_mode == "mounted" and args.rigid_hz % args.physics_hz:
-        parser.error("--rigid_hz must be an integer multiple of --physics_hz.")
     if args.grasp_mode == "contact" and args.physics_hz == 120:
         parser.error("120 Hz physics currently supports mounted tools; contact grasping uses a 1600 Hz solver.")
-    if args.grasp_mode == "contact" and args.rigid_hz != 800:
-        parser.error("--rigid_hz applies only to mounted tools; contact grasping uses 1600 Hz.")
-    if args.spoon_margin is not None and (not math.isfinite(args.spoon_margin) or args.spoon_margin < 0.0):
-        parser.error("--spoon_margin must be finite and nonnegative.")
-    if args.mpm_grid_capacity is not None and args.mpm_grid_capacity < 0:
-        parser.error("--mpm_grid_capacity must be nonnegative.")
     if args.keep_open and args.headless:
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
         parser.error("--render_samples must be positive.")
-    if not math.isfinite(args.surface_smoothing_time) or args.surface_smoothing_time < 0:
-        parser.error("--surface_smoothing_time must be finite and nonnegative.")
-    if args.mpm_substeps is not None and args.mpm_substeps < 1:
-        parser.error("--mpm_substeps must be positive.")
-    if args.mpm_iterations is not None and args.mpm_iterations < 1:
-        parser.error("--mpm_iterations must be positive.")
-    if args.spoon_proxy_mass_scale is not None and (
-        not math.isfinite(args.spoon_proxy_mass_scale) or args.spoon_proxy_mass_scale <= 0.0
-    ):
-        parser.error("--spoon_proxy_mass_scale must be finite and positive.")
     return args, parser
 
 
@@ -270,33 +195,20 @@ def _make_env_cfg(args, parser, video_stride):
     cfg.seed = 7
     cfg.sim.device = args.device
     cfg.voxel_size = args.voxel_size
-    if args.spoon_margin is not None:
-        cfg.spoon_margin_voxels = args.spoon_margin / cfg.voxel_size
-    cfg.spoon_rim_margin_scale = args.spoon_rim_margin_scale
     cfg.sim.dt = 1.0 / args.physics_hz
     cfg.decimation = args.physics_hz // args.control_hz
     cfg.sim.render_interval = 2 * cfg.decimation
     # The robot and material keep independent integration rates.
-    cfg.sim.physics.solver_cfg.entries[0].substeps = args.rigid_hz // args.physics_hz
-    if args.spoon_proxy_mass_scale is not None:
-        cfg.spoon_proxy_mass_scale = args.spoon_proxy_mass_scale
-    if args.water_fill_height is not None:
-        cfg.water_fill_height = args.water_fill_height
-    cfg.coffee_wetting_time = args.coffee_wetting_time
+    rigid_hz = 840 if args.physics_hz == 120 else 800
+    cfg.sim.physics.solver_cfg.entries[0].substeps = rigid_hz // args.physics_hz
     cfg.grasp_reset_path = args.grasp_reset
     cfg.grasp_mode = args.grasp_mode
     cfg.sim.physics.use_cuda_graph = not args.disable_cuda_graph
     media = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
-    if args.mpm_iterations is not None:
-        media.max_iterations = args.mpm_iterations
-    if args.mpm_grid_capacity:
-        media.max_active_cell_count = args.mpm_grid_capacity
-    elif args.mpm_grid_capacity is None and args.mode == "scripted" and not args.water and cfg.voxel_size == 0.002:
+    if args.mode == "scripted" and not args.water and cfg.voxel_size == 0.002:
         # Bound padded grid work for this scripted fill. Other resolutions,
         # water and live teleoperation keep the conservative automatic budget.
         media.max_active_cell_count = 98304
-    if args.mpm_substeps is not None:
-        cfg.sim.physics.solver_cfg.entries[1].substeps = args.mpm_substeps
     if args.video:
         from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
@@ -324,11 +236,9 @@ def _make_env_cfg(args, parser, video_stride):
 
 def _make_visualizers(args, parser):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
     from isaaclab.visualizers import WindowCfg
-
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation_cfg import CoffeeRTXVisualizerCfg
 
     visualizers = []
     camera_cfg = dict(
@@ -381,8 +291,8 @@ def _make_visualizers(args, parser):
             **camera_cfg,
         )
         visualizers.append(
-            CoffeeRTXVisualizerCfg(
-                show_particles=args.grains_per_particle == 0,
+            NewtonRTXVisualizerCfg(
+                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeRTXVisualizer",
                 render_settings={
                     "omni:rtx:rtpt:spp": ("Int", args.render_samples),
                     "omni:rtx:rtpt:maxBounces": ("UInt", 8),

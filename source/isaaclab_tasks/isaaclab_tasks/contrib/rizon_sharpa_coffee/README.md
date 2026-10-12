@@ -13,7 +13,8 @@ per physical particle. Add `--water` for a filled cup, physical coffee-to-liquid
 conversion, conservative colour diffusion and stirring. For the kitchen
 presentation, use `--water --visualizer kit`; `--backdrop studio` selects the
 plain studio. `--visualizer none --headless` runs physics without presentation.
-Use `--help` for voxel, solver-rate, tool-margin and rendering options.
+Use `--help` for voxel, solver-rate and rendering options. Material properties,
+tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
 
 ## Assets and runtime
 
@@ -28,16 +29,15 @@ are authored in metres with Z up; their default prim is `/Asset`. The exact
 concave spoon triangles and material groups are required for MPM contact.
 Props and the prepared robot are loaded without runtime asset generation.
 
-Until the development bundle is promoted to the public asset library, select
-the internal release with:
+The public bundle has not been released. Provide an approved copy with:
 
 ```bash
-export ISAACLAB_COFFEE_ASSET_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Objects/CoffeeScooping/v1
+export ISAACLAB_COFFEE_ASSET_ROOT=/path/to/CoffeeScooping/v1
 ```
 
-The same variable can point to a local copy of that bundle. Preserve relative
-texture paths when copying it. A missing or inaccessible bundle fails through
-the standard asset loader; the demo does not silently generate replacements.
+The variable accepts a local folder or an approved asset-library URL. Preserve
+relative texture paths when copying it. A missing or inaccessible bundle fails
+through the standard asset loader; the demo does not generate replacements.
 
 The prepared Rizon/Sharpa robot reuses the licensed Fabrics-Sim USD and textures
 from the RJ45 insertion scene, with the two malformed visual normals arrays
@@ -103,6 +103,11 @@ MPM owns coffee-to-liquid conversion independently of presentation. Rendering
 grains are passive and do not increase physical resolution; surface filtering
 changes appearance without changing particle mass. Liquid-level fidelity still
 depends on grid resolution and pressure convergence.
+
+Newton's `ParticleSurface` owns reconstruction, anisotropy and spatial smoothing.
+Its native active-particle mask excludes dry coffee. The demo adds temporal field
+filtering, coffee colour transport and renderer publication of those colours.
+Materials and recording use Isaac Lab's existing spawners and recorder.
 
 To create an RL task, copy `demo_env.py` and `demo_env_cfg.py` and change their
 bases to `ManagerBasedRLEnv` and `ManagerBasedRLEnvCfg`. Adapt the constructor to

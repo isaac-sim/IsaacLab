@@ -104,7 +104,7 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
     spoon_proxy_mass_scale: float = 20.0
     """Finite inertia multiplier for the contact-held spoon's MPM proxy."""
     water_enabled: bool = False
-    coffee_wetting_time: float = 0.12
+    coffee_wetting_time: float = 0.02
     """Accumulated contact with water before soluble coffee becomes liquid [s]."""
     grains_per_particle: int = 0
     grasp_reset_path: str | None = None
@@ -182,6 +182,9 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         if cfg.water_enabled
         else None
     )
+    for asset in (cfg.scene.coffee, cfg.scene.water):
+        if asset is not None:
+            asset.spawn.visible = cfg.grains_per_particle == 0
     solver = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
     # Resolve defaults after Hydra/CLI overrides, preserving explicitly tuned
     # pressure settings and the independently configured integration rates.

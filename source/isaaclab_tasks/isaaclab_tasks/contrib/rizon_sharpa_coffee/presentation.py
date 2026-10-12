@@ -19,6 +19,8 @@ from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerRTX
 from newton.geometry import ParticleSurface
 from newton.viewer import ViewerRTX
 
+import isaaclab.sim as sim_utils
+
 from .physics import CoffeeMPMSolver
 from .surface import SurfaceHistory
 
@@ -64,9 +66,6 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
     def initialize(self, sim, *, cameras):
         if self._is_initialized:
             return
-        from pxr import UsdGeom
-
-        self._visibility_backup = {}
         self._light_backup = {}
         for name in ("/World/DomeLight", "/World/KeyLight"):
             intensity = sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity")
@@ -74,12 +73,6 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                 self._light_backup[name] = intensity.Get()
                 intensity.Set(0.0)
         _add_coffee_studio_lights(sim.stage, "/World/CoffeeRTXLights")
-        if not self.cfg.show_particles:
-            for prim in sim.stage.Traverse():
-                if prim.IsA(UsdGeom.Points) and prim.GetPath().HasPrefix("/World/envs"):
-                    imageable = UsdGeom.Imageable(prim)
-                    self._visibility_backup[str(prim.GetPath())] = imageable.GetVisibilityAttr().Get()
-                    imageable.MakeInvisible()
         super().initialize(sim, cameras=cameras)
 
     def _update_state(self):
@@ -90,12 +83,10 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
         return state
 
     def close(self):
-        from pxr import UsdGeom
-
+        if self._is_closed:
+            return
         if self._is_initialized:
             self._viewer.presentation = None
-            for name, visibility in self._visibility_backup.items():
-                UsdGeom.Imageable(self._sim.stage.GetPrimAtPath(name)).GetVisibilityAttr().Set(visibility)
             for name, intensity in self._light_backup.items():
                 self._sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity").Set(intensity)
             self._sim.stage.RemovePrim("/World/CoffeeRTXLights")
@@ -199,10 +190,6 @@ class CoffeePresentation:
         self._surface = None
         self._surface_history = SurfaceHistory(surface_smoothing_time)
         self._clear_surface_cache()
-        self._surface_ids = None
-        self._surface_ids_host = None
-        self._surface_points = None
-        self._surface_radii = None
         self._hash_grid = None
         self._mixing_radius = 2.0 * voxel_size
         self._diffusion_rate = diffusion_rate
@@ -233,8 +220,6 @@ class CoffeePresentation:
             self._diffusion_support = wp.empty_like(self._dye_mass)
             self._hash_grid = wp.HashGrid(64, 64, 64, device=device)
             self._hash_grid.reserve(self._liquid_ids.size)
-            self._surface_points = wp.empty_like(self._liquid_points)
-            self._surface_radii = wp.empty_like(self._liquid_radii)
             self._surface = ParticleSurface(
                 # Coarser physics should not coarsen the visible liquid mesh.
                 voxel_size=min(0.3 * voxel_size, 0.0015),
@@ -262,8 +247,6 @@ class CoffeePresentation:
         self._rtx_static_grain_views: weakref.WeakSet[ViewerRTX] = weakref.WeakSet()
         for visualizer in self._visualizers:
             visualizer.presentation = self
-        for visualizer in self._kit_visualizers:
-            visualizer.prepare_presentation()
         self.update()
 
     def update(self) -> None:
@@ -276,15 +259,9 @@ class CoffeePresentation:
         self._surface_cache = None
         state = NewtonManager.get_state_0()
         if self._water is not None:
-            wp.launch(
-                _gather_water,
-                dim=self._liquid_ids.size,
-                # Coupled entries own projected material/radius arrays. Read
-                # MPM's view so converted coffee contributes its actual volume.
-                inputs=[self._liquid_ids, state.particle_q, self._solver.model.particle_radius],
-                outputs=[self._liquid_points, self._liquid_radii],
-                device=self._model.device,
-            )
+            wp.copy(self._liquid_points, wp.indexedarray(state.particle_q, self._liquid_ids))
+            # The coupled MPM view owns the converted particles' actual radii.
+            wp.copy(self._liquid_radii, wp.indexedarray(self._solver.model.particle_radius, self._liquid_ids))
             wp.launch(
                 _release_converted_color,
                 dim=self._coffee_ids.size,
@@ -423,19 +400,10 @@ class CoffeePresentation:
         if step != self._surface_step:
             now = self._env.sim.physics_manager.get_simulation_time()
             dt = 0.0 if self._surface_time is None else max(now - self._surface_time, 0.0)
-            # Compact only liquid carriers; physical buffers remain fixed for capture.
-            ids = np.flatnonzero(self._liquid_flags.numpy()).astype(np.int32)
-            if self._surface_ids_host is None or not np.array_equal(ids, self._surface_ids_host):
-                self._surface_ids_host = ids
-                self._surface_ids = wp.array(ids, dtype=int, device=self._model.device)
-            wp.launch(
-                _gather_water,
-                dim=ids.size,
-                inputs=[self._surface_ids, self._liquid_points, self._liquid_radii],
-                outputs=[self._surface_points, self._surface_radii],
-                device=self._model.device,
+            # Native ACTIVE flags exclude dry coffee without a host-side compaction.
+            field = self._surface.update_field(
+                self._liquid_points, self._liquid_radii, particle_flags=self._liquid_flags
             )
-            field = self._surface.update_field(self._surface_points[: ids.size], self._surface_radii[: ids.size])
             self._surface_history.apply(field, dt)
             self._surface_mesh = self._surface.resurface().to_arrays()
             self._surface_step, self._surface_time = step, now
@@ -482,21 +450,13 @@ class CoffeePresentation:
             # Native mesh maps point at runtime siblings, not the authoring stage.
             mesh_path = viewer._get_path(name)
             mesh = viewer.stage.GetPrimAtPath(mesh_path)
-            material = UsdShade.Material.Define(viewer.stage, f"{mesh_path}/CoffeeMaterial")
-            shader = UsdShade.Shader.Define(viewer.stage, f"{material.GetPath()}/Surface")
-            shader.CreateIdAttr("UsdPreviewSurface")
-            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.08)
-            shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
-            shader.CreateInput("ior", Sdf.ValueTypeNames.Float).Set(1.33)
-            shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(viewer._preview_surface_opacity_value(opacity))
-            reader = UsdShade.Shader.Define(viewer.stage, f"{material.GetPath()}/Colour")
-            reader.CreateIdAttr("UsdPrimvarReader_float3")
-            reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("displayColor")
-            reader.CreateOutput("result", Sdf.ValueTypeNames.Float3)
-            shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
-                reader.ConnectableAPI(), "result"
+            material, shader = _vertex_color_material(
+                viewer.stage,
+                f"{mesh_path}/CoffeeMaterial",
+                WATER_COLOR,
+                roughness=0.08,
+                opacity=viewer._preview_surface_opacity_value(opacity),
             )
-            material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
             UsdShade.MaterialBindingAPI.Apply(mesh).Bind(material)
             primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
                 "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.vertex
@@ -506,7 +466,7 @@ class CoffeePresentation:
             # shader has the same relative path after native replacement.
             runtime_path = viewer._replace_runtime_prim(mesh_path)
             viewer._mesh_prim_paths[name] = runtime_path
-            self._rtx_water_shaders[key] = f"{runtime_path}/CoffeeMaterial/Surface"
+            self._rtx_water_shaders[key] = f"{runtime_path}/CoffeeMaterial/Shader"
             viewer._apply_ovstage_population_changes()
         shader_path = self._rtx_water_shaders[key]
         viewer._write_runtime_array_attribute(
@@ -551,17 +511,20 @@ class CoffeePresentation:
         self._clear_surface_cache()
 
 
-@wp.kernel
-def _gather_water(
-    ids: wp.array[int],
-    positions: wp.array[wp.vec3],
-    radii: wp.array[float],
-    result_positions: wp.array[wp.vec3],
-    result_radii: wp.array[float],
-):
-    i = wp.tid()
-    result_positions[i] = positions[ids[i]]
-    result_radii[i] = radii[ids[i]]
+def _vertex_color_material(stage, path, color, *, roughness: float, opacity: float = 1.0):
+    """Use the native material spawner and connect the coffee colour primvar."""
+    from pxr import Sdf, UsdShade
+
+    cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=roughness, metallic=0.0, opacity=opacity)
+    with sim_utils.use_stage(stage):
+        shader = UsdShade.Shader(cfg.func(path, cfg))
+    shader.CreateInput("ior", Sdf.ValueTypeNames.Float).Set(1.33)
+    reader = UsdShade.Shader.Define(stage, f"{path}/Colour")
+    reader.CreateIdAttr("UsdPrimvarReader_float3")
+    reader.CreateInput("varname", Sdf.ValueTypeNames.String).Set("displayColor")
+    reader.CreateOutput("result", Sdf.ValueTypeNames.Float3)
+    shader.GetInput("diffuseColor").ConnectToSource(reader.ConnectableAPI(), "result")
+    return UsdShade.Material.Get(stage, path), shader
 
 
 @wp.kernel

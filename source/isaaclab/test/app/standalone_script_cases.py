@@ -221,6 +221,12 @@ OVERRIDES = {
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+        skip_reason="requires approved coffee props and licensed Rizon/Sharpa robot bundles",
+        required_modules=("isaaclab_contrib",),
+    ),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
     "examples/demos/newton_viewer_block_and_tackle.py": ScriptOverride(
         fixed_physics_backend="newton_vbd",
