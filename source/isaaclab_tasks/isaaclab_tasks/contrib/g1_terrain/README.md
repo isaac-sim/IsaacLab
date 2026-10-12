@@ -1,7 +1,7 @@
 # G1 terrain traversals
 
-Two single-robot examples run the pretrained `height35-student-s43-i16000` depth
-policy over uneven white platforms (Block) and wooden ramps (Ramp). Both support
+Two single-robot examples run a pretrained depth-based locomotion policy over
+uneven white platforms (Block) and wooden ramps (Ramp). Both support
 Isaac Sim PhysX and Newton MJWarp, with RTX rendering and fixed camera poses.
 
 | Task | CLI name | Course |

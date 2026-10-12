@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deployment observations for the height35 depth student."""
+"""Deployment observations for the G1 depth-based locomotion policy."""
 
 import re
 

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deployment parameters for the height35-student-s43-i16000 policy."""
+"""Deployment parameters for the G1 depth-based locomotion policy."""
 
 JOINT_NAMES = (
     [

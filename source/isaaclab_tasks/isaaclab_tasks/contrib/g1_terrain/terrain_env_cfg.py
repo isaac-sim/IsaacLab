@@ -173,7 +173,7 @@ class EventsCfg:
 
 @configclass
 class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
-    """Depth-student traversal of the white platforms (real1)."""
+    """Depth-based locomotion over uneven white platforms."""
 
     class_type = "{DIR}.terrain_env:G1TerrainEnv"
     policy_path: str = (
@@ -217,7 +217,7 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
 
 @configclass
 class G1RampsEnvCfg(G1PlatformsEnvCfg):
-    """Depth-student traversal of the wooden ramps (real2)."""
+    """Depth-based locomotion over wooden ramps."""
 
     terrain_name = "ramps"
     warmup_height = 1.363555205562947
