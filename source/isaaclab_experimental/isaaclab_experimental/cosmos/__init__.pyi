@@ -5,7 +5,6 @@
 
 __all__ = [
     "COSMOS_CANVASES",
-    "DEFAULT_ENDPOINT",
     "CosmosModel",
     "CosmosModelCfg",
     "CosmosTransferModifier",
@@ -27,7 +26,6 @@ __all__ = [
     "service_capabilities",
 ]
 
-from ._protocol import DEFAULT_ENDPOINT
 from .client import (
     COSMOS_CANVASES,
     CosmosModel,
