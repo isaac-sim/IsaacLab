@@ -70,7 +70,7 @@ from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils import configclass
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import KukaAllegroLiftEnvCfg
@@ -623,8 +623,7 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
         # panel, captured through the standard VideoRecorderCfg path.
         return KitVisualizerCfg(
             headless=True,
-            window_width=_HERO_WINDOW_WIDTH,
-            window_height=_HERO_WINDOW_HEIGHT,
+            window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
             streaming_view=True,
             streaming_envs=1,
             streaming_cam_target_prim_path=_HERO_STREAMING_TARGET_PRIM,
@@ -635,8 +634,7 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
     # _follow_camera instead, like the other _HERO_FOLLOW_CAM_VISUALIZERS.
     return KitVisualizerCfg(
         headless=False,
-        window_width=_HERO_WINDOW_WIDTH,
-        window_height=_HERO_WINDOW_HEIGHT,
+        window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         streaming_view=False,
         eye=_HERO_KIT_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
@@ -649,8 +647,7 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
     # eye/lookat seed the initial pose before _follow_camera takes over.
     return NewtonGLVisualizerCfg(
         headless=_hero_headless(),
-        window_width=_HERO_WINDOW_WIDTH,
-        window_height=_HERO_WINDOW_HEIGHT,
+        window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
@@ -661,19 +658,13 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 
 
 def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    # No streaming_view: unusable for kitless RTX (see module docstring). Markers are
-    # unsupported on this backend regardless of enable_markers (hard-blocked for the kitless
-    # viewer).
+    # The perspective view uses the scene's authored lighting and native debug markers.
     return NewtonRTXVisualizerCfg(
         headless=_hero_headless(),
-        window_width=_HERO_WINDOW_WIDTH,
-        window_height=_HERO_WINDOW_HEIGHT,
+        window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_RTX_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
-        rtx_environment="studio",
-        sky_upper_color=_HERO_SKY_UPPER_COLOR,
-        sky_lower_color=_HERO_SKY_LOWER_COLOR,
     )
 
 
@@ -1417,8 +1408,7 @@ def _showcase_headless() -> bool:
 def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
     return KitVisualizerCfg(
         headless=_showcase_headless(),
-        window_width=_SHOWCASE_WINDOW_WIDTH,
-        window_height=_SHOWCASE_WINDOW_HEIGHT,
+        window=WindowCfg(size=(_SHOWCASE_WINDOW_WIDTH, _SHOWCASE_WINDOW_HEIGHT)),
         eye=_SHOWCASE_REACH_EYE,
         lookat=_SHOWCASE_REACH_LOOKAT,
         enable_markers=True,
@@ -1429,8 +1419,7 @@ def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
     # streaming_view defaults to True; this showcase only wants the interactive camera.
     return NewtonGLVisualizerCfg(
         headless=_showcase_headless(),
-        window_width=_SHOWCASE_NEWTON_GL_WINDOW_WIDTH,
-        window_height=_SHOWCASE_NEWTON_GL_WINDOW_HEIGHT,
+        window=WindowCfg(size=(_SHOWCASE_NEWTON_GL_WINDOW_WIDTH, _SHOWCASE_NEWTON_GL_WINDOW_HEIGHT)),
         streaming_view=False,
         eye=_SHOWCASE_NEWTON_GL_EYE,
         lookat=_SHOWCASE_NEWTON_GL_LOOKAT,
@@ -1442,9 +1431,7 @@ def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
     # Markers are hard-blocked in NewtonRTXVisualizer for the kitless viewer.
     return NewtonRTXVisualizerCfg(
         headless=_showcase_headless(),
-        window_width=_SHOWCASE_H1_STAIRS_WINDOW_WIDTH,
-        window_height=_SHOWCASE_H1_STAIRS_WINDOW_HEIGHT,
-        rtx_environment="default",
+        window=WindowCfg(size=(_SHOWCASE_H1_STAIRS_WINDOW_WIDTH, _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT)),
         eye=_SHOWCASE_H1_STAIRS_EYE_OFFSET,
         lookat=_SHOWCASE_WIDE_LOOKAT,
     )
@@ -2214,8 +2201,7 @@ def _streaming_headless() -> bool:
 def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
     return KitVisualizerCfg(
         headless=_streaming_headless(),
-        window_width=_STREAMING_WINDOW_WIDTH,
-        window_height=_STREAMING_WINDOW_HEIGHT,
+        window=WindowCfg(size=(_STREAMING_WINDOW_WIDTH, _STREAMING_WINDOW_HEIGHT)),
         eye=_STREAMING_INTERACTIVE_EYE,
         lookat=_STREAMING_INTERACTIVE_LOOKAT,
         # Toggled per capture run (see _main_streaming()) -- panel docks as a second tab, not

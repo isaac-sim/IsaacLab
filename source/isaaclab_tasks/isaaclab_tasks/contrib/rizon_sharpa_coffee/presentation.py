@@ -31,46 +31,75 @@ BREW_COLOR = (0.12, 0.041, 0.014)
 
 
 class CoffeeGLVisualizer(NewtonGLVisualizer):
-    """Submit coffee geometry inside the Newton GL viewer's normal frame."""
+    """Publish task geometry while the native GL frame is active."""
 
     presentation: CoffeePresentation | None = None
 
-    def _log_pending_meshes(self):
-        super()._log_pending_meshes()
+    def _update_state(self):
+        state = super()._update_state()
         if self.presentation is not None:
             self.presentation.draw(self._viewer)
-
-
-class CoffeeRTXVisualizer(NewtonRTXVisualizer):
-    """Submit coffee geometry inside the Newton RTX viewer's normal frame."""
-
-    presentation: CoffeePresentation | None = None
-
-    def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
-        """Use broad studio emitters for soft tabletop shadows."""
-        return CoffeeRTXViewer(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
-            headless=runtime_headless,
-            up_axis="Z",
-            metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
-            environment=self.cfg.rtx_environment,
-            background_color=self.cfg.background_color,
-            render_settings=self.cfg.render_settings,
-        )
-
-    def _log_pending_meshes(self):
-        super()._log_pending_meshes()
-        if self.presentation is not None:
-            self.presentation.draw(self._viewer)
+        return state
 
 
 class CoffeeRTXViewer(NewtonViewerRTX):
-    """Task-local softbox rig sized for a tabletop demonstration."""
+    """Publish liquid attributes after native RTX opens the next stage ordinal."""
 
-    def _add_studio_lights(self) -> None:
-        _add_coffee_studio_lights(self.stage, "/root/CoffeeLights")
+    presentation: CoffeePresentation | None = None
+
+    def _update_ovrtx_mesh_points(self):
+        super()._update_ovrtx_mesh_points()
+        if self.presentation is not None and self.presentation._surface is not None:
+            _, _, _, colors, fraction = self.presentation._water_surface_arrays()
+            if colors is not None:
+                self.presentation._update_rtx_water_appearance(self, 0.42 + 0.40 * fraction, colors)
+
+
+class CoffeeRTXVisualizer(NewtonRTXVisualizer):
+    """Borrow the task scene and extend native geometry publication."""
+
+    _viewer_class = CoffeeRTXViewer
+    presentation: CoffeePresentation | None = None
+
+    def initialize(self, sim, *, cameras):
+        if self._is_initialized:
+            return
+        from pxr import UsdGeom
+
+        self._visibility_backup = {}
+        self._light_backup = {}
+        for name in ("/World/DomeLight", "/World/KeyLight"):
+            intensity = sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity")
+            if intensity:
+                self._light_backup[name] = intensity.Get()
+                intensity.Set(0.0)
+        _add_coffee_studio_lights(sim.stage, "/World/CoffeeRTXLights")
+        if not self.cfg.show_particles:
+            for prim in sim.stage.Traverse():
+                if prim.IsA(UsdGeom.Points) and prim.GetPath().HasPrefix("/World/envs"):
+                    imageable = UsdGeom.Imageable(prim)
+                    self._visibility_backup[str(prim.GetPath())] = imageable.GetVisibilityAttr().Get()
+                    imageable.MakeInvisible()
+        super().initialize(sim, cameras=cameras)
+
+    def _update_state(self):
+        state = super()._update_state()
+        self._viewer.presentation = self.presentation
+        if self.presentation is not None:
+            self.presentation.draw(self._viewer)
+        return state
+
+    def close(self):
+        from pxr import UsdGeom
+
+        if self._is_initialized:
+            self._viewer.presentation = None
+            for name, visibility in self._visibility_backup.items():
+                UsdGeom.Imageable(self._sim.stage.GetPrimAtPath(name)).GetVisibilityAttr().Set(visibility)
+            for name, intensity in self._light_backup.items():
+                self._sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity").Set(intensity)
+            self._sim.stage.RemovePrim("/World/CoffeeRTXLights")
+        super().close()
 
 
 def _add_coffee_studio_lights(stage, parent: str) -> None:
@@ -379,8 +408,6 @@ class CoffeePresentation:
             water_mesh = viewer.objects[viewer._qualify("/coffee_water_surface")]
             roughness, metallic, checker, _ = water_mesh.material
             water_mesh.material = (roughness, metallic, checker, 1.0)
-        if isinstance(viewer, ViewerRTX) and colors is not None:
-            self._update_rtx_water_appearance(viewer, 0.42 + 0.40 * fraction, colors)
 
     def draw_kit(self, visualizer) -> None:
         """Publish the same grains and local liquid colours to Kit's USD stage."""
@@ -452,25 +479,35 @@ class CoffeePresentation:
         key = id(viewer)
         if key not in self._rtx_water_shaders:
             name = viewer._qualify("/coffee_water_surface")
-            mesh_path = viewer._mesh_prim_paths[name]
-            material, _ = UsdShade.MaterialBindingAPI(viewer.stage.GetPrimAtPath(mesh_path)).ComputeBoundMaterial()
-            shader, _, _ = material.ComputeSurfaceSource()
-            if not shader:
-                raise RuntimeError("The reconstructed water surface has no bound material shader.")
-            reader = UsdShade.Shader.Define(viewer.stage, str(shader.GetPath()) + "_CoffeeTint")
+            # Native mesh maps point at runtime siblings, not the authoring stage.
+            mesh_path = viewer._get_path(name)
+            mesh = viewer.stage.GetPrimAtPath(mesh_path)
+            material = UsdShade.Material.Define(viewer.stage, f"{mesh_path}/CoffeeMaterial")
+            shader = UsdShade.Shader.Define(viewer.stage, f"{material.GetPath()}/Surface")
+            shader.CreateIdAttr("UsdPreviewSurface")
+            shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(0.08)
+            shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
+            shader.CreateInput("ior", Sdf.ValueTypeNames.Float).Set(1.33)
+            shader.CreateInput("opacity", Sdf.ValueTypeNames.Float).Set(viewer._preview_surface_opacity_value(opacity))
+            reader = UsdShade.Shader.Define(viewer.stage, f"{material.GetPath()}/Colour")
             reader.CreateIdAttr("UsdPrimvarReader_float3")
             reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("displayColor")
             reader.CreateOutput("result", Sdf.ValueTypeNames.Float3)
-            shader.GetInput("diffuseColor").ConnectToSource(reader.ConnectableAPI(), "result")
-            primvar = UsdGeom.PrimvarsAPI(viewer.stage.GetPrimAtPath(mesh_path)).CreatePrimvar(
+            shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).ConnectToSource(
+                reader.ConnectableAPI(), "result"
+            )
+            material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
+            UsdShade.MaterialBindingAPI.Apply(mesh).Bind(material)
+            primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
                 "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.vertex
             )
             primvar.Set(Vt.Vec3fArray.FromNumpy(colors))
-            if viewer._rtx is not None:
-                viewer._mesh_prim_paths[name] = viewer._replace_runtime_prim(mesh_path)
-            self._rtx_water_shaders[key] = str(shader.GetPath())
-        if viewer._rtx is None:
-            return
+            # The owned material lives inside the exported mesh subtree, so its
+            # shader has the same relative path after native replacement.
+            runtime_path = viewer._replace_runtime_prim(mesh_path)
+            viewer._mesh_prim_paths[name] = runtime_path
+            self._rtx_water_shaders[key] = f"{runtime_path}/CoffeeMaterial/Surface"
+            viewer._apply_ovstage_population_changes()
         shader_path = self._rtx_water_shaders[key]
         viewer._write_runtime_array_attribute(
             viewer._mesh_prim_paths[viewer._qualify("/coffee_water_surface")], "primvars:displayColor", colors

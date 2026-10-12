@@ -36,9 +36,28 @@ def test_coffee_configs_import_before_usd_runtime():
                 sys.meta_path.insert(0, RejectUsd())
                 from isaaclab_tasks.contrib.rizon_sharpa_coffee.coffee_env_cfg import CoffeeEnvCfg
                 from isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation_cfg import CoffeeKitVisualizerCfg
+                from pathlib import Path
+                from types import SimpleNamespace
+                import argparse
+                import importlib.util
+                from isaaclab.paths import ISAACLAB_ROOT
 
                 assert CoffeeEnvCfg().scene.num_envs == 1
                 assert CoffeeKitVisualizerCfg().backdrop == "kitchen"
+                spec = importlib.util.spec_from_file_location(
+                    "coffee_demo", Path(ISAACLAB_ROOT) / "examples/demos/rizon_sharpa_coffee.py"
+                )
+                demo = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(demo)
+                args = SimpleNamespace(
+                    headless=True, width=640, height=360, video=True,
+                    video_render_scale=2, backdrop="studio", grains_per_particle=3,
+                    render_samples=1, water=True,
+                )
+                for name in ("kit", "newton_gl", "newton_rtx"):
+                    args.visualizer = [name]
+                    cfg = demo._make_visualizers(args, argparse.ArgumentParser())[0]
+                    assert cfg.window.size == (1280, 720)
             """),
         ],
         capture_output=True,

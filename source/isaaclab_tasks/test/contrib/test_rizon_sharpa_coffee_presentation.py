@@ -21,6 +21,7 @@ from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.physics import CoffeeMPMSolver
 from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import (
     CoffeePresentation,
+    CoffeeRTXViewer,
     _color_water_faces,
     _color_water_vertices,
     _diffuse_water_color,
@@ -322,3 +323,48 @@ def test_mounted_spoon_transfers_com_twist_to_both_state_buffers():
     np.testing.assert_allclose(joint_qd.numpy()[1:7], [0.8, 4, 5, 0, 0, 2], atol=1.0e-6)
     np.testing.assert_array_equal(other_joint_q.numpy(), joint_q.numpy())
     np.testing.assert_array_equal(other_joint_qd.numpy(), joint_qd.numpy())
+
+
+def test_coffee_rtx_updates_preserve_native_vector_elements():
+    """Dynamic geometry and colors retain float3 elements in the native runtime stage."""
+    from unittest.mock import Mock
+
+    ovstage = pytest.importorskip("ovstage")
+    points = np.arange(18, dtype=np.float32).reshape(6, 3)[::2]
+    viewer = CoffeeRTXViewer.__new__(CoffeeRTXViewer)
+    viewer._rtx = Mock()
+    viewer._use_ovstage = True
+    viewer._ovstage_queries = {}
+    viewer._ovstage_ordinal = 1
+    viewer._mesh_prim_paths = {"water": "/root/water"}
+    viewer._pending_mesh_points = {"water": points}
+    viewer._pending_mesh_normals = {}
+    viewer._pending_mesh_topology = {}
+    viewer._pending_mesh_visibility = {}
+
+    with ovstage.Stage("coffee_mesh_test") as stage, ovstage.PathDictionary(stage) as paths:
+        viewer._ovstage, viewer._ovstage_paths = stage, paths
+        try:
+            viewer._update_ovrtx_mesh_points()
+            viewer._write_runtime_array_attribute("/root/water", "primvars:displayColor", points / 18.0)
+            stage.advance_write_floor(1).wait()
+            query = viewer._get_ovstage_query(["/root/water"])
+            for name, expected in (("points", points), ("primvars:displayColor", points / 18.0)):
+                read = stage.read_attributes(query, [paths.intern_token(name)], ovstage.OrdinalRange.latest(1))
+                try:
+                    read.wait()
+                    group = read.fetch_next()
+                    assert group is not None
+                    try:
+                        tensor = group.tensor(0)
+                        assert tensor.dtype.lanes == 3 and tensor.dtype.bits == 32
+                        np.testing.assert_allclose(group.array(0).reshape(-1, 3), expected)
+                    finally:
+                        stage.release_group(group)
+                finally:
+                    read.release().wait()
+        finally:
+            for path_list, query in viewer._ovstage_queries.values():
+                query.release().wait()
+                paths.destroy_path_list(path_list)
+        viewer._rtx.write_array_attribute.assert_not_called()

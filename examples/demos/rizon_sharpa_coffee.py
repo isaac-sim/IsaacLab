@@ -361,13 +361,21 @@ def _make_env_cfg(args, parser, video_stride):
 
 def _make_visualizers(args, parser):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+    from isaaclab.visualizers import WindowCfg
+
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation_cfg import CoffeeRTXVisualizerCfg
 
     visualizers = []
     camera_cfg = dict(
         headless=args.headless,
-        window_width=args.width * (args.video_render_scale if args.video else 1),
-        window_height=args.height * (args.video_render_scale if args.video else 1),
+        window=WindowCfg(
+            size=(
+                args.width * (args.video_render_scale if args.video else 1),
+                args.height * (args.video_render_scale if args.video else 1),
+            )
+        ),
         eye=(0.95, -0.65, 0.66),
         lookat=(0.52, 0.02, 0.15),
         focal_length=24.0,
@@ -410,9 +418,8 @@ def _make_visualizers(args, parser):
             **camera_cfg,
         )
         visualizers.append(
-            NewtonRTXVisualizerCfg(
-                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeRTXVisualizer",
-                rtx_environment="studio",
+            CoffeeRTXVisualizerCfg(
+                show_particles=args.grains_per_particle == 0,
                 render_settings={
                     "omni:rtx:rtpt:spp": ("Int", args.render_samples),
                     "omni:rtx:rtpt:maxBounces": ("UInt", 8),
@@ -421,7 +428,7 @@ def _make_visualizers(args, parser):
                     "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
                     "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
                 },
-                **common,
+                **camera_cfg,
             )
             if name == "newton_rtx"
             else NewtonGLVisualizerCfg(

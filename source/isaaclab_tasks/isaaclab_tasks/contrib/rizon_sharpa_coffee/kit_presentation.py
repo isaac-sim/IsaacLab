@@ -30,12 +30,12 @@ class CoffeeKitVisualizer(KitVisualizer):
     cfg: CoffeeKitVisualizerCfg
     presentation: CoffeePresentation | None = None
 
-    def initialize(self, scene_data_provider, *, cameras, stage=None) -> None:
+    def initialize(self, sim, *, cameras) -> None:
         if self._is_initialized:
             return
         apply_isaac_rtx_global_settings(self.cfg.render_settings)
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
-        self._stage = self._scene_stage
+        super().initialize(sim, cameras=cameras)
+        self._stage = self._sim.stage
         self._root_path = "/World/CoffeePresentation"
         UsdGeom.Xform.Define(self._stage, self._root_path)
         self._visibility_backup = {}
