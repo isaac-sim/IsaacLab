@@ -362,6 +362,17 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
         super()._init_window()
         self._patch_viewer_panel()
 
+    def _init_ovrtx(self) -> None:
+        import ovrtx
+        from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
+
+        # Newton creates its own renderer here with this config. The redirect must precede it with the same
+        # config because it may be what initializes the native library.
+        config = ovrtx.RendererConfig()
+        config.log_level = "error"
+        redirect_shader_cache(config)
+        super()._init_ovrtx()
+
     def end_frame(self) -> None:
         super().end_frame()
         if self._close_requested:
@@ -1148,8 +1159,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Attach to the populated scene and bind the model used to publish body poses."""
-        import ovrtx
-        from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
         from isaaclab_ov.stage import OvstageBackendCfg
 
         if self._is_initialized:
@@ -1167,11 +1176,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
-        # Newton's ViewerRTX builds its own ovrtx.Renderer with this config, and the redirect must run first
-        # with the same config because it may be what initializes the native library.
-        renderer_config = ovrtx.RendererConfig()
-        renderer_config.log_level = "error"
-        redirect_shader_cache(renderer_config)
         self._viewer = NewtonViewerRTX(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
