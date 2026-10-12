@@ -11,6 +11,7 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_contrib.conveyors.newton import SurfaceVelocity
 from isaaclab_contrib.conveyors.surface_velocity import SurfaceVelocitySpec
@@ -107,7 +108,6 @@ def test_native_conveyor_controls_rebind_and_reset_independently(monkeypatch):
             for callback, _, unregister in observers:
                 unregister(callback)
                 unregister(callback)
-            NewtonManager._post_actuator_callbacks.remove(actuator)
             previous_calls = list(calls)
             sim.step(render=False)
             sim.reset()
@@ -164,3 +164,40 @@ def test_invalid_conveyors_leave_no_callbacks(specs, num_envs, env_path, error, 
     with pytest.raises(error, match=message):
         SurfaceVelocity(num_envs, specs, env_path_format=env_path, body_pattern="Cube0$")
     assert set(NewtonManager._callbacks) == before
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_removed_callbacks_leave_captured_graph(device):
+    """Removed callbacks stop writing GPU buffers in eager and recaptured simulation steps."""
+    cfg = SimulationCfg(device=device, physics=NewtonCfg(use_cuda_graph=True))
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics))
+        body = builder.add_link(xform=wp.transform_identity())
+        builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
+        builder.add_articulation([builder.add_joint_free(body)])
+        observed = wp.zeros(2, device=device)
+        ones = wp.ones(2, device=device)
+
+        def force(state):
+            wp.copy(observed, ones, dest_offset=0, count=1)
+
+        def substep(solver, contacts, state, dt):
+            wp.copy(observed, ones, dest_offset=1, count=1)
+
+        NewtonManager.register_state_force_callback(force)
+        NewtonManager.register_post_solver_substep_callback(substep)
+        sim.reset()
+        sim.step(render=False)
+        assert NewtonManager._graph is not None
+        np.testing.assert_array_equal(observed.numpy(), [1, 1])
+        NewtonManager.unregister_state_force_callback(force)
+        NewtonManager.unregister_post_solver_substep_callback(substep)
+        observed.zero_()
+        sim.step(render=False)
+        np.testing.assert_array_equal(observed.numpy(), [0, 0])
+        graph = NewtonManager._graph
+        NewtonManager.unregister_state_force_callback(force)
+        NewtonManager.unregister_post_solver_substep_callback(substep)
+        assert NewtonManager._graph is graph
+        sim.step(render=False)
+        np.testing.assert_array_equal(observed.numpy(), [0, 0])

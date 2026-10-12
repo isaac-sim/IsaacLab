@@ -107,10 +107,10 @@ class NewtonCollisionPipelineCfg:
     """
 
     include_static_kinematic_pairs: bool = True
-    """Whether to generate contacts between two immovable shapes.
+    """Whether to generate static-kinematic and kinematic-kinematic contacts.
 
-    Set to ``False`` to exclude static-static, static-kinematic, and kinematic-kinematic
-    pairs. Defaults to ``True``, matching Newton's default.
+    Static-static pairs are always excluded. Set to ``False`` to also exclude
+    static-kinematic and kinematic-kinematic pairs. Defaults to ``True``, matching Newton's default.
     """
 
     reduce_contacts: bool = True
