@@ -17,7 +17,7 @@ from isaaclab_visualizers.kit import KitVisualizer
 from pxr import Usd, UsdGeom, UsdShade, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 from .assets import COFFEE_ASSET_DIR
 from .presentation import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights, _vertex_color_material
@@ -51,9 +51,17 @@ class CoffeeKitVisualizer(KitVisualizer):
                 intensity.Set(0.0)
         _add_coffee_studio_lights(self._stage, f"{self._root_path}/Lights")
         if self.cfg.backdrop == "kitchen":
-            from .kitchen import add_kitchen
-
-            add_kitchen(self._stage, f"{self._root_path}/Kitchen")
+            kitchen_path = f"{self._root_path}/Kitchen"
+            kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
+            with sim_utils.use_stage(self._stage):
+                kitchen = kitchen_cfg.func(kitchen_path, kitchen_cfg)
+            # The prepared layer supplies strong placement, lighting, material
+            # and physics overrides; the public reference follows the asset profile.
+            kitchen.GetReferences().AddReference(
+                f"{ISAAC_NUCLEUS_DIR}/Environments/replicator_kitchen/kitchen_l_island.usda"
+            )
+            if not self._stage.GetPrimAtPath(f"{kitchen_path}/KitchenRoom/Floor"):
+                raise RuntimeError("The NVIDIA kitchen reference did not resolve.")
             for prim in self._stage.Traverse():
                 if (
                     prim.GetPath().HasPrefix("/World/envs")

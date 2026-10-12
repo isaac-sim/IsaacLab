@@ -110,7 +110,6 @@ class CoffeeScoopDemo:
                 ("clearance", 1.4, clearance, 0.010),
                 ("approach", 2.5, approach, 0.007),
             ]
-        self._scoop_lanes = {"scoop_1": (-0.001, 1.0)}
         self._phases += [
             ("approach_1", 1.4, pose((source_x - 0.031, source_y - 0.010, transfer_z)), 0.007),
             (
@@ -141,12 +140,11 @@ class CoffeeScoopDemo:
             self._stir_center = (cup_x, cup_y, cup_z + 0.031)
             self._stir_radius = 0.009
             self._stir_turns = 3
-            self._stir_duration = 8.0
             start = (cup_x + self._stir_radius, cup_y, self._stir_center[2])
             self._phases += [
                 ("stir_align", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
                 ("stir_lower", 2.5, pose(start, stirring), 0.004),
-                ("stir", self._stir_duration, pose(start, stirring), 0.004),
+                ("stir", 8.0, pose(start, stirring), 0.004),
                 ("stir_raise", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
                 ("stir_upright", 2.5, pose((start[0], start[1], transfer_z)), 0.007),
             ]
@@ -172,8 +170,8 @@ class CoffeeScoopDemo:
             self._elapsed += self._env.step_dt
             progress = min(self._elapsed / duration, 1.0)
             blend = progress * progress * progress * (10.0 + progress * (-15.0 + 6.0 * progress))
-            if name in self._scoop_lanes:
-                self._command_pose[:] = self._scoop_pose(self._elapsed, *self._scoop_lanes[name])
+            if name == "scoop_1":
+                self._command_pose[:] = self._scoop_pose(self._elapsed)
             elif name == "stir":
                 self._command_pose[:] = endpoint
                 angle = 2.0 * math.pi * self._stir_turns * blend
@@ -197,7 +195,7 @@ class CoffeeScoopDemo:
                     )
         return self._palm_action(self._command_pose)
 
-    def _scoop_pose(self, elapsed: float, lane_offset: float = 0.0, direction: float = 1.0) -> torch.Tensor:
+    def _scoop_pose(self, elapsed: float) -> torch.Tensor:
         """Evaluate one local entry and level the scoop before lifting."""
         elapsed = min(elapsed, self._scoop_knots[-1][0])
         # Converge to the common transfer X only after leveling in the mound.
@@ -218,8 +216,7 @@ class CoffeeScoopDemo:
                     weights[0] * p0 + weights[1] * duration * v0 + weights[2] * p1 + weights[3] * duration * v1
                     for p0, v0, p1, v1 in zip(start[1], start[2], end[1], end[2])
                 ]
-                coordinates[0] += lane_offset * lane_blend
-                coordinates[1] = BOWL_POSITION[1] + (coordinates[1] - BOWL_POSITION[1]) * direction
+                coordinates[0] -= 0.001 * lane_blend
                 pose = (*coordinates[:3], 0.0, math.sin(coordinates[3] / 2.0), 0.0, math.cos(coordinates[3] / 2.0))
                 return torch.tensor(pose, dtype=torch.float32, device=self._env.device).expand(self._env.num_envs, -1)
         raise RuntimeError("The coffee scoop path has no endpoint.")

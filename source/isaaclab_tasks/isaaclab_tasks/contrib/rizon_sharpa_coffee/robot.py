@@ -20,14 +20,12 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
 
-ASSET_REVISION = "d0dbd1ddaefc4996db546949a7dfb37e39afcbeb"
 ASSET_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 ASSET_USD_NAME = "rizon4s_sharpa.usda"
 ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
 ROBOT_ASSET_DIR = os.environ.get(ASSET_ROOT_ENV, f"{ISAACLAB_NUCLEUS_DIR}/Contrib/RizonSharpaCoffee/Robot/v1").rstrip(
     "/"
 )
-BASE_BODY_NAME = "base_link"
 PALM_BODY_NAME = "r_palm_ctrl"
 """Canonical palm: +X toward the knuckles, +Z out of the palm."""
 
@@ -35,8 +33,6 @@ DEFAULT_SPOON_OFFSET_POS = (0.19638407055658647, -0.0036995580810314636, 0.07643
 DEFAULT_SPOON_OFFSET_ROT = (1.0, 0.0, 0.0, 0.0)
 
 ARM_JOINT_NAMES = tuple(f"joint{index}" for index in range(1, 8))
-ARM_HOME_POSITIONS = (0.0, -0.698, 0.0, 1.571, 0.0, 0.698, 0.0)
-"""Reference arm home used by the workstation RJ45 environment [rad]."""
 COFFEE_READY_POSITIONS = (
     -1.081903255791,
     0.013804070751,
@@ -95,6 +91,8 @@ def get_robot_cfg(*, contact_grasp: bool = False) -> ArticulationCfg:
     from isaaclab.actuators import ImplicitActuatorCfg
     from isaaclab.assets import ArticulationCfg
 
+    from isaaclab_assets.robots.flexiv import FLEXIV_RIZON4S_CFG
+
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
@@ -112,27 +110,10 @@ def get_robot_cfg(*, contact_grasp: bool = False) -> ArticulationCfg:
             },
         ),
         actuators={
-            "shoulder": ImplicitActuatorCfg(
-                joint_names_expr=["joint[1-2]"],
-                joint_effort_limit=123.0,
-                joint_velocity_limit=2.094,
-                stiffness=6000.0,
-                damping=108.5,
-            ),
-            "elbow": ImplicitActuatorCfg(
-                joint_names_expr=["joint[3-4]"],
-                joint_effort_limit=64.0,
-                joint_velocity_limit=2.443,
-                stiffness=4200.0,
-                damping=90.7,
-            ),
-            "wrist": ImplicitActuatorCfg(
-                joint_names_expr=["joint[5-7]"],
-                joint_effort_limit=39.0,
-                joint_velocity_limit=4.887,
-                stiffness=1500.0,
-                damping=54.2,
-            ),
+            **{
+                name: actuator.replace(friction=None, armature=None)
+                for name, actuator in FLEXIV_RIZON4S_CFG.actuators.items()
+            },
             "hand": ImplicitActuatorCfg(
                 joint_names_expr=["right_.*"],
                 joint_effort_limit=3.3,

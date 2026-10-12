@@ -124,7 +124,7 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
         self.sim.dt = 1.0 / 800.0
         self.sim.render_interval = 16
         self.sim.use_newton_actuators = True
-        self.sim.physics = make_physics_cfg(self.voxel_size, water=None)
+        self.sim.physics = make_physics_cfg(self.voxel_size)
 
 
 def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
@@ -191,6 +191,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     if solver.solver is None:
         solver.solver = "gs" if cfg.water_enabled else "auto"
     if solver.max_iterations is None:
+        # Tall liquid fills need converged pressure to retain their surface level.
         solver.max_iterations = 500 if cfg.water_enabled else 100
     solver.voxel_size = cfg.voxel_size
     solver.grains_per_particle = cfg.grains_per_particle

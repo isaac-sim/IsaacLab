@@ -1,8 +1,7 @@
 # Rizon–Sharpa coffee IK demo
 
 A Rizon4s arm and Sharpa Wave hand scoop coffee with a shallow spoon, pour it
-into a cup, and optionally stir. Scripted IK and Apple Vision Pro control use
-one absolute palm-pose and finger-angle interface.
+into a cup, and optionally stir using scripted IK.
 
 ```bash
 uv run isaaclab demo rizon-sharpa-coffee
@@ -24,7 +23,8 @@ through the existing USD spawner and asset resolver.
 
 The fixed bowl, cup, spoon and table are supplied as a companion USD bundle at
 `{ISAACLAB_NUCLEUS_DIR}/Objects/CoffeeScooping/v1`. The bundle includes
-`walnut.png`, `CoffeeWater.mdl`, its license and a checksum manifest. The props
+`walnut.png`, `CoffeeWater.mdl`, a render-only `kitchen.usda` opinion layer,
+its license and a checksum manifest. The props
 are authored in metres with Z up; their default prim is `/Asset`. The exact
 concave spoon triangles and material groups are required for MPM contact.
 Props and the prepared robot are loaded without runtime asset generation.
@@ -55,11 +55,13 @@ original licensing and access restrictions; it is not part of the BSD-licensed
 coffee props. Public redistribution requires asset-owner approval. The public
 Rizon arm asset does not include the Sharpa hand.
 
-The optional kitchen references NVIDIA's public
-`Isaac/Environments/replicator_kitchen/kitchen_l_island.usda` after the physics
-model is constructed. Its collisions are disabled. The sample island, apple
-and decorative coffee cups are hidden. The backdrop adds rendering memory but
-no solver bodies, contacts or particles.
+The optional kitchen loads the prepared placement, lighting, material and
+physics overrides, then references NVIDIA's public
+`Isaac/Environments/replicator_kitchen/kitchen_l_island.usda` using the configured
+asset root. This happens after physics construction. The sample island, apple
+and decorative coffee cups are hidden, and collisions are disabled. The backdrop
+adds rendering memory but no solver bodies, contacts or particles. The demo does
+not generate or modify the kitchen asset at runtime.
 
 ## Control and recording
 
@@ -69,22 +71,11 @@ proxy coupling; complete contact-mode manipulation remains experimental.
 `--grasp_reset` accepts a named-joint reset JSON; reset-authoring tools are not
 part of this demo.
 
-Both controllers command a 29-value action: robot-base palm XYZ, XYZW quaternion,
+The controller commands a 29-value action: robot-base palm XYZ, XYZW quaternion,
 then 22 finger angles in the named order declared by `robot.py`. IK uses Isaac
 Lab's differential IK action and DLS controller. Finger commands use its normal
 joint-position action. Scripted waypoints enter steeply, flatten inside the
 coffee, lift, pour and optionally stir. The camera follows smoothly.
-
-For live AVP input, install the `teleop` extra and configure the headset using
-the [CloudXR guide](../../../../../docs/source/how-to/cloudxr_teleoperation.rst).
-The pinned Sharpa kinematic model is external; follow
-[IsaacTeleop's model setup](https://github.com/NVIDIA/IsaacTeleop/blob/c5fe6624cc4dff456485d2e786922c8e41100f83/examples/teleop_ros2/assets/urdf/sharpa_standalone/README.md).
-Place `right_sharpa_wave.urdf` under
-`~/.cache/isaaclab/sharpa/3e953f588ba9954cebaa720aaa4cee06a43a068e/`, or set
-`ISAACLAB_SHARPA_RIGHT_URDF`. Run with `--mode avp`. Acquisition recenters to the
-measured palm; tracking loss holds the last valid command. Live headset behavior
-has not been validated. Retargeting provenance and licenses are in
-[assets/NOTICE](assets/NOTICE).
 
 `--video` uses Isaac Lab's `VideoRecorderCfg`; install the `video` extra. The
 selected visualizer supplies the camera and resolution, including headless

@@ -90,23 +90,11 @@ class CoffeeDissolution:
         self._grid.reserve(self.liquid_ids.size, with_groups=True)
         self._dry_material = MaterialParameters()
         for name in _MATERIAL_FIELDS:
-            setattr(self._dry_material, name, wp.empty(coffee_ids.size, dtype=float, device=self._model.device))
-        self._dry_radius = wp.empty_like(self.wet_time)
-        self._dry_volume = wp.empty_like(self.wet_time)
-        self._dry_density = wp.empty_like(self.wet_time)
-        wp.launch(
-            _snapshot_dry,
-            dim=coffee_ids.size,
-            inputs=[
-                coffee_ids,
-                self._mpm.material_parameters,
-                self._model.particle_radius,
-                self._mpm.particle_volume,
-                self._mpm.particle_density,
-            ],
-            outputs=[self._dry_material, self._dry_radius, self._dry_volume, self._dry_density],
-            device=self._model.device,
-        )
+            source = getattr(self._mpm.material_parameters, name)
+            setattr(self._dry_material, name, wp.clone(wp.indexedarray(source, coffee_ids)))
+        self._dry_radius = wp.clone(wp.indexedarray(self._model.particle_radius, coffee_ids))
+        self._dry_volume = wp.clone(wp.indexedarray(self._mpm.particle_volume, coffee_ids))
+        self._dry_density = wp.clone(wp.indexedarray(self._mpm.particle_density, coffee_ids))
 
     @property
     def converted_mass_kg(self) -> float:
@@ -198,26 +186,6 @@ def _copy_material(source: MaterialParameters, i: int, target: MaterialParameter
     target.hardening_rate[j] = source.hardening_rate[i]
     target.softening_rate[j] = source.softening_rate[i]
     target.dilatancy[j] = source.dilatancy[i]
-
-
-@wp.kernel
-def _snapshot_dry(
-    ids: wp.array[int],
-    material: MaterialParameters,
-    radius: wp.array[float],
-    volume: wp.array[float],
-    density: wp.array[float],
-    dry_material: MaterialParameters,
-    dry_radius: wp.array[float],
-    dry_volume: wp.array[float],
-    dry_density: wp.array[float],
-):
-    i = wp.tid()
-    j = ids[i]
-    _copy_material(material, j, dry_material, i)
-    dry_radius[i] = radius[j]
-    dry_volume[i] = volume[j]
-    dry_density[i] = density[j]
 
 
 @wp.kernel

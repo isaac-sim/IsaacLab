@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scripted IK or Apple Vision Pro control of the Rizon–Sharpa coffee scene.
+"""Scripted IK control of the Rizon–Sharpa coffee scene.
 
 Run ``uv run isaaclab demo rizon-sharpa-coffee --water --visualizer newton_gl``.
 Use ``--visualizer none --headless`` for a physics-only rollout.
@@ -29,7 +29,7 @@ wp.config.enable_backward = False
 def main() -> None:
     args, parser = _parse_args()
     video_stride = args.control_hz // args.video_fps
-    cfg, visualizers = _make_env_cfg(args, parser, video_stride)
+    cfg = _make_env_cfg(args, video_stride)
     if args.headless:
         # Kit's launcher resolves its app window from HEADLESS and the visualizer selection.
         os.environ["HEADLESS"] = "1"
@@ -38,41 +38,25 @@ def main() -> None:
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeePresentation
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.scripted import CoffeeScoopDemo
 
+        # Launch owns the final display and recording producers, including Kit
+        # added for livestreaming. Resolve render allocation before scene construction.
+        cfg.sim.physics.load_visual_shapes = bool(cfg.sim.visualizer_cfgs)
+        cfg.grains_per_particle = args.grains_per_particle if cfg.sim.visualizer_cfgs else 0
+        if args.keep_open and not any(not visualizer.headless for visualizer in cfg.sim.visualizer_cfgs):
+            parser.error("--keep_open requires a desktop visualizer.")
         env = CoffeeDemoEnv(cfg)
         stack.callback(env.close)
         env.reset()
-        if visualizers and cfg.grains_per_particle:
+        if cfg.sim.visualizer_cfgs and cfg.grains_per_particle:
             env.presentation = CoffeePresentation(env, voxel_size=cfg.voxel_size)
-        if visualizers:
+        if cfg.sim.visualizer_cfgs:
             env.sim.render()
-        controller = CoffeeScoopDemo(env) if args.mode == "scripted" else None
+        controller = CoffeeScoopDemo(env)
         camera = (
             _SpoonCamera(env.sim.visualizers, show_cup=cfg.water_enabled)
-            if visualizers and args.camera == "follow"
+            if cfg.sim.visualizer_cfgs and args.camera == "follow"
             else None
         )
-        device = None
-        if args.mode == "avp":
-            from isaaclab_teleop import CLOUDXR_AVP_ENV, IsaacTeleopCfg, create_isaac_teleop_device, poll_control_events
-
-            from isaaclab.devices.openxr import XrCfg
-
-            from isaaclab_tasks.contrib.rizon_sharpa_coffee.teleop import CoffeeTeleopController, build_teleop_pipeline
-
-            device = stack.enter_context(
-                create_isaac_teleop_device(
-                    IsaacTeleopCfg(
-                        pipeline_builder=build_teleop_pipeline,
-                        xr_cfg=XrCfg(anchor_pos=tuple(args.anchor_pos)),
-                        sim_device=env.device,
-                    ),
-                    cloudxr_env_file=args.cloudxr_env or CLOUDXR_AVP_ENV,
-                    use_kit_xr_bridge=False,
-                )
-            )
-            device.reset()
-            device.request_start()
-            teleop_controller = CoffeeTeleopController(env)
         step = 0
         with torch.inference_mode():
             while step < args.max_steps:
@@ -80,47 +64,28 @@ def main() -> None:
                     break
                 if env.sim.consume_reset_request():
                     env.reset()
-                    if controller is not None:
-                        controller.reset()
-                    if device is not None:
-                        device.reset()
-                        teleop_controller.reset()
+                    controller.reset()
                     if camera is not None:
                         camera.reset()
-                if device is not None:
-                    action = device.advance()
-                    events = poll_control_events(device)
-                    if events.should_reset:
-                        env.reset()
-                        device.reset()
-                        teleop_controller.reset()
-                        if camera is not None:
-                            camera.reset()
-                    if action is None or events.is_active is False:
-                        env.sim.render()
-                        continue
-                    action = teleop_controller.compute(action)
-                else:
-                    action = controller.compute()
+                if controller.finished:
+                    env.sim.render()
+                    continue
+                action = controller.compute()
                 if camera is not None:
                     camera.update(
                         env.scene["spoon"].data.root_link_pos_w.torch[0].tolist(),
-                        controller.phase if controller is not None else "teleoperation",
+                        controller.phase,
                         env.step_dt,
                     )
                 env.step(action)
                 if not env.is_state_finite().all():
                     raise RuntimeError("Coffee rollout produced nonfinite robot or material positions.")
-                if controller is not None and controller.finished:
+                if controller.finished:
                     if env.delivered_fraction()[0] < cfg.min_delivered_fraction:
                         raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
                     if not args.keep_open:
                         break
                     print("Scoop sequence complete. Use the viewer Reset control to run it again.", flush=True)
-                    if not _wait_for_reset(env, controller):
-                        break
-                    if camera is not None:
-                        camera.reset()
                 step += 1
         if args.keep_open:
             while env.sim.is_running():
@@ -129,7 +94,6 @@ def main() -> None:
 
 def _parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("scripted", "avp"), default="scripted")
     parser.add_argument(
         "--water",
         action="store_true",
@@ -156,20 +120,16 @@ def _parse_args():
     parser.add_argument(
         "--keep_open", action="store_true", help="Keep the desktop viewer open after the scripted cycle."
     )
-    parser.add_argument("--cloudxr_env", type=str, default=None)
     parser.add_argument("--grasp_reset", type=str, default=None, help="Load an authored, named-joint grasp reset JSON.")
     parser.add_argument("--grasp_mode", choices=("mounted", "contact"), default="mounted")
-    parser.add_argument("--anchor_pos", type=float, nargs=3, default=(0.0, 0.0, -0.55))
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=960)
     add_launcher_args(parser)
     parser.set_defaults(visualizer=None)
     args = parser.parse_args()
     if args.physics_hz is None:
-        fast_script = (
-            args.mode == "scripted"
-            and args.grasp_mode == "mounted"
-            and ((not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003))
+        fast_script = args.grasp_mode == "mounted" and (
+            (not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003)
         )
         args.physics_hz = 400 if fast_script else 800
     args.control_hz = 60 if args.physics_hz == 120 else 100
@@ -179,6 +139,8 @@ def _parse_args():
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
+    if any(name not in ("newton_gl", "newton_rtx", "kit") for name in args.visualizer):
+        parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
     if args.grasp_mode == "contact" and args.physics_hz == 120:
         parser.error("120 Hz physics currently supports mounted tools; contact grasping uses a 1600 Hz solver.")
     if args.keep_open and args.headless:
@@ -188,12 +150,11 @@ def _parse_args():
     return args, parser
 
 
-def _make_env_cfg(args, parser, video_stride):
+def _make_env_cfg(args, video_stride):
     from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeDemoEnvCfg
 
     cfg = CoffeeDemoEnvCfg(water_enabled=args.water)
     cfg.seed = 7
-    cfg.sim.device = args.device
     cfg.voxel_size = args.voxel_size
     cfg.sim.dt = 1.0 / args.physics_hz
     cfg.decimation = args.physics_hz // args.control_hz
@@ -205,9 +166,9 @@ def _make_env_cfg(args, parser, video_stride):
     cfg.grasp_mode = args.grasp_mode
     cfg.sim.physics.use_cuda_graph = not args.disable_cuda_graph
     media = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
-    if args.mode == "scripted" and not args.water and cfg.voxel_size == 0.002:
+    if not args.water and cfg.voxel_size == 0.002:
         # Bound padded grid work for this scripted fill. Other resolutions,
-        # water and live teleoperation keep the conservative automatic budget.
+        # and water keep the conservative automatic budget.
         media.max_active_cell_count = 98304
     if args.video:
         from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -223,103 +184,76 @@ def _make_env_cfg(args, parser, video_stride):
                 fps=args.video_fps,
             )
         ]
-    visualizers = _make_visualizers(args, parser)
-    cfg.sim.visualizer_cfgs = visualizers
-    if args.keep_open and not visualizers:
-        parser.error("--keep_open requires a desktop visualizer.")
-    if args.video and not visualizers:
-        parser.error("--video requires a GL, RTX or Kit visualizer; --headless recording is supported.")
-    cfg.sim.physics.load_visual_shapes = bool(visualizers)
-    cfg.grains_per_particle = args.grains_per_particle if visualizers else 0
-    return cfg, visualizers
+    cfg.sim.visualizer_cfgs = _make_visualizers(args)
+    return cfg
 
 
-def _make_visualizers(args, parser):
+def _make_visualizers(args):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
     from isaaclab.visualizers import WindowCfg
 
-    visualizers = []
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation_cfg import CoffeeKitVisualizerCfg
+
     camera_cfg = dict(
         headless=args.headless,
-        window=WindowCfg(
-            size=(
-                args.width,
-                args.height,
-            )
-        ),
+        window=WindowCfg(size=(args.width, args.height)),
         eye=(0.95, -0.65, 0.66),
         lookat=(0.52, 0.02, 0.15),
         focal_length=24.0,
         background_color=(0.008, 0.014, 0.022),
     )
-    for name in args.visualizer or []:
-        if name == "none":
-            continue
-        if name not in ("newton_gl", "newton_rtx", "kit"):
-            parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
-        if name == "kit":
-            from isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation_cfg import CoffeeKitVisualizerCfg
-
-            kit_camera = camera_cfg.copy()
-            if args.backdrop == "kitchen":
-                kit_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
-            visualizers.append(
-                CoffeeKitVisualizerCfg(
-                    backdrop=args.backdrop,
-                    render_settings=IsaacRtxRendererGlobalSettingsCfg(
-                        enable_translucency=True,
-                        max_bounces=12,
-                        split_glass=False,
-                        carb_settings={
-                            "/rtx/rtpt/spp": args.render_samples,
-                            "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
-                        },
-                    ),
-                    enable_markers=False,
-                    enable_live_plots=False,
-                    **kit_camera,
-                )
-            )
-            continue
-        common = dict(
+    kit_camera = camera_cfg.copy()
+    if args.backdrop == "kitchen":
+        kit_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
+    visualizers = [
+        NewtonGLVisualizerCfg(
+            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeGLVisualizer",
             show_particles=args.grains_per_particle == 0,
             particle_color=(0.095, 0.029, 0.010) if not args.water else None,
             enable_picking=False,
             enable_sky=False,
             **camera_cfg,
-        )
-        visualizers.append(
-            NewtonRTXVisualizerCfg(
-                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeRTXVisualizer",
-                render_settings={
-                    "omni:rtx:rtpt:spp": ("Int", args.render_samples),
-                    "omni:rtx:rtpt:maxBounces": ("UInt", 8),
-                    "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
-                    "omni:rtx:directLighting:sampledLighting:denoisingTechnique": ("Token", "NRD ReLAX"),
-                    "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
-                    "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
+        ),
+        NewtonRTXVisualizerCfg(
+            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeRTXVisualizer",
+            render_settings={
+                "omni:rtx:rtpt:spp": ("Int", args.render_samples),
+                "omni:rtx:rtpt:maxBounces": ("UInt", 8),
+                "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
+                "omni:rtx:directLighting:sampledLighting:denoisingTechnique": ("Token", "NRD ReLAX"),
+                "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
+                "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
+            },
+            **camera_cfg,
+        ),
+        CoffeeKitVisualizerCfg(
+            backdrop=args.backdrop,
+            render_settings=IsaacRtxRendererGlobalSettingsCfg(
+                enable_translucency=True,
+                max_bounces=12,
+                split_glass=False,
+                carb_settings={
+                    "/rtx/rtpt/spp": args.render_samples,
+                    "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
                 },
-                **camera_cfg,
-            )
-            if name == "newton_rtx"
-            else NewtonGLVisualizerCfg(
-                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeGLVisualizer", **common
-            )
-        )
-    return visualizers
-
-
-def _wait_for_reset(env, controller) -> bool:
-    """Keep the finished scene visible and rearm its controller on desktop Reset."""
-    while env.sim.is_running():
-        env.sim.render()
-        if env.sim.consume_reset_request():
-            env.reset()
-            controller.reset()
-            return True
-    return False
+            ),
+            enable_markers=False,
+            enable_live_plots=False,
+            **kit_camera,
+        ),
+    ]
+    # The native recorder's bare "viz" source uses the first selected producer.
+    # Declare all supported configurations while preserving the requested order.
+    return sorted(
+        visualizers,
+        key=lambda cfg: (
+            args.visualizer.index(cfg.visualizer_type)
+            if cfg.visualizer_type in args.visualizer
+            else len(args.visualizer)
+        ),
+    )
 
 
 class _SpoonCamera:

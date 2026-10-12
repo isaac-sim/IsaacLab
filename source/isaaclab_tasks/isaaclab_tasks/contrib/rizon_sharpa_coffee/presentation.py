@@ -158,15 +158,13 @@ class CoffeePresentation:
             for visualizer in env.sim.visualizers
             if isinstance(visualizer, (CoffeeGLVisualizer, CoffeeRTXVisualizer))
         ]
-        self._kit_visualizers = []
         if any(visualizer.cfg.visualizer_type == "kit" for visualizer in env.sim.visualizers):
             # Defer the optional runtime implementation until Kit has launched.
             from .kit_presentation import CoffeeKitVisualizer
 
-            self._kit_visualizers = [
+            self._visualizers.extend(
                 visualizer for visualizer in env.sim.visualizers if isinstance(visualizer, CoffeeKitVisualizer)
-            ]
-            self._visualizers.extend(self._kit_visualizers)
+            )
         solvers = [solver for solver in NewtonMPMManager._implicit_mpm_solvers() if isinstance(solver, CoffeeMPMSolver)]
         if len(solvers) != 1 or solvers[0].grains is None:
             raise ValueError("CoffeePresentation requires one CoffeeMPMSolver with grains_per_particle > 0.")
@@ -505,7 +503,6 @@ class CoffeePresentation:
         for visualizer in self._visualizers:
             visualizer.presentation = None
         self._visualizers.clear()
-        self._kit_visualizers.clear()
         self._rtx_water_shaders.clear()
         self._rtx_static_grain_views.clear()
         self._clear_surface_cache()

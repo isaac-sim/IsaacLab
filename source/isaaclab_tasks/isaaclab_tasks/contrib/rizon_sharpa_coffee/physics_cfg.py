@@ -27,13 +27,6 @@ class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Number of visual samples per physical particle; zero disables their allocation."""
 
 
-@configclass
-class CoffeeCouplerCfg(CouplerProxyCfg):
-    """Task-local MJWarp/MPM coupling with mounted and contact-grasp modes."""
-
-    class_type: type | str = "{DIR}.physics:NewtonCoffeeCouplerManager"
-
-
 def make_grasp_solver_cfg() -> MJWarpSolverCfg:
     """Rigid solver profile shared by the free-grasp screen and coffee scene."""
     return MJWarpSolverCfg(
@@ -79,10 +72,11 @@ def configure_contact_grasp(physics: NewtonCfg, *, rigid_substeps: int = 2, mass
     ]
 
 
-def make_physics_cfg(voxel_size: float, *, water: bool | None = False) -> NewtonCfg:
-    """Configure coupling; ``water=None`` defers scene defaults until after overrides."""
+def make_physics_cfg(voxel_size: float) -> NewtonCfg:
+    """Configure coupling with material defaults resolved after scene overrides."""
     return NewtonCfg(
-        solver_cfg=CoffeeCouplerCfg(
+        solver_cfg=CouplerProxyCfg(
+            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:NewtonCoffeeCouplerManager",
             entries=[
                 CouplerEntryCfg(
                     name="robot",
@@ -100,10 +94,6 @@ def make_physics_cfg(voxel_size: float, *, water: bool | None = False) -> Newton
                         max_active_cell_count=-1,
                         max_lower_node_count=256,
                         max_upper_node_count=32,
-                        solver=None if water is None else "gs" if water else "auto",
-                        # Tall liquid fills need a converged pressure solve;
-                        # conserved particle mass alone does not preserve level.
-                        max_iterations=None if water is None else 500 if water else 100,
                         # Resolve contacts at particle sites and pressure within
                         # each cell. Hard projection can permanently collapse
                         # powder onto the concave tool's surface.

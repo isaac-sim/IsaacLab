@@ -1,14 +1,3 @@
-The packaged ``sharpa_wave_right_dexpilot.yml`` is from NVIDIA IsaacTeleop at
-commit c5fe6624cc4dff456485d2e786922c8e41100f83. IsaacTeleop and this
-configuration are licensed under the Apache License, Version 2.0; see the
-packaged LICENSE-IsaacTeleop copied from that revision's LICENSE.md.
-The packaged configuration prepends the Isaac Lab repository header. Removing
-that five-line packaging header gives the unchanged 985-byte upstream file,
-SHA-256 d3e9e017084f45c1d2f80718d2fa976a08f47bd5e2da879b8aecf849a6cf25e7.
-
-The Sharpa URDF is an external, user-provided model and is not packaged here.
-The pinned model revision and checksum match NVIDIA IsaacTeleop's fetch script:
-https://github.com/NVIDIA/IsaacTeleop/blob/c5fe6624cc4dff456485d2e786922c8e41100f83/examples/teleop_ros2/scripts/fetch_sharpa_wave_urdfs.py
 The licensed Fabrics-Sim robot USD and textures are not packaged here. The prepared
 robot is hosted separately on the internal isaac-dev server with its original
 licensing and access restrictions; public redistribution is not implied.
