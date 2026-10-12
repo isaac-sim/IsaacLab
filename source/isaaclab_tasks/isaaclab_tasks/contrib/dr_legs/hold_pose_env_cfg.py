@@ -123,7 +123,7 @@ class ActionsCfg:
         asset_name="robot",
         joint_names=DR_LEGS_ACTUATED_JOINTS,
         preserve_order=True,
-        scale=0.3,
+        scale=0.03,
         use_default_offset=True,
     )
 
@@ -248,6 +248,18 @@ class EventCfg:
     )
 
 
+def _newton_event_cfg() -> EventCfg:
+    """Return the stable Newton initialization profile."""
+    cfg = EventCfg()
+    cfg.randomize_joint_params = None
+    # Tilted initialization can destabilize the closed-loop Kamino P-ADMM solve.
+    cfg.reset_base.params["pose_range"].pop("roll")
+    cfg.reset_base.params["pose_range"].pop("pitch")
+    cfg.reset_robot_joints.params["position_range"] = (0.0, 0.0)
+    cfg.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
+    return cfg
+
+
 def _physx_event_cfg() -> EventCfg:
     """Return the PhysX reset profile with assembled joint coordinates."""
     cfg = EventCfg()
@@ -260,8 +272,8 @@ def _physx_event_cfg() -> EventCfg:
 class DrLegsEventCfg(PresetCfg):
     """Backend-specific DR Legs event presets."""
 
-    default: EventCfg = EventCfg()
-    newton_kamino: EventCfg = EventCfg()
+    default: EventCfg = _newton_event_cfg()
+    newton_kamino: EventCfg = _newton_event_cfg()
     physx: EventCfg = _physx_event_cfg()
     isaacsim_physx: EventCfg = physx
 

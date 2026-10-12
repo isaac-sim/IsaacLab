@@ -13,6 +13,7 @@ class DrLegsHoldPosePPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 24
     max_iterations = 3000
     save_interval = 100
+    clip_actions = 1.0
     experiment_name = "dr_legs_hold_pose"
     obs_groups = {"actor": ["policy"], "critic": ["policy", "critic"]}
     actor = RslRlMLPModelCfg(
