@@ -168,7 +168,6 @@
 }
 
 .guide-tag {
-    display: inline-block;
     padding: 0.1rem 0.45rem;
     border: 1px solid var(--pst-color-border);
     border-radius: 4px;

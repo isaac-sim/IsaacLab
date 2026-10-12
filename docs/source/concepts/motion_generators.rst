@@ -322,13 +322,14 @@ each cycle as shown in :ref:`controller-control-loop`.
 Task-space goals
 ~~~~~~~~~~~~~~~~
 
-On every step that does not change the goal, the :doc:`IK walkthrough <../how-to/run_diff_ik>`
-reads fresh state, computes joint position targets, applies them, and steps the simulation:
+The :doc:`IK walkthrough <../how-to/run_diff_ik>` resets the robot and changes the goal every
+150 steps. On intermediate steps, it reads fresh state and computes joint position targets;
+every step applies the targets and advances the simulation:
 
 .. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
    :language: python
    :caption: scripts/tutorials/05_controllers/run_diff_ik.py
-   :start-after: current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
+   :start-at: if count % 150 == 0:
    :end-at: scene.update(sim_dt)
    :dedent: 8
 
