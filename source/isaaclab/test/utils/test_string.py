@@ -4,8 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+import pathlib
 import random
-from collections import Counter
+from collections import Counter, OrderedDict
 
 import pytest
 
@@ -79,11 +80,18 @@ def test_string_to_callable_allows_safe_lambdas():
     assert string_utils.string_to_callable("math:sqrt") is math.sqrt
 
 
-def test_dotted_callable_reference_round_trips():
-    """Nested callables should serialize and resolve through dotted attribute paths."""
-    reference = string_utils.callable_to_string(Counter.update)
-    assert reference == "collections:Counter.update"
-    assert string_utils.string_to_callable(reference) is Counter.update
+@pytest.mark.parametrize(
+    ("value", "reference"),
+    [
+        (Counter.update, "collections:Counter.update"),
+        (pathlib.Path.cwd, "pathlib:Path.cwd"),
+        (OrderedDict.fromkeys, "collections:OrderedDict.fromkeys"),
+    ],
+)
+def test_dotted_callable_reference_round_trips(value, reference):
+    """Nested callables, including class-bound methods, should serialize and resolve through dotted paths."""
+    assert string_utils.callable_to_string(value) == reference
+    assert string_utils.string_to_callable(reference) == value
 
 
 def test_missing_dotted_callable_attribute_raises_attribute_error():

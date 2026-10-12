@@ -149,6 +149,10 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         qualified_name = value.__qualname__
         bound_instance = getattr(value, "__self__", None)
         instance_bound_method = bound_instance is not None and not isinstance(bound_instance, type)
+        if isinstance(bound_instance, type):
+            # name class-bound methods through the class they are bound to (covers inherited and builtin ones)
+            module_name = bound_instance.__module__
+            qualified_name = f"{bound_instance.__qualname__}.{function_name}"
 
         # A qualified name is safe only if the module exposes that exact path and
         # it resolves to this same callable. This avoids serializing exported local
@@ -156,10 +160,7 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         # callable than the one supplied by the user.
         if "<locals>" not in qualified_name and not instance_bound_method:
             try:
-                candidate = importlib.import_module(module_name)
-                for attr in qualified_name.split("."):
-                    candidate = getattr(candidate, attr)
-                if candidate is value:
+                if string_to_callable(f"{module_name}{separator}{qualified_name}", separator) == value:
                     function_name = qualified_name
             except (ModuleNotFoundError, AttributeError):
                 pass
