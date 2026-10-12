@@ -263,13 +263,13 @@ class _NewtonViewerUIMixin:
             return
 
         # Suppress Newton's own "Logged Images" sidebar section.
-        image_logger.draw_controls = lambda: None
+        image_logger.draw_controls = lambda imgui: None
 
         # Override draw() to open the floating panel sized to the composite aspect ratio.
         _orig_draw = type(image_logger).draw
         _viewer_ref = self  # capture for closure — used to read composite dimensions
 
-        def _draw_large(self_logger: object) -> None:
+        def _draw_large(self_logger: object, ui: object, sidebar_width_px: float = 0.0) -> None:
             # Use our own flag (not Newton's entry.window_initialized) so Newton cannot
             # preempt our sizing by marking the window as initialized via the placeholder.
             if getattr(_viewer_ref, "_streaming_panel_needs_sizing", False):
@@ -279,7 +279,7 @@ class _NewtonViewerUIMixin:
                     from imgui_bundle import imgui as _imgui
 
                     vp = _imgui.get_main_viewport()
-                    sidebar_w = float(self_logger._sidebar_width_px)
+                    sidebar_w = float(sidebar_width_px) * ui.dpi_scale
                     margin = 20.0
                     avail_w = max(320.0, vp.work_size.x - sidebar_w - 2.0 * margin)
                     avail_h = max(240.0, vp.work_size.y - 2.0 * margin)
@@ -301,7 +301,7 @@ class _NewtonViewerUIMixin:
                     # Force the window uncollapsed — imgui.ini may have saved a collapsed state.
                     _imgui.set_next_window_collapsed(False, _imgui.Cond_.always)
                     _viewer_ref._streaming_panel_needs_sizing = False
-            return _orig_draw(self_logger)
+            return _orig_draw(self_logger, ui, sidebar_width_px=sidebar_width_px)
 
         image_logger.draw = types.MethodType(_draw_large, image_logger)
 
