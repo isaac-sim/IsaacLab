@@ -3,6 +3,24 @@ Changelog
 
 .. towncrier release notes start
 
+7.5.1 (2026-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Defaulted the launcher's parsed ``visualizer`` selection to an empty list instead of ``None``.
+  Omission of ``--viz`` continued to select no display; code inspecting the parsed arguments could iterate
+  the selection directly.
+
+Fixed
+^^^^^
+
+* Fixed the first camera observation after :meth:`~isaaclab.envs.ManagerBasedEnv.reset` showing rigid bodies at
+  their spawn pose on GPU simulation. The Fabric re-synchronization in :meth:`~isaaclab_physx.physics.PhysxManager.play`
+  now runs only when the timeline resumes from pause.
+
+
 7.5.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

@@ -84,7 +84,8 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
 
         return start
 
-    monkeypatch.setattr(sim_launcher, "string_to_callable", fake_launcher)
+    for launcher_type in (_KIT_LAUNCHER, OVRTXRendererCfg.launcher_type):
+        monkeypatch.setattr(launcher_type.replace(":", "."), fake_launcher(launcher_type))
     yield started
     get_settings_manager().set("/isaaclab/visualizer/types", None)
 
