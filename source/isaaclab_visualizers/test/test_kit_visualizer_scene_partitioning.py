@@ -5,6 +5,8 @@
 
 """Tests for Kit visualizer scene-partition behavior."""
 
+import contextlib
+import signal
 import sys
 from types import ModuleType
 from unittest.mock import MagicMock
@@ -104,6 +106,48 @@ def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeyp
         ("/app/player/playSimulations", True),
     ]
     app.update.assert_called_once_with()
+
+
+@pytest.mark.parametrize("interrupt_count", [1, 2], ids=["defer-first", "force-exit-on-second"])
+def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch, interrupt_count):
+    """Deliver Ctrl+C after Kit returns, or force exit when it cannot return."""
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    settings = MagicMock()
+    settings.get.return_value = False
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    previous_handler = signal.getsignal(signal.SIGINT)
+
+    def force_exit(exit_code):
+        raise SystemExit(exit_code)
+
+    monkeypatch.setattr("isaaclab.app._interrupts.os._exit", force_exit)
+
+    def update():
+        with contextlib.suppress(KeyboardInterrupt):
+            for _ in range(interrupt_count):
+                signal.raise_signal(signal.SIGINT)
+
+    app = MagicMock(update=update)
+    app.is_running.return_value = True
+    app_module = ModuleType("omni.kit.app")
+    app_module.get_app = lambda: app
+    kit_module = ModuleType("omni.kit")
+    kit_module.app = app_module
+    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
+    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
+    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
+
+    expected_exception = KeyboardInterrupt if interrupt_count == 1 else SystemExit
+    with pytest.raises(expected_exception) as exc_info:
+        visualizer._pump_kit_app_update()
+
+    if interrupt_count == 2:
+        assert exc_info.value.code == 130
+    assert signal.getsignal(signal.SIGINT) is previous_handler
+    assert [call.args for call in settings.set.call_args_list] == [
+        ("/app/player/playSimulations", False),
+        ("/app/player/playSimulations", False),
+    ]
 
 
 def test_play_and_stop_synchronize_kit_timeline_without_advancing_physics(monkeypatch):

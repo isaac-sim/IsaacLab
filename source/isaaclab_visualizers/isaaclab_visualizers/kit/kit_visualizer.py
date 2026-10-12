@@ -16,6 +16,7 @@ import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
+from isaaclab.app._interrupts import defer_keyboard_interrupt
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
@@ -463,7 +464,10 @@ class KitVisualizer(BaseVisualizer):
             play_flag = settings.get("/app/player/playSimulations")
             settings.set("/app/player/playSimulations", False)
             try:
-                app.update()
+                # Kit can swallow KeyboardInterrupt when SIGINT lands in a Python event callback.
+                # Defer it until update() returns to this call site.
+                with defer_keyboard_interrupt():
+                    app.update()
             finally:
                 settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
             return True

@@ -308,13 +308,11 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
 
 @pytest.mark.parametrize("interrupted_operation", ["reset", "step"])
 def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, interrupted_operation) -> None:
-    """An interrupt during setup or playback closes the env despite further Ctrl+C presses."""
+    """An interrupt during setup or playback closes the environment."""
     closed = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def close():
-        signal.raise_signal(signal.SIGINT)
-        signal.raise_signal(signal.SIGINT)
         closed.append(True)
 
     cfg = SimpleNamespace(
@@ -345,6 +343,27 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
         simple_agents.run([], policy="random")
 
     assert closed == [True]
+    assert signal.getsignal(signal.SIGINT) is previous_handler
+
+
+def test_ctrl_c_during_environment_close_forces_exit(monkeypatch) -> None:
+    """A further Ctrl+C terminates an environment teardown that may be stuck."""
+    from isaaclab_rl.entrypoints.common import close_env
+
+    previous_handler = signal.getsignal(signal.SIGINT)
+    exit_codes = []
+
+    def force_exit(exit_code):
+        exit_codes.append(exit_code)
+        raise SystemExit(exit_code)
+
+    monkeypatch.setattr("isaaclab.app._interrupts.os._exit", force_exit)
+    env = SimpleNamespace(close=lambda: signal.raise_signal(signal.SIGINT))
+
+    with pytest.raises(SystemExit, match="130"):
+        close_env(env)
+
+    assert exit_codes == [130]
     assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
