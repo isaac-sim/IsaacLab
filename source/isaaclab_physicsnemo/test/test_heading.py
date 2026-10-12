@@ -13,6 +13,7 @@ pytest.importorskip("physicsnemo_robotics")
 
 import newton
 import torch
+import warp as wp
 from isaaclab_physicsnemo import HeadingJointStateCodec, RootGravityEncoder
 from tensordict import TensorDict
 
@@ -22,10 +23,11 @@ from isaaclab.utils.math import normalize, quat_apply, quat_from_euler_xyz, quat
 @pytest.fixture(scope="module")
 def codec() -> HeadingJointStateCodec:
     """A free-floating base with one hinged link."""
+    inertia = wp.mat33(0.1, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.1)
     robot = newton.ModelBuilder()
-    base = robot.add_link(mass=1.0)
+    base = robot.add_link(mass=1.0, inertia=inertia)
     root = robot.add_joint_free(base)
-    link = robot.add_link(mass=1.0)
+    link = robot.add_link(mass=1.0, inertia=inertia)
     hinge = robot.add_joint_revolute(base, link)
     robot.add_articulation([root, hinge])
     return HeadingJointStateCodec(robot.finalize(device="cpu"))

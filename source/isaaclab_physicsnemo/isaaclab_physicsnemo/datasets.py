@@ -61,7 +61,9 @@ def load_trajectory_datasets(
 
     Args:
         paths: Dataset directories, see :func:`expand_dataset_paths`.
-        workers: Worker processes that read trajectories. One reads them in the calling process.
+        workers: Worker processes that read trajectories. One reads them in the calling process. Workers start
+            without forking the caller, so a script that uses several must guard its entry point with
+            ``if __name__ == "__main__":``.
         cache_path: File that caches the loaded trajectories. It is reused while the datasets are unchanged.
             Required when ``world_size`` is greater than one.
         rank: Data-parallel rank of the caller.
@@ -102,9 +104,9 @@ def load_trajectory_datasets(
             (path, start, min(start + _CHUNK_TRAJECTORIES, count)) for start in range(0, count, _CHUNK_TRAJECTORIES)
         ]
     if workers > 1 and len(tasks) > 1:
-        # Forked workers only read files into CPU tensors, so they neither touch the parent's CUDA context nor
-        # require the calling script to guard its entry point, as spawned workers would.
-        context = multiprocessing.get_context("fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn")
+        # Forking the multi-threaded caller can deadlock, so workers start from a clean server process.
+        methods = multiprocessing.get_all_start_methods()
+        context = multiprocessing.get_context("forkserver" if "forkserver" in methods else "spawn")
         with ProcessPoolExecutor(min(workers, len(tasks)), mp_context=context) as pool:
             chunks = list(pool.map(_read_chunk, tasks))
     else:

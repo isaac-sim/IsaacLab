@@ -135,7 +135,9 @@ def test_sharded_recording_trains_as_one_dataset(device: str, tmp_path: Path):
             tmp_path / "sharded",
             env.sim.physics_manager.get_model(),
             tmp_path / "training",
-            settings=TrainingSettings(max_updates=2, batch_size=16, model_kwargs=_TINY_MODEL, rollout_horizons=()),
+            settings=TrainingSettings(
+                max_updates=2, batch_size=16, model_kwargs=_TINY_MODEL, rollout_horizons=(), read_workers=1
+            ),
             device=device,
         )
     finally:

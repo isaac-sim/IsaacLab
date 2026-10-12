@@ -17,12 +17,13 @@ from physicsnemo_robotics.dynamics import newton_state_codec
 
 def _two_world_robot(*, root_anchor: wp.transform | None = None, hinge_enabled: bool = True) -> newton.Model:
     """Build two worlds of a free-floating base with one hinged link."""
+    inertia = wp.mat33(0.1, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.1)
     scene = newton.ModelBuilder()
     for _ in range(2):
         robot = newton.ModelBuilder()
-        base = robot.add_link(mass=1.0)
+        base = robot.add_link(mass=1.0, inertia=inertia)
         root = robot.add_joint_free(base, child_xform=root_anchor)
-        link = robot.add_link(mass=1.0)
+        link = robot.add_link(mass=1.0, inertia=inertia)
         hinge = robot.add_joint_revolute(base, link, enabled=hinge_enabled)
         robot.add_articulation([root, hinge])
         scene.begin_world()

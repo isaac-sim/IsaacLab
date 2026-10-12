@@ -22,7 +22,7 @@ def _replicated_model(label_prefix: str, *, register_mujoco_attributes: bool = F
         newton.solvers.SolverMuJoCo.register_custom_attributes(scene)
     for world in range(2):
         robot = newton.ModelBuilder()
-        link = robot.add_link(mass=1.0, inertia=wp.mat33(0.3, 0.01, 0.0, 0.01, 0.2, 0.0, 0.0, 0.0, 0.1), label="link")
+        link = robot.add_link(mass=1.0, inertia=wp.mat33(0.2, 0.01, 0.0, 0.01, 0.15, 0.0, 0.0, 0.0, 0.1), label="link")
         hinge = robot.add_joint_revolute(-1, link, label="hinge")
         robot.add_articulation([hinge], label="robot")
         scene.begin_world()

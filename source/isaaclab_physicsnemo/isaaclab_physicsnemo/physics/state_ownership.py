@@ -164,7 +164,7 @@ def _require_local_worlds(tables: list[np.ndarray], worlds: np.ndarray, name: st
 def _validate_articulation_trees(model: newton.Model) -> set[int]:
     """Check the forward-kinematics requirements and return the bodies produced by tree joints."""
     joint_type = model.joint_type.numpy()
-    cable = np.flatnonzero(joint_type == int(newton.JointType.CABLE))
+    cable = np.flatnonzero(joint_type == int(newton.JointType.ROD))
     if cable.size:
         raise ValueError(f"Cable joints {cable.tolist()} keep body state that forward kinematics does not rebuild.")
     parents, children = model.joint_parent.numpy(), model.joint_child.numpy()
