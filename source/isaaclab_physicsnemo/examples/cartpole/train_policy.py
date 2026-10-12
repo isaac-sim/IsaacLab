@@ -45,19 +45,25 @@ def evaluate(policy: torch.nn.Module, num_envs: int, steps: int, seed: int) -> d
     env = RslRlVecEnvWrapper(CartpoleEnv(cfg=make_cfg(num_envs, seed, artifact=None)))
     returns = torch.zeros(num_envs, device=env.device)
     finished_returns, finished_lengths, survived = [], [], []
-    observations = env.get_observations()
-    with torch.inference_mode():
-        for _ in range(steps):
-            observations, rewards, dones, extras = env.step(policy(observations))
-            returns += rewards
-            done = dones.bool()
-            if done.any():
-                finished_returns.append(returns[done].clone())
-                finished_lengths.append(env.unwrapped.episode_length_buf[done].clone())
-                survived.append(extras["time_outs"][done].float())
-                returns[done] = 0.0
-    env.close()
-    SimulationContext.clear_instance()
+    try:
+        observations = env.get_observations()
+        with torch.inference_mode():
+            for _ in range(steps):
+                observations, rewards, dones, extras = env.step(policy(observations))
+                returns += rewards
+                done = dones.bool()
+                if done.any():
+                    finished_returns.append(returns[done].clone())
+                    finished_lengths.append(env.unwrapped.episode_length_buf[done].clone())
+                    survived.append(extras["time_outs"][done].float())
+                    returns[done] = 0.0
+    finally:
+        # A failed evaluation must not leave a simulation behind for the next one.
+        env.close()
+        SimulationContext.clear_instance()
+    if not survived:
+        # No episode finished within the evaluated steps.
+        return {"episodes": 0.0, "success_rate": float("nan"), "mean_return": float("nan")}
     survived = torch.cat(survived)
     return {
         "episodes": float(survived.numel()),

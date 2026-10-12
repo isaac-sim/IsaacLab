@@ -49,21 +49,25 @@ def evaluate(
     robot, commands = env.unwrapped.scene["robot"], env.unwrapped.command_manager
     returns = torch.zeros(num_envs, device=env.device)
     finished_returns, fell = [], []
-    reward_sum, tracking_error_sum, observations = 0.0, 0.0, env.get_observations()
-    with torch.inference_mode():
-        for _ in range(steps):
-            observations, rewards, dones, extras = env.step(policy(observations))
-            reward_sum += rewards.mean().item()
-            velocity_error = commands.get_command("base_velocity")[:, :2] - robot.data.root_lin_vel_b.torch[:, :2]
-            tracking_error_sum += velocity_error.norm(dim=-1).mean().item()
-            returns += rewards
-            done = dones.bool()
-            if done.any():
-                finished_returns.append(returns[done].clone())
-                fell.append(~extras["time_outs"][done])
-                returns[done] = 0.0
-    env.close()
-    SimulationContext.clear_instance()
+    reward_sum, tracking_error_sum = 0.0, 0.0
+    try:
+        observations = env.get_observations()
+        with torch.inference_mode():
+            for _ in range(steps):
+                observations, rewards, dones, extras = env.step(policy(observations))
+                reward_sum += rewards.mean().item()
+                velocity_error = commands.get_command("base_velocity")[:, :2] - robot.data.root_lin_vel_b.torch[:, :2]
+                tracking_error_sum += velocity_error.norm(dim=-1).mean().item()
+                returns += rewards
+                done = dones.bool()
+                if done.any():
+                    finished_returns.append(returns[done].clone())
+                    fell.append(~extras["time_outs"][done])
+                    returns[done] = 0.0
+    finally:
+        # A failed evaluation must not leave a simulation behind for the next one.
+        env.close()
+        SimulationContext.clear_instance()
     fell = torch.cat(fell) if fell else torch.zeros(0, dtype=torch.bool)
     return {
         "mean_reward_per_step": reward_sum / steps,
