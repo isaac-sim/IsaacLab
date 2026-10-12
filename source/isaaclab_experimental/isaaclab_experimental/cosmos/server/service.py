@@ -15,7 +15,7 @@ import threading
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import suppress
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 
@@ -29,6 +29,9 @@ from .._protocol import (
     receive_message,
     send_message,
 )
+
+if TYPE_CHECKING:
+    import torch
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -148,9 +151,18 @@ def _bind_private_unix_socket(listener: socket.socket, path: str) -> None:
 
 
 class _Stream(Protocol):
+    """A generation session stepped with host arrays (socket) or CUDA views of the shared buffer (CUDA IPC).
+
+    Each step returns images of the same kind as its controls.
+    """
+
     def step(
-        self, controls: list[np.ndarray], reset_rows: tuple[int, ...], seeds: tuple[int, ...], **episode: object
-    ) -> list[np.ndarray]: ...
+        self,
+        controls: list[np.ndarray] | list[torch.Tensor],
+        reset_rows: tuple[int, ...],
+        seeds: tuple[int, ...],
+        **episode: object,
+    ) -> list[np.ndarray] | list[torch.Tensor]: ...
 
     def close(self) -> None: ...
 
