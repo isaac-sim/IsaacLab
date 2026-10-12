@@ -56,8 +56,8 @@ def test_dr_legs_reset_randomization_matches_physics_backend(
     assert (env_cfg.events.randomize_joint_params is not None) is expected_armature_randomization
 
 
-def test_dr_legs_discards_non_finite_rewards_only_for_terminated_envs(monkeypatch: pytest.MonkeyPatch):
-    """Keep a failed solver state from returning an invalid reward to the trainer."""
+def test_dr_legs_discards_non_finite_rewards(monkeypatch: pytest.MonkeyPatch):
+    """Keep an invalid solver reward from reaching the trainer."""
     rewards = torch.tensor([float("nan"), float("inf"), float("-inf"), 1.0, float("nan")])
     terminated = torch.tensor([True, True, True, True, False])
     time_outs = torch.zeros(5, dtype=torch.bool)
@@ -69,8 +69,7 @@ def test_dr_legs_discards_non_finite_rewards_only_for_terminated_envs(monkeypatc
     env = object.__new__(DrLegsRLEnv)
     _, actual_rewards, _, _, _ = env.step(torch.empty(0))
 
-    torch.testing.assert_close(actual_rewards[:4], torch.tensor([0.0, 0.0, 0.0, 1.0]))
-    assert torch.isnan(actual_rewards[4])
+    torch.testing.assert_close(actual_rewards, torch.tensor([0.0, 0.0, 0.0, 1.0, 0.0]))
 
 
 def test_dr_legs_walk_success_metric_does_not_overwrite_command_success():

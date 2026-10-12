@@ -12,11 +12,10 @@ from isaaclab.envs.common import VecEnvStepReturn
 
 
 class DrLegsRLEnv(ManagerBasedRLEnv):
-    """DR Legs environment that discards invalid rewards from terminated solver states."""
+    """DR Legs environment that discards invalid solver rewards."""
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
-        """Step the environment and keep rewards finite for failed copies being reset."""
+        """Step the environment and keep rewards finite after solver failures."""
         observations, rewards, terminated, time_outs, extras = super().step(action)
-        invalid_terminal_rewards = terminated & ~torch.isfinite(rewards)
-        rewards[invalid_terminal_rewards] = 0.0
+        rewards[~torch.isfinite(rewards)] = 0.0
         return observations, rewards, terminated, time_outs, extras
