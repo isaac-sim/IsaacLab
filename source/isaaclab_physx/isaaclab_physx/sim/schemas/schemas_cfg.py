@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
@@ -1240,9 +1239,16 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
     """
 
 
+@deprecated_schema_cfg(
+    "[PhysxTendonAxisRootCfg(...)] in the spawner's fixed_tendons_props slot"
+)
 @configclass
 class PhysxFixedTendonPropertiesCfg:
     """PhysX fixed-tendon properties for an articulation.
+
+    .. deprecated:: 3.1
+        Pass :class:`PhysxTendonAxisRootCfg` in the spawner's ``fixed_tendons_props`` slot instead.
+        This class will be removed in 3.2.
 
     This class configures PhysX tendon schemas and is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties`. The writer authors
@@ -1286,30 +1292,29 @@ class PhysxFixedTendonPropertiesCfg:
     """Upper limit of the tendon's length [m]."""
 
 
+@deprecated_schema_cfg(
+    "[PhysxTendonAxisRootCfg(...)] in the spawner's fixed_tendons_props slot"
+)
 @configclass
 class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
-    """Deprecated: use :class:`PhysxFixedTendonPropertiesCfg`.
+    """Deprecated: use :class:`PhysxTendonAxisRootCfg`.
 
     .. deprecated:: 3.1
-        ``FixedTendonPropertiesCfg`` was relocated to
-        :mod:`isaaclab_physx.sim.schemas` and renamed to
-        :class:`PhysxFixedTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 3.2.
+        Pass :class:`PhysxTendonAxisRootCfg` in the spawner's ``fixed_tendons_props`` slot instead. This class will
+        be removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'FixedTendonPropertiesCfg' is deprecated and will be removed in 3.2. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
-
+@deprecated_schema_cfg(
+    "[PhysxTendonAttachmentRootCfg(...)] in the spawner's spatial_tendons_props slot"
+)
 @configclass
 class PhysxSpatialTendonPropertiesCfg:
     """PhysX spatial-tendon properties for an articulation.
+
+    .. deprecated:: 3.1
+        Pass :class:`PhysxTendonAttachmentRootCfg` in the spawner's ``spatial_tendons_props`` slot
+        instead. This class will be removed in 3.2.
 
     This class configures PhysX spatial-tendon schemas and is consumed by the PhysX-specific writer
     :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties`. The writer authors
@@ -1343,25 +1348,17 @@ class PhysxSpatialTendonPropertiesCfg:
     """
 
 
+@deprecated_schema_cfg(
+    "[PhysxTendonAttachmentRootCfg(...)] in the spawner's spatial_tendons_props slot"
+)
 @configclass
 class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
-    """Deprecated: use :class:`PhysxSpatialTendonPropertiesCfg`.
+    """Deprecated: use :class:`PhysxTendonAttachmentRootCfg`.
 
     .. deprecated:: 3.1
-        ``SpatialTendonPropertiesCfg`` was relocated to
-        :mod:`isaaclab_physx.sim.schemas` and renamed to
-        :class:`PhysxSpatialTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 3.2.
+        Pass :class:`PhysxTendonAttachmentRootCfg` in the spawner's ``spatial_tendons_props`` slot
+        instead. This class will be removed in 3.2.
     """
-
-    def __post_init__(self):
-        warnings.warn(
-            "'SpatialTendonPropertiesCfg' is deprecated and will be removed in 3.2. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
 
 
 @configclass
