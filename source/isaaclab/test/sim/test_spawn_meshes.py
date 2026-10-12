@@ -179,6 +179,18 @@ def test_spawn_custom_mesh(sim):
     assert not mesh_prim.GetAttribute("primvars:displayColor").HasAuthoredValue()
 
 
+def test_spawn_custom_mesh_rejects_malformed_data(sim):
+    """Reject lossy face indices and non-finite USD points before authoring any prim."""
+    cfg = sim_utils.MeshCustomCfg(vertices=((0, 0, 0), (1, 0, 0), (0, 1, 0)), faces=((0, 1, 2),))
+    for invalid, message in (
+        (cfg.replace(faces=((0, 1.9, 2),)), "integer"),
+        (cfg.replace(vertices=((float("nan"), 0, 0), (1, 0, 0), (0, 1, 0))), "finite"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            invalid.func("/World/InvalidCustomMesh", invalid)
+        assert not sim.stage.GetPrimAtPath("/World/InvalidCustomMesh").IsValid()
+
+
 """
 Physics properties.
 """
