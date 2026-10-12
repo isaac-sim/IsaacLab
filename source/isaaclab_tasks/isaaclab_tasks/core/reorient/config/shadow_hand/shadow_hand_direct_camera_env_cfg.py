@@ -7,9 +7,7 @@
 
 from __future__ import annotations
 
-import math
-
-from isaaclab_experimental.cosmos import CosmosModelCfg, depth_processor
+from isaaclab_experimental.cosmos import CosmosModelCfg, depth_processor, episode_frame_budget
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 import isaaclab.sim as sim_utils
@@ -268,8 +266,9 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
                 "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "
                 f"to match the Cosmos update_frames ({transfer.update_frames})."
             )
-        capture_period = max(camera.update_period, self.sim.dt)
-        episode_frames = math.ceil(self.episode_length_s / capture_period) + 1
+        _, episode_frames, budget = episode_frame_budget(self, camera.update_period)
+        if transfer.backend.max_episode_frames is None:
+            transfer.backend.max_episode_frames = budget
         frame_budget = transfer.backend.max_episode_frames
         if episode_frames > frame_budget:
             raise ValueError(

@@ -7,13 +7,36 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+import math
+from typing import TYPE_CHECKING, Any, Literal
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .cosmos_model import CosmosModel
+
+
+def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, int]:
+    """Count a camera's captures per episode and the Cosmos frame budget that holds them.
+
+    The episode lasts ``ceil(episode_length_s / step_dt)`` environment steps, as the environment counts them. The
+    camera captures at most once per step, once its elapsed time reaches ``update_period - 1e-6`` [s], the
+    threshold :class:`~isaaclab.sensors.SensorBase` uses.
+
+    Args:
+        env_cfg: Environment configuration with ``sim.dt``, ``decimation``, and ``episode_length_s``.
+        update_period: Camera update period [s]. Zero captures every step.
+
+    Returns:
+        Environment steps per capture, captures per episode including the initial capture, and the smallest
+        frame budget ``1 + 4*k`` that holds them.
+    """
+    step_dt = env_cfg.sim.dt * env_cfg.decimation
+    episode_steps = math.ceil(env_cfg.episode_length_s / step_dt)
+    steps_per_capture = max(1, math.ceil((update_period - 1e-6) / step_dt))
+    captures = math.ceil(episode_steps / steps_per_capture) + 1
+    return steps_per_capture, captures, 1 + 4 * math.ceil((captures - 1) / 4)
 
 
 @configclass
@@ -31,14 +54,24 @@ class CosmosModelCfg(BackendCfg):
     endpoint: str = "tcp://127.0.0.1:5555"
     """Endpoint of the independently started Cosmos service."""
 
-    prompt: str | None = None
-    """Appearance prompt. None omits an appearance description."""
+    prompt: str | list[str] | None = None
+    """Appearance prompt. A string applies to every episode. A list varies the appearance, for visual
+    randomization. With one view, episode ``k`` of the camera stream uses ``prompt[k % len(prompt)]``; an episode
+    reset before the first generated update (for example the environment's initial reset right after its first
+    capture) keeps the current prompt. With several views (environments), view ``v`` uses
+    ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
+    resets. None omits an appearance description."""
 
-    modality: Literal["edge", "depth", "seg"] = "edge"
-    """Type of uint8 three-channel guidance prepared by the preceding camera modifier."""
+    modality: Literal["edge", "blur", "depth", "seg"] = "depth"
+    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
+    for blur the camera sends its RGB and the service applies the Framework's own blur filter."""
 
-    max_episode_frames: int = 201
-    """Image-frame budget per episode, including the initial frame."""
+    max_episode_frames: int | None = None
+    """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. The
+    Shadow Hand preset derives it from the task duration and capture rate with :func:`episode_frame_budget`.
+    Low-level callers must set it before creating the client. The service tells the model the episode's duration
+    from it and rejects frames beyond it.
+    """
 
     timeout: float = 600.0
     """Maximum wait per network operation [s], including the first generation."""

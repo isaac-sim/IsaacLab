@@ -14,7 +14,15 @@ import threading
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-from .._protocol import ProtocolError, check_reply, connect, parse_endpoint, receive_message, send_message
+from .._protocol import (
+    MAX_CHUNK_FRAMES,
+    ProtocolError,
+    check_reply,
+    connect,
+    parse_endpoint,
+    receive_message,
+    send_message,
+)
 
 if TYPE_CHECKING:
     import numpy as np
@@ -37,12 +45,15 @@ class CosmosModel:
         parse_endpoint(cfg.endpoint)
         if not math.isfinite(cfg.timeout) or cfg.timeout <= 0:
             raise ValueError("Cosmos timeout must be finite and positive.")
-        if cfg.prompt is not None and not isinstance(cfg.prompt, str):
-            raise ValueError("Cosmos prompt must be a string or None.")
-        if cfg.modality not in ("edge", "depth", "seg"):
-            raise ValueError("Cosmos modality must be edge, depth, or seg.")
-        if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames <= 0:
-            raise ValueError("Cosmos max_episode_frames must be a positive integer.")
+        if isinstance(cfg.prompt, (list, tuple)):
+            if not cfg.prompt or any(not isinstance(prompt, str) or not prompt.strip() for prompt in cfg.prompt):
+                raise ValueError("A Cosmos prompt list must be nonempty and contain nonempty strings.")
+        elif cfg.prompt is not None and not isinstance(cfg.prompt, str):
+            raise ValueError("Cosmos prompt must be a string, a list of strings, or None.")
+        if cfg.modality not in ("edge", "blur", "depth", "seg"):
+            raise ValueError("Cosmos modality must be edge, blur, depth, or seg.")
+        if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames < 1 or (cfg.max_episode_frames - 1) % 4:
+            raise ValueError("Set CosmosModelCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k).")
         self._cfg = cfg
         self._lock = threading.Lock()
         self._streams: set[_CosmosStream] = set()
@@ -52,15 +63,15 @@ class CosmosModel:
         """Create one camera stream; connect on its first step when image dimensions are known.
 
         Args:
-            num_views: Number of camera views. Currently only one is supported.
+            num_views: Number of camera views, generated as one batch, within GPU memory and transport limits.
             seeds: Initial integer seed in ``[0, 2**31)`` for each view.
 
         Raises:
             ValueError: If the view count or seeds are invalid.
             RuntimeError: If the client model has already closed.
         """
-        if type(num_views) is not int or num_views != 1:
-            raise ValueError("Cosmos currently supports one camera view per service.")
+        if type(num_views) is not int or num_views < 1:
+            raise ValueError("Cosmos needs a positive number of camera views.")
         _validate_seeds(seeds, num_views)
         with self._lock:
             if self._closed:
@@ -102,14 +113,17 @@ class _CosmosStream:
         self._socket: socket.socket | None = None
         self._shape: tuple[int, int, int] | None = None
         self._closed = False
+        self._episode = 0
+        self._episode_frames = 0
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
     ) -> list[torch.Tensor]:
-        """Send a control chunk and return matching uint8 RGB on the controls' original device.
+        """Send one control chunk per view and return matching uint8 RGB on the controls' original device.
 
-        A transport, model, or validation failure closes the session. The same chunk cannot safely
-        be retried because the service may already have advanced its temporal generation state.
+        Views starting or restarting an episode send one frame, the others four. A transport, model, or validation
+        failure closes the session. The same chunk cannot safely be retried because the service may already have
+        advanced its temporal generation state.
         """
         import torch
 
@@ -117,48 +131,73 @@ class _CosmosStream:
             if self._closed:
                 raise RuntimeError("Cosmos stream is closed or failed; recreate the camera stream.")
             try:
+                num_views = len(self._seeds)
                 if (
                     not isinstance(controls, list)
-                    or len(controls) != 1
-                    or not isinstance(controls[0], torch.Tensor)
-                    or controls[0].dtype != torch.uint8
-                    or controls[0].ndim != 4
-                    or controls[0].shape[-1] != 3
-                    or any(size <= 0 for size in controls[0].shape)
+                    or len(controls) != num_views
+                    or any(
+                        not isinstance(control, torch.Tensor)
+                        or control.dtype != torch.uint8
+                        or control.ndim != 4
+                        or control.shape[-1] != 3
+                        or any(size <= 0 for size in control.shape)
+                        for control in controls
+                    )
                 ):
-                    raise ValueError("Cosmos controls must contain one nonempty uint8 THWC tensor with three channels.")
-                if not isinstance(reset_rows, tuple) or (
-                    reset_rows and (len(reset_rows) != 1 or type(reset_rows[0]) is not int or reset_rows[0] != 0)
+                    raise ValueError(
+                        "Cosmos controls must hold one nonempty uint8 THWC tensor with three channels per view."
+                    )
+                if (
+                    not isinstance(reset_rows, tuple)
+                    or any(type(row) is not int or not 0 <= row < num_views for row in reset_rows)
+                    or list(reset_rows) != sorted(set(reset_rows))
                 ):
-                    raise ValueError("Cosmos supports only a full reset of its single camera view.")
+                    raise ValueError("Cosmos resets name distinct views in increasing order.")
                 _validate_seeds(seeds, len(reset_rows))
                 control = controls[0]
                 image_shape = tuple(control.shape[1:])
+                if any(tuple(view.shape[1:]) != image_shape or view.device != control.device for view in controls):
+                    raise ValueError("Cosmos views must share one image size and device.")
                 if self._shape is not None and image_shape != self._shape:
                     raise ValueError("Cosmos image size cannot change within a camera stream.")
                 if self._socket is None:
                     self._socket = connect(self._cfg.endpoint, self._cfg.timeout)
-                    _, arrays = self._exchange(
-                        {
-                            "op": "open",
-                            "num_views": 1,
-                            "seeds": self._seeds,
-                            "prompt": self._cfg.prompt,
-                            "modality": self._cfg.modality,
-                            "height": image_shape[0],
-                            "width": image_shape[1],
-                            "max_episode_frames": self._cfg.max_episode_frames,
-                        }
-                    )
+                    request = {
+                        "op": "open",
+                        "num_views": num_views,
+                        "seeds": self._seeds,
+                        "prompt": self._session_prompt(),
+                        "modality": self._cfg.modality,
+                        "height": image_shape[0],
+                        "width": image_shape[1],
+                        "max_episode_frames": self._cfg.max_episode_frames,
+                    }
+                    _, arrays = self._exchange(request)
                     if arrays:
                         raise ProtocolError("Cosmos open reply must not contain image arrays.")
                     self._shape = image_shape
-                # The transport crosses process/device boundaries through CPU memory deliberately.
-                array = control.detach().cpu().numpy()
-                _, generated = self._exchange({"op": "step", "reset_rows": reset_rows, "seeds": seeds}, [array])
-                if len(generated) != 1 or generated[0].shape != tuple(control.shape):
-                    raise ProtocolError("Cosmos returned images that do not match the control chunk.")
-                return [torch.from_numpy(generated[0]).to(device=control.device)]
+                frames = [view.shape[0] for view in controls]
+                if max(frames) > MAX_CHUNK_FRAMES:
+                    raise ValueError(f"Cosmos chunks hold at most {MAX_CHUNK_FRAMES} frames.")
+                request = {"op": "step", "reset_rows": reset_rows, "seeds": seeds}
+                episode = self._episode
+                if num_views == 1 and reset_rows and isinstance(self._cfg.prompt, (list, tuple)):
+                    # A reset starts the next prompt's episode, unless the ending episode never got past its
+                    # first frame, such as the capture taken before the environment's initial reset.
+                    episode += 1 if self._episode_frames > 1 else 0
+                    request["prompt"] = self._episode_prompt(episode)
+                # Images cross the process boundary through host memory and the socket.
+                _, generated = self._exchange(request, [chunk.detach().cpu().numpy() for chunk in controls])
+                if len(generated) != num_views or any(
+                    images.shape != tuple(chunk.shape) for images, chunk in zip(generated, controls)
+                ):
+                    raise ProtocolError("Cosmos returned images that do not match the control chunks.")
+                images = [torch.from_numpy(view).to(device=control.device) for view in generated]
+                if num_views == 1:
+                    if reset_rows:
+                        self._episode, self._episode_frames = episode, 0
+                    self._episode_frames += frames[0]
+                return images
             except Exception:
                 self._release(notify=False)
                 raise
@@ -167,6 +206,17 @@ class _CosmosStream:
         """Close this camera's session. Repeated calls are safe."""
         with self._lock:
             self._release(notify=True)
+
+    def _session_prompt(self) -> str | None | list[str | None]:
+        """Opening prompt: one view starts its prompt list; several views each take ``prompt[view % len]``."""
+        prompt = self._cfg.prompt
+        if len(self._seeds) == 1 or not isinstance(prompt, (list, tuple)):
+            return self._episode_prompt(self._episode)
+        return [prompt[view % len(prompt)] for view in range(len(self._seeds))]
+
+    def _episode_prompt(self, episode: int) -> str | None:
+        prompt = self._cfg.prompt
+        return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
 
     def _exchange(self, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> tuple[dict, list[np.ndarray]]:
         if self._socket is None:

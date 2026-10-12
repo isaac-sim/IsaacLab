@@ -9,6 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 from isaaclab_experimental.image_transfer import ImageTransferModifierCfg, depth_to_control, srgb_to_linear
 from isaaclab_experimental.image_transfer import modifier as modifier_module
 
@@ -105,6 +106,24 @@ def test_reset_restarts_only_the_selected_view_with_a_new_seed(no_sim):
     assert model.steps[-1][1:] == ((1,), (10,))
 
 
+def test_a_capture_queues_controls_only_for_the_views_it_covers(no_sim):
+    """After independent resets, environments capture at different steps; a view a capture skipped queues nothing."""
+    modifier, model = _modifier(initial_frames=1, update_frames=2)
+    camera = SimpleNamespace(_is_outdated=wp.array([True, True], dtype=wp.bool, device="cpu"))
+    modifier.bind_sensor(camera)
+    modifier(_controls(1))
+
+    # The two views now capture on alternate calls; each call's data holds a stale render for the other view.
+    for value, mask in ((2, [True, False]), (3, [False, True]), (4, [True, False]), (5, [False, True])):
+        camera._is_outdated = wp.array(mask, dtype=wp.bool, device="cpu")
+        modifier(_controls(value))
+
+    assert len(model.steps) == 2
+    chunks = model.steps[1][0]
+    assert chunks[0][:, 0, 0, 0].tolist() == [2, 4] and chunks[1][:, 0, 0, 0].tolist() == [3, 5]
+    assert [len(queue) for queue in modifier._pending] == [0, 0]
+
+
 def test_a_failed_generation_publishes_nothing_and_is_not_retried(no_sim):
     modifier, model = _modifier()
     model.fail = True
@@ -170,3 +189,23 @@ def test_srgb_to_linear_inverts_the_srgb_transfer_function():
     linear = srgb_to_linear(srgb)
 
     torch.testing.assert_close(linear[0, 0, :, 0], torch.tensor([0.0, 0.0030353, 0.2158605, 1.0]))
+
+
+def test_a_view_resetting_mid_chunk_joins_the_next_chunk_and_queues_stay_bounded(no_sim):
+    """With four-frame updates, a view that resets mid-chunk starts with its newest control at the next chunk."""
+    modifier, model = _modifier(initial_frames=1, update_frames=4, max_pending_frames=8)
+    modifier(_controls(1))
+    modifier(_controls(2))
+    modifier.reset([1])
+    for value in (3, 4, 5):
+        modifier(_controls(value))
+
+    chunks, resets, _ = model.steps[-1]
+    assert [chunk.shape[0] for chunk in chunks] == [4, 1] and resets == (1,)
+    assert int(chunks[1][0, 0, 0, 0]) == 5
+    assert [len(queue) for queue in modifier._pending] == [0, 0]
+    # Both views now follow one four-frame cadence for as long as the episode runs.
+    for value in range(6, 30):
+        modifier(_controls(value))
+    assert all([chunk.shape[0] for chunk in step[0]] == [4, 4] for step in model.steps[2:])
+    assert max(len(queue) for queue in modifier._pending) < 4

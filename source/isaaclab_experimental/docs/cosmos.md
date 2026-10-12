@@ -30,6 +30,29 @@ starting training.
 For a different endpoint, pass `--endpoint tcp://127.0.0.1:5556` to `status` and
 set the camera's `CosmosModelCfg.endpoint` to the same address.
 
+## Controls and prompts
+
+The service follows the Sim-Transfer recipe of the Cosmos cookbook: 480p canvases, four distilled denoising steps,
+guidance 1.0, a 30-latent history window with three attention sinks, and one control per stream:
+
+| Control | Prepared by | How |
+|---|---|---|
+| `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
+| `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
+| `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
+| `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
+
+Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
+`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
+extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
+recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
+palette, while regional edges also require the camera's segmentation output and
+explicit foreground IDs. See the helper docstrings for their camera requirements.
+
+The prompt is used as given; like the recipe, the service does not append control instructions to it. The recipe
+uses detailed scene descriptions (a short sentence works, but a paragraph describing the scene, materials,
+lighting, and camera usually follows the control more closely).
+
 ## Run the Shadow Hand camera task
 
 After `status` reports readiness, run the registered task with its Cosmos preset:
@@ -67,7 +90,7 @@ cube, and it connects to `tcp://127.0.0.1:5555`. The camera captures at 10 Hz of
 simulation time. After the initial generated frame, Cosmos updates every four
 captures, so fresh generated observations arrive at 2.5 Hz of simulation time.
 Generation latency determines the elapsed time needed to run those captures.
-The task keeps its 10-second episode length, within the 201-frame Cosmos budget.
+The task keeps its 10-second episode length and requests 101 frames: one capture every 0.1 s, plus the initial capture.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
 `scene.tiled_camera.renderer_cfg.async_rendering=False`.
@@ -116,6 +139,8 @@ package also exports the camera client API for existing task configurations.
 Add a Cosmos chain to the task's camera configuration. For depth conditioning:
 
 ```python
+import math
+
 from isaaclab.sensors import CameraCfg
 from isaaclab_experimental.cosmos.client import CosmosModelCfg, depth_processor
 
@@ -124,7 +149,8 @@ input_name, modifiers = depth_processor(
         endpoint="tcp://127.0.0.1:5555",
         modality="depth",
         prompt="A robot arm manipulating an object on a workbench.",
-        max_episode_frames=201,
+        # The initial capture plus the episode's captures (here 10 s at 30 per second), rounded up to 1 + 4*k.
+        max_episode_frames=1 + 4 * math.ceil(10 * 30 / 4),
     ),
     near=0.2,
     far=12.0,
@@ -153,6 +179,29 @@ configuration. Starting the service alone does not enable Cosmos for a task, and
 the task must already use camera observations. The training entry point does not
 need a Cosmos demo runner or model initialization code.
 
+### A different prompt per episode
+
+`prompt` takes one string or a list. With a list, episode `k` of a camera stream uses
+`prompt[k % len(prompt)]`, for visual randomization: the session opens with the first prompt, and each
+episode reset sends the next one to the service, which rebuilds the text conditioning for the new episode.
+The model stays loaded; only the episode's conditioning and generation state change. A reset before the
+episode's first update keeps the prompt, so the environment's initial reset right after its first capture does
+not skip the first prompt. Rebuilding the conditioning adds time to that reset, and with compiled inference a
+prompt's first use can trigger compilation, so prefer a short list of prompts.
+
+```python
+CosmosModelCfg(
+    modality="depth",
+    prompt=[
+        "A robotic Shadow Hand turning a red cube in a bright warehouse with metal shelves.",
+        "A robotic Shadow Hand turning a wooden cube on a kitchen counter in warm evening light.",
+        "A robotic Shadow Hand turning a blue cube in a dim laboratory with fluorescent lights.",
+    ],
+)
+```
+
+A prompt can change only at an episode reset.
+
 ## Runtime and resets
 
 The camera's post-processing chain is the integration boundary.
@@ -176,18 +225,46 @@ service retains the loaded weights. Closing a camera closes its generation
 session; it does not stop Cosmos. Failed requests are surfaced to the caller and
 are not silently retried against an already advanced episode.
 
-This initial integration supports one camera view and one active generation
-session per service. Supported `(height, width)` canvases are `(480, 832)`,
+The service runs one active generation session at a time; a session serves one camera view per environment
+(see "Several environments"). Supported `(height, width)` canvases are `(480, 832)`,
 `(544, 736)`, `(640, 640)`, `(736, 544)`, and `(832, 480)`. An episode's frame budget
-must be `1 + 4*k`, with a maximum of 201 generated frames. Reset before exhausting
-that budget. Batched environments and independent partial resets are not supported.
+must be `1 + 4*k`. Reset before exhausting that budget.
 
-Other control recipes are `edge_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
-extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
-recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
-palette, while regional edges also require the camera's segmentation output and
-explicit foreground IDs. See the helper docstrings for their camera requirements.
+## Several environments
+
+One session can generate the cameras of several environments as one batch. Each environment keeps its own
+prompt, seed, and generation history, and resets on its own: a resetting environment starts its new episode with
+one frame while the others continue with four. More environments share each transformer step, so throughput per
+environment rises with GPU size, while each environment needs GPU memory for its own history.
+
+Start the service in compiled mode (resetting one environment
+while the others continue needs the compiled runtime):
+
+```bash
+uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --warmup
+```
+
+A camera with a Cosmos chain requests one view per environment when its session opens. Close the session
+before starting another with a different count; the model stays loaded. Available GPU memory limits the batch,
+and a new batch size may compile on its first use.
+
+- With several environments, environment `v` uses `prompt[v % len(prompt)]` for all its episodes; the batch keeps
+  each environment's prompt across its resets. With one environment, a prompt list changes per episode.
+- An environment that resets mid-chunk starts its new episode at the next chunk with its newest capture, so all
+  environments keep one four-frame cadence; it shows black until then.
+- One step's message carries at most 16 environments.
+- Each environment's history window (`--kv-window`, default 30 latent frames) takes GPU memory. On a 48 GB GPU,
+  one environment fits with the default window; two need `--kv-window 8`. Larger GPUs fit more environments.
+- Reference (RTX PRO 6000 Blackwell MIG 2g.48gb, compiled, 640 x 640, `--kv-window 8`): one environment 917 ms per
+  step, two 1596 ms (1.15x the throughput), with 39.7 GiB peak memory for two.
+
+## Episode frame budget
+
+Each session requests a frame budget, `1 + 4*k` frames per episode; the server sets no limit of its own. The
+service tells the model the episode's duration from this budget. The Shadow Hand preset derives it from the task's
+duration and capture cadence, including the initial capture and rounding up to `1 + 4*k`. Low-level camera chains
+must set `CosmosModelCfg.max_episode_frames` explicitly. Reset before exhausting that budget; the service rejects
+further generation rather than silently resetting the episode. Longer runs need quality and memory validation.
 
 See [Image transfer for camera images](image_transfer.md) for the underlying model
 contract, camera scheduling, and optional PPISP processing. Service shutdown and

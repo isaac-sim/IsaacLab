@@ -10,9 +10,11 @@ __all__ = [
     "CosmosTransferModifierCfg",
     "RegionalEdgeControl",
     "RegionalEdgeControlCfg",
+    "blur_processor",
     "depth_processor",
     "edge_control",
     "edge_processor",
+    "episode_frame_budget",
     "region_control",
     "regional_edge_processor",
     "regional_edges",
@@ -22,6 +24,7 @@ __all__ = [
 from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,
+    blur_processor,
     depth_processor,
     edge_control,
     edge_processor,
@@ -31,6 +34,6 @@ from .control_profiles import (
     segmentation_processor,
 )
 from .cosmos_model import CosmosModel
-from .cosmos_model_cfg import CosmosModelCfg
+from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier import CosmosTransferModifier
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg

@@ -24,16 +24,32 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument("--port", type=int, default=5555)
     parser.add_argument("--no-compile", action="store_true")
     parser.add_argument("--warmup", action="store_true")
+    parser.add_argument(
+        "--kv-window",
+        type=int,
+        default=30,
+        help="Generation history in latent frames (Sim-Transfer recipe: 30); shorter is faster but remembers less.",
+    )
+    parser.add_argument(
+        "--attention-sink", type=int, default=3, help="Earliest latent frames always kept in the history window."
+    )
     options = parser.parse_args(args)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     os.environ["COSMOS_TRAINING"] = "0"
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ.setdefault("TORCHINDUCTOR_COMPILE_THREADS", "2")
-    model = CosmosInferenceModel(options.checkpoint, options.device, use_compile=not options.no_compile)
-    try:
-        serve(model, host=options.host, port=options.port, warmup=options.warmup)
-    finally:
-        model.close()
+    serve(
+        lambda: CosmosInferenceModel(
+            options.checkpoint,
+            options.device,
+            use_compile=not options.no_compile,
+            kv_window=options.kv_window,
+            attention_sink=options.attention_sink,
+        ),
+        host=options.host,
+        port=options.port,
+        warmup=options.warmup,
+    )
 
 
 if __name__ == "__main__":

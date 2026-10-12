@@ -105,14 +105,28 @@ uv run --no-sync isaaclab-cosmos-server \
 ```
 
 Wait for `Cosmos ready at tcp://127.0.0.1:5555`, then leave this terminal running.
-The worker loads the model once on `cuda:0` and exposes the endpoint after model
-loading and warmup. Isaac Lab can then connect from its own environment.
+The worker reserves the endpoint before loading the model on `cuda:0`, so a conflicting endpoint fails
+immediately. It accepts requests after model loading and warmup; wait for the ready message before connecting.
+
+The server sets no episode length limit: each task requests its own frame budget when it opens a session. See
+[Episode frame budget](cosmos.md#episode-frame-budget).
+
+Isaac Lab requests the camera count when it opens a session; no server-side view count is needed. Close the
+session before starting another with a different count. Each view needs GPU memory for its own generation
+history, and resetting environments independently needs the compiled path. See
+[Several environments](cosmos.md#several-environments).
+
+`--kv-window N` and `--attention-sink M` set the generation history the model attends to, in latent frames
+(four video frames each). The defaults, 30 and 3, follow the Sim-Transfer recipe. A shorter window is faster and
+needs less memory, especially with several environments, but remembers less of each episode.
 
 `--no-compile` selects eager inference. Omit it to enable the compiled CUDA-graph
-path, which can take additional time on its first use. `--warmup` runs a disposable
-33-frame session on a `(480, 832)` canvas before reporting readiness. With compiled
-inference, other canvases or prompts can still require compilation on their first
-use. Omit `--warmup` to expose the endpoint after model loading.
+path, which can take additional time on its first use. `--warmup` runs a disposable one-view session through the
+full history window (`1 + 4 * --kv-window` frames, 121 by default) before reporting
+readiness. No camera has connected yet, so the server warms the recipe's default `(480, 832)` canvas; cameras
+choose their canvas when they connect. With compiled inference, a session with another canvas, view count, or
+prompt compiles again on its first step, while the warmup's compiled state keeps its GPU memory. Use `--warmup`
+for one camera on the `(480, 832)` canvas; otherwise omit it to accept requests after model loading.
 
 The equivalent module entrypoint is
 `uv run --no-sync python -m isaaclab_experimental.cosmos.server.worker` with the same
@@ -130,8 +144,8 @@ uv run isaaclab cosmos status
 ```
 
 A ready service reports `"ready": true`. Before connecting a camera, check that
-`"session_active": false`: the current server supports one camera view and one
-active generation session. If a session is active, close that camera or Isaac Lab
+`"session_active": false`: the server runs one active generation session with the
+camera count requested by Isaac Lab. If a session is active, close that camera or Isaac Lab
 process before connecting another. For another endpoint, pass
 `--endpoint tcp://127.0.0.1:5556` to the status command.
 

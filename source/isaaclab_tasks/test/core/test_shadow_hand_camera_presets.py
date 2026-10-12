@@ -261,7 +261,7 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
 def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint_playback():
     """The training task composes depth-guided RGB, and playback retains its own trained CNN."""
     task_name = "Isaac-Reorient-Cube-Shadow-Camera-Direct"
-    env_cfg = parse_env_cfg(task_name, overrides=("presets=cosmos", "env.episode_length_s=20.0"))
+    env_cfg = parse_env_cfg(task_name, overrides=("presets=cosmos", "env.episode_length_s=30.0"))
     env_cfg.validate()
     camera = env_cfg.scene.tiled_camera
     transfer = camera.modifiers["distance_to_image_plane"][-1]
@@ -269,6 +269,8 @@ def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint
     assert env_cfg.scene.num_envs == 1
     assert camera.data_types == ["rgb"] and transfer.output == "rgb"
     assert transfer.backend.modality == "depth"
+    assert transfer.backend.max_episode_frames == 301
+    assert camera.update_period == 0.1
     assert env_cfg.feature_extractor.enabled and env_cfg.feature_extractor.train
     assert env_cfg.feature_extractor.pretrained_checkpoint is None
 
@@ -286,8 +288,6 @@ def test_registered_cosmos_preset_composes_rgb_observations_and_local_checkpoint
     [
         (("env.scene.num_envs=2",), "requires one environment"),
         (("env.max_consecutive_success=1",), "max_consecutive_success=0"),
-        (("env.episode_length_s=20.1",), "camera captures per episode.*frame budget"),
-        (("env.scene.tiled_camera.update_period=0.01",), "camera captures per episode.*frame budget"),
         (("env.scene.lazy_sensor_update=False",), "lazy_sensor_update"),
         (("renderer=ovrtx", "env.scene.tiled_camera.renderer_cfg.async_rendering=True"), "synchronous"),
         (("env.feature_extractor.image_update_frames=1",), "image_update_frames"),
