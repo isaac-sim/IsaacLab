@@ -16,10 +16,7 @@ import ctypes
 import logging
 import os
 from collections.abc import Callable
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from ovrtx import RendererConfig
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +34,20 @@ SHADER_CACHE_SETTINGS = (
 )
 
 
-def _acquire_settings_applier(config: RendererConfig) -> Callable[[str], bool] | None:
+def _acquire_settings_applier() -> Callable[[str], bool] | None:
     """Return a callable that applies one ``--/setting=value`` string, or ``None``.
 
     ``None`` means this runtime does not ship the settings extension;
     :func:`redirect_shader_cache` turns that into a ``RuntimeError`` rather than
     silently leaving the driver at its default cache path.
 
-    Args:
-        config: The configuration the renderer is about to be built with. Querying
-            the extension loads the bindings, which runs ``ovrtx_initialize`` once
-            per process, so the real config has to be supplied here or the log
-            sink, log level and keep-alive are silently dropped.
+    Only loads the ovrtx library. ``ovrtx_initialize`` and its configuration are left
+    to the first renderer, and settings applied before it still take effect.
     """
     # Deliberately local, not moved to the top with `ctypes`: this is the only place
     # the ovrtx runtime is touched, so an import here is what lets the rest of this
     # module - and the tests that exercise it - import without the ovrtx runtime
     # installed (see the module docstring).
-    from ovrtx import Renderer
     from ovrtx._src import bindings as ovrtx_bindings
 
     class _ApplySettingsVTable(ctypes.Structure):
@@ -66,9 +59,10 @@ def _acquire_settings_applier(config: RendererConfig) -> Callable[[str], bool] |
         ]
 
     loader = ovrtx_bindings._ovrtx_loader
-    if loader._lib is None:
-        loader.create_bindings(Renderer._to_c_config(config))
     lib = loader._lib
+    if lib is None:
+        hint = ovrtx_bindings.OVRTX_LIBRARY_PATH_HINT
+        lib = loader._load_library([Path(hint)] if hint else None)
 
     lib.ovrtx_query_extension.argtypes = [ctypes.c_char_p, ctypes.POINTER(ctypes.c_void_p)]
     lib.ovrtx_query_extension.restype = ovrtx_bindings.ovrtx_result_t
@@ -108,17 +102,14 @@ def apply_shader_cache_settings(apply_setting: Callable[[str], bool], cache_path
     logger.info("OVRTX driver shader cache redirected to %r.", cache_path)
 
 
-def redirect_shader_cache(config: RendererConfig) -> None:
+def redirect_shader_cache() -> None:
     """Redirect the driver shader cache to :data:`SHADER_CACHE_PATH_ENV` when set.
 
     Must be called **before** :class:`~ovrtx.Renderer` is constructed: the
     settings are read at renderer-creation time and cannot be changed on a live
     instance. No-ops when the variable is unset, so every construction path can
-    call it unconditionally.
-
-    Args:
-        config: The configuration the renderer will be constructed with, forwarded
-            to :func:`_acquire_settings_applier`.
+    call it unconditionally. Does not initialize ovrtx, so it needs no renderer
+    configuration.
 
     Raises:
         RuntimeError: The variable is set but the redirect could not be applied, either
@@ -133,7 +124,7 @@ def redirect_shader_cache(config: RendererConfig) -> None:
     if not cache_path:
         return
 
-    apply_setting = _acquire_settings_applier(config)
+    apply_setting = _acquire_settings_applier()
     if apply_setting is None:
         raise RuntimeError(
             f"{SHADER_CACHE_PATH_ENV} requested {cache_path!r}, but this ovrtx runtime has no"

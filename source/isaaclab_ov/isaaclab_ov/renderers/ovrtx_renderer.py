@@ -270,8 +270,7 @@ class OVRTXBackend:
             suppress_deprecation_warnings=True,
             texture_streaming_mode=TextureStreamingMode.SYNCHRONOUS,
         )
-        # Redirection may initialize the native library and must use the same settings.
-        redirect_shader_cache(native_cfg)
+        redirect_shader_cache()
         self.stage = None
         self.paths = None
         with contextlib.ExitStack() as resources:

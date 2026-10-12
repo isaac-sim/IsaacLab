@@ -1255,16 +1255,13 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
 
 def test_newton_rtx_viewer_redirects_shader_cache_before_creating_renderer(monkeypatch):
-    """Redirect the OVRTX shader cache with Newton's renderer config before Newton creates its renderer."""
+    """Redirect the OVRTX shader cache before Newton creates its renderer."""
     from isaaclab_ov.renderers import ovrtx_shader_cache
 
     calls = []
-    monkeypatch.setitem(sys.modules, "ovrtx", SimpleNamespace(RendererConfig=lambda: SimpleNamespace(log_level=None)))
-    monkeypatch.setattr(
-        ovrtx_shader_cache, "redirect_shader_cache", lambda cfg: calls.append(("redirect", cfg.log_level))
-    )
-    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_init_ovrtx", lambda self: calls.append(("renderer",)))
+    monkeypatch.setattr(ovrtx_shader_cache, "redirect_shader_cache", lambda: calls.append("redirect"))
+    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_init_ovrtx", lambda self: calls.append("renderer"))
 
     newton_visualizer_module.NewtonViewerRTX._init_ovrtx(object.__new__(newton_visualizer_module.NewtonViewerRTX))
 
-    assert calls == [("redirect", "error"), ("renderer",)]
+    assert calls == ["redirect", "renderer"]

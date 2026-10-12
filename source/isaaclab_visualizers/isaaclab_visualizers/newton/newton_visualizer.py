@@ -363,14 +363,10 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
         self._patch_viewer_panel()
 
     def _init_ovrtx(self) -> None:
-        import ovrtx
         from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 
-        # Newton creates its own renderer here with this config. The redirect must precede it with the same
-        # config because it may be what initializes the native library.
-        config = ovrtx.RendererConfig()
-        config.log_level = "error"
-        redirect_shader_cache(config)
+        # Newton creates its own OVRTX renderer here; point it at the requested shader cache first.
+        redirect_shader_cache()
         super()._init_ovrtx()
 
     def end_frame(self) -> None:
