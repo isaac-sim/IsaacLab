@@ -244,6 +244,7 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
         def __init__(self, _model, **kwargs):
             pipeline_calls.append(kwargs)
             self._rigid_contact_max = kwargs.get("rigid_contact_max", 1)
+            self.deterministic = kwargs["deterministic"]
 
         def contacts(self):
             return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)

@@ -19,6 +19,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import warp as wp
 from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoPADMMSolverCfg,
@@ -32,7 +33,7 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import ModelBuilder, ShapeFlags
-from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
+from newton.solvers.experimental.coupled import ModelView, SolverCoupledADMM, SolverCoupledProxy
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
@@ -89,6 +90,7 @@ class _FakeModel:
         ]
     )
     particle_count: int = 3
+    world_count: int = 1
 
 
 def _float_array(size: int, value: float) -> _FakeArray:
@@ -443,6 +445,27 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
     assert isinstance(cfg.proxies[1].collision_pipeline, NewtonCollisionPipelineCfg)
+
+
+@pytest.mark.parametrize(("rigid_contact_max", "expected"), [(None, 14), (5, 5)])
+def test_proxy_collision_pipeline_holds_per_world_capacity(monkeypatch, rigid_contact_max, expected):
+    """A proxy collision pipeline sizes its contacts for every world unless an absolute capacity is set."""
+    builder = ModelBuilder()
+    for world in range(2):
+        builder.begin_world()
+        body = builder.add_body(xform=wp.transform((3.0 * world, 0.0, 1.0), wp.quat_identity()))
+        builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
+        builder.end_world()
+    model = builder.finalize(device="cpu")
+    collision_cfg = NewtonCollisionPipelineCfg(rigid_contact_max=rigid_contact_max, rigid_contacts_per_world=7)
+    proxy = CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[1], collision_pipeline=collision_cfg)
+    cfg = CouplerProxyCfg(entries=[_entry("rigid").config, _entry("soft").config], proxies=[proxy])
+    monkeypatch.setattr(coupler, "SolverCoupledProxy", _RecordingProxy)
+
+    solver = NewtonCouplerManager._build_proxy_coupled_solver(model, [], [proxy], cfg)
+    pipeline = solver.coupling.proxies[0].collision_pipeline(ModelView(model, "soft"))
+
+    assert pipeline.contacts().rigid_contact_max == expected
 
 
 @pytest.mark.parametrize(
