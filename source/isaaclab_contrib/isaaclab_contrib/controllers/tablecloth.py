@@ -32,10 +32,9 @@ from isaaclab_contrib.assets.tablecloth import (
 
 H2_PULL_DISTANCE = 0.45
 PULL_TIME_FACTOR = 1.875
-POSE_COMPONENTS = 14
-
+# Settle, reach, lower, insert, align, close, withdraw, and lift.
 H2_PHASE_DURATIONS = (0.20, 0.40, 0.40, 0.40, 0.40, 0.30, 0.40, 0.40)
-H2_PHASE_KEYFRAMES = ((0, 0), (0, 2), (2, 4), (4, 6), (6, 8), (8, 8), (8, 10), (10, 12))
+H2_PHASE_KEYFRAMES = ((0, 0), (0, 1), (1, 2), (2, 3), (3, 4), (4, 4), (4, 5), (5, 6))
 STATE_PULL = wp.constant(len(H2_PHASE_DURATIONS))
 STATE_HOLD = wp.constant(len(H2_PHASE_DURATIONS) + 1)
 
@@ -97,20 +96,21 @@ def _interpolate_rotation(start: wp.vec4, end: wp.vec4, alpha: float) -> wp.vec4
 
 
 @wp.kernel
-def _infer_state_machine(
+def _advance_trajectory(
     dt: float,
     pull_speed: wp.array(dtype=float),
-    keyframes: wp.array(dtype=wp.vec3),
-    hand_rotations: wp.array(dtype=wp.vec4),
+    keyframes: wp.array2d(dtype=wp.transform),
     pull_hand_rotations: wp.array(dtype=wp.vec4),
     phase_durations: wp.array(dtype=float),
     phase_keyframes: wp.array(dtype=wp.vec2i),
-    finger_open_values: wp.array(dtype=float),
-    finger_closed_values: wp.array(dtype=float),
     state: wp.array(dtype=wp.int32),
     state_time: wp.array(dtype=float),
-    pull_distance: wp.array(dtype=float),
-    commands: wp.array2d(dtype=float),
+    closure_targets: wp.array(dtype=float),
+    root: wp.transform,
+    left_positions: wp.array(dtype=wp.vec3),
+    left_rotations: wp.array(dtype=wp.vec4),
+    right_positions: wp.array(dtype=wp.vec3),
+    right_rotations: wp.array(dtype=wp.vec4),
 ):
     env_id = wp.tid()
     current_state = state[env_id]
@@ -123,7 +123,7 @@ def _infer_state_machine(
     closure = float(1.0)
     alpha = float(0.0)
     distance = H2_PULL_DISTANCE
-    start_keyframe = keyframes.shape[0] - 2
+    start_keyframe = keyframes.shape[0] - 1
     end_keyframe = start_keyframe
     if current_state < STATE_PULL:
         alpha = _smoothstep(elapsed / phase_durations[current_state])
@@ -138,112 +138,38 @@ def _infer_state_machine(
         # pinch. The quintic's peak derivative is 1.875, preserving --speeds.
         duration = PULL_TIME_FACTOR * H2_PULL_DISTANCE / pull_speed[env_id]
         distance = H2_PULL_DISTANCE * _minimum_jerk(elapsed / duration)
-        pull_distance[env_id] = distance
 
     for side in range(2):
-        position = keyframes[start_keyframe + side]
-        rotation = hand_rotations[start_keyframe + side]
+        start = keyframes[start_keyframe, side]
+        end = keyframes[end_keyframe, side]
+        position = wp.transform_get_translation(start)
+        q = wp.transform_get_rotation(start)
+        rotation = wp.vec4(q[0], q[1], q[2], q[3])
         if current_state < STATE_PULL:
-            position = wp.lerp(position, keyframes[end_keyframe + side], alpha)
-            rotation = _interpolate_rotation(rotation, hand_rotations[end_keyframe + side], alpha)
+            position = wp.lerp(position, wp.transform_get_translation(end), alpha)
+            q = wp.transform_get_rotation(end)
+            rotation = _interpolate_rotation(rotation, wp.vec4(q[0], q[1], q[2], q[3]), alpha)
         else:
             position += wp.vec3(-distance, 0.0, 0.0)
             if current_state == STATE_PULL:
                 rotation = _interpolate_rotation(rotation, pull_hand_rotations[side], distance / H2_PULL_DISTANCE)
             else:
                 rotation = pull_hand_rotations[side]
-        for axis in range(3):
-            commands[env_id, 7 * side + axis] = position[axis]
-        for axis in range(4):
-            commands[env_id, 7 * side + 3 + axis] = rotation[axis]
-    for finger in range(finger_closed_values.shape[0]):
-        commands[env_id, POSE_COMPONENTS + finger] = wp.lerp(
-            finger_open_values[finger], finger_closed_values[finger], closure
-        )
+        position = wp.transform_point(root, position)
+        q = wp.transform_get_rotation(root) * wp.quat(rotation[0], rotation[1], rotation[2], rotation[3])
+        rotation = wp.vec4(q[0], q[1], q[2], q[3])
+        if side == 0:
+            left_positions[env_id] = position
+            left_rotations[env_id] = rotation
+        else:
+            right_positions[env_id] = position
+            right_rotations[env_id] = rotation
 
+    closure_targets[env_id] = closure
     if current_state == STATE_PULL and distance >= H2_PULL_DISTANCE:
         current_state = STATE_HOLD
     state[env_id] = current_state
     state_time[env_id] = elapsed
-
-
-class _GraspStateMachine:
-    """Advance calibrated hand poses and finger targets using only Warp buffers."""
-
-    def __init__(self, dt: float, speeds: tuple[float, ...], device: str) -> None:
-        self.num_envs = len(speeds)
-        self.device = device
-        self.dt = dt
-        self.pull_speed = wp.array(speeds, dtype=float, device=device)
-        open_values = tuple(H2_OPEN_JOINT_POS.values())
-        closed_values = tuple(H2_PINCH_JOINT_POS[name] for name in H2_OPEN_JOINT_POS)
-        self._keyframes = wp.array(H2_HAND_KEYFRAMES, dtype=wp.vec3, device=device)
-        self._hand_rotations = wp.array(H2_HAND_ROTATIONS, dtype=wp.vec4, device=device)
-        self._pull_hand_rotations = wp.array(H2_PULL_HAND_ROTATIONS, dtype=wp.vec4, device=device)
-        self._phase_durations = wp.array(H2_PHASE_DURATIONS, dtype=float, device=device)
-        self._phase_keyframes = wp.array(H2_PHASE_KEYFRAMES, dtype=wp.vec2i, device=device)
-        self._finger_open_values = wp.array(open_values, dtype=float, device=device)
-        self._finger_closed_values = wp.array(closed_values, dtype=float, device=device)
-        self._state = wp.zeros(self.num_envs, dtype=int, device=device)
-        self._state_time = wp.zeros(self.num_envs, dtype=float, device=device)
-        self._pull_distance = wp.zeros(self.num_envs, dtype=float, device=device)
-        self._commands = wp.zeros((self.num_envs, POSE_COMPONENTS + len(closed_values)), dtype=float, device=device)
-
-    def compute(self) -> None:
-        """Advance one frame without allocating buffers or reading device state on the host."""
-        wp.launch(
-            _infer_state_machine,
-            dim=self.num_envs,
-            inputs=[
-                self.dt,
-                self.pull_speed,
-                self._keyframes,
-                self._hand_rotations,
-                self._pull_hand_rotations,
-                self._phase_durations,
-                self._phase_keyframes,
-                self._finger_open_values,
-                self._finger_closed_values,
-                self._state,
-                self._state_time,
-                self._pull_distance,
-                self._commands,
-            ],
-            device=self.device,
-        )
-
-
-@wp.kernel
-def _seed_coordinates(current: wp.array2d(dtype=float), indices: wp.array(dtype=int), seed: wp.array2d(dtype=float)):
-    lane, joint = wp.tid()
-    if indices[joint] >= 0:
-        seed[lane, indices[joint]] = current[lane, joint]
-
-
-@wp.kernel
-def _clamp_ik_coordinates(
-    coordinates: wp.array2d(dtype=float), lower: wp.array(dtype=float), upper: wp.array(dtype=float)
-):
-    lane, joint = wp.tid()
-    coordinates[lane, joint] = wp.clamp(coordinates[lane, joint], lower[joint], upper[joint])
-
-
-@wp.kernel
-def _set_pose_targets(
-    poses: wp.array2d(dtype=float),
-    offset: int,
-    root: wp.transform,
-    positions: wp.array(dtype=wp.vec3),
-    rotations: wp.array(dtype=wp.vec4),
-):
-    lane = wp.tid()
-    position = wp.vec3(poses[lane, offset], poses[lane, offset + 1], poses[lane, offset + 2])
-    rotation = wp.quat(
-        poses[lane, offset + 3], poses[lane, offset + 4], poses[lane, offset + 5], poses[lane, offset + 6]
-    )
-    positions[lane] = wp.transform_point(root, position)
-    result = wp.transform_get_rotation(root) * rotation
-    rotations[lane] = wp.vec4(result[0], result[1], result[2], result[3])
 
 
 @wp.kernel
@@ -274,9 +200,17 @@ def _set_elbow_position(
 @wp.kernel
 def _gather_targets(
     solved: wp.array2d(dtype=float),
-    poses: wp.array2d(dtype=float),
+    closure: wp.array(dtype=float),
     indices: wp.array(dtype=int),
     fingers: wp.array(dtype=int),
+    finger_open: wp.array(dtype=float),
+    finger_closed: wp.array(dtype=float),
+    lower: wp.array(dtype=float),
+    upper: wp.array(dtype=float),
+    seed: wp.array2d(dtype=float),
+    arm_start: wp.array2d(dtype=float),
+    arm_end: wp.array2d(dtype=float),
+    arm_counters: wp.array(dtype=int),
     velocity_limits: wp.array2d(dtype=float),
     dt: float,
     targets: wp.array2d(dtype=float),
@@ -285,9 +219,16 @@ def _gather_targets(
     lane, joint = wp.tid()
     value = targets[lane, joint]
     if indices[joint] >= 0:
-        value = solved[lane, indices[joint]]
+        coordinate = indices[joint]
+        value = wp.clamp(solved[lane, coordinate], lower[coordinate], upper[coordinate])
+        seed[lane, coordinate] = value
+        arm_start[lane, coordinate] = arm_end[lane, coordinate]
+        arm_end[lane, coordinate] = value
+        if coordinate == 0:
+            arm_counters[lane] = 0
     if fingers[joint] >= 0:
-        value = poses[lane, POSE_COMPONENTS + fingers[joint]]
+        finger = fingers[joint]
+        value = wp.lerp(finger_open[finger], finger_closed[finger], closure[lane])
     velocity = float(0.0)
     if indices[joint] >= 0:
         # Match moving arm targets without exciting the quasi-massless fingers.
@@ -295,31 +236,6 @@ def _gather_targets(
         velocity = wp.clamp((value - targets[lane, joint]) / dt, -limit, limit)
     targets[lane, joint] = value
     velocities[lane, joint] = velocity
-
-
-@wp.kernel(enable_backward=False)
-def _read_arm_positions(
-    positions: wp.array(dtype=float),
-    coordinates: wp.array2d(dtype=int),
-    selected: wp.array2d(dtype=float),
-):
-    lane, arm = wp.tid()
-    selected[lane, arm] = positions[coordinates[lane, arm]]
-
-
-@wp.kernel(enable_backward=False)
-def _stage_arm_targets(
-    targets: wp.array(dtype=float),
-    coordinates: wp.array2d(dtype=int),
-    start: wp.array2d(dtype=float),
-    end: wp.array2d(dtype=float),
-    counters: wp.array(dtype=int),
-):
-    lane = wp.tid()
-    for arm in range(coordinates.shape[1]):
-        start[lane, arm] = end[lane, arm]
-        end[lane, arm] = targets[coordinates[lane, arm]]
-    counters[lane] = 0
 
 
 @wp.kernel(enable_backward=False)
@@ -359,6 +275,7 @@ class TableclothController:
         self.device = robot.device
         self.num_lanes = len(speeds)
         self.num_joints = robot.num_joints
+        self._dt = dt
         if robot.num_instances != self.num_lanes:
             raise ValueError("The example requires one identical fixed-base robot per environment.")
         self.hand_body_names = ("left_hand_C_MC", "right_hand_C_MC")
@@ -366,14 +283,14 @@ class TableclothController:
         arm_expr = [r"(left|right)_(shoulder|elbow|wrist)_.*"]
         finger_names = list(H2_OPEN_JOINT_POS)
         _, arm_names = robot.find_joints(arm_expr)
-        self._arm_joint_names = arm_names
 
         # Lock non-IK coordinates in an anonymous session layer only. The
         # simulation retains every articulated finger; IK solves just the arms.
         # This also keeps LM's tiled solve within the GPU shared-memory budget.
         stage = Usd.Stage.Open(usd_path)
         stage.SetEditTarget(stage.GetSessionLayer())
-        fixed_positions = dict(zip(robot.joint_names, robot.data.default_joint_pos.warp.numpy()[0], strict=True))
+        defaults = robot.data.default_joint_pos.warp.numpy()
+        fixed_positions = dict(zip(robot.joint_names, defaults[0], strict=True))
         for prim in stage.Traverse():
             if prim.IsA(UsdPhysics.RevoluteJoint) and prim.GetName() not in arm_names:
                 # A fixed joint must retain the configured posture, especially
@@ -400,8 +317,8 @@ class TableclothController:
         # Reserve room for compliant tracking without commanding physical hard stops.
         model.joint_limit_lower.assign(model.joint_limit_lower.numpy() + 0.08)
         model.joint_limit_upper.assign(model.joint_limit_upper.numpy() - 0.08)
-        if model.joint_coord_count != model.joint_dof_count:
-            raise ValueError("H2 arm IK requires scalar joint coordinates.")
+        if model.joint_coord_count != len(arm_names) or model.joint_coord_count != model.joint_dof_count:
+            raise ValueError("H2 IK requires one scalar coordinate per arm joint.")
         self._ik_lower = model.joint_limit_lower
         self._ik_upper = model.joint_limit_upper
         starts = model.joint_q_start.numpy()
@@ -410,35 +327,24 @@ class TableclothController:
             for label, start, end in zip(model.joint_label, starts[:-1], starts[1:], strict=True)
             if end > start
         }
+        self._arm_joint_names = list(coordinates)
         links = {label.split("/")[-1]: index for index, label in enumerate(model.body_label)}
         self._indices = wp.array(
             [coordinates.get(name, -1) for name in robot.joint_names], dtype=int, device=self.device
         )
-        self._seed = wp.zeros((self.num_lanes, model.joint_coord_count), dtype=float, device=self.device)
+        seed_positions = defaults[:, [robot.joint_names.index(name) for name in coordinates]]
+        self._seed = wp.array(seed_positions, dtype=float, device=self.device)
         self._velocity_limits = wp.clone(robot.data.joint_vel_limits.warp)
         self._targets = wp.clone(robot.data.default_joint_pos.warp)
         self._velocity_targets = wp.zeros_like(self._targets)
-        wp.launch(
-            _seed_coordinates,
-            dim=(self.num_lanes, self.num_joints),
-            inputs=[self._targets, self._indices, self._seed],
-            device=self.device,
-        )
         finger_ids, _ = robot.find_joints(finger_names, preserve_order=True)
         finger_indices = {joint: index for index, joint in enumerate(finger_ids)}
         self._fingers = wp.array(
             [finger_indices.get(i, -1) for i in range(self.num_joints)], dtype=int, device=self.device
         )
-        # USD body transforms still describe the authored zero posture.
-        # Evaluate the configured READY seed before constructing posture targets.
-        initial_state = model.state()
-        wp.copy(model.joint_q, self._seed, count=model.joint_coord_count)
-        newton.eval_fk(model, model.joint_q, model.joint_qd, initial_state)
-        body_poses = initial_state.body_q.numpy()
-        self._root = wp.transform(body_poses[links["pelvis"]][:3], body_poses[links["pelvis"]][3:])
-        torso = wp.transform(body_poses[links["torso_link"]][:3], body_poses[links["torso_link"]][3:])
-        torso = wp.transform_inverse(self._root) * torso
-        torso_pose = wp.array([list(torso)] * self.num_lanes, dtype=float, device=self.device)
+        # The fixed prototype pelvis defines the trajectory's coordinate frame.
+        root_pose = model.body_q.numpy()[links["pelvis"]]
+        self._root = wp.transform(root_pose[:3], root_pose[3:])
         objectives = [
             NewtonIKPoseObjectiveCfg(
                 body_name=body,
@@ -450,18 +356,7 @@ class TableclothController:
             )
             for name, body, offset in zip(("left", "right"), self.hand_body_names, self.hand_offsets, strict=True)
         ]
-        objectives.extend(
-            [
-                NewtonIKPoseObjectiveCfg(
-                    body_name="torso_link",
-                    name="torso",
-                    use_relative_mode=False,
-                    position_weight=50.0,
-                    rotation_weight=50.0,
-                ),
-                NewtonIKJointLimitObjectiveCfg(weight=100.0),
-            ]
-        )
+        objectives.append(NewtonIKJointLimitObjectiveCfg(weight=100.0))
         objectives.extend(
             NewtonIKPoseObjectiveCfg(
                 body_name=f"{side}_elbow_link",
@@ -482,26 +377,27 @@ class TableclothController:
             link_resolver=lambda name: links[name],
         )
         self._poses = [self._solver.objectives_by_name[name] for name in ("left_hand", "right_hand")]
-        # The fixed torso target only needs one upload; hand and elbow targets advance per frame.
-        torso_objective = self._solver.objectives_by_name["torso"]
-        wp.launch(
-            _set_pose_targets,
-            dim=self.num_lanes,
-            inputs=[
-                torso_pose,
-                0,
-                self._root,
-                torso_objective.position_objective.target_positions,
-                torso_objective.rotation_objective.target_rotations,
-            ],
+        self._elbow_positions = [
+            self._solver.objectives_by_name[f"{side}_elbow"].position_objective.target_positions
+            for side in ("left", "right")
+        ]
+        # All motion state is owned here and allocated before physics capture.
+        self._speeds = wp.array(speeds, dtype=float, device=self.device)
+        self._keyframes = wp.array(
+            [wp.transform(p, q) for p, q in zip(H2_HAND_KEYFRAMES, H2_HAND_ROTATIONS, strict=True)],
+            dtype=wp.transform,
             device=self.device,
+        ).reshape((-1, 2))
+        self._pull_rotations = wp.array(H2_PULL_HAND_ROTATIONS, dtype=wp.vec4, device=self.device)
+        self._phase_durations = wp.array(H2_PHASE_DURATIONS, dtype=float, device=self.device)
+        self._phase_keyframes = wp.array(H2_PHASE_KEYFRAMES, dtype=wp.vec2i, device=self.device)
+        self._finger_open = wp.array(tuple(H2_OPEN_JOINT_POS.values()), dtype=float, device=self.device)
+        self._finger_closed = wp.array(
+            [H2_PINCH_JOINT_POS[name] for name in H2_OPEN_JOINT_POS], dtype=float, device=self.device
         )
-        self._elbow_positions = []
-        for side in ("left", "right"):
-            positions = self._solver.objectives_by_name[f"{side}_elbow"].position_objective.target_positions
-            positions.assign(np.repeat(body_poses[links[f"{side}_elbow_link"], :3][None], self.num_lanes, axis=0))
-            self._elbow_positions.append(positions)
-        self._machine = _GraspStateMachine(dt, speeds, self.device)
+        self._phases = wp.zeros(self.num_lanes, dtype=int, device=self.device)
+        self._phase_times = wp.zeros(self.num_lanes, dtype=float, device=self.device)
+        self._closure = wp.zeros(self.num_lanes, dtype=float, device=self.device)
 
     def initialize(
         self,
@@ -539,13 +435,9 @@ class TableclothController:
             raise ValueError("H2 arm joints must have scalar state and target coordinates.")
         q_coordinates = q_starts[joints]
         self._arm_target_coordinates = wp.array(target_starts[joints], dtype=int, device=self.device)
-        initial_positions = wp.empty(q_coordinates.shape, dtype=float, device=self.device)
-        wp.launch(
-            _read_arm_positions,
-            dim=q_coordinates.shape,
-            inputs=[state.joint_q, wp.array(q_coordinates, dtype=int, device=self.device), initial_positions],
-            device=self.device,
-        )
+        # Materialize this indexed view once, before capture; inner ticks reuse the buffers.
+        indices = wp.array(q_coordinates.ravel(), dtype=int, device=self.device)
+        initial_positions = wp.indexedarray(state.joint_q, indices).contiguous().reshape(q_coordinates.shape)
         self._arm_start = initial_positions
         self._arm_end = wp.clone(initial_positions)
         self._arm_counters = wp.zeros(self.num_lanes, dtype=int, device=self.device)
@@ -581,20 +473,27 @@ class TableclothController:
 
     def compute(self) -> None:
         """Advance the GPU controller and submit the next frame's joint targets."""
-        self._machine.compute()
-        for i, pose in enumerate(self._poses):
-            wp.launch(
-                _set_pose_targets,
-                dim=self.num_lanes,
-                inputs=[
-                    self._machine._commands,
-                    7 * i,
-                    self._root,
-                    pose.position_objective.target_positions,
-                    pose.rotation_objective.target_rotations,
-                ],
-                device=self.device,
-            )
+        wp.launch(
+            _advance_trajectory,
+            dim=self.num_lanes,
+            inputs=[
+                self._dt,
+                self._speeds,
+                self._keyframes,
+                self._pull_rotations,
+                self._phase_durations,
+                self._phase_keyframes,
+                self._phases,
+                self._phase_times,
+                self._closure,
+                self._root,
+                self._poses[0].position_objective.target_positions,
+                self._poses[0].rotation_objective.target_rotations,
+                self._poses[1].position_objective.target_positions,
+                self._poses[1].rotation_objective.target_rotations,
+            ],
+            device=self.device,
+        )
         # Soft posture targets discourage torso/elbow crossings while leaving X/Z free.
         for elbows, positions, guard in zip(self._scene_elbows, self._elbow_positions, (0.180, -0.180), strict=True):
             wp.launch(
@@ -606,34 +505,33 @@ class TableclothController:
                     elbows,
                     self._root,
                     guard,
-                    self._machine._state,
-                    self._machine._state_time,
-                    self._machine._phase_durations,
+                    self._phases,
+                    self._phase_times,
+                    self._phase_durations,
                     positions,
                 ],
                 device=self.device,
             )
         solved = self._solver.solve(self._seed)
-        # The IK limit objective is soft. Never ask physical drives to
-        # follow an out-of-range solution when a contact shifts the hem.
-        wp.launch(
-            _clamp_ik_coordinates,
-            dim=solved.shape,
-            inputs=[solved, self._ik_lower, self._ik_upper],
-            device=self.device,
-        )
-        # Contact tracking errors must not steer the redundant arm coordinates.
-        wp.copy(self._seed, solved)
+        # Clamp soft IK limits and retain the commanded seed in the same target pass.
         wp.launch(
             _gather_targets,
             dim=(self.num_lanes, self.num_joints),
             inputs=[
                 solved,
-                self._machine._commands,
+                self._closure,
                 self._indices,
                 self._fingers,
+                self._finger_open,
+                self._finger_closed,
+                self._ik_lower,
+                self._ik_upper,
+                self._seed,
+                self._arm_start,
+                self._arm_end,
+                self._arm_counters,
                 self._velocity_limits,
-                self._machine.dt,
+                self._dt,
                 self._targets,
                 self._velocity_targets,
             ],
@@ -642,18 +540,6 @@ class TableclothController:
         self.robot.actuators.target_command.set_position_index(value=self._targets)
         self.robot.actuators.target_command.set_velocity_index(value=self._velocity_targets)
         self.robot.write_data_to_sim()
-        wp.launch(
-            _stage_arm_targets,
-            dim=self.num_lanes,
-            inputs=[
-                self._arm_control.joint_target_q,
-                self._arm_target_coordinates,
-                self._arm_start,
-                self._arm_end,
-                self._arm_counters,
-            ],
-            device=self.device,
-        )
 
 
 @wp.kernel
@@ -702,7 +588,7 @@ class GraspMonitor:
         device = controller.device
         count = controller.num_lanes
         self._state = state
-        self._states = controller._machine._state
+        self._states = controller._phases
         self._hands = controller._scene_hands
         self._offsets = wp.array(controller.hand_offsets, dtype=wp.vec3, device=device)
         self._mesh = wp.Mesh(points=wp.clone(state.particle_q), indices=model.tri_indices.flatten())
