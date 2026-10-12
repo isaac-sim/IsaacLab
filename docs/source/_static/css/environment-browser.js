@@ -201,7 +201,7 @@
         scope: "core",
         task: "Isaac-Cartpole",
         benchmarkWorkload: "collection",
-        benchmarkChannel: "release",
+        benchmarkChannel: "develop",
     };
     const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf", torchrl: "torchrl"};
     let benchmarkRows = [];
@@ -775,9 +775,11 @@
             const label = createSvgElement("text", {
                 x: xPosition(date), y: height - 15, class: "environment-chart-axis-label", "text-anchor": "middle",
             });
-            label.textContent = state.benchmarkChannel === "release" ? "EA 3.0" : new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
-                month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
-            });
+            label.textContent = state.benchmarkChannel === "release"
+                ? (date === "2026-09-09" ? "EA 3.0" : "GA 3.0")
+                : new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
+                    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+                });
             svg.appendChild(label);
         }
 
