@@ -138,8 +138,14 @@ def _bind_private_unix_socket(listener: socket.socket, path: str) -> None:
             probe.settimeout(1.0)
             try:
                 probe.connect(path)
-            except OSError:
+            except ConnectionRefusedError:
+                # Nothing listens on the file: a stopped service left it behind.
                 os.unlink(path)
+            except FileNotFoundError:
+                pass
+            except OSError as error:
+                # A busy or inaccessible service can still be running; replacing its file would strand it.
+                raise RuntimeError(f"Cannot tell whether a Cosmos service is running at unix://{path}.") from error
             else:
                 raise RuntimeError(f"A Cosmos service is already running at unix://{path}.")
     # The process umask applies to the socket file; owner-only from the start leaves no window for other users.
