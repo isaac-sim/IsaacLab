@@ -41,6 +41,15 @@ def test_parse_env_cfg_applies_explicit_device_override():
     assert env_cfg.sim.device == "cpu"
 
 
+def test_anymal_c_rough_uses_relocated_shingles_material():
+    """The Anymal-C rough terrain should use the Isaac Sim 6.2 material location."""
+    env_cfg = parse_env_cfg("IsaacContrib-Velocity-Rough-AnymalC-Direct")
+
+    assert env_cfg.scene.terrain.visual_material.mdl_path == (
+        "{ISAAC_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl"
+    )
+
+
 @pytest.mark.parametrize("missing_module", ["pinocchio", "daqp", "unrelated_dependency"])
 def test_task_config_missing_pink_dependency(monkeypatch: pytest.MonkeyPatch, missing_module: str):
     """Missing Pink dependencies should identify the task without hiding unrelated import errors."""
