@@ -21,7 +21,12 @@ if TYPE_CHECKING:
 
 @configclass
 class NewtonWarpRendererCfg(RendererCfg):
-    """Configuration for Newton Warp Renderer."""
+    """Configuration for Newton Warp Renderer.
+
+    Explicit camera background colors are normalized sRGB and are converted to linear values for
+    HDR outputs before ISP processing. Without an explicit color, Newton's gray LDR and black HDR
+    defaults are preserved.
+    """
 
     class_type: type[NewtonWarpRenderer] | str = "{DIR}.newton_warp_renderer:NewtonWarpRenderer"
     """Renderer implementation class."""
