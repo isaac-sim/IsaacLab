@@ -307,24 +307,34 @@ def _fit_resident(
     generator = torch.Generator(device=device).manual_seed(options.seed + rank * _RANK_SEED_STRIDE + completed * 7_919)
 
     def save_checkpoint() -> None:
+        error = None
         if rank == 0:
-            payload = {
-                "fingerprint": fingerprint,
-                "identity": dict(identity),
-                "completed_updates": completed,
-                "model": network.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "scheduler": scheduler.state_dict(),
-                "scaler": scaler.state_dict(),
-            }
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-            temporary = checkpoint_path.with_suffix(".tmp")
-            torch.save(payload, temporary)
-            os.replace(temporary, checkpoint_path)
-            if on_checkpoint is not None:
-                on_checkpoint(completed)
+            try:
+                payload = {
+                    "fingerprint": fingerprint,
+                    "identity": dict(identity),
+                    "completed_updates": completed,
+                    "model": network.state_dict(),
+                    "optimizer": optimizer.state_dict(),
+                    "scheduler": scheduler.state_dict(),
+                    "scaler": scaler.state_dict(),
+                }
+                checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = checkpoint_path.with_suffix(".tmp")
+                torch.save(payload, temporary)
+                os.replace(temporary, checkpoint_path)
+                if on_checkpoint is not None:
+                    on_checkpoint(completed)
+            except Exception as exception:
+                error = exception
         if world_size > 1:
-            dist.barrier()
+            # Rank zero shares whether it failed, so every rank stops together instead of waiting at a barrier.
+            failed = torch.tensor([error is not None], dtype=torch.int32, device=device)
+            dist.broadcast(failed, src=0)
+            if error is None and bool(failed.item()):
+                raise RuntimeError(f"Rank zero failed to write the checkpoint of update {completed}.")
+        if error is not None:
+            raise error
 
     window_count = train.inputs.shape[0]
     loss_sum, loss_count, started = 0.0, 0, time.perf_counter()
