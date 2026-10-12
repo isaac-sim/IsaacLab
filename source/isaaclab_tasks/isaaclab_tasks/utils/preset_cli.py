@@ -52,6 +52,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .hydra import collect_presets
 from .preset_target import PresetTarget
 
 # ============================================================================
@@ -81,12 +82,7 @@ def setup_preset_cli(
         parser: Caller's argument parser. An ``argument_group`` is attached
             for help-time variant discovery. No preset selector arguments are
             added, so the Namespace gains no preset attributes.
-        argv: Optional argument list to parse. When ``None`` (default),
-            ``parse_known_args`` reads from ``sys.argv``. Provided primarily
-            for in-process test paths that drive the parser with a synthetic
-            argv. Help-time variant enumeration always reads ``sys.argv`` --
-            the user's interactive command line is the only argv that
-            triggers ``--help`` rendering.
+        argv: Arguments to parse, including help-time task selection. Defaults to ``sys.argv[1:]``.
     A Hydra override is never the value of an option whose value is optional
     (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
     option's default source and passes the override on. Overrides always
@@ -101,28 +97,38 @@ def setup_preset_cli(
     Raises:
         SystemExit: If ``argv`` requests help, after printing it.
     """
-    # --help short-circuits parsing, so help text that depends on --task has to
-    # find it before argparse runs. Gate the env_cfg load on --help to keep
-    # normal training runs cheap.
-    argv_helper = _ArgvHelper(sys.argv)
-    actual_variants = None
-    if argv_helper.task_name and argv_helper.help_requested:
-        actual_variants = _enumerate_variants(argv_helper.task_name)
-
-    # Argparse's default HelpFormatter reflows description text into one wrapped
-    # paragraph, which would collapse the per-variant bullets we emit. Use a
-    # formatter that wraps each blank-line-separated paragraph independently
-    # while preserving explicit newlines. Respect a caller-set custom formatter.
-    if parser.formatter_class is argparse.HelpFormatter:
-        parser.formatter_class = _PresetHelpFormatter
-
-    # Help-only group: no add_argument() calls means no preset attributes on
-    # the Namespace, so the Kit launcher can't accidentally forward one (notably
-    # ``renderer``) into SimulationApp config.
-    parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
-
     args_to_parse = sys.argv[1:] if argv is None else argv
-    if "-h" in args_to_parse or "--help" in args_to_parse:
+    help_requested = "-h" in args_to_parse or "--help" in args_to_parse
+    variants = None
+    if help_requested:
+        # Read the task before the main parser's help action exits.
+        task_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+        task_parser.add_argument("--task")
+        task_args, _ = task_parser.parse_known_args(args_to_parse)
+        if task_args.task:
+            variants = _enumerate_variants(task_args.task)
+    if parser.formatter_class is argparse.HelpFormatter:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+    description = ["Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"]
+    for target in PresetTarget:
+        syntax = f"{target.value}=NAME"
+        if target is PresetTarget.DOMAIN:
+            syntax += "[,NAME,...]"
+        meaning = (
+            f"(typed) selects a {target.value} backend"
+            if target.base_classes
+            else "broadcast: applied to every matching PresetCfg"
+        )
+        description.append(f"    {syntax:23}   {meaning}" + (". Available:" if variants is not None else ""))
+        if variants is not None:
+            description.extend(f"                              - {name}" for name in variants[target])
+            if not variants[target]:
+                description.append("                              (none)")
+    if variants is None:
+        description.append("\nPass `--task=X` along with `--help` to see preset variants available for that task.")
+    description.append("\nHydra also accepts path-targeted overrides like env.sim.physics=NAME.")
+    parser.add_argument_group("preset selection", description="\n".join(description))
+    if help_requested:
         parser.print_help()
         raise SystemExit(0)
 
@@ -164,146 +170,12 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
         from every list because it is implicit, not a user-selectable name.
     """
     try:
-        result = _enumerate_variants(task_name)
-        return {target: sorted(names) for target, names in result.items()}
+        return _enumerate_variants(task_name)
     except Exception:
         return None
 
 
-# ============================================================================
-# Help-text rendering
-# ============================================================================
-
-
-class _PresetHelpFormatter(argparse.HelpFormatter):
-    """Argparse help formatter that wraps each paragraph separately.
-
-    Default :class:`argparse.HelpFormatter` reflows the entire description into
-    one paragraph, merging the variant listing into the surrounding prose, and
-    collapses ``\\n``-separated bullets onto one line.
-    :class:`~argparse.RawDescriptionHelpFormatter` preserves description
-    newlines but drops wrapping entirely. The ``_fill_text`` override below
-    splits the description on blank lines and wraps each paragraph indep-
-    endently, giving both readable paragraphs and per-line bullets.
-    """
-
-    def _fill_text(self, text: str, width: int, indent: str) -> str:
-        import textwrap
-
-        paragraphs = text.split("\n\n")
-        rendered: list[str] = []
-        for paragraph in paragraphs:
-            # A paragraph that already contains hard newlines (the bulleted
-            # variant listing) is rendered verbatim; otherwise word-wrap.
-            if "\n" in paragraph:
-                rendered.append("\n".join(f"{indent}{line}" for line in paragraph.splitlines()))
-            else:
-                rendered.append(textwrap.fill(paragraph, width, initial_indent=indent, subsequent_indent=indent))
-        return "\n\n".join(rendered)
-
-
-class _DescriptionBuilder:
-    """Renders the preset-selection ``argument_group`` description.
-
-    Groups the column constants and per-row formatting that build the
-    selector table. Iterates :class:`PresetTarget` to produce one row per
-    selector; each row's syntax and description come from the enum, so
-    adding a new typed target needs no changes here.
-    """
-
-    # Column widths. ``SELECTOR_COL`` = width of the longest selector syntax
-    # (``presets=NAME[,NAME,...]`` = 23 chars); shorter selectors right-pad
-    # to this width. ``DESC_GAP`` is the gap between syntax and description.
-    SELECTOR_COL = 23
-    DESC_GAP = 3
-    ROW_PREFIX = "    "
-
-    INTRO = "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"
-    EPILOG = "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
-    HINT = "Pass `--task=X` along with `--help` to see preset variants available for that task."
-
-    @classmethod
-    def build(cls, actual_variants: dict[PresetTarget, set[str]] | None) -> str:
-        """Build the description text.
-
-        Args:
-            actual_variants: ``None`` when no ``--task=X --help`` is in argv;
-                otherwise a ``{target: set[name]}`` bucketed view from
-                :func:`_enumerate_variants`.
-        """
-        with_available = actual_variants is not None
-        rows = [
-            cls._row(t, with_available=with_available, variants=sorted((actual_variants or {}).get(t, set())))
-            for t in PresetTarget
-        ]
-        middle = f"{cls.HINT}\n\n" if not with_available else ""
-        return f"{cls.INTRO}\n" + "\n".join(rows) + f"\n\n{middle}{cls.EPILOG}"
-
-    @classmethod
-    def _row(cls, target: PresetTarget, *, with_available: bool, variants: list[str]) -> str:
-        syntax = cls._syntax(target).ljust(cls.SELECTOR_COL)
-        desc = cls._description(target)
-        suffix = ". Available:" if with_available else ""
-        header = f"{cls.ROW_PREFIX}{syntax}{' ' * cls.DESC_GAP}{desc}{suffix}"
-        if not with_available:
-            return header
-        # Bullet indent aligns with the description column once argparse
-        # prepends its 2-space group-description indent.
-        bullet_indent = " " * (len(cls.ROW_PREFIX) + cls.SELECTOR_COL + cls.DESC_GAP)
-        body = "\n".join(f"{bullet_indent}- {n}" for n in variants) if variants else f"{bullet_indent}(none)"
-        return f"{header}\n{body}"
-
-    @staticmethod
-    def _syntax(target: PresetTarget) -> str:
-        """User-facing selector form: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
-        if target.base_classes:  # typed: single name
-            return f"{target.value}=NAME"
-        return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
-
-    @staticmethod
-    def _description(target: PresetTarget) -> str:
-        """One-line description of a selector's semantic target."""
-        if target.base_classes:
-            return f"(typed) selects a {target.value} backend"
-        return "broadcast: applied to every matching PresetCfg"
-
-
-# ============================================================================
-# argv inspection (pre-argparse peek for help-text rendering)
-# ============================================================================
-
-
-class _ArgvHelper:
-    """Single-pass argv scan that exposes ``task_name`` and ``help_requested``.
-
-    Needed because argparse's ``--help`` short-circuits parsing, so help text
-    that depends on ``--task`` has to find it before argparse runs.
-
-    Attributes:
-        task_name: Last ``--task`` value (matching argparse's last-wins
-            semantics), or ``None`` if absent.
-        help_requested: ``True`` if ``--help`` or ``-h`` is present.
-    """
-
-    def __init__(self, argv: list[str]):
-        self.task_name: str | None = None
-        self.help_requested: bool = False
-        for i in range(1, len(argv)):
-            token = argv[i]
-            if token in ("--help", "-h"):
-                self.help_requested = True
-            elif token == "--task" and i + 1 < len(argv):
-                self.task_name = argv[i + 1]
-            elif token.startswith("--task="):
-                self.task_name = token[len("--task=") :]
-
-
-# ============================================================================
-# Help-time variant enumeration (load env_cfg, walk, bucket by target)
-# ============================================================================
-
-
-def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
+def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
     """Load env_cfg for *task_name* and bucket its variants by target.
 
     Uses the same walker hydra's resolver runs so help and resolve see one
@@ -312,29 +184,12 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
     the top level of cfg modules. Exceptions from the loader propagate
     verbatim -- they surface as the natural error, not a buried help string.
     """
-    from isaaclab_tasks.utils.hydra import collect_presets
     from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-    return _bucket_variants_by_target(collect_presets(env_cfg))
-
-
-def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
-    """Convert :func:`collect_presets` output into ``{target: set[name]}``.
-
-    Routes each ``(name, cfg)`` through :meth:`PresetTarget.matches`; cfgs
-    matching no typed target fall into ``DOMAIN``. The implicit ``default``
-    field is filtered -- it's the fallback, not a selectable name.
-
-    Direct routing by class hierarchy means new backends subclassing
-    :class:`~isaaclab.physics.PhysicsCfg` /
-    :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` bucket automatically
-    regardless of what name the env_cfg gives the field. Targets may also
-    recognize documented container shapes through :meth:`PresetTarget.matches`.
-    """
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
-    for path_dict in walked.values():
+    for path_dict in collect_presets(env_cfg).values():
         for name, cfg in path_dict.items():
             if name == "default":
                 continue
@@ -343,4 +198,4 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
                 PresetTarget.DOMAIN,
             )
             result[matched].add(name)
-    return result
+    return {target: sorted(names) for target, names in result.items()}

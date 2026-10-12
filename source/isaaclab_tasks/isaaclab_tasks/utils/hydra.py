@@ -29,8 +29,10 @@ Example usage::
 import ast
 import sys
 import warnings
-from collections import deque
+from argparse import Namespace
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import is_dataclass
+from types import SimpleNamespace
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -50,6 +52,14 @@ from .preset_target import PresetTarget
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
+_LEGACY_PRESET_ALIASES = {
+    "newton": "newton_mjwarp",
+    "kamino": "newton_kamino",
+    "ovrtx_renderer": "ovrtx",
+    "isaacsim_rtx_renderer": "isaacsim_rtx",
+}
+
+
 def user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
     outside the ``isaaclab_tasks.utils`` package, so deprecation messages
@@ -67,7 +77,7 @@ def user_stacklevel() -> int:
     max_walk = 16
     level = 1
     frame = sys._getframe(1)
-    while frame is not None and frame.f_globals.get("__name__", "").startswith(__package__):
+    while frame is not None and frame.f_globals.get("__name__", "").startswith("isaaclab_tasks.utils"):
         level += 1
         frame = frame.f_back
         if level > max_walk:
@@ -81,12 +91,11 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
     Returns ``name`` unchanged when:
         * ``name`` is not a deprecated alias, or
         * the replacement is not declared in ``known_names`` (so the user-supplied
-          value can flow into the standard "unknown preset" error path, where
-          :func:`_format_unknown_presets_error` will surface the rename), or
+          value can flow into the unknown-preset error), or
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
     """
-    replacement = PresetTarget.all_legacy_aliases().get(name)
+    replacement = _LEGACY_PRESET_ALIASES.get(name)
     if replacement is None or replacement not in known_names or name in known_names:
         return name
     warnings.warn(
@@ -142,8 +151,8 @@ class PresetCfg:
         real field on the subclass, so a user redefining the deprecated name
         shadows the alias.
         """
-        replacement = PresetTarget.all_legacy_aliases().get(name)
-        fields = getattr(type(self), "__dataclass_fields__", {})
+        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
             warnings.warn(
                 f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
@@ -198,6 +207,8 @@ def _preset_fields(preset_obj) -> dict:
     cls = type(preset_obj)
     d = {}
     for fn in preset_obj.__dataclass_fields__:
+        if fn.startswith("_"):
+            continue
         cls_val = getattr(cls, fn, None)
         d[fn] = cls_val if cls_val is not None else getattr(preset_obj, fn)
     for attr in vars(cls):
@@ -208,64 +219,34 @@ def _preset_fields(preset_obj) -> dict:
 
 
 def _iter_cfg_items(cfg):
+    """Iterate declared config fields and container entries without inspecting properties."""
+    if is_dataclass(cfg) and not isinstance(cfg, type) or isinstance(cfg, (Namespace, SimpleNamespace)):
+        return ((name, value) for name, value in vars(cfg).items() if not name.startswith("_"))
     if isinstance(cfg, Mapping):
         return cfg.items()
-    if isinstance(cfg, list):
+    if isinstance(cfg, (list, tuple)):
         return enumerate(cfg)
-    return ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
-
-
-def _is_walkable_cfg(cfg) -> bool:
-    return hasattr(cfg, "__dataclass_fields__") or isinstance(cfg, (Mapping, list))
-
-
-def _walk_cfg(cfg, path: str, on_preset: Callable) -> None:
-    """Depth-first walk of a config tree, calling *on_preset(parent, key, obj, path)*
-    for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts,
-    nested dicts, and lists transparently."""
-    for key, val in _iter_cfg_items(cfg):
-        child_path = f"{path}.{key}" if path else str(key)
-        if isinstance(val, PresetCfg):
-            on_preset(cfg, key, val, child_path)
-        elif _is_walkable_cfg(val):
-            _walk_cfg(val, child_path, on_preset)
+    return ()
 
 
 def collect_presets(cfg, path: str = "") -> dict:
-    """Recursively discover :class:`PresetCfg` nodes in the config tree.
-
-    Walks dataclass fields and dict values at any nesting depth.
+    """Discover preset alternatives, including those inside inactive branches.
 
     Args:
-        cfg: A configclass instance to walk.
-        path: Current path prefix (used during recursion).
+        cfg: Configuration tree to inspect.
+        path: Prefix for the returned dotted paths.
 
     Returns:
-        Dict mapping dotted paths to preset dicts, e.g.:
-        ``{"backend": {"default": PhysxCfg(), "newton_mjwarp": NewtonCfg()}}``
+        A mapping from config paths to named alternatives.
     """
     result = {}
-
-    def _record(preset_obj, preset_path):
-        fields = _preset_fields(preset_obj)
-        result[preset_path] = fields
-        for alt in fields.values():
-            if hasattr(alt, "__dataclass_fields__"):
-                result.update(collect_presets(alt, preset_path))
-            elif isinstance(alt, dict):
-                for v in alt.values():
-                    if _is_walkable_cfg(v):
-                        result.update(collect_presets(v, preset_path))
-            elif isinstance(alt, list):
-                for v in alt:
-                    if _is_walkable_cfg(v):
-                        result.update(collect_presets(v, preset_path))
-
     if isinstance(cfg, PresetCfg):
-        _record(cfg, path)
-        return result
-
-    _walk_cfg(cfg, path, lambda _p, _k, obj, cp: _record(obj, cp))
+        result[path] = _preset_fields(cfg)
+        for alternative in result[path].values():
+            result.update(collect_presets(alternative, path))
+    else:
+        for key, value in _iter_cfg_items(cfg):
+            result.update(collect_presets(value, f"{path}.{key}" if path else str(key)))
     return result
 
 
@@ -280,7 +261,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
-    typed_hits: dict[str, set[PresetTarget]] | None = None,
+    on_selected: Callable[[str, object], None] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -298,8 +279,8 @@ def _pick_alternative(
             return fields[explicit_name]
         avail = list(fields)
         hint = ""
-        if explicit_name in PresetTarget.all_legacy_aliases():
-            replacement = PresetTarget.all_legacy_aliases()[explicit_name]
+        if explicit_name in _LEGACY_PRESET_ALIASES:
+            replacement = _LEGACY_PRESET_ALIASES[explicit_name]
             hint = (
                 f" '{explicit_name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
             )
@@ -316,12 +297,10 @@ def _pick_alternative(
         if consumed_selected is not None:
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
-        if typed_hits is not None:
-            # record which typed targets (physics/renderer) this name landed on
-            targets = {target for target in PresetTarget if target.base_classes and target.matches(val)}
-            if targets:
-                typed_hits.setdefault(raw_name, set()).update(targets)
-                typed_hits.setdefault(name, set()).update(targets)
+        if on_selected is not None:
+            on_selected(raw_name, val)
+            if name != raw_name:
+                on_selected(name, val)
         if match_name is not None:
             if match_value is not val and match_value != val:
                 raise ValueError(
@@ -342,68 +321,44 @@ def _resolve_active_presets(
     cfg,
     selected=(),
     explicit: dict[str, str] | None = None,
-    root_path: str = "",
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
-    typed_hits: dict[str, set[PresetTarget]] | None = None,
+    on_selected: Callable[[str, object], None] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
 
-    Preset alternatives are choice nodes. Once a choice is resolved, only the
-    selected replacement is queued for further traversal, so inactive sibling
-    branches cannot contribute descendant presets.
+    Only the selected alternative contributes descendant presets.
     """
     explicit = explicit or {}
     consumed_explicit = consumed_explicit if consumed_explicit is not None else set()
 
-    def resolve_chain(preset_obj: PresetCfg, path: str):
-        seen: set[int] = set()
-        val = preset_obj
-        while isinstance(val, PresetCfg):
-            if id(val) in seen:
+    def resolve(value, path):
+        seen = set()
+        while isinstance(value, PresetCfg):
+            if id(value) in seen:
                 raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '{path}': {type(val).__name__} was already visited."
+                    f"Cyclic PresetCfg chain detected at '{path}': {type(value).__name__} was already visited."
                 )
-            seen.add(id(val))
-            val = _pick_alternative(
-                val,
-                selected,
-                path=path,
-                explicit_name=explicit.get(path),
-                consumed_selected=consumed_selected,
-                typed_hits=typed_hits,
-            )
-        return val
+            seen.add(id(value))
+            choice = explicit.get(path)
+            if choice is not None:
+                consumed_explicit.add(path)
+            value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
+        if isinstance(value, tuple):
+            return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+        for key, child in _iter_cfg_items(value):
+            resolved = resolve(child, f"{path}.{key}" if path else str(key))
+            if resolved is child:
+                continue
+            if isinstance(value, (dict, list)):
+                value[key] = resolved
+            else:
+                setattr(value, key, resolved)
+        return value
 
-    if isinstance(cfg, PresetCfg):
-        if root_path in explicit:
-            consumed_explicit.add(root_path)
-        cfg = resolve_chain(cfg, root_path or "<root>")
-
-    queue = deque([(root_path, cfg)])
-    while queue:
-        path, obj = queue.popleft()
-        if not _is_walkable_cfg(obj):
-            continue
-        for key, val in _iter_cfg_items(obj):
-            child_path = f"{path}.{key}" if path else str(key)
-            if isinstance(val, PresetCfg):
-                if child_path in explicit:
-                    consumed_explicit.add(child_path)
-                resolved = resolve_chain(val, child_path or "<root>")
-                if isinstance(obj, list):
-                    obj[int(key)] = resolved
-                elif isinstance(obj, dict):
-                    obj[key] = resolved
-                else:
-                    setattr(obj, key, resolved)
-                if _is_walkable_cfg(resolved):
-                    queue.append((child_path, resolved))
-            elif _is_walkable_cfg(val):
-                queue.append((child_path, val))
-
+    cfg = resolve(cfg, "")
     missing = sorted(set(explicit) - consumed_explicit)
     if strict_explicit and missing:
         raise ValueError(f"Unknown or inactive preset group(s): {', '.join(missing)}")
@@ -413,10 +368,10 @@ def _resolve_active_presets(
 def resolve_presets(cfg, selected=()):
     """Replace every :class:`PresetCfg` in the tree with the best alternative.
 
-    For each ``PresetCfg`` found during an active-tree breadth-first walk:
+    For each ``PresetCfg`` found in the active configuration tree:
 
-    1. Pick the first name from *selected* that exists as a field on the
-       preset, otherwise fall back to ``default``.
+    1. Choose a matching name from *selected*, rejecting conflicting alternatives,
+       or use ``default`` if none match.
     2. Replace the preset in its parent (dict key or dataclass attr).
     3. Continue walking the replacement (which may contain more presets).
 
@@ -488,74 +443,6 @@ def resolve_task_config(
     return resolved["env_cfg"], resolved["agent_cfg"]
 
 
-def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, list[str]], max_paths: int = 5) -> str:
-    """Build a readable error message grouping presets by identical path fingerprints.
-
-    When an unknown name matches a deprecated alias (e.g. ``newton``), the
-    message explicitly calls out the rename so users updating from older
-    tutorials or scripts get an actionable hint instead of a bare "unknown".
-    """
-    fingerprint_to_names: dict[tuple[str, ...], list[str]] = {}
-    for name, paths in name_to_paths.items():
-        key = tuple(sorted(paths))
-        fingerprint_to_names.setdefault(key, []).append(name)
-
-    lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
-    deprecated_hits = sorted(name for name in unknown if name in PresetTarget.all_legacy_aliases())
-    for legacy in deprecated_hits:
-        replacement = PresetTarget.all_legacy_aliases()[legacy]
-        lines.append(f"  '{legacy}' was renamed to '{replacement}'; this task does not declare '{replacement}' either.")
-    lines += [
-        "",
-        "Available presets (grouped by affected paths):",
-        "",
-    ]
-    for paths_tuple in sorted(fingerprint_to_names, key=lambda k: fingerprint_to_names[k][0]):
-        names = sorted(fingerprint_to_names[paths_tuple])
-        if len(names) <= 30:
-            lines.append(f"  {', '.join(names)}")
-        else:
-            lines.append(f"  {', '.join(names[:25])}, ... ({len(names)} total)")
-        shown = list(paths_tuple[:max_paths])
-        for p in shown:
-            lines.append(f"    -> {p}")
-        remaining = len(paths_tuple) - len(shown)
-        if remaining > 0:
-            lines.append(f"    ... ({remaining} more)")
-        lines.append("")
-    return "\n".join(lines)
-
-
-def _validate_typed_presets(
-    requested: dict[PresetTarget, set[str]],
-    typed_hits: dict[str, set[PresetTarget]],
-) -> None:
-    """Check that each typed selector landed on a config of its own type.
-
-    A typed selector (``physics=NAME`` / ``renderer=NAME``) is an explicit
-    request for a backend of that type, so ``NAME`` must replace at least one
-    config of that type during resolution. If it only matched unrelated presets
-    that happen to share the name (a scalar, a sensor variant), the backend
-    silently stays unchanged, so raise. The free-form ``presets=NAME`` broadcast
-    is intentionally *not* checked -- there the user makes no typing claim.
-
-    Raises:
-        ValueError: If a ``physics=`` / ``renderer=`` name never resolved
-            against a config of that target's type.
-    """
-    aliases = PresetTarget.all_legacy_aliases()
-    missing = sorted(
-        (t.value, n) for t, ns in requested.items() for n in ns if t not in typed_hits.get(aliases.get(n, n), set())
-    )
-    if missing:
-        clauses = ", ".join(f"{label}={name}" for label, name in missing)
-        raise ValueError(
-            f"Typed preset selector(s) {clauses} did not match any preset of that type for this task. "
-            "The name only matched unrelated presets (or nothing), so the backend would stay unchanged. "
-            "Use a task that declares it on the matching config, or drop the selector."
-        )
-
-
 def register_task(
     task_name: str,
     agent_entry: str | None,
@@ -612,30 +499,23 @@ def register_task(
     explicit = {key: val for key, val, _arg in override_items if isinstance(_parse_val(val), str)}
     consumed_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
+
+    def record_selection(name, value):
+        targets = {target for target in PresetTarget if target.base_classes and target.matches(value)}
+        typed_hits.setdefault(name, set()).update(targets)
+
     consumed_explicit: set[str] = set()
-    env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
-    agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
-    env_cfg = _resolve_active_presets(
-        env_cfg,
+    cfgs = {"env": env_cfg, "agent": agent_cfg}
+    _resolve_active_presets(
+        cfgs,
         global_presets,
-        env_explicit,
-        root_path="env",
+        explicit,
         strict_explicit=False,
         consumed_selected=consumed_presets,
-        typed_hits=typed_hits,
+        on_selected=record_selection,
         consumed_explicit=consumed_explicit,
     )
-    if agent_cfg is not None:
-        agent_cfg = _resolve_active_presets(
-            agent_cfg,
-            global_presets,
-            agent_explicit,
-            root_path="agent",
-            strict_explicit=False,
-            consumed_selected=consumed_presets,
-            typed_hits=typed_hits,
-            consumed_explicit=consumed_explicit,
-        )
+    env_cfg, agent_cfg = cfgs["env"], cfgs["agent"]
 
     unknown_presets = set(global_presets) - consumed_presets
     if unknown_presets:
@@ -646,27 +526,39 @@ def register_task(
             "env": collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point")),
             "agent": collect_presets(load_cfg_from_registry(task_name, agent_entry)) if agent_entry else {},
         }
-        name_to_paths: dict[str, list[str]] = {}
-        for sec, sec_presets in all_presets.items():
-            for path, fields in sec_presets.items():
-                full = f"{sec}.{path}" if path else sec
-                for name in fields:
-                    name_to_paths.setdefault(name, []).append(full)
-        known_names = set(name_to_paths)
+        available = {
+            f"{section}.{path}" if path else section: fields
+            for section, presets in all_presets.items()
+            for path, fields in presets.items()
+        }
+        known_names = {name for fields in available.values() for name in fields}
         unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
         if unknown:
-            display = {n: p for n, p in name_to_paths.items() if n != "default"}
-            raise ValueError(_format_unknown_presets_error(unknown, display))
+            lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
+            for name in sorted(unknown & _LEGACY_PRESET_ALIASES.keys()):
+                lines.append(f"'{name}' was renamed to '{_LEGACY_PRESET_ALIASES[name]}'; this task declares neither.")
+            lines.append("Available presets by config path:")
+            lines.extend(
+                f"  {path}: {', '.join(name for name in fields if name != 'default')}"
+                for path, fields in available.items()
+            )
+            raise ValueError("\n".join(lines))
 
-    # Typed selectors (physics=/renderer=) must have landed on a cfg of their type
-    _validate_typed_presets(requested_targets, typed_hits)
-
+    missing = [
+        f"{target.value}={name}"
+        for target, names in requested_targets.items()
+        for name in sorted(names)
+        if target not in typed_hits.get(_LEGACY_PRESET_ALIASES.get(name, name), ())
+    ]
+    if missing:
+        raise ValueError(
+            f"Typed preset selector(s) {', '.join(missing)} did not match any preset of that type for this task."
+        )
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
     if play_mode and hasattr(env_cfg, "play_mode"):
         env_cfg.play_mode()
 
-    cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:
         value = _parse_val(val)
         if key in consumed_explicit and isinstance(value, str):
