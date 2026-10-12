@@ -13,55 +13,6 @@ import torch
 SUPPORTED_GT_TYPES: frozenset[str] = frozenset({"rgb", "depth", "segmentation", "normals"})
 """GT types accepted by :class:`CameraFrameColorizer`."""
 
-# Primary sensor output key per GT type
-_GT_TO_SENSOR_KEY: dict[str, str] = {
-    "rgb": "rgb",
-    "depth": "depth",
-    "segmentation": "semantic_segmentation",
-    "normals": "normals",
-}
-# Fallback sensor key when the primary is absent
-_GT_SENSOR_KEY_FALLBACK: dict[str, str] = {
-    "rgb": "rgba",
-    "depth": "distance_to_image_plane",
-}
-
-
-def sensor_key_for_gt_type(
-    gt_type: str, available_keys: frozenset[str] | None = None, *, required: bool = True
-) -> str | None:
-    """Return the camera sensor output key for a streaming GT type.
-
-    Args:
-        gt_type: One of :data:`SUPPORTED_GT_TYPES`.
-        available_keys: Keys present in ``camera.data.output``. When provided the
-            fallback key for ``"rgb"`` or ``"depth"`` is tried if the primary is absent.
-        required: Whether a missing output raises an error. False returns None for compatibility checks.
-
-    Returns:
-        The sensor output key to index into ``camera.data.output``, or None if absent and not required.
-
-    Raises:
-        ValueError: If ``gt_type`` is not in :data:`SUPPORTED_GT_TYPES`.
-        KeyError: If no matching key exists in ``available_keys`` and required is True.
-    """
-    if gt_type not in SUPPORTED_GT_TYPES:
-        raise ValueError(f"GT type {gt_type!r} is not supported. Valid types: {sorted(SUPPORTED_GT_TYPES)}")
-    primary = _GT_TO_SENSOR_KEY[gt_type]
-    if available_keys is None:
-        return primary
-    if primary in available_keys:
-        return primary
-    fallback = _GT_SENSOR_KEY_FALLBACK.get(gt_type)
-    if fallback and fallback in available_keys:
-        return fallback
-    if not required:
-        return None
-    raise KeyError(
-        f"No sensor output found for GT type {gt_type!r}. "
-        f"Tried {primary!r} and {fallback!r}; available: {sorted(available_keys)}"
-    )
-
 
 class CameraFrameColorizer:
     """Colorize raw camera sensor frames for streaming display.

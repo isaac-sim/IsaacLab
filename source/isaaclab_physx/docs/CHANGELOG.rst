@@ -3,6 +3,51 @@ Changelog
 
 .. towncrier release notes start
 
+7.5.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ArticulationData.body_joint_wrench`` in public body order,
+  using the child-side joint frame and joint anchor for force and torque.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the PhysX deformable-body cfg classes in favor of the deformable-body schema
+  fragments. Each class now raises a ``DeprecationWarning`` on instantiation and will be removed in
+  3.2. The warning names every fragment the class's fields need and the spawner slot to put them
+  in. Replace :class:`~isaaclab_physx.sim.schemas.OmniPhysicsDeformableBodyPropertiesCfg` with
+  :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`;
+  ``PhysXDeformableBodyPropertiesCfg`` with :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg`
+  plus, for surface deformables, :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`;
+  and :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg` and the
+  :class:`~isaaclab_physx.sim.schemas.DeformableBodyPropertiesCfg` alias with all three. Put them in
+  ``surface_deformable_props`` when the spawner's ``physics_material`` is a surface deformable
+  material and in ``volume_deformable_props`` otherwise, which is the type the legacy
+  ``deformable_props`` field derived. The legacy cfgs author ``kinematic_enabled=False`` and
+  ``solver_position_iteration_count=16`` by default. The fragments leave both unset, which
+  simulates the same through the schema fallbacks. Set them explicitly to keep the authored USD
+  identical.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.assets.Articulation.write_root_link_velocity_to_sim_index` and
+  :meth:`~isaaclab_physx.assets.Articulation.write_root_link_velocity_to_sim_mask` writing the link velocity into
+  PhysX, which stores the center-of-mass velocity. A root whose center of mass is offset from its link frame now
+  moves with the written link velocity.
+* Fixed missing LEAPP input semantics on PhysX deformable data by inheriting the backend-neutral data interface.
+* Fixed PhysX bodies rendering at their default pose in headless Kit video recordings.
+* Fixed :attr:`~isaaclab_physx.assets.ArticulationData.gravity_compensation_forces` having the wrong sign on
+  reversed joints (``physics:body0`` is the child link), because the PhysX values, already in the authored joint
+  direction, were flipped a second time.
+* Fixed the air and contact times of :class:`~isaaclab_physx.sensors.ContactSensor` drifting with the age of the
+  sensor clock. Each refresh added the difference of two growing float32 timestamps, which was off by up to 8e-5 s
+  after 40 s of simulated time. It now adds the float64 time since the last refresh kept by the sensor base class.
+
+
 7.4.4 (2026-10-06)
 ~~~~~~~~~~~~~~~~~~
 

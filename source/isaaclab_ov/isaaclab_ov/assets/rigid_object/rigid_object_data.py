@@ -915,17 +915,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._body_mass = self._body_mass.reshape(body_shape)
         self._body_inertia = self._body_inertia.reshape((*body_shape, 9))
 
-        # Initialize ProxyArray wrappers
-        self._pin_proxy_arrays()
-
-    def _pin_proxy_arrays(self) -> None:
-        """Create pinned ProxyArray wrappers for all data buffers.
-
-        This is called once from :meth:`_create_buffers` during initialization.
-        PhysX tensor API buffers have stable GPU pointers across simulation steps,
-        so no rebinding is needed (unlike Newton).
-        """
-        # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
+        # Initialize ProxyArray wrappers (lazily created on first property access).
         # Defaults
         self._default_root_pose_ta: ProxyArray | None = None
         self._default_root_vel_ta: ProxyArray | None = None
