@@ -9,6 +9,7 @@ import pytest
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.utils import validate
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -46,7 +47,7 @@ def test_anymal_c_rough_uses_relocated_shingles_material():
     env_cfg = parse_env_cfg("IsaacContrib-Velocity-Rough-AnymalC-Direct")
 
     assert env_cfg.scene.terrain.visual_material.mdl_path == (
-        "{ISAAC_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl"
+        f"{ISAAC_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl"
     )
 
 
