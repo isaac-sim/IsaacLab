@@ -750,7 +750,14 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
     monkeypatch.setattr(
         sys,
         "argv",
-        ["train.py", "--task", task_name, "--external_callback", f"{callback_module_name}.register_task"],
+        [
+            "train.py",
+            "--task",
+            task_name,
+            "--external_callback",
+            f"{callback_module_name}.register_task",
+            "--reset_optimizer",
+        ],
     )
     gym.registry.pop(task_name, None)
 
@@ -760,6 +767,7 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
         gym.registry.pop(task_name, None)
 
     assert args.task == task_name
+    assert args.reset_optimizer
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
@@ -856,33 +864,61 @@ def test_skrl_play_restores_jax_backend(monkeypatch) -> None:
 
 @pytest.mark.parametrize("reset_optimizer", [False, True])
 @pytest.mark.parametrize("runner_class", ["OnPolicyRunner", "DistillationRunner"])
-def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(reset_optimizer: bool, runner_class: str) -> None:
-    """Both runners restore their models and iteration while optionally keeping a fresh optimizer."""
-    from rsl_rl.algorithms import PPO, Distillation
-    from rsl_rl.storage import RolloutStorage
+def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
+    tmp_path, reset_optimizer: bool, runner_class: str
+) -> None:
+    """Runner continuation restores models, iteration, and RND while optionally resetting the policy optimizer."""
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
     from tensordict import TensorDict
 
     from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
 
-    algorithm = PPO if runner_class == "OnPolicyRunner" else Distillation
-    storage = None
-    if algorithm is Distillation:
-        storage = RolloutStorage(
-            "distillation", 1, 15, TensorDict({"obs": torch.zeros(1, 2)}, batch_size=[1]), [1], "cpu"
-        )
-    source = algorithm(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=storage, learning_rate=3e-4)
-    source_model = source.actor if algorithm is PPO else source.student
-    source_model(torch.ones(1, 2)).sum().backward()
-    source.optimizer.step()
-    destination = algorithm(torch.nn.Linear(2, 1), torch.nn.Linear(2, 1), storage=storage, learning_rate=1e-5)
-    assert destination.load(source.save(), checkpoint_load_cfg(reset_optimizer, runner_class=runner_class), strict=True)
-    if algorithm is Distillation:
-        assert destination.teacher_loaded
-        model_pairs = ((source.student, destination.student), (source.teacher, destination.teacher))
+    distillation = runner_class == "DistillationRunner"
+    runner_type = DistillationRunner if distillation else OnPolicyRunner
+    model_names = ("student", "teacher") if distillation else ("actor", "critic")
+    obs = TensorDict({"obs": torch.ones(1, 2)}, batch_size=[1])
+    env = SimpleNamespace(
+        get_observations=lambda: obs, num_envs=1, num_actions=1, cfg={}, unwrapped=SimpleNamespace(step_dt=0.01)
+    )
+
+    def make_runner(learning_rate):
+        cfg = {
+            "num_steps_per_env": 15,
+            "obs_groups": {name: ["obs"] for name in (*model_names, "rnd_state")},
+            "algorithm": {"class_name": "Distillation" if distillation else "PPO", "learning_rate": learning_rate},
+            **{name: {"class_name": "MLPModel", "hidden_dims": [4]} for name in model_names},
+        }
+        if not distillation:
+            cfg["algorithm"]["rnd_cfg"] = {
+                "num_outputs": 2,
+                "predictor_hidden_dims": [4],
+                "target_hidden_dims": [4],
+                "weight": 1.0,
+                "learning_rate": learning_rate,
+            }
+        return runner_type(env, cfg, device="cpu")
+
+    source = make_runner(3e-4)
+    source.alg.get_policy()(obs).sum().backward()
+    source.alg.optimizer.step()
+    if not distillation:
+        source.alg.rnd.predictor(obs["obs"]).sum().backward()
+        source.alg.rnd.optimizer.step()
+    source.current_learning_iteration = 17
+    checkpoint = str(tmp_path / "model.pt")
+    source.save(checkpoint)
+    destination = make_runner(1e-5)
+    destination.load(checkpoint, load_cfg=checkpoint_load_cfg(reset_optimizer, runner_class=runner_class))
+
+    assert destination.current_learning_iteration == source.current_learning_iteration
+    if distillation:
+        assert destination.alg.teacher_loaded
+    source_state, destination_state = source.alg.save(), destination.alg.save()
+    for key in source_state:
+        if key != "optimizer_state_dict":
+            torch.testing.assert_close(destination_state[key], source_state[key])
+    assert destination.alg.optimizer.param_groups[0]["lr"] == (1e-5 if reset_optimizer else 3e-4)
+    if reset_optimizer:
+        assert not destination.alg.optimizer.state
     else:
-        model_pairs = ((source.actor, destination.actor), (source.critic, destination.critic))
-    for source_model, destination_model in model_pairs:
-        for key, value in source_model.state_dict().items():
-            torch.testing.assert_close(destination_model.state_dict()[key], value)
-    assert destination.optimizer.param_groups[0]["lr"] == (1e-5 if reset_optimizer else 3e-4)
-    assert bool(destination.optimizer.state) is not reset_optimizer
+        torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])

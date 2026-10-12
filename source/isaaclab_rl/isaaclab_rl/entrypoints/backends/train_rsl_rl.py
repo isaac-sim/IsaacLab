@@ -67,6 +67,11 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
     )
+    parser.add_argument(
+        "--reset_optimizer",
+        action="store_true",
+        help="Load checkpoint models and iteration without restoring the policy optimizer state.",
+    )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
     remaining_args_env_registration = cli_args.register_external_tasks(argv)

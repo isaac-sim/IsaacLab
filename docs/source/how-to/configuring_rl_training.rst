@@ -147,10 +147,14 @@ create a directory for the run in the ``logs/rsl_rl/cartpole`` directory.
 When continuing RSL-RL training with a different policy learning rate, use
 ``--checkpoint /path/to/model.pt --reset_optimizer``. This restores model weights and the
 iteration count while keeping the newly configured policy optimizer and its learning rate.
-Without the flag, the checkpoint's optimizer state is restored as usual. The same flag is
-accepted during playback. RND models and their separate optimizer retain their checkpoint state.
+Without the flag, the checkpoint's optimizer state is restored as usual. RND models and their
+separate optimizer retain their checkpoint state.
 For distillation, this option requires a student checkpoint containing both student and teacher;
 omit it when initializing a new student from a PPO teacher checkpoint.
+
+Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-point group.
+Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,
+as the built-in CLI and direct RL workers do.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games

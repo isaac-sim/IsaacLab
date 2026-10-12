@@ -60,11 +60,6 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser) -> None:
         ),
     )
     arg_group.add_argument(
-        "--reset_optimizer",
-        action="store_true",
-        help="Load checkpoint models and iteration without restoring the policy optimizer state.",
-    )
-    arg_group.add_argument(
         "--logger", type=str, default=None, choices={"wandb", "tensorboard", "neptune"}, help="Logger module to use."
     )
     arg_group.add_argument(

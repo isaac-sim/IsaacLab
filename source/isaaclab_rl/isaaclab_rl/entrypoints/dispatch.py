@@ -91,9 +91,9 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     configure_console_logging()
     argv = _normalize_argv(argv)
     # Distributed workers bypass the top-level CLI, including its task discovery.
-    from isaaclab.cli import _load_external_tasks
+    from isaaclab.cli import load_external_tasks
 
-    _load_external_tasks()
+    load_external_tasks()
     backends = _BACKEND_MODULES[action]
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--rl_library", choices=sorted(backends))

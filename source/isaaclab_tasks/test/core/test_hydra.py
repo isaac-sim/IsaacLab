@@ -457,6 +457,7 @@ def test_register_task_mixed_overrides():
         "presets=fast",
         "env.decimation=10",
         "env.range=(0.1, 0.9)",
+        "agent.learning_rate=fast",
         "agent.learning_rate=1e-5",
         "env.backend=newton_mjwarp",
         "env.backend.dt=0.001",

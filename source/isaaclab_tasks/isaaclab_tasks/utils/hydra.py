@@ -668,11 +668,12 @@ def register_task(
 
     cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:
-        if key in consumed_explicit:
+        value = _parse_val(val)
+        if key in consumed_explicit and isinstance(value, str):
             continue
         if key.startswith(("env.", "agent.")) and not key.endswith("+"):
             sec, path = key.split(".", 1)
-            _setattr(cfgs[sec], path, _parse_val(val))
+            _setattr(cfgs[sec], path, value)
         else:
             hydra_args.append(arg)
 
