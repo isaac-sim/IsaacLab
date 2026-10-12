@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
@@ -29,7 +31,7 @@ from physicsnemo_robotics.dynamics import (
 from physicsnemo_robotics.models import NewtonNeRDVectorTransformer, ParallelNeRD
 from physicsnemo_robotics.training import fit_transition_normalizer, package_dynamics_artifact
 
-from .datasets import expand_dataset_paths, load_trajectory_datasets
+from .datasets import dataset_versions, expand_dataset_paths, load_trajectory_datasets
 from .evaluation import HorizonError, evaluate_rollout_nrmse
 from .recording import CONTROL_KEY
 from .resident_training import ResidentOptions, fit_resident, materialize_windows
@@ -275,7 +277,7 @@ def train_dynamics_artifact(
         )
         for ids in (split.train, split.validation)
     )
-    # A checkpoint resumes only the optimization it was written by.
+    # A checkpoint resumes only the optimization it was written by: the same settings, datasets, and inputs.
     identity = {
         key: value
         for key, value in asdict(settings).items()
@@ -291,7 +293,10 @@ def train_dynamics_artifact(
         )
     }
     identity |= {
-        "dataset": [str(path) for path in dataset_paths],
+        "dataset": [list(version) for version in dataset_versions(dataset_paths)],
+        "schema": hashlib.sha256(json.dumps(reader.schema.to_dict(), sort_keys=True).encode()).hexdigest(),
+        "codec": codec.signature.fingerprint,
+        "features": features.signature.fingerprint,
         "train_windows": resident_train.targets.shape[0],
         "world_size": manager.world_size,
     }

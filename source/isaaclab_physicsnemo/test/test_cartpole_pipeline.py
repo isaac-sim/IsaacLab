@@ -9,6 +9,8 @@ import pytest
 
 pytest.importorskip("physicsnemo_robotics")
 
+import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -149,6 +151,31 @@ def test_sharded_recording_trains_as_one_dataset(device: str, tmp_path: Path):
     assert len(lengths) > 2 and max(lengths) == 5 and sum(lengths) == recorder.episodes_written
     trained = len(training.train_trajectory_ids) + len(training.validation_trajectory_ids)
     assert trained == recorder.episodes_written
+
+
+def test_dataset_written_again_does_not_resume_training(recording: _Recording, device: str, tmp_path: Path):
+    """A dataset written again at the same path, even with the same windows, starts a new optimization."""
+    dataset = tmp_path / "dataset"
+    shutil.copytree(recording.dataset, dataset)
+    env = CartpoleEnv(cfg=_make_cfg(device))
+    try:
+        model = env.sim.physics_manager.get_model()
+    finally:
+        env.close()
+    SimulationContext.clear_instance()
+    settings = TrainingSettings(max_updates=2, batch_size=16, model_kwargs=_TINY_MODEL, rollout_horizons=())
+
+    def train() -> TrainingSummary:
+        return train_dynamics_artifact(dataset, model, tmp_path / "training", settings=settings, device=device)
+
+    assert train().parameter_updates == 2
+    # Rerunning on the unchanged dataset resumes the finished checkpoint.
+    assert train().parameter_updates == 2
+    # Writing the dataset again changes its modification time, as a new recording at the same path does.
+    stat = os.stat(dataset)
+    os.utime(dataset, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    with pytest.raises(ValueError, match="different run"):
+        train()
 
 
 def test_parallel_and_cached_loading_keep_the_trajectories(

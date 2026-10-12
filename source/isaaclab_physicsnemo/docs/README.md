@@ -357,7 +357,7 @@ The image contains PhysicsNeMo Robotics sources, so publish it only to a private
 | `physics.validate_state_ownership` | Check that a codec owns every dynamic Newton state row |
 | `physics.validate_effort_control` | Check that no implicit position drive acts on targets the model does not see |
 | `TrajectoryDatasetRecorder`, `RecordedFeature` | Write the episodes of a running environment to a Zarr dataset, in shards with `shard_episodes`, with joint efforts or, with `control_targets`, joint-position targets, and additional inputs such as fixed contact probes |
-| `datasets.load_trajectory_datasets`, `datasets.expand_dataset_paths` | Read recorded datasets and their shards into memory with worker processes and an optional cache |
+| `datasets.load_trajectory_datasets`, `datasets.expand_dataset_paths`, `datasets.dataset_versions` | Read recorded datasets and their shards into memory with worker processes and an optional cache; the versions identify the datasets a cache or a resumed training run was built from |
 | `SmoothRandomActions`, `UniformRandomActions` | Temporally correlated or independent uniform exploration actions |
 | `HeadingJointStateCodec`, `RootGravityEncoder` | Heading-frame free-root state and base-frame gravity |
 | `train_dynamics_artifact`, `TrainingSettings`, `PARALLEL_NERD_CONFIG` | Train and package a NeRD or ParallelNeRD artifact |

@@ -44,6 +44,21 @@ def expand_dataset_paths(paths: str | Path | Sequence[str | Path]) -> list[Path]
     return [shard for path in resolved for shard in (sorted(path.glob("shard-*")) or [path])]
 
 
+def dataset_versions(paths: Sequence[Path]) -> list[tuple[str, int]]:
+    """Identify datasets by path and directory modification time.
+
+    The time changes when an episode is added and when a dataset is written again at the same path, while a
+    copy that preserves modification times, such as an extracted archive, keeps it.
+
+    Args:
+        paths: Dataset directories, see :func:`expand_dataset_paths`.
+
+    Returns:
+        The path and modification time in nanoseconds of every dataset.
+    """
+    return [(str(path), os.stat(path).st_mtime_ns) for path in paths]
+
+
 def load_trajectory_datasets(
     paths: Sequence[Path],
     *,
@@ -78,7 +93,7 @@ def load_trajectory_datasets(
     """
     if world_size > 1 and cache_path is None:
         raise ValueError("Data-parallel loading shares the trajectories through a cache file; set cache_path.")
-    key = _cache_key(paths)
+    key = dataset_versions(paths)
     if cache_path is not None:
         cached = _read_cache(cache_path, key)
         if cached is None and rank != 0:
@@ -163,11 +178,6 @@ def _unpack(
             offsets[name] += length
         fields.append(item)
     return fields
-
-
-def _cache_key(paths: Sequence[Path]) -> list[tuple[str, int]]:
-    """Identify datasets by path and directory modification time, which changes when an episode is added."""
-    return [(str(path), os.stat(path).st_mtime_ns) for path in paths]
 
 
 def _key_path(cache_path: Path) -> Path:
