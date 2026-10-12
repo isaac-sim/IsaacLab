@@ -169,10 +169,11 @@ runs:
         fi
 
         # Registry cache export needs a docker-container builder, whose image must
-        # then be exported and loaded into the daemon. Without one, build in the
-        # daemon itself so the image, layer cache and uv cache mount stay local.
-        # A containerd image store still compresses new layers; zstd level 1 is
-        # several times faster than the default gzip for the multi-GB venv layer.
+        # then be exported and loaded into the daemon. Callers without a registry
+        # cache (ARM, which has no ECR) build in the daemon itself instead, so the
+        # image, layer cache and uv cache mount stay on the runner. A containerd
+        # image store still compresses new layers; zstd level 1 is several times
+        # faster than the default gzip for the multi-GB venv layer.
         if [ -n "${{ inputs.cache-from }}${{ inputs.cache-to }}" ]; then
           BUILDER_NAME="docker-build-${{ github.run_id }}-${{ github.job }}"
           docker buildx create --driver docker-container --name "${BUILDER_NAME}" \
