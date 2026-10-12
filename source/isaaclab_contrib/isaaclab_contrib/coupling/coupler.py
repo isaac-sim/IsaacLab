@@ -20,7 +20,7 @@ from isaaclab_newton.physics import (
     NewtonCollisionPipelineCfg,
     NewtonSolverCfg,
 )
-from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers, mpm_supports_graph_capture
+from isaaclab_newton.physics.mpm_manager import implicit_mpm_solvers, mpm_supports_graph_capture
 from isaaclab_newton.physics.newton_backend import NewtonBackend
 from isaaclab_newton.physics.newton_solver import NewtonSolver, create_solver_adapter, solver_kwargs
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags, State

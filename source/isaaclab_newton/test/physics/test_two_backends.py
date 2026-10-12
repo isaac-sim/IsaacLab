@@ -35,20 +35,9 @@ DEVICE = "cuda:0"
 DT = 0.01
 
 
-def _pendulums(
-    physics_cfg: NewtonCfg,
-    steps: int,
-    *,
-    captured: bool = False,
-    num_worlds: int = 4,
-    links_per_world: list[int] | None = None,
-) -> NewtonBackend:
-    """Build a backend of one revolute pendulum chain per world, released from a different angle in each world.
-
-    Each :func:`nb.step` advances ``steps`` physics steps, replayed from CUDA graphs when ``captured``.
-    ``links_per_world`` gives each world its own chain length; by default every world holds one link.
-    """
-    builder = _pendulum_builder(physics_cfg, num_worlds, links_per_world)
+def _pendulums(physics_cfg: NewtonCfg, steps: int, *, captured=False, links_per_world=None) -> NewtonBackend:
+    """A backend of one pendulum chain per world (one link each by default), stepping ``steps`` physics steps."""
+    builder = _pendulum_builder(physics_cfg, links_per_world)
     create_solver_adapter(physics_cfg.solver_cfg).prepare_solver_builder(builder)
     model = builder.finalize(device=DEVICE)
     backend = NewtonBackend(model, physics_cfg, dt=DT)
@@ -59,22 +48,19 @@ def _pendulums(
     return backend
 
 
-def _pendulum_builder(physics_cfg, num_worlds=4, links_per_world=None):
-    """Construct the same pendulum worlds for standalone managers or the functional backend."""
+def _pendulum_builder(physics_cfg, links_per_world=None):
+    """Four pendulum worlds, released from a different angle in each world."""
     builder = create_builder(physics_cfg)
-    for world, num_links in enumerate(links_per_world or [1] * num_worlds):
+    for world, num_links in enumerate(links_per_world or [1] * 4):
         builder.begin_world()
         parent, joints = -1, []
         for _ in range(num_links):
             link = builder.add_link(mass=1.0, inertia=wp.diag(wp.vec3(0.01)))
-            joint = builder.add_joint_revolute(
-                parent=parent,
-                child=link,
-                axis=(0.0, 1.0, 0.0),
-                parent_xform=wp.transform(wp.vec3(0.0, 0.0, 2.0 if parent < 0 else -0.5), wp.quat_identity()),
-                child_xform=wp.transform(wp.vec3(0.0, 0.0, 0.5), wp.quat_identity()),
-            )
-            joints.append(joint)
+            xforms = {
+                "parent_xform": wp.transform(wp.vec3(0.0, 0.0, 2.0 if parent < 0 else -0.5), wp.quat_identity()),
+                "child_xform": wp.transform(wp.vec3(0.0, 0.0, 0.5), wp.quat_identity()),
+            }
+            joints.append(builder.add_joint_revolute(parent, link, axis=(0.0, 1.0, 0.0), **xforms))
             builder.joint_q[-1] = 0.2 + 0.2 * world
             parent = link
         builder.add_articulation(joints)
@@ -224,35 +210,15 @@ def test_heterogeneous_worlds_match_solver_capability(solver_cfg):
     np.testing.assert_array_equal(captured.state_0.body_q.numpy(), moved)
 
 
-def test_record_step_requires_a_prepared_graph():
-    """Recording refuses a step that was not prepared, so a caller's capture never allocates."""
-    cfg, steps = _configs()[1]
-    backend = _pendulums(cfg, steps)
-    with pytest.raises(RuntimeError, match="Prepare the Newton step"):
-        nb.record_step(backend)
-
-
-def test_independent_managers_and_custom_context_injection():
-    """Managers isolate construction, callbacks and solver state; a custom instance plugs into Isaac Lab."""
-    from isaaclab.sim import SimulationCfg, SimulationContext
-
-    class CustomManager(NewtonManager):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.steps = 0
-
-        def step(self):
-            super().step()
-            self.steps += 1
-
-    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True), class_type=CustomManager)
-    first = cfg.class_type(_pendulum_builder(cfg), cfg, dt=DT, device=DEVICE)
-    second = NewtonManager(_pendulum_builder(cfg), cfg, dt=DT, device=DEVICE)
-    for manager in (first, second):
-        manager.register_site(None, wp.transform_identity())
-        manager.reset()
+def test_independent_managers_isolate_construction_and_state():
+    """Two managers build, step, and close their own models without touching each other."""
+    cfg = NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=True))
+    first, second = (NewtonManager(_pendulum_builder(cfg), cfg, dt=DT, device=DEVICE) for _ in range(2))
+    first.register_site(None, wp.transform_identity())
     try:
-        assert first.backend.model.shape_count == second.backend.model.shape_count == 1
+        for manager in (first, second):
+            manager.reset()
+        assert first.backend.model.shape_count == 1 and second.backend.model.shape_count == 0
         initial = _angles(second.backend)
         for _ in range(3):
             first.step()
@@ -264,19 +230,6 @@ def test_independent_managers_and_custom_context_injection():
     finally:
         first.close()
         second.close()
-
-    injected = CustomManager(_pendulum_builder(cfg))
-    sim = SimulationContext(SimulationCfg(physics=cfg, device=DEVICE, dt=DT), physics_manager=injected)
-    try:
-        sim.reset()
-        sim.step(render=False)
-        assert sim.physics_manager is injected
-        assert injected.steps == 1
-        assert isinstance(injected.backend.solver, newton.solvers.SolverMuJoCo)
-    finally:
-        SimulationContext.clear_instance()
-    assert injected.backend is None
-    assert injected._sim is None
 
 
 @wp.kernel

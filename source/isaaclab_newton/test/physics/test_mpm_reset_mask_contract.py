@@ -11,7 +11,7 @@ import newton
 import pytest
 import warp as wp
 from isaaclab_newton.physics import MPMSolverAdapter, MPMSolverCfg, reset_mpm_solver_state
-from isaaclab_newton.physics import mpm_solver as mpm_manager_module
+from isaaclab_newton.physics import mpm_manager as mpm_manager_module
 from newton.solvers import SolverImplicitMPM
 
 

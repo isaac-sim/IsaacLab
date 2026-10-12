@@ -7,4 +7,4 @@ __all__ = [
     "CoupledMJWarpVBDSolverCfg",
 ]
 
-from .coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
+from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg

@@ -142,39 +142,24 @@ class StepCallback:
     """A function run at one point of every :func:`step`, until it is unregistered or the backend closes."""
 
     fn: Callable[..., None]
-    """Function to run. State-force callbacks receive the substep's input state; others take no arguments."""
-
     graphable: bool = True
-    """Whether the function can be recorded into a CUDA graph: fixed buffers and no host branching on device data.
-    Other callbacks run eagerly at the same position."""
-
     name: str = ""
-    """Label used in errors and profiles."""
 
 
 @dataclass
 class StepCallbacks:
-    """Callbacks at the fixed points of :func:`step`, in execution order.
+    """Callbacks at the fixed points of :func:`step`, in execution order (see :func:`build_step_graph`).
 
-    One :func:`step` advances :attr:`NewtonBackend.steps_per_call` physics steps of :attr:`NewtonBackend.num_substeps`
-    solver substeps each, so each list has one cadence.
+    ``pre_step`` runs once per :func:`step`; ``control`` every physics step after collision and before Newton
+    actuators (like ``mjcb_control``); ``post_actuator`` after the actuators of the last physics step;
+    ``state_force`` before every solver substep with the substep's input state; ``post_step`` after every physics step.
     """
 
     pre_step: list[StepCallback] = field(default_factory=list)
-    """Once per step, before the first physics step, e.g. actions held for the whole environment step."""
-
     control: list[StepCallback] = field(default_factory=list)
-    """Every physics step, after collision and before Newton actuators (like MuJoCo's ``mjcb_control``), e.g.
-    controllers and asset command writers."""
-
     post_actuator: list[StepCallback] = field(default_factory=list)
-    """After the Newton actuators of the last physics step, before its solver substeps, e.g. actuator telemetry."""
-
     state_force: list[StepCallback] = field(default_factory=list)
-    """Before every solver substep, called with the substep's input :class:`newton.State`, e.g. viewer picking."""
-
     post_step: list[StepCallback] = field(default_factory=list)
-    """After every physics step, before sensors update, e.g. republishing state within decimation."""
 
     def lists(self) -> tuple[list[StepCallback], ...]:
         """Return every callback list, in execution order."""
@@ -189,19 +174,10 @@ class NewtonCloneRecord:
     """Native replication outputs, kept across hard resets and consumed when the model is finalized."""
 
     world_xforms: list[wp.transform] | None
-    """Root transform of each cloned world."""
-
-    source_builders: dict[str, ModelBuilder]
-    """Per-source builders retained so single-model consumers can finalize one environment."""
-
-    particle_ranges: dict[str, tuple[int, int]]
-    """Native ``(start, count)`` particle range of each imported particle prim."""
-
-    cable_bindings: dict[str, list[int]]
-    """Native capsule shape indices of each open cable."""
-
-    geometry_batches: list
-    """Deformable and particle geometry published through scene data."""
+    source_builders: dict[str, ModelBuilder]  # per source, so single-model consumers can finalize one environment
+    particle_ranges: dict[str, tuple[int, int]]  # native (start, count) of each particle prim
+    cable_bindings: dict[str, list[int]]  # capsule shape indices of each open cable
+    geometry_batches: list  # deformable and particle geometry published through scene data
 
 
 # ----- The backend ---------------------------------------------------------------
@@ -261,61 +237,38 @@ class NewtonBackend:
             raise ValueError("A simulation NewtonBackend requires the physics step duration dt.")
 
         self.solver_adapter: NewtonSolver = create_solver_adapter(physics_cfg.solver_cfg)
-        """Adapter of :attr:`cfg`'s solver, whose hooks construct, step, and reset the solver of this backend."""
-        self.dt = dt
-        """Duration of one physics step [s]."""
+        self.dt = dt  # [s]
         self.num_substeps = physics_cfg.num_substeps
-        """Solver substeps per physics step."""
-        self.solver_dt = dt / self.num_substeps
-        """Duration of one solver substep [s]."""
+        self.solver_dt = dt / self.num_substeps  # [s]
         self.deterministic_mode = resolve_deterministic_mode(physics_cfg)
-        """Determinism guarantee for the solver and collision pipeline."""
-
+        # Every physics step ends in state_0; double-buffered solvers alternate with state_1.
         self.state_1: State = self.state_0 if self.solver_adapter.single_state else model.state()
-        """Spare state of double-buffered solvers; every physics step ends in :attr:`state_0`."""
         self.control = model.control()
-        self.solver = None
-        """Newton solver, constructed by :func:`init_solver`."""
+        self.solver = None  # constructed by init_solver
         self.collision_pipeline: CollisionPipeline | None = None
-        """Newton collision pipeline, when the solver does not detect contacts internally."""
         self.contacts: Contacts | None = None
-        """Contacts filled by the collision pipeline or reported by the solver."""
 
-        # Reset bookkeeping. Isaac Lab resets local worlds only, so the final (global) world-mask slot stays false.
+        # Reset bookkeeping for forward(). Isaac Lab resets local worlds only, so the final (global) slot stays false.
         self.world_mask = wp.zeros(model.world_count + 1, dtype=wp.bool, device=self.device)
-        """Worlds whose solver internals reset at the next :func:`forward`; the final slot selects global entities."""
         self.fk_mask = wp.zeros(model.articulation_count, dtype=wp.bool, device=self.device)
-        """Articulations whose body state :func:`forward` recomputes from joint coordinates."""
         self.world_ids = wp.array(np.arange(model.world_count, dtype=np.int32), device=self.device)
-        """Identity row-to-world map of views that span every world."""
         self.kinematics_dirty = False
-        """Whether state was authored since the last :func:`forward`."""
+        # Sticky: outer graph replays author state without passing through Python invalidation.
         self.transforms_may_change_on_graph_replay = False
-        """Whether state was written inside an outer capture, whose replays bypass Python invalidation."""
         self.model_changes: set[int] = set()
-        """:class:`newton.ModelFlags` to notify the solver of before the next step."""
         self.warned_model_changes: set[int] = set()
         self.model_dirty = wp.zeros(1, dtype=wp.int32, device=self.device)
         self.model_change_graphs: dict[int, CapturedGraph] = {}
 
-        # Consumers of the step.
+        # Consumers and the compiled step.
         self.callbacks = StepCallbacks()
         self.contact_sensors: dict[tuple, SensorContact] = {}
         self.imu_sensors: list[SensorIMU] = []
         self.actuators: NewtonActuatorAdapter | None = None
-        """Newton actuators run inside the step, once an articulation activates them."""
-        self.env_decimation = False
-        """Whether a consumer does host work between physics steps, so the environment runs the decimation loop."""
-
-        # Compiled step.
         self.staged_forces: dict[str, wp.array] = {}
-        """Copies of the forces authored before a step, re-applied before every solver substep."""
         self.step_graph: StepGraph | None = None
-        """Compiled step; ``None`` until the next :func:`step` builds it."""
         self.steps_per_call = 1
-        """Physics steps one :func:`step` advances, e.g. the environment's decimation when physics runs the loop."""
-        self.capture: Callable[[Callable[[], None]], CapturedGraph] | None = None
-        """Records step-graph segments into CUDA graphs; ``None`` steps eagerly. Set by :func:`init_solver`."""
+        self.capture: Callable[[Callable[[], None]], CapturedGraph] | None = None  # set by init_solver
 
     @property
     def live(self) -> bool:
@@ -385,9 +338,13 @@ def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
     Returns:
         The backend.
     """
-    builder = cfg.builder
-    model = builder.finalize(device=cfg.device)
-    deformable_ranges = {
+    model = cfg.builder.finalize(device=cfg.device)
+    return NewtonBackend(model, cfg.physics_cfg, deformable_ranges=deformable_ranges(cfg.builder))
+
+
+def deformable_ranges(builder: ModelBuilder) -> dict[str, tuple[int, int, str]]:
+    """Return the native ``(start, count, kind)`` particle range of each deformable mesh of a builder, by label."""
+    return {
         label: (start, end - start, kind)
         for kind, labels, starts, ends in (
             ("surface", builder.surface_label, builder._surface_particle_start, builder._surface_particle_end),
@@ -395,7 +352,6 @@ def create_newton_backend(cfg: NewtonBackendCfg) -> NewtonBackend:
         )
         for label, start, end in zip(labels, starts, ends, strict=True)
     }
-    return NewtonBackend(model, cfg.physics_cfg, deformable_ranges=deformable_ranges)
 
 
 # ----- Solver ------------------------------------------------------------------------
@@ -622,9 +578,6 @@ def notify_model_changes(backend: NewtonBackend) -> None:
 
     CUDA uses a conditional graph node so deciding whether to rebuild constants never reads a mask back to the host.
     Multiple property categories are combined before notification, avoiding repeated constant rebuilds.
-
-    Args:
-        backend: Simulation backend with a solver.
     """
     if not backend.model_changes:
         return
@@ -703,9 +656,6 @@ def invalidate_step_graph(backend: NewtonBackend) -> None:
     Callbacks are recorded with the host state they see when the graph is built. A consumer whose recorded work
     depends on that state, such as an asset that first applies external wrenches, invalidates the graph when it
     changes. An outer recording made with :func:`record_step` must be recorded again.
-
-    Args:
-        backend: Simulation backend.
     """
     backend.step_graph = None
 
@@ -728,9 +678,6 @@ def activate_actuators(backend: NewtonBackend) -> NewtonActuatorAdapter | None:
 
     The adapter addresses the model's flat DOF space and articulations bind their own views of it, so worlds may hold
     different DOF layouts.
-
-    Args:
-        backend: Simulation backend.
 
     Returns:
         The adapter, or ``None`` when the model has no actuators.
@@ -950,9 +897,6 @@ def prepare(backend: NewtonBackend) -> StepGraph:
     This allocates any required force staging buffers without advancing physics. Call it before
     recording :func:`step` into an outer capture.
 
-    Args:
-        backend: Simulation backend with a solver.
-
     Returns:
         The step graph.
     """
@@ -963,38 +907,27 @@ def prepare(backend: NewtonBackend) -> StepGraph:
 
 
 def step(backend: NewtonBackend) -> StepGraph:
-    """Advance the prepared schedule with live reads throughout its controller phases."""
-    backend.is_stepping = True
-    try:
-        return _step(backend)
-    finally:
-        backend.is_stepping = False
-
-
-def _step(backend: NewtonBackend) -> StepGraph:
     """Advance :attr:`NewtonBackend.steps_per_call` physics steps.
 
     Notifies model changes, runs :func:`forward` for authored state, and launches the step graph. The first launch
     after the graph is built runs eagerly, which also performs lazy solver allocations, and then the graph is captured
     with :attr:`NewtonBackend.capture` for later launches.
 
-    Args:
-        backend: Simulation backend with a solver.
-
     Returns:
         The step graph that ran.
     """
-    notify_model_changes(backend)
-    forward(backend)
-    graph = prepare(backend)
-    if graph.captured and graph.graphable:
-        # Graph replays carry their device; skip the host-side device scope.
-        graph.launch()
-        return graph
-    with execution_stream(backend.device):
-        graph.launch()
-    if backend.capture is not None and not graph.captured:
-        graph.capture(backend.capture)
+    with _stepping(backend):
+        notify_model_changes(backend)
+        forward(backend)
+        graph = prepare(backend)
+        if graph.captured and graph.graphable:
+            # Graph replays carry their device; skip the host-side device scope.
+            graph.launch()
+            return graph
+        with execution_stream(backend.device):
+            graph.launch()
+        if backend.capture is not None and not graph.captured:
+            graph.capture(backend.capture)
     return graph
 
 
@@ -1006,9 +939,6 @@ def step_ops(backend: NewtonBackend) -> list[StepOp]:
     run a forced masked :func:`forward`, so every launch applies state authored since the previous one. Model changes
     queued on the host are applied by an eager operation first. Rebuilding the step graph (see :func:`prepare`)
     invalidates the returned operations.
-
-    Args:
-        backend: Simulation backend with a solver.
 
     Returns:
         The operations of :attr:`NewtonBackend.steps_per_call` physics steps.
@@ -1031,12 +961,18 @@ def _set_stepping(backend: NewtonBackend, stepping: bool) -> None:
     backend.is_stepping = stepping
 
 
-def _run_stepping(backend: NewtonBackend, fn: Callable[[], None]) -> None:
+@contextlib.contextmanager
+def _stepping(backend: NewtonBackend):
     backend.is_stepping = True
     try:
-        fn()
+        yield
     finally:
         backend.is_stepping = False
+
+
+def _run_stepping(backend: NewtonBackend, fn: Callable[[], None]) -> None:
+    with _stepping(backend):
+        fn()
 
 
 def record_step(backend: NewtonBackend) -> StepGraph:
@@ -1049,9 +985,6 @@ def record_step(backend: NewtonBackend) -> StepGraph:
     :func:`forward` is always recorded, so each replay applies state authored since the previous one, inside or outside
     the graph. The recording stays valid while :attr:`NewtonBackend.step_graph` is the returned graph; registering
     callbacks or changing the step count builds a new one, which must be recorded again.
-
-    Args:
-        backend: Simulation backend with a solver.
 
     Returns:
         The recorded step graph.
@@ -1068,17 +1001,14 @@ def record_step(backend: NewtonBackend) -> StepGraph:
         raise RuntimeError(f"The Newton step cannot be recorded: {eager} are not graphable.")
     notify_model_changes(backend)
     forward(backend, force=True)
-    backend.is_stepping = True
-    try:
-        # The outer capture owns stream dependencies; Torch must submit to the same stream as Warp.
-        with (
-            torch.cuda.stream(wp.stream_to_torch(wp.get_stream(backend.device)))
-            if wp.get_device(backend.device).is_cuda
-            else contextlib.nullcontext()
-        ):
-            graph.record()
-    finally:
-        backend.is_stepping = False
+    # The outer capture owns stream dependencies; Torch must submit to the same stream as Warp.
+    with (
+        _stepping(backend),
+        torch.cuda.stream(wp.stream_to_torch(wp.get_stream(backend.device)))
+        if wp.get_device(backend.device).is_cuda
+        else contextlib.nullcontext(),
+    ):
+        graph.record()
     backend.transforms_may_change_on_graph_replay = True
     return graph
 
@@ -1117,8 +1047,7 @@ class CapturedGraph:
         self.torch_graph = torch_graph
         self.warp_graph = warp_graph
         self.device = device
-        self.stream = wp.stream_to_torch(wp.get_stream(device))
-        """Simulation stream the graph replays on, resolved once instead of on every replay."""
+        self.stream = wp.stream_to_torch(wp.get_stream(device))  # resolved once, not on every replay
 
     def launch(self) -> None:
         """Replay on the simulation stream, ordered with the caller's Torch work."""
@@ -1252,11 +1181,7 @@ def run_query(
 
 
 def refit_bvh(backend: NewtonBackend) -> None:
-    """Refit the shape and particle BVHs of the model to the current state.
-
-    Args:
-        backend: Backend whose model and state to use.
-    """
+    """Refit the shape and particle BVHs of the backend's model to its current state."""
     model, state = backend.model, backend.state_0
     if model.shape_count:
         model.bvh_refit_shapes(state)

@@ -3,18 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated alias of :mod:`isaaclab_newton.physics.xpbd_solver`.
+"""XPBD Newton manager."""
 
-.. deprecated::
-    Import from :mod:`isaaclab_newton.physics.xpbd_solver` or the package instead.
-"""
+from __future__ import annotations
 
-import warnings
+from newton.solvers import SolverXPBD
 
-from .xpbd_solver import *  # noqa: F401, F403
+from .newton_solver import NewtonSolver
 
-warnings.warn(
-    "isaaclab_newton.physics.xpbd_manager is deprecated; import from isaaclab_newton.physics.xpbd_solver instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+
+class XPBDSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for the XPBD solver, which double-buffers state."""
+
+    solver_class = SolverXPBD
+    supports_heterogeneous_worlds = True
+    supports_deterministic = True

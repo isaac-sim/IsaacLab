@@ -39,7 +39,7 @@ from isaaclab_newton.renderers.visual_material import (
 )
 
 from . import newton_backend as nb
-from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback
+from .newton_backend import NewtonBackend, NewtonCloneRecord, SiteEntry, StepCallback, deformable_ranges
 from .newton_scene_data import NewtonSceneDataBackend
 from .newton_solver import NewtonSolver, create_builder, create_solver_adapter
 
@@ -332,22 +332,16 @@ class NewtonManager(PhysicsManager):
     def handles_decimation(self) -> bool:
         """Whether one :meth:`step` advances the whole decimation loop.
 
-        Functions that cannot be captured run eagerly inside the step, so only host work between physics steps (see
-        :meth:`require_env_decimation`) or the environment's actions prevent it.
+        Functions that cannot be captured run eagerly inside the step, so only the environment's actions prevent it.
         """
         backend = self.backend
-        if backend is None or backend.env_decimation:
+        if backend is None:
             return False
         if self._control_binding is not None:
             return True
         if self._apply_every_physics_step:
             return False
         return self._apply_every_physics_step is False or backend.actuators is not None
-
-    def require_env_decimation(self) -> None:
-        """Keep decimation in the environment for consumers requiring scene publication between physics steps."""
-        self.backend.env_decimation = True
-        self._resolve_steps_per_call()
 
     def _resolve_steps_per_call(self) -> None:
         """Set the physics steps of one :meth:`step` once the backend's consumers and the decimation are known."""
@@ -361,6 +355,7 @@ class NewtonManager(PhysicsManager):
         """Run ``fn`` once per :meth:`step`, before the first physics step.
 
         Consumers register on ``PHYSICS_READY``; a hard reset discards callbacks together with the buffers they bind.
+        The other ``register_*_callback`` methods take the same arguments.
 
         Args:
             fn: Function to run, e.g. an action that holds its command for the whole environment step.
@@ -370,75 +365,34 @@ class NewtonManager(PhysicsManager):
         Returns:
             The callback, for :meth:`unregister_step_callback`.
         """
-        return nb.register_step_callback(
-            self.backend, self.backend.callbacks.pre_step, fn, graphable=graphable, name=name
-        )
+        return self._register(self.backend.callbacks.pre_step, fn, graphable, name)
 
     def register_control_callback(
         self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
     ) -> StepCallback:
-        """Run ``fn`` before the Newton actuators of every physics step, like MuJoCo's ``mjcb_control``.
-
-        Args:
-            fn: Function to run, e.g. a controller or an asset command writer.
-            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
-            name: Label used in errors and profiles.
-
-        Returns:
-            The callback, for :meth:`unregister_step_callback`.
-        """
-        return nb.register_step_callback(
-            self.backend, self.backend.callbacks.control, fn, graphable=graphable, name=name
-        )
+        """Run ``fn`` before the Newton actuators of every physics step, like MuJoCo's ``mjcb_control``."""
+        return self._register(self.backend.callbacks.control, fn, graphable, name)
 
     def register_post_actuator_callback(
         self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
     ) -> StepCallback:
-        """Run ``fn`` after the Newton actuators of the last physics step of every :meth:`step`.
-
-        Args:
-            fn: Function to run, e.g. actuator telemetry.
-            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
-            name: Label used in errors and profiles.
-
-        Returns:
-            The callback, for :meth:`unregister_step_callback`.
-        """
-        callbacks = self.backend.callbacks.post_actuator
-        return nb.register_step_callback(self.backend, callbacks, fn, graphable=graphable, name=name)
+        """Run ``fn`` after the Newton actuators of the last physics step of every :meth:`step`."""
+        return self._register(self.backend.callbacks.post_actuator, fn, graphable, name)
 
     def register_state_force_callback(
         self, fn: Callable[[State], None], *, graphable: bool = True, name: str = ""
     ) -> StepCallback:
-        """Run ``fn`` before every solver substep with the substep's input state.
-
-        Args:
-            fn: Function receiving the input :class:`newton.State`, e.g. one that applies interactive forces.
-            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
-            name: Label used in errors and profiles.
-
-        Returns:
-            The callback, for :meth:`unregister_step_callback`.
-        """
-        callbacks = self.backend.callbacks.state_force
-        return nb.register_step_callback(self.backend, callbacks, fn, graphable=graphable, name=name)
+        """Run ``fn`` before every solver substep with the substep's input :class:`newton.State`."""
+        return self._register(self.backend.callbacks.state_force, fn, graphable, name)
 
     def register_post_step_callback(
         self, fn: Callable[[], None], *, graphable: bool = True, name: str = ""
     ) -> StepCallback:
-        """Run ``fn`` after every physics step, before sensors update.
+        """Run ``fn`` after every physics step, before sensors update."""
+        return self._register(self.backend.callbacks.post_step, fn, graphable, name)
 
-        Args:
-            fn: Function to run, e.g. one that republishes state within decimation.
-            graphable: Whether the function can be recorded into a CUDA graph. Other functions run eagerly in place.
-            name: Label used in errors and profiles.
-
-        Returns:
-            The callback, for :meth:`unregister_step_callback`.
-        """
-        return nb.register_step_callback(
-            self.backend, self.backend.callbacks.post_step, fn, graphable=graphable, name=name
-        )
+    def _register(self, callbacks: list[StepCallback], fn: Callable, graphable: bool, name: str) -> StepCallback:
+        return nb.register_step_callback(self.backend, callbacks, fn, graphable=graphable, name=name)
 
     def invalidate_step_graph(self) -> None:
         """Rebuild the step graph before the next step; see :func:`newton_backend.invalidate_step_graph`."""
@@ -716,15 +670,7 @@ class NewtonManager(PhysicsManager):
         model = builder.finalize(device=self._device)
         if self._sim is not None:
             model.set_gravity(self._sim.cfg.gravity)
-        ranges = {
-            label: (start, end - start, kind)
-            for kind, labels, starts, ends in (
-                ("surface", builder.surface_label, builder._surface_particle_start, builder._surface_particle_end),
-                ("volume", builder.volume_label, builder._volume_particle_start, builder._volume_particle_end),
-            )
-            for label, start, end in zip(labels, starts, ends, strict=True)
-        }
-        return NewtonBackend(model, self.cfg, dt=self.get_physics_dt(), deformable_ranges=ranges)
+        return NewtonBackend(model, self.cfg, dt=self.get_physics_dt(), deformable_ranges=deformable_ranges(builder))
 
     def get_physics_dt(self) -> float:
         """Return the physics timestep: the attached context's, or the constructor's for standalone use."""
@@ -742,51 +688,27 @@ class NewtonManager(PhysicsManager):
         return None if backend is None else getattr(backend, name)
 
     def get_solver(self) -> SolverBase | None:
-        """Return :attr:`NewtonBackend.solver` of the active backend.
-
-        .. deprecated::
-            Read ``manager.backend.solver`` instead.
-        """
+        """Deprecated: read ``manager.backend.solver`` instead."""
         return self._deprecated_backend_field("solver")
 
     def get_model(self) -> Model | None:
-        """Return :attr:`NewtonBackend.model` of the active backend.
-
-        .. deprecated::
-            Read ``manager.backend.model`` instead.
-        """
+        """Deprecated: read ``manager.backend.model`` instead."""
         return self._deprecated_backend_field("model")
 
     def get_state_0(self) -> State | None:
-        """Return :attr:`NewtonBackend.state_0` of the active backend.
-
-        .. deprecated::
-            Read ``manager.backend.state_0`` instead.
-        """
+        """Deprecated: read ``manager.backend.state_0`` instead."""
         return self._deprecated_backend_field("state_0")
 
     def get_state_1(self) -> State | None:
-        """Return :attr:`NewtonBackend.state_1` of the active backend.
-
-        .. deprecated::
-            Read ``manager.backend.state_1`` instead.
-        """
+        """Deprecated: read ``manager.backend.state_1`` instead."""
         return self._deprecated_backend_field("state_1")
 
     def get_control(self) -> Control | None:
-        """Return :attr:`NewtonBackend.control` of the active backend.
-
-        .. deprecated::
-            Read ``manager.backend.control`` instead.
-        """
+        """Deprecated: read ``manager.backend.control`` instead."""
         return self._deprecated_backend_field("control")
 
     def get_contacts(self) -> Contacts | None:
-        """Return :attr:`NewtonBackend.contacts` of the active backend.
-
-        .. deprecated::
-            Read ``manager.backend.contacts`` instead.
-        """
+        """Deprecated: read ``manager.backend.contacts`` instead."""
         return self._deprecated_backend_field("contacts")
 
     def get_scene_data_backend(self) -> SceneDataBackend | None:

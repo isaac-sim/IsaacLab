@@ -283,10 +283,8 @@ def _run(
         articulation.reset()
 
     if use_newton_actuators and decimation > 1:
-        SimulationContext.instance().physics_manager.set_decimation(decimation)
-    handles_dec = (
-        use_newton_actuators and decimation > 1 and SimulationContext.instance().physics_manager.handles_decimation()
-    )
+        sim.physics_manager.set_decimation(decimation)
+    handles_dec = use_newton_actuators and decimation > 1 and sim.physics_manager.handles_decimation()
 
     results = {}
     for name, island in islands.items():

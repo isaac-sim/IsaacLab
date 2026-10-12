@@ -12,7 +12,7 @@ from isaaclab.utils import configclass, replace
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
 
-from .coupled_mjwarp_vbd_solver_cfg import CoupledMJWarpVBDSolverCfg
+from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
 @configclass

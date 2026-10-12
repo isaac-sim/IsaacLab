@@ -585,8 +585,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
         articulations = spawn_assets(cfgs)
         sim.reset()
         callback_counts = (
-            len(SimulationContext.instance().physics_manager._callbacks),
-            sum(map(len, SimulationContext.instance().physics_manager.backend.callbacks.lists())),
+            len(sim.physics_manager._callbacks),
+            sum(map(len, sim.physics_manager.backend.callbacks.lists())),
         )
         for reset_index in range(3):
             if reset_index:
@@ -594,8 +594,8 @@ def test_hard_reset_recreates_ordered_state_and_actuators(device: str) -> None:
                 sim.reset()
                 assert all(a.data is not previous for a, previous in zip(articulations.values(), old_data, strict=True))
                 assert callback_counts == (
-                    len(SimulationContext.instance().physics_manager._callbacks),
-                    sum(map(len, SimulationContext.instance().physics_manager.backend.callbacks.lists())),
+                    len(sim.physics_manager._callbacks),
+                    sum(map(len, sim.physics_manager.backend.callbacks.lists())),
                 )
 
             positions = []
@@ -650,7 +650,7 @@ def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) 
         sim.reset()
         # the first step captures the graph that later steps replay
         sim.step()
-        assert SimulationContext.instance().physics_manager.backend.step_graph.captured
+        assert sim.physics_manager.backend.step_graph.captured
         data = articulation.data
         joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
         body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)

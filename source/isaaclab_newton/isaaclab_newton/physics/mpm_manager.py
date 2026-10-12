@@ -3,18 +3,194 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Deprecated alias of :mod:`isaaclab_newton.physics.mpm_solver`.
+"""Implicit MPM Newton manager."""
 
-.. deprecated::
-    Import from :mod:`isaaclab_newton.physics.mpm_solver` or the package instead.
-"""
+from __future__ import annotations
 
 import warnings
+from dataclasses import fields
+from typing import TYPE_CHECKING
 
-from .mpm_solver import *  # noqa: F401, F403
+import warp as wp
+from newton import BodyFlags, Contacts, GeoType, Model, ModelBuilder, State, StateFlags
+from newton.solvers import SolverBase, SolverImplicitMPM
+from warp.fem import TemporaryStore
 
-warnings.warn(
-    "isaaclab_newton.physics.mpm_manager is deprecated; import from isaaclab_newton.physics.mpm_solver instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
+from .mpm_manager_cfg import MPMSolverCfg
+from .newton_solver import NewtonSolver
+
+if TYPE_CHECKING:
+    from .newton_backend import NewtonBackend
+
+
+def _make_solver_config(solver_cfg: MPMSolverCfg) -> SolverImplicitMPM.Config:
+    """Build Newton's implicit MPM config from the matching solver configuration fields."""
+    names = [f.name for f in fields(SolverImplicitMPM.Config) if hasattr(solver_cfg, f.name)]
+    values = {name: getattr(solver_cfg, name) for name in names}
+    # Resolve deprecated collider-velocity aliases used by older configurations.
+    mode = values["collider_velocity_mode"]
+    if replacement := {"instantaneous": "forward", "finite_difference": "backward"}.get(mode):
+        warnings.warn(
+            f"collider_velocity_mode={mode!r} is deprecated; use {replacement!r} instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        values["collider_velocity_mode"] = replacement
+    return SolverImplicitMPM.Config(**values)
+
+
+def implicit_mpm_solvers(solver: SolverBase | None) -> tuple[SolverImplicitMPM, ...]:
+    """Return a direct implicit-MPM solver, or the implicit-MPM entries of a coupled solver."""
+    if isinstance(solver, SolverImplicitMPM):
+        return (solver,)
+    if solver is None or not hasattr(solver, "entry_names") or not hasattr(solver, "solver"):
+        return ()
+    return tuple(
+        entry_solver
+        for name in solver.entry_names()
+        if isinstance((entry_solver := solver.solver(name)), SolverImplicitMPM)
+    )
+
+
+def mpm_supports_graph_capture(solver: SolverImplicitMPM) -> bool:
+    """Return whether an implicit-MPM solver satisfies Newton's capture contract."""
+    if solver.grid_type == "fixed":
+        # An unbounded active partition reads its cell count back to the CPU on every step.
+        return solver.max_active_cell_count > 0
+    if solver.grid_type != "sparse":
+        return False
+    strain_rebuild_safe = solver.strain_basis.startswith("pic") or solver.strain_basis in ("P0", "P1d", "Q1d", "Q1")
+    collider_rebuild_safe = solver.collider_basis.startswith("pic") or solver.collider_basis in ("Q1", "S2", "S3")
+    return (
+        solver.max_active_cell_count > 0
+        and solver.grid_padding == 0
+        and solver.velocity_basis == "Q1"
+        and strain_rebuild_safe
+        and collider_rebuild_safe
+    )
+
+
+class MPMSolverAdapter(NewtonSolver):
+    """:class:`NewtonSolver` adapter for Newton's implicit MPM solver.
+
+    MPM advances particle materials in place on one state and treats rigid geometry as colliders, so it does not use
+    Newton's collision pipeline or consume applied rigid-body forces.
+    """
+
+    single_state = True
+
+    def create_solver(
+        self, model: Model, deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED
+    ) -> SolverImplicitMPM:
+        """Construct the configured implicit MPM solver."""
+        return SolverImplicitMPM(model, _make_solver_config(self.cfg), temporary_store=TemporaryStore())
+
+    def register_builder_attributes(self, builder: ModelBuilder) -> None:
+        """Register the per-particle material attributes before particles are added.
+
+        Implicit MPM materials are configured per particle through Newton custom attributes (``mpm:young_modulus``,
+        ``mpm:viscosity``, ...), which must exist before ``add_particles(custom_attributes=...)`` and finalization.
+        """
+        if not builder.has_custom_attribute("mpm:young_modulus"):
+            SolverImplicitMPM.register_custom_attributes(builder)
+
+    def prepare_solver_builder(self, builder: ModelBuilder) -> None:
+        """Normalize rigid colliders before solver construction.
+
+        Newton's implicit MPM treats positive-mass body colliders as finite-mass colliders, so kinematic bodies lose
+        their mass and inertia, matching Newton's MPM examples. The solver accepts only the triangle-mesh geometry type,
+        so convex meshes are classified as meshes without changing their geometry.
+        """
+        kinematic_flag = int(BodyFlags.KINEMATIC)
+        for body_id, flags in enumerate(builder.body_flags):
+            if int(flags) & kinematic_flag:
+                builder.body_mass[body_id] = 0.0
+                builder.body_inv_mass[body_id] = 0.0
+                builder.body_inertia[body_id] = wp.mat33()
+                builder.body_inv_inertia[body_id] = wp.mat33()
+        for shape_id, shape_type in enumerate(builder.shape_type):
+            if shape_type == GeoType.CONVEX_MESH:
+                builder.shape_type[shape_id] = GeoType.MESH
+
+    def uses_collision_pipeline(self, backend: NewtonBackend) -> bool:
+        return False
+
+    def supports_body_forces(self, backend: NewtonBackend) -> bool:
+        return False
+
+    def supports_graph_capture(self, backend: NewtonBackend) -> bool:
+        """Whether the active MPM grid has capture-stable storage."""
+        return mpm_supports_graph_capture(backend.solver)
+
+    def step_solver(
+        self, backend: NewtonBackend, state_in: State, state_out: State, contacts: Contacts | None, dt: float
+    ) -> None:
+        """Run one implicit MPM substep, optionally projecting particles out of colliders.
+
+        The implicit solve resolves colliders at the grid level. With :attr:`MPMSolverCfg.project_outside_colliders`,
+        the substep also hard-projects particles out of collider interiors, as in Newton's MPM examples.
+        """
+        backend.solver.step(state_in, state_out, backend.control, contacts, dt)
+        if self.cfg.project_outside_colliders:
+            backend.solver.project_outside(state_out, state_out, dt)
+
+    def reset_solver(self, backend: NewtonBackend, state: State, world_mask: wp.array) -> None:
+        """Keep implicit-MPM history across automatic asset resets.
+
+        Shared-grid MPM cannot reset history for a subset of worlds. Tasks with independent MPM worlds that need an
+        exact history reset call :func:`reset_mpm_solver_state` after authoring their complete state.
+        """
+
+    def check_status(self, backend: NewtonBackend, captured: bool) -> None:
+        """Raise asynchronous sparse-grid rebuild failures after graph replay."""
+        if captured:
+            for solver in implicit_mpm_solvers(backend.solver):
+                solver.check_sparse_grid_rebuild_status()
+
+
+def reset_mpm_solver_state(
+    backend: NewtonBackend,
+    state: State | None = None,
+    world_mask: wp.array(dtype=wp.bool) | None = None,
+    flags: StateFlags | int | None = None,
+) -> None:
+    """Reset MPM and coupled-solver history after task state is rewritten.
+
+    When :paramref:`state` is omitted, both distinct backend state buffers are reset so a later buffer swap cannot
+    restore stale history. A mask follows Newton's canonical ``world_count + 1`` contract, where the last entry
+    selects global entities in world -1. A selected single local world is promoted to a full reset because a
+    one-world MPM grid has no environment offsets.
+
+    Args:
+        backend: Backend whose solver to reset, e.g. :attr:`NewtonManager.backend`.
+        state: State whose solver-owned history should be reset. If omitted, reset both backend states.
+        world_mask: Canonical per-world mask, including the final global-world entry.
+        flags: State components whose solver-owned history should reset.
+
+    Raises:
+        RuntimeError: If the MPM solver or a usable state is not initialized.
+        ValueError: If :paramref:`world_mask` does not use Newton's canonical shape.
+    """
+    solver = backend.solver
+    if not implicit_mpm_solvers(solver):
+        raise RuntimeError("An implicit MPM solver is not initialized; cannot reset solver state.")
+    model = backend.model
+
+    reset_mask = world_mask
+    if world_mask is not None:
+        expected_shape = (model.world_count + 1,)
+        if world_mask.shape != expected_shape:
+            raise ValueError(f"world_mask must have shape {expected_shape}; got {world_mask.shape}.")
+        if model.world_count == 1:
+            selected = world_mask.numpy()
+            if not selected.any():
+                return
+            if selected[0] and not selected[-1]:
+                reset_mask = None
+
+    candidates = (state,) if state is not None else (backend.state_1, backend.state_0)
+    states = list({id(candidate): candidate for candidate in candidates if candidate is not None}.values())
+    if not states:
+        raise RuntimeError("Newton state is not initialized; provide an explicit state to reset.")
+    for candidate in states:
+        solver.reset(candidate, world_mask=reset_mask, flags=flags)
