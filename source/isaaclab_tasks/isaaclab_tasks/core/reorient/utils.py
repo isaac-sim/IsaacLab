@@ -28,11 +28,11 @@ if TYPE_CHECKING:
 GOAL_MARKER_POS = (-0.2, 0.1, 0.6)
 """Goal-cube display position [m], environment frame, inside the Shadow Hand camera frustum."""
 
-VISUALIZER_CFG = VisualizerCfg(eye=(0.575, -0.15, 1.35), lookat=(0.275, -0.15, 0.6), focal_length=24.0)
-"""Top-down recording view of the held cube beside its goal cube, in an environment of the 50-environment play grid."""
+VISUALIZER_CFG = VisualizerCfg(eye=(0.995, -0.80, 0.85), lookat=(0.375, -0.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the 50-environment play grid."""
 
-CAMERA_VISUALIZER_CFG = VisualizerCfg(eye=(1.2, -1.15, 1.35), lookat=(0.9, -1.15, 0.6), focal_length=24.0)
-"""Top-down recording view of the held cube beside its goal cube, in an environment of the 64-environment play grid."""
+CAMERA_VISUALIZER_CFG = VisualizerCfg(eye=(1.62, -1.80, 0.85), lookat=(1.0, -1.28, 0.53), focal_length=35.0)
+"""Recording view of an environment in the camera tasks' 64-environment play grid."""
 
 
 class EpisodeErrorRecorder:
