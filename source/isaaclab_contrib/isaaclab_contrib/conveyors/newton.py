@@ -140,7 +140,7 @@ def _validate_newton_surface_specs(surface_specs: Sequence[SurfaceVelocitySpec])
 
 
 class SurfaceVelocity:
-    """Adapt Newton's upstream conveyor force model to the Isaac Lab lifecycle.
+    """Adapt Newton's upstream MuJoCo conveyor force model to the MJWarp lifecycle.
 
     The driver is created after the simulation context but before its first
     reset. It requests solved contact forces before model finalization, then

@@ -1960,13 +1960,18 @@ class NewtonManager(PhysicsManager):
 
         Removing a callback that was never registered or was already removed is
         a safe no-op. This lets scene-owned systems release bound-method
-        references before the global Newton manager is cleared.
+        references before the global Newton manager is cleared. An active CUDA
+        graph is rebuilt on the next step to discard the removed callback.
 
         Args:
             callback: Previously registered callback.
         """
-        with contextlib.suppress(ValueError):
-            NewtonManager._state_force_callbacks.remove(callback)
+        if callback not in cls._state_force_callbacks:
+            return
+        cls._state_force_callbacks.remove(callback)
+        if cls._graph is not None:
+            cls._graph = None
+            cls._graph_capture_pending = True
 
     @classmethod
     def register_post_solver_substep_callback(
@@ -2026,11 +2031,18 @@ class NewtonManager(PhysicsManager):
     ) -> None:
         """Remove a previously registered post-solver-substep callback.
 
+        An active CUDA graph is rebuilt on the next step. Removing an absent
+        callback is a safe no-op.
+
         Args:
             callback: Previously registered callback.
         """
-        with contextlib.suppress(ValueError):
-            cls._post_solver_substep_callbacks.remove(callback)
+        if callback not in cls._post_solver_substep_callbacks:
+            return
+        cls._post_solver_substep_callbacks.remove(callback)
+        if cls._graph is not None:
+            cls._graph = None
+            cls._graph_capture_pending = True
 
     @classmethod
     def register_post_step_callback(cls, callback: Callable[[], None]) -> None:

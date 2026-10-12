@@ -8,8 +8,8 @@ experimental and is not exported from Isaac Lab core or the backend packages.
   control operations.
 - `newton.SurfaceVelocity` uses Newton's upstream `ConveyorForceModel`. The
   adapter owns replicated surface/body bindings and solver lifecycle integration,
-  including hard resets and registration before CUDA graph capture. It requires
-  the Newton backend.
+  including hard resets and registration before CUDA graph capture. It supports
+  the Newton MJWarp solver; other Newton solvers are outside this adapter's scope.
 - `physx.SurfaceVelocity` uses native `PhysxSurfaceVelocityAPI` on CPU.
   Author the API before simulation parsing with `apply_surface_velocity_api`.
   This path requires the PhysX backend and Kit; GPU dynamics are unsupported.

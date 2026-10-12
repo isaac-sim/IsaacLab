@@ -359,13 +359,7 @@ class _PhysxSchemaSurfaceWriter:
 
     def __init__(self, prims_or_paths: Sequence[Any], *, stage: Any | None, apply_api: bool) -> None:
         """Resolve prims, optionally apply schemas, and cache surface attributes."""
-        try:
-            from pxr import Gf, PhysxSchema, UsdPhysics
-        except ImportError as exc:
-            raise RuntimeError(
-                "PhysxSurfaceVelocityAPI is unavailable. Use this backend inside an Isaac Sim process with PhysX "
-                "schemas."
-            ) from exc
+        from pxr import Gf, PhysxSchema, UsdPhysics
 
         if stage is None and any(isinstance(value, str) for value in prims_or_paths):
             from isaaclab.sim.utils.stage import get_current_stage
