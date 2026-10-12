@@ -475,7 +475,7 @@ class PhysxJointCfg(JointDriveFragment):
         Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
         maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
         alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
-        removed in 3.2.
+        removed in 4.0.
     """
 
 
@@ -1239,9 +1239,7 @@ class SDFMeshPropertiesCfg(PhysxSDFMeshPropertiesCfg):
     """
 
 
-@deprecated_schema_cfg(
-    "[PhysxTendonAxisRootCfg(...)] in the spawner's fixed_tendons_props slot"
-)
+@deprecated_schema_cfg("[PhysxTendonAxisRootCfg(...)] in the spawner's fixed_tendons_props slot")
 @configclass
 class PhysxFixedTendonPropertiesCfg:
     """PhysX fixed-tendon properties for an articulation.
@@ -1292,9 +1290,7 @@ class PhysxFixedTendonPropertiesCfg:
     """Upper limit of the tendon's length [m]."""
 
 
-@deprecated_schema_cfg(
-    "[PhysxTendonAxisRootCfg(...)] in the spawner's fixed_tendons_props slot"
-)
+@deprecated_schema_cfg("[PhysxTendonAxisRootCfg(...)] in the spawner's fixed_tendons_props slot")
 @configclass
 class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
     """Deprecated: use :class:`PhysxTendonAxisRootCfg`.
@@ -1305,9 +1301,7 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
     """
 
 
-@deprecated_schema_cfg(
-    "[PhysxTendonAttachmentRootCfg(...)] in the spawner's spatial_tendons_props slot"
-)
+@deprecated_schema_cfg("[PhysxTendonAttachmentRootCfg(...)] in the spawner's spatial_tendons_props slot")
 @configclass
 class PhysxSpatialTendonPropertiesCfg:
     """PhysX spatial-tendon properties for an articulation.
@@ -1348,9 +1342,7 @@ class PhysxSpatialTendonPropertiesCfg:
     """
 
 
-@deprecated_schema_cfg(
-    "[PhysxTendonAttachmentRootCfg(...)] in the spawner's spatial_tendons_props slot"
-)
+@deprecated_schema_cfg("[PhysxTendonAttachmentRootCfg(...)] in the spawner's spatial_tendons_props slot")
 @configclass
 class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
     """Deprecated: use :class:`PhysxTendonAttachmentRootCfg`.
