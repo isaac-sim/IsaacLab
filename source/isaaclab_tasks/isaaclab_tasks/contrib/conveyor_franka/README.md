@@ -153,6 +153,10 @@ uv run isaaclab train --rl_library rsl_rl \
 
 ### Editing the presentation
 
+The authored USDA layers are versioned with the task because their route metadata,
+collision paths, and animation must match its implementation. NVIDIA meshes and
+textures stay at their original remote locations under their original licenses.
+
 - `assets/warehouse.usda` owns layout, props, materials, lights, cameras, and looping
   background transforms. `Cameras/Workcell` and `Cameras/Overview` provide two views.
 - `assets/conveyor_routes.usda` owns route centerlines, frame meshes, traction,
@@ -166,8 +170,7 @@ uv run isaaclab train --rl_library rsl_rl \
   `transfer_counts` records placements. Selected resets clear that batch's counters.
 
 The spawner caches external assets, removes imported physics and action graphs,
-and samples background animation using simulation time. NVIDIA geometry and textures
-remain external references under their original licenses. See the
+and samples background animation using simulation time. See the
 [SimReady Explorer documentation](https://docs.omniverse.nvidia.com/extensions/latest/ext_core/ext_browser-extensions/simready-explorer.html)
 for catalog access. Layout references include
 [Dematic modular conveyors](https://www.dematic.com/content/dam/dematic/downloads/brochures/NA_BR_1039_MCS.pdf),
