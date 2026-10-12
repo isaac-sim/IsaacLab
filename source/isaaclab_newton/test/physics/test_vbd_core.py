@@ -168,6 +168,7 @@ def test_vbd_contact_history_initializes_matches_and_resets(monkeypatch, device)
         pipeline.collide(state_0, contacts)
     count = int(contacts.rigid_contact_count.numpy()[0])
     assert count > 0
+    assert (contacts.rigid_contact_match_index.numpy()[:count] >= 0).any()
     initial_height = state_0.body_q.numpy()[body, 2]
     control = model.control()
     with wp.ScopedCapture(device=device) as capture:
