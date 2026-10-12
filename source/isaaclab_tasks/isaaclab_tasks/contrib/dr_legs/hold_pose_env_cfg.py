@@ -311,6 +311,7 @@ class TerminationsCfg:
 class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     """DR Legs hold-pose environment."""
 
+    class_type: type | str = "{DIR}.dr_legs_env:DrLegsRLEnv"
     scene: HoldPoseSceneCfg = HoldPoseSceneCfg(num_envs=_NUM_ENVS, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
     actions: DrLegsActionsCfg = DrLegsActionsCfg()
