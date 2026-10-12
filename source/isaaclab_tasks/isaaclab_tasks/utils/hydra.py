@@ -26,10 +26,11 @@ Example usage::
     presets=newton_mjwarp env.backend.dt=0.001 env.decimation=10
 """
 
+import argparse
 import ast
+import enum
 import sys
 import warnings
-from argparse import Namespace
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import is_dataclass
 from types import SimpleNamespace
@@ -39,6 +40,9 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
+from isaaclab.physics import PhysicsCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils import (
     configclass,
     replace_slices_with_strings,
@@ -46,8 +50,6 @@ from isaaclab.utils import (
     to_dict,
     update_from_dict,
 )
-
-from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
@@ -58,6 +60,33 @@ _LEGACY_PRESET_ALIASES = {
     "ovrtx_renderer": "ovrtx",
     "isaacsim_rtx_renderer": "isaacsim_rtx",
 }
+
+
+class PresetTarget(enum.Enum):
+    """Classify preset alternatives; untyped values belong to the domain category."""
+
+    PHYSICS = ("physics", (PhysicsCfg,))
+    RENDERER = ("renderer", (RendererCfg,))
+    DOMAIN = ("presets", ())
+
+    def __new__(cls, label: str, base_classes: tuple[type, ...]):
+        obj = object.__new__(cls)
+        obj._value_ = label
+        obj.base_classes = base_classes
+        return obj
+
+    def matches(self, cfg: object) -> bool:
+        """Match a config type, including physics bundled with simulation-wide settings.
+
+        Args:
+            cfg: Preset alternative to classify.
+
+        Returns:
+            Whether the alternative belongs to this category.
+        """
+        return isinstance(cfg, self.base_classes) or (
+            self is PresetTarget.PHYSICS and isinstance(cfg, SimulationCfg) and isinstance(cfg.physics, PhysicsCfg)
+        )
 
 
 def user_stacklevel() -> int:
@@ -220,7 +249,7 @@ def _preset_fields(preset_obj) -> dict:
 
 def _iter_cfg_items(cfg):
     """Iterate declared config fields and container entries without inspecting properties."""
-    if is_dataclass(cfg) and not isinstance(cfg, type) or isinstance(cfg, (Namespace, SimpleNamespace)):
+    if is_dataclass(cfg) and not isinstance(cfg, type) or isinstance(cfg, (argparse.Namespace, SimpleNamespace)):
         return ((name, value) for name, value in vars(cfg).items() if not name.startswith("_"))
     if isinstance(cfg, Mapping):
         return cfg.items()
@@ -602,3 +631,137 @@ def _parse_val(s: str):
         return ast.literal_eval(s)
     except (ValueError, SyntaxError):
         return s
+
+
+def setup_preset_cli(
+    parser: argparse.ArgumentParser, argv: list[str] | None = None
+) -> tuple[argparse.Namespace, list[str]]:
+    """Register the preset-selection help description and parse argv.
+
+    Must be called *after* launcher flags and script-specific arguments are
+    registered on ``parser`` -- otherwise those unknown tokens land in
+    ``parse_known_args``'s remainder.
+
+    The returned remainder contains the user-typed ``physics=`` / ``renderer=``
+    / ``presets=`` tokens verbatim, alongside any Hydra path overrides and any
+    unknown argparse flags, ready to assign to ``sys.argv`` for hydra to parse.
+
+    Does not mutate ``sys.argv``; the caller assigns
+    ``sys.argv = [sys.argv[0]] + remaining`` when ready, so any argv-aware logic
+    that re-reads ``sys.argv`` (e.g. an external callback) runs against the
+    user's original command line first.
+
+    A Hydra override is never the value of an option whose value is optional
+    (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
+    option's default source and passes the override on. Overrides always
+    contain ``=``, so such an option followed by a token with ``=`` takes its
+    ``const`` instead.
+
+    Args:
+        parser: Caller's argument parser. An ``argument_group`` is attached
+            for help-time variant discovery. No preset selector arguments are
+            added, so the Namespace gains no preset attributes.
+        argv: Arguments to parse, including help-time task selection. Defaults to ``sys.argv[1:]``.
+
+    Returns:
+        ``(args, remaining)`` where ``remaining`` is the verbatim output of
+        ``parser.parse_known_args(argv)``, ready to hand to Hydra via
+        ``sys.argv``.
+
+    Raises:
+        SystemExit: If ``argv`` requests help, after printing it.
+    """
+    args_to_parse = sys.argv[1:] if argv is None else argv
+    help_requested = "-h" in args_to_parse or "--help" in args_to_parse
+    variants = None
+    if help_requested:
+        # Read the task before the main parser's help action exits.
+        task_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+        task_parser.add_argument("--task")
+        task_args, _ = task_parser.parse_known_args(args_to_parse)
+        if task_args.task:
+            variants = _enumerate_variants(task_args.task)
+    if parser.formatter_class is argparse.HelpFormatter:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+    description = ["Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"]
+    for target in PresetTarget:
+        syntax = f"{target.value}=NAME"
+        if target is PresetTarget.DOMAIN:
+            syntax += "[,NAME,...]"
+        meaning = (
+            f"(typed) selects a {target.value} backend"
+            if target.base_classes
+            else "broadcast: applied to every matching PresetCfg"
+        )
+        description.append(f"    {syntax:23}   {meaning}" + (". Available:" if variants is not None else ""))
+        if variants is not None:
+            description.extend(f"                              - {name}" for name in variants[target])
+            if not variants[target]:
+                description.append("                              (none)")
+    if variants is None:
+        description.append("\nPass `--task=X` along with `--help` to see preset variants available for that task.")
+    description.append("\nHydra also accepts path-targeted overrides like env.sim.physics=NAME.")
+    parser.add_argument_group("preset selection", description="\n".join(description))
+    if help_requested:
+        parser.print_help()
+        raise SystemExit(0)
+
+    optional_value_consts = {
+        option: action.const
+        for action in parser._actions
+        if action.nargs == argparse.OPTIONAL
+        for option in action.option_strings
+    }
+    args_to_parse = [
+        f"{token}={optional_value_consts[token]}" if token in optional_value_consts and "=" in next_token else token
+        for token, next_token in zip(args_to_parse, [*args_to_parse[1:], ""])
+    ]
+    return parser.parse_known_args(args_to_parse)
+
+
+def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | None:
+    """Return the available preset names for *task_name*, bucketed by selector type.
+
+    Loads the env config registered under *task_name* and walks its preset tree
+    using the same logic that the CLI help-text renderer uses, so the returned
+    view matches what ``--task=<name> --help`` shows at the command line.
+
+    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
+    booted (i.e. inside a running Isaac Sim session).
+
+    Args:
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole"``).
+
+    Returns:
+        A mapping ``{PresetTarget: sorted list of preset names}`` on success.
+        Returns ``None`` if the env config cannot be loaded (import error,
+        missing registration, etc.).  The ``"default"`` fallback is excluded
+        from every list because it is implicit, not a user-selectable name.
+    """
+    try:
+        return _enumerate_variants(task_name)
+    except Exception:
+        return None
+
+
+def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
+    """Load env_cfg for *task_name* and bucket its variants by target.
+
+    Uses the same walker hydra's resolver runs so help and resolve see one
+    view of the cfg tree. The env_cfg load is safe before the simulation runtime starts
+    because ``test_env_cfg_no_forbidden_imports`` blocks Kit-only imports at
+    the top level of cfg modules. Exceptions from the loader propagate
+    verbatim -- they surface as the natural error, not a buried help string.
+    """
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    typed_targets = [t for t in PresetTarget if t.base_classes]
+    result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
+    for path_dict in collect_presets(env_cfg).values():
+        for name, cfg in path_dict.items():
+            if name == "default":
+                continue
+            matched = next((target for target in typed_targets if target.matches(cfg)), PresetTarget.DOMAIN)
+            result[matched].add(name)
+    return {target: sorted(names) for target, names in result.items()}

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -32,7 +33,7 @@ def test_setup_preset_cli_returns_remainder_only(monkeypatch):
     non-argparse tokens (Hydra path overrides, etc.)."""
     original = ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"]
     monkeypatch.setattr("sys.argv", original)
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     args, remaining = setup_preset_cli(_make_parser())
     assert args.task == "Foo-v0"
@@ -56,7 +57,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
             "env.sim.dt=0.001",
         ],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     _, remaining = setup_preset_cli(_make_parser())
     assert remaining == [
@@ -79,7 +80,7 @@ def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
         "sys.argv",
         ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "renderer=newton_renderer", "presets=albedo"],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     args, _ = setup_preset_cli(_make_parser())
     for attr in ("physics", "renderer", "presets"):
@@ -115,9 +116,7 @@ def test_enumerate_task_presets_routes_by_target_match(monkeypatch):
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils import configclass
 
-    from isaaclab_tasks.utils.hydra import preset
-    from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+    from isaaclab_tasks.utils.hydra import PresetTarget, enumerate_task_presets, preset
 
     @configclass
     class _PhysVariant(PhysicsCfg):
@@ -185,13 +184,10 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
     once on the section description rather than repeated per-flag.
     """
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
-    from isaaclab_tasks.utils import preset_cli
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils import hydra, setup_preset_cli
 
-    # Keep parsing and formatting in argparse, without private helper classes in the CLI module.
-    assert not any(
-        isinstance(value, type) and value.__module__ == preset_cli.__name__ for value in vars(preset_cli).values()
-    )
+    # Task preset parsing, categories, and resolution share one module.
+    assert not any(Path(hydra.__file__).with_name(module).exists() for module in ("preset_cli.py", "preset_target.py"))
     parser = argparse.ArgumentParser(prog="train.py")  # default add_help=True
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
@@ -267,7 +263,7 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
         if build_key == "empty"
         else ["--task", "Old-v0", "--task=Fake-v0", "--help"]
     )
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     parser = argparse.ArgumentParser(prog="train.py")
     parser.add_argument("--task", type=str, default=None)
