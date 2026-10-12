@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .robot import (
     ARM_JOINT_NAMES,
     ASSET_BUNDLE_SHA256,
-    COFFEE_READY_POSITIONS,
     DEFAULT_SPOON_OFFSET_POS,
     DEFAULT_SPOON_OFFSET_ROT,
     HAND_HOLD_POSITIONS,
@@ -66,19 +65,6 @@ class CoffeeGraspReset:
         if abs(norm - 1.0) > 1.0e-4:
             raise ValueError("The spoon rotation must be a unit XYZW quaternion.")
 
-    def save(self, path: str | Path) -> None:
-        """Write an editable JSON candidate after validating its contract."""
-        self.validate()
-        path = Path(path).expanduser()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(asdict(self), indent=2, allow_nan=False) + "\n")
-
-
-def default_grasp_reset() -> CoffeeGraspReset:
-    """Return the measured display pinch, explicitly without contact certification."""
-    positions = dict(zip(ARM_JOINT_NAMES + HAND_JOINT_NAMES, COFFEE_READY_POSITIONS + HAND_HOLD_POSITIONS, strict=True))
-    return CoffeeGraspReset(joint_positions=positions, joint_targets=positions.copy())
-
 
 def load_grasp_reset(path: str | Path) -> CoffeeGraspReset:
     """Load an authored candidate with an exact asset and named-joint contract."""
@@ -86,29 +72,6 @@ def load_grasp_reset(path: str | Path) -> CoffeeGraspReset:
     state.validate()
     state.spoon_offset_pos = tuple(state.spoon_offset_pos)
     state.spoon_offset_rot = tuple(state.spoon_offset_rot)
-    return state
-
-
-def capture_grasp_reset(env, env_id: int = 0) -> CoffeeGraspReset:
-    """Capture measured robot joints, motor targets and palm-local tool pose."""
-    from isaaclab.utils import math as math_utils
-
-    robot = env.scene["robot"]
-    names = ARM_JOINT_NAMES + HAND_JOINT_NAMES
-    joint_ids = robot.find_joints(names, preserve_order=True)[0]
-    palm = robot.data.body_link_pose_w.torch[env_id, env._palm_id]
-    spoon = env.scene["spoon"].data.root_link_pose_w.torch[env_id]
-    position, rotation = math_utils.subtract_frame_transforms(palm[:3], palm[3:], spoon[:3], spoon[3:])
-    state = CoffeeGraspReset(
-        joint_positions=dict(zip(names, robot.data.joint_pos.torch[env_id, joint_ids].tolist(), strict=True)),
-        joint_targets=dict(
-            zip(names, robot.actuators.target_command.position.torch[env_id, joint_ids].tolist(), strict=True)
-        ),
-        spoon_offset_pos=tuple(position.tolist()),
-        spoon_offset_rot=tuple(rotation.tolist()),
-        source=f"measured simulator snapshot; grasp mode {env.cfg.grasp_mode}",
-    )
-    state.validate()
     return state
 
 

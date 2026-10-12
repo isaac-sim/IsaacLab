@@ -44,6 +44,5 @@ include = ["isaaclab_tasks", "isaaclab_tasks.*"]
     "assets/NOTICE",
     "assets/LICENSE-IsaacTeleop",
     "assets/*.json",
-    "assets/*.mdl",
     "assets/*.yml",
 ]

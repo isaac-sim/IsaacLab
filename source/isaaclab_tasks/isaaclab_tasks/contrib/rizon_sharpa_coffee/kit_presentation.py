@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,6 +16,9 @@ from isaaclab_visualizers.kit import KitVisualizer
 
 from pxr import Gf, Sdf, UsdGeom, UsdShade, Vt
 
+from isaaclab.utils.assets import retrieve_file_path
+
+from .assets import COFFEE_ASSET_DIR
 from .presentation import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights
 
 if TYPE_CHECKING:
@@ -29,6 +31,7 @@ class CoffeeKitVisualizer(KitVisualizer):
 
     cfg: CoffeeKitVisualizerCfg
     presentation: CoffeePresentation | None = None
+    _update_subscription = None
 
     def initialize(self, sim, *, cameras) -> None:
         if self._is_initialized:
@@ -76,13 +79,19 @@ class CoffeeKitVisualizer(KitVisualizer):
         # Opacity remains available on the PreviewSurface fallback.
         water_mdl = UsdShade.Shader.Define(self._stage, f"{water_material.GetPath()}/Liquid")
         water_mdl.CreateImplementationSourceAttr(UsdShade.Tokens.sourceAsset)
-        water_mdl.SetSourceAsset(Sdf.AssetPath(str(Path(__file__).parent / "assets" / "CoffeeWater.mdl")), "mdl")
+        water_mdl.SetSourceAsset(Sdf.AssetPath(retrieve_file_path(f"{COFFEE_ASSET_DIR}/CoffeeWater.mdl")), "mdl")
         water_mdl.SetSourceAssetSubIdentifier("CoffeeWater", "mdl")
         water_material.CreateSurfaceOutput("mdl").ConnectToSource(water_mdl.ConnectableAPI(), "out")
         UsdShade.MaterialBindingAPI.Apply(self._coffee.GetPrim()).Bind(self._coffee_material)
         UsdShade.MaterialBindingAPI.Apply(self._water.GetPrim()).Bind(water_material)
         self._coffee_attributes_ready = False
-        self._capture_ready = False
+        import omni.kit.app
+
+        self._update_subscription = (
+            omni.kit.app.get_app()
+            .get_pre_update_event_stream()
+            .create_subscription_to_pop(self._update_presentation, name="Coffee presentation")
+        )
 
     def prepare_presentation(self) -> None:
         """Hide native point displays while retaining all physical particles."""
@@ -122,30 +131,15 @@ class CoffeeKitVisualizer(KitVisualizer):
         self._water_colors.Set(Vt.Vec3fArray.FromNumpy(colors))
         self._water_shader.GetInput("opacity").Set(float(opacity))
 
-    def step(self, dt: float) -> None:
+    def _update_presentation(self, event) -> None:
+        """Publish scene geometry before both viewport and on-demand Kit frames."""
         if self.presentation is not None:
             self.presentation.draw_kit(self)
-        super().step(dt)
-
-    def render_rgb_array(self) -> np.ndarray:
-        """Capture current USD colours and warm up the first render product without advancing physics."""
-        if self.presentation is not None:
-            self.presentation.draw_kit(self)
-        # The custom surface is updated after the normal visualizer frame.
-        self._app_pumped_this_step = False
-        frame = super().render_rgb_array()
-        if not self._capture_ready:
-            # Let referenced materials and the temporal denoiser settle before
-            # recording the first frame. This does not advance Newton physics.
-            for _ in range(24):
-                self._app_pumped_this_step = False
-                frame = super().render_rgb_array()
-            self._capture_ready = bool(frame.any())
-            if not self._capture_ready:
-                raise RuntimeError("Kit did not produce a nonempty coffee camera frame during warmup.")
-        return frame
 
     def close(self) -> None:
+        if self._update_subscription is not None:
+            self._update_subscription.unsubscribe()
+            self._update_subscription = None
         self.presentation = None
         if self._is_initialized:
             for path, visibility in self._visibility_backup.items():

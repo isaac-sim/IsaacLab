@@ -24,7 +24,7 @@ from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-from .assets import BOWL_POSITION, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
+from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
 from .physics_cfg import configure_contact_grasp, make_physics_cfg
 from .robot import (
     ARM_JOINT_NAMES,
@@ -38,7 +38,7 @@ from .robot import (
 
 @configclass
 class CoffeeSceneCfg(InteractiveSceneCfg):
-    """Reusable assets; local USD files are resolved after the simulation launcher."""
+    """Reusable robot, hosted props and optional MPM fill volumes."""
 
     robot: ArticulationCfg | None = None
     table: AssetBaseCfg | None = None
@@ -128,8 +128,7 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
 
 
 def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
-    """Resolve generated assets and sample collision-free fill volumes."""
-    from .assets import build_coffee_assets
+    """Resolve hosted assets and sample collision-free fill volumes."""
     from .robot import get_robot_cfg
 
     if not math.isfinite(cfg.voxel_size) or not 0.001 <= cfg.voxel_size <= 0.010:
@@ -146,7 +145,6 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("water_fill_height must be between 12 and 79 mm.")
     if not 0.0 < cfg.min_delivered_fraction <= 1.0:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
-    paths = build_coffee_assets()
     cfg.scene.robot = get_robot_cfg(contact_grasp=cfg.grasp_mode == "contact")
     from .grasp_reset import configure_grasp_reset
 
@@ -165,14 +163,14 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
             name,
             AssetBaseCfg(
                 prim_path="{ENV_REGEX_NS}/" + name.title(),
-                spawn=sim_utils.UsdFileCfg(usd_path=paths[name]),
+                spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/{name}.usda"),
                 init_state=AssetBaseCfg.InitialStateCfg(pos=position),
             ),
         )
     cfg.scene.spoon = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Spoon",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=paths["spoon"],
+            usd_path=f"{COFFEE_ASSET_DIR}/spoon.usda",
             rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=cfg.grasp_mode == "mounted"),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, -0.12, 0.15)),

@@ -5,27 +5,28 @@
 
 """Rizon4s/Sharpa asset and joint contract shared with the workstation RJ45 demo.
 
-The USD and textures remain in the user's asset cache because the upstream
-Fabrics-Sim asset is NVIDIA proprietary. See this task's README for provenance.
+The prepared USD and textures are hosted separately with their original
+Fabrics-Sim licensing. See the demo README for provisioning and provenance.
 """
 
 from __future__ import annotations
 
-import hashlib
 import math
 import os
-import tempfile
-from functools import lru_cache
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
 
 ASSET_REVISION = "d0dbd1ddaefc4996db546949a7dfb37e39afcbeb"
 ASSET_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
-ASSET_USD_NAME = "rizon4s_sharpa_no_spheres_generated.usd"
+ASSET_USD_NAME = "rizon4s_sharpa.usda"
 ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
+ROBOT_ASSET_DIR = os.environ.get(ASSET_ROOT_ENV, f"{ISAACLAB_NUCLEUS_DIR}/Contrib/RizonSharpaCoffee/Robot/v1").rstrip(
+    "/"
+)
 BASE_BODY_NAME = "base_link"
 PALM_BODY_NAME = "r_palm_ctrl"
 """Canonical palm: +X toward the knuckles, +Z out of the palm."""
@@ -86,22 +87,6 @@ retention is not certified; the demo continues to use its mounted utensil.
 """
 
 
-def configured_asset_path(*, verify: bool = True) -> Path:
-    """Resolve the existing RJ45 robot USD, optionally checking all pinned textures."""
-    configured = os.environ.get(ASSET_ROOT_ENV)
-    root = (
-        Path(configured).expanduser()
-        if configured
-        else Path.home() / ".cache/isaaclab/fabrics-sim/rizon4s-sharpa/sha256" / ASSET_BUNDLE_SHA256
-    )
-    if root.suffix.lower() in (".usd", ".usda", ".usdc"):
-        root = root.parent
-    path = root / ASSET_USD_NAME
-    if verify:
-        _verify_asset_bundle(root.resolve())
-    return path
-
-
 def get_robot_cfg(*, contact_grasp: bool = False) -> ArticulationCfg:
     """Return the 29-joint robot at a tabletop-height base with a curled hand."""
     from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonArticulationCfg
@@ -113,7 +98,7 @@ def get_robot_cfg(*, contact_grasp: bool = False) -> ArticulationCfg:
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=str(_prepared_robot_path(configured_asset_path())),
+            usd_path=f"{ROBOT_ASSET_DIR}/{ASSET_USD_NAME}",
             articulation_props=NewtonArticulationCfg(self_collision_enabled=False),
             joint_drive_props={"/Physics/.*": [MujocoJointCfg(actuatorgravcomp=True)]},
             activate_contact_sensors=False,
@@ -158,67 +143,3 @@ def get_robot_cfg(*, contact_grasp: bool = False) -> ArticulationCfg:
         },
         soft_joint_pos_limit_factor=0.95,
     )
-
-
-@lru_cache(maxsize=4)
-def _prepared_robot_path(source: Path) -> Path:
-    """Reference the licensed robot, omitting malformed visual corner normals.
-
-    Two meshes in the pinned bundle have face-varying normal arrays that do not
-    match their corner counts. Newton's USD reader rejects them. Blocking only
-    those normals lets the importer recompute them from the original geometry;
-    topology, UVs, materials, collisions and the source bundle remain unchanged.
-    """
-    from pxr import Usd, UsdGeom
-
-    location = hashlib.sha256(str(source.resolve()).encode()).hexdigest()[:12]
-    directory = Path.home() / ".cache/isaaclab/rizon-sharpa-coffee/robot-normals-v1" / ASSET_BUNDLE_SHA256
-    destination = directory / f"{location}.usda"
-    if destination.is_file():
-        return destination
-    original = Usd.Stage.Open(str(source))
-    directory.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=directory) as temporary:
-        prepared = Path(temporary) / "robot.usda"
-        stage = Usd.Stage.CreateNew(str(prepared))
-        stage.GetRootLayer().subLayerPaths = [str(source.resolve())]
-        stage.SetDefaultPrim(stage.GetPrimAtPath(original.GetDefaultPrim().GetPath()))
-        for prim in original.Traverse():
-            if not prim.IsA(UsdGeom.Mesh):
-                continue
-            mesh = UsdGeom.Mesh(prim)
-            normals = mesh.GetNormalsAttr().Get()
-            if (
-                normals is not None
-                and mesh.GetNormalsInterpolation() == UsdGeom.Tokens.faceVarying
-                and len(normals) != len(mesh.GetFaceVertexIndicesAttr().Get())
-            ):
-                UsdGeom.Mesh(stage.OverridePrim(prim.GetPath())).GetNormalsAttr().Block()
-        stage.GetRootLayer().Save()
-        prepared.replace(destination)
-    return destination
-
-
-@lru_cache(maxsize=4)
-def _verify_asset_bundle(root: Path) -> None:
-    """Check the exact bundle used by the cable task without copying licensed assets."""
-    texture_names = [
-        "t_Rizon4s_EmissiveMask.1001.png",
-        "t_Rizon4s_EmissiveMask.1002.png",
-        *[f"t_Rizon4s_{channel}.{tile}.png" for channel in ("alb", "nor", "orm") for tile in (1001, 1002, 1003)],
-        "t_Sharpa_alb.png",
-        "t_Sharpa_nor.png",
-        "t_Sharpa_orm.png",
-    ]
-    digest = hashlib.sha256()
-    for relative_path in [ASSET_USD_NAME, *[f"textures/{name}" for name in texture_names]]:
-        path = root / relative_path
-        if not path.is_file():
-            raise FileNotFoundError(
-                f"Missing Rizon/Sharpa asset: {path}. Set {ASSET_ROOT_ENV} to the existing RJ45 USD bundle."
-            )
-        with path.open("rb") as stream:
-            file_digest = hashlib.file_digest(stream, "sha256").hexdigest()
-        digest.update(f"{file_digest}  {relative_path}\n".encode())
-    if digest.hexdigest() != ASSET_BUNDLE_SHA256:
-        raise ValueError(f"Rizon/Sharpa asset bundle at {root} differs from the pinned RJ45 asset.")

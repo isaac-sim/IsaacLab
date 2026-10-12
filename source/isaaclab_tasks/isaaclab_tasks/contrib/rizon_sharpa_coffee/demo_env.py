@@ -20,18 +20,10 @@ from isaaclab.envs import ManagerBasedEnv
 from isaaclab.utils import math as math_utils
 
 from .assets import (
-    BOWL_CAVITY_OFFSET,
-    BOWL_HEIGHT,
-    BOWL_INNER_RADIUS,
-    BOWL_POSITION,
-    BOWL_SCALE,
     CUP_BOTTOM_THICKNESS,
     CUP_HEIGHT,
     CUP_INNER_RADIUS,
     CUP_POSITION,
-    SPOON_BOWL_DEPTH,
-    SPOON_BOWL_LENGTH,
-    SPOON_BOWL_WIDTH,
 )
 from .attachment import MountedSpoonAttachment
 from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
@@ -65,16 +57,7 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         self._palm_id = robot.find_bodies(PALM_BODY_NAME)[0][0]
         self._tool_position = torch.tensor(self.cfg.spoon_offset_pos, device=self.device).expand(self.num_envs, -1)
         self._tool_quaternion = torch.tensor(self.cfg.spoon_offset_rot, device=self.device).expand(self.num_envs, -1)
-        self._bowl_position = torch.tensor(
-            tuple(position + offset for position, offset in zip(BOWL_POSITION, BOWL_CAVITY_OFFSET)), device=self.device
-        )
-        self._bowl_inner_radii = torch.tensor(
-            (BOWL_INNER_RADIUS * BOWL_SCALE[0], BOWL_INNER_RADIUS * BOWL_SCALE[1]), device=self.device
-        )
         self._cup_position = torch.tensor(CUP_POSITION, device=self.device)
-        self._source_top = max(BOWL_HEIGHT + 0.002, self.cfg.coffee_fill_height + 0.010)
-        self._fraction_cache = None
-        self._fraction_step = -1
         self.sync_spoon()
         if self.cfg.grasp_mode == "mounted":
             self._attachment = MountedSpoonAttachment(
@@ -171,42 +154,16 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         spoon.write_root_link_pose_to_sim_index(root_pose=torch.cat((pos, quat), dim=-1), env_ids=env_ids)
         spoon.write_root_link_velocity_to_sim_index(root_velocity=velocity, env_ids=env_ids)
 
-    def particle_fractions(self) -> torch.Tensor:
-        """Measure source, carried, delivered and spilled coffee once per step."""
-        if self._fraction_step == self._sim_step_counter and self._fraction_cache is not None:
-            return self._fraction_cache
+    def delivered_fraction(self) -> torch.Tensor:
+        """Return the fraction of coffee inside each cup, shape (N,)."""
         points = self.scene["coffee"].data.particle_pos_w.torch - self.scene.env_origins[:, None, :]
-        spoon = self.scene["spoon"].data.root_link_pose_w.torch
-        local = math_utils.quat_apply_inverse(
-            spoon[:, None, 3:].expand(-1, points.shape[1], -1),
-            points + self.scene.env_origins[:, None, :] - spoon[:, None, :3],
+        local = points - self._cup_position
+        inside = (
+            (local[..., :2].norm(dim=-1) < CUP_INNER_RADIUS - self._margin)
+            & (local[..., 2] > CUP_BOTTOM_THICKNESS)
+            & (local[..., 2] < CUP_HEIGHT - self._margin)
         )
-        elliptical_radius = (local[..., 0] / (SPOON_BOWL_LENGTH / 2.0)).square() + (
-            local[..., 1] / (SPOON_BOWL_WIDTH / 2.0)
-        ).square()
-        carried = (
-            (elliptical_radius < 1.0)
-            & (local[..., 2] > SPOON_BOWL_DEPTH * elliptical_radius - 0.001)
-            & (local[..., 2] < SPOON_BOWL_DEPTH + 0.004)
-        )
-        source_local = points - self._bowl_position
-        source = (
-            ((source_local[..., :2] / self._bowl_inner_radii).square().sum(dim=-1) < 1.0)
-            & (source_local[..., 2] > 0.002)
-            & (source_local[..., 2] < self._source_top)
-            & ~carried
-        )
-        cup_local = points - self._cup_position
-        delivered = (
-            (cup_local[..., :2].norm(dim=-1) < CUP_INNER_RADIUS - self._margin)
-            & (cup_local[..., 2] > CUP_BOTTOM_THICKNESS)
-            & (cup_local[..., 2] < CUP_HEIGHT - self._margin)
-            & ~carried
-        )
-        spilled = ~source & ~carried & ~delivered & (points[..., 2] < 0.005)
-        self._fraction_cache = torch.stack((source, carried, delivered, spilled), dim=-1).float().mean(dim=1)
-        self._fraction_step = self._sim_step_counter
-        return self._fraction_cache
+        return inside.float().mean(dim=1)
 
     def reset_scene(self, env_ids: torch.Tensor | slice) -> None:
         """Reset selected robot and tool state, particle history and appearance."""
@@ -227,8 +184,6 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         NewtonMPMManager.reset_solver_state(
             world_mask=wp.from_torch(mask, dtype=wp.bool), flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE
         )
-        self._fraction_cache = None
-        self._fraction_step = -1
         if self.presentation is not None:
             self.presentation.reset(env_ids)
 

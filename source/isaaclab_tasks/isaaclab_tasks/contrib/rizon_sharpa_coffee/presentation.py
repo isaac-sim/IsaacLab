@@ -128,8 +128,8 @@ def _add_coffee_studio_lights(stage, parent: str) -> None:
 class CoffeePresentation:
     """Render one demonstration scene with native grains and a reconstructed liquid.
 
-    Call :meth:`update` once after each environment step, :meth:`reset` after
-    particle resets, and :meth:`close` before the environment closes. The physics
+    Visualizers call :meth:`update` before publishing geometry. Call :meth:`reset`
+    after particle resets and :meth:`close` before the environment closes. The physics
     solver owns grain advection, including intermediate steps and CUDA capture.
     Physics owns coffee-to-liquid conversion even without presentation. Converted
     coffee joins the reconstructed liquid and stops displaying as grains. Its
@@ -207,6 +207,7 @@ class CoffeePresentation:
         self._mixing_radius = 2.0 * voxel_size
         self._diffusion_rate = diffusion_rate
         self._tint_elapsed = 0.0
+        self._appearance_time = None
         self._gl_face_colors = None
         self._vertex_colors = None
         self._gl_points = None
@@ -263,17 +264,16 @@ class CoffeePresentation:
             visualizer.presentation = self
         for visualizer in self._kit_visualizers:
             visualizer.prepare_presentation()
-        self.update(0.0)
+        self.update()
 
-    @property
-    def tracer_mass_kg(self) -> float:
-        """Actual colour-tracer mass [kg] on the liquid carriers; host synchronized."""
-        return 0.0 if self._water is None else float(self._dye_mass.numpy().sum(dtype=np.float64))
-
-    def update(self, dt: float) -> None:
-        """Update appearance after advancing the environment by ``dt`` [s]."""
-        if dt > 0.0:
-            self._surface_cache = None
+    def update(self) -> None:
+        """Prepare appearance once per simulation state before native rendering."""
+        now = self._env.sim.physics_manager.get_simulation_time()
+        if now == self._appearance_time:
+            return
+        dt = 0.0 if self._appearance_time is None else max(now - self._appearance_time, 0.0)
+        self._appearance_time = now
+        self._surface_cache = None
         state = NewtonManager.get_state_0()
         if self._water is not None:
             wp.launch(
@@ -351,7 +351,7 @@ class CoffeePresentation:
 
     def draw(self, viewer) -> None:
         """Publish geometry while a Newton viewer frame is active."""
-        self.update(0.0)
+        self.update()
         # Dry demos retain the positions-only RTX update. Wet demos publish
         # radii too so physically converted coffee stops rendering as grains.
         static_rtx = isinstance(viewer, ViewerRTX)
@@ -411,7 +411,7 @@ class CoffeePresentation:
 
     def draw_kit(self, visualizer) -> None:
         """Publish the same grains and local liquid colours to Kit's USD stage."""
-        self.update(0.0)
+        self.update()
         visualizer.update_coffee(self._points, self._radii, self._colors, dynamic_radii=self._water is not None)
         if self._surface is not None:
             points, indices, normals, colors, fraction = self._water_surface_arrays()
@@ -532,12 +532,13 @@ class CoffeePresentation:
             return
         self._rtx_static_grain_views.clear()
         self._tint_elapsed = 0.0
+        self._appearance_time = None
         self._clear_surface_cache()
         if self._water is not None:
             self._dye_mass.zero_()
             self._next_dye_mass.zero_()
             self._color_released.zero_()
-        self.update(0.0)
+        self.update()
 
     def close(self) -> None:
         """Detach presentation from viewers before environment teardown."""

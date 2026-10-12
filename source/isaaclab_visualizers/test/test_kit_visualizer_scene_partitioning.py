@@ -8,38 +8,15 @@
 from unittest.mock import MagicMock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
-import numpy as np
 import pytest
 import torch
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
+from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-
-
-def test_headless_camera_moves_over_viewport_session_transforms():
-    """Recorded cameras must move even when Kit supplies stronger default camera transforms."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-    with Usd.EditContext(stage, stage.GetSessionLayer()):
-        camera = UsdGeom.Camera.Define(stage, "/OmniverseKit_Persp")
-        transform = UsdGeom.XformCommonAPI(camera)
-        transform.SetTranslate(Gf.Vec3d(500.0, 500.0, 500.0))
-        transform.SetRotate(Gf.Vec3f(15.0, 0.0, 0.0))
-    visualizer = KitVisualizer(KitVisualizerCfg(headless=True))
-    visualizer._sim = MagicMock(stage=stage)
-    visualizer._is_initialized = True
-    target = np.array((0.4, 0.1, 0.05))
-    for eye in ((1.0, -0.6, 0.5), (0.9, -0.3, 0.9)):
-        visualizer.set_camera_view(eye, target)
-        world = camera.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        np.testing.assert_allclose(world.ExtractTranslation(), eye, atol=1.0e-6)
-        expected_forward = target - eye
-        expected_forward /= np.linalg.norm(expected_forward)
-        np.testing.assert_allclose(world.TransformDir(Gf.Vec3d(0.0, 0.0, -1.0)), expected_forward, atol=1.0e-6)
 
 
 @pytest.mark.parametrize("headless", [False, True])

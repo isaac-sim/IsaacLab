@@ -12,13 +12,9 @@ Use ``--visualizer none --headless`` for a physics-only rollout.
 from __future__ import annotations
 
 import argparse
-import json
 import math
 import os
-import shutil
-import subprocess
 from contextlib import ExitStack
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +27,7 @@ wp.config.enable_backward = False
 
 
 def main() -> None:
-    args, parser, ffmpeg = _parse_args()
+    args, parser = _parse_args()
     video_stride = args.control_hz // args.video_fps
     cfg, visualizers = _make_env_cfg(args, parser, video_stride)
     if args.headless:
@@ -79,8 +75,6 @@ def main() -> None:
             device.reset()
             device.request_start()
             teleop_controller = CoffeeTeleopController(env)
-        recording = stack.enter_context(_DemoRecording(env, args, ffmpeg, video_stride))
-        presentation_elapsed = 0.0
         step = 0
         with torch.inference_mode():
             while step < args.max_steps:
@@ -95,8 +89,6 @@ def main() -> None:
                         teleop_controller.reset()
                     if camera is not None:
                         camera.reset()
-                    recording.previous_phase = None
-                    presentation_elapsed = 0.0
                 if device is not None:
                     action = device.advance()
                     events = poll_control_events(device)
@@ -106,8 +98,6 @@ def main() -> None:
                         teleop_controller.reset()
                         if camera is not None:
                             camera.reset()
-                        recording.previous_phase = None
-                        presentation_elapsed = 0.0
                     if action is None or events.is_active is False:
                         env.sim.render()
                         continue
@@ -123,20 +113,9 @@ def main() -> None:
                 env.step(action)
                 if not env.is_state_finite().all():
                     raise RuntimeError("Coffee rollout produced nonfinite robot or material positions.")
-                phase = str(controller.phase) if controller is not None else "teleoperation"
-                presentation_elapsed += env.step_dt
-                # Surface reconstruction is only needed for frames that are recorded.
-                if env.presentation is not None and (
-                    not args.video or step % video_stride == 0 or phase != recording.previous_phase
-                ):
-                    env.presentation.update(presentation_elapsed)
-                    presentation_elapsed = 0.0
-                recording.update(step, phase)
                 if controller is not None and controller.finished:
-                    if env.particle_fractions()[0, 2] < cfg.min_delivered_fraction:
+                    if env.delivered_fraction()[0] < cfg.min_delivered_fraction:
                         raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
-                    recording.close()
-                    # Capture the complete sequence; desktop Reset can replay it independently.
                     if not args.keep_open:
                         break
                     print("Scoop sequence complete. Use the viewer Reset control to run it again.", flush=True)
@@ -144,11 +123,7 @@ def main() -> None:
                         break
                     if camera is not None:
                         camera.reset()
-                    recording.previous_phase = None
-                    presentation_elapsed = 0.0
                 step += 1
-        recording.close()
-        print("Final coffee fractions [bowl, spoon, cup, spill]:", env.particle_fractions()[0].tolist(), flush=True)
         if args.keep_open:
             while env.sim.is_running():
                 env.sim.render()
@@ -230,10 +205,6 @@ def _parse_args():
     parser.add_argument("--backdrop", choices=("kitchen", "studio"), default="kitchen", help="Kit render backdrop.")
     parser.add_argument("--video", action="store_true", help="Record an MP4 at 1x simulation speed.")
     parser.add_argument("--video_fps", type=int, choices=(25, 30, 50, 60, 100), default=None)
-    parser.add_argument("--video_crf", type=int, default=14, help="H.264 quality from 0 to 51; lower is better.")
-    parser.add_argument(
-        "--video_render_scale", type=int, choices=(1, 2), default=1, help="Render scale before downsampling the MP4."
-    )
     parser.add_argument("--output_dir", type=Path, default=None)
     parser.add_argument("--disable_cuda_graph", action="store_true")
     parser.add_argument("--headless", action="store_true")
@@ -279,8 +250,6 @@ def _parse_args():
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
         parser.error("--render_samples must be positive.")
-    if not 0 <= args.video_crf <= 51:
-        parser.error("--video_crf must be between 0 and 51.")
     if not math.isfinite(args.surface_smoothing_time) or args.surface_smoothing_time < 0:
         parser.error("--surface_smoothing_time must be finite and nonnegative.")
     if args.mpm_substeps is not None and args.mpm_substeps < 1:
@@ -291,12 +260,7 @@ def _parse_args():
         not math.isfinite(args.spoon_proxy_mass_scale) or args.spoon_proxy_mass_scale <= 0.0
     ):
         parser.error("--spoon_proxy_mass_scale must be finite and positive.")
-    if args.video and args.output_dir is None:
-        args.output_dir = Path("logs/coffee_video") / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    ffmpeg = _find_encoder(args.output_dir)
-    if args.video and ffmpeg is None:
-        parser.error("--video requires FFmpeg; install the video extra or a system FFmpeg encoder.")
-    return args, parser, ffmpeg
+    return args, parser
 
 
 def _make_env_cfg(args, parser, video_stride):
@@ -334,18 +298,25 @@ def _make_env_cfg(args, parser, video_stride):
     if args.mpm_substeps is not None:
         cfg.sim.physics.solver_cfg.entries[1].substeps = args.mpm_substeps
     if args.video:
-        # Render at the recording cadence, independently of the physics tick rate.
+        from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
         cfg.sim.render_interval = video_stride * cfg.decimation
+        cfg.video_recorders = [
+            VideoRecorderCfg(
+                source="viz",
+                output_dir=str(args.output_dir or "logs/coffee_video"),
+                output_filename_prefix="coffee",
+                video_length=args.max_steps,
+                frame_stride=video_stride,
+                fps=args.video_fps,
+            )
+        ]
     visualizers = _make_visualizers(args, parser)
     cfg.sim.visualizer_cfgs = visualizers
     if args.keep_open and not visualizers:
         parser.error("--keep_open requires a desktop visualizer.")
     if args.video and not visualizers:
         parser.error("--video requires a GL, RTX or Kit visualizer; --headless recording is supported.")
-    if (args.video or args.output_dir is not None) and any(
-        visualizer.visualizer_type == "kit" for visualizer in visualizers
-    ):
-        args.enable_cameras = True
     cfg.sim.physics.load_visual_shapes = bool(visualizers)
     cfg.grains_per_particle = args.grains_per_particle if visualizers else 0
     return cfg, visualizers
@@ -364,8 +335,8 @@ def _make_visualizers(args, parser):
         headless=args.headless,
         window=WindowCfg(
             size=(
-                args.width * (args.video_render_scale if args.video else 1),
-                args.height * (args.video_render_scale if args.video else 1),
+                args.width,
+                args.height,
             )
         ),
         eye=(0.95, -0.65, 0.66),
@@ -430,18 +401,6 @@ def _make_visualizers(args, parser):
     return visualizers
 
 
-def _find_encoder(output):
-    ffmpeg = shutil.which("ffmpeg")
-    if output is not None and ffmpeg is None:
-        try:
-            from imageio_ffmpeg import get_ffmpeg_exe
-
-            ffmpeg = get_ffmpeg_exe()
-        except ImportError:
-            print("Video encoding needs the video extra; saving PNG captures and metrics.", flush=True)
-    return ffmpeg
-
-
 def _wait_for_reset(env, controller) -> bool:
     """Keep the finished scene visible and rearm its controller on desktop Reset."""
     while env.sim.is_running():
@@ -451,17 +410,6 @@ def _wait_for_reset(env, controller) -> bool:
             controller.reset()
             return True
     return False
-
-
-def _close_video(video: subprocess.Popen) -> None:
-    if not video.stdin.closed:
-        video.stdin.close()
-    if video.wait() != 0:
-        raise RuntimeError("ffmpeg failed while encoding the coffee demo.")
-
-
-def _write_metrics(output: Path, metrics: list) -> None:
-    (output / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
 
 
 class _SpoonCamera:
@@ -533,142 +481,6 @@ class _SpoonCamera:
         )
         for visualizer in self._visualizers:
             visualizer.set_camera_view(self._eye, self._target)
-
-
-class _DemoRecording(ExitStack):
-    """Own streamed video, snapshots and rollout logs, including partial failures."""
-
-    def __init__(self, env, args, ffmpeg: str | None, stride: int):
-        super().__init__()
-        self._env = env
-        self._output = args.output_dir
-        self._ffmpeg = ffmpeg
-        self._crf = args.video_crf
-        self._stride = stride
-        self._size = tuple((size + 1) // 2 * 2 for size in (args.width, args.height))
-        self._fps = 1.0 / (stride * env.step_dt)
-        self._video = None
-        self._metrics = []
-        self.previous_phase = None
-        cfg = env.cfg
-        self._coffee_mass_g = len(cfg.scene.coffee.spawn.positions) * cfg.scene.coffee.spawn.mass * 1000.0
-        if self._output is not None:
-            self._output.mkdir(parents=True, exist_ok=True)
-            metadata = dict(
-                schema_version=3,
-                demo="rizon-sharpa-coffee",
-                arguments=vars(args),
-                simulation=cfg.sim.to_dict(),
-                seed=cfg.seed,
-                voxel_size_m=cfg.voxel_size,
-                spoon_margin_m=cfg.voxel_size * cfg.spoon_margin_voxels,
-                spoon_rim_margin_m=cfg.voxel_size * cfg.spoon_margin_voxels * cfg.spoon_rim_margin_scale,
-                coffee_fill_height_m=cfg.coffee_fill_height,
-                coffee_particles=len(cfg.scene.coffee.spawn.positions),
-                coffee_mass_g=self._coffee_mass_g,
-                water_particles=len(cfg.scene.water.spawn.positions) if cfg.water_enabled else 0,
-                water_fill_height_m=cfg.water_fill_height if cfg.water_enabled else None,
-                control_dt_s=env.step_dt,
-                command_dim=env.action_manager.total_action_dim,
-                video_fps=self._fps,
-                video_stride_steps=stride,
-                video_timebase="simulation",
-            )
-            (self._output / "run.json").write_text(json.dumps(metadata, indent=2, default=str) + "\n")
-            self._poses = self.enter_context((self._output / "spoon_poses.jsonl").open("w", buffering=1))
-            self.callback(_write_metrics, self._output, self._metrics)
-
-    def __exit__(self, *exc_info):
-        """Flush captures once; a desktop replay can continue without overwriting them."""
-        try:
-            return super().__exit__(*exc_info)
-        finally:
-            self._output = None
-            self._video = None
-
-    def update(self, step: int, phase: str) -> None:
-        """Log measured progress and capture only at the recording cadence."""
-        env, output = self._env, self._output
-        new_phase = phase != self.previous_phase
-        if output is not None and step % 5 == 0:
-            pose = env.scene["spoon"].data.root_link_pose_w.torch.tolist()
-            self._poses.write(json.dumps(dict(step=step, phase=phase, pose=pose)) + "\n")
-        if step % 100 == 0 or new_phase:
-            fractions = env.particle_fractions()[0].tolist()
-            row = dict(
-                step=step,
-                time=(step + 1) * env.step_dt,
-                phase=phase,
-                source=fractions[0],
-                spoon=fractions[1],
-                cup=fractions[2],
-                spill=fractions[3],
-                carried_g=fractions[1] * self._coffee_mass_g,
-                delivered_g=fractions[2] * self._coffee_mass_g,
-            )
-            if env.cfg.water_enabled:
-                row["dissolved_coffee_g"] = 1000.0 * env.dissolution.converted_mass_kg
-                if env.presentation is not None:
-                    row["visual_tracer_g"] = 1000.0 * env.presentation.tracer_mass_kg
-            if output is not None:
-                self._metrics.append(row)
-            print(json.dumps(row), flush=True)
-        if output is not None and env.sim.visualizers and (step % self._stride == 0 or new_phase):
-            self._capture_frame(step, phase, new_phase)
-        self.previous_phase = phase
-
-    def _capture_frame(self, step: int, phase: str, new_phase: bool) -> None:
-        from PIL import Image
-
-        frame = self._env.sim.visualizers[0].render_rgb_array()
-        if frame is None:
-            return
-        image = Image.fromarray(frame[..., :3])
-        encode_frame = step % self._stride == 0
-        if self._video is None and self._ffmpeg is not None and encode_frame:
-            self._video = subprocess.Popen(
-                [
-                    self._ffmpeg,
-                    "-loglevel",
-                    "error",
-                    "-y",
-                    "-f",
-                    "rawvideo",
-                    "-pix_fmt",
-                    "rgb24",
-                    "-s",
-                    f"{self._size[0]}x{self._size[1]}",
-                    "-r",
-                    str(self._fps),
-                    "-i",
-                    "-",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "slow",
-                    "-tune",
-                    "grain",
-                    "-crf",
-                    str(self._crf),
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    str(self._output / "coffee.mp4"),
-                ],
-                stdin=subprocess.PIPE,
-            )
-            self.callback(_close_video, self._video)
-        if self._video is not None and encode_frame:
-            # Desktop resizing must not change the raw stream's declared dimensions.
-            video_frame = image if image.size == self._size else image.resize(self._size, Image.Resampling.LANCZOS)
-            self._video.stdin.write(video_frame.tobytes())
-        if new_phase:
-            image.save(self._output / f"{step:04d}_{phase}.png")
-        if new_phase or step % 100 == 0:
-            preview = self._output / "latest.tmp.png"
-            image.save(preview)
-            preview.replace(self._output / "latest.png")
 
 
 if __name__ == "__main__":
