@@ -8,11 +8,15 @@
 import warnings
 from types import SimpleNamespace
 
+import numpy as np
 import pytest
 import warp as wp
 
 pytest.importorskip("isaaclab_physx")
 
+import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
@@ -33,16 +37,10 @@ _SPAWN = PinholeCameraCfg(
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_newton_hdr_background_preserves_unlit_geometry(background, device):
     """HDR misses use linear background color while unlit geometry remains black, including graph replay."""
-    import numpy as np
-
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 
     sim_cfg = sim_utils.SimulationCfg(
         device=device, gravity=(0.0, 0.0, 0.0), physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
