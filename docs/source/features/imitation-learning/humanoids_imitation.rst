@@ -625,64 +625,69 @@ Finetune GR00T N1.5 policy for locomanipulation
 **Prerequisites:** Generate the locomanipulation dataset using the command in the previous section (e.g. ``generated_dataset_g1_locomanipulation_sdg.hdf5``).
 The conversion step accepts a directory of SDG HDF5 files, so you may group multiple ``generate_data.py`` outputs together — but the directory must contain **only** SDG outputs, not other HDF5 files from earlier steps (e.g. ``dataset_annotated_g1_locomanip.hdf5`` or ``generated_dataset_g1_locomanip.hdf5``).
 
-Install GR00T with Isaac Lab (uv)
-"""""""""""""""""""""""""""""""""
+Install GR00T in a separate environment (uv)
+""""""""""""""""""""""""""""""""""""""""""""
 
-Clone the Isaac-GR00T repository and install GR00T N1.5 in the same uv environment used for Isaac Lab. From a parent directory that contains both repositories (or adjust paths accordingly), run:
+GR00T N1.5 and Isaac Lab require incompatible NumPy and Transformers versions. Keep the
+simulator in the Isaac Lab environment and run conversion, training, and policy serving in
+a separate GR00T environment. Rollout communicates with the policy server over localhost.
 
-.. code:: bash
-
-   git clone -b n1.5-release https://github.com/NVIDIA/Isaac-GR00T
-
-Copy the G1 locomanipulation data config from Isaac Lab into the GR00T experiment data config:
-
-.. code:: bash
-
-   cp IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/data_config.py Isaac-GR00T/gr00t/experiment/data_config.py
-
-Then, from the **Isaac-GR00T** directory, install GR00T N1.5 and its dependencies:
+Start from the **IsaacLab repository root**. The following commands create a sibling GR00T
+checkout and save absolute paths for the later steps. Keep these variables in the shell,
+or set them again when opening a new terminal:
 
 .. code:: bash
 
-   cd Isaac-GR00T
-   uv pip install -e .
-   uv pip install wheel
-   MAX_JOBS=4 uv pip install --no-build-isolation flash-attn==2.7.1.post4
-   PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
-       'git+https://github.com/facebookresearch/pytorch3d.git@v0.7.9'
-   uv pip install diffusers decord2 zmq
-   uv pip install 'numpy>=1.23.5,<2.0.0' pyarrow==14.0.1 numpydantic==1.6.7 pydantic==2.10.6
+   export ISAACLAB_ROOT="$(pwd)"
+   export GR00T_ROOT="$(dirname "$ISAACLAB_ROOT")/Isaac-GR00T"
+   export GR00T_PYTHON="$GR00T_ROOT/.venv/bin/python"
+   export GR00T_SCRIPTS="$ISAACLAB_ROOT/scripts/imitation_learning/locomanipulation_sdg/gr00t"
+   git clone https://github.com/NVIDIA/Isaac-GR00T "$GR00T_ROOT"
+   git -C "$GR00T_ROOT" checkout 4af2b622892f7dcb5aae5a3fb70bcb02dc217b96
+
+This revision is the N1.5 version used by this workflow. Copy the G1 configuration and apply
+the supplied PyTorch SDPA patch once to this fresh checkout:
+
+.. code:: bash
+
+   cp "$GR00T_SCRIPTS/data_config.py" "$GR00T_ROOT/gr00t/experiment/data_config.py"
+   git -C "$GR00T_ROOT" apply "$GR00T_SCRIPTS/no_flash_attn.patch"
+
+Create the separate Python 3.12 environment. The commands below use the CUDA 12.8 PyTorch
+wheels on Linux x86_64. Other platforms require matching PyTorch and Torchvision builds
+for their hardware. The SDPA patch avoids a separate flash-attn build.
+
+.. code:: bash
+
+   uv venv --no-config --python 3.12 "$GR00T_ROOT/.venv"
+   uv pip install --no-config --python "$GR00T_PYTHON" \
+       --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1 torchvision==0.22.1
+   uv pip install --no-config --python "$GR00T_PYTHON" \
+       -r "$GR00T_SCRIPTS/requirements.txt" -e "$GR00T_ROOT"
+   PYTORCH3D_NO_EXTENSION=1 uv pip install --no-config --python "$GR00T_PYTHON" \
+       --no-build-isolation -c "$GR00T_SCRIPTS/requirements.txt" \
+       'git+https://github.com/facebookresearch/pytorch3d.git@33824be3cbc87a7dd1db0f6a9a9de9ac81b2d0ba'
+   uv pip check --no-config --python "$GR00T_PYTHON"
 
 The ``decord2`` distribution retains the ``decord`` Python import used by GR00T and provides
 pre-built wheels for both x86_64 and aarch64 systems, including DGX Spark.
 
 .. important::
 
-   GR00T N1.5 requires the NumPy and Pydantic versions installed above. When running the
-   commands below from the Isaac Lab checkout, use ``uv run --no-sync`` as shown. A regular
-   ``uv run`` synchronizes the Isaac Lab workspace and can replace GR00T's versions, causing
-   ``AttributeError: _ARRAY_API not found`` from PyArrow or ``InvalidSchemaError`` from
-   Numpydantic.
+   Every GR00T install command specifies both ``--no-config`` and ``--python``. This prevents
+   Isaac Lab's NumPy override from replacing GR00T's pin even when installing from the
+   Isaac Lab checkout, and avoids modifying the simulator environment. The requirements
+   also pin Diffusers and Hugging Face Hub together to preserve Transformers compatibility.
+   Use the same requirements as constraints when adding packages to this environment.
+
+   Run GR00T commands with ``uv run --no-project --python "$GR00T_PYTHON"`` as shown below.
+   ``--no-sync`` alone does not select the GR00T interpreter or bypass install-time overrides.
+   If an earlier shared installation changed Isaac Lab's dependencies, restore that
+   environment with ``uv sync --extra isaacsim --extra mimic`` before rollout.
 
 The compiled PyTorch3D extension is intentionally disabled here because GR00T N1.5 uses only
 ``pytorch3d.transforms``. This avoids compiling unused CUDA renderers and supports systems where
 the extension cannot be linked, including aarch64 Blackwell systems.
-
-.. note::
-
-   **If you cannot install or use flash-attn**, an optional patch is provided that switches the
-   bundled Eagle 2.5 VL model to PyTorch SDPA. Use this if ``flash-attn`` fails to build for your
-   environment, or if it installs but raises a runtime error such as
-   ``RuntimeError: FlashAttention only supports Ampere GPUs or newer`` (for example on Blackwell
-   GPUs, which ``flash-attn==2.7.1.post4`` does not have prebuilt kernels for). After the patch,
-   finetune and rollout run on any CUDA arch supported by your PyTorch build, at the cost of
-   flash-attn's training speedup. Skip the ``flash-attn`` install line above, then apply the
-   patch from the **Isaac-GR00T** directory (the sibling layout above means the IsaacLab
-   checkout is at ``../IsaacLab``):
-
-   .. code:: bash
-
-      git apply ../IsaacLab/scripts/imitation_learning/locomanipulation_sdg/gr00t/no_flash_attn.patch
 
 Convert dataset to LeRobot format
 """""""""""""""""""""""""""""""""
@@ -691,7 +696,8 @@ GR00T N1.5 expects data in LeRobot format. From the **IsaacLab** repository root
 
 .. code:: bash
 
-   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py <input_dir> <output_path>
+   uv run --no-project --python "$GR00T_PYTHON" \
+       "$GR00T_SCRIPTS/convert_dataset.py" <input_dir> <output_path>
 
 Example — move the SDG output into its own directory first so the converter only sees SDG files:
 
@@ -699,7 +705,8 @@ Example — move the SDG output into its own directory first so the converter on
 
    mkdir -p ./datasets/locomanip_sdg
    mv ./datasets/generated_dataset_g1_locomanipulation_sdg.hdf5 ./datasets/locomanip_sdg/
-   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/convert_dataset.py ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
+   uv run --no-project --python "$GR00T_PYTHON" \
+       "$GR00T_SCRIPTS/convert_dataset.py" ./datasets/locomanip_sdg ./datasets/datasets_train_200_lerobot
 
 Finetune the policy
 """""""""""""""""""
@@ -708,8 +715,8 @@ Run finetuning from the **Isaac-GR00T** repository root. Use the LeRobot-format 
 
 .. code:: bash
 
-   cd Isaac-GR00T
-   python scripts/gr00t_finetune.py \
+   cd "$GR00T_ROOT"
+   uv run --no-project --python "$GR00T_PYTHON" scripts/gr00t_finetune.py \
        --dataset-path <path_to_lerobot_output> \
        --output-dir <checkpoint_dir> \
        --data-config g1_locomanipulation_sdg \
@@ -732,23 +739,35 @@ See the GR00T N1.5 repository documentation for additional training options.
 
    .. code:: bash
 
-      hf download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
+      uv run --no-project --python "$GR00T_PYTHON" hf download nvidia/g1_locomanip_finetune --local-dir ./checkpoints/g1_locomanip_finetune_hf
       unzip ./checkpoints/g1_locomanip_finetune_hf/*.zip -d ./checkpoints/
 
    The archive extracts to ``./checkpoints/g1_locomanip_finetune_20260129_231610/``.
    Use ``./checkpoints/g1_locomanip_finetune_20260129_231610/checkpoint-20000`` as the ``--model_path``
-   in the rollout command below. This checkpoint requires ``--policy_quat_format wxyz``.
+   in the server command below. This checkpoint requires ``--policy_quat_format wxyz`` on the rollout client.
 
 Rollout the policy in Isaac Lab
 """""""""""""""""""""""""""""""
 
-From the **IsaacLab** repository root, run the rollout script with the path to your finetuned checkpoint, the static manipulation dataset (used for scene/demo setup), and the task name:
+Start the policy server in the **GR00T environment**, supplying an absolute path to your
+finetuned checkpoint. Wait for ``Server is ready and listening`` before starting rollout:
 
 .. code:: bash
 
-   uv run --no-sync python scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
-       --model_path <checkpoint_dir_or_file> \
-       --embodiment_tag new_embodiment \
+   uv run --no-project --python "$GR00T_PYTHON" \
+       "$GR00T_SCRIPTS/serve_policy.py" \
+       --model_path <absolute_checkpoint_directory> --embodiment_tag new_embodiment
+
+In a **second terminal**, from the **IsaacLab repository root**, run the simulator with
+the static manipulation dataset (used for scene/demo setup) and the task name. The two
+``--with`` options supply only the lightweight messaging dependencies; the simulator does
+not import GR00T, Transformers, or GR00T's dataset schema through the policy client:
+
+.. code:: bash
+
+   uv run --extra isaacsim --extra mimic --with msgpack==1.2.3 --with pyzmq==27.2.0 \
+       python scripts/imitation_learning/locomanipulation_sdg/gr00t/rollout_policy.py \
+       --policy_host 127.0.0.1 \
        --dataset ./datasets/generated_dataset_g1_locomanip.hdf5 \
        --demo demo_0 \
        --output_file ./datasets/rollout_output.hdf5 \
@@ -757,6 +776,13 @@ From the **IsaacLab** repository root, run the rollout script with the path to y
        --visualizer kit
 
 Optional arguments include ``--randomize_placement`` and ``--policy_quat_format wxyz`` (use if your checkpoint was trained with wxyz quaternion format).
+Use ``--max_steps 32`` for a bounded smoke run. ``--policy_port`` defaults to 5555 and
+``--policy_timeout_ms`` defaults to 15000. A timeout raises an error instead of hanging
+the simulator. Stop the server with Ctrl-C when finished. It binds to localhost by default;
+its protocol is intended for a trusted local connection.
+
+The legacy ``--model_path`` rollout option remains available for custom compatible
+environments, but the standard Isaac Lab environment requires the server/client workflow.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation_sdg_disjoint_nav_groot_policy_4x.gif
    :width: 100%

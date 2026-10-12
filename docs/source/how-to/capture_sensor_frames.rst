@@ -10,7 +10,7 @@ Isaac Lab supports saving image-like outputs from scene sensors during training 
 Isaac Lab iterates over the environment's :class:`~isaaclab.scene.InteractiveScene` sensors and
 writes each sensor's ``data.output`` tensors (for example, ``rgb``, ``depth``, or ``normals`` from a
 :class:`~isaaclab.sensors.Camera`). The flag value is the number of parallel environment views to
-tile into each saved frame grid. This differs from :doc:`/source/features/record_video`, which records a single
+tile into each saved frame grid. This differs from :doc:`/source/how-to/record_video`, which records a single
 perspective viewport clip of the scene.
 
 The capture flags are registered on the shared training entrypoints for RSL-RL, RL-Games, Stable
@@ -98,7 +98,7 @@ steps, another capture window opens at episode steps ``2000-2099``, then ``4000-
 
 .. note::
 
-   This schedule uses a **per-episode** step counter. :doc:`/source/features/record_video` instead keys off the
+   This schedule uses a **per-episode** step counter. :doc:`/source/how-to/record_video` instead keys off the
    Gymnasium ``RecordVideo`` wrapper's **global** environment-step counter across episodes.
 
 
@@ -195,14 +195,14 @@ Choosing a capture method
      - This page (``--capture_env_sensors``)
      - PNG files or TensorBoard images
    * - Record or share a video
-     - :doc:`/source/features/record_video` (``VideoRecorderCfg``)
+     - :doc:`/source/how-to/record_video` (``VideoRecorderCfg``)
      - MP4 video
 
 
 See also
 --------
 
-* :doc:`/source/features/record_video` - record a perspective viewport clip with ``--video``
+* :doc:`/source/how-to/record_video` - record a perspective viewport clip with ``--video``
 * :doc:`/source/concepts/reinforcement_learning` - the shared ``train``/``play`` entrypoints
   that register the capture flags
 * :doc:`/source/concepts/visualization` - visualizers and rendering during training
