@@ -293,7 +293,8 @@ def create_scene_partition_attributes(
     # Create the attributes and set the default values.
     with Sdf.ChangeBlock():
         for attr_path, scene_partition in attr_updates:
-            Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
+            if root_layer.GetAttributeAtPath(attr_path) is None:
+                Sdf.JustCreatePrimAttributeInLayer(root_layer, attr_path, type_name, variability, is_custom)
             root_layer.GetAttributeAtPath(attr_path).default = scene_partition
             logger.debug("Set scene partition '%s' on '%s'", scene_partition, attr_path.GetPrimPath())
 

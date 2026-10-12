@@ -45,6 +45,7 @@ from leapp.utils.tensor_description import TensorSemantics
 
 from ...actuators import IdealPDActuator, ImplicitActuator
 from ...assets.articulation.base_articulation import BaseArticulation
+from ...envs.mdp.actions import EMAJointPositionToLimitsAction
 from ...managers import ManagerTermBase
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
@@ -65,6 +66,25 @@ logger = logging.getLogger(__name__)
 VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
 
 _GAIN_WRITE_METHODS = {"kp": "write_joint_stiffness_to_sim_index", "kd": "write_joint_damping_to_sim_index"}
+
+
+def _leapp_ema_process_actions(term, task_name: str, state_name: str):
+    """Capture the EMA target as feedback state while retaining the action's processing logic."""
+    original_process = term.process_actions
+
+    @wraps(original_process)
+    def wrapped(actions: torch.Tensor) -> None:
+        if not ExportManager.is_interpret_graph_enabled():
+            original_process(actions)
+            return
+
+        previous = annotate.state_tensors(task_name, {state_name: term._prev_applied_actions})
+        # Processing updates this buffer in place; preserve the registered input state.
+        term._prev_applied_actions = previous.clone()
+        original_process(actions)
+        term._prev_applied_actions = annotate.update_state(task_name, {state_name: term.processed_actions})
+
+    return wrapped
 
 
 def _gain_semantics(
@@ -424,6 +444,10 @@ class ExportPatcher:
         assert self.task_name is not None
         scene = action_manager._env.scene
         for term_name, term in action_manager._terms.items():
+            if isinstance(term, EMAJointPositionToLimitsAction):
+                term.process_actions = _leapp_ema_process_actions(
+                    term, self.task_name, f"{term_name}_previous_applied_actions"
+                )
             asset = getattr(term, "_asset", None)
             if isinstance(asset, BaseArticulation):
                 real_asset: BaseArticulation = asset
