@@ -140,7 +140,7 @@ _CUDA_SCENES = [
 
 
 @pytest.mark.parametrize(
-    ("device", "support_cloning", "filter_collisions"),
+    ("device", "scene_variant", "filter_collisions"),
     # CUDA replays native clones, so it covers every cloning path. CPU serializes the full stage, one path.
     [(device, "native", False) for device in _CPU]
     + [
@@ -155,10 +155,10 @@ _CUDA_SCENES = [
         )
     ],
 )
-def test_heterogeneous_clone_contacts_and_indexed_state(device, support_cloning, filter_collisions):
+def test_heterogeneous_clone_contacts_and_indexed_state(device, scene_variant, filter_collisions):
     """Variants contact their own support, and indexed writes reach the environment-ordered bodies.
 
-    Collision filtering is an independent scene setting, so it alternates across the cloning paths.
+    Scene variants cover cloning paths and compliant contacts; collision filtering varies independently.
     """
     from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
     from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
@@ -167,7 +167,7 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, support_cloning,
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
     ) as sim:
         cfg = HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=2.0, filter_collisions=filter_collisions)
-        compliant = support_cloning == "compliant"
+        compliant = scene_variant == "compliant"
         if compliant:
             material = PhysxRigidBodyMaterialCfg(
                 compliant_contact_stiffness=15700.0,
@@ -182,12 +182,12 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, support_cloning,
                     sleep_threshold=0.0, stabilization_threshold=0.0, solver_position_iteration_count=128
                 ),
             ]
-        if support_cloning not in ("native", "compliant"):
+        if scene_variant not in ("native", "compliant"):
             cfg.clone_cfg.clone_template = "/Scenes/World_{}"
             cfg.support.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-            if support_cloning == "usd_and_native":
+            if scene_variant == "usd_and_native":
                 cfg.support.cloning_contexts += ("isaaclab_ov.cloner:OvPhysxReplicateContext",)
-        if support_cloning == "usd_nested":
+        if scene_variant == "usd_nested":
             cfg.support.prim_path = "{ENV_REGEX_NS}/Assembly/Support"
             cfg.object.spawn.assets_cfg = cfg.object.spawn.assets_cfg[:1]
             spawn = sim_utils.SpawnerCfg(func=lambda path, cfg, **kwargs: sim.stage.DefinePrim(path, "Xform"))
