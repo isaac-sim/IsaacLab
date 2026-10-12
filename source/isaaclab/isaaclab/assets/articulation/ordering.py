@@ -51,8 +51,7 @@ class ArticulationOrderingConvention(str, Enum):
     """Built-in non-default public articulation name-ordering conventions.
 
     Attributes:
-        PHYSX: OVPhysX tensor-view order, shared by every backend.
-        ISAACSIM_PHYSX: Isaac Sim PhysX order for authored joint prims.
+        PHYSX: OVPhysX tensor-view order, resolved on every backend.
         MJWARP: Newton or MJWarp articulation-view order.
         ROBOT_SCHEMA: Authored target order of the ``isaac:physics:robotJoints``
             and ``isaac:physics:robotLinks`` relationships.
@@ -62,7 +61,6 @@ class ArticulationOrderingConvention(str, Enum):
     """
 
     PHYSX = "physx"
-    ISAACSIM_PHYSX = "isaacsim_physx"
     MJWARP = "mjwarp"
     ROBOT_SCHEMA = "robot_schema"
 
@@ -107,7 +105,7 @@ def parse_articulation_ordering_convention(
 ) -> ArticulationOrderingConvention | None:
     """Parse a symbolic public articulation ordering convention.
 
-    Accepted aliases are ``"physx"``, ``"isaacsim_physx"``, ``"mjwarp"``, and
+    Accepted aliases are ``"physx"``, ``"mjwarp"``, and
     ``"robot_schema"``. String aliases are matched case-insensitively.
     ``None`` keeps the active backend's default order and is not an enum member.
 

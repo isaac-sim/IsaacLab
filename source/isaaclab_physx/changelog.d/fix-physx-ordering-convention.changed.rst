@@ -1,5 +1,4 @@
-* **Breaking:** Changed Isaac Sim PhysX articulations to reorder their joint prims at spawn and to use the
-  ``"physx"`` order when no ordering is configured, so joint and body order matches OVPhysX. Assets whose sibling
-  joints are not authored in path order, such as Shadow Hand, Digit and Humanoid, change order. To load a policy
-  trained on Isaac Sim PhysX before this change, set ``joint_ordering="isaacsim_physx"`` and
-  ``body_ordering="isaacsim_physx"`` on the articulation configuration.
+* **Breaking:** Changed ``joint_ordering="physx"`` or ``body_ordering="physx"`` on Isaac Sim PhysX to mean the
+  OVPhysX order. Requesting it reorders the articulation's sibling joint prims at spawn, which also changes the
+  order PhysX solves the articulation in. To keep Isaac Sim PhysX's own order, leave the ordering unset; articulations
+  without an ordering keep their order and behavior.

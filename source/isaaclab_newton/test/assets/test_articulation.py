@@ -74,8 +74,6 @@ from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets, rand
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.test.utils.articulation_ordering import (
-    BRANCHING_ISAACSIM_PHYSX_BODY_NAMES,
-    BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES,
     BRANCHING_MJWARP_BODY_NAMES,
     BRANCHING_MJWARP_JOINT_NAMES,
     BRANCHING_PHYSX_BODY_NAMES,
@@ -1274,14 +1272,9 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(scene: _Scene) 
     )
     assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == tuple(articulation.backend_body_names)
 
-    # Cross-backend discovery walks the source USD and resolves both PhysX orders.
+    # Cross-backend discovery (bypassing the same-backend fast path) resolves the breadth-first PhysX order.
     assert get_articulation_name_ordering(articulation, "physx", kind="joint") == BRANCHING_PHYSX_JOINT_NAMES
     assert get_articulation_name_ordering(articulation, "physx", kind="body") == BRANCHING_PHYSX_BODY_NAMES
-    isaacsim_joint_names = get_articulation_name_ordering(articulation, "isaacsim_physx", kind="joint")
-    assert isaacsim_joint_names == BRANCHING_ISAACSIM_PHYSX_JOINT_NAMES
-    assert get_articulation_name_ordering(articulation, "isaacsim_physx", kind="body") == (
-        BRANCHING_ISAACSIM_PHYSX_BODY_NAMES
-    )
 
     # The requested PhysX ordering reorders the public joint/body axes to the BFS convention.
     assert tuple(articulation.joint_names) == BRANCHING_PHYSX_JOINT_NAMES

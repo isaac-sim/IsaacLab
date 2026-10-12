@@ -759,11 +759,11 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     assert calls["views"] == [("/World/envs/env_0/Robot/base", {"verbose": False, "exclude_joint_types": [0, 1]})]
 
 
-def test_physx_conventions_walk_source_usd_before_and_after_spawn_reorder(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Resolve both PhysX orders from the USD joint tree, also after the Isaac Sim PhysX spawn reorder.
+def test_physx_order_survives_spawn_reorder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve "physx" from the USD joint tree before and after the Isaac Sim PhysX spawn reorder.
 
     The base's child joints are authored out of path order and mix fixed and revolute joints, so the
-    joint-type-then-path ("physx"), path-only, and authored ("isaacsim_physx") orders all differ.
+    joint-type-then-path ("physx"), path-only, and authored orders all differ. The reorder moves only joint prims.
     """
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim(_ROBOT_SCHEMA_PRIM_PATH, "Xform")
@@ -789,22 +789,208 @@ def test_physx_conventions_walk_source_usd_before_and_after_spawn_reorder(monkey
         def __init__(self) -> None:
             self._ordering_convention_name_cache = {}
 
-    expected = {
-        "physx": {"joint": ("left_joint", "right_joint"), "body": ("base", "mount", "left", "right")},
-        "isaacsim_physx": {"joint": ("right_joint", "left_joint"), "body": ("base", "right", "mount", "left")},
-    }
+    expected = {"joint": ("left_joint", "right_joint"), "body": ("base", "mount", "left", "right")}
 
     def assert_conventions() -> None:
-        for convention, names in expected.items():
-            articulation = _Articulation()
-            for kind in ("joint", "body"):
-                assert get_articulation_name_ordering(articulation, convention, kind=kind) == names[kind]
+        articulation = _Articulation()
+        for kind in ("joint", "body"):
+            assert get_articulation_name_ordering(articulation, "physx", kind=kind) == expected[kind]
 
     assert_conventions()
-    assert ordering_resolvers.author_physx_joint_traversal_order(robot) == 1
-    joint_names = [prim.GetName() for prim in robot.GetChildren() if prim.IsA(UsdPhysics.Joint)]
-    assert joint_names == ["mount_joint", "left_joint", "right_joint"]
-    assert_conventions()
+    link_names = [prim.GetName() for prim in robot.GetChildren() if not prim.IsA(UsdPhysics.Joint)]
+    for _ in range(2):
+        ordering_resolvers.author_physx_joint_traversal_order([robot])
+        children = robot.GetChildren()
+        assert [prim.GetName() for prim in children if prim.IsA(UsdPhysics.Joint)] == [
+            "mount_joint",
+            "left_joint",
+            "right_joint",
+        ]
+        assert [prim.GetName() for prim in children if not prim.IsA(UsdPhysics.Joint)] == link_names
+        assert_conventions()
+
+
+# Each tree lists bodies, joints as (name, type, body0, body1, enabled) and the articulation-root prim. Expected
+# names were measured natively on OVPhysX 0.6.4. Repeated sibling link names are suffixed by position in each
+# backend's native order, so "tip" cannot be tied to A/tip or C/tip and the body order is rejected (None).
+_NATIVE_ORDER_TREES = {
+    "joint_targets_child_frames": (
+        ("base", "mid", "tip", "base/frame", "mid/frame", "tip/frame"),
+        [
+            ("world", "fixed", None, "base/frame", True),
+            ("base_mid", "revolute", "base/frame", "mid/frame", True),
+            ("mid_tip", "revolute", "mid/frame", "tip/frame", True),
+        ],
+        "",
+        None,
+        {"physx": (("base_mid", "mid_tip"), ("base", "mid", "tip"))},
+    ),
+    "root_api_on_fixed_root_joint": (
+        ("base", "mid", "tip"),
+        [
+            ("root_joint", "fixed", None, "base", True),
+            ("base_mid", "revolute", "base", "mid", True),
+            ("mid_tip", "revolute", "mid", "tip", True),
+        ],
+        "/root_joint",
+        None,
+        {"physx": (("base_mid", "mid_tip"), ("base", "mid", "tip"))},
+    ),
+    "configured_root_path_is_a_pattern": (
+        ("parts", "parts/part_0", "parts/part_0/base", "parts/part_0/tip"),
+        [("parts/part_0/base_tip", "revolute", "parts/part_0/base", "parts/part_0/tip", True)],
+        "/parts/part_0/base",
+        "/parts/part_.*/base",
+        {"physx": (("base_tip",), ("base", "tip"))},
+    ),
+    "single_body_articulation": (
+        ("base",),
+        [],
+        "/base",
+        None,
+        {"physx": ((), ("base",))},
+    ),
+    "disabled_shortcut_joint": (
+        ("base", "mid", "tip"),
+        [
+            ("world", "fixed", None, "base", True),
+            ("a_shortcut", "revolute", "base", "tip", False),
+            ("base_mid", "revolute", "base", "mid", True),
+            ("mid_tip", "revolute", "mid", "tip", True),
+        ],
+        "",
+        None,
+        {"physx": (("base_mid", "mid_tip"), ("base", "mid", "tip"))},
+    ),
+    "configured_root_among_two_articulations": (
+        ("A", "A/A_base", "A/A_tip", "B", "B/B_base", "B/B_tip"),
+        [
+            ("A/A_world", "fixed", None, "A/A_base", True),
+            ("A/A_joint", "revolute", "A/A_base", "A/A_tip", True),
+            ("B/B_world", "fixed", None, "B/B_base", True),
+            ("B/B_joint", "revolute", "B/B_base", "B/B_tip", True),
+        ],
+        "/A/A_base",
+        "/A/A_base",
+        {"physx": (("A_joint",), ("A_base", "A_tip"))},
+    ),
+    "floating_chain_rooted_at_center": (
+        ("a", "b", "c"),
+        [("a_b", "revolute", "a", "b", True), ("b_c", "revolute", "b", "c", True)],
+        "",
+        None,
+        {"physx": (("a_b", "b_c"), ("b", "a", "c"))},
+    ),
+    "tied_centers_prefer_smaller_total_distance": (
+        ("a", "b", "c", "d", "e"),
+        [
+            ("a_b", "revolute", "a", "b", True),
+            ("b_c", "revolute", "b", "c", True),
+            ("c_d", "revolute", "c", "d", True),
+            ("c_e", "revolute", "c", "e", True),
+        ],
+        "",
+        None,
+        {"physx": (("b_c", "c_d", "c_e", "a_b"), ("c", "b", "d", "e", "a"))},
+    ),
+    "tied_centers_follow_joint_order": (
+        ("y", "x", "z", "w"),
+        [
+            ("j_xy", "revolute", "x", "y", True),
+            ("j_zx", "revolute", "z", "x", True),
+            ("j_wz", "revolute", "w", "z", True),
+        ],
+        "",
+        None,
+        {
+            "physx": (("j_wz", "j_zx", "j_xy"), ("z", "w", "x", "y")),
+        },
+    ),
+    "mixed_joint_types_rank_before_path": (
+        ("base", "a", "b", "c", "d"),
+        [
+            ("world", "fixed", None, "base", True),
+            ("d_sph", "spherical", "base", "d", True),
+            ("c_pri", "prismatic", "base", "c", True),
+            ("b_fix", "fixed", "base", "b", True),
+            ("a_rev", "revolute", "base", "a", True),
+        ],
+        "",
+        None,
+        {
+            "physx": (("a_rev", "c_pri", "d_sph:0", "d_sph:1", "d_sph:2"), ("base", "b", "a", "c", "d")),
+        },
+    ),
+    "repeated_link_names_at_different_depths": (
+        ("base", "A", "A/link", "B", "B/link"),
+        [
+            ("world", "fixed", None, "base", True),
+            ("a_joint", "revolute", "base", "A/link", True),
+            ("b_joint", "revolute", "A/link", "B/link", True),
+        ],
+        "",
+        None,
+        {"physx": (("a_joint", "b_joint"), ("base", "link", "link_0"))},
+    ),
+    "repeated_sibling_link_names_are_ambiguous": (
+        ("base", "A", "A/tip", "C", "C/tip"),
+        [
+            ("world", "fixed", None, "base", True),
+            ("c_joint", "revolute", "base", "C/tip", True),
+            ("a_joint", "revolute", "base", "A/tip", True),
+        ],
+        "",
+        None,
+        {"physx": (("a_joint", "c_joint"), None), "backend": (("c_joint", "a_joint"), ("base", "tip", "tip_0"))},
+    ),
+}
+
+
+@pytest.mark.parametrize("tree", list(_NATIVE_ORDER_TREES))
+def test_physx_order_matches_native_orders(monkeypatch: pytest.MonkeyPatch, tree: str) -> None:
+    """Resolve "physx" to the order OVPhysX produces natively for each joint tree."""
+    prims, joints, root_api_path, articulation_root_prim_path, expected = _NATIVE_ORDER_TREES[tree]
+    stage = Usd.Stage.CreateInMemory()
+    robot = stage.DefinePrim(_ROBOT_SCHEMA_PRIM_PATH, "Xform")
+    for prim_name in prims:
+        prim = stage.DefinePrim(f"{_ROBOT_SCHEMA_PRIM_PATH}/{prim_name}", "Xform")
+        if prim_name.rsplit("/", 1)[-1] not in ("frame", "A", "B", "C", "parts", "part_0"):
+            UsdPhysics.RigidBodyAPI.Apply(prim)
+    schemas = {
+        "fixed": UsdPhysics.FixedJoint,
+        "revolute": UsdPhysics.RevoluteJoint,
+        "prismatic": UsdPhysics.PrismaticJoint,
+        "spherical": UsdPhysics.SphericalJoint,
+    }
+    for joint_name, joint_type, body0, body1, enabled in joints:
+        joint = schemas[joint_type].Define(stage, f"{_ROBOT_SCHEMA_PRIM_PATH}/{joint_name}")
+        if body0 is not None:
+            joint.CreateBody0Rel().SetTargets([f"{_ROBOT_SCHEMA_PRIM_PATH}/{body0}"])
+        joint.CreateBody1Rel().SetTargets([f"{_ROBOT_SCHEMA_PRIM_PATH}/{body1}"])
+        joint.CreateJointEnabledAttr(enabled)
+    UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath(_ROBOT_SCHEMA_PRIM_PATH + root_api_path))
+    _install_source_asset_resolver(monkeypatch, lambda path_expr, **_: [(robot, path_expr)])
+    physx_joints, physx_bodies = expected["physx"]
+    backend_joints, backend_bodies = expected.get("backend", (tuple(sorted(physx_joints)), physx_bodies))
+
+    class _Articulation:
+        __backend_name__ = "newton"
+        cfg = types.SimpleNamespace(
+            prim_path=_ROBOT_SCHEMA_SOURCE_EXPR, articulation_root_prim_path=articulation_root_prim_path
+        )
+        backend_joint_names = backend_joints
+        backend_body_names = backend_bodies
+
+        def __init__(self) -> None:
+            self._ordering_convention_name_cache = {}
+
+    articulation = _Articulation()
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == physx_joints
+    if physx_bodies is None:
+        with pytest.raises(NotImplementedError, match="no body names were discovered"):
+            get_articulation_name_ordering(articulation, "physx", kind="body")
+    else:
+        assert get_articulation_name_ordering(articulation, "physx", kind="body") == physx_bodies
 
 
 def test_symbolic_cross_backend_resolver_uses_newton_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -982,7 +1168,6 @@ def _make_ordering_resolution_articulation(
     )
     articulation = types.SimpleNamespace(
         __backend_name__="mock",
-        __backend_default_ordering__=None,
         _ordering_convention_name_cache={},
         cfg=types.SimpleNamespace(
             prim_path="/World/Robot",

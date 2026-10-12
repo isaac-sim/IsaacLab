@@ -79,7 +79,7 @@ class ArticulationCfg(AssetBaseCfg):
     joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public joint-name ordering convention or complete explicit permutation.
 
-    Accepts ``"physx"``, ``"isaacsim_physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
     corresponding :class:`ArticulationOrderingConvention` members, or a list or
     tuple (normalized to a tuple at initialization) containing every backend joint name exactly once.
 
@@ -93,7 +93,7 @@ class ArticulationCfg(AssetBaseCfg):
     body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public body-name ordering convention or complete explicit permutation.
 
-    Accepts ``"physx"``, ``"isaacsim_physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
     corresponding :class:`ArticulationOrderingConvention` members, or a list or
     tuple (normalized to a tuple at initialization) containing every backend body name exactly once.
 
