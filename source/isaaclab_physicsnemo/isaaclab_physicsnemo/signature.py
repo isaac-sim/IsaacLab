@@ -110,38 +110,40 @@ def isaaclab_canonical_view(model: newton.Model) -> Iterator[None]:
     Args:
         model: Finalized Newton model built by Isaac Lab.
     """
-    saved_labels = {}
-    for name in _LABEL_FIELDS:
-        labels = getattr(model, name, None)
-        if labels is not None:
-            saved_labels[name] = labels
-            setattr(model, name, [_ENV_PRIM_PREFIX.sub(r"\1/", str(label), count=1) for label in labels])
+    # Every change is recorded before it is made, so a failure part way restores what was changed.
+    saved_labels, saved_arrays = {}, {}
     frequencies = model.attribute_frequency
-    model.attribute_frequency = {
-        key: value for key, value in frequencies.items() if not str(key).startswith(SOLVER_ATTRIBUTE_NAMESPACES)
-    }
     saved_canonicalizers = (_spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids)
-    _spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids = (
-        _canonical_labels,
-        _canonical_shape_pairs,
-        _world_ids,
-    )
-    saved_arrays = {}
-    specs = getattr(model, "attribute_specs", {})
-    for name in model.attribute_frequency:
-        # Reading a deprecated attribute warns, and none of them is a transform.
-        deprecated = getattr(specs.get(name), "deprecated", False)
-        array = getattr(model, name, None) if ":" not in name and not deprecated else None
-        if isinstance(array, wp.array) and array.size and wp.types.type_is_transformation(array.dtype):
-            saved_arrays[name] = array
-            values = _canonical_plane_placements(model, array.numpy()) if name == "shape_transform" else array.numpy()
-            setattr(model, name, wp.array(_round_significant(values), dtype=array.dtype, device=array.device))
-    if model.body_count:
-        for name, values in zip(DERIVED_INERTIAL_FIELDS, _host_inverse_inertials(model)):
-            array = getattr(model, name)
-            saved_arrays[name] = array
-            setattr(model, name, wp.array(_round_significant(values), dtype=array.dtype, device=array.device))
     try:
+        for name in _LABEL_FIELDS:
+            labels = getattr(model, name, None)
+            if labels is not None:
+                saved_labels[name] = labels
+                setattr(model, name, [_ENV_PRIM_PREFIX.sub(r"\1/", str(label), count=1) for label in labels])
+        model.attribute_frequency = {
+            key: value for key, value in frequencies.items() if not str(key).startswith(SOLVER_ATTRIBUTE_NAMESPACES)
+        }
+        _spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids = (
+            _canonical_labels,
+            _canonical_shape_pairs,
+            _world_ids,
+        )
+        specs = getattr(model, "attribute_specs", {})
+        for name in model.attribute_frequency:
+            # Reading a deprecated attribute warns, and none of them is a transform.
+            deprecated = getattr(specs.get(name), "deprecated", False)
+            array = getattr(model, name, None) if ":" not in name and not deprecated else None
+            if isinstance(array, wp.array) and array.size and wp.types.type_is_transformation(array.dtype):
+                values = array.numpy()
+                if name == "shape_transform":
+                    values = _canonical_plane_placements(model, values)
+                saved_arrays[name] = array
+                setattr(model, name, wp.array(_round_significant(values), dtype=array.dtype, device=array.device))
+        if model.body_count:
+            for name, values in zip(DERIVED_INERTIAL_FIELDS, _host_inverse_inertials(model)):
+                array = getattr(model, name)
+                saved_arrays[name] = array
+                setattr(model, name, wp.array(_round_significant(values), dtype=array.dtype, device=array.device))
         yield
     finally:
         _spec._canonical_labels, _spec._canonical_shape_pairs, _spec._world_ids = saved_canonicalizers

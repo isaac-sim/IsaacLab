@@ -101,6 +101,33 @@ def test_signature_leaves_the_live_model_unchanged():
     assert model.body_inv_inertia is inverse_inertias
 
 
+def test_failed_canonicalization_restores_the_model(monkeypatch):
+    """A failure while the canonical view is built leaves the live model and PhysicsNeMo Robotics unchanged."""
+    from isaaclab_physicsnemo import signature
+    from physicsnemo_robotics.newton import spec
+
+    model = _replicated_model("/World/envs/env_{}/Robot", register_mujoco_attributes=True)
+    labels, frequencies, joint_parent_transforms = (
+        list(model.articulation_label),
+        model.attribute_frequency,
+        model.joint_X_p,
+    )
+    canonicalizers = (spec._canonical_labels, spec._canonical_shape_pairs, spec._world_ids)
+
+    def fail(model):
+        raise MemoryError("out of device memory")
+
+    # The inverse inertias are rewritten last, after the labels, registry, canonicalizers, and transforms.
+    monkeypatch.setattr(signature, "_host_inverse_inertials", fail)
+    with pytest.raises(MemoryError):
+        isaaclab_model_signature(model)
+
+    assert list(model.articulation_label) == labels
+    assert model.attribute_frequency is frequencies
+    assert model.joint_X_p is joint_parent_transforms
+    assert (spec._canonical_labels, spec._canonical_shape_pairs, spec._world_ids) == canonicalizers
+
+
 def test_world_canonicalization_matches_physicsnemo_robotics():
     """The linear-time canonicalizers return what PhysicsNeMo Robotics returns, errors included."""
     import types
