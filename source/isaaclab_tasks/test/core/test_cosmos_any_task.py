@@ -215,8 +215,20 @@ def test_all_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
         assert chain[1].backend.cameras == ("base_camera", "wrist_camera")
         assert (chain[-1].params["width"], chain[-1].params["height"]) == size
 
+    # Repeated names and a comma-separated list select the same cameras, in the order given.
+    for names in (
+        ["--cosmos_camera", "wrist_camera", "--cosmos_camera", "base_camera"],
+        ["--cosmos_camera", "wrist_camera,base_camera"],
+    ):
+        env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,))
+        apply_env_overrides(_cli(add_common_train_args, ["--cosmos", *names]), env_cfg)
+        assert env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.cameras == (
+            "wrist_camera",
+            "base_camera",
+        )
+
     # Two cameras of two environments are four views, which need independent resets.
-    args = ["--cosmos", "--cosmos_camera", "wrist_camera", "--cosmos_camera", "base_camera", "--num_envs", "2"]
+    args = ["--cosmos", "--cosmos_camera", "wrist_camera,base_camera", "--num_envs", "2"]
     with pytest.raises(ValueError, match="without --no-compile"):
         apply_env_overrides(_cli(add_common_train_args, args), parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,)))
     with pytest.raises(ValueError, match='"all" alone'):

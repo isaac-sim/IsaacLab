@@ -204,7 +204,10 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
         "--cosmos_camera",
         action="append",
         default=None,
-        help="Scene camera name; repeat, or pass all, for cameras sharing one session. Defaults to the only rgb one.",
+        help=(
+            "Scene camera name; repeat it, list names separated by commas, or pass all, for cameras sharing one"
+            " session. Defaults to the only rgb camera."
+        ),
     )
     group.add_argument(
         "--cosmos_control",
@@ -421,7 +424,9 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
                 raise ValueError("Cosmos options require --cosmos or a task configured with presets=cosmos.")
             return
         prompts = args_cli.cosmos_prompt
-        cameras = args_cli.cosmos_camera or (preset_cameras[:1] if len(preset_cameras) == 1 else None)
+        cameras = [name.strip() for value in args_cli.cosmos_camera or () for name in value.split(",")] or (
+            preset_cameras[:1] if len(preset_cameras) == 1 else None
+        )
         endpoints = args_cli.cosmos_endpoint
         apply_cosmos(
             env_cfg,

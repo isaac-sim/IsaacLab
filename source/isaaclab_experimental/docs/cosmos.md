@@ -51,7 +51,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 |---|---|
 | `--cosmos` | Put Cosmos on the task's rgb camera |
 | `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
-| `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras; repeat it, or pass `all`, for cameras sharing one session (see "Several cameras") |
+| `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras; repeat it, list names separated by commas, or pass `all`, for cameras sharing one session (see "Several cameras") |
 | `--cosmos_control depth\|edge\|blur` | Control prepared from the render (default `depth`); see "Controls and prompts" |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
 | `--cosmos_endpoint URL` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
@@ -375,8 +375,8 @@ Each reset shows black until the environment's next chunk. For a clip without mi
 ## Several cameras
 
 Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. Repeat `--cosmos_camera` for the cameras to use, or pass `--cosmos_camera all` for every
-camera that publishes `rgb`:
+environments as one batch. Name the cameras to use by repeating `--cosmos_camera` or in one comma-separated list
+(`--cosmos_camera base_camera,wrist_camera`), or pass `--cosmos_camera all` for every camera that publishes `rgb`:
 
 ```bash
 uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_rl \
