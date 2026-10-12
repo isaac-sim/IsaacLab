@@ -225,7 +225,7 @@ Custom MJWarp + VBD Parameters
 ------------------------------
 
 The opt-in
-:class:`~isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg`
+:class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
 runs MJWarp and VBD over one shared model. Import
 :mod:`isaaclab_contrib.custom_coupling.tasks` explicitly to register
 ``IsaacContrib-Lift-Soft-Franka-Custom-Coupling``, which selects the

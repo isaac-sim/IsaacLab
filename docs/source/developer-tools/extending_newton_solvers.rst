@@ -4,7 +4,7 @@ Extending Newton Solvers
 ========================
 
 This page is for contributors adding a Newton solver to Isaac Lab or building a
-custom manager or coupled solver. Simulation ownership, solver behavior, and graph scheduling have separate extension points.
+custom manager or coupled solver.
 
 If you only need to select and configure a shipped solver, use the user-facing
 pages instead: :doc:`/source/concepts/backends_and_presets` for backend and
@@ -99,16 +99,10 @@ Managers can run without a ``SimulationContext``. Give each manager its own popu
        right.close()
 
 To customize Isaac Lab integration, subclass ``NewtonManager`` and select it with
-``NewtonCfg(class_type=MyManager, solver_cfg=...)``. ``SimulationContext`` calls the factory without arguments.
-Alternatively inject an existing instance with ``SimulationContext(sim_cfg, physics_manager=my_manager)``;
-the context supplies its physics configuration, device and timestep and owns the injected manager's lifetime.
-An instance already attached to a context cannot be injected again. ``SimulationContext`` remains the scene-level
-singleton; standalone managers and the functional API are independent of it.
-
-Use ``register_control_callback`` and the other ``register_*_callback`` methods for controllers or additional
-device work. Override lifecycle methods when ownership
-or construction changes, and call the base lifecycle implementation. Override ``finalize_backend`` to customize
-model construction. A custom solver only needs a ``NewtonSolver`` adapter; it does not need a new manager.
+``NewtonCfg(class_type=MyManager, solver_cfg=...)``, or pass an instance with
+``SimulationContext(sim_cfg, physics_manager=my_manager)``; the context then owns its lifetime. Override
+``finalize_backend`` to customize model construction, and call the base implementation from overridden lifecycle
+methods. A custom solver only needs a ``NewtonSolver`` adapter, not a new manager.
 
 
 Lifecycle
@@ -182,27 +176,16 @@ and stepped side by side, or recorded into one caller-owned CUDA graph:
    graph = nb.capture_graph("cuda:0", advance_both)
    graph.launch()
 
-``prepare`` allocates schedule scratch without advancing physics. Initialize callback buffers before recording.
-``capture_graph`` records Torch and Warp on the same stream and owns both libraries' allocation lifetimes, including
-Torch controller temporaries. Recording does not advance simulation. Replays use ``graph.launch()``.
-``record_step`` can also join a caller-owned Warp or Torch capture; mixed Torch/Warp callers must use the same stream
-and let Warp join Torch capture with ``external=True``. The provided helper handles this protocol.
+``prepare`` allocates scratch without advancing physics, and recording does not advance simulation.
+``capture_graph`` records Torch and Warp on one stream and keeps both libraries' allocations alive; use it rather
+than a bare capture when Torch work is recorded.
 
-Isaac Lab binds the ordinary action terms and scene command writers to ``CONTROL`` in their existing order.
-Set ``ActionTerm.supports_graph_capture`` or ``ActuatorBase.supports_graph_capture`` only for implementations whose
-work can replay without Python state changes, dynamic shapes, host synchronization or data-dependent Python branches.
-Unsupported operations retain their position as eager segments; ``record_step`` rejects a schedule containing them
-before launching physics. A solver's capture capability is enforced independently of ``use_cuda_graph``.
+Set ``ActionTerm.supports_graph_capture`` or ``ActuatorBase.supports_graph_capture`` only for work that can replay
+without Python state changes, dynamic shapes, host synchronization or data-dependent Python branches. Other
+operations run eagerly in place, and ``record_step`` rejects a schedule containing them.
 
-Property writers call ``mark_model_changed(backend, flags, env_mask)`` (or ``manager.add_model_change``).
-``notify_model_changes`` commits all queued categories together at a state-read or step boundary. On CUDA, an empty
-mask skips the solver refresh through a conditional graph node. Record property-changing resets with
-``capture_graph``: CUDA conditional nodes cannot allocate scratch, and the helper reserves and retains that storage.
-The same graph can replay with a different mask each time. Use the functional ``invalidate_worlds`` and ``forward``
-operations to commit masked state resets without stepping.
-
-Derived articulation reads emit their computations during stepping and capture instead of relying on a Python
-publication timestamp. Finite-difference accelerations still follow the scene's publication cadence.
+Property writers call ``mark_model_changed(backend, flags, env_mask)``; ``notify_model_changes`` commits the queued
+categories once at the next state read or step, and an empty mask skips the solver refresh without a device sync.
 
 
 Extension Contract
@@ -311,7 +294,7 @@ The four architectures differ in what drives the substep loop:
      - ``create_solver()`` returns a :class:`newton.solvers.SolverBase` subclass
        that holds several sub-solvers and fixes the substep order in its
        ``step()``.
-       :class:`~isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_solver_cfg.CoupledMJWarpVBDSolverCfg`
+       :class:`~isaaclab_contrib.custom_coupling.newton_manager_cfg.CoupledMJWarpVBDSolverCfg`
        is the in-tree example. Its manager clears force accumulators, detects
        contacts once, injects soft-to-rigid reactions into ``body_f`` when
        ``coupling_mode="two_way"``, then advances MJWarp on its own internal
