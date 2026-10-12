@@ -41,7 +41,7 @@ repos:
       - id: codespell
         additional_dependencies:
         - tomli
-        exclude: "CONTRIBUTORS.md|docs/source/setup/walkthrough/concepts_env_design.rst"
+        exclude: "CONTRIBUTORS.md|docs/source/setup/walkthrough/concepts_env_design.rst|docs/source/_static/vendor/three.module.min.js"
   # FIXME: Figure out why this is getting stuck under VPN.
   # - repo: https://github.com/RobertCraigie/pyright-python
   #   rev: v1.1.315

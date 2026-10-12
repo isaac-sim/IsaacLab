@@ -180,6 +180,10 @@ randomization when each environment needs an independent distribution.
 Controlled material experiments, comparison demos, and practical solver advice
 are collected in :ref:`newton-tuning-mpm`.
 
+Try the :ref:`interactive MPM demo <interactive-demo-mpm>` to compare material
+references and adjust stiffness, cohesion, friction, and hardening on a
+repeatable particle drop.
+
 
 Render a Particle Surface
 -------------------------

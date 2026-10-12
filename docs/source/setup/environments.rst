@@ -13,6 +13,9 @@ Build a command and browse the core and contributed tasks available in Isaac Lab
 Command Builder
 ---------------
 
+The :ref:`interactive demo gallery <interactive-browser-demos>` includes
+pretrained Franka reach, lift, and drawer-opening policies with pause and reset.
+
 .. raw:: html
 
    <div class="environment-browser" data-environment-browser>
