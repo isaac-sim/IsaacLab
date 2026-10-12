@@ -316,6 +316,30 @@ def test_retrieve_git_asset_path_clones_default_repo_cache(tmp_path, monkeypatch
     assert temporary_path.parent.name.startswith(".example-assets.")
 
 
+def test_retrieve_git_asset_path_accepts_newton_http_dir(tmp_path, monkeypatch):
+    """Test the legacy helper maps the Newton HTTP asset root back to its git repository."""
+    git_commands = []
+
+    def mock_run_git_command(command):
+        git_commands.append(command)
+        repo_dir = Path(command[-1])
+        asset_dir = repo_dir / "fourbar_pole" / "usd"
+        asset_dir.mkdir(parents=True)
+        (repo_dir / ".git").mkdir()
+        (asset_dir / "fourbar_pole.usda").write_text("#usda 1.0\n", encoding="utf-8")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    asset_path = Path(
+        assets_utils.retrieve_git_asset_path(
+            assets_utils.NEWTON_ASSET_DIR, "fourbar_pole/usd/fourbar_pole.usda", cache_dir=str(tmp_path)
+        )
+    )
+
+    assert asset_path == tmp_path / "newton-assets" / "fourbar_pole" / "usd" / "fourbar_pole.usda"
+    assert git_commands[0][:-1] == ["git", "clone", "--depth", "1", assets_utils.NEWTON_ASSET_REPO_URL]
+
+
 def test_retrieve_git_asset_path_serializes_cold_cache_population(tmp_path, monkeypatch):
     """Test concurrent callers publish one complete Git asset checkout."""
     git_path = "https://example.com/example-assets.git"
