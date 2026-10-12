@@ -390,11 +390,18 @@ compilation and execution:
        --task Isaac-Reach-Franka \
        --ml_framework jax
 
-Install a CUDA-enabled JAX build that matches your platform before using this
-workflow. JAX preallocates GPU memory by default, so ensure that the simulation
-and learner can share the available memory. See the `skrl installation guide
-<https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
-installation guide <https://docs.jax.dev/en/latest/installation.html>`__.
+.. note::
+
+   Install JAX with CUDA support and the skrl JAX dependencies before using this workflow:
+
+   .. code-block:: bash
+
+      uv pip install -U "jax[cuda13]"
+      uv pip install "skrl[jax]"
+
+JAX preallocates GPU memory by default, so ensure that the simulation and learner can share the available memory.
+See the `skrl installation guide <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
+installation guide <https://docs.jax.dev/en/latest/installation.html>`__ for more information.
 
 RLinf VLA post-training
 ~~~~~~~~~~~~~~~~~~~~~~~
