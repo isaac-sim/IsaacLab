@@ -390,6 +390,29 @@ def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
     assert viewer.is_rendering_paused() is False
 
 
+def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(monkeypatch):
+    """Clicks on a fullscreen sensor image, which Newton dispatches during ``end_frame()``, must not
+    pick in the hidden perspective scene, and picking must resume once a frame shows the scene again.
+    """
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._close_requested = False
+    viewer._fullscreen_image_active = False  # Set by NewtonViewerGL.__init__, which __new__ skips.
+    picks = []
+    monkeypatch.setattr(ViewerGL, "log_image", lambda self, name, image, *, fullscreen=False: None)
+    monkeypatch.setattr(ViewerGL, "on_mouse_press", lambda self, *args: picks.append(args))
+    # Newton dispatches window input from inside end_frame(), after the frame's images were logged.
+    monkeypatch.setattr(ViewerGL, "end_frame", lambda self: self.on_mouse_press(1, 2, 4, 0))
+
+    viewer.log_image("Streaming View", np.zeros((2, 2, 3), dtype=np.uint8), fullscreen=True)
+    viewer.end_frame()
+    assert picks == []
+
+    viewer.end_frame()
+    assert picks == [(1, 2, 4, 0)]
+
+
 def test_newton_viewer_particle_color_override(monkeypatch):
     from newton.viewer import ViewerGL
 
