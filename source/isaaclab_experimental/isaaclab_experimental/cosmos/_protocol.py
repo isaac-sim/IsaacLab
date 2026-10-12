@@ -22,9 +22,8 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
-PROTOCOL_VERSION = 3
-"""Version 3 has each process share the CUDA IPC buffer it writes, so the camera and service can use different
-GPUs; version 2 let an episode reset carry the next appearance prompt."""
+PROTOCOL_VERSION = 2
+"""Version 2 lets an episode reset carry the next appearance prompt."""
 CANVAS_ASPECT_RATIOS = {
     (480, 832): "16,9",
     (544, 736): "4,3",
