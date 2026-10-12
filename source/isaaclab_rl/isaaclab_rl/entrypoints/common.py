@@ -205,8 +205,9 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=None,
         help=(
-            "Prompt file instead of --cosmos_prompt: .txt is used as written, .json is sent as-is. Repeat it, or pass"
-            ' a quoted pattern such as "prompts/*.json" or a list such as "[a.json,b.txt]"; one prompt per file.'
+            "Prompt file instead of --cosmos_prompt: .txt is used as written, .json keeps its caption structure. Repeat"
+            ' it, or pass a quoted pattern such as "prompts/*.json" or a list such as "[a.json,b.txt]"; one prompt per'
+            " file."
         ),
     )
     group.add_argument("--cosmos_camera", default=None, help="Scene camera name; defaults to the only rgb camera.")

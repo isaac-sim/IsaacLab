@@ -16,9 +16,10 @@ from pathlib import Path
 def read_prompt_files(paths: Sequence[str]) -> list[str]:
     """Read one Cosmos prompt per file, in the given order.
 
-    A ``.txt`` file is the prompt as written. A ``.json`` file, such as a structured scene description, is also sent
-    to Cosmos as written; it must be valid JSON. An entry with ``*``, ``?``, or ``[`` is a pattern that expands to its
-    matches in sorted order, and an entry such as ``"[a.json,b.txt]"`` lists several paths or patterns.
+    A ``.txt`` file is the prompt as written. A ``.json`` file, such as a structured caption, keeps its structure:
+    the parsed object is serialized once into the prompt string, the format Cosmos was trained on, rather than
+    flattened into prose. An entry with ``*``, ``?``, or ``[`` is a pattern that expands to its matches in sorted
+    order, and an entry such as ``"[a.json,b.txt]"`` lists several paths or patterns.
 
     Args:
         paths: File paths, patterns, or bracketed lists of them.
@@ -58,7 +59,9 @@ def _read_prompt_file(path: Path) -> str:
         raise ValueError(f"Cosmos prompt file {path} is empty.")
     if path.suffix.lower() == ".json":
         try:
-            json.loads(prompt)
+            caption = json.loads(prompt)
         except json.JSONDecodeError as error:
             raise ValueError(f"Cosmos prompt file {path} is not valid JSON: {error}.") from error
+        # One serialization keeps keys, order, and text; only the file's layout whitespace changes.
+        return json.dumps(caption, ensure_ascii=False)
     return prompt

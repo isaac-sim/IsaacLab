@@ -16,11 +16,12 @@ _SCENE = {
 }
 
 
-def test_text_and_json_files_become_prompts_as_written_in_the_order_given(tmp_path):
-    """Text loses only its surrounding whitespace; JSON reaches Cosmos as the file's own text."""
+def test_text_and_json_files_become_prompts_in_the_order_given(tmp_path):
+    """Text loses only its surrounding whitespace; a JSON caption keeps its structure, serialized once."""
     (tmp_path / "b.txt").write_text("  A grey bedsheet covers the table.\nSoft light.\n", encoding="utf-8")
-    scene = json.dumps(_SCENE, indent=2)
-    (tmp_path / "a.json").write_text(scene + "\n", encoding="utf-8")
+    (tmp_path / "a.json").write_text(json.dumps(_SCENE, indent=2) + "\n", encoding="utf-8")
+    scene = '{"subjects": [{"description": "A small apple with a yellow upper half and a red lower half."}], '
+    scene += '"context": "Preserve the geometry, camera pose and movements of the depth conditioning."}'
     (tmp_path / "c.txt").write_text("A white plate.", encoding="utf-8")
     sheet = "A grey bedsheet covers the table.\nSoft light."
 
