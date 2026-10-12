@@ -3,6 +3,31 @@ Changelog
 
 .. towncrier release notes start
 
+3.1.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Preserved the original ``ModuleNotFoundError`` when Viser or its dependencies were missing,
+  removing the installation-hint wrapper.
+* Simplified Viser initialization and camera updates around its native client API, preserving deferred
+  camera poses until clients connected and removing unused metadata and repeated capability checks.
+* Separated shared image selection from Newton window dimensions through ``WindowCfg``.
+  RTX capture copied native output directly on the GPU;
+  only CPU consumers downloaded pixels. Sensor-view window resizing retained source and output storage.
+  ``WindowCfg.size`` set initial viewer dimensions; RTX perspective rendering kept that resolution,
+  while GL perspective rendering followed its window framebuffer.
+  Unified GL and RTX capture lifecycle checks; call ``render_rgb_array()`` after ``sim.reset()``.
+* Kept shared views on ``VisualizerCfg.view``, separate from window presentation settings.
+  Detached perspective render callbacks when their owning viewer closed, allowing another viewer
+  to bind the retained view without accessing the destroyed renderer.
+* Shared Kit window docking between viewport and camera-image presentation.
+* Keyed sensor-view capture to the physics step, fixing frozen headless
+  ``--video viz:newton_gl:streaming_view`` clips while reusing repeated reads within one step.
+  Explicit headless viewer updates also refreshed perspective captures after marker edits without a physics step.
+
+
 3.0.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

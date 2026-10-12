@@ -109,12 +109,14 @@ registry repository, distinguished by a ``-kitless`` tag suffix:
 
 Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
 NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
-that several commands can share it:
+that several commands can share it. The ``isaac-lab-kitless-logs`` named volume keeps checkpoints
+after the container is removed:
 
 .. code:: bash
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
+        -v isaac-lab-kitless-logs:/workspace/isaaclab/logs \
         nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
     docker exec isaac-lab-kitless \
@@ -130,12 +132,13 @@ Replay in a browser with:
         --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
 
 Viser is reachable through the host network without forwarding a desktop display. Stop playback
-with ``Ctrl+C`` without stopping the container.
+with ``Ctrl+C`` without stopping the container. Copy the logs to the host with
+``docker cp isaac-lab-kitless:/workspace/isaaclab/logs ./logs``.
 To build the image from the checkout instead of
 pulling it, run ``docker build --file docker/Dockerfile.kitless --tag isaac-lab-kitless .``.
 
-Only ``linux/amd64`` images are published. The Dockerfile itself is architecture-agnostic, but the
-published manifest is limited to the architecture that is validated in CI.
+Check which architectures a tag publishes with ``docker buildx imagetools inspect <image:tag>``
+before choosing a host.
 
 Pre-built image from NGC
 ------------------------
@@ -191,10 +194,10 @@ not require X11. Follow the graphics-driver requirements above for GL or RTX.
 Runtime user
 ------------
 
-The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000, which
-keeps bind-mounted workspaces writable on GitHub runners. When running one of these images directly
-with ``docker run`` from a host account whose uid differs, pass ``--user "$(id -u):1000"`` so that
-new files on bind mounts belong to your host user while the runtime home stays accessible.
+The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000. When running
+one of these images directly with ``docker run``, keep that default user instead of passing ``--user``,
+so that the runtime home and cache directories stay writable. Named volumes inherit the image's
+ownership; make host bind mounts writable with ``sudo chown -R 1000:1000 <directory>``.
 
 Python interpreter
 ------------------
