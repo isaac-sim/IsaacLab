@@ -201,13 +201,15 @@ def _rollout_env(task: str, captured: bool, num_steps: int) -> tuple[list[torch.
         trajectory = []
         with torch.inference_mode():
             for _ in range(num_steps):
-                obs, reward, terminated, truncated, _ = env.step(
+                obs, reward, terminated, truncated, extras = env.step(
                     torch.rand(shape, device="cuda:0", generator=generator)
                 )
                 joints = torch.cat([wp.to_torch(state.joint_q), wp.to_torch(state.joint_qd)])
                 # Lazily computed asset data read after the step, outside any graph, must be current too.
                 bodies = robot.data.body_com_pose_w.torch.flatten()
-                step = (obs["policy"].flatten(), reward, terminated, truncated, joints, bodies)
+                # Logged metrics come from buffers that terms replace every step.
+                logs = [torch.as_tensor(extras["log"][key], device="cuda:0").flatten() for key in sorted(extras["log"])]
+                step = (obs["policy"].flatten(), reward, terminated, truncated, joints, bodies, *logs)
                 trajectory.append(torch.cat(step).clone())
         return trajectory, env.unwrapped.step_graph
     finally:

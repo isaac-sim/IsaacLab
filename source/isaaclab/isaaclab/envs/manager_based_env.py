@@ -176,6 +176,8 @@ class ManagerBasedEnv:
 
         # allocate dictionary to store metrics
         self.extras = {}
+        # one buffer per logged tensor, updated in place so captured steps keep publishing into it
+        self._log_buffers: dict[str, torch.Tensor] = {}
 
         # generate scene
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
@@ -682,8 +684,15 @@ class ManagerBasedEnv:
         for manager in managers:
             log.update(manager.reset(env_mask=env_mask))
         any_reset = env_mask.torch.any()
+        buffers = self._log_buffers
+        for key, value in log.items():
+            if not isinstance(value, torch.Tensor):
+                continue
+            buffer = buffers.get(key)
+            if buffer is None or buffer.shape != value.shape or buffer.dtype != value.dtype:
+                buffer = buffers[key] = value.clone()
+            elif value is not buffer:
+                torch.where(any_reset, value, buffer, out=buffer)
+            log[key] = buffer
         for key, last in previous.items():
-            value = log.setdefault(key, last)
-            if value is not last and isinstance(value, torch.Tensor) and isinstance(last, torch.Tensor):
-                if value.shape == last.shape:
-                    log[key] = torch.where(any_reset, value, last)
+            log.setdefault(key, last)

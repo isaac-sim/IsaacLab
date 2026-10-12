@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import math
-import warnings
 from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -23,6 +22,7 @@ from ..utils.warp import ProxyArray
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+from .utils.step_capture import EnvStepCapture
 
 if TYPE_CHECKING:
     from ..physics import PhysicsManager
@@ -99,14 +99,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # environment steps taken, on the device so that captured reset events read the current count
         self._env_step_count = torch.zeros((), dtype=torch.long, device=cfg.sim.device)
         # captured step (see ``ManagerBasedRLEnvCfg.capture_step``)
-        self._step_graph: StepGraph | None = None
-        self._step_graph_physics_ops: list[StepOp] | None = None
-        self._step_action: torch.Tensor | None = None
-        self._step_graph_rebuilds: list[int] = []
-        self._step_graph_warm: StepGraph | None = None
-        # operations found to synchronize the device; they run eagerly from then on
-        self._step_sync_ops: set[str] = set()
-        self._step_capture_blocker: str | None = None if cfg.capture_step else "disabled by capture_step"
+        self._step_capture = EnvStepCapture(self, self._step_ops, self._step_graph_blocker, cfg.capture_step)
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg, physics_manager=physics_manager)
@@ -130,7 +123,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
         See :attr:`~isaaclab.envs.ManagerBasedRLEnvCfg.capture_step`.
         """
-        return self._step_graph
+        return self._step_capture.graph
 
     @property
     def max_episode_length_s(self) -> float:
@@ -245,7 +238,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
-        step_graph = self._prepare_step_graph(action)
+        step_graph = self._step_capture.prepare(action)
         if step_graph is not None:
             return self._launch_step_graph(step_graph, action)
 
@@ -509,46 +502,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Call it after changing host state that captured work reads as a constant, such as a manager term's
         configuration. :meth:`~isaaclab.managers.ManagerBase` setters such as ``set_term_cfg`` call it already.
         """
-        if self._step_graph is not None:
-            self._step_graph = None
-            self._step_graph_rebuilds.append(self.common_step_counter)
-
-    def _prepare_step_graph(self, action: torch.Tensor) -> StepGraph | None:
-        """Return the step as a graph of operations, or None to step eagerly.
-
-        The graph is rebuilt when the physics step's operations change (e.g. new step callbacks) or when
-        :meth:`invalidate_step_graph` was called.
-        """
-        if self._step_capture_blocker is not None:
-            return None
-        if self.sim.is_rendering or self.video_recorders:
-            # rendering and video run on the host on their own cadence
-            return None
-        physics_ops = self.sim.physics_manager.step_ops()
-        if physics_ops is None:
-            self._step_capture_blocker = "the physics backend exposes no step operations"
-            return None
-        if self._step_graph is not None and physics_ops is self._step_graph_physics_ops:
-            return self._step_graph
-        if self._step_graph is not None:
-            self._step_graph_rebuilds.append(self.common_step_counter)
-        # Rebuilding every few steps costs more than it saves: some term keeps changing captured constants.
-        recent = [step for step in self._step_graph_rebuilds if self.common_step_counter - step < 50]
-        if len(recent) > 3:
-            return self._block_step_capture("the captured step is invalidated every few steps")
-        blocker = self._step_graph_blocker()
-        if blocker is not None:
-            return self._block_step_capture(blocker)
-        if self._step_action is None or self._step_action.shape != action.shape:
-            self._step_action = torch.zeros(action.shape, dtype=torch.float32, device=self.device)
-        self._step_graph_physics_ops = physics_ops
-        self._step_graph = self._step_graph_from(self._step_ops(physics_ops))
-        return self._step_graph
-
-    def _step_graph_from(self, ops: list[StepOp]) -> StepGraph:
-        """Group operations into a step graph, keeping operations known to synchronize the device eager."""
-        sync = self._step_sync_ops
-        return StepGraph([StepOp(op.fn, False, op.name) if op.name in sync and op.graphable else op for op in ops])
+        self._step_capture.invalidate()
 
     def _step_graph_blocker(self) -> str | None:
         """Return why the step cannot run as a captured graph, or None."""
@@ -565,16 +519,12 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 return f"sensor '{name}' ({type(sensor).__name__}) cannot be recorded"
         return None
 
-    def _block_step_capture(self, reason: str) -> None:
-        logger.warning("Stepping %s eagerly: %s.", type(self).__name__, reason)
-        self._step_capture_blocker = reason
-        self._step_graph = None
-
     def _step_ops(self, physics_ops: list[StepOp]) -> list[StepOp]:
         """Return one environment step as operations, flagged by whether a CUDA graph can record them."""
         actions = self.action_manager
         steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
-        process = StepOp(partial(actions.process_action, self._step_action), actions.supports_graph_capture, "actions")
+        process_action = partial(actions.process_action, self._step_capture.action)
+        process = StepOp(process_action, actions.supports_graph_capture, "actions")
         # Physics may open with eager host work (e.g. model-change notification) that actions do not depend on;
         # processing actions after it lets them share a graph with the physics step.
         leading = next((i for i, op in enumerate(physics_ops) if op.graphable), len(physics_ops))
@@ -598,7 +548,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.cfg.compute_final_obs:
             ops.append(StepOp(self._compute_final_obs, observations.supports_graph_capture, "final_obs"))
         ops.append(StepOp(self._copy_reset_mask, True, "reset_mask"))
-        ops.extend(self._reset_mask_ops(self._step_reset_mask))
+        if type(self)._reset_mask is ManagerBasedRLEnv._reset_mask:
+            ops.extend(self._reset_mask_ops(self._step_reset_mask))
+        else:
+            # an overridden reset is opaque: run it eagerly in place
+            ops.append(StepOp(partial(self._reset_mask, self._step_reset_mask), False, "reset"))
         commands = self.command_manager
         ops.append(StepOp(partial(commands.compute, dt=self.step_dt), commands.supports_graph_capture, "commands"))
         if "interval" in self.event_manager.active_terms:
@@ -608,29 +562,8 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         return ops
 
     def _launch_step_graph(self, graph: StepGraph, action: torch.Tensor) -> VecEnvStepReturn:
-        """Run one environment step from the step graph, recording its graphs on the first run."""
-        self._step_action.copy_(action)
-        if not graph.captured and self._step_graph_warm is graph:
-            # The previous step ran the operations eagerly (lazy allocations); record them now and replay, so that
-            # every returned buffer holds executed work.
-            try:
-                graph.capture(self._capture_graph)
-            except Exception as error:  # noqa: BLE001
-                self._block_step_capture(f"recording the step failed ({error})")
-        replayed = graph.captured
-        if replayed:
-            graph.launch()
-        else:
-            graph = self._launch_watching_syncs(graph)
-        self._step_graph_warm = graph
-        # host bookkeeping that the replayed operations skip
-        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
-        for _ in range(self.cfg.decimation // steps_per_call):
-            self._sim_step_counter += steps_per_call
-            self.sim.finish_physics_step()
-            if replayed:
-                self.scene.notify_update_replayed(dt=self.physics_dt * steps_per_call)
-        self.common_step_counter += 1
+        """Run one environment step from the step graph."""
+        self._step_capture.launch(graph, action)
         # -- handle episode reset requested from visualizer UI controls
         if self.sim.consume_reset_request():
             manual_reset = ~self.reset_buf
@@ -638,41 +571,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self._reset_terminated_envs(manual_reset)
             self.obs_buf = self.observation_manager.compute(update_history=True)
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
-
-    def _launch_watching_syncs(self, graph: StepGraph) -> StepGraph:
-        """Run the operations eagerly and return the graph with operations that synchronized the device made eager.
-
-        A synchronizing operation (e.g. a term that selects environments by index) would fail inside a capture, so it
-        becomes an eager island instead of preventing the capture.
-        """
-        if "cuda" not in str(self.device):
-            graph.launch()
-            return graph
-        synced: set[str] = set()
-        previous_mode = torch.cuda.get_sync_debug_mode()
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            torch.cuda.set_sync_debug_mode("warn")
-            try:
-                for op in graph.ops:
-                    count = len(caught)
-                    op.fn()
-                    if op.graphable and any("synchroniz" in str(w.message) for w in caught[count:]):
-                        synced.add(op.name)
-            finally:
-                torch.cuda.set_sync_debug_mode(previous_mode)
-        if not synced:
-            return graph
-        logger.info("Running %s eagerly in the captured step: they synchronize the device.", sorted(synced))
-        self._step_sync_ops |= synced
-        self._step_graph = self._step_graph_from(graph.ops)
-        return self._step_graph
-
-    def _capture_graph(self, fn) -> Any:
-        graph = self.sim.physics_manager.capture_graph(fn)
-        if graph is None:
-            raise RuntimeError("the physics backend does not capture graphs")
-        return graph
 
     def _advance_episode(self) -> None:
         self.episode_length_buf += 1

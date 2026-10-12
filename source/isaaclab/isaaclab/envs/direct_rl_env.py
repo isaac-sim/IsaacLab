@@ -13,6 +13,7 @@ import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
 from dataclasses import MISSING
+from functools import partial
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -25,10 +26,12 @@ from ..sim.utils.stage import use_stage
 from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
+from ..utils.step_graph import StepGraph, StepOp
 from ..utils.timer import Timer
 from .common import VecEnvObs, VecEnvStepReturn, _apply_deprecated_viewer_cfg
 from .direct_rl_env_cfg import DirectRLEnvCfg
 from .utils.spaces import sample_space, spec_to_gym_space
+from .utils.step_capture import EnvStepCapture
 from .utils.video_recorder import VideoRecorder
 
 logger = logging.getLogger(__name__)
@@ -215,6 +218,8 @@ class DirectRLEnv(gym.Env):
         self.render_enabled: bool = True
         # -- counter for curriculum
         self.common_step_counter = 0
+        # captured step (see ``DirectRLEnvCfg.capture_step``)
+        self._step_capture = EnvStepCapture(self, self._step_ops, self._step_graph_blocker, self.cfg.capture_step)
         # -- init buffers
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.reset_terminated = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
@@ -393,6 +398,10 @@ class DirectRLEnv(gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        step_graph = self._step_capture.prepare(action)
+        if step_graph is not None:
+            return self._launch_step_graph(step_graph, action)
+
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -468,6 +477,86 @@ class DirectRLEnv(gym.Env):
         self.obs_buf = self._compute_observations()
 
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+
+    @property
+    def step_graph(self) -> StepGraph | None:
+        """The operations :meth:`step` runs, grouped into CUDA graphs, or None while stepping eagerly.
+
+        See :attr:`~isaaclab.envs.DirectRLEnvCfg.capture_step`.
+        """
+        return self._step_capture.graph
+
+    def invalidate_step_graph(self) -> None:
+        """Record the captured step again before the next step, e.g. after changing a value the hooks read as a
+        constant."""
+        self._step_capture.invalidate()
+
+    def _step_graph_blocker(self) -> str | None:
+        """Return why the step cannot run as a captured graph, or None."""
+        if not self.scene.cfg.lazy_sensor_update:
+            return "the scene updates sensors eagerly (lazy_sensor_update is False)"
+        if self.has_rtx_sensors:
+            return "camera sensors render on the host"
+        for name, sensor in self.scene.sensors.items():
+            if not sensor.supports_graph_capture:
+                return f"sensor '{name}' ({type(sensor).__name__}) cannot be recorded"
+        return None
+
+    def _step_ops(self, physics_ops: list[StepOp]) -> list[StepOp]:
+        """Return one environment step as operations, flagged by whether a CUDA graph can record them."""
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        writes = all(asset.supports_graph_capture for asset in self.scene.assets.values())
+        pre_physics = StepOp(self._pre_physics_step_from_buffer, True, "pre_physics_step")
+        # Physics may open with eager host work (e.g. model-change notification) that the actions do not depend on.
+        leading = next((i for i, op in enumerate(physics_ops) if op.graphable), len(physics_ops))
+        ops = list(physics_ops[:leading])
+        for _ in range(self.cfg.decimation // steps_per_call):
+            if pre_physics is not None:
+                ops.append(pre_physics)
+                pre_physics = None
+            elif leading:
+                ops.extend(physics_ops[:leading])
+            ops.append(StepOp(self._apply_action, True, "apply_action"))
+            ops.append(StepOp(self.scene.write_data_to_sim, writes, "scene.write"))
+            ops.extend(physics_ops[leading:])
+            ops.append(StepOp(partial(self.scene.update, dt=self.physics_dt * steps_per_call), True, "scene.update"))
+        ops.append(StepOp(self._advance_episode, True, "episode"))
+        ops.append(StepOp(self._compute_dones_and_rewards, True, "dones_and_rewards"))
+        # the default reset compacts the mask into indices, which synchronizes, so it becomes an eager island
+        ops.append(StepOp(self._reset_envs_from_buffer, True, "reset"))
+        if self.cfg.events and "interval" in self.event_manager.available_modes:
+            interval = partial(self.event_manager.apply, mode="interval", dt=self.step_dt)
+            ops.append(StepOp(interval, self.event_manager.supports_graph_capture, "events.interval"))
+        ops.append(StepOp(self._observe, True, "observations"))
+        return ops
+
+    def _launch_step_graph(self, graph: StepGraph, action: torch.Tensor) -> VecEnvStepReturn:
+        """Run one environment step from the step graph."""
+        self._step_capture.launch(graph, action)
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            manual_reset_ids = torch.arange(self.num_envs, device=self.device, dtype=torch.int32)
+            index_fill_(self.reset_terminated, manual_reset_ids, True)
+            self._reset_idx(manual_reset_ids)
+            self.obs_buf = self._compute_observations()
+        return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+
+    def _pre_physics_step_from_buffer(self) -> None:
+        action = self._step_capture.action
+        if self.cfg.action_noise_model:
+            action = self._action_noise_model(action)
+        self._pre_physics_step(action)
+
+    def _advance_episode(self) -> None:
+        self.episode_length_buf += 1
+
+    def _compute_dones_and_rewards(self) -> None:
+        self.reset_terminated[:], self.reset_time_outs[:] = self._get_dones()
+        self.reset_buf = self.reset_terminated | self.reset_time_outs
+        self.reward_buf = self._get_rewards()
+
+    def _observe(self) -> None:
+        self.obs_buf = self._compute_observations()
 
     @staticmethod
     def seed(seed: int = -1) -> int:

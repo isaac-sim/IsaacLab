@@ -197,8 +197,8 @@ that can replay without Python decisions.
 
 ### The whole environment step
 
-`ManagerBasedRLEnv` goes further and records its whole `step` (`capture_step`,
-on by default). It lays the step out as operations: actions, the physics step's
+`ManagerBasedRLEnv` and `DirectRLEnv` go further and record their whole `step`
+(`capture_step`, on by default). It lays the step out as operations: actions, the physics step's
 own operations, the scene update, terminations, rewards, the masked reset,
 commands and observations. Consecutive operations that a CUDA graph can record
 replay as one graph; the rest run eagerly in place (*eager islands*):
@@ -209,6 +209,13 @@ replay as one graph; the rest run eagerly in place (*eager islands*):
   environments by index (found automatically on the first run);
 - entity resets that cannot be recorded, such as TorchScript LSTM actuator state;
 - Newton actuators that are not graphable, and model-change notification.
+
+Terms often replace a buffer every step (`self.x = f(self.x)`) instead of
+writing it in place. A recorded operation keeps reading the tensor bound when
+it was recorded, so each replay ends by copying the new value into the old
+tensor; readers then see what eager stepping would give them. An eager island
+that replaces buffers every step cannot be fixed that way, so the environment
+then steps eagerly and names the buffers to write in place.
 
 The first step after a structural change runs eagerly; the next one records the
 graphs and replays them. After each replay, host bookkeeping advances as eager

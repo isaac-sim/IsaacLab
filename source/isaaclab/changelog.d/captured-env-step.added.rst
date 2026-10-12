@@ -8,3 +8,6 @@
   :class:`~isaaclab.scene.InteractiveScene`, :attr:`~isaaclab.scene.InteractiveScene.entities`, and an ``entities``
   argument to :meth:`~isaaclab.scene.InteractiveScene.reset`. Sensors declare ``supports_graph_capture``.
 * :meth:`~isaaclab.managers.EventManager.apply` accepts the reset step count as a device tensor.
+* Added :attr:`~isaaclab.envs.DirectRLEnvCfg.capture_step`: :class:`~isaaclab.envs.DirectRLEnv` captures its step the
+  same way, with the default index-based reset as an eager island. Both workflows share
+  :class:`~isaaclab.envs.utils.step_capture.EnvStepCapture`.
