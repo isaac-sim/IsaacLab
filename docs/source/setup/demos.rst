@@ -33,9 +33,8 @@ For example, run ``uvx isaaclab demo zoo --viz newton_gl`` to explore the catalo
 Programs whose required modules are unavailable, hardware-dependent teleoperation, and
 Kit-only demos are not shown.
 
-For cloth and rigid-soft contact examples, see :ref:`newton-using-vbd` and the
-:ref:`five humanoid tablecloth pulls <tablecloth-example>`. For particle-material comparisons
-and solver guidance, see :ref:`newton-tuning-mpm`.
+For cloth and rigid-soft contact guidance, see :ref:`newton-using-vbd`.
+For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
 Command Builder
 ---------------
@@ -135,3 +134,31 @@ Command Builder
        </button>
      </div>
    </div>
+
+.. _tablecloth-example:
+
+Focused examples
+----------------
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Tablecloth trick (Newton VBD, experimental)
+
+      .. image:: ../_static/examples/tablecloth_h2.jpg
+         :width: 100%
+         :alt: Five side-by-side H2 Plus robots pulling red tablecloths at different speeds.
+
+      Five H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
+      different speeds using GPU-captured Newton VBD and scripted Newton IK.
+      This is calibrated fixed-base manipulation, not balance or an RL task;
+      the settings favor contact accuracy over real-time throughput.
+
+      .. code-block:: bash
+
+         uvx isaaclab example tablecloth --device cuda:0
+
+      Kit videos: `five-speed overview
+      <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
+      and `wider-side grasp and pull
+      <https://github.com/user-attachments/assets/27ac0365-e862-4d60-bd85-51f585a580d5>`__.
