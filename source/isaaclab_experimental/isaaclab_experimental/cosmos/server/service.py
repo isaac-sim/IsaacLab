@@ -221,6 +221,7 @@ def _handle_connection(
     token = object()
     stream: _Stream | None = None
     channel = None
+    camera_released = False
     image_shape: tuple[int, int, int] | None = None
     num_views = 0
     try:
@@ -282,11 +283,14 @@ def _handle_connection(
                 stream = state.executor.submit(state.model.open_stream, **arguments).result()
                 image_shape = (arguments["height"], arguments["width"], 3)
                 num_views = arguments["num_views"]
+                reply = {"ok": True}
                 if transport == "cuda_ipc":
                     channel = state.executor.submit(
                         _open_channel, state.model, num_views, image_shape, handles
                     ).result()
-                send_message(connection, {"ok": True})
+                    # The camera opens the generated-image buffer and event this service writes.
+                    reply["ipc"] = channel.handles
+                send_message(connection, reply)
             elif operation == "step":
                 fields = {"op", "version", "reset_rows", "seeds"} | ({"prompt"} if "prompt" in metadata else set())
                 fields |= {"frames"} if channel is not None else set()
@@ -325,7 +329,14 @@ def _handle_connection(
                 break
             else:
                 raise ProtocolError("Unknown Cosmos operation; expected status, open, step, close, or shutdown.")
-    except (ConnectionError, TimeoutError, OSError):
+    except ConnectionError:
+        # The camera disconnected. It releases the output buffer first, and a process's mappings end with it.
+        camera_released = True
+    except TimeoutError:
+        # An idle camera learns at its next request that the session ended, while it still has its buffers open.
+        with suppress(OSError):
+            send_message(connection, {"ok": False, "error": "The Cosmos session was idle too long and closed."})
+    except OSError:
         pass
     except Exception as exc:
         # A failed generation may have advanced temporal state. End the session rather than retry.
@@ -338,29 +349,57 @@ def _handle_connection(
             if stream is not None:
                 state.executor.submit(stream.close).result()
             if channel is not None:
-                state.executor.submit(channel.close).result()
+                state.executor.submit(channel.close_opened).result()
         except Exception:
             _LOGGER.exception("Failed to close Cosmos generation state after a client disconnected.")
         finally:
             with state.ownership_lock:
                 if state.owner is token:
                     state.owner = None
-            with connections_lock:
-                connections.discard(connection)
-            connection.close()
+            try:
+                if channel is not None:
+                    if not camera_released:
+                        # The camera may still have the output buffer open; it releases it before disconnecting.
+                        _await_disconnect(connection)
+                    state.executor.submit(channel.close).result()
+            finally:
+                with connections_lock:
+                    connections.discard(connection)
+                connection.close()
+
+
+def _await_disconnect(connection: socket.socket) -> None:
+    """Wait until the camera closes the connection, discarding anything it still sends, up to the idle timeout."""
+    with suppress(OSError):
+        while connection.recv(65536):
+            pass
 
 
 def _open_channel(model: _Model, num_views: int, image_shape: tuple[int, int, int], handles: object):
-    """Open the camera's shared GPU buffers, one row per view, and events on the model's device (inference thread)."""
+    """Create the output buffer and event on the model's GPU and open the camera's (inference thread).
+
+    Buffers hold one row per view.
+    """
     import torch
 
-    from .._cuda_ipc import SharedChannel
+    from .. import _cuda_ipc
 
-    keys = {"control", "output", "control_ready", "output_ready"}
-    if not isinstance(handles, dict) or set(handles) != keys or not all(isinstance(v, str) for v in handles.values()):
-        raise ProtocolError("A CUDA IPC session needs control, output, control_ready and output_ready handles.")
-    shape = (num_views, MAX_CHUNK_FRAMES, *image_shape)
-    return SharedChannel(torch.device(model.capabilities["device"]), shape, handles)
+    if (
+        not isinstance(handles, dict)
+        or set(handles) != {"pci_bus_id", "control", "control_ready"}
+        or not all(isinstance(value, str) for value in handles.values())
+    ):
+        raise ProtocolError("A CUDA IPC session needs the camera's pci_bus_id, control and control_ready handles.")
+    device = torch.device(model.capabilities["device"])
+    if handles["pci_bus_id"] != _cuda_ipc.pci_bus_id(device.index or 0):
+        raise ValueError("CUDA IPC needs the camera's images on the Cosmos service's GPU; use the socket transport.")
+    channel = _cuda_ipc.SharedChannel(device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="output")
+    try:
+        channel.open({name: handles[name] for name in ("control", "control_ready")})
+    except Exception:
+        channel.close()
+        raise
+    return channel
 
 
 def _step_channel(stream: _Stream, channel, frames: list[int], resets, seeds, episode: dict) -> None:

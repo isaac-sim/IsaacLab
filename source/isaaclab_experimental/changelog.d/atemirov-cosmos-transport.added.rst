@@ -5,7 +5,8 @@
   extraction runs in the camera process, and blur filtering copies RGB to the CPU and back in the service.
   :attr:`~isaaclab_experimental.cosmos.CosmosModelCfg.transport` selects ``auto`` (default), ``cuda_ipc`` or
   ``socket``; ``auto`` uses CUDA IPC only when the service's ``status`` reports this machine's boot ID and the
-  camera's GPU.
+  camera's GPU. Each process allocates the buffer it writes and frees it only after the other process released
+  it.
 * Added Unix socket endpoints (``unix:///path``) to the Cosmos service. On Linux the service and cameras default
   to ``/tmp/isaaclab-cosmos-<uid>.sock``, which only the user can open; ``tcp://host:port`` remains available for
   Isaac Lab on another machine. ``isaaclab-cosmos-server --endpoint`` replaces ``--host`` and ``--port``.
