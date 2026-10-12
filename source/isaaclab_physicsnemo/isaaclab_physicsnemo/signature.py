@@ -38,6 +38,15 @@ floating attributes are authored directly and stay exact, because PhysicsNeMo Ro
 semantics such as continuous revolute joints from exact thresholds on them.
 """
 
+DERIVED_INERTIAL_FIELDS: tuple[str, ...] = ("body_inv_mass", "body_inv_inertia")
+"""Model attributes that Newton derives from the body masses and inertias when it finalizes the model.
+
+Newton computes them in a Warp kernel on the model device, and the last bit of a float32 inverse inertia depends
+on the GPU and the driver that compile it: an ANYmal-C model finalized on an L40S and on an RTX PRO 5000 differs in
+one entry of one body by one unit in the last place. The signature recomputes them on the host from the masses and
+inertias, which it hashes exactly, so the identity does not depend on the machine that built the model.
+"""
+
 SIGNATURE_ZERO_TOLERANCE = 1.0e-8
 """Magnitude, relative to the largest magnitude of the same attribute, below which a value counts as zero.
 
@@ -72,7 +81,9 @@ def isaaclab_model_signature(model: newton.Model) -> NewtonModelSignature:
       at every environment origin is the same shape in every world;
     * transform attributes are rounded to :data:`SIGNATURE_SIGNIFICANT_DIGITS` significant digits, and
       values below :data:`SIGNATURE_ZERO_TOLERANCE` times the largest magnitude of their attribute count
-      as zero.
+      as zero;
+    * the inverse masses and inertias in :data:`DERIVED_INERTIAL_FIELDS` are recomputed in double precision
+      on the host from the body masses and inertias and rounded the same way.
 
     The model is restored before the function returns.
 
@@ -122,6 +133,11 @@ def isaaclab_canonical_view(model: newton.Model) -> Iterator[None]:
             saved_arrays[name] = array
             values = _canonical_plane_placements(model, array.numpy()) if name == "shape_transform" else array.numpy()
             setattr(model, name, wp.array(_round_significant(values), dtype=array.dtype, device=array.device))
+    if model.body_count:
+        for name, values in zip(DERIVED_INERTIAL_FIELDS, _host_inverse_inertials(model)):
+            array = getattr(model, name)
+            saved_arrays[name] = array
+            setattr(model, name, wp.array(_round_significant(values), dtype=array.dtype, device=array.device))
     try:
         yield
     finally:
@@ -149,6 +165,18 @@ def _canonical_plane_placements(model: newton.Model, transforms: np.ndarray) -> 
     offset = (transforms[planes, :3] * normal).sum(axis=-1, keepdims=True)
     transforms[planes, :3] = offset * normal
     return transforms
+
+
+def _host_inverse_inertials(model: newton.Model) -> tuple[np.ndarray, np.ndarray]:
+    """Inverse body masses and inertias in double precision, zero for massless bodies as in Newton."""
+    mass = model.body_mass.numpy().astype(np.float64)
+    inertia = model.body_inertia.numpy().astype(np.float64).reshape(-1, 3, 3)
+    massive = mass > 0.0
+    inverse_mass = np.divide(1.0, mass, out=np.zeros_like(mass), where=massive)
+    invertible = massive & (np.linalg.det(inertia) != 0.0)
+    inverse_inertia = np.zeros_like(inertia)
+    inverse_inertia[invertible] = np.linalg.inv(inertia[invertible])
+    return inverse_mass, inverse_inertia
 
 
 def _round_significant(values: np.ndarray) -> np.ndarray:

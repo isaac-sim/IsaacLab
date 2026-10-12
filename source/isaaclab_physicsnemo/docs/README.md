@@ -40,9 +40,6 @@ Known limitations:
   them whenever a viewer, an `rgb_array` capture, or a display is active, so a learned scene there needs
   `NewtonCfg(load_visual_shapes=False)` and cannot be rendered by the Newton GL visualizer; the clips below
   replay learned rollouts in the MuJoCo Warp scene.
-- An ANYmal-C artifact trained in the OSMO container (L40S) fails the identity check on a local RTX PRO
-  5000 workstation with the same topology but a different static fingerprint; the differing attribute is
-  not yet identified.
 
 ## Package layout
 
@@ -438,6 +435,7 @@ when that behavior changes upstream.
 | Isaac Lab labels replicated entities with `/World/envs/env_<i>/...` prim paths, while PhysicsNeMo Robotics removes only a leading `env_<i>/` | `isaaclab_model_signature` fingerprints a canonical view with the prefix rewritten |
 | The MuJoCo Warp teacher registers `mujoco:*` custom attributes that the learned manager does not | The signature ignores solver-private attribute namespaces |
 | USD-derived local transforms differ in their last bits with the environment grid | The signature rounds transform attributes to `SIGNATURE_SIGNIFICANT_DIGITS` (6) significant digits and flushes values below `SIGNATURE_ZERO_TOLERANCE` (1e-8) times the largest magnitude of the same attribute to zero. Other floating attributes stay exact, because PhysicsNeMo Robotics derives semantics such as continuous joints from exact thresholds |
+| Newton derives inverse masses and inertias in a Warp kernel when it finalizes the model, and their last bit depends on the GPU and driver (one entry of an ANYmal-C body differs between an L40S and an RTX PRO 5000) | The signature recomputes `DERIVED_INERTIAL_FIELDS` on the host in double precision from the masses and inertias, which it hashes exactly, and rounds them like transforms, so an artifact deploys on other GPUs than the one that recorded it |
 | A ground plane replicated into every environment sits at a different origin in every world | The signature places every static plane at its point closest to the world origin |
 | PhysicsNeMo Robotics fixed-probe geometry fingerprints use the raw model arrays | Probes are built, and artifacts rebuilt by the manager, inside `isaaclab_canonical_view` |
 | Isaac Lab notifies the solver with `JOINT_PROPERTIES` after every fixed-root pose write ([#7777](https://github.com/isaac-sim/IsaacLab/pull/7777)) | The manager drops the notification while the joint anchors `joint_X_p` and `joint_X_c` are unchanged and rejects every other model change |

@@ -22,7 +22,7 @@ def _replicated_model(label_prefix: str, *, register_mujoco_attributes: bool = F
         newton.solvers.SolverMuJoCo.register_custom_attributes(scene)
     for world in range(2):
         robot = newton.ModelBuilder()
-        link = robot.add_link(mass=1.0, label="link")
+        link = robot.add_link(mass=1.0, inertia=wp.mat33(0.3, 0.01, 0.0, 0.01, 0.2, 0.0, 0.0, 0.0, 0.1), label="link")
         hinge = robot.add_joint_revolute(-1, link, label="hinge")
         robot.add_articulation([hinge], label="robot")
         scene.begin_world()
@@ -66,6 +66,24 @@ def test_signature_ignores_rounding_noise_but_not_physical_changes(offset):
 
     assert isaaclab_model_signature(noisy) == isaaclab_model_signature(reference)
     assert isaaclab_model_signature(moved) != isaaclab_model_signature(reference)
+
+
+def test_signature_ignores_device_rounding_of_derived_inertials():
+    """Inverse inertias that differ in their last bit, as between GPUs, share an identity; inertias do not."""
+    import numpy as np
+
+    reference = _replicated_model("/World/envs/env_{}/Robot")
+    rounded = _replicated_model("/World/envs/env_{}/Robot")
+    inverse = rounded.body_inv_inertia.numpy().copy()
+    rounded.body_inv_inertia.assign(np.nextafter(inverse, np.inf, dtype=np.float32))
+    heavier = _replicated_model("/World/envs/env_{}/Robot")
+    inertia = heavier.body_inertia.numpy()
+    inertia[:, 0, 0] *= 1.001
+    heavier.body_inertia.assign(inertia)
+
+    assert isaaclab_model_signature(rounded) == isaaclab_model_signature(reference)
+    assert isaaclab_model_signature(heavier) != isaaclab_model_signature(reference)
+    assert np.array_equal(rounded.body_inv_inertia.numpy(), np.nextafter(inverse, np.inf, dtype=np.float32))
 
 
 def test_signature_leaves_the_live_model_unchanged():
