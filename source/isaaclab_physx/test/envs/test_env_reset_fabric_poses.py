@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fabric world transforms after environment resets on PhysX.
+"""Fabric world transforms and camera observations after environment resets on PhysX.
 
 RTX renders rigid bodies from ``omni:fabric:worldMatrix``. A reset writes poses through the PhysX tensor API
-without a physics step, so it must publish them to Fabric itself.
+without a physics step, so it must publish them to Fabric itself. The cube test also checks the depth
+observations that the reset returns.
 """
 
 from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
@@ -22,25 +23,43 @@ import usdrt
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg, mdp
-from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim.utils.stage import get_current_stage_id
 from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
+from isaaclab.utils.configclass import configclass
 from isaaclab.utils.math import matrix_from_quat
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
-# camera resolution; the tests check Fabric, not camera images
-HEIGHT = 64
-WIDTH = 64
+# resolution
+HEIGHT = 256
+WIDTH = 256
+
+# number of sim steps before capturing a stabilised reference frame
+STABILISATION_STEPS = 5
+
+# far camera clipping distance [m]
+DEPTH_FAR = 10.0
 
 # cube reset pose relative to its spawn pose along x [m]
 CUBE_RESET_X_OFFSET = 0.15
 
 
+@configclass
+class _DepthObservationsCfg(ObservationGroupCfg):
+    """Camera geometry returned directly by environment reset."""
+
+    concatenate_terms = False
+    depth = ObservationTermCfg(
+        func=mdp.image_depth,
+        params={"sensor_cfg": SceneEntityCfg("camera"), "data_type": "distance_to_image_plane", "normalize": False},
+    )
+
+
 def _make_reset_env_cfg(device: str) -> ManagerBasedEnvCfg:
-    """Return a gravity-free Fabric scene with one RTX camera.
+    """Return a gravity-free Fabric scene with one top-down RTX depth camera.
 
     The camera switches on RTX sensor rendering and continuous Fabric transform updates. In this configuration,
     the renderer reads the reset poses from Fabric.
@@ -56,12 +75,14 @@ def _make_reset_env_cfg(device: str) -> ManagerBasedEnvCfg:
     cfg.sim.use_fabric = True
     cfg.sim.gravity = (0.0, 0.0, 0.0)
     cfg.sim.visualizer_cfgs = []
+    cfg.num_rerenders_on_reset = 2
     cfg.scene.camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         height=HEIGHT,
         width=WIDTH,
         data_types=["distance_to_image_plane"],
-        spawn=sim_utils.PinholeCameraCfg(),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, DEPTH_FAR)),
     )
     return cfg
 
@@ -105,9 +126,22 @@ def _moved_cube_pose(reset_pose: torch.Tensor) -> torch.Tensor:
     return pose
 
 
-def _step(env: ManagerBasedEnv) -> None:
-    """Step physics once with zero actions."""
-    env.step(torch.zeros_like(env.action_manager.action))
+def _step(env: ManagerBasedEnv, num_steps: int = 1) -> dict:
+    """Step physics with zero actions and return the last observations."""
+    action = torch.zeros_like(env.action_manager.action)
+    for _ in range(num_steps):
+        obs, _ = env.step(action)
+    return obs
+
+
+def _silhouette(depth: torch.Tensor) -> torch.Tensor:
+    """Return the pixels hit inside the camera clipping range."""
+    return torch.isfinite(depth) & (depth > 0.0) & (depth < DEPTH_FAR)
+
+
+def _silhouette_iou(mask: torch.Tensor, reference_mask: torch.Tensor) -> float:
+    """Return the intersection over union of two silhouettes."""
+    return ((mask & reference_mask).sum() / (mask | reference_mask).sum()).item()
 
 
 def _fabric_world_transforms(prim_paths: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
@@ -137,32 +171,48 @@ def _assert_transforms_match(transforms: tuple[torch.Tensor, torch.Tensor], pose
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 @pytest.mark.isaacsim_ci
-def test_env_reset_publishes_reset_pose_to_fabric(device: str):
-    """The first and subsequent resets must publish the reset pose to Fabric without stepping physics."""
+def test_env_reset_shows_reset_pose_in_fabric_and_camera_observation(device: str):
+    """The first and subsequent resets must show the reset pose in Fabric and in the camera observation.
+
+    Neither reset may step physics.
+    """
     sim_utils.create_new_stage()
     cfg = _make_reset_env_cfg(device)
+    cfg.observations = {"camera": _DepthObservationsCfg()}
     _add_reset_cube(cfg)
     env = ManagerBasedEnv(cfg)
     try:
         cube = env.scene["cube"]
         cube_paths = cube.root_view.prim_paths
         reset_pose = _cube_reset_pose(env)
-        env.reset()
+        first_reset_obs, _ = env.reset()
+        first_reset_depth = first_reset_obs["camera"]["depth"].clone()
         assert env.sim.get_physics_step_count() == 0
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
         _assert_transforms_match(_fabric_world_transforms(cube_paths), reset_pose)
 
+        # Establish rendered references at both poses before testing the reset boundary.
+        reference_depth = _step(env, STABILISATION_STEPS)["camera"]["depth"].clone()
+        torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
         # Fabric must show a different pose before the later reset, so a stale Fabric cannot match the reset pose.
         moved_pose = _moved_cube_pose(reset_pose)
         cube.write_root_pose_to_sim_index(root_pose=moved_pose)
-        _step(env)
+        moved_depth = _step(env, STABILISATION_STEPS)["camera"]["depth"].clone()
         _assert_transforms_match(_fabric_world_transforms(cube_paths), moved_pose)
 
         step_before_reset = env.sim.get_physics_step_count()
-        env.reset()
+        reset_obs, _ = env.reset()
         assert env.sim.get_physics_step_count() == step_before_reset
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
         _assert_transforms_match(_fabric_world_transforms(cube_paths), reset_pose)
+
+        # The renderer must turn the published poses into the observations that both resets return.
+        reference_mask, moved_mask = _silhouette(reference_depth), _silhouette(moved_depth)
+        assert reference_mask.any() and moved_mask.any(), "The cube must be visible at both reference poses."
+        assert not (reference_mask & moved_mask).any(), "Reference silhouettes must be spatially separated."
+        for phase, depth in (("First", first_reset_depth), ("Later", reset_obs["camera"]["depth"])):
+            overlap = _silhouette_iou(_silhouette(depth), reference_mask)
+            assert overlap > 0.9, f"{phase} reset camera missed the reset silhouette: IoU={overlap:.3f}"
     finally:
         env.close()
 
