@@ -441,7 +441,7 @@ isaaclab_doc_redirects = {
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
-# Sections of the former combined Docker page now live on separate pages.
+# Fragment redirects for documentation sections that moved to separate pages.
 isaaclab_doc_redirect_fragments = {
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
@@ -460,8 +460,8 @@ isaaclab_doc_redirect_fragments = {
         "overview": "source/concepts/visualization#visualization-streaming-camera-view",
         "usage": "source/concepts/visualization#visualization-streaming-camera-view",
         "configuration-notes": f"{_streaming_how_to}#configuration",
-        "migration-from-generated-streaming-cameras": f"{_streaming_how_to}#migrating-from-generated-cameras",
-        "declared-display-sources": f"{_streaming_how_to}#display-sources",
+        "migration-from-generated-streaming-cameras": f"{_streaming_how_to}#configuration",
+        "declared-display-sources": f"{_streaming_how_to}#configuration",
     },
 }
 

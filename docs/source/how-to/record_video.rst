@@ -41,13 +41,10 @@ visualizer (preferring one that supports capture), or creates a headless Kit vis
 configured. To record several sources at once, list one ``VideoRecorderCfg`` per source in
 ``env_cfg.video_recorders``; ``--video_length`` and ``--video_interval`` apply to every recorder:
 
-.. tab-set::
+.. code-block:: bash
 
-   .. tab-item:: uv (Recommended)
-
-      .. code-block:: bash
-
-          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
+   uv run --extra isaacsim --extra video isaaclab train --rl_library rsl_rl \
+       --task Isaac-Cartpole --video
 
 See :ref:`the --video sources <record_video_cli>` for the command-line selection rules, and `Sources`_
 and `Clip control`_ below for the ``VideoRecorderCfg`` options. To record from a different camera
@@ -194,7 +191,8 @@ Record a short clip at regular intervals while training, without opening a windo
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video \
+   uv run --extra isaacsim --extra video isaaclab train --rl_library rsl_rl \
+       --task Isaac-Cartpole --video \
        --video_length 200 --video_interval 2000
 
 With no ``--viz`` or configured visualizer, ``--video`` records from a headless Kit visualizer. This writes a
@@ -388,8 +386,8 @@ Limitations
      - Launches Isaac Sim; the launch enables camera rendering for the recording.
    * - ``newton_gl``
      - ✓
-     - Uses pyglet's EGL backend when headless; the default for ``--video`` without a
-       capture-capable ``--viz``.
+     - Uses pyglet's EGL backend when headless; select it with ``--viz newton_gl`` or configure a
+       ``NewtonGLVisualizerCfg``.
    * - ``newton_rtx``
      - ✓
      - Starts the OVRTX runtime; capture performs a GPU-to-CPU readback of the path-traced
