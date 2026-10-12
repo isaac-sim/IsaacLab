@@ -130,11 +130,12 @@ class FeatureExtractorCfg:
     """If True, the feature extractor model is trained during the rollout process. Default is True."""
 
     image_update_frames: int = 1
-    """Camera captures per generated RGB update after the initial image.
+    """Camera captures per generated RGB update after the initial image, as the image transfer is configured.
 
-    During training, values greater than one hold each view's pose target from the step its image
-    appears until that image changes, and skip views whose image is black, such as a view waiting
-    for its first generated image after a reset. Views may update at different captures. Default is 1.
+    Training only distinguishes one from more than one. Values greater than one hold each view's pose target
+    from the step its image appears until that image changes, and skip views whose image is black, such as a
+    view waiting for its first generated image after a reset. Views may update at different captures. The
+    Cosmos presets require it to equal the Cosmos ``update_frames``. Default is 1.
     """
 
     load_checkpoint: bool = False

@@ -84,6 +84,7 @@ class Model:
         self.cache_tensors: list[weakref.ReferenceType] = []
         self.steps: list[tuple[tuple[int, ...], tuple[int, ...] | None]] = []
         self.iterators = 0
+        self.iterator_seeds: list[list[int]] = []
 
     def encode(self, pixels: torch.Tensor) -> torch.Tensor:
         frames = pixels.shape[2]
@@ -104,6 +105,7 @@ class Model:
 
     def iter_samples_from_batch_autoregressive_streaming_transfer(self, *, control_latent_chunks, seeds, **_):
         self.iterators += 1
+        self.iterator_seeds.append(list(seeds))
         for step in control_latent_chunks:
             if isinstance(step, StreamingTransferStep):
                 self.steps.append((step.reset_rows, step.seeds))
@@ -251,7 +253,7 @@ def test_eager_runtimes_restart_all_views_together_but_not_one(batch):
     images = stream.step(_controls((1, 1), (1, 2)), (0, 1), (7, 8))
     assert [image.shape[0] for image in images] == [1, 1]
     assert model.iterators == 2 and model.steps[-1] == ((), None)
-    assert stream._seeds == (7, 8)
+    assert model.iterator_seeds == [[0, 1], [7, 8]]
 
 
 def test_closing_a_batch_releases_every_views_caches(batch):

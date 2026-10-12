@@ -441,7 +441,7 @@ def test_the_history_window_must_hold_its_attention_sink(window, sink):
         CosmosInferenceModel("unused-checkpoint", kv_window=window, attention_sink=sink)
 
 
-_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.0"}
+_IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "host_id": "this-boot", "pci_bus_id": "0000:02:00.0"}
 
 
 @pytest.mark.parametrize(
@@ -451,6 +451,8 @@ _IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.
         ("auto", "cpu", _IPC_SERVICE, True, 0, True, "socket"),
         ("auto", "cuda:0", {"transports": ["socket"]}, True, 0, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, False, 0, True, "socket"),
+        # A local endpoint tunneled to another machine whose GPU has a PCI bus ID this machine also uses.
+        ("auto", "cuda:0", {**_IPC_SERVICE, "host_id": "other-boot"}, True, 1, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, None, True, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 1, False, "socket"),
         ("auto", "cuda:0", _IPC_SERVICE, True, 0, False, "cuda_ipc"),
@@ -461,10 +463,11 @@ _IPC_SERVICE = {"transports": ["socket", "cuda_ipc"], "pci_bus_id": "0000:02:00.
 def test_transport_keeps_images_on_gpus_that_can_access_each_other(
     transport, device, capabilities, available, service_gpu, peer, expected, monkeypatch, caplog
 ):
-    """Auto uses CUDA IPC for a local service on this GPU or on a visible peer GPU; the socket is the fallback."""
+    """Auto uses CUDA IPC for a service on this machine and this or a peer GPU; the socket is the fallback."""
     from isaaclab_experimental.cosmos import _cuda_ipc
 
     monkeypatch.setattr(_cuda_ipc, "available", lambda: available)
+    monkeypatch.setattr(_cuda_ipc, "host_id", lambda: "this-boot")
     # service_gpu is this process's index of the service's GPU, or None when this process cannot see it.
     monkeypatch.setattr(
         _cuda_ipc, "device_by_bus_id", lambda bus_id: service_gpu if bus_id == _IPC_SERVICE["pci_bus_id"] else None
