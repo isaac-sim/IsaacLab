@@ -159,7 +159,12 @@ class _StaleCameraFrameError(Exception):
 
 
 def _make_reset_camera_env_cfg(device: str, camera_height: float = 2.0) -> ManagerBasedEnvCfg:
-    """Return a gravity-free Fabric scene whose top-down depth camera is observed on reset."""
+    """Return a gravity-free Fabric scene whose top-down depth camera is observed on reset.
+
+    Args:
+        device: Simulation device.
+        camera_height: Height of the camera above the environment origin [m].
+    """
     cfg = make_empty_manager_based_env_cfg(device=device)
     cfg.seed = 0
     cfg.decimation = 1
@@ -356,7 +361,10 @@ def test_env_reset_after_resume_shows_reset_pose_in_camera_observation(device: s
         reference_depth = _step_until_stable(env)
         torch.testing.assert_close(cube.data.root_link_pose_w.torch, reset_pose)
 
-        overlap = _silhouette_iou(_silhouette(reset_depth), _silhouette(reference_depth))
+        # An empty reference must fail the test, not count as the expected stale frame.
+        reference_mask = _silhouette(reference_depth)
+        assert reference_mask.any(), "The cube must be visible in the reference frame."
+        overlap = _silhouette_iou(_silhouette(reset_depth), reference_mask)
         if overlap <= 0.9:
             raise _StaleCameraFrameError(f"Reset after resume missed the reset silhouette: IoU={overlap:.3f}")
     finally:
