@@ -50,7 +50,6 @@ import os
 import shutil
 import sys
 import time
-import traceback
 from collections import OrderedDict
 
 import gymnasium as gym
@@ -399,13 +398,8 @@ def main(args: argparse.Namespace):
 
     config.lock()
 
-    # catch error during training and print it
-    res_str = "finished run successfully!"
-    try:
-        train(config, device, log_dir, ckpt_dir, video_dir)
-    except Exception as e:
-        res_str = f"run failed with error:\n{e}\n\n{traceback.format_exc()}"
-    print(res_str)
+    train(config, device, log_dir, ckpt_dir, video_dir)
+    print("finished run successfully!")
 
 
 if __name__ == "__main__":
