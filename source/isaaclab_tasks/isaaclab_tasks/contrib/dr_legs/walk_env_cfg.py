@@ -22,7 +22,7 @@ from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.dr_legs import DR_LEGS_ACTUATED_JOINTS
 
-from .hold_pose_env_cfg import ActionsCfg, DrLegsHoldPoseEnvCfg, HoldPoseSceneCfg, ObservationsCfg, _dr_legs_robot_cfg
+from .hold_pose_env_cfg import ActionsCfg, DrLegsHoldPoseEnvCfg, HoldPoseSceneCfg, ObservationsCfg, dr_legs_robot_cfg
 
 ##
 # Shared constants
@@ -59,7 +59,7 @@ class DrLegsContactSensorCfg(PresetCfg):
 
 @configclass
 class WalkSceneCfg(HoldPoseSceneCfg):
-    robot = _dr_legs_robot_cfg()
+    robot = dr_legs_robot_cfg()
     robot.actuators["driven_joints"].stiffness = preset(default=15.0, newton_kamino=15.0, physx=5.0, isaacsim_physx=5.0)
     robot.actuators["driven_joints"].damping = preset(default=0.6, newton_kamino=0.6, physx=0.2, isaacsim_physx=0.2)
     robot.actuators["driven_joints"].armature = preset(

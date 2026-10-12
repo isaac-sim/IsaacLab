@@ -79,7 +79,7 @@ class DrLegsPhysicsCfg(PresetCfg):
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
 
-def _dr_legs_robot_cfg() -> ArticulationCfg:
+def dr_legs_robot_cfg() -> ArticulationCfg:
     """Return the task-local DR Legs articulation configuration."""
     cfg = replace(DR_LEGS_IMPLICIT_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     # Work around Newton issue #4173: finite implicit-PD effort rows can destabilize closed-loop P-ADMM.
@@ -104,7 +104,7 @@ class HoldPoseSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0), physics_material=_PHYSICS_MATERIAL),
     )
 
-    robot = _dr_legs_robot_cfg()
+    robot = dr_legs_robot_cfg()
 
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
