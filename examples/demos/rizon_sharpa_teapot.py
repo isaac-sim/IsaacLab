@@ -215,7 +215,7 @@ def get_robot_cfg(*, base_position: tuple[float, float, float] = (-0.68, 0.0, 0.
 
 
 def prepared_contact_path(source: Path) -> Path:
-    """Cache convex contacts without changing the authored body, visual, or MPM shell."""
+    """Cache compact rigid contacts without changing the visual or MPM shell."""
     import newton
 
     from pxr import Usd, UsdGeom, UsdPhysics, Vt
@@ -243,7 +243,7 @@ def prepared_contact_path(source: Path) -> Path:
     digest.update(str(source).encode())
     digest.update(json.dumps(options, sort_keys=True).encode())
     digest.update(f"{version('newton')}:{version('coacd')}:{newton.Mesh.MAX_HULL_VERTICES}".encode())
-    directory = Path.home() / ".cache/isaaclab/rizon-sharpa-teapot/teapot-prepared-v3"
+    directory = Path.home() / ".cache/isaaclab/rizon-sharpa-teapot/teapot-prepared-v5"
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / f"{digest.hexdigest()}.usda"
     with FileLock(str(destination.with_suffix(".lock"))):
@@ -293,6 +293,27 @@ def prepared_contact_path(source: Path) -> Path:
             parts = colliders + list(range(previous_count, builder.shape_count))
             if any(builder.shape_type[index] != newton.GeoType.CONVEX_MESH for index in parts):
                 raise RuntimeError("Teapot contact decomposition returned a non-convex part")
+            contact_meshes = []
+            body_points, spout_points = [], []
+            for index in parts:
+                mesh = builder.shape_source[index]
+                vertices = np.asarray(mesh.vertices, dtype=np.float64) * np.asarray(builder.shape_scale[index])
+                transform = np.asarray(builder.shape_transform[index], dtype=np.float64)
+                points = Rotation.from_quat(transform[3:]).apply(vertices) + transform[:3]
+                # Retain the calibrated Utah handle and its junction with the body.
+                # Merge the remaining body and spout; MPM uses a separate exact shell.
+                if points[:, 0].min() < -0.055:
+                    contact_meshes.append((points, np.asarray(mesh.indices, dtype=np.int32).reshape(-1, 3)))
+                elif points[:, 0].max() > 0.075:
+                    spout_points.append(points)
+                else:
+                    body_points.append(points)
+            for points in (body_points, spout_points):
+                if points:
+                    hull = newton.Mesh(
+                        np.concatenate(points), np.empty((0, 3), dtype=np.int32), compute_inertia=False
+                    ).compute_convex_hull()
+                    contact_meshes.append((hull.vertices, hull.indices.reshape(-1, 3)))
             with tempfile.TemporaryDirectory(dir=directory) as temporary:
                 prepared = Path(temporary) / "contacts.usda"
                 stage = Usd.Stage.CreateNew(str(prepared))
@@ -305,18 +326,9 @@ def prepared_contact_path(source: Path) -> Path:
                     stage.OverridePrim(path).SetActive(False)
                 group = root.GetPath().AppendChild("PreparedConvexContacts")
                 UsdGeom.Xform.Define(stage, group)
-                for ordinal, index in enumerate(parts):
-                    mesh = builder.shape_source[index]
-                    vertices = np.asarray(mesh.vertices, dtype=np.float64) * np.asarray(builder.shape_scale[index])
-                    transform = np.asarray(builder.shape_transform[index], dtype=np.float64)
-                    position, quaternion = transform[:3], transform[3:]
-                    # shape_transform is body-local. Never apply body_q here:
-                    # the referenced source root already carries its own pose.
-                    rotated = vertices + 2.0 * np.cross(
-                        quaternion[:3], np.cross(quaternion[:3], vertices) + quaternion[3] * vertices
-                    )
-                    points = np.asarray((rotated + position) / units, dtype=np.float32)
-                    faces = np.asarray(mesh.indices, dtype=np.int32).reshape(-1, 3)
+                for ordinal, (points, faces) in enumerate(contact_meshes):
+                    # Points are body-local; the referenced root already carries its pose.
+                    points = np.asarray(points / units, dtype=np.float32)
                     prim = UsdGeom.Mesh.Define(stage, group.AppendChild(f"part_{ordinal:04d}"))
                     prim.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(points))
                     prim.CreateFaceVertexCountsAttr(Vt.IntArray.FromNumpy(np.full(len(faces), 3, dtype=np.int32)))
