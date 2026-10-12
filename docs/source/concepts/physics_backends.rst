@@ -89,7 +89,8 @@ For a diagnose-first workflow covering solver selection, iterations, contacts,
 stability, and GPU capacities, see :ref:`physx-solver-tuning`. For how the
 backend starts Isaac Sim, owns the simulation lifecycle, and exposes PhysX
 tensor views, see :doc:`the PhysX backend page
-</source/concepts/physics-backends/physx>`.
+</source/concepts/physics-backends/physx>`. For direct native access, see
+:ref:`PhysX Tensor API access <physx-native-access>`.
 
 
 .. _physics-backends-newton:
