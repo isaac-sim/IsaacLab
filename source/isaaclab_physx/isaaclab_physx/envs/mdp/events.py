@@ -116,6 +116,9 @@ class randomize_rigid_body_material(ManagerTermBase):
         material_samples = self.material_buckets[bucket_ids]
 
         materials = wp.to_torch(self.asset.root_view.get_material_properties())
+        # Negative restitution encodes compliant stiffness, not bounce.
+        restitution = materials[env_ids, :, 2]
+        material_samples[..., 2] = torch.where(restitution < 0.0, restitution, material_samples[..., 2])
         if self.num_shapes_per_body is not None:
             for body_id in self._backend_body_ids:
                 start_idx = sum(self.num_shapes_per_body[:body_id])
