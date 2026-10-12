@@ -663,8 +663,8 @@ etc.) at config construction time. Invocation or attribute access that needs the
 resolution; the caller must initialize any required runtime first. Resolution does not itself wait for
 ``SimulationApp``, and workflows without Kit need not launch it.
 
-You can use either the ``{DIR}`` shorthand or a fully-qualified module path. Attribute paths
-after the colon may be dotted when the callable is nested under an exported class or object:
+You can use either the ``{DIR}`` shorthand or a fully-qualified module path. The part after the colon may be
+dotted when the target is nested under a class:
 
 .. code:: python
 
@@ -674,8 +674,8 @@ after the colon may be dotted when the callable is nested under an exported clas
    # Good — fully-qualified path (useful for cross-package references)
    class_type: type[Sensor] | str = "isaaclab.sensors.my_sensor.sensor:Sensor"
 
-   # Good — dotted attribute path for a nested callable
-   updater: str = "collections:Counter.update"
+   # Good — dotted path to a class nested under another class
+   class_type: type[Sensor] | str = "{DIR}.sensor:Sensors.Camera"
 
    # Bad — eagerly imports the implementation module
    from .sensor import Sensor
