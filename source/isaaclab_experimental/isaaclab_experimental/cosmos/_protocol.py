@@ -35,10 +35,11 @@ CANVAS_ASPECT_RATIOS = {
 MAX_CHUNK_FRAMES = 4
 """Most frames one control chunk carries: one initial frame, then four per update."""
 DEFAULT_ENDPOINT = (
-    f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock" if hasattr(socket, "AF_UNIX") else "tcp://127.0.0.1:5555"
+    f"unix:///tmp/isaaclab-cosmos-{os.getuid()}.sock"
+    if hasattr(socket, "AF_UNIX") and hasattr(os, "getuid")
+    else "tcp://127.0.0.1:5555"
 )
-"""Default service endpoint: a Unix socket only this user can open on Linux, local TCP where Unix sockets are
-unavailable (Windows)."""
+"""Default service endpoint: a Unix socket only this user can open on Linux, local TCP elsewhere (Windows)."""
 _ENDPOINT_FORMS = "unix:///absolute/path or tcp://host:port"
 _MAX_UNIX_PATH_BYTES = 107
 MAX_METADATA_BYTES = 64 * 1024
