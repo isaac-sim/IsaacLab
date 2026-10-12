@@ -97,6 +97,13 @@ class ReorientDirectEnv(DirectRLEnv):
         self._orientation_error_buf = torch.full((self.num_envs,), torch.inf, device=self.device)
         self._orientation_error = EpisodeErrorRecorder(self.num_envs, self.device)
 
+        # -- state snapshots refreshed in place by :meth:`_compute_intermediate_values` --
+        fingertips = (self.num_envs, self.num_fingertips)
+        self.fingertip_pos = torch.zeros((*fingertips, 3), device=self.device)
+        self.fingertip_rot = torch.zeros((*fingertips, 4), device=self.device)
+        self.fingertip_velocities = torch.zeros((*fingertips, 6), device=self.device)
+        self.object_pos = torch.zeros((self.num_envs, 3), device=self.device)
+
         # -- reset randomization constants --
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
@@ -197,10 +204,8 @@ class ReorientDirectEnv(DirectRLEnv):
             self.extras["log"] = dict()
         self.extras["log"]["consecutive_successes"] = self.consecutive_successes.mean()
 
-        # reset goals if the goal has been reached
-        goal_env_ids = self.reset_goal_buf.nonzero(as_tuple=False).squeeze(-1)
-        if len(goal_env_ids) > 0:
-            self._reset_target_pose(goal_env_ids)
+        # draw new goals where the goal has been reached
+        self._reset_target_pose_mask(self.reset_goal_buf)
 
         return total_reward
 
@@ -212,16 +217,12 @@ class ReorientDirectEnv(DirectRLEnv):
         out_of_reach = goal_dist >= self.cfg.fall_dist
 
         # single per-step success evaluation; the reward and metrics reuse these buffers
-        self._orientation_error_buf = quat_error_magnitude(self.object_rot, self.goal_rot)
-        self._success_flags = self._orientation_error_buf <= self.cfg.success_tolerance
+        self._orientation_error_buf.copy_(quat_error_magnitude(self.object_rot, self.goal_rot))
+        torch.le(self._orientation_error_buf, self.cfg.success_tolerance, out=self._success_flags)
 
         if self.cfg.max_consecutive_success > 0:
             # reset progress (episode length buf) on goal environments
-            self.episode_length_buf = torch.where(
-                self._success_flags,
-                torch.zeros_like(self.episode_length_buf),
-                self.episode_length_buf,
-            )
+            self.episode_length_buf.masked_fill_(self._success_flags, 0)
             max_success_reached = self.successes >= self.cfg.max_consecutive_success
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
@@ -297,19 +298,30 @@ class ReorientDirectEnv(DirectRLEnv):
 
         index_fill_(self.reset_goal_buf, env_ids, 0)
 
+    def _reset_target_pose_mask(self, env_mask: torch.Tensor) -> None:
+        """Draw new goal rotations for the environments selected by ``env_mask``, without synchronizing."""
+        rand_floats = sample_uniform(-1.0, 1.0, (self.num_envs, 2), device=self.device)
+        new_rot = randomize_rotation(rand_floats[:, 0], rand_floats[:, 1], self.x_unit_tensor, self.y_unit_tensor)
+        torch.where(env_mask[:, None], new_rot, self.goal_rot, out=self.goal_rot)
+        if self.sim.is_rendering:
+            self.goal_markers.visualize(
+                self.goal_pos + self.scene.env_origins, self.goal_rot, environment_ids=self.scene._ALL_INDICES
+            )
+        self.reset_goal_buf.masked_fill_(env_mask, False)
+
     def _compute_intermediate_values(self) -> None:
-        """Refresh the torch-side state snapshots consumed by the observation and reward paths."""
+        """Refresh the torch-side state snapshots consumed by the observation and reward paths, in place."""
         env_origins = self.scene.env_origins.unsqueeze(1)
         # data for hand
-        self.fingertip_pos = self.hand.data.body_pos_w.torch[:, self.finger_bodies] - env_origins
-        self.fingertip_rot = self.hand.data.body_quat_w.torch[:, self.finger_bodies]
-        self.fingertip_velocities = self.hand.data.body_vel_w.torch[:, self.finger_bodies]
+        torch.sub(self.hand.data.body_pos_w.torch[:, self.finger_bodies], env_origins, out=self.fingertip_pos)
+        self.fingertip_rot.copy_(self.hand.data.body_quat_w.torch[:, self.finger_bodies])
+        self.fingertip_velocities.copy_(self.hand.data.body_vel_w.torch[:, self.finger_bodies])
 
         self.hand_dof_pos = self.hand.data.joint_pos.torch
         self.hand_dof_vel = self.hand.data.joint_vel.torch
 
         # data for object
-        self.object_pos = self.object.data.root_pos_w.torch - self.scene.env_origins
+        torch.sub(self.object.data.root_pos_w.torch, self.scene.env_origins, out=self.object_pos)
         self.object_rot = self.object.data.root_quat_w.torch
         self.object_velocities = self.object.data.root_vel_w.torch
         self.object_linvel = self.object.data.root_lin_vel_w.torch
