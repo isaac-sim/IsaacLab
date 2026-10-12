@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import logging
 import math
+import warnings
+from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import gymnasium as gym
@@ -16,6 +18,7 @@ import warp as wp
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
 from ..utils import env_ids_from_mask, env_mask_from_ids
+from ..utils.step_graph import StepGraph, StepOp
 from ..utils.warp import ProxyArray
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
@@ -93,6 +96,17 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.reset_buf = torch.zeros(cfg.scene.num_envs, device=cfg.sim.device, dtype=torch.bool)
         # stable mask of the environments reset within a step, shared by every reset consumer
         self._step_reset_mask = ProxyArray(wp.zeros(cfg.scene.num_envs, dtype=wp.bool, device=cfg.sim.device))
+        # environment steps taken, on the device so that captured reset events read the current count
+        self._env_step_count = torch.zeros((), dtype=torch.long, device=cfg.sim.device)
+        # captured step (see ``ManagerBasedRLEnvCfg.capture_step``)
+        self._step_graph: StepGraph | None = None
+        self._step_graph_physics_ops: list[StepOp] | None = None
+        self._step_action: torch.Tensor | None = None
+        self._step_graph_rebuilds: list[int] = []
+        self._step_graph_warm: StepGraph | None = None
+        # operations found to synchronize the device; they run eagerly from then on
+        self._step_sync_ops: set[str] = set()
+        self._step_capture_blocker: str | None = None if cfg.capture_step else "disabled by capture_step"
 
         # initialize the base class to setup the scene.
         super().__init__(cfg=cfg, physics_manager=physics_manager)
@@ -109,6 +123,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """
     Properties.
     """
+
+    @property
+    def step_graph(self) -> StepGraph | None:
+        """The operations :meth:`step` runs, grouped into CUDA graphs, or None while stepping eagerly.
+
+        See :attr:`~isaaclab.envs.ManagerBasedRLEnvCfg.capture_step`.
+        """
+        return self._step_graph
 
     @property
     def max_episode_length_s(self) -> float:
@@ -223,6 +245,10 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        step_graph = self._prepare_step_graph(action)
+        if step_graph is not None:
+            return self._launch_step_graph(step_graph, action)
+
         self.action_manager.process_action(action.to(self.device))
 
         self.recorder_manager.record_pre_step()
@@ -248,6 +274,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # post-step:
         # -- update env counters (used for curriculum generation)
         self.episode_length_buf += 1  # step in current episode (per env)
+        self._env_step_count += 1
         self.common_step_counter += 1  # total step (common for all envs)
         # -- check terminations
         self.reset_buf = self.termination_manager.compute()
@@ -423,17 +450,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Args:
             env_mask: Boolean mask of the environments to reset. Shape is (num_envs,).
         """
-        # update the curriculum for environments that need a reset
-        self.curriculum_manager.compute(env_mask=env_mask)
-        # reset the internal buffers of the scene elements
-        self.scene.reset(env_mask=env_mask.warp)
-        # apply events such as randomizations for environments that need a reset
-        if "reset" in self.event_manager.active_terms:
-            env_step_count = self._sim_step_counter // self.cfg.decimation
-            self.event_manager.apply(mode="reset", env_mask=env_mask, global_env_step_count=env_step_count)
+        for op in self._reset_mask_ops(env_mask):
+            op.fn()
 
-        # iterate over all managers and reset them
-        # this returns a dictionary of information which is stored in the extras
+    def _reset_mask_ops(self, env_mask: ProxyArray) -> list[StepOp]:
+        """Return the masked reset as operations, flagged by whether a CUDA graph can record them.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset, a stable buffer when the operations are recorded.
+        """
         # note: This is order-sensitive! Certain things need be reset before others.
         managers = (
             self.observation_manager,
@@ -445,6 +470,227 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.termination_manager,
             self.recorder_manager,
         )
-        self._reset_managers(env_mask, managers)
+        # update the curriculum for environments that need a reset
+        ops = [
+            StepOp(
+                partial(self.curriculum_manager.compute, env_mask=env_mask),
+                self.curriculum_manager.supports_graph_capture,
+                "curriculum",
+            )
+        ]
+        # reset the internal buffers of the scene elements; entities whose reset cannot be recorded run eagerly
+        entities = self.scene.entities
+        recordable = [entity for entity in entities if entity.reset_supports_graph_capture]
+        ops.append(StepOp(partial(self.scene.reset, env_mask=env_mask.warp, entities=recordable), True, "scene.reset"))
+        for entity in entities:
+            if not entity.reset_supports_graph_capture:
+                reset = partial(self.scene.reset, env_mask=env_mask.warp, entities=[entity])
+                ops.append(StepOp(reset, False, f"scene.reset.{type(entity).__name__}"))
+        # apply events such as randomizations for environments that need a reset
+        if "reset" in self.event_manager.active_terms:
+            reset_events = partial(
+                self.event_manager.apply, mode="reset", env_mask=env_mask, global_env_step_count=self._env_step_count
+            )
+            ops.append(StepOp(reset_events, self.event_manager.supports_graph_capture, "events.reset"))
+        # iterate over all managers and reset them
+        # this returns a dictionary of information which is stored in the extras
+        reset_managers = partial(self._reset_managers, env_mask, managers)
+        ops.append(StepOp(reset_managers, all(m.supports_graph_capture for m in managers), "managers.reset"))
+        ops.append(StepOp(partial(self.episode_length_buf.masked_fill_, env_mask.torch, 0), True, "episode_length"))
+        return ops
 
-        self.episode_length_buf.masked_fill_(env_mask.torch, 0)
+    """
+    Operations - Captured step.
+    """
+
+    def invalidate_step_graph(self) -> None:
+        """Record the captured step again before the next step.
+
+        Call it after changing host state that captured work reads as a constant, such as a manager term's
+        configuration. :meth:`~isaaclab.managers.ManagerBase` setters such as ``set_term_cfg`` call it already.
+        """
+        if self._step_graph is not None:
+            self._step_graph = None
+            self._step_graph_rebuilds.append(self.common_step_counter)
+
+    def _prepare_step_graph(self, action: torch.Tensor) -> StepGraph | None:
+        """Return the step as a graph of operations, or None to step eagerly.
+
+        The graph is rebuilt when the physics step's operations change (e.g. new step callbacks) or when
+        :meth:`invalidate_step_graph` was called.
+        """
+        if self._step_capture_blocker is not None:
+            return None
+        if self.sim.is_rendering or self.video_recorders:
+            # rendering and video run on the host on their own cadence
+            return None
+        physics_ops = self.sim.physics_manager.step_ops()
+        if physics_ops is None:
+            self._step_capture_blocker = "the physics backend exposes no step operations"
+            return None
+        if self._step_graph is not None and physics_ops is self._step_graph_physics_ops:
+            return self._step_graph
+        if self._step_graph is not None:
+            self._step_graph_rebuilds.append(self.common_step_counter)
+        # Rebuilding every few steps costs more than it saves: some term keeps changing captured constants.
+        recent = [step for step in self._step_graph_rebuilds if self.common_step_counter - step < 50]
+        if len(recent) > 3:
+            return self._block_step_capture("the captured step is invalidated every few steps")
+        blocker = self._step_graph_blocker()
+        if blocker is not None:
+            return self._block_step_capture(blocker)
+        if self._step_action is None or self._step_action.shape != action.shape:
+            self._step_action = torch.zeros(action.shape, dtype=torch.float32, device=self.device)
+        self._step_graph_physics_ops = physics_ops
+        self._step_graph = self._step_graph_from(self._step_ops(physics_ops))
+        return self._step_graph
+
+    def _step_graph_from(self, ops: list[StepOp]) -> StepGraph:
+        """Group operations into a step graph, keeping operations known to synchronize the device eager."""
+        sync = self._step_sync_ops
+        return StepGraph([StepOp(op.fn, False, op.name) if op.name in sync and op.graphable else op for op in ops])
+
+    def _step_graph_blocker(self) -> str | None:
+        """Return why the step cannot run as a captured graph, or None."""
+        if self.recorder_manager.active_terms:
+            return "recorder terms are active"
+        if type(self)._reset_idx is not ManagerBasedRLEnv._reset_idx:
+            return f"{type(self).__name__} overrides _reset_idx, which resets by index"
+        if not self.scene.cfg.lazy_sensor_update:
+            return "the scene updates sensors eagerly (lazy_sensor_update is False)"
+        if self.has_rtx_sensors:
+            return "camera sensors render on the host"
+        for name, sensor in self.scene.sensors.items():
+            if not sensor.supports_graph_capture:
+                return f"sensor '{name}' ({type(sensor).__name__}) cannot be recorded"
+        return None
+
+    def _block_step_capture(self, reason: str) -> None:
+        logger.warning("Stepping %s eagerly: %s.", type(self).__name__, reason)
+        self._step_capture_blocker = reason
+        self._step_graph = None
+
+    def _step_ops(self, physics_ops: list[StepOp]) -> list[StepOp]:
+        """Return one environment step as operations, flagged by whether a CUDA graph can record them."""
+        actions = self.action_manager
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        process = StepOp(partial(actions.process_action, self._step_action), actions.supports_graph_capture, "actions")
+        # Physics may open with eager host work (e.g. model-change notification) that actions do not depend on;
+        # processing actions after it lets them share a graph with the physics step.
+        leading = next((i for i, op in enumerate(physics_ops) if op.graphable), len(physics_ops))
+        ops = list(physics_ops[:leading])
+        for _ in range(self.cfg.decimation // steps_per_call):
+            if process is not None:
+                ops.append(process)
+                process = None
+            elif leading:
+                ops.extend(physics_ops[:leading])
+            if not self._physics_handles_actions:
+                ops.append(StepOp(actions.apply_action, actions.supports_graph_capture, "actions.apply"))
+                writes = all(asset.supports_graph_capture for asset in self.scene.assets.values())
+                ops.append(StepOp(self.scene.write_data_to_sim, writes, "scene.write"))
+            ops.extend(physics_ops[leading:])
+            ops.append(StepOp(partial(self.scene.update, dt=self.physics_dt * steps_per_call), True, "scene.update"))
+        ops.append(StepOp(self._advance_episode, True, "episode"))
+        terminations, rewards, observations = self.termination_manager, self.reward_manager, self.observation_manager
+        ops.append(StepOp(self._compute_terminations, terminations.supports_graph_capture, "terminations"))
+        ops.append(StepOp(self._compute_rewards, rewards.supports_graph_capture, "rewards"))
+        if self.cfg.compute_final_obs:
+            ops.append(StepOp(self._compute_final_obs, observations.supports_graph_capture, "final_obs"))
+        ops.append(StepOp(self._copy_reset_mask, True, "reset_mask"))
+        ops.extend(self._reset_mask_ops(self._step_reset_mask))
+        commands = self.command_manager
+        ops.append(StepOp(partial(commands.compute, dt=self.step_dt), commands.supports_graph_capture, "commands"))
+        if "interval" in self.event_manager.active_terms:
+            interval = partial(self.event_manager.apply, mode="interval", dt=self.step_dt)
+            ops.append(StepOp(interval, self.event_manager.supports_graph_capture, "events.interval"))
+        ops.append(StepOp(self._compute_observations, observations.supports_graph_capture, "observations"))
+        return ops
+
+    def _launch_step_graph(self, graph: StepGraph, action: torch.Tensor) -> VecEnvStepReturn:
+        """Run one environment step from the step graph, recording its graphs on the first run."""
+        self._step_action.copy_(action)
+        if not graph.captured and self._step_graph_warm is graph:
+            # The previous step ran the operations eagerly (lazy allocations); record them now and replay, so that
+            # every returned buffer holds executed work.
+            try:
+                graph.capture(self._capture_graph)
+            except Exception as error:  # noqa: BLE001
+                self._block_step_capture(f"recording the step failed ({error})")
+        replayed = graph.captured
+        if replayed:
+            graph.launch()
+        else:
+            graph = self._launch_watching_syncs(graph)
+        self._step_graph_warm = graph
+        # host bookkeeping that the replayed operations skip
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
+            self.sim.finish_physics_step()
+            if replayed:
+                self.scene.notify_update_replayed(dt=self.physics_dt * steps_per_call)
+        self.common_step_counter += 1
+        # -- handle episode reset requested from visualizer UI controls
+        if self.sim.consume_reset_request():
+            manual_reset = ~self.reset_buf
+            self.reset_terminated |= manual_reset
+            self._reset_terminated_envs(manual_reset)
+            self.obs_buf = self.observation_manager.compute(update_history=True)
+        return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+
+    def _launch_watching_syncs(self, graph: StepGraph) -> StepGraph:
+        """Run the operations eagerly and return the graph with operations that synchronized the device made eager.
+
+        A synchronizing operation (e.g. a term that selects environments by index) would fail inside a capture, so it
+        becomes an eager island instead of preventing the capture.
+        """
+        if "cuda" not in str(self.device):
+            graph.launch()
+            return graph
+        synced: set[str] = set()
+        previous_mode = torch.cuda.get_sync_debug_mode()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            torch.cuda.set_sync_debug_mode("warn")
+            try:
+                for op in graph.ops:
+                    count = len(caught)
+                    op.fn()
+                    if op.graphable and any("synchroniz" in str(w.message) for w in caught[count:]):
+                        synced.add(op.name)
+            finally:
+                torch.cuda.set_sync_debug_mode(previous_mode)
+        if not synced:
+            return graph
+        logger.info("Running %s eagerly in the captured step: they synchronize the device.", sorted(synced))
+        self._step_sync_ops |= synced
+        self._step_graph = self._step_graph_from(graph.ops)
+        return self._step_graph
+
+    def _capture_graph(self, fn) -> Any:
+        graph = self.sim.physics_manager.capture_graph(fn)
+        if graph is None:
+            raise RuntimeError("the physics backend does not capture graphs")
+        return graph
+
+    def _advance_episode(self) -> None:
+        self.episode_length_buf += 1
+        self._env_step_count += 1
+
+    def _compute_terminations(self) -> None:
+        self.reset_buf = self.termination_manager.compute()
+        self.reset_terminated = self.termination_manager.terminated
+        self.reset_time_outs = self.termination_manager.time_outs
+
+    def _compute_rewards(self) -> None:
+        self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+
+    def _compute_final_obs(self) -> None:
+        self.extras["final_obs"] = self.observation_manager.compute()
+
+    def _copy_reset_mask(self) -> None:
+        self._step_reset_mask.torch.copy_(self.reset_buf)
+
+    def _compute_observations(self) -> None:
+        self.obs_buf = self.observation_manager.compute(update_history=True)

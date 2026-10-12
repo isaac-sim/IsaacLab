@@ -66,8 +66,10 @@ def _rollout_osc(num_steps: int, native: bool = True) -> tuple[torch.Tensor, boo
                 env.step(actions)
                 trajectory.append(robot.data.joint_pos.torch.clone())
         if env.unwrapped._physics_handles_actions:
-            graph = env.unwrapped.sim.physics_manager.backend.step_graph
-            assert graph.captured and graph.graphable
+            # The environment records the physics step, controller included, into its own step graph.
+            graph = env.unwrapped.step_graph
+            assert graph.captured
+            assert all(op.graphable for op in graph.ops if op.name.startswith("action"))
         return torch.stack(trajectory), env.unwrapped._physics_handles_decimation
     finally:
         env.close()
@@ -174,3 +176,56 @@ def test_whole_environment_step_captures_with_newton_physics():
     assert int(eager[2].sum()) >= 3 * 64
     for eager_values, captured_values in zip(eager, captured):
         torch.testing.assert_close(captured_values, eager_values, atol=1e-5, rtol=0.0)
+
+
+def _rollout_env(task: str, captured: bool, num_steps: int) -> tuple[list[torch.Tensor], object]:
+    """Step a manager-based task deterministically with random actions and short episodes."""
+    sim_utils.create_new_stage()
+    env_cfg = resolve_presets(load_cfg_from_registry(task, "env_cfg_entry_point"), selected=("newton_mjwarp",))
+    env_cfg.sim.device = "cuda:0"
+    env_cfg.scene.num_envs = 16
+    env_cfg.seed = 5
+    env_cfg.capture_step = captured
+    env_cfg.sim.physics.deterministic_mode = "run_to_run"
+    env_cfg.observations.policy.enable_corruption = False
+    # Short episodes guarantee resets inside the rollout.
+    env_cfg.episode_length_s = 8 * env_cfg.decimation * env_cfg.sim.dt
+    env = gym.make(task, cfg=env_cfg)
+    try:
+        env.unwrapped.sim._app_control_on_stop_handle = None
+        env.reset()
+        generator = torch.Generator(device="cuda:0").manual_seed(0)
+        shape = env.action_space.shape
+        state = env.unwrapped.sim.physics_manager.backend.state_0
+        robot = env.unwrapped.scene["robot"]
+        trajectory = []
+        with torch.inference_mode():
+            for _ in range(num_steps):
+                obs, reward, terminated, truncated, _ = env.step(
+                    torch.rand(shape, device="cuda:0", generator=generator)
+                )
+                joints = torch.cat([wp.to_torch(state.joint_q), wp.to_torch(state.joint_qd)])
+                # Lazily computed asset data read after the step, outside any graph, must be current too.
+                bodies = robot.data.body_com_pose_w.torch.flatten()
+                step = (obs["policy"].flatten(), reward, terminated, truncated, joints, bodies)
+                trajectory.append(torch.cat(step).clone())
+        return trajectory, env.unwrapped.step_graph
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("task", ["Isaac-Cartpole", "Isaac-Reach-Franka", "Isaac-Velocity-Flat-AnymalD"])
+def test_captured_environment_step_matches_eager(task):
+    """Replaying the environment step from CUDA graphs reproduces eager stepping exactly, resets included.
+
+    Reach-Franka keeps its host-scheduled curriculum and manager reset as eager islands, and ANYmal-D its TorchScript
+    LSTM actuators and their state reset, between the captured segments.
+    """
+    eager, eager_graph = _rollout_env(task, captured=False, num_steps=24)
+    captured, step_graph = _rollout_env(task, captured=True, num_steps=24)
+
+    assert eager_graph is None
+    assert step_graph is not None and step_graph.captured
+    for eager_step, captured_step in zip(eager, captured):
+        # Reductions may round differently once recorded; anything beyond rounding is a missed update.
+        torch.testing.assert_close(captured_step, eager_step, atol=1e-5, rtol=0.0)

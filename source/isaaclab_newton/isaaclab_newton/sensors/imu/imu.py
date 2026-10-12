@@ -32,6 +32,8 @@ class Imu(BaseImu):
     body frame.
     """
 
+    supports_graph_capture = True
+
     cfg: ImuCfg
     """The configuration parameters."""
 

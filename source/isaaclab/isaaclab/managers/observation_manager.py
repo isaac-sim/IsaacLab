@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -327,6 +327,9 @@ class ObservationManager(ManagerBase):
     """
     Operations.
     """
+
+    def _graph_capture_terms(self) -> Iterable[Any]:
+        return (term_cfg.func for term_cfgs in self._group_obs_term_cfgs.values() for term_cfg in term_cfgs)
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: ProxyArray | None = None) -> dict[str, float]:
         """Resets the class terms, modifiers, and the delay and history buffers of the selected environments.

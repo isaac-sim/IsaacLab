@@ -44,6 +44,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     world, and loop-closing constraints are excluded.
     """
 
+    supports_graph_capture = True
+
     cfg: JointWrenchSensorCfg
     """The configuration parameters."""
 

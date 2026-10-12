@@ -176,6 +176,7 @@ class RewardManager(ManagerBase):
             raise ValueError(f"Reward term '{term_name}' not found.")
         # set the configuration
         self._term_cfgs[self._term_names.index(term_name)] = cfg
+        self._invalidate_step_graph()
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.

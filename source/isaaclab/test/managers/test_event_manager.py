@@ -447,8 +447,12 @@ def reset_dummy1_to_zero_masked(env, env_mask: ProxyArray):
     env.dummy1.masked_fill_(env_mask.torch[:, None], 0)
 
 
-def test_apply_reset_mode_with_mask_terms(env):
-    """Mask terms run on every reset, see the cooldown-filtered mask, and leave unselected environments alone."""
+@pytest.mark.parametrize("device_count", [False, True], ids=["host-count", "device-count"])
+def test_apply_reset_mode_with_mask_terms(env, device_count):
+    """Mask terms run on every reset, see the cooldown-filtered mask, and leave unselected environments alone.
+
+    The step count may live on the device, as for a captured environment step.
+    """
     calls = []
 
     def increment(env, env_mask: ProxyArray):
@@ -468,7 +472,8 @@ def test_apply_reset_mode_with_mask_terms(env):
     for count in range(23):
         selected = [i for i in range(env.num_envs) if (i + count) % 3 == 0] if count % 4 else []
         env_mask = env_mask_from_ids(selected, env.num_envs, env.device)
-        event_man.apply("reset", env_mask=env_mask, global_env_step_count=count)
+        step_count = torch.tensor(count, device=env.device) if device_count else count
+        event_man.apply("reset", env_mask=env_mask, global_env_step_count=step_count)
 
         # an empty selection still calls the mask term, with an all-False mask
         assert torch.equal(calls[-1], env_mask.torch)

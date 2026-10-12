@@ -388,6 +388,16 @@ class Articulation(BaseArticulation):
         """Whether all Isaac Lab actuator computations are graph safe."""
         return all(actuator.supports_graph_capture for actuator, _ in self.actuators._execution_actuators)
 
+    @property
+    def reset_supports_graph_capture(self) -> bool:
+        """Whether a masked reset can be recorded, including the state reset of Newton-native actuators.
+
+        Newton drives that run outside CUDA graphs, such as TorchScript LSTM networks, reset their state eagerly.
+        """
+        native = self._physics_manager.backend.actuators if self._physics_manager.backend is not None else None
+        native_graphable = native is None or all(actuator.is_graphable() for actuator in native.actuators)
+        return native_graphable and super().reset_supports_graph_capture
+
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
 

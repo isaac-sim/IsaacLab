@@ -18,6 +18,7 @@ import warp as wp
 from .. import sim as sim_utils
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.simulation_context import SimulationContext
+from ..utils import takes_env_mask
 from ..utils.warp import ProxyArray
 from .asset import Asset
 
@@ -80,6 +81,15 @@ class AssetBase(Asset, ABC):
 
     supports_graph_capture = False
     """Whether write_data_to_sim can be recorded with fixed buffers and no host-dependent branches."""
+
+    @property
+    def reset_supports_graph_capture(self) -> bool:
+        """Whether a masked :meth:`reset` can be recorded into a CUDA graph.
+
+        Assets whose command writers can be recorded reset with device kernels on a mask; an asset whose reset
+        takes only indices synchronizes the device and cannot be recorded.
+        """
+        return self.supports_graph_capture and takes_env_mask(self.reset)
 
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
@@ -236,6 +246,19 @@ class AssetBase(Asset, ABC):
     def write_data_to_sim(self):
         """Writes data to the simulator."""
         raise NotImplementedError
+
+    def notify_update_replayed(self, dt: float) -> None:
+        """Advance host bookkeeping after a captured :meth:`update` replayed on the device.
+
+        A graph replays the device work of :meth:`update` without running Python, so data that caches derived
+        quantities by a host timestamp advances it here; later reads outside the graph then recompute them.
+
+        Args:
+            dt: Time the replayed update advanced [s].
+        """
+        data = getattr(self, "_data", None)
+        if hasattr(data, "_sim_timestamp"):
+            data._sim_timestamp += dt
 
     @abstractmethod
     def update(self, dt: float):

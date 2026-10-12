@@ -436,7 +436,12 @@ class InteractiveScene:
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(
+        self,
+        env_ids: Sequence[int] | None = None,
+        env_mask: wp.array | None = None,
+        entities: Sequence[AssetBase | SensorBase] | None = None,
+    ):
         """Resets the scene entities.
 
         Entities whose ``reset`` takes ``env_mask`` receive the mask and reset without synchronizing the device.
@@ -447,6 +452,7 @@ class InteractiveScene:
                 Defaults to None (all instances).
             env_mask: Boolean mask of the environments to reset, dtype ``wp.bool``. Shape is (num_envs,). Takes
                 precedence over ``env_ids``.
+            entities: Entities to reset, a subset of :attr:`entities`. Defaults to all of them.
         """
         if env_mask is None:
             env_ids = slice(None) if env_ids is None else env_ids
@@ -454,7 +460,7 @@ class InteractiveScene:
             env_mask = selection_mask.warp
         else:
             env_ids = selection_mask = None
-        for entity in (*self.assets.values(), *self._sensors.values()):
+        for entity in self.entities if entities is None else entities:
             if takes_env_mask(entity.reset):
                 entity.reset(env_mask=env_mask)
             else:
@@ -463,6 +469,11 @@ class InteractiveScene:
                 selection = env_selection_kwargs(entity.reset, selection_mask, env_ids)
                 if selection is not None:
                     entity.reset(*selection.values())
+
+    @property
+    def entities(self) -> tuple[AssetBase | SensorBase, ...]:
+        """Scene assets followed by sensors, in reset order."""
+        return (*self.assets.values(), *self._sensors.values())
 
     @property
     def assets(self) -> dict[str, AssetBase]:
@@ -518,6 +529,15 @@ class InteractiveScene:
         # Process batched sensors only during eager updates.
         if batched_sensors:
             SensorBase._process_batch(batched_sensors)
+
+    def notify_update_replayed(self, dt: float) -> None:
+        """Advance host bookkeeping after a captured :meth:`update` replayed on the device.
+
+        Args:
+            dt: Time the replayed update advanced [s].
+        """
+        for entity in self.entities:
+            entity.notify_update_replayed(dt)
 
     """
     Operations: Scene State.

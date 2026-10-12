@@ -40,6 +40,8 @@ class FrameTransformer(BaseFrameTransformer):
     is target *j* relative to source in env *i*.
     """
 
+    supports_graph_capture = True
+
     cfg: FrameTransformerCfg
     """The configuration parameters."""
 

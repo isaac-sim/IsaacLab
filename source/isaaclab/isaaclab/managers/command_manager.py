@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import inspect
 from abc import abstractmethod
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -374,6 +374,9 @@ class CommandManager(ManagerBase):
                 extras[f"Metrics/{name}/{metric_name}"] = metric_value
         # return logged information
         return extras
+
+    def _graph_capture_terms(self) -> Iterable[Any]:
+        return self._terms.values()
 
     def compute(self, dt: float):
         """Updates the commands.

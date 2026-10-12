@@ -9,7 +9,7 @@ import copy
 import inspect
 import weakref
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
@@ -265,6 +265,26 @@ class ManagerBase(ABC):
         """
         selection = env_selection_kwargs(term.reset, env_mask, env_ids)
         return None if selection is None else term.reset(**selection)
+
+    @property
+    def supports_graph_capture(self) -> bool:
+        """Whether this manager's per-step work can be recorded into a CUDA graph.
+
+        It can when every term allows it. Term functions and term classes opt out with
+        ``supports_graph_capture = False``, for example when they branch on host state that changes between steps,
+        such as :attr:`~isaaclab.envs.ManagerBasedRLEnv.common_step_counter`.
+        """
+        return all(getattr(term, "supports_graph_capture", True) for term in self._graph_capture_terms())
+
+    def _graph_capture_terms(self) -> Iterable[Any]:
+        """Return the term functions and objects whose per-step work this manager runs."""
+        return (term_cfg.func for term_cfg in getattr(self, "_term_cfgs", ()))
+
+    def _invalidate_step_graph(self) -> None:
+        """Have the environment record its captured step again, e.g. after a term configuration changed."""
+        invalidate = getattr(self._env, "invalidate_step_graph", None)
+        if invalidate is not None:
+            invalidate()
 
     def find_terms(self, name_keys: str | Sequence[str]) -> list[str]:
         """Find terms in the manager based on the names.

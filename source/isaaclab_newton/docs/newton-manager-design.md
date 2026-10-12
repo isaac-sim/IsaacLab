@@ -195,8 +195,35 @@ in the schedule. Custom action terms and actuators declare capture support throu
 `supports_graph_capture`; that declaration requires fixed buffers and device work
 that can replay without Python decisions.
 
-Rendering, Python bookkeeping and the remaining RL computations keep their own
-lifecycle. To capture a larger device pipeline around physics, use the
+### The whole environment step
+
+`ManagerBasedRLEnv` goes further and records its whole `step` (`capture_step`,
+on by default). It lays the step out as operations: actions, the physics step's
+own operations, the scene update, terminations, rewards, the masked reset,
+commands and observations. Consecutive operations that a CUDA graph can record
+replay as one graph; the rest run eagerly in place (*eager islands*):
+
+- terms and term classes that set `supports_graph_capture = False`, because they
+  branch on host state such as `common_step_counter` or a lazily built buffer;
+- operations that synchronize the device, such as a term that selects
+  environments by index (found automatically on the first run);
+- entity resets that cannot be recorded, such as TorchScript LSTM actuator state;
+- Newton actuators that are not graphable, and model-change notification.
+
+The first step after a structural change runs eagerly; the next one records the
+graphs and replays them. After each replay, host bookkeeping advances as eager
+stepping would (counters, simulation time, asset data timestamps), so data read
+outside the graph stays current. Captured steps return buffers that the next
+step overwrites. Changing a term configuration through `set_term_cfg` (or
+`invalidate_step_graph()`) records the step again. The environment steps eagerly
+while rendering or recording video, with recorder terms or camera sensors, and
+when the physics backend exposes no step operations (PhysX).
+
+On Isaac-Cartpole at 4096 environments the captured step is twice as fast
+(1.31 → 0.64 ms); GPU-bound tasks such as Rough ANYmal-D gain little, since the
+GPU work is unchanged.
+
+To capture a larger device pipeline of your own around physics, use the
 [outer-capture example](newton-manager-api.md#capture-a-larger-device-step).
 
 ## What this architecture enables

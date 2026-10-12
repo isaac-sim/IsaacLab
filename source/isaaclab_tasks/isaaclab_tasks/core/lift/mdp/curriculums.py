@@ -49,3 +49,7 @@ def gravity_range_linear(
     event_cfg.params["gravity_distribution_params"] = (gravity, gravity.copy())
     env.event_manager.set_term_cfg(event_name, event_cfg)
     return {"gravity_z": gravity_z}
+
+
+gravity_range_linear.supports_graph_capture = False
+"""The ramp is computed on the host from the step counter."""

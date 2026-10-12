@@ -10,7 +10,7 @@ from __future__ import annotations
 import inspect
 import re
 from abc import abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
@@ -398,6 +398,9 @@ class ActionManager(ManagerBase):
             self._reset_term(term, env_mask, env_ids)
         # nothing to log here
         return {}
+
+    def _graph_capture_terms(self) -> Iterable[Any]:
+        return self._terms.values()
 
     def process_action(self, action: torch.Tensor):
         """Processes the actions sent to the environment.

@@ -35,6 +35,8 @@ class Pva(BasePva):
     provide world-frame pose and body-frame velocities/accelerations.
     """
 
+    supports_graph_capture = True
+
     cfg: PvaCfg
     """The configuration parameters."""
 

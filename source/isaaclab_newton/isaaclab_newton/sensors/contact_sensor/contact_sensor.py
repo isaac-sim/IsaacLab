@@ -54,6 +54,8 @@ class ContactSensor(BaseContactSensor):
     .. _Newton SensorContact: https://newton-physics.github.io/newton/api/_generated/newton.sensors.SensorContact.html
     """
 
+    supports_graph_capture = True
+
     cfg: ContactSensorCfg
     """The configuration parameters."""
 

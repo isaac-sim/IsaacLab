@@ -275,6 +275,8 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
     CUDA graph and the registry-owned model's shared acceleration structures.
     """
 
+    supports_graph_capture = True
+
     cfg: NewtonRaycastSensorCfg
     """The configuration parameters."""
 

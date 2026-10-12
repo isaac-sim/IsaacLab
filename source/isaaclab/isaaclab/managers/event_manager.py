@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import inspect
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Iterable
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -24,6 +26,10 @@ if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
 
 logger = logging.getLogger(__name__)
+
+
+_HOST_TIMED = SimpleNamespace(supports_graph_capture=False)
+"""Stand-in for a term whose schedule is decided on the host."""
 
 
 class EventManager(ManagerBase):
@@ -162,7 +168,7 @@ class EventManager(ManagerBase):
         mode: str,
         env_ids: torch.Tensor | slice | None = None,
         dt: float | None = None,
-        global_env_step_count: int | None = None,
+        global_env_step_count: int | torch.Tensor | None = None,
         env_mask: ProxyArray | None = None,
     ):
         """Calls each event term in the specified mode.
@@ -188,7 +194,8 @@ class EventManager(ManagerBase):
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
-                for the "reset" mode. Defaults to None to simplify the call for other modes.
+                for the "reset" mode, as an int or a 0-d device tensor that captured steps read when replayed.
+                Defaults to None to simplify the call for other modes.
             env_mask: Boolean mask of the environments to apply the event to. Shape is (num_envs,). Takes
                 precedence over ``env_ids``.
 
@@ -266,13 +273,23 @@ class EventManager(ManagerBase):
                         env_mask.torch, (steps_since_triggered >= min_step_count) | first_trigger, out=valid.torch
                     )
                 # record the trigger for each selected environment
-                last_triggered_step.masked_fill_(valid.torch, global_env_step_count)
+                if isinstance(global_env_step_count, torch.Tensor):
+                    # masked_fill_ would read a device-resident count on the host
+                    torch.where(valid.torch, global_env_step_count, last_triggered_step, out=last_triggered_step)
+                else:
+                    last_triggered_step.masked_fill_(valid.torch, global_env_step_count)
                 triggered_at_least_once |= valid.torch
                 self._call_term(term_cfg, valid, env_ids if min_step_count == 0 else None)
             elif env_mask is not None or takes_env_mask(term_cfg.func):
                 self._call_term(term_cfg, *self._env_selection(env_ids, env_mask))
             else:
                 term_cfg.func(self._env, env_ids, **term_cfg.params)
+
+    def _graph_capture_terms(self) -> Iterable[Any]:
+        for mode in ("reset", "interval"):
+            for term_cfg in self._mode_term_cfgs.get(mode, ()):
+                # Global-time interval events count down on the host.
+                yield _HOST_TIMED if mode == "interval" and term_cfg.is_global_time else term_cfg.func
 
     def _call_term(self, term_cfg: EventTermCfg, env_mask: ProxyArray, env_ids: torch.Tensor | slice | None = None):
         """Call an event term on the environments selected by ``env_mask``, or by ``env_ids`` if given."""
@@ -307,6 +324,7 @@ class EventManager(ManagerBase):
         for mode, terms in self._mode_term_names.items():
             if term_name in terms:
                 self._mode_term_cfgs[mode][terms.index(term_name)] = cfg
+                self._invalidate_step_graph()
                 term_found = True
                 break
         if not term_found:

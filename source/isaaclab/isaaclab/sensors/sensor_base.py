@@ -17,7 +17,7 @@ import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
 
@@ -28,7 +28,7 @@ from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
-from ..utils import index_fill_
+from ..utils import index_fill_, takes_env_mask
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
@@ -47,6 +47,14 @@ class SensorBase(ABC):
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
     """
+
+    supports_graph_capture: ClassVar[bool] = False
+    """Whether :meth:`update`, data refreshes, and masked resets can be recorded into a CUDA graph."""
+
+    @property
+    def reset_supports_graph_capture(self) -> bool:
+        """Whether a masked :meth:`reset` can be recorded into a CUDA graph."""
+        return self.supports_graph_capture and takes_env_mask(self.reset)
 
     def __init__(self, cfg: SensorBaseCfg):
         """Initialize the sensor class.
@@ -198,6 +206,17 @@ class SensorBase(ABC):
             ],
             device=self._device,
         )
+        self._data_dirty = True
+
+    def notify_update_replayed(self, dt: float) -> None:
+        """Mark the data stale after a captured :meth:`update` replayed on the device.
+
+        The update timers live on the device, so a replay advances them; only the host's dirty flag needs setting
+        for later reads outside the graph to refresh the outdated environments.
+
+        Args:
+            dt: Time the replayed update advanced [s].
+        """
         self._data_dirty = True
 
     def update(self, dt: float, force_recompute: bool = False):

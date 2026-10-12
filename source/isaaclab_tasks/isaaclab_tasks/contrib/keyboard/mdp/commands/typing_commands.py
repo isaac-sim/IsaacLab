@@ -138,6 +138,9 @@ class LetterTypingCommand(CommandTerm):
     correctly typed, shape ``(num_envs, max_len)``.
     """
 
+    supports_graph_capture = False
+    """The curriculum and the reset snapshot buffer are host-side state machines."""
+
     cfg: LetterTypingCommandCfg
 
     def __init__(self, cfg: LetterTypingCommandCfg, env: ManagerBasedRLEnv):

@@ -228,6 +228,7 @@ class TerminationManager(ManagerBase):
             raise ValueError(f"Termination term '{term_name}' not found.")
         # set the configuration
         self._term_cfgs[self._term_name_to_term_idx[term_name]] = cfg
+        self._invalidate_step_graph()
 
     def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
         """Gets the configuration for the specified term.

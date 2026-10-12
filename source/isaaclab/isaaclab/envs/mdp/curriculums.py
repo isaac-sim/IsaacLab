@@ -32,6 +32,9 @@ class modify_reward_weight(ManagerTermBase):
     ignores the selected environments and applies the weight on the first update after ``num_steps``.
     """
 
+    supports_graph_capture = False
+    """The schedule is decided on the host from the step counter."""
+
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
@@ -47,7 +50,7 @@ class modify_reward_weight(ManagerTermBase):
         weight: float,
         num_steps: int,
     ) -> float:
-        if env.common_step_counter > num_steps:
+        if env.common_step_counter > num_steps and self._term_cfg.weight != weight:
             self._term_cfg.weight = weight
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
         return self._term_cfg.weight
@@ -130,6 +133,9 @@ class modify_env_param(ManagerTermBase):
             )
     """
 
+    supports_graph_capture = False
+    """Modifications are decided and written on the host."""
+
     NO_CHANGE: ClassVar = object()
     """Special token to indicate no change in the value to be set.
 
@@ -187,6 +193,11 @@ class modify_env_param(ManagerTermBase):
         # note: if the modify_fn return NO_CHANGE signal, we do not invoke self.set_fn
         if new_val is not self.NO_CHANGE:
             self._set_fn(new_val)
+            if not _same_value(data, new_val):
+                # Captured steps baked the old value in; record them again.
+                invalidate = getattr(env, "invalidate_step_graph", None)
+                if invalidate is not None:
+                    invalidate()
 
     """
     Helper functions.
@@ -268,6 +279,17 @@ class modify_env_param(ManagerTermBase):
         return get_value, set_value
 
 
+def _same_value(old: Any, new: Any) -> bool:
+    """Whether a curriculum write leaves the value unchanged; tensors and other values without a plain truth value
+    compare as changed."""
+    if old is new:
+        return True
+    try:
+        return bool(old == new)
+    except (TypeError, ValueError, RuntimeError):
+        return False
+
+
 class modify_term_cfg(modify_env_param):
     """Curriculum for modifying a manager term configuration at runtime.
 
@@ -317,6 +339,9 @@ class DifficultyScheduler(ManagerTermBase):
     mean difficulty across environments is exposed as :attr:`difficulty_frac` for other curriculum terms,
     such as :func:`initial_final_interpolate_fn`, to interpolate their targets.
     """
+
+    supports_graph_capture = False
+    """The mean difficulty is read on the host."""
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
