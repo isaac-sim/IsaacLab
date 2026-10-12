@@ -32,7 +32,6 @@ except ModuleNotFoundError:
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
 from isaaclab import _deprioritize_prebundle_paths
-from isaaclab.app._interrupts import force_exit_on_sigint
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import (
     apply_python_logging_level,
@@ -228,10 +227,13 @@ class KitLauncher(SimulationLauncher):
     def close(self, exit_code: int = 0) -> None:
         """Close the Kit app this launcher started; another SIGINT forces exit."""
         if self._app is not None:
-            with force_exit_on_sigint():
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
+            try:
                 # let callbacks queued by the closing simulation run before shutdown
                 self._app.update()
                 self._app.close(exit_code=exit_code)
+            finally:
+                signal.signal(signal.SIGINT, previous_handler)
 
     """
     Operations.

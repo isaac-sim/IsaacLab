@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import re
+import signal
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -28,7 +29,6 @@ import warp as wp
 from PIL import Image
 
 from isaaclab.app import LoadingScreen
-from isaaclab.app._interrupts import force_exit_on_sigint
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg, parse_video_source
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -547,8 +547,11 @@ def close_env(env: gym.Env) -> None:
     Args:
         env: Environment to close on the entrypoint's main thread.
     """
-    with force_exit_on_sigint():
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
+    try:
         env.close()
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
 
 
 """

@@ -346,24 +346,17 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
     assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
-def test_ctrl_c_during_environment_close_forces_exit(monkeypatch) -> None:
+def test_environment_close_uses_default_sigint_handler() -> None:
     """A further Ctrl+C terminates an environment teardown that may be stuck."""
     from isaaclab_rl.entrypoints.common import close_env
 
     previous_handler = signal.getsignal(signal.SIGINT)
-    exit_codes = []
+    close_handlers = []
+    env = SimpleNamespace(close=lambda: close_handlers.append(signal.getsignal(signal.SIGINT)))
 
-    def force_exit(exit_code):
-        exit_codes.append(exit_code)
-        raise SystemExit(exit_code)
+    close_env(env)
 
-    monkeypatch.setattr("isaaclab.app._interrupts.os._exit", force_exit)
-    env = SimpleNamespace(close=lambda: signal.raise_signal(signal.SIGINT))
-
-    with pytest.raises(SystemExit, match="130"):
-        close_env(env)
-
-    assert exit_codes == [130]
+    assert close_handlers == [signal.SIG_DFL]
     assert signal.getsignal(signal.SIGINT) is previous_handler
 
 

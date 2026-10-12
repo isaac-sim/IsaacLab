@@ -801,6 +801,7 @@ def test_close_pumps_the_app_before_closing():
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def update():
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
         calls.append("update")
 
     def close(exit_code):
@@ -812,24 +813,4 @@ def test_close_pumps_the_app_before_closing():
     launcher.close(exit_code=3)
 
     assert calls == ["update", 3]
-    assert signal.getsignal(signal.SIGINT) is previous_handler
-
-
-def test_ctrl_c_during_close_forces_exit(monkeypatch):
-    """A further Ctrl+C terminates a Kit teardown that may be stuck."""
-    previous_handler = signal.getsignal(signal.SIGINT)
-    exit_codes = []
-
-    def force_exit(exit_code):
-        exit_codes.append(exit_code)
-        raise SystemExit(exit_code)
-
-    monkeypatch.setattr("isaaclab.app._interrupts.os._exit", force_exit)
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._app = SimpleNamespace(update=lambda: signal.raise_signal(signal.SIGINT), close=pytest.fail)
-
-    with pytest.raises(SystemExit, match="130"):
-        launcher.close()
-
-    assert exit_codes == [130]
     assert signal.getsignal(signal.SIGINT) is previous_handler

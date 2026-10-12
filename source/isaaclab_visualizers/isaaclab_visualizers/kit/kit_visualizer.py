@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import signal
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,7 +17,6 @@ import torch
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
-from isaaclab.app._interrupts import defer_keyboard_interrupt
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
@@ -463,13 +463,24 @@ class KitVisualizer(BaseVisualizer):
             settings = get_settings_manager()
             play_flag = settings.get("/app/player/playSimulations")
             settings.set("/app/player/playSimulations", False)
+            interrupted = False
+
+            def defer_interrupt(_signum, _frame):
+                nonlocal interrupted
+                interrupted = True
+                # Let a second Ctrl+C terminate the process if app.update() does not return.
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+            previous_handler = signal.signal(signal.SIGINT, defer_interrupt)
             try:
                 # Kit can swallow KeyboardInterrupt when SIGINT lands in a Python event callback.
-                # Defer it until update() returns to this call site.
-                with defer_keyboard_interrupt():
-                    app.update()
+                # Record it without raising until update() returns to this call site.
+                app.update()
             finally:
+                signal.signal(signal.SIGINT, previous_handler)
                 settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
+                if interrupted:
+                    raise KeyboardInterrupt
             return True
         except (ImportError, AttributeError) as exc:
             logger.debug("[KitVisualizer] App update skipped: %s", exc)
