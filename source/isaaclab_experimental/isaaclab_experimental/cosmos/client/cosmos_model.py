@@ -263,6 +263,9 @@ class _CosmosStream:
                 reason = "CUDA IPC is not available on this platform"
             elif "cuda_ipc" not in capabilities.get("transports", ()):
                 reason = "the service does not offer CUDA IPC"
+            elif capabilities.get("host_id") is None or capabilities["host_id"] != _cuda_ipc.host_id():
+                # A local endpoint can be a tunnel; the other machine's GPU can have the same PCI bus ID.
+                reason = "the service runs on another machine"
             elif capabilities.get("pci_bus_id") != _cuda_ipc.pci_bus_id(device.index or 0):
                 reason = "the service uses a different GPU"
         if reason is None:
