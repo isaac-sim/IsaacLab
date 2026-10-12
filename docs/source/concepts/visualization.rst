@@ -523,8 +523,8 @@ Streaming Camera View
 
 The streaming camera view is a live monitoring and debugging tool. It combines ground-truth camera
 frames from multiple environments (RGB, depth, segmentation, or surface normals) into a single
-panel. Cameras are declared in the scene before cloning; visualizers only read their output.
-Multiple visualizers can display the same sensor with different tile selections.
+panel. Frames can come from scene camera sensors or follow cameras created by a visualizer.
+Multiple visualizers can display the same source with different tile selections.
 
 .. raw:: html
 
@@ -543,12 +543,12 @@ Multiple visualizers can display the same sensor with different tile selections.
      </div>
    </div>
 
-Attach a camera to a robot body to follow its motion, or select an existing view such as the Galbot
-task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton GL, Rerun, and Viser
-visualizers; Newton RTX supports perspective views only and rejects explicit scene-camera sources
-(experimental). **Kit** opens it as a separate **Streaming View** viewport, which can sit side by side
-with the default viewport for dual monitoring, and **Newton GL** adds a **Streaming View** HUD section
-with a **Hide** / **Open** toggle and a source dropdown.
+Create a follow camera for a moving robot, or select an existing view such as the Galbot task's
+wrist-mounted and ego cameras. The view is supported in the Kit, Newton GL, Rerun, and Viser
+visualizers; Newton RTX does not display the panel (experimental). **Kit** opens it as a separate
+**Streaming View** viewport, which can sit side by side with the default viewport for dual monitoring,
+and **Newton GL** adds a **Streaming View** HUD section with a **Hide** / **Open** toggle and a source
+dropdown.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, troubleshooting, and step-by-step examples.
@@ -657,9 +657,9 @@ streaming views, and renderer-based sensor data capture.
 
 .. _record_video_cli:
 
-Pass ``--video [SOURCE]`` on the command line for a quick recording, or define multiple
-``VideoRecorderCfg`` entries to record multiple sources at once. ``--viz`` still decides which
-visualizers open a window; a visualizer that only records runs headless:
+Pass ``--video`` on the command line for a quick recording, or define multiple
+``VideoRecorderCfg`` entries to record multiple sources at once. When no recorder is configured,
+``--viz`` selects the visualizer that ``--video`` records:
 
 .. list-table::
    :widths: 40 60
@@ -667,23 +667,18 @@ visualizers open a window; a visualizer that only records runs headless:
 
    * - Command line
      - Records from
-   * - ``--video`` (same as ``--video viz``)
-     - the first capture-capable visualizer ``--viz`` selected, in its window; if none is selected, or only
-       streaming ones such as ``viser`` or ``rerun``, a headless ``newton_gl``
-   * - ``--video viz:newton_rtx``
-     - a ``newton_rtx``: the ``--viz``-selected one if selected, else an extra headless one
+   * - ``--video``
+     - the first configured visualizer, preferring one that supports capture; if none is configured, a
+       headless Kit visualizer
    * - ``--video --viz newton_rtx``
      - the selected ``newton_rtx`` window
-   * - ``--video viz:newton_gl --viz viser``
-     - ``viser`` runs; an extra headless ``newton_gl`` is added only for recording
-   * - ``--video sensor:wrist_camera[:rgb|depth|...]``
-     - that scene sensor; no visualizer is added
-
-A Hydra override after ``--video`` is never taken as its source: ``--video presets=newton_mjwarp``
-records from ``viz`` and applies the preset.
+   * - ``--video --viz newton_gl,viser``
+     - both visualizers run and the capture-capable ``newton_gl`` window is recorded
+   * - ``--video --viz viser``
+     - error because Viser has no local frame-capture API
 
 Kit, Newton GL, and Newton RTX visualizers can be recorded from; the web-based visualizers Viser and
-Rerun cannot.
+Rerun cannot. Use ``VideoRecorderCfg(source="sensor:<name>")`` to record a scene sensor instead.
 
 See :doc:`/source/how-to/record_video` for the full guide and tutorial.
 
@@ -723,8 +718,8 @@ See :doc:`/source/how-to/record_video` for clip length, interval, and multi-sour
 
 **Combining an interactive view with a headless recording source**
 
-Watch training live in Kit while recording from a separate headless Newton GL angle by running with
-``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
+Watch training live in Kit while recording from a separate headless Newton GL angle by configuring
+both visualizers and selecting Newton GL in ``VideoRecorderCfg``. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
 **Following a moving robot (Kit)**

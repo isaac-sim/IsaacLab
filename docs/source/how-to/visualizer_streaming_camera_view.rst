@@ -44,7 +44,7 @@ Run the ``run_tiled_camera_visualizer.py`` script in ``IsaacLab/scripts/tutorial
       :linenos:
 
 See `Examples`_ below for the two ways to run the script. For the ``VisualizerCfg`` fields that
-customize streaming, see `Configuration`_, `Display sources`_, and `Troubleshooting`_.
+customize streaming, see `Configuration`_ and `Troubleshooting`_.
 
 
 .. raw:: html

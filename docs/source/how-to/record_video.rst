@@ -32,13 +32,14 @@ Add a ``VideoRecorderCfg`` to ``env_cfg.video_recorders``:
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     env_cfg.video_recorders = [
-        VideoRecorderCfg(source="viz:kit", output_dir="videos/")
+        VideoRecorderCfg(source="visualizer:kit", output_dir="videos/")
     ]
 
-Or pass ``--video [SOURCE]`` on the command line to record without editing the environment config. ``--video``
-adds a single recorder; to record several sources at once, list one ``VideoRecorderCfg`` per source in
-``env_cfg.video_recorders``, which then takes precedence over the ``--video`` source (``--video_length`` and
-``--video_interval`` still apply to every recorder):
+Or pass ``--video`` on the command line to record without editing the environment config. It records the
+first capture-capable visualizer selected by ``--viz``. Without ``--viz``, it uses the first configured
+visualizer (preferring one that supports capture), or creates a headless Kit visualizer when none is
+configured. To record several sources at once, list one ``VideoRecorderCfg`` per source in
+``env_cfg.video_recorders``; ``--video_length`` and ``--video_interval`` apply to every recorder:
 
 .. tab-set::
 
@@ -48,10 +49,9 @@ adds a single recorder; to record several sources at once, list one ``VideoRecor
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video
 
-``--video`` records from the source it names, and ``--viz`` still decides which visualizers open a
-window. See :ref:`the --video sources <record_video_cli>` for every command-line form, and `Sources`_ and `Clip control`_
-below for the ``VideoRecorderCfg`` options. To record from a different camera angle than the
-interactive view, see `Recording from an independent camera angle`_.
+See :ref:`the --video sources <record_video_cli>` for the command-line selection rules, and `Sources`_
+and `Clip control`_ below for the ``VideoRecorderCfg`` options. To record from a different camera
+angle than the interactive view, see `Recording from an independent camera angle`_.
 
 
 .. raw:: html
@@ -197,7 +197,7 @@ Record a short clip at regular intervals while training, without opening a windo
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --video \
        --video_length 200 --video_interval 2000
 
-With no ``--viz``, ``--video`` records from a headless Newton GL visualizer. This writes a
+With no ``--viz`` or configured visualizer, ``--video`` records from a headless Kit visualizer. This writes a
 200-step clip every 2,000 steps. The ``train`` and ``play`` entrypoints put clips in ``videos/``
 under the run's log directory unless a recorder sets ``output_dir``; a script that builds its own
 recorders writes to ``output_dir`` (default ``videos``). Add ``--viz kit`` to watch the run in a
@@ -225,9 +225,17 @@ Recording while streaming with Viser or Rerun
 Viser and Rerun stream to a browser or viewer and have no frame capture, so they cannot be
 recorded. Pair them with a capture-capable visualizer that runs headless next to them:
 
-.. code-block:: bash
+.. code-block:: python
 
-   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz viser --video viz:newton_gl
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+    from isaaclab_visualizers.viser import ViserVisualizerCfg
+
+    env_cfg.sim.visualizer_cfgs = [
+        ViserVisualizerCfg(),
+        NewtonGLVisualizerCfg(headless=True),
+    ]
+    env_cfg.video_recorders = [VideoRecorderCfg(source="visualizer:newton_gl")]
 
 Alternatively, record directly from a scene camera with ``source="sensor:<name>"``, which needs no
 visualizer.
@@ -238,8 +246,8 @@ Recording from an independent camera angle
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Configure the recording angle on the visualizer, not the recorder. To record from a headless Newton
-visualizer at a different angle alongside an interactive Kit viewer, run with ``--viz kit`` and
-configure both; the recorder adds the Newton visualizer, headless:
+visualizer at a different angle alongside an interactive Kit viewer, configure both and omit ``--viz``
+so the configuration selects them:
 
 .. code-block:: python
 
@@ -248,10 +256,10 @@ configure both; the recorder adds the Newton visualizer, headless:
 
     env_cfg.sim.visualizer_cfgs = [
         KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),
+        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0), headless=True),
     ]
     env_cfg.video_recorders = [
-        VideoRecorderCfg(source="viz:newton_gl", output_dir="videos/"),
+        VideoRecorderCfg(source="visualizer:newton_gl", output_dir="videos/"),
     ]
 
 Alternatively, use a :class:`~isaaclab.sensors.CameraCfg` sensor in the scene and record
@@ -270,17 +278,17 @@ The ``source`` string selects what to capture:
 
    * - Source string
      - Captures from
-   * - ``"viz"`` (default)
-     - First capture-capable visualizer ``--viz`` selected, else a headless Newton GL visualizer
-   * - ``"viz:kit"``
+   * - ``"visualizer"`` (default)
+     - First active recording-capable visualizer
+   * - ``"visualizer:kit"``
      - Kit visualizer viewport
-   * - ``"viz:kit:streaming_view"``
+   * - ``"visualizer:kit:streaming_view"``
      - Kit streaming camera panel, requires ``streaming_view=True``
-   * - ``"viz:newton_gl"``
+   * - ``"visualizer:newton_gl"``
      - Newton GL visualizer viewport
-   * - ``"viz:newton_rtx"``
+   * - ``"visualizer:newton_rtx"``
      - Newton OVRTX path-traced viewport
-   * - ``"viz:newton_gl:streaming_view"``
+   * - ``"visualizer:newton_gl:streaming_view"``
      - Newton GL streaming camera panel, requires ``streaming_view=True``
    * - ``"sensor:<name>"``
      - ``env.scene.sensors[name]``, RGB (default)
@@ -294,17 +302,13 @@ The ``source`` string selects what to capture:
      - Surface normals, colorized
 
 The camera angle, resolution, and other visualizer settings are configured on the corresponding
-visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz`` does not select runs
-headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
-
-``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``). The
-deprecated ``newton`` type (``"viz:newton"``) still works with a warning; use ``newton_gl``. Bare visualizer
-types are accepted here too, e.g. ``VideoRecorderCfg(source="newton_gl")`` is equivalent to
-``VideoRecorderCfg(source="viz:newton_gl")``.
+visualizer config, not on the recorder. A named visualizer source must also have a matching active
+visualizer in ``sim.visualizer_cfgs``. Set its ``headless=True`` when it should capture without a window.
+The deprecated ``visualizer:newton`` source still selects Newton GL; use ``visualizer:newton_gl``.
 
 .. note::
 
-   The Newton RTX viewer framebuffer can be recorded with ``"viz:newton_rtx"``, but
+   The Newton RTX viewer framebuffer can be recorded with ``"visualizer:newton_rtx"``, but
    recording its streaming view is not supported.
 
 
@@ -341,31 +345,31 @@ Clip control
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="viz:kit", video_length=500, video_interval=0)
+    VideoRecorderCfg(source="visualizer:kit", video_length=500, video_interval=0)
 
 **Recurring clips every 1,000 env steps:**
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000)
+    VideoRecorderCfg(source="visualizer:kit", video_length=200, video_interval=1000)
 
 **Keep only the most recent clip on disk:**
 
 .. code-block:: python
 
-    VideoRecorderCfg(source="viz:kit", video_length=200, video_interval=1000,
+    VideoRecorderCfg(source="visualizer:kit", video_length=200, video_interval=1000,
                      keep_last_n_clips=1)
 
 
 Limitations
 -----------
 
-* ``source="viz:kit"`` and ``source="viz:kit:streaming_view"`` require cubric
+* ``source="visualizer:kit"`` and ``source="visualizer:kit:streaming_view"`` require cubric
   to propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
   is logged and a black-frame warning is emitted at clip write time.  Use
-  ``source="viz:newton_gl"`` for guaranteed capture with Newton physics.
+  ``source="visualizer:newton_gl"`` for guaranteed capture with Newton physics.
 
-* ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
+* ``source="visualizer:newton_gl:streaming_view"`` and ``source="visualizer:kit:streaming_view"``
   require ``streaming_view=True`` on the corresponding visualizer cfg.  A
   :class:`~RuntimeError` is raised at the first capture attempt if it is not set.
 
@@ -392,12 +396,12 @@ Limitations
        framebuffer.
    * - ``rerun``
      - ✗
-     - Remote streaming tool; no local frame-capture API. ``viz:rerun`` is an error;
-       ``--video --viz rerun`` records from a headless ``newton_gl``.
+     - Remote streaming tool; no local frame-capture API. ``--video --viz rerun`` raises an
+       error; select it together with a capture-capable visualizer to record.
    * - ``viser``
      - ✗
-     - Browser streaming tool; no local frame-capture API. ``viz:viser`` is an error;
-       ``--video --viz viser`` records from a headless ``newton_gl``.
+     - Browser streaming tool; no local frame-capture API. ``--video --viz viser`` raises an
+       error; select it together with a capture-capable visualizer to record.
 
 To record video while streaming with Rerun or Viser, see `Recording while streaming with Viser or
 Rerun`_.
