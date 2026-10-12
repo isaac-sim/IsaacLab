@@ -554,8 +554,11 @@ def test_the_camera_frees_its_control_buffer_only_after_the_service_releases_it(
     assert released == ["output", ("control", failure is None)]
 
 
-def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camera_disconnects(monkeypatch):
-    """The camera may have the output buffer open until it handles the error and disconnects."""
+@pytest.mark.parametrize("end,freed", [("disconnect", True), ("idle", False), ("shutdown", False)])
+def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camera_disconnects(monkeypatch, end, freed):
+    """The camera may have the output buffer open until it handles the error and disconnects. An idle timeout or the
+    service's own shutdown ends the connection without that confirmation, so the buffer stays until the service exits.
+    """
     from isaaclab_experimental.cosmos.server import service
 
     released = []
@@ -567,9 +570,9 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
             if "control" not in released:
                 released.append("control")
 
-        def close(self):
+        def close(self, *, peer_released=True):
             self.close_opened()
-            released.append("output")
+            released.append("output freed" if peer_released else "output kept")
 
     def fail(*args):
         raise RuntimeError("generation failed")
@@ -579,6 +582,8 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
     state = service._ServiceState(TransportResource())
     state.transports = ["socket", "cuda_ipc"]
     camera, connection = socket.socketpair()
+    if end == "idle":
+        connection.settimeout(0.5)
     handler = threading.Thread(
         target=service._handle_connection, args=(connection, state, {connection}, threading.Lock())
     )
@@ -608,12 +613,20 @@ def test_after_a_failure_the_service_frees_its_output_buffer_only_once_the_camer
         while state.owner is not None and time.monotonic() < deadline:
             time.sleep(0.01)
         # The session ended and the camera's controls are released, but the output buffer waits for the camera.
-        assert state.owner is None and released == ["control"] and handler.is_alive()
+        assert state.owner is None and released[0] == "control"
+        if end != "idle":
+            assert released == ["control"] and handler.is_alive()
+        if end == "shutdown":
+            state.stopping.set()
+            connection.shutdown(socket.SHUT_RDWR)
+        if end != "disconnect":
+            # The camera stays connected until the service has handled the timeout or shutdown.
+            handler.join(timeout=5)
     finally:
         camera.close()
         handler.join(timeout=5)
         state.executor.shutdown()
-    assert not handler.is_alive() and released == ["control", "output"]
+    assert not handler.is_alive() and released == ["control", "output freed" if freed else "output kept"]
 
 
 def test_cuda_ipc_handles_keep_all_64_bytes_including_zero_bytes():
@@ -883,3 +896,27 @@ def test_a_unix_socket_service_is_private_replaces_a_stale_socket_and_refuses_a_
         thread.join(timeout=5)
         shutil.rmtree(directory, ignore_errors=True)
     assert not thread.is_alive() and not os.path.exists(path)
+
+
+@_UNIX
+def test_a_stopping_service_removes_its_socket_file_but_not_a_replacement():
+    """A service that took over the endpoint's path keeps its socket file when the earlier service stops."""
+    endpoint, directory = _unix_endpoint()
+    path = endpoint[len("unix://") :]
+    moved = f"unix://{directory}/moved.sock"
+    thread = threading.Thread(target=serve, args=(TransportResource(), endpoint), daemon=True)
+    thread.start()
+    try:
+        deadline = time.monotonic() + 5
+        while not os.path.exists(path):
+            if time.monotonic() >= deadline:
+                pytest.fail("Cosmos service did not create its socket")
+            time.sleep(0.01)
+        os.rename(path, moved[len("unix://") :])
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as replacement:
+            replacement.bind(path)
+            _protocol.request(moved, {"op": "shutdown"}, timeout=2)
+            thread.join(timeout=5)
+            assert not thread.is_alive() and os.path.exists(path)
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)

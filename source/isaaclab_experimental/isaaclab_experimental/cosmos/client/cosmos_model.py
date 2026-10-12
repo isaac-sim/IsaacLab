@@ -211,9 +211,9 @@ class _CosmosStream:
                         self._channel.control.tensor[view, :count].copy_(chunk)
                     self._channel.control_ready.record()
                     request["frames"] = frames
-                    reply, generated = self._exchange(request)
-                    if generated or reply.get("frames") != frames:
-                        raise ProtocolError("Cosmos returned images that do not match the control chunks.")
+                    _, generated = self._exchange(request)
+                    if generated:
+                        raise ProtocolError("Cosmos returned images through the socket in a CUDA IPC session.")
                     self._channel.output_ready.wait()
                     images = [self._channel.output.tensor[view, :count].clone() for view, count in enumerate(frames)]
                 else:

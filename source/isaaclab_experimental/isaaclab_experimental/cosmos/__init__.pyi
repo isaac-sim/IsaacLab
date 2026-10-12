@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "DEFAULT_ENDPOINT",
     "CosmosModel",
     "CosmosModelCfg",
     "CosmosTransferModifier",
@@ -22,7 +21,6 @@ __all__ = [
     "segmentation_processor",
 ]
 
-from ._protocol import DEFAULT_ENDPOINT
 from .client import (
     CosmosModel,
     CosmosModelCfg,
