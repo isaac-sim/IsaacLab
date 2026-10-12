@@ -14,7 +14,7 @@ OvPhysX Backend
     ``physics=ovphysx --visualizer kit`` are unsupported because ovphysx
     loads USD-dependent PhysX plugins from its own package, while Kit already
     owns a separate USD/plugin stack in the same process. Use
-    ``--visualizer newton``, ``--visualizer rerun``, ``--visualizer viser``,
+    ``--visualizer newton_gl``, ``--visualizer rerun``, ``--visualizer viser``,
     or omit ``--visualizer`` for headless execution.
 
 OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly

@@ -109,7 +109,7 @@ Headless execution with off-screen render
 
 To inspect behavior from a training run without an interactive window, pass ``--video``.
 By default, it records the scene from a headless Kit visualizer, which requires Isaac Sim. See
-:doc:`/source/features/record_video` to choose a different visualizer or a camera-sensor output.
+:doc:`/source/how-to/record_video` to choose a different visualizer or a camera-sensor output.
 
 .. tab-set::
 
