@@ -2693,7 +2693,7 @@ Streaming cameras must now be declared in the scene before cloning. Move
 ``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
 The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
 Visualizers only display the selected sensor's output; they no longer create a renderer or
-camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+camera, force a capture, or remove camera prims on close. See :ref:`visualization-streaming-camera-view`.
 
 .. code-block:: python
 
@@ -2795,7 +2795,7 @@ dragging; RTX retains visualization markers and camera controls.
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
 resolution follows its framebuffer. For windows and recorders sharing one image selection, use
-``ImageViewCfg`` as described in :doc:`/source/features/visualizer_tiled_camera`; existing CLI
+``ImageViewCfg`` as described in :doc:`/source/how-to/visualizer_streaming_camera_view`; existing CLI
 recording source strings remain supported. Pass the shared declaration as ``VideoRecorderCfg(source=view)``.
 Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
 window settings control presentation independently of image selection. Invalid recording sources or
