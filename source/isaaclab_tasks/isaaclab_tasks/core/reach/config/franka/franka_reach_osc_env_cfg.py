@@ -69,6 +69,13 @@ class FrankaReachEnvCfg(franka_reach_env_cfg.FrankaReachEnvCfg):
         self.rewards.action_magnitude.weight = preset(
             default=default_weight, diffik_abs=_DeprecatedDiffIKAbsWeight(default_weight)
         )
+        # Holding is trained for joint-position actions; OSC offers only its own domain presets.
+        self.observations.policy.ee_target_error = self.observations.policy.ee_target_error.default
+        self.commands.ee_pose.resampling_time_range = self.commands.ee_pose.resampling_time_range.default
+        self.terminations.success = self.terminations.success.default
+        self.rewards.success = self.rewards.success.default
+        self.rewards.action_rate.weight = self.rewards.action_rate.weight.default
+        self.curriculum.action_rate.params["weight"] = self.curriculum.action_rate.params["weight"].default
 
         # closed-loop contact force control would additionally need contact sensors on the robot
         self.actions.arm_action = OperationalSpaceControllerActionCfg(
