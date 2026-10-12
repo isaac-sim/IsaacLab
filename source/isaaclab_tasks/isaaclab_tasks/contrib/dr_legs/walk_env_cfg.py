@@ -137,7 +137,7 @@ class WalkRewardsCfg:
     )
     track_lin_vel_xy = RewTerm(
         func=mdp.track_lin_vel_xy_exp,
-        weight=20.0,
+        weight=100.0,
         params={"command_name": "base_velocity", "std": 0.2},
     )
     root_orientation = RewTerm(
