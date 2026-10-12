@@ -709,7 +709,7 @@ class SimulationContext:
     def _wait_for_visualizers_playing(self) -> None:
         """Block physics stepping while a visualizer has paused training."""
         visualizers_to_remove = []
-        for viz in tuple(self._visualizers):
+        for viz in self._visualizers:
             try:
                 while viz.is_training_paused() and viz.is_running():
                     viz.step(0.0)

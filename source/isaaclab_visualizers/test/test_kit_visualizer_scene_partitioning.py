@@ -24,17 +24,17 @@ from pxr import Sdf, Usd, UsdGeom, UsdLux
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
-@pytest.mark.parametrize("headless", [False, True])
-def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, headless):
-    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
-    visualizer._is_initialized = True
-    visualizer._fabric = MagicMock()
-    visualizer._sim = sim = MagicMock(render_generation=12)
-    provider = sim.get_scene_data_provider.return_value
-    monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
-    tracking = MagicMock()
-    monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
-    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+@pytest.fixture(autouse=True)
+def reset_kit_timeline_control_state():
+    KitVisualizer._timeline_auto_update = None
+    KitVisualizer._timeline_control_owner_count = 0
+    yield
+    KitVisualizer._timeline_auto_update = None
+    KitVisualizer._timeline_control_owner_count = 0
+
+
+@pytest.fixture
+def kit_app(monkeypatch):
     app = MagicMock()
     app.is_running.return_value = True
     app_module = ModuleType("omni.kit.app")
@@ -44,6 +44,30 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
     monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
     monkeypatch.setattr(omni, "kit", kit_module, raising=False)
+    return app
+
+
+@pytest.fixture
+def kit_timeline(monkeypatch):
+    timeline = MagicMock()
+    timeline_module = ModuleType("omni.timeline")
+    timeline_module.get_timeline_interface = lambda: timeline
+    monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
+    monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
+    return timeline
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, kit_app, headless):
+    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._sim = sim = MagicMock(render_generation=12)
+    provider = sim.get_scene_data_provider.return_value
+    monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
+    tracking = MagicMock()
+    monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
 
     visualizer.step(0.1)
 
@@ -54,61 +78,43 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
     else:
         visualizer._fabric.update_transforms.assert_called_once_with(provider)
         visualizer._fabric.update_geometries.assert_called_once_with(provider, 12)
-        app.update.assert_called_once_with()
+        kit_app.update.assert_called_once_with()
 
 
-def test_training_pause_follows_kit_timeline(monkeypatch):
+def test_training_pause_follows_kit_timeline(kit_timeline):
     visualizer = KitVisualizer(KitVisualizerCfg())
     visualizer._controls_kit_timeline = True
-    timeline = MagicMock()
-    timeline_module = ModuleType("omni.timeline")
-    timeline_module.get_timeline_interface = lambda: timeline
-    monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
-    monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
-
-    timeline.is_playing.return_value = False
-    timeline.is_stopped.return_value = False
+    kit_timeline.is_playing.return_value = False
+    kit_timeline.is_stopped.return_value = False
     assert visualizer.is_training_paused()
 
-    timeline.is_stopped.return_value = True
+    kit_timeline.is_stopped.return_value = True
     assert not visualizer.is_training_paused()
 
-    timeline.is_playing.return_value = True
-    timeline.is_stopped.return_value = False
+    kit_timeline.is_playing.return_value = True
+    kit_timeline.is_stopped.return_value = False
     assert not visualizer.is_training_paused()
 
 
-@pytest.mark.parametrize("training_paused", [False, True])
-def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeypatch, training_paused):
+def test_app_update_disables_kit_physics_and_restores_unset_play_setting(monkeypatch, kit_app):
     visualizer = KitVisualizer(KitVisualizerCfg())
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
     visualizer._sim = MagicMock(render_generation=1)
-    monkeypatch.setattr(visualizer, "is_training_paused", lambda: training_paused)
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
     settings = MagicMock()
     settings.get.return_value = None
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    app = MagicMock()
-    app.is_running.return_value = True
-    app_module = ModuleType("omni.kit.app")
-    app_module.get_app = lambda: app
-    kit_module = ModuleType("omni.kit")
-    kit_module.app = app_module
-    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
-    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
-    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
-
     visualizer.step(0.1)
 
     assert [call.args for call in settings.set.call_args_list] == [
         ("/app/player/playSimulations", False),
         ("/app/player/playSimulations", True),
     ]
-    app.update.assert_called_once_with()
+    kit_app.update.assert_called_once_with()
 
 
-def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch):
+def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch, kit_app):
     """Deliver Ctrl+C after Kit returns and arm the default handler until then."""
     visualizer = KitVisualizer(KitVisualizerCfg())
     visualizer._is_initialized = True
@@ -125,15 +131,7 @@ def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch):
             signal.raise_signal(signal.SIGINT)
         assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
 
-    app = MagicMock(update=update)
-    app.is_running.return_value = True
-    app_module = ModuleType("omni.kit.app")
-    app_module.get_app = lambda: app
-    kit_module = ModuleType("omni.kit")
-    kit_module.app = app_module
-    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
-    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
-    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
+    kit_app.update.side_effect = update
 
     with pytest.raises(KeyboardInterrupt):
         visualizer.step(0.1)
@@ -145,49 +143,136 @@ def test_app_update_preserves_interrupt_swallowed_by_kit_callback(monkeypatch):
     ]
 
 
-def test_play_and_stop_synchronize_kit_timeline_without_advancing_physics(monkeypatch):
+def test_app_update_preserves_forced_exit_handler(monkeypatch, kit_app):
+    """Do not defer an interrupt after environment teardown has armed the default handler."""
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    settings = MagicMock()
+    settings.get.return_value = False
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+
+    def update():
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
+
+    kit_app.update.side_effect = update
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
+    try:
+        assert visualizer._pump_kit_app_update()
+        assert signal.getsignal(signal.SIGINT) == signal.SIG_DFL
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
+
+
+def test_play_and_stop_synchronize_kit_timeline_without_advancing_physics(monkeypatch, kit_app, kit_timeline):
     visualizer = KitVisualizer(KitVisualizerCfg())
     visualizer._controls_kit_timeline = True
-    timeline = MagicMock()
-    timeline.is_auto_updating.return_value = True
-    timeline_module = ModuleType("omni.timeline")
-    timeline_module.get_timeline_interface = lambda: timeline
-    monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
-    monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
+    kit_timeline.is_auto_updating.return_value = True
     settings = MagicMock()
     settings.get.return_value = True
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    app = MagicMock()
-    app.is_running.return_value = True
-    app_module = ModuleType("omni.kit.app")
-    app_module.get_app = lambda: app
-    kit_module = ModuleType("omni.kit")
-    kit_module.app = app_module
-    monkeypatch.setitem(sys.modules, "omni.kit", kit_module)
-    monkeypatch.setitem(sys.modules, "omni.kit.app", app_module)
-    monkeypatch.setattr(omni, "kit", kit_module, raising=False)
-
     visualizer.play()
 
-    timeline.set_auto_update.assert_called_once_with(False)
-    timeline.play.assert_called_once_with()
+    kit_timeline.set_auto_update.assert_called_once_with(False)
+    kit_timeline.play.assert_called_once_with()
     assert [call.args for call in settings.set.call_args_list] == [
         ("/app/player/playSimulations", False),
         ("/app/player/playSimulations", True),
     ]
-    app.update.assert_called_once_with()
+    kit_app.update.assert_called_once_with()
 
     visualizer.stop()
 
-    timeline.stop.assert_called_once_with()
-    assert [call.args for call in timeline.set_auto_update.call_args_list] == [(False,), (True,)]
+    kit_timeline.stop.assert_called_once_with()
+    assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (True,)]
     assert [call.args for call in settings.set.call_args_list] == [
         ("/app/player/playSimulations", False),
         ("/app/player/playSimulations", True),
         ("/app/player/playSimulations", False),
         ("/app/player/playSimulations", True),
     ]
-    assert app.update.call_count == 2
+    assert kit_app.update.call_count == 2
+
+
+def test_timeline_auto_update_restores_after_last_visualizer_stops(monkeypatch, kit_app, kit_timeline):
+    kit_timeline.is_auto_updating.return_value = True
+    settings = MagicMock()
+    settings.get.return_value = True
+    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
+    visualizers = [KitVisualizer(KitVisualizerCfg()), KitVisualizer(KitVisualizerCfg())]
+    for visualizer in visualizers:
+        visualizer._controls_kit_timeline = True
+        visualizer.play()
+
+    assert kit_timeline.is_auto_updating.call_count == 1
+    assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (False,)]
+
+    visualizers[0].stop()
+
+    kit_timeline.stop.assert_not_called()
+    assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (False,)]
+
+    visualizers[1].stop()
+
+    kit_timeline.stop.assert_called_once_with()
+    assert [call.args for call in kit_timeline.set_auto_update.call_args_list] == [(False,), (False,), (True,)]
+    assert kit_app.update.call_count == 3
+
+
+def test_close_cleans_resources_when_timeline_stop_is_interrupted(monkeypatch, kit_timeline):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._is_initialized = True
+    visualizer._controls_kit_timeline = True
+    visualizer._owns_kit_timeline = True
+    KitVisualizer._timeline_auto_update = True
+    KitVisualizer._timeline_control_owner_count = 1
+    teardown_label = MagicMock()
+    restore_visibility = MagicMock()
+    monkeypatch.setattr(visualizer, "_teardown_backend_menubar_label", teardown_label)
+    monkeypatch.setattr(visualizer, "_restore_env_visibility", restore_visibility)
+    monkeypatch.setattr(visualizer, "_pump_kit_app_update", MagicMock(side_effect=KeyboardInterrupt))
+    annotator = visualizer._rgb_annotator = MagicMock()
+    render_product = visualizer._rgb_render_product = MagicMock()
+
+    with pytest.raises(KeyboardInterrupt):
+        visualizer.close()
+
+    kit_timeline.stop.assert_called_once_with()
+    kit_timeline.set_auto_update.assert_called_once_with(True)
+    teardown_label.assert_called_once_with()
+    restore_visibility.assert_called_once_with()
+    annotator.detach.assert_called_once_with()
+    render_product.destroy.assert_called_once_with()
+    assert visualizer._rgb_annotator is None
+    assert visualizer._rgb_render_product is None
+    assert visualizer.is_closed
+    assert not visualizer._is_initialized
+
+
+@pytest.mark.parametrize(
+    ("physics_backend", "controls_timeline"),
+    [("physx", False), ("ovphysx", False), ("newton", True)],
+)
+def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend, controls_timeline):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    sim = MagicMock(has_gui=True, stage=Usd.Stage.CreateInMemory(), device="cpu")
+    sim.get_scene_data_provider.return_value.num_envs = 0
+    fabric = sim.get_or_create_backend.return_value
+    fabric_module = ModuleType("isaaclab_physx.renderers.fabric")
+    fabric_module.FabricBackendCfg = MagicMock()
+    monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric_module)
+    monkeypatch.setattr(KitVisualizer, "physics_backend", property(lambda _: physics_backend))
+    monkeypatch.setattr(visualizer, "_ensure_simulation_app", MagicMock())
+    monkeypatch.setattr(visualizer, "_setup_viewport", MagicMock())
+    monkeypatch.setattr(visualizer, "_apply_viewport_camera_scene_partition", MagicMock())
+    monkeypatch.setattr(visualizer, "_log_initialization_table", MagicMock())
+    monkeypatch.setattr(visualizer, "_setup_initial_camera_view", MagicMock())
+    play = MagicMock()
+    monkeypatch.setattr(visualizer, "play", play)
+
+    visualizer.initialize(sim, cameras=[])
+
+    assert visualizer._controls_kit_timeline is controls_timeline
+    assert play.call_count == int(controls_timeline)
+    fabric.bind_transforms.assert_called_once_with(sim.get_scene_data_provider.return_value)
 
 
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])

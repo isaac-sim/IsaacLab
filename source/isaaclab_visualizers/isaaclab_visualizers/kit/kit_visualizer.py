@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import torch
@@ -46,6 +46,9 @@ _BACKEND_DISPLAY_NAMES = {
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
+    _timeline_auto_update: ClassVar[bool | None] = None
+    _timeline_control_owner_count: ClassVar[int] = 0
+
     def __init__(self, cfg: KitVisualizerCfg):
         """Initialize Kit visualizer state.
 
@@ -78,7 +81,7 @@ class KitVisualizer(BaseVisualizer):
         # render_rgb_array() skips its own pump when the step already pumped the app.
         self._app_pumped_this_step: bool = False
         self._controls_kit_timeline = False
-        self._timeline_auto_update: bool | None = None
+        self._owns_kit_timeline = False
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
@@ -152,7 +155,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
-        self._controls_kit_timeline = sim.has_gui and self.physics_backend != "physx"
+        self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
         if self._controls_kit_timeline:
             self.play()
 
@@ -197,31 +200,32 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
-        if self._timeline_auto_update is not None:
-            self.stop()
-        self._teardown_backend_menubar_label()
-        self._restore_env_visibility()
-        self._viewport_camera_xform_ops.clear()
-        self._viewport_camera_pose_cache.clear()
-        self._camera_image_provider = None
-        self._camera_image_window = None
-        self._simulation_app = None
-        self._viewport_window = None
-        self._viewport_api = None
-        import contextlib
+        try:
+            if self._owns_kit_timeline:
+                self.stop()
+        finally:
+            self._teardown_backend_menubar_label()
+            self._restore_env_visibility()
+            self._viewport_camera_xform_ops.clear()
+            self._viewport_camera_pose_cache.clear()
+            self._camera_image_provider = None
+            self._camera_image_window = None
+            self._simulation_app = None
+            self._viewport_window = None
+            self._viewport_api = None
+            import contextlib
 
-        if self._rgb_annotator is not None:
-            with contextlib.suppress(Exception):
-                self._rgb_annotator.detach()
-        if self._rgb_render_product is not None:
-            with contextlib.suppress(Exception):
-                self._rgb_render_product.destroy()
-        self._rgb_annotator = None
-        self._rgb_render_product = None
-        self._controls_kit_timeline = False
-        self._timeline_auto_update = None
-        self._is_initialized = False
-        super().close()
+            if self._rgb_annotator is not None:
+                with contextlib.suppress(Exception):
+                    self._rgb_annotator.detach()
+            if self._rgb_render_product is not None:
+                with contextlib.suppress(Exception):
+                    self._rgb_render_product.destroy()
+            self._rgb_annotator = None
+            self._rgb_render_product = None
+            self._controls_kit_timeline = False
+            self._is_initialized = False
+            super().close()
 
     def play(self) -> None:
         """Show the running state in Kit's toolbar without advancing Kit physics."""
@@ -230,8 +234,11 @@ class KitVisualizer(BaseVisualizer):
         import omni.timeline
 
         timeline = omni.timeline.get_timeline_interface()
-        if self._timeline_auto_update is None:
-            self._timeline_auto_update = timeline.is_auto_updating()
+        if not self._owns_kit_timeline:
+            if KitVisualizer._timeline_control_owner_count == 0:
+                KitVisualizer._timeline_auto_update = timeline.is_auto_updating()
+            KitVisualizer._timeline_control_owner_count += 1
+            self._owns_kit_timeline = True
         # The toolbar still reflects play/pause while the selected backend remains the only time owner.
         timeline.set_auto_update(False)
         timeline.play()
@@ -248,16 +255,24 @@ class KitVisualizer(BaseVisualizer):
 
     def stop(self) -> None:
         """Show the stopped state in Kit's toolbar without advancing Kit physics."""
-        if not self._controls_kit_timeline:
+        if not self._controls_kit_timeline or not self._owns_kit_timeline:
             return
         import omni.timeline
 
         timeline = omni.timeline.get_timeline_interface()
-        timeline.stop()
-        self._pump_kit_app_update()
-        if self._timeline_auto_update is not None:
-            timeline.set_auto_update(self._timeline_auto_update)
-            self._timeline_auto_update = None
+        is_last_owner = KitVisualizer._timeline_control_owner_count == 1
+        try:
+            if is_last_owner:
+                timeline.stop()
+                self._pump_kit_app_update()
+        finally:
+            KitVisualizer._timeline_control_owner_count -= 1
+            self._owns_kit_timeline = False
+            if is_last_owner:
+                timeline_auto_update = KitVisualizer._timeline_auto_update
+                KitVisualizer._timeline_auto_update = None
+                if timeline_auto_update is not None:
+                    timeline.set_auto_update(timeline_auto_update)
 
     def render_rgb_array(self) -> np.ndarray:
         """Return an RGB frame captured from the Kit viewport camera.
@@ -471,13 +486,17 @@ class KitVisualizer(BaseVisualizer):
                 # Let a second Ctrl+C terminate the process if app.update() does not return.
                 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-            previous_handler = signal.signal(signal.SIGINT, defer_interrupt)
+            previous_handler = signal.getsignal(signal.SIGINT)
+            defer_interrupts = previous_handler != signal.SIG_DFL
+            if defer_interrupts:
+                signal.signal(signal.SIGINT, defer_interrupt)
             try:
                 # Kit can swallow KeyboardInterrupt when SIGINT lands in a Python event callback.
                 # Record it without raising until update() returns to this call site.
                 app.update()
             finally:
-                signal.signal(signal.SIGINT, previous_handler)
+                if defer_interrupts:
+                    signal.signal(signal.SIGINT, previous_handler)
                 settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
                 if interrupted:
                     raise KeyboardInterrupt
