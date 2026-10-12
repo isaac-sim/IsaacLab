@@ -39,10 +39,6 @@ WIDTH = 64
 CUBE_RESET_X_OFFSET = 0.15
 
 
-class _StaleFabricPoseError(Exception):
-    """Raised when Fabric does not hold the pose that a reset wrote."""
-
-
 def _make_reset_env_cfg(device: str) -> ManagerBasedEnvCfg:
     """Return a gravity-free Fabric scene with one RTX camera.
 
@@ -214,10 +210,10 @@ def test_env_first_reset_publishes_articulation_link_poses_to_fabric(device: str
 @pytest.mark.isaacsim_ci
 @pytest.mark.xfail(
     strict=True,
-    raises=_StaleFabricPoseError,
+    raises=pytest.xfail.Exception,
     reason=(
-        "PhysX Fabric limitation (#8428): after the Fabric re-attach on resume, force_update() ignores GPU tensor"
-        " pose writes until the next simulate() call."
+        "PhysX Fabric limitation (#8428): after a timeline resume, force_update() ignores GPU tensor pose writes"
+        " until the next simulate() call."
     ),
 )
 def test_env_reset_after_resume_publishes_reset_pose_to_fabric(device: str):
@@ -246,6 +242,7 @@ def test_env_reset_after_resume_publishes_reset_pose_to_fabric(device: str):
         try:
             _assert_transforms_match(_fabric_world_transforms(cube_paths), reset_pose)
         except AssertionError as error:
-            raise _StaleFabricPoseError(str(error)) from error
+            # pytest.xfail() does not set sys.last_exc, which makes the Kit launcher exit with status 1.
+            pytest.xfail(f"Fabric holds a stale pose: {error}")
     finally:
         env.close()
