@@ -18,20 +18,22 @@ if TYPE_CHECKING:
     from ...rsl_rl import RslRlBaseRunnerCfg
 
 
-def checkpoint_load_cfg(reset_optimizer: bool, *, runner_class: str = "OnPolicyRunner") -> dict[str, bool] | None:
+def checkpoint_load_cfg(
+    resume_optimizer_state: bool, *, runner_class: str = "OnPolicyRunner"
+) -> dict[str, bool] | None:
     """Select checkpoint models while optionally keeping the newly configured policy optimizer.
 
     Distillation continuation requires a student checkpoint. Ordinary loading initializes a new
     student from a PPO teacher. RND retains its own checkpoint optimizer alongside its models.
 
     Args:
-        reset_optimizer: Whether to keep the policy optimizer's initial state and learning rate.
+        resume_optimizer_state: Whether to restore the checkpoint's policy optimizer state and learning rate.
         runner_class: Runner owning the checkpoint models.
 
     Returns:
         Native RSL-RL load selection, or None for its ordinary checkpoint behavior.
     """
-    if not reset_optimizer:
+    if resume_optimizer_state:
         return None
     if runner_class == "DistillationRunner":
         return {"student": True, "teacher": True, "optimizer": False, "iteration": True}

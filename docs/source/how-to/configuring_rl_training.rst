@@ -145,9 +145,9 @@ The ``--run_name`` argument is used to specify the name of the run. This is used
 create a directory for the run in the ``logs/rsl_rl/cartpole`` directory.
 
 When continuing RSL-RL training with a different policy learning rate, use
-``--checkpoint /path/to/model.pt --reset_optimizer``. This restores model weights and the
+``--checkpoint /path/to/model.pt --no-resume_optimizer_state``. This restores model weights and the
 iteration count while keeping the newly configured policy optimizer and its learning rate.
-Without the flag, the checkpoint's optimizer state is restored as usual. RND models and their
+By default, ``--resume_optimizer_state`` restores the checkpoint's optimizer state as usual. RND models and their
 separate optimizer retain their checkpoint state.
 For distillation, this option requires a student checkpoint containing both student and teacher;
 omit it when initializing a new student from a PPO teacher checkpoint.

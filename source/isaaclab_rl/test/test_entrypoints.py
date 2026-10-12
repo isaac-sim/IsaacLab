@@ -25,8 +25,11 @@ import torch
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
+from isaaclab import cli
+
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
+from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
 from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
 
 
@@ -606,8 +609,6 @@ def test_export_dispatches_selected_backend(monkeypatch) -> None:
 
 def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
     """Direct workers discover downstream tasks before selecting their registered default backend."""
-    from isaaclab import cli
-
     task_name = "Isaac-DefaultAgentDispatchTest"
     entry_point = SimpleNamespace(
         load=lambda: gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
@@ -756,7 +757,7 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
             task_name,
             "--external_callback",
             f"{callback_module_name}.register_task",
-            "--reset_optimizer",
+            "--no-resume_optimizer_state",
         ],
     )
     gym.registry.pop(task_name, None)
@@ -767,7 +768,7 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
         gym.registry.pop(task_name, None)
 
     assert args.task == task_name
-    assert args.reset_optimizer
+    assert not args.resume_optimizer_state
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
@@ -862,16 +863,15 @@ def test_skrl_play_restores_jax_backend(monkeypatch) -> None:
     assert not hasattr(skrl.config.jax, "backend")
 
 
-@pytest.mark.parametrize("reset_optimizer", [False, True])
+@pytest.mark.parametrize("resume_optimizer_state", [False, True])
 @pytest.mark.parametrize("runner_class", ["OnPolicyRunner", "DistillationRunner"])
 def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
-    tmp_path, reset_optimizer: bool, runner_class: str
+    tmp_path, resume_optimizer_state: bool, runner_class: str
 ) -> None:
     """Runner continuation restores models, iteration, and RND while optionally resetting the policy optimizer."""
+    pytest.importorskip("rsl_rl")
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
     from tensordict import TensorDict
-
-    from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
 
     distillation = runner_class == "DistillationRunner"
     runner_type = DistillationRunner if distillation else OnPolicyRunner
@@ -908,7 +908,7 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     checkpoint = str(tmp_path / "model.pt")
     source.save(checkpoint)
     destination = make_runner(1e-5)
-    destination.load(checkpoint, load_cfg=checkpoint_load_cfg(reset_optimizer, runner_class=runner_class))
+    destination.load(checkpoint, load_cfg=checkpoint_load_cfg(resume_optimizer_state, runner_class=runner_class))
 
     assert destination.current_learning_iteration == source.current_learning_iteration
     if distillation:
@@ -917,8 +917,8 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
     for key in source_state:
         if key != "optimizer_state_dict":
             torch.testing.assert_close(destination_state[key], source_state[key])
-    assert destination.alg.optimizer.param_groups[0]["lr"] == (1e-5 if reset_optimizer else 3e-4)
-    if reset_optimizer:
+    assert destination.alg.optimizer.param_groups[0]["lr"] == (3e-4 if resume_optimizer_state else 1e-5)
+    if not resume_optimizer_state:
         assert not destination.alg.optimizer.state
     else:
         torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])

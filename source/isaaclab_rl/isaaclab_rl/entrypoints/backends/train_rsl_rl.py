@@ -68,9 +68,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
     )
     parser.add_argument(
-        "--reset_optimizer",
-        action="store_true",
-        help="Load checkpoint models and iteration without restoring the policy optimizer state.",
+        "--resume_optimizer_state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Restore the policy optimizer; disable to keep a fresh optimizer and configured learning rate.",
     )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
@@ -185,7 +186,9 @@ def _run(args_cli: argparse.Namespace) -> None:
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
                 runner.load(
                     resume_path,
-                    load_cfg=cli_args.checkpoint_load_cfg(args_cli.reset_optimizer, runner_class=agent_cfg.class_name),
+                    load_cfg=cli_args.checkpoint_load_cfg(
+                        args_cli.resume_optimizer_state, runner_class=agent_cfg.class_name
+                    ),
                     map_location=agent_cfg.device,
                 )
             dump_train_configs(rank_dir, env_cfg, agent_cfg)

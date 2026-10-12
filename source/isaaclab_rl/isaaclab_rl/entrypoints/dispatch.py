@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.cli import load_external_tasks
 
 if TYPE_CHECKING:
     from .simple_agents import PolicyName
@@ -91,8 +92,6 @@ def run_cli(action: str, argv: list[str] | None = None) -> int:
     configure_console_logging()
     argv = _normalize_argv(argv)
     # Distributed workers bypass the top-level CLI, including its task discovery.
-    from isaaclab.cli import load_external_tasks
-
     load_external_tasks()
     backends = _BACKEND_MODULES[action]
     parser = argparse.ArgumentParser(add_help=False)
