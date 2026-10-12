@@ -127,8 +127,11 @@ def isaaclab_canonical_view(model: newton.Model) -> Iterator[None]:
         _world_ids,
     )
     saved_arrays = {}
+    specs = getattr(model, "attribute_specs", {})
     for name in model.attribute_frequency:
-        array = getattr(model, name, None) if ":" not in name else None
+        # Reading a deprecated attribute warns, and none of them is a transform.
+        deprecated = getattr(specs.get(name), "deprecated", False)
+        array = getattr(model, name, None) if ":" not in name and not deprecated else None
         if isinstance(array, wp.array) and array.size and wp.types.type_is_transformation(array.dtype):
             saved_arrays[name] = array
             values = _canonical_plane_placements(model, array.numpy()) if name == "shape_transform" else array.numpy()

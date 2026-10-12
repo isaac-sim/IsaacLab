@@ -36,6 +36,9 @@ Known limitations:
   context instead of raising a Python exception.
 - Recording cannot detect external wrenches, because the teacher clears `State.body_f` after each step;
   deployment rejects them.
+- The model identity includes the Newton version and every model attribute Newton defines, so an artifact
+  deploys only with the Newton release it was recorded with; Newton 1.7 adds the mimic-joint attributes, and
+  artifacts recorded with Newton 1.6.1 must be recorded and trained again.
 - Visual-only shapes and `isaaclab:` rendering attributes enter the Newton model identity. Newton imports
   them whenever a viewer, an `rgb_array` capture, or a display is active, so a learned scene there needs
   `NewtonCfg(load_visual_shapes=False)` and cannot be rendered by the Newton GL visualizer; the clips below
@@ -115,7 +118,8 @@ The integration was validated with PhysicsNeMo Robotics tag `mnabian/flashnerd-b
 (`a81160e`), Newton 1.6.1, Warp 1.17.0, Torch 2.12 (CUDA 13), PhysicsNeMo 2.1.1, and RSL-RL 5.5.1, on one
 NVIDIA RTX PRO 5000 Blackwell GPU and in the container on two NVIDIA L40S GPUs. The tag adds the FlashNeRD
 benchmark tooling and the ParallelNeRD FP16 safeguards to `mataei/icra` at `4e4be69`; its library sources
-otherwise equal that commit. All results below were measured with the tag.
+otherwise equal that commit. All results below were measured with the tag and Newton 1.6.1. The tests
+also pass with the Newton 1.7.0.dev0 (`5ea82ee`), MuJoCo 3.14, and Torch 2.11 that Isaac Lab now locks.
 
 ## Examples
 
