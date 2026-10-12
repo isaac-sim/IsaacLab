@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+25.0.3 (2026-10-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed unintended stacking cubes in Agibot Toy2Box and upright mug place tasks, including
+  their Mimic variants, by using a dedicated place scene configuration.
+
+
 25.0.2 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~~
 
