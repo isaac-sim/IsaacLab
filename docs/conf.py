@@ -464,41 +464,10 @@ isaaclab_doc_redirect_fragments = {
     },
     "source/concepts/joint_and_body_ordering": {
         "": "source/how-to/transfer_policies_between_physx_and_newton#joint-and-body-ordering",
-        **{
-            anchor: f"source/how-to/transfer_policies_between_physx_and_newton#{anchor}"
-            for anchor in (
-                "joint-and-body-ordering",
-                "why-articulation-orders-differ",
-                "public-and-backend-order",
-                "high-level-mdp-terms",
-                "conversion-cost",
-                "direct-backend-view-access",
-                "torch-conversion",
-                "warp-conversion",
-                "what-ordering-does-not-solve",
-                "verification-and-troubleshooting",
-            )
-        },
     },
     "source/concepts/warp_environment_migration": {
         "": "source/concepts/warp_environments#warp-env-migration",
-        **{
-            anchor: f"source/concepts/warp_environments#{anchor}"
-            for anchor in (
-                "warp-env-migration",
-                "design-rationale",
-                "project-structure",
-                "writing-warp-mdp-terms",
-                "imports",
-                "common-pattern",
-                "observation-terms",
-                "event-terms",
-                "action-terms",
-                "capture-safety",
-                "parity-testing",
-                "available-warp-mdp-terms",
-            )
-        },
+        "warp-environment-migration-guide": "source/concepts/warp_environments#warp-env-migration",
     },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
