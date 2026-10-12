@@ -135,7 +135,6 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   source/features/reproducibility
 
 
 .. toctree::
