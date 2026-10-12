@@ -406,7 +406,7 @@ class _NewtonViewerUIMixin:
                 live_plots_cb(imgui)
 
             # --- Visualization Markers (GL only; RTX log_mesh crashes on empty USD path) --
-            if viewer.model is not None and not isinstance(viewer, NewtonViewerRTX):
+            if isinstance(viewer, NewtonViewerGL) and viewer.model is not None and not viewer._fullscreen_image_active:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Visualization Markers"):
                     imgui.separator()
@@ -519,7 +519,12 @@ class _NewtonViewerUIMixin:
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                imgui.text("Right Click - Pick and drag objects")
+                if (
+                    isinstance(viewer, NewtonViewerGL)
+                    and viewer.picking_enabled
+                    and not viewer._fullscreen_image_active
+                ):
+                    imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
                 imgui.text("Ctrl + Middle Click - Dolly")
@@ -846,6 +851,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         self._particle_color_buffer_value: tuple[float, float, float] | None = None
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
+        self._fullscreen_image_active = False
         self._live_plots_callback = None
 
         from isaaclab.utils.backend_utils import FactoryBase
@@ -854,6 +860,8 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
         with contextlib.suppress(AttributeError):
+            # Keep camera keys active while ImGui captures mouse input for its controls.
+            self.gui.is_capturing = self.gui.should_ignore_keyboard_input
             self._patch_scalar_plot_width()
             self._patch_viewer_panel()
             self._patch_image_logger()
@@ -879,15 +887,18 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
 
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""
-        super().end_frame()
+        try:
+            super().end_frame()
+        finally:
+            self._fullscreen_image_active = False
         if self._close_requested:
             self.renderer.close()
 
-    def on_key_press(self, symbol, modifiers):
-        """Forward key presses unless UI is currently capturing input."""
-        if self.ui.is_capturing():
-            return
-        super().on_key_press(symbol, modifiers)
+    def log_image(self, name: str, image: wp.array | np.ndarray, *, fullscreen: bool = False) -> None:
+        """Track whether the current frame replaces the perspective scene with an image."""
+        super().log_image(name, image, fullscreen=fullscreen)
+        if fullscreen:
+            self._fullscreen_image_active = True
 
     def _render_ui(self):
         """Render the Newton viewer UI."""
@@ -922,6 +933,11 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         ):
             return self._particle_color_array(max(count, capacity))
         return None
+
+    def on_mouse_press(self, x, y, button, modifiers):
+        """Image coordinates must not pick objects in the hidden perspective scene."""
+        if not self._fullscreen_image_active:
+            super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
