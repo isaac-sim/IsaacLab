@@ -5,26 +5,15 @@
 
 """GR00T N1.5 inference client that does not import GR00T or its model dependencies."""
 
+from __future__ import annotations
+
 import io
+from types import TracebackType
+from typing import cast
 
 import msgpack
 import numpy as np
 import zmq
-
-
-def _encode_array(value):
-    """Encode numeric arrays using the N1.5 server's non-pickle wire format."""
-    if not isinstance(value, np.ndarray):
-        raise TypeError(f"Unsupported observation type: {type(value).__name__}")
-    buffer = io.BytesIO()
-    np.save(buffer, value, allow_pickle=False)
-    return {"__ndarray_class__": True, "as_npy": buffer.getvalue()}
-
-
-def _decode_array(value):
-    if value.get("__ndarray_class__"):
-        return np.load(io.BytesIO(value["as_npy"]), allow_pickle=False)
-    return value
 
 
 class PolicyClient:
@@ -35,20 +24,25 @@ class PolicyClient:
     Use as a context manager to release the ZeroMQ context on exit.
     """
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 5555, timeout_ms: int = 15000):
+    def __init__(self, host: str = "127.0.0.1", port: int = 5555, timeout_ms: int = 15000) -> None:
         if timeout_ms <= 0:
             raise ValueError("timeout_ms must be positive")
         self.address = f"tcp://{host}:{port}"
         self.timeout_ms = timeout_ms
         self.context = zmq.Context()
 
-    def __enter__(self):
+    def __enter__(self) -> PolicyClient:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         """Release client resources without stopping the separately managed server."""
         self.context.term()
 
@@ -78,3 +72,18 @@ class PolicyClient:
     def get_action(self, observations: dict) -> dict:
         """Return action arrays for the supplied observation arrays."""
         return self._request("get_action", observations)
+
+
+def _encode_array(value: object) -> dict[str, bool | bytes]:
+    """Encode numeric arrays using the N1.5 server's non-pickle wire format."""
+    if not isinstance(value, np.ndarray):
+        raise TypeError(f"Unsupported observation type: {type(value).__name__}")
+    buffer = io.BytesIO()
+    np.save(buffer, value, allow_pickle=False)
+    return {"__ndarray_class__": True, "as_npy": buffer.getvalue()}
+
+
+def _decode_array(value: dict[str, object]) -> dict[str, object] | np.ndarray:
+    if value.get("__ndarray_class__"):
+        return np.load(io.BytesIO(cast(bytes, value["as_npy"])), allow_pickle=False)
+    return value

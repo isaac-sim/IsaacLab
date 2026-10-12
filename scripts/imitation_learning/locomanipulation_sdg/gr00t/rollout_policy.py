@@ -22,10 +22,17 @@ parser.add_argument(
     "--randomize_placement", action="store_true", default=False, help="Randomize placement of obstacles."
 )
 policy_source = parser.add_mutually_exclusive_group(required=True)
-policy_source.add_argument("--policy_host", help="Host running serve_policy.py in the GR00T environment.")
+policy_source.add_argument("--policy_host", type=str, help="Host running serve_policy.py in the GR00T environment.")
 policy_source.add_argument("--model_path", type=str, help="Legacy in-process mode: path to the model checkpoint.")
-parser.add_argument("--policy_port", type=int, default=5555)
-parser.add_argument("--policy_timeout_ms", type=int, default=15000)
+parser.add_argument(
+    "--policy_port", type=int, default=5555, help="Port used by the remote policy server. Default: %(default)s."
+)
+parser.add_argument(
+    "--policy_timeout_ms",
+    type=int,
+    default=15000,
+    help="Remote policy request timeout in milliseconds. Default: %(default)s.",
+)
 parser.add_argument("--max_steps", type=int, default=None, help="Stop after this many simulation steps.")
 parser.add_argument(
     "--embodiment_tag", type=str, default="new_embodiment", help="The embodiment tag to use for the model."
@@ -65,6 +72,9 @@ from isaaclab_tasks.utils import parse_env_cfg
 
 if TYPE_CHECKING:
     # these modules load USD, so they are only imported at runtime once the simulation is launched
+    from policy import Policy
+    from policy_client import PolicyClient
+
     from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
     from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
     from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose
@@ -315,7 +325,7 @@ def build_model_input(env: LocomanipulationSDGEnv, base_goal: RelativePose, poli
 
 def eval_policy(
     env: LocomanipulationSDGEnv,
-    policy,
+    policy: Policy | PolicyClient,
     input_episode_data: EpisodeData,
     randomize_placement: bool = True,
     policy_quat_format: str = "xyzw",
@@ -402,7 +412,7 @@ if __name__ == "__main__":
             # Keep the legacy mode available without importing GR00T in the simulator's remote mode.
             from policy import Policy
 
-            policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag).policy
+            policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
         # resolve the config's automatic physics and renderer selections for the launched runtime

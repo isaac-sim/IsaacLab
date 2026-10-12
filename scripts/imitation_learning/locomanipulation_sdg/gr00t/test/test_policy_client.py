@@ -19,10 +19,16 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import zmq
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from policy_client import PolicyClient
+
+@pytest.fixture(scope="module")
+def policy_client_cls():
+    pytest.importorskip("msgpack")
+    pytest.importorskip("zmq")
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from policy_client import PolicyClient
+
+    return PolicyClient
 
 
 @pytest.fixture
@@ -54,7 +60,10 @@ def get_action(observation):
 
 server = BaseInferenceServer(host='127.0.0.1', port=0)
 server.register_endpoint('get_action', get_action)
-Path(sys.argv[1]).write_text(server.socket.getsockopt_string(zmq.LAST_ENDPOINT).rsplit(':', 1)[1])
+port_path = Path(sys.argv[1])
+port_tmp_path = port_path.with_suffix('.tmp')
+port_tmp_path.write_text(server.socket.getsockopt_string(zmq.LAST_ENDPOINT).rsplit(':', 1)[1])
+port_tmp_path.replace(port_path)
 server.run()
 """
     log_path = tmp_path / "server.log"
@@ -76,13 +85,13 @@ server.run()
                 process.wait()
 
 
-def test_upstream_arrays_errors_and_timeout_recovery(upstream_server):
+def test_upstream_arrays_errors_and_timeout_recovery(upstream_server, policy_client_cls):
     """NumPy 2 observations work on N1.5; failures do not poison subsequent requests."""
     observations = {
         "video.ego_view": np.arange(18, dtype=np.uint8).reshape(1, 2, 3, 3),
         "state.base_height": np.array([[0.75]], dtype=np.float32),
     }
-    with PolicyClient(port=upstream_server, timeout_ms=1000) as client:
+    with policy_client_cls(port=upstream_server, timeout_ms=1000) as client:
         client.ping()
         actions = client.get_action(observations)
         assert set(actions) == {"action.base_height"}
@@ -99,12 +108,13 @@ def test_upstream_arrays_errors_and_timeout_recovery(upstream_server):
         client.ping()
 
 
-def test_unavailable_server_has_bounded_timeout():
+def test_unavailable_server_has_bounded_timeout(policy_client_cls):
     """A socket that accepts no requests cannot hang rollout or client shutdown."""
+    zmq = pytest.importorskip("zmq")
     with zmq.Context() as context, context.socket(zmq.REP) as silent_server:
         port = silent_server.bind_to_random_port("tcp://127.0.0.1")
         started = time.monotonic()
-        with PolicyClient(port=port, timeout_ms=50) as client:
+        with policy_client_cls(port=port, timeout_ms=50) as client:
             with pytest.raises(TimeoutError, match="serve_policy.py"):
                 client.ping()
         assert time.monotonic() - started < 2
