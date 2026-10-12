@@ -1,23 +1,27 @@
-Creating Visualization Markers
+:orphan:
+
+.. _how-to-create-visualization-markers:
+
+Creating visualization markers
 ==============================
 
 .. currentmodule:: isaaclab
 
-Visualization markers render debug geometry (frames, arrows, spheres, custom meshes) over the
-scene through :class:`markers.VisualizationMarkers`. Markers are display-only: they carry no
-physics and do not affect the simulation.
+This guide shows how to draw visualization markers: debug geometry (frames, arrows, spheres,
+custom meshes) rendered over the scene through :class:`markers.VisualizationMarkers`. Markers are
+display-only: they carry no physics and do not affect the simulation.
 
 For plain points, lines, and splines, Isaac Sim's own :mod:`isaacsim.util.debug_draw` extension
 is lighter-weight. Use ``VisualizationMarkers`` when you need more complex shapes.
 
-Supported on Kit, Newton GL, Rerun, and Viser; not yet on Newton RTX. See
-:doc:`/source/concepts/visualization` for enabling markers on a given visualizer.
+Markers are supported on Kit, Newton GL, Rerun, and Viser, but not yet on Newton RTX. See
+:doc:`/source/concepts/visualization` for how to enable them on a given visualizer.
 
 
 Quick Start
 -----------
 
-This guide is accompanied by the packaged ``markers`` example.
+Run the packaged ``markers`` example:
 
 .. tab-set::
 
@@ -93,11 +97,11 @@ current velocity, or contact events:
 
 .. raw:: html
 
-   <img src="../../_static/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot" style="width:100%;">
+   <img src="../../_static/visualizers/markers_anymal_d.jpg" alt="Velocity arrow marker on an AnymalD robot" style="width:100%;">
    <p style="text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em;">
    Velocity command (green) and current velocity (blue) arrow markers on an AnymalD robot.</p>
 
-   <img src="../../_static/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" style="width:100%;">
+   <img src="../../_static/visualizers/markers_franka.jpg" alt="Joint arrow markers on a Franka arm and contact sensor markers on a cube" style="width:100%;">
    <p style="text-align:center; font-style:italic; margin-top:0.4em; font-size:0.9em;">
    Joint arrow markers on a Franka arm, with contact sensor markers on a cube.</p>
 
@@ -107,4 +111,4 @@ See also
 
 - :doc:`/source/concepts/visualization`: enabling markers per visualizer, and other visualizer
   features
-- :doc:`/source/features/record_video`: recording a marker-annotated scene to video
+- :doc:`/source/how-to/record_video`: recording a marker-annotated scene to video

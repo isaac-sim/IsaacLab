@@ -10,7 +10,7 @@ from __future__ import annotations
 import warnings
 
 from ...utils import configclass
-from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES
+from ...visualizers.visualizer_cfg import VISUALIZER_ALIASES, VISUALIZER_TYPES, ImageViewCfg
 
 CAPTURE_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx")
 """Visualizer types a video can be recorded from; the streaming ``rerun`` and ``viser`` cannot."""
@@ -20,7 +20,7 @@ SENSOR_CHANNELS = ("rgb", "depth", "segmentation", "normals")
 
 
 def parse_video_source(source: str) -> tuple[str, str, str]:
-    """Split a :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
+    """Split a string :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
     ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The prefix
@@ -61,7 +61,8 @@ class VideoRecorderCfg:
 
     A recording stream captures frames from a *source* — a visualizer or a named scene sensor — and writes
     them to an mp4 clip file.  Multiple ``VideoRecorderCfg`` entries on an env cfg produce independent
-    simultaneous streams.
+    simultaneous streams. Pass an :class:`~isaaclab.visualizers.ImageViewCfg` as :attr:`source` to share
+    the same image selection and frame with a visualizer window, or use one of the strings below.
 
     Source string format
     --------------------
@@ -88,8 +89,12 @@ class VideoRecorderCfg:
     ``viz:<type>`` (e.g. ``"newton_gl"`` is ``"viz:newton_gl"``).
     """
 
-    source: str = "viz"
-    """Recording source.  See class docstring for the source string format."""
+    source: ImageViewCfg | str = "viz"
+    """Shared image declaration or a visualizer/sensor source string.
+
+    The default ``"viz"`` records the selected capture-capable visualizer, or a headless Newton GL
+    visualizer when none is selected. An ``ImageViewCfg`` records its selection independently of a window.
+    """
 
     output_dir: str | None = None
     """Directory for output mp4 files (created on demand).
@@ -178,10 +183,9 @@ class VideoRecorderCfg:
         Raises:
             ValueError: If a clip timing field is outside its documented range.
         """
-        minimums = {"video_length": 1, "frame_stride": 1, "video_interval": 0, "step_offset": 0}
-        invalid = [f"{name}={getattr(self, name)!r}" for name, low in minimums.items() if getattr(self, name) < low]
-        if invalid:
+        if self.video_length < 1 or self.frame_stride < 1 or self.video_interval < 0 or self.step_offset < 0:
             raise ValueError(
-                f"Invalid VideoRecorderCfg for source={self.source!r}: {', '.join(invalid)}. "
+                f"Invalid clip schedule: video_length={self.video_length}, frame_stride={self.frame_stride}, "
+                f"video_interval={self.video_interval}, step_offset={self.step_offset}. "
                 "video_length and frame_stride must be positive; video_interval and step_offset must be non-negative."
             )
