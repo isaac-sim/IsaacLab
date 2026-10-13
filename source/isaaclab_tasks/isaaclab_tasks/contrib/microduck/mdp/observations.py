@@ -82,6 +82,7 @@ class delayed_observation(ManagerTermBase):
     """Wraps another observation term in a lag redrawn on a fixed period with a per-environment phase.
 
     This matches upstream's IMU bus latency; constant lags use :attr:`ObservationTermCfg.delay_min_lag`.
+    ``min_lag``, ``max_lag`` and ``update_period`` are fixed at construction; ``max_lag`` sizes the history buffer.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -132,7 +133,7 @@ class delayed_observation(ManagerTermBase):
         self._last_step = env.common_step_counter
         self._buffer.append(obs)
         should_update = (self._step_count + self._phase_offsets) % self._update_period == 0
-        candidates = torch.randint(min_lag, max_lag + 1, (self.num_envs,), device=self.device)
+        candidates = torch.randint(self._min_lag, self._max_lag + 1, (self.num_envs,), device=self.device)
         self._lags = torch.where(should_update, candidates, self._lags)
         self._step_count += 1
         self._output = self._buffer[self._lags]
