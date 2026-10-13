@@ -19,6 +19,7 @@ from ...reorient_manager_env_cfg import ReorientManagerEnvBaseCfg, ReorientScene
 from .allegro_hand_common import (
     ALLEGRO_HAND_ROBOT_CFG,
     CUBE_CFG,
+    GOAL_MARKER_OFFSET,
     GOAL_OBJECT_CFG,
     PhysicsCfg,
 )
@@ -140,5 +141,6 @@ class AllegroHandManagerEnvCfg(ReorientManagerEnvBaseCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.commands.object_pose.marker_pos_offset = GOAL_MARKER_OFFSET
         # simulation settings
         self.sim.physics = PhysicsCfg()

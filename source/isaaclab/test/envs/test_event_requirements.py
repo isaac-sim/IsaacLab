@@ -25,6 +25,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 def test_shared_events_import_without_backend_packages() -> None:
@@ -52,7 +53,7 @@ from isaaclab.envs.mdp import randomize_physics_scene_gravity
 def test_shape_event_rejects_consumers_without_shape_storage(visualizers, renderers) -> None:
     env = SimpleNamespace(
         sim=SimpleNamespace(
-            resolve_visualizer_types=lambda: list(visualizers),
+            cfg=SimulationCfg(visualizer_cfgs=[VisualizerCfg(visualizer_type=name) for name in visualizers]),
             render_context=RenderContext([(RendererCfg(renderer_type=name), None) for name in renderers]),
         )
     )

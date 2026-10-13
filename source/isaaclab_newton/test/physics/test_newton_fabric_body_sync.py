@@ -8,11 +8,13 @@
 from __future__ import annotations
 
 import contextlib
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 # Launch Isaac Sim before importing Newton modules so USD schema bindings are initialized.
 from isaaclab.test.utils import launch_test_simulation
+from isaaclab.visualizers import WindowCfg
 
 launch_test_simulation(enable_cameras=True)
 
@@ -177,7 +179,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-        visualizer_cfgs=[KitVisualizerCfg(headless=True, window_width=64, window_height=64)],
+        visualizer_cfgs=[KitVisualizerCfg(headless=True, window=WindowCfg(size=(64, 64)))],
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
@@ -205,7 +207,9 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
                 # The suite enables cameras at startup; this case exercises capture-only rendering.
                 sim.set_setting("/isaaclab/render/rtx_sensors", False)
                 assert not sim.is_rendering
-                monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", Mock())
+                monkeypatch.setitem(
+                    sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=Mock())
+                )
                 recorder = VideoRecorder(
                     VideoRecorderCfg(source="viz:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=sim)
                 )
@@ -214,7 +218,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
                 if recorder is None:
                     _render(sim, scene)
                 else:
-                    assert recorder._get_frame().shape == (64, 64, 3)
+                    assert recorder._capture().shape == (64, 64, 3)
                     wp.synchronize_device(device)
 
             cube = scene["cube"]

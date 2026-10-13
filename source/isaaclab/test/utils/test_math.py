@@ -217,14 +217,13 @@ def test_quat_error_magnitude(device):
 @pytest.mark.parametrize("device", test_devices())
 def test_quat_unique(device):
     """Test quat_unique method."""
-    # Define test cases
-    quats = math_utils.random_orientation(num=1024, device=device)
+    # Include positive, negative, and zero scalar parts (a half-turn).
+    quats = torch.tensor([[0.6, 0.0, 0.0, 0.8], [-0.6, 0.0, 0.0, -0.8], [1.0, 0.0, 0.0, 0.0]], device=device)
 
-    # Test positive real quaternion
     pos_real_quats = math_utils.quat_unique(quats)
 
-    # Test that the real part (w, at index 3 in xyzw format) is positive
-    assert torch.all(pos_real_quats[:, 3] > 0).item()
+    # The real part (w, at index 3 in xyzw format) must be nonnegative.
+    assert torch.all(pos_real_quats[:, 3] >= 0).item()
 
     non_pos_indices = quats[:, 3] < 0
     # Check quaternion is negated if real part was negative

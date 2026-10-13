@@ -13,9 +13,12 @@ import sys
 from importlib import util
 from pathlib import Path
 from unittest import mock
+from urllib.parse import unquote
 
 import pytest
 import tomllib
+from packaging.requirements import Requirement
+from packaging.utils import parse_wheel_filename
 
 pytestmark = pytest.mark.unit
 
@@ -168,6 +171,31 @@ def test_wheel_builder_core_pins_match_root_pyproject(source_checkout_root: Path
     assert generated_wheel_project["optional-dependencies"]["rsl-rl"] == [
         dep for dep in source_dependencies if _requirement_name(dep) == "rsl-rl-lib"
     ]
+
+
+def test_wheel_builder_requires_cuda_torch_on_supported_platforms(generated_wheel_project: dict):
+    """An index-free install must select CUDA wheels, including on Windows Blackwell machines."""
+    requirements = [Requirement(dep) for dep in generated_wheel_project["dependencies"]]
+    for system, machine, wheel_platform in (
+        ("win32", "AMD64", "win_amd64"),
+        ("linux", "x86_64", "manylinux_2_28_x86_64"),
+        ("linux", "aarch64", "manylinux_2_28_aarch64"),
+    ):
+        for name in ("torch", "torchvision"):
+            selected = [
+                dep
+                for dep in requirements
+                if dep.name == name
+                and (dep.marker is None or dep.marker.evaluate({"sys_platform": system, "platform_machine": machine}))
+            ]
+            assert len(selected) == 1
+            assert selected[0].url is not None, f"{name} could resolve to a CPU build from PyPI"
+            filename = unquote(selected[0].url.split("#")[0].rsplit("/", 1)[1])
+            wheel_name, version, _, tags = parse_wheel_filename(filename)
+            assert wheel_name == name
+            assert version.local == "cu130"
+            assert any(tag.interpreter == "cp312" and tag.platform == wheel_platform for tag in tags)
+    assert generated_wheel_project["requires-python"] == ">=3.12,<3.13"
 
 
 def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: Path, tmp_path):

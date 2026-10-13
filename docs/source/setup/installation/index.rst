@@ -3,9 +3,9 @@
 Installation
 ============
 
-.. image:: https://img.shields.io/badge/IsaacSim-6.1.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-6.2.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: Isaac Sim 6.1.0
+   :alt: Isaac Sim 6.2.0
 
 .. image:: https://img.shields.io/badge/python-3.12-blue.svg
    :target: https://www.python.org/downloads/release/python-3120/
@@ -34,7 +34,7 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 `Omniverse technical requirements
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
 
-Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
+Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.2 with Python 3.12.
 The Isaac Sim wheels require GLIBC 2.35 or newer on Linux.
 
 The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
@@ -102,7 +102,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
@@ -128,7 +128,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
       .. note::
 
@@ -167,7 +167,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          :: Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option includes the selected optional integration in the command's environment. Place it
@@ -175,7 +175,7 @@ before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
 any combination resolves into one environment. The ``--extra all`` shortcut installs the
 curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser`` extras.
-It does not include Isaac Sim or the specialized ``rlinf``, ``mimic``, ``teleop``,
+It does not include Isaac Sim or the specialized ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``,
 ``tetrahedralization``, ``video``, and ``leapp`` extras; request them by name:
 
 .. code-block:: bash
@@ -190,8 +190,9 @@ and then runs the command.
 
 The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
 No additional command flags are needed.
-The published wheel pins the PyTorch versions, but downstream uv projects must configure their own
-PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
+The aggregate wheel uses platform-specific CUDA PyTorch wheel URLs from the source lockfile.
+This also selects CUDA builds for ``uvx`` and downstream projects, which do not inherit a dependency
+project's ``tool.uv.sources`` settings. The wheel supports Python 3.12, matching the source checkout.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -336,6 +337,8 @@ have dedicated commands below.
      - OV PhysX only / OV RTX only.
    * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
+   * - ``skrl-jax``
+     - skrl with CUDA-enabled JAX.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
@@ -353,8 +356,8 @@ have dedicated commands below.
      - Developer test and documentation tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
-developer ``test`` tooling remain opt-in.
+(``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and
+the developer ``test`` tooling remain opt-in.
 
 .. note::
 
@@ -385,7 +388,7 @@ Install this extra to convert URDF and MJCF files without Isaac Sim.
 Installing the ``isaacsim`` extra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Sim 6.1 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
+Isaac Sim 6.2 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
 the tested overrides:
 
 .. isaaclab-uv-isaacsim-wheel-install::
