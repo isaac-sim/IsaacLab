@@ -18,7 +18,9 @@ names Newton 1.6 fills, :mod:`~isaaclab_newton.physics.mjwarp_tendon_control` is
 1.6 only and carries no version branch.
 
 Delete this module once the pinned Newton is 1.6 or newer; the only caller reverts to reading
-``articulation.root_view`` and the model straight through.
+``articulation.root_view`` and the model straight through. Also remove the no-actuator early
+return in :meth:`~isaaclab_newton.physics.mjwarp_tendon_control.MjWarpTendonControl.create`,
+which only guards this adapter against Newton 1.5 omitting the actuator arrays.
 """
 
 from __future__ import annotations

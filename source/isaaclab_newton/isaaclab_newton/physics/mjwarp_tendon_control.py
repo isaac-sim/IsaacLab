@@ -66,6 +66,10 @@ class MjWarpTendonControl:
         Returns:
             The adapter, or None when the articulation's tendons are all passive.
         """
+        # Newton 1.5 only: it omits the actuator arrays when the model contains only passive tendons,
+        # which the compatibility adapter below dereferences. Remove with ``_mjwarp_view_compat``.
+        if not model.custom_frequency_counts.get("mujoco:actuator", 0):
+            return None
         # Single compatibility seam: on Newton 1.6 this returns both unchanged. Everything below,
         # and every other module, is written against 1.6 only.
         view, model = ensure_newton_custom_frequency_api(articulation.root_view, model)

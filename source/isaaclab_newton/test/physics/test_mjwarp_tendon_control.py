@@ -107,6 +107,14 @@ def test_a_view_without_the_actuator_frequency_resolves_to_nothing():
     assert resolve_fixed_tendon_actuator_columns(view, model) is None
 
 
+def test_passive_tendons_without_actuator_arrays_need_no_controller():
+    """Newton 1.5 omits actuator arrays when every tendon is passive."""
+    articulation = SimpleNamespace(root_view=SimpleNamespace(count=1, tendon_count=2))
+    model = SimpleNamespace(custom_frequency_counts={"mujoco:tendon": 2}, mujoco=SimpleNamespace())
+
+    assert MjWarpTendonControl.create(articulation, model) is None
+
+
 def test_a_tendon_no_actuator_drives_gets_no_column():
     """A passive tendon keeps column -1; the other tendons still find their actuators."""
     view, model = _make_view_and_model(tendon_count=3)
