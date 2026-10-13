@@ -6,5 +6,5 @@
 * Added optional GL, RTX and Kit presentation with native grains, conservative
   colour transport, a filtered liquid surface and a render-only kitchen.
   The runner uses Isaac Lab's existing video recorder and a 4 mm grid.
-* Loads the complete companion asset bundle from the GTC2026 demo library,
+* Loads the complete companion asset bundle from the Isaac Lab environment library,
   including the prepared robot and self-contained kitchen presentation.

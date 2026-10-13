@@ -22,7 +22,7 @@ RTX needs the `ovrtx` extra; Kit needs an Isaac Sim runtime. Assets are loaded
 through the existing USD spawner and asset resolver.
 
 The fixed bowl, cup, spoon, table and prepared kitchen are supplied at
-`{ISAACLAB_NUCLEUS_DIR}/Demos/GTC2026/RizonSharpaCoffee`. The bundle includes
+`{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaCoffee`. The bundle includes
 `walnut.png`, `CoffeeWater.mdl`, `kitchen.usda`, the collected kitchen geometry,
 materials and textures in `Kitchen/`, the prepared robot in `Robot/`, licenses
 and checksum manifests. Props are authored in metres with Z up; their default
@@ -33,7 +33,7 @@ The development bundle is available on isaac-dev. Until its production asset
 release is available, select it with:
 
 ```bash
-export ISAACLAB_COFFEE_ASSET_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Demos/GTC2026/RizonSharpaCoffee
+export ISAACLAB_COFFEE_ASSET_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Environments/RizonSharpaCoffee
 ```
 
 The variable also accepts a local copy of the complete bundle. Preserve relative
