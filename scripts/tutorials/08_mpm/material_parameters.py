@@ -25,7 +25,6 @@ from typing import NamedTuple
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.app.logging_utils import configure_console_logging
 
 logger = logging.getLogger("isaaclab.tutorials.mpm.material_parameters")
 
@@ -579,7 +578,6 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Launch the selected MPM material comparison."""
-    configure_console_logging(vars(args_cli))
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils

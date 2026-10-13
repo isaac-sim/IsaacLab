@@ -28,7 +28,6 @@ from typing import Any, NamedTuple
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.app.logging_utils import configure_console_logging
 
 logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
@@ -486,7 +485,6 @@ def _tracking_camera_pose(base_x: float) -> tuple[tuple[float, float, float], tu
 
 def main() -> None:
     """Load the published policy and play the selected coupling variant."""
-    configure_console_logging(vars(args_cli))
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 

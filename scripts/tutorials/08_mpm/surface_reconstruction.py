@@ -28,7 +28,6 @@ from typing import TYPE_CHECKING, NamedTuple
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.app.logging_utils import configure_console_logging
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -544,7 +543,6 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None) 
 
 def main() -> None:
     """Launch the surface-reconstruction study."""
-    configure_console_logging(vars(args_cli))
     points, velocities, blob_particle_count = create_fluid_points()
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
