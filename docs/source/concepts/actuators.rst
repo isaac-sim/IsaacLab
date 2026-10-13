@@ -435,6 +435,16 @@ Known constraints
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 
+.. _actuators-bam-microduck:
+
+Example: MicroDuck walking
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``IsaacContrib-Velocity-Flat-MicroDuck`` and ``IsaacContrib-Velocity-Rough-MicroDuck`` train the
+MicroDuck biped to walk on flat ground and on rough terrain, with its 14 servos modeled by BAM on
+Newton MJWarp. Add ``presets=backlash`` to either task to train the robot variant with a passive play
+hinge in series with each servo, bound through ``backlash_joint_template``.
+
 
 .. _actuators-parameter-reference:
 

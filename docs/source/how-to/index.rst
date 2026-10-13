@@ -252,16 +252,6 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`MicroDuck walking </source/how-to/microduck_flat_walk>`
-
-         Train the BAM-actuated MicroDuck on flat or rough terrain, with optional gearbox backlash.
-
-         .. container:: guide-metadata
-
-            :guide-tag-newton:`Newton`
-
-      .. container:: guide-entry
-
          :doc:`Configuring an RL agent </source/how-to/configuring_rl_training>`
 
          Customize agent settings and training hyperparameters.
