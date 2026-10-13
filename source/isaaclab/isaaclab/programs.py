@@ -135,6 +135,11 @@ EXAMPLES = (
         **_ISAACSIM,
     ),
     ProgramSpec(
+        "tablecloth",
+        "examples/tablecloth.py",
+        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+    ),
+    ProgramSpec(
         "visual-color-randomization",
         "examples/visual_color_randomization.py",
         "Randomize visual materials on cloned assets.",
