@@ -246,9 +246,9 @@ and then runs the command.
 
 The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
 No additional command flags are needed.
-The aggregate wheel pins the PyTorch versions, but downstream uv projects must configure their own
-PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
-The wheel supports Python 3.12, matching the source checkout.
+The aggregate wheel pins the PyTorch versions using registry-compatible metadata. Its published-wheel
+commands select the CUDA 13.0 build at install time. The wheel supports Python 3.12, matching the source
+checkout.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -592,62 +592,44 @@ resources as a released wheel:
 
    [tool.uv.sources]
    isaaclab = { git = "https://github.com/isaac-sim/IsaacLab.git", rev = "<git-revision>", subdirectory = "tools/wheel_builder" }
-   torch = { index = "pytorch-cu130" }
-   torchvision = { index = "pytorch-cu130" }
-
-   [[tool.uv.index]]
-   name = "pytorch-cu130"
-   url = "https://download.pytorch.org/whl/cu130"
-   explicit = true
 
 Use a commit hash or release tag for reproducible environments. A branch name is accepted, but
 updating the lockfile can then select a newer Isaac Lab revision and dependency set.
 
-For a one-off command, ``uvx`` can build the same Git revision without creating a project:
-
-.. code-block:: bash
-
-   uvx --torch-backend cu130 \
-     --from "git+https://github.com/isaac-sim/IsaacLab.git@<git-revision>#subdirectory=tools/wheel_builder" \
-     isaaclab demo zoo
-
 Installing the published wheel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not use the
-``[tool.uv.sources]`` Git entry from the previous workflow when installing the published wheel.
+Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not point Isaac Lab at
+the Git source from the previous workflow when installing the published wheel.
 
-Choose how you want uv to manage the dependency. Both workflows start with the base
-``isaaclab`` package; add optional capabilities only when your project needs them.
+Run the published package directly or install it into a persistent environment. All workflows start
+with the base ``isaaclab`` package; add optional capabilities only when your project needs them.
 
 .. tab-set::
 
-   .. tab-item:: uv project dependency
-
-      Create the project, then add the CUDA 13.0 PyTorch source mapping to its
-      ``pyproject.toml`` before resolving Isaac Lab:
+   .. tab-item:: Direct uvx command
 
       .. code-block:: bash
 
-         uv init --python 3.12 my_isaaclab_project
-         cd my_isaaclab_project
+         uvx --index https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --from "isaaclab==3.0.0rc1" \
+            isaaclab demo zoo
 
-      .. code-block:: toml
+      This resolves the published wheel from the package index into an isolated environment. It does
+      not require a source checkout, wheel download, or project file.
 
-         [tool.uv.sources]
-         torch = { index = "pytorch-cu130" }
-         torchvision = { index = "pytorch-cu130" }
-
-         [[tool.uv.index]]
-         name = "pytorch-cu130"
-         url = "https://download.pytorch.org/whl/cu130"
-         explicit = true
-
-      Then add the published wheel:
+   .. tab-item:: Generated uv project
 
       .. code-block:: bash
 
-         uv add --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+         uvx --index https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --from "isaaclab==3.0.0rc1" \
+            isaaclab --new
+
+      The generator records the published Isaac Lab version and CUDA PyTorch source in the generated
+      project. No manual ``pyproject.toml`` changes are required.
 
    .. tab-item:: Standalone uv environment
 
@@ -687,9 +669,8 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
-The project workflow records the dependency and CUDA PyTorch source in ``pyproject.toml`` and
-updates ``uv.lock``. Use it when Isaac Lab is part of an application you maintain; use a standalone
-environment for exploratory or temporary work.
+Use ``uvx`` for one-off commands, the generator for an application you maintain, or a standalone
+environment for exploratory work that needs an activated Python environment.
 
 .. _installation-optional-extras:
 

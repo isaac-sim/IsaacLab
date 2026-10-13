@@ -242,9 +242,15 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
     if not source_path:
         specification["isaaclab_dependency"] = "isaaclab"
         specification["isaaclab_environments"] = []
-        specification["isaaclab_indexes"] = []
+        specification["isaaclab_indexes"] = [
+            {"url": "https://pypi.nvidia.com", "explicit": False},
+            {"name": "pytorch-cu130", "url": "https://download.pytorch.org/whl/cu130", "explicit": True},
+        ]
         specification["isaaclab_overrides"] = []
-        specification["isaaclab_sources"] = []
+        specification["isaaclab_sources"] = [
+            {"name": package, "value": _format_toml_value({"index": "pytorch-cu130"})}
+            for package in ("torch", "torchvision")
+        ]
         optional_extras = specification.get("isaaclab_optional_extras")
         if optional_extras is None:
             optional_extras = importlib.metadata.distribution("isaaclab").metadata.get_all("Provides-Extra") or []

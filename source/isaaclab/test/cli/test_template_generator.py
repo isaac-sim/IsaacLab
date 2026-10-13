@@ -246,6 +246,16 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "pytest>=8.3",
         "ruff>=0.11",
     ]
+    assert project_config["tool"]["uv"]["sources"]["torch"] == {"index": "pytorch-cu130"}
+    assert project_config["tool"]["uv"]["sources"]["torchvision"] == {"index": "pytorch-cu130"}
+    assert {index.get("name", index["url"]): index for index in project_config["tool"]["uv"]["index"]} == {
+        "https://pypi.nvidia.com": {"url": "https://pypi.nvidia.com", "explicit": False},
+        "pytorch-cu130": {
+            "name": "pytorch-cu130",
+            "url": "https://download.pytorch.org/whl/cu130",
+            "explicit": True,
+        },
+    }
     assert project_config["tool"]["uv"]["build-backend"]["module-name"] == "test_project"
     assert project_config["tool"]["pytest"]["ini_options"]["testpaths"] == ["tests"]
     assert project_config["tool"]["pytest"]["ini_options"]["markers"] == [
