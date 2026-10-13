@@ -153,12 +153,15 @@
         // END-AUTO-GENERATED: environment-browser-task-rows
 
     const splitValues = (value) => value ? value.split(",") : [];
+    const selectors = ["physics", "renderer", "presets"];
+    const pairKey = (left, right) => [left, right].sort().join(" ");
     const tasks = taskRows.map(([
         task, rl, physics, renderer, presets, previewImage = "", supportsWarpFrontend = false,
         pretrainedCheckpointPresetCompatibility = {},
         defaultAlgorithms = {},
         requiredExtras = "",
         warpPresets = null,
+        incompatibleSelectors = [],
     ]) => ({
         task,
         scope: task.startsWith("IsaacContrib-") ? "contrib" : "core",
@@ -172,6 +175,7 @@
         defaultAlgorithms,
         requiredExtras: splitValues(requiredExtras),
         warpPresets,
+        incompatibleSelectors: new Set(incompatibleSelectors.map(([left, right]) => pairKey(left, right))),
     }));
 
     const builder = document.querySelector("[data-environment-browser]");
@@ -381,6 +385,7 @@
         populateSelect(fields.renderer, task.renderer, [fields.renderer.value, preferredRenderer, "ovrtx"]);
         const presets = state.scope === "warp" ? (task.warpPresets ?? task.presets) : task.presets;
         populateSelect(fields.presets, presets, [fields.presets.value, "joint", "ik", "rgb", "cube", "single_camera"]);
+        settleSelectors("physics");
     };
 
     const updateModeControls = () => {
@@ -409,10 +414,42 @@
         }
     };
 
-    const incompatibleBackends = () => (
-        (fields.physics.value === "ovphysx" && fields.renderer.value === "isaacsim_rtx")
-        || (fields.physics.value === "isaacsim_physx" && fields.renderer.value === "ovrtx")
-    );
+    const selectorValues = () => Object.fromEntries(selectors.map((selector) => [selector, fields[selector].value]));
+
+    // Return the token of a selected value that cannot launch with ``selector=value``, if any.
+    const conflictWith = (task, values, selector, value) => selectors
+        .filter((other) => other !== selector && value && values[other])
+        .map((other) => `${other}=${values[other]}`)
+        .find((other) => task.incompatibleSelectors.has(pairKey(`${selector}=${value}`, other)));
+
+    const isLaunchable = (task, values) => selectors.every((selector) => !conflictWith(task, values, selector, values[selector]));
+
+    // Keep ``kept`` and move the other selectors to the first launchable choice, preferring their current values.
+    const settleSelectors = (kept) => {
+        const task = selectedTask();
+        const current = selectorValues();
+        if (!isLaunchable(task, current)) {
+            const choices = (selector) => (selector === kept
+                ? [current[selector]]
+                : [current[selector], ...[...fields[selector].options].map((option) => option.value)]);
+            const [physics, renderer, presets] = selectors.map(choices);
+            const settled = physics.flatMap((p) => renderer.flatMap((r) => presets.map((d) => ({physics: p, renderer: r, presets: d}))))
+                .find((values) => isLaunchable(task, values));
+            if (settled) {
+                selectors.forEach((selector) => { fields[selector].value = settled[selector]; });
+            }
+        }
+        const values = selectorValues();
+        for (const selector of selectors) {
+            for (const option of fields[selector].options) {
+                const conflict = conflictWith(task, values, selector, option.value);
+                option.disabled = Boolean(conflict);
+                option.title = conflict ? `Not available with ${conflict}` : "";
+            }
+        }
+    };
+
+    const incompatibleBackends = () => !isLaunchable(selectedTask(), selectorValues());
 
     const updateCommand = () => {
         const incompatible = incompatibleBackends();
@@ -932,6 +969,9 @@
         state.task = fields.task.value;
         updateSelection();
     });
+    for (const selector of selectors) {
+        fields[selector].addEventListener("change", () => settleSelectors(selector));
+    }
     for (const field of [fields.rl, fields.physics, fields.renderer, fields.presets, fields.checkpoint]) {
         field.addEventListener("change", () => {
             updateModeControls();
