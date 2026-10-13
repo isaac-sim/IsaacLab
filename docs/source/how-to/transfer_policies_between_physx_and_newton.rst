@@ -367,7 +367,14 @@ Set ``joint_ordering`` and ``body_ordering`` on
   joints, at spawn, so the native order matches without an ordering map. PhysX
   then also solves the articulation in that order, so trajectories differ from
   runs with the authored order. Joints inside instanced prims keep the authored
-  order.
+  order, and the reorder also applies to other articulations under the same
+  spawned asset.
+
+  On other backends, an articulation rooted on a container prim raises an error
+  when PhysX's choice of root is not emulated: two bodies tie as the graph center,
+  bodies are nested in each other, or loop-closing joints exist. Set explicit name
+  lists for those articulations. Isaac Sim PhysX does not raise in these cases and
+  can root a tied articulation differently from OVPhysX.
 * ``"mjwarp"`` -- Newton or MJWarp articulation-view order.
 * ``"robot_schema"`` -- the order authored on the asset's
   ``isaac:physics:robotJoints`` (joints) or ``isaac:physics:robotLinks``

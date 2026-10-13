@@ -494,8 +494,9 @@ def _get_names_from_newton_usd_builder(
         return {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)}
 
     # Newton's "bfs" starts at the joint-direction root and visits child links by joint prim path. PhysX roots the
-    # tree at the body jointed to the world, else at the root-API body, else at the graph center, and visits the
-    # links next to each link by joint type, then joint prim path.
+    # tree at the root-API body, else at the body jointed to the world, else at the graph center, and visits the
+    # links next to each link by joint type, then joint prim path. The center is not emulated for ties, nested
+    # bodies or loops.
     rank = {JointType.FIXED: 0, JointType.REVOLUTE: 1, JointType.PRISMATIC: 2, JointType.BALL: 3}
     parent, child, joint_type = (a.numpy().tolist() for a in (model.joint_parent, model.joint_child, model.joint_type))
     articulation = int(view.articulation_ids.numpy().flat[0])
@@ -521,18 +522,29 @@ def _get_names_from_newton_usd_builder(
                     visits.append((other, depth + 1, joint))
         return visits
 
-    discovery = list(dict.fromkeys(body for joint in joints for body in (parent[joint], child[joint]) if body >= 0))
+    def unsupported(reason: str) -> NotImplementedError:
+        return NotImplementedError(
+            f"Cannot resolve the \"physx\" order of '{source_articulation_path}' on this backend: {reason}, and"
+            " OVPhysX's root choice for that case is not emulated. Set joint_ordering and body_ordering to explicit"
+            " name lists instead."
+        )
 
-    def center_key(body: int) -> tuple[int, int, int]:
-        depths = [depth for _, depth, _ in breadth_first(body)]
-        return max(depths), sum(depths), discovery.index(body)
-
-    if world_joints:
-        root = next(iter(world_joints))
-    elif model.articulation_label[articulation] in model.body_label:
+    if model.articulation_label[articulation] in model.body_label:
         root = model.body_label.index(model.articulation_label[articulation])
+    elif world_joints:
+        root = next(iter(world_joints))
     else:
-        root = min(discovery or [child[start]], key=center_key)
+        bodies = list(dict.fromkeys(b for joint in joints for b in (parent[joint], child[joint]) if b >= 0))
+        radius = {body: breadth_first(body)[-1][1] for body in bodies or [child[start]]}
+        centers = [body for body in radius if radius[body] == min(radius.values())]
+        labels = [model.body_label[body] for body in radius]
+        if len(centers) > 1:
+            raise unsupported("two bodies tie as its graph center")
+        if any(other.startswith(f"{label}/") for label in labels for other in labels):
+            raise unsupported("its bodies are nested in each other")
+        if int(model.articulation_start.numpy()[articulation + 1]) != end:
+            raise unsupported("it has loop-closing joints")
+        root = centers[0]
     visits = breadth_first(root)
     joint_rank = {model.joint_label[j].rsplit("/", 1)[-1]: i for i, (_, _, j) in enumerate(visits) if j is not None}
     body_rank = {model.body_label[body].rsplit("/", 1)[-1]: i for i, (body, _, _) in enumerate(visits)}
