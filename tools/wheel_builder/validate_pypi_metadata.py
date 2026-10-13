@@ -30,21 +30,16 @@ def validate_pypi_metadata(wheel_path: Path) -> None:
 
 
 def main() -> None:
-    """Validate wheel paths provided on the command line."""
+    """Validate the wheel path provided on the command line."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("wheels", nargs="+", type=Path)
+    parser.add_argument("wheel", type=Path)
     args = parser.parse_args()
 
-    errors: list[str] = []
-    for wheel_path in args.wheels:
-        try:
-            validate_pypi_metadata(wheel_path)
-        except ValueError as error:
-            errors.append(str(error))
-        else:
-            print(f"PyPI metadata validation passed: {wheel_path}")
-    if errors:
-        raise SystemExit("\n\n".join(errors))
+    try:
+        validate_pypi_metadata(args.wheel)
+    except ValueError as error:
+        raise SystemExit(str(error)) from None
+    print(f"PyPI metadata validation passed: {args.wheel}")
 
 
 if __name__ == "__main__":

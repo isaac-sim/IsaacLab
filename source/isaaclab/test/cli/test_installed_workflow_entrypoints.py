@@ -144,6 +144,11 @@ def test_demo_catalog_lists_packaged_demos(capsys):
     assert "bin-packing" not in output
 
 
+def test_program_uvx_command_selects_cuda_torch_backend():
+    """A base-package uvx command must select CUDA PyTorch without wheel URLs."""
+    assert programs.DEMOS[0].uvx_command("demo") == "uvx --torch-backend cu130 isaaclab demo zoo"
+
+
 def test_example_catalog_lists_packaged_examples(capsys):
     """The example command must distinguish focused programs from showcases."""
     cli.example(["list"])
@@ -152,7 +157,7 @@ def test_example_catalog_lists_packaged_examples(capsys):
     assert "bin-packing" in output
     assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in output
+    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in output
     assert "teapot-fill" not in output
 
 
@@ -295,7 +300,7 @@ def test_program_command_reports_missing_optional_dependencies(capsys):
     with mock.patch.object(programs, "find_spec", return_value=None), pytest.raises(SystemExit, match="2"):
         cli.example(["camera"])
 
-    assert "uvx --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
+    assert "uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example camera" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(("command_name", "args"), [("demo", ["zoo", "--headless"]), ("example", ["cables"])])

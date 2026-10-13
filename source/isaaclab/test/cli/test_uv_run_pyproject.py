@@ -35,21 +35,27 @@ def test_uv_run_extra_names_match_documented_workflow(source_checkout_root: Path
     assert documented_extras <= set(optional_dependencies)
 
 
-def test_published_wheel_docs_select_cuda_torch_index(source_checkout_root: Path):
-    """Published-wheel workflows must select the supported CUDA build, including on Windows."""
+def test_wheel_docs_select_cuda_torch_backend(source_checkout_root: Path):
+    """Git and published-wheel workflows must select CUDA PyTorch, including on Windows."""
     pyproject = _root_pyproject(source_checkout_root)
     torch_source = pyproject["tool"]["uv"]["sources"]["torch"]
     index_name = torch_source["index"]
     torch_index = next(index for index in pyproject["tool"]["uv"]["index"] if index.get("name") == index_name)
     docs = (source_checkout_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
-    wheel_docs = docs.split("Installing the published wheel", maxsplit=1)[1].split("Optional extras", maxsplit=1)[0]
-    windows_docs = wheel_docs.split("Windows (x86_64)", maxsplit=1)[1].split("Linux (aarch64)", maxsplit=1)[0]
+    git_docs = docs.split("Installing an unreleased Git revision", maxsplit=1)[1].split(
+        "Installing the published wheel", maxsplit=1
+    )[0]
+    published_docs = docs.split("Installing the published wheel", maxsplit=1)[1].split("Optional extras", maxsplit=1)[0]
+    windows_docs = published_docs.split("Windows (x86_64)", maxsplit=1)[1].split("Linux (aarch64)", maxsplit=1)[0]
 
-    for package in ("torch", "torchvision"):
-        assert f'{package} = {{ index = "{index_name}" }}' in wheel_docs
-    assert f'name = "{index_name}"' in wheel_docs
-    assert f'url = "{torch_index["url"]}"' in wheel_docs
-    assert f"--index {torch_index['url']}" in windows_docs
+    for project_docs in (git_docs, published_docs):
+        for package in ("torch", "torchvision"):
+            assert f'{package} = {{ index = "{index_name}" }}' in project_docs
+        assert f'name = "{index_name}"' in project_docs
+        assert f'url = "{torch_index["url"]}"' in project_docs
+    assert "uvx --torch-backend cu130" in git_docs
+    assert "#subdirectory=tools/wheel_builder" in git_docs
+    assert "--torch-backend cu130" in windows_docs
 
 
 def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):

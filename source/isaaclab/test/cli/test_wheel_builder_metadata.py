@@ -13,6 +13,7 @@ import sys
 from importlib import util
 from pathlib import Path
 from unittest import mock
+from zipfile import ZipFile
 
 import pytest
 import tomllib
@@ -194,6 +195,43 @@ def test_wheel_builder_preserves_registry_compatible_torch_requirements(
         assert [str(dep) for dep in actual] == expected
         assert all(dep.url is None for dep in actual)
     assert generated_wheel_project["requires-python"] == ">=3.12,<3.13"
+
+
+@pytest.mark.parametrize(
+    ("requirement", "accepted"),
+    [
+        ("torch==2.11.0", True),
+        ("torch @ https://download.pytorch.org/whl/cu130/torch.whl", False),
+    ],
+)
+def test_pypi_metadata_validator_rejects_direct_urls(
+    source_checkout_root: Path, tmp_path: Path, requirement: str, accepted: bool
+):
+    """The release gate must reject direct dependencies while accepting registry pins."""
+    wheel_path = tmp_path / "isaaclab-3.0.0-py3-none-any.whl"
+    metadata = f"""\
+Metadata-Version: 2.3
+Name: isaaclab
+Version: 3.0.0
+Requires-Dist: {requirement}
+"""
+    with ZipFile(wheel_path, "w") as wheel:
+        wheel.writestr("isaaclab-3.0.0.dist-info/METADATA", metadata)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(source_checkout_root / "tools/wheel_builder/validate_pypi_metadata.py"),
+            str(wheel_path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert (result.returncode == 0) is accepted
+    output = result.stdout if accepted else result.stderr
+    assert ("PyPI metadata validation passed" if accepted else "PyPI does not allow direct URL dependencies") in output
 
 
 def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: Path, tmp_path):
