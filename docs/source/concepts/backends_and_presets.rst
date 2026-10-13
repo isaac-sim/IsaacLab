@@ -80,6 +80,19 @@ registered default configuration and does not expose alternatives. Passing a
 name that a task does not list is unsupported and fails during configuration
 validation.
 
+Not every pairing of listed names can run together: Kit and kitless runtimes
+cannot share a process, and a task can reject a combination in its own
+configuration checks. To list only the combinations that pass both, resolved
+for a headless launch, run:
+
+.. code-block:: bash
+
+   uv run isaaclab list_envs --keyword Cartpole-Camera --resolve
+
+Each line is one distinct run, and ``[default]`` marks the one the task uses
+when no names are passed. Resolving every combination takes a few seconds per
+task, so narrow the list with ``--keyword``.
+
 
 Choose a selector
 -----------------
