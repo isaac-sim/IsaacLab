@@ -102,6 +102,10 @@ drive stiffness.
 Tune friction and contact behavior
 ----------------------------------
 
+Try the :ref:`interactive friction demo <interactive-demo-rigid-friction>` to
+adjust a box's friction on an incline and compare its sliding motion with two
+fixed references.
+
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the
 MuJoCo friction-cone representation; test an elliptic cone when a physically
