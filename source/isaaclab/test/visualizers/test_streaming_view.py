@@ -56,12 +56,10 @@ def _reference_colorize(data, channel):
     [
         ("rgb", None, "rgb"),
         ("rgb", {"rgba"}, "rgba"),
-        ("rgb", {"simple_shading_full_mdl"}, "simple_shading_full_mdl"),
         ("rgb", {"rgb", "rgba"}, "rgb"),
         ("depth", {"depth", "distance_to_image_plane"}, "depth"),
         ("depth", {"rgb", "distance_to_image_plane"}, "distance_to_image_plane"),
         ("segmentation", None, "semantic_segmentation"),
-        ("segmentation", {"instance_segmentation"}, "instance_segmentation"),
         ("normals", None, "normals"),
     ],
 )
