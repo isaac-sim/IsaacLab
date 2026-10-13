@@ -71,4 +71,6 @@ isaaclab-browser-demo.compact .browser-demo canvas.browser-demo-tracking-canvas 
 .browser-demo button { cursor: pointer; padding: .42rem .9rem; border: 1px solid #b9c7cc; border-radius: 6px; background: #fff; color: inherit; font: inherit; font-size: .83rem; }
 .browser-demo-buttons button:hover { background: #eaf5dc; }
 .browser-demo button:focus-visible, .browser-demo input:focus-visible { outline: 2px solid #76b900; outline-offset: 2px; }
+.browser-demo button[aria-pressed="true"] { background: #edf5df; border-color: #76b900; }
+.browser-demo canvas.browser-demo-pushing { cursor: crosshair; }
 @media (max-width: 600px) { .browser-demo-head { align-items: flex-start; flex-direction: column; gap: .3rem; } .browser-demo canvas { min-height: 320px; } }

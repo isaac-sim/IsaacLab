@@ -11,6 +11,7 @@ export class OrbitCamera {
     this.elevation = elevation;
     this.distance = distance;
     this.onPointerDown = (event) => {
+      if (event.shiftKey || this.enabled === false) return;
       this.drag = { x: event.clientX, y: event.clientY, id: event.pointerId };
       canvas.setPointerCapture(event.pointerId);
     };
@@ -24,12 +25,13 @@ export class OrbitCamera {
     this.onPointerUp = () => { this.drag = null; };
     this.onWheel = (event) => {
       event.preventDefault();
-      this.distance = Math.max(1.25, Math.min(6, this.distance * Math.exp(event.deltaY * 0.001)));
+      this.distance = Math.max(0.35, Math.min(6, this.distance * Math.exp(event.deltaY * 0.001)));
     };
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
     canvas.addEventListener('pointercancel', this.onPointerUp);
+    canvas.addEventListener('lostpointercapture', this.onPointerUp);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
   }
 
@@ -48,6 +50,7 @@ export class OrbitCamera {
     this.canvas.removeEventListener('pointermove', this.onPointerMove);
     this.canvas.removeEventListener('pointerup', this.onPointerUp);
     this.canvas.removeEventListener('pointercancel', this.onPointerUp);
+    this.canvas.removeEventListener('lostpointercapture', this.onPointerUp);
     this.canvas.removeEventListener('wheel', this.onWheel);
   }
 }

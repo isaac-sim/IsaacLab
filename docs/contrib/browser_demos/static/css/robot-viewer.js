@@ -11,15 +11,24 @@ export class RobotViewer {
   static async load(canvas, simulation) {
     const { visuals } = simulation.manifest.isaacLabDemo;
     const assets = await Promise.all((Array.isArray(visuals) ? visuals : [visuals]).map(async (description) => {
-      const response = await fetch(new URL(description.file, simulation.url));
-      if (!response.ok) throw new Error(`Robot visual request failed (${response.status})`);
-      const data = await response.arrayBuffer();
+      const chunks = await Promise.all((description.files || [description.file]).map(async (file) => {
+        const response = await fetch(new URL(file, simulation.url));
+        if (!response.ok) throw new Error(`Robot visual request failed (${response.status})`);
+        return response.arrayBuffer();
+      }));
+      let stream = new Blob(chunks).stream();
+      if (description.file.endsWith('.gz')) {
+        stream = stream.pipeThrough(new DecompressionStream('gzip'));
+      }
+      const data = await new Response(stream).arrayBuffer();
       if (data.byteLength !== description.byteLength) throw new Error('Robot visual bundle size does not match its manifest');
       return { description, data };
     }));
     const viewer = new RobotViewer(canvas, simulation, assets);
     try {
-      viewer.disposeGround = await addIsaacLabGround(viewer.scene, simulation.manifest.isaacLabDemo.groundHeight || 0);
+      if (viewer.demo.scene !== 'courtyard') {
+        viewer.disposeGround = await addIsaacLabGround(viewer.scene, simulation.manifest.isaacLabDemo.groundHeight || 0);
+      }
       return viewer;
     } catch (error) {
       viewer.dispose();
@@ -36,7 +45,7 @@ export class RobotViewer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.65;
+    this.renderer.toneMappingExposure = this.demo.kind === 'microduck' ? 1.05 : 1.65;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
@@ -44,25 +53,28 @@ export class RobotViewer {
     this.scene.fog = new THREE.Fog('#f3f6f7', 7, 15);
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 50);
     this.target = new THREE.Vector3();
-    this.orbit = new OrbitCamera(canvas, this.camera, this.isManipulation ? -2.2 : Math.PI,
+    this.orbit = new OrbitCamera(canvas, this.camera, this.demo.cameraAzimuth ?? (this.isManipulation ? -2.2 : Math.PI),
       this.isManipulation ? 0.45 : 0.28, this.demo.cameraRadius || (this.isAnymal ? 2.4 : 3.0));
 
-    this.scene.add(new THREE.HemisphereLight('#ffffff', '#acb9be', 2.2));
-    const key = new THREE.DirectionalLight('#ffffff', 3.0);
+    const microduck = this.demo.kind === 'microduck';
+    this.scene.add(new THREE.HemisphereLight('#ffffff', '#acb9be', microduck ? 1.3 : 2.2));
+    const key = new THREE.DirectionalLight('#ffffff', microduck ? 2.5 : 3.0);
     key.position.set(3, 5, 4);
     key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024);
-    key.shadow.camera.left = -2.5;
-    key.shadow.camera.right = 2.5;
-    key.shadow.camera.top = 2.5;
-    key.shadow.camera.bottom = -2.5;
+    const shadowExtent = microduck ? 0.75 : 2.5;
+    key.shadow.camera.left = -shadowExtent;
+    key.shadow.camera.right = shadowExtent;
+    key.shadow.camera.top = shadowExtent;
+    key.shadow.camera.bottom = -shadowExtent;
     key.shadow.camera.near = 0.1;
     key.shadow.camera.far = 12;
-    key.shadow.bias = -0.0001;
+    key.shadow.bias = microduck ? -0.000005 : -0.0001;
+    key.shadow.normalBias = microduck ? 0.0003 : 0;
     this.key = key;
     this.scene.add(key);
     this.scene.add(key.target);
-    const fill = new THREE.DirectionalLight('#d7e6ed', 1.4);
+    const fill = new THREE.DirectionalLight('#d7e6ed', microduck ? 0.55 : 1.4);
     fill.position.set(-3, 2, -2);
     this.scene.add(fill);
 
@@ -94,7 +106,9 @@ export class RobotViewer {
         const name = visual.color.join(',');
         if (!materials[name]) {
           materials[name] = new THREE.MeshStandardMaterial({
-            color: new THREE.Color().setRGB(...visual.color), roughness: 0.6, metalness: 0.05,
+            color: new THREE.Color().setRGB(...visual.color),
+            roughness: microduck ? 0.5 : 0.6, metalness: microduck ? 0 : 0.05,
+            flatShading: microduck,
           });
           this.materials.push(materials[name]);
         }
@@ -114,6 +128,120 @@ export class RobotViewer {
       this.geometries.push(geometry);
       this.materials.push(material);
     }
+    if (this.demo.scene === 'courtyard') this.addCourtyard();
+    if (this.demo.pushMaxForce) this.addMousePush();
+  }
+
+  addCourtyard() {
+    // Ground markings add scale and depth without changing the task's flat contact surface.
+    this.scene.background.set('#dce8ed');
+    this.scene.fog = new THREE.Fog('#dce8ed', 4, 12);
+    const grassMaterial = new THREE.MeshStandardMaterial({ color: '#9fac87', roughness: 1 });
+    const lawn = new THREE.Shape([
+      new THREE.Vector2(-10, -10), new THREE.Vector2(10, -10),
+      new THREE.Vector2(10, 10), new THREE.Vector2(-10, 10),
+    ]);
+    lawn.holes.push(new THREE.Path([
+      new THREE.Vector2(-2.5, -2.5), new THREE.Vector2(-2.5, 2.5),
+      new THREE.Vector2(2.5, 2.5), new THREE.Vector2(2.5, -2.5),
+    ]));
+    const grassGeometry = new THREE.ShapeGeometry(lawn);
+    const grass = new THREE.Mesh(grassGeometry, grassMaterial);
+    grass.rotation.x = -Math.PI / 2;
+    grass.receiveShadow = true;
+    this.scene.add(grass);
+    this.materials.push(grassMaterial);
+    this.geometries.push(grassGeometry);
+    const material = new THREE.MeshStandardMaterial({ color: '#ddd4bf', roughness: 1 });
+    const geometry = new THREE.PlaneGeometry(5, 5);
+    const court = new THREE.Mesh(geometry, material);
+    court.rotation.x = -Math.PI / 2;
+    court.receiveShadow = true;
+    this.scene.add(court);
+    this.materials.push(material);
+    this.geometries.push(geometry);
+    const lines = new THREE.GridHelper(5, 20, '#bfb299', '#cbbfa9');
+    lines.position.y = 0.001;
+    this.scene.add(lines);
+    this.geometries.push(lines.geometry);
+    this.materials.push(lines.material);
+    const green = new THREE.MeshStandardMaterial({ color: '#637e5a', roughness: 1 });
+    const wood = new THREE.MeshStandardMaterial({ color: '#aa8565', roughness: 0.9 });
+    this.materials.push(green, wood);
+    for (const [x, z] of [[-2.9, -2.9], [2.9, -2.9], [-2.9, 2.9], [2.9, 2.9]]) {
+      const trunkGeometry = new THREE.CylinderGeometry(0.025, 0.035, 0.4, 8);
+      const trunk = new THREE.Mesh(trunkGeometry, wood);
+      trunk.position.set(x, 0.2, z);
+      const crownGeometry = new THREE.IcosahedronGeometry(0.22, 1);
+      const crown = new THREE.Mesh(crownGeometry, green);
+      crown.scale.set(0.85, 1.2, 0.85);
+      crown.position.set(x, 0.5, z);
+      trunk.castShadow = crown.castShadow = true;
+      this.scene.add(trunk, crown);
+      this.geometries.push(trunkGeometry, crownGeometry);
+    }
+  }
+
+  addMousePush() {
+    this.pushStrength = this.demo.pushMaxForce * 0.4;
+    const raycaster = new THREE.Raycaster();
+    const point = new THREE.Vector3();
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(this.demo.cameraHeight || 0.13));
+    const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 0.2, '#e37a40', 0.04, 0.025);
+    arrow.visible = false;
+    this.scene.add(arrow);
+    this.pushArrow = arrow;
+    let active = null;
+    const project = (event) => {
+      const rect = this.canvas.getBoundingClientRect();
+      raycaster.setFromCamera(new THREE.Vector2(
+        2 * (event.clientX - rect.left) / rect.width - 1,
+        1 - 2 * (event.clientY - rect.top) / rect.height,
+      ), this.camera);
+      return raycaster.ray.intersectPlane(plane, point);
+    };
+    const down = (event) => {
+      if ((!event.shiftKey && !this.pushMode) || event.button !== 0 || active !== null || !project(event)) return;
+      if (!raycaster.intersectObject(this.robot, true).length) return;
+      event.preventDefault();
+      active = { id: event.pointerId, start: point.clone() };
+      this.canvas.setPointerCapture(event.pointerId);
+      this.canvas.classList.add('browser-demo-pushing');
+    };
+    const move = (event) => {
+      if (event.pointerId !== active?.id || !project(event)) return;
+      const direction = point.clone().sub(active.start);
+      direction.y = 0;
+      const force = this.simulation.binding('force');
+      const length = direction.length();
+      const magnitude = this.pushStrength * Math.min(1, length / 0.15);
+      direction.normalize();
+      force[0] = direction.x * magnitude;
+      force[1] = -direction.z * magnitude;
+      arrow.setDirection(direction);
+      arrow.setLength(Math.max(0.03, Math.min(length, 0.3)), 0.035, 0.02);
+      arrow.visible = magnitude > 0;
+    };
+    const release = () => {
+      active = null;
+      this.simulation.binding('force').fill(0);
+      arrow.visible = false;
+      this.canvas.classList.remove('browser-demo-pushing');
+    };
+    this.releasePush = release;
+    this.canvas.addEventListener('pointerdown', down);
+    this.canvas.addEventListener('pointermove', move);
+    for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) this.canvas.addEventListener(name, release);
+    window.addEventListener('blur', release);
+    this.disposePush = () => {
+      release();
+      this.canvas.removeEventListener('pointerdown', down);
+      this.canvas.removeEventListener('pointermove', move);
+      for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) this.canvas.removeEventListener(name, release);
+      window.removeEventListener('blur', release);
+      arrow.line.geometry.dispose(); arrow.line.material.dispose();
+      arrow.cone.geometry.dispose(); arrow.cone.material.dispose();
+    };
   }
 
   render() {
@@ -144,7 +272,8 @@ export class RobotViewer {
         this.goal.position.applyQuaternion(this.bodies[this.demo.rootBody].quaternion);
         this.goal.position.add(this.bodies[this.demo.rootBody].position);
       }
-    } else this.target.set(pose[root], this.isAnymal ? 0.6 : 0.71, -pose[root + 1]);
+    } else this.target.set(pose[root], this.demo.cameraHeight ?? (this.isAnymal ? 0.6 : 0.71), -pose[root + 1]);
+    if (this.pushArrow) this.pushArrow.position.set(pose[root], pose[root + 2] + 0.03, -pose[root + 1]);
     this.key.position.set(pose[root] + 3, 5, -pose[root + 1] + 4);
     this.key.target.position.set(pose[root], 0, -pose[root + 1]);
     this.key.target.updateMatrixWorld();
@@ -153,6 +282,7 @@ export class RobotViewer {
   }
 
   dispose() {
+    this.disposePush?.();
     this.disposeGround?.();
     this.orbit.dispose();
     this.geometries.forEach((geometry) => geometry.dispose());

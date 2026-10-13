@@ -139,7 +139,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.observer = new IntersectionObserver(([entry]) => {
       this.visible = entry.isIntersecting;
       if (this.visible && !this.loading) this.loading = this.load(generation);
-      else if (this.visible && this.simulation && !this.failed && !this.frameId) {
+      else if (this.visible && this.ready && !this.failed && !this.frameId) {
         this.previousTime = performance.now();
         this.frameId = requestAnimationFrame((time) => this.frame(time));
       } else if (!this.visible && this.frameId) {
@@ -152,6 +152,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
 
   disconnectedCallback() {
     this.generation += 1;
+    this.ready = false;
     this.observer?.disconnect();
     this.observer = null;
     cancelAnimationFrame(this.frameId);
@@ -166,6 +167,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   async load(generation) {
+    this.ready = false;
     this.failed = false;
     this.innerHTML = '<section class="browser-demo"><div class="browser-demo-head"><strong>Newton simulation</strong><span role="status">Loading…</span></div><canvas aria-label="Interactive Isaac Lab simulation"></canvas><div class="browser-demo-controls"></div></section>';
     this.status = this.querySelector('[role="status"]');
@@ -178,7 +180,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
       }
       this.simulation = simulation;
       this.demo = this.simulation.manifest.isaacLabDemo;
-      if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal', 'franka_reach', 'franka_lift', 'franka_drawer'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
+      if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal', 'franka_reach', 'franka_lift', 'franka_drawer', 'microduck'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
       this.isManipulation = this.demo.kind.startsWith('franka_');
       this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`);
       const title = this.getAttribute('demo-title') || this.demo.title;
@@ -222,7 +224,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
         }
         this.viewer = viewer;
         if (!this.isManipulation) {
-          this.command = new Float32Array(3);
+          this.command = this.demo.policyType === 'microduck' ? this.simulation.binding('command') : new Float32Array(3);
           this.previousAction = new Float32Array(this.demo.actionIndices?.length || this.demo.jointNames.length);
         }
       } else {
@@ -237,10 +239,12 @@ class IsaacLabBrowserDemo extends HTMLElement {
       this.tick = 0;
       this.elapsed = 0;
       this.setupControls();
+      if (this.demo.kind === 'microduck') this.setVelocityCommand([0.35, 0, 0]);
       this.running = true;
       this.previousTime = performance.now();
       this.status.textContent = 'Running in your browser';
       this.render();
+      this.ready = true;
       if (this.visible) this.frameId = requestAnimationFrame((time) => this.frame(time));
     } catch (error) {
       if (this.generation !== generation) return;
@@ -405,6 +409,24 @@ class IsaacLabBrowserDemo extends HTMLElement {
       panel.append(this.policyReadout);
     } else {
       this.addVelocityControls(panel);
+      if (this.demo.pushMaxForce) {
+        const push = document.createElement('button');
+        push.textContent = 'Mouse push';
+        push.setAttribute('aria-pressed', 'false');
+        push.addEventListener('click', () => {
+          this.viewer.releasePush();
+          this.viewer.pushMode = !this.viewer.pushMode;
+          this.viewer.orbit.enabled = !this.viewer.pushMode;
+          push.setAttribute('aria-pressed', String(this.viewer.pushMode));
+        });
+        panel.append(push);
+        this.addSlider(panel, 'Push strength', 0.1, this.demo.pushMaxForce, 0.1, this.viewer.pushStrength,
+          (value) => { this.viewer.pushStrength = value; }, (value) => `${value.toFixed(1)} N`);
+        const hint = document.createElement('small');
+        hint.className = 'browser-demo-material-hint';
+        hint.textContent = 'Shift + drag the robot to push, or enable Mouse push. Release to let the policy recover.';
+        panel.append(hint);
+      }
     }
     const buttons = document.createElement('div');
     buttons.className = 'browser-demo-buttons';
@@ -413,6 +435,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
     pause.addEventListener('click', () => {
       this.running = !this.running;
       pause.textContent = this.running ? 'Pause' : 'Play';
+      if (!this.failed) this.status.textContent = this.running ? 'Running in your browser' : 'Paused';
     });
     const reset = document.createElement('button');
     reset.textContent = this.demo.kind === 'mpm' ? 'Reset & drop' : 'Reset';
@@ -491,8 +514,11 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   resetSimulation() {
+    const recovering = this.failed;
     if (this.pendingMaterial) this.simulation.binding('material').set(this.pendingMaterial);
     this.simulation.reset();
+    this.viewer.releasePush?.();
+    if (this.demo.policyType === 'microduck') this.command = this.simulation.binding('command');
     this.previousAction?.fill(0);
     if (this.demo.kind === 'cartpole') this.policyForce = 0;
     this.resetSticks?.();
@@ -503,6 +529,15 @@ class IsaacLabBrowserDemo extends HTMLElement {
       this.updateJointPdTarget();
     }
     this.render();
+    if (recovering) {
+      this.failed = false;
+      this.status.classList.remove('browser-demo-error');
+      this.status.textContent = this.running ? 'Running in your browser' : 'Paused';
+      if (this.visible && this.ready && !this.frameId) {
+        this.previousTime = performance.now();
+        this.frameId = requestAnimationFrame((time) => this.frame(time));
+      }
+    }
   }
 
   addSlider(panel, label, min, max, step, initial, onInput, formatValue = (value) => Number(value).toFixed(step < 1 ? 2 : 0)) {
@@ -530,17 +565,34 @@ class IsaacLabBrowserDemo extends HTMLElement {
     controls.className = 'browser-demo-joysticks';
     const linear = this.addStick(controls, 'Travel', 'Forward / back · left / right', true,
       (x, y, readout) => {
-        this.command[0] = -y * (this.demo.policyType === 'wbc_agile_g1' ? (y < 0 ? 0.8 : 0.6) : 1);
-        this.command[1] = -x * (this.demo.policyType === 'wbc_agile_g1' ? 0.5 : 1);
+        const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1' ? [y < 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
+        this.command[0] = -y * scale[0];
+        this.command[1] = -x * scale[1];
         readout.value = `x ${this.command[0].toFixed(2)} · y ${this.command[1].toFixed(2)} m/s`;
       });
     const yaw = this.addStick(controls, 'Turn', 'Yaw left / right', false,
       (x, _y, readout) => {
-        this.command[2] = -x;
+        this.command[2] = -x * (this.demo.velocityScale?.[2] || 1);
         readout.value = `${this.command[2].toFixed(2)} rad/s`;
       });
-    this.resetSticks = () => { linear(); yaw(); };
+    this.resetSticks = () => { linear.reset(); yaw.reset(); };
+    this.setVelocityCommand = ([x, y, turn]) => {
+      const scale = this.demo.velocityScale || [1, 1, 1];
+      linear.move(-y / scale[1], -x / scale[0]);
+      yaw.move(-turn / scale[2], 0);
+    };
     panel.append(controls);
+    if (this.demo.kind === 'microduck') {
+      const presets = document.createElement('div');
+      presets.className = 'browser-demo-buttons';
+      for (const [label, command] of [['Walk forward', [0.35, 0, 0]], ['Stand', [0, 0, 0]]]) {
+        const button = document.createElement('button');
+        button.textContent = label;
+        button.addEventListener('click', () => this.setVelocityCommand(command));
+        presets.append(button);
+      }
+      panel.append(presets);
+    }
   }
 
   addStick(panel, label, hint, linear, apply) {
@@ -621,12 +673,14 @@ class IsaacLabBrowserDemo extends HTMLElement {
     });
     pad.addEventListener('blur', reset);
     reset();
-    return reset;
+    return { reset, move };
   }
 
   applyPolicy() {
-    if (this.isManipulation) {
-      const action = this.policy.run(this.simulation.binding('observation'));
+    if (this.isManipulation || this.demo.policyType === 'microduck') {
+      const observation = this.simulation.binding('observation');
+      if (this.demo.policyType === 'microduck') observation.set(this.command, 48);
+      const action = this.policy.run(observation);
       if (!action.every(Number.isFinite)) throw new Error('Policy produced a non-finite action');
       this.simulation.binding('action').set(action);
       return;
@@ -714,8 +768,11 @@ class IsaacLabBrowserDemo extends HTMLElement {
     }
     try {
       if (this.running && this.visible) {
-        this.elapsed = Math.min(this.elapsed + Math.min((time - this.previousTime) / 1000, 0.05), 0.06);
-        const steps = Math.min(this.demo.maxStepsPerFrame || 12, Math.floor(this.elapsed / this.simulation.manifest.timestep));
+        const maxSteps = this.demo.maxStepsPerFrame || 12;
+        const frameTimeLimit = Math.max(0.05, (this.demo.maxStepsPerFrame || 0) * this.simulation.manifest.timestep);
+        this.elapsed = Math.min(this.elapsed + Math.min((time - this.previousTime) / 1000, frameTimeLimit),
+          Math.max(0.06, frameTimeLimit));
+        const steps = Math.min(maxSteps, Math.floor(this.elapsed / this.simulation.manifest.timestep));
         let resetDuringFrame = false;
         for (let index = 0; index < steps; index += 1) {
           if (this.policy && this.tick % this.demo.decimation === 0) {

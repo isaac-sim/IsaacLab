@@ -334,7 +334,14 @@ def _pack_visuals(stage: Usd.Stage, roots: list[str], bodies: list[str], output:
                 if mesh.GetOrientationAttr().Get() == "leftHanded":
                     geometry.faces = geometry.faces[:, ::-1]
                 if len(geometry.faces) > 1600:
-                    geometry = geometry.simplify_quadric_decimation(face_count=1600)
+                    simplified = geometry.simplify_quadric_decimation(face_count=1600)
+                    # Thin CAD shells can collapse or develop holes during mesh reduction.
+                    if not geometry.is_watertight or (
+                        simplified.is_watertight
+                        and simplified.euler_number == geometry.euler_number
+                        and np.isclose(simplified.volume, geometry.volume, rtol=0.02, atol=0.0)
+                    ):
+                        geometry = simplified
             elif prim.GetTypeName() == "Cube":
                 size = UsdGeom.Cube(prim).GetSizeAttr().Get()
                 geometry = trimesh.creation.box(extents=(size, size, size))
