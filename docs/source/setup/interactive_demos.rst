@@ -13,7 +13,7 @@ one self-contained Newton simulation with camera controls, pause, and reset.
 The simulation runs locally on the CPU through WebAssembly; no Isaac Lab
 installation or remote simulation server is needed.
 
-Open the `hosted gallery <https://maxkra15.github.io/isaaclab-browser-demos/v1/>`_ to browse all demos.
+Open the `hosted gallery </IsaacLab/demos/v1/>`_ to browse all demos.
 
 These compact scenes illustrate individual effects. Use the full Isaac Lab
 examples and tasks for evaluation, training, and measured comparisons.
@@ -26,7 +26,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: VBD material stiffness
       :img-top: ../_static/browser_demos/previews/stiffness.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=stiffness
+      :link: /IsaacLab/demos/v1/?demo=stiffness
 
       .. _interactive-demo-stiffness:
 
@@ -35,7 +35,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: VBD cloth bending
       :img-top: ../_static/browser_demos/previews/cloth_bending.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=cloth_bending
+      :link: /IsaacLab/demos/v1/?demo=cloth_bending
 
       .. _interactive-demo-cloth-bending:
 
@@ -44,7 +44,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: MJWarp sliding friction
       :img-top: ../_static/browser_demos/previews/rigid_friction.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=rigid_friction
+      :link: /IsaacLab/demos/v1/?demo=rigid_friction
 
       .. _interactive-demo-rigid-friction:
 
@@ -53,7 +53,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: Joint PD tuning
       :img-top: ../_static/browser_demos/previews/joint_pd.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=joint_pd
+      :link: /IsaacLab/demos/v1/?demo=joint_pd
 
       .. _interactive-demo-joint-pd:
 
@@ -62,7 +62,7 @@ Solver and actuator tuning
 
    .. grid-item-card:: MPM material response
       :img-top: ../_static/browser_demos/previews/mpm.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=mpm
+      :link: /IsaacLab/demos/v1/?demo=mpm
 
       .. _interactive-demo-mpm:
 
@@ -82,7 +82,7 @@ Policy control
 
    .. grid-item-card:: Cartpole balancing
       :img-top: ../_static/browser_demos/previews/cartpole.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=cartpole
+      :link: /IsaacLab/demos/v1/?demo=cartpole
 
       .. _interactive-demo-cartpole:
 
@@ -91,7 +91,7 @@ Policy control
 
    .. grid-item-card:: G1 velocity control
       :img-top: ../_static/browser_demos/previews/g1.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=g1
+      :link: /IsaacLab/demos/v1/?demo=g1
 
       .. _interactive-demo-g1:
 
@@ -100,7 +100,7 @@ Policy control
 
    .. grid-item-card:: ANYmal-D velocity control
       :img-top: ../_static/browser_demos/previews/anymal.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=anymal
+      :link: /IsaacLab/demos/v1/?demo=anymal
 
       .. _interactive-demo-anymal:
 
@@ -121,7 +121,7 @@ Manipulation
 
    .. grid-item-card:: Franka reach
       :img-top: ../_static/browser_demos/previews/franka_reach.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=franka_reach
+      :link: /IsaacLab/demos/v1/?demo=franka_reach
 
       .. _interactive-demo-franka-reach:
 
@@ -130,7 +130,7 @@ Manipulation
 
    .. grid-item-card:: Franka lift
       :img-top: ../_static/browser_demos/previews/franka_lift.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=franka_lift
+      :link: /IsaacLab/demos/v1/?demo=franka_lift
 
       .. _interactive-demo-franka-lift:
 
@@ -139,7 +139,7 @@ Manipulation
 
    .. grid-item-card:: Franka drawer opening
       :img-top: ../_static/browser_demos/previews/franka_drawer.jpg
-      :link: https://maxkra15.github.io/isaaclab-browser-demos/v1/?demo=franka_drawer
+      :link: /IsaacLab/demos/v1/?demo=franka_drawer
 
       .. _interactive-demo-franka-drawer:
 
@@ -155,13 +155,15 @@ reset managers are not exported. Browse their full task options in
 About these demos
 -----------------
 
-The demo site is deployed separately on public GitHub Pages. It serves
+The demos are published alongside Isaac Lab documentation on GitHub Pages. The site serves
 versioned simulation bundles, policies, geometry, and third-party license notices.
 Newton's captured Warp kernels advance the physics, Three.js displays the state,
 and a shared JavaScript evaluator runs the policy networks in the browser.
 The documentation gallery contains small thumbnails and links to these pages.
 
-The demo application and deployment are maintained separately from Isaac Lab.
+The exporters and demo application are maintained separately from Isaac Lab.
+The docs deployment downloads a versioned archive from Isaac Lab GitHub releases
+and verifies its checksum before publishing; compiled assets are kept outside the source tree.
 The public `reference PR #7974 <https://github.com/isaac-sim/IsaacLab/pull/7974>`_
 records the original exporters, source assets, and scene adaptations.
 Rebuilding requires the pinned internal Newton Web compiler and Emscripten.
