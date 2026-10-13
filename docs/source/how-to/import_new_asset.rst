@@ -70,7 +70,7 @@ Multi-backend assets
 --------------------
 
 A converted asset can carry shared USD physics and backend-specific attributes. The
-Isaac Sim 6.1 standalone URDF and MJCF importers produce layered output such as:
+Isaac Sim 6.2 standalone URDF and MJCF importers produce layered output such as:
 
 .. code-block:: text
 
@@ -84,7 +84,7 @@ Additional physics layers depend on the source asset and importer version. A lay
 Inspect the interface USD's ``Physics`` variant set before requesting a backend-specific variant.
 
 :attr:`~sim.converters.AssetConverterBaseCfg.physics_variant` defaults to ``physics``.
-The tested Isaac Sim 6.1 output exposes ``physics`` and ``none``; ``none`` omits the physics
+The tested Isaac Sim 6.2 output exposes ``physics`` and ``none``; ``none`` omits the physics
 payload. Isaac Lab selects the requested variant explicitly and raises an error if the
 asset has a ``Physics`` variant set without that variant. Do not assume that ``physx``
 or ``mujoco`` is selectable on every converted asset.
