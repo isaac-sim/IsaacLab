@@ -30,15 +30,24 @@ from isaaclab.sim.schemas.schemas_cfg import (
 from isaaclab.utils import configclass
 
 
+@deprecated_schema_cfg(
+    "OmniPhysicsDeformableBodyCfg(...) in the spawner's deformable slot (surface_deformable_props if its"
+    " physics_material is a surface deformable material, else volume_deformable_props)"
+)
 @configclass
 class OmniPhysicsDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     """OmniPhysics properties for a deformable body.
 
     These properties are set with the prefix ``omniphysics:<property_name>``.
 
-    This class is superseded by the fragment-based
-    :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg`; prefer the fragment for new
-    configurations.
+    .. deprecated:: 3.1
+        Use :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` instead, which carries the
+        same fields. Pass it in the spawner's ``surface_deformable_props`` slot when the spawner's
+        ``physics_material`` is a surface deformable material and in ``volume_deformable_props``
+        otherwise, which is the type the legacy ``deformable_props`` field derived. This class
+        authors ``kinematic_enabled=False`` by default while the fragment leaves it unset; the
+        schema fallback is also ``False``, so set it explicitly only to keep the authored USD
+        identical. This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "omniphysics"
@@ -55,6 +64,11 @@ class OmniPhysicsDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     """The material mass [kg]. Defaults to None, in which case the material density is used to compute the mass."""
 
 
+@deprecated_schema_cfg(
+    "[PhysxDeformableBodyCfg(...), PhysxSurfaceDeformableBodyCfg(...)] in the spawner's surface_deformable_props"
+    " slot if its physics_material is a surface deformable material, else PhysxDeformableBodyCfg(...) in"
+    " volume_deformable_props"
+)
 @configclass
 class PhysXDeformableBodyPropertiesCfg:
     """PhysX-specific properties for a deformable body.
@@ -62,6 +76,18 @@ class PhysXDeformableBodyPropertiesCfg:
     These properties are set with the prefix ``physxDeformableBody:<property_name>``
 
     For more information on the available properties, please refer to the `documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/deformables/physx_deformable_schema.html#physxbasedeformablebodyapi>`_.
+
+    .. deprecated:: 3.1
+        Use :class:`PhysxDeformableBodyCfg` for the ``PhysxBaseDeformableBodyAPI`` fields and
+        :class:`PhysxSurfaceDeformableBodyCfg` for the surface-only
+        :attr:`collision_pair_update_frequency` and :attr:`collision_iteration_multiplier`, which
+        the fragment writes under ``PhysxSurfaceDeformableBodyAPI``. Pass both in the spawner's
+        ``surface_deformable_props`` slot when the spawner's ``physics_material`` is a surface
+        deformable material, and :class:`PhysxDeformableBodyCfg` alone in
+        ``volume_deformable_props`` otherwise. This class authors
+        ``solver_position_iteration_count=16`` by default while the fragment leaves it unset; the
+        schema fallback is also 16, so set it explicitly only to keep the authored USD identical.
+        This class will be removed in 3.2.
     """
 
     _usd_namespace: ClassVar[str | None] = "physxDeformableBody"
@@ -138,6 +164,11 @@ class PhysXDeformableBodyPropertiesCfg:
     """
 
 
+@deprecated_schema_cfg(
+    "[OmniPhysicsDeformableBodyCfg(...), PhysxDeformableBodyCfg(...), PhysxSurfaceDeformableBodyCfg(...)] in the"
+    " spawner's surface_deformable_props slot if its physics_material is a surface deformable material, else"
+    " [OmniPhysicsDeformableBodyCfg(...), PhysxDeformableBodyCfg(...)] in volume_deformable_props"
+)
 @configclass
 class PhysxDeformableBodyPropertiesCfg(
     OmniPhysicsDeformableBodyPropertiesCfg,
@@ -159,27 +190,40 @@ class PhysxDeformableBodyPropertiesCfg(
     .. note::
         If the values are :obj:`None`, they are not modified. This is useful when you want to set only a subset of
         the properties and leave the rest as-is.
-    """
-
-
-@configclass
-class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
-    """Deprecated: use :class:`PhysxDeformableBodyPropertiesCfg`.
 
     .. deprecated:: 3.1
-        ``DeformableBodyPropertiesCfg`` has moved to
-        :class:`PhysxDeformableBodyPropertiesCfg` for PhysX-specific deformable properties
-        and is scheduled for removal in 4.0.
+        Use the deformable-body fragments instead, one per USD namespace:
+        :class:`~isaaclab.sim.schemas.OmniPhysicsDeformableBodyCfg` for the ``omniphysics:*`` fields,
+        :class:`PhysxDeformableBodyCfg` for the ``PhysxBaseDeformableBodyAPI`` fields, and
+        :class:`PhysxSurfaceDeformableBodyCfg` for the surface-only
+        :attr:`collision_pair_update_frequency` and :attr:`collision_iteration_multiplier`. This
+        class does not encode the deformable type: the legacy ``deformable_props`` field authors a
+        surface deformable when the spawner's ``physics_material`` is a surface deformable material
+        and a volume deformable otherwise. Pass all three fragments in ``surface_deformable_props``
+        in the first case and the first two in ``volume_deformable_props`` in the second. This
+        class authors ``kinematic_enabled=False`` and ``solver_position_iteration_count=16`` by
+        default while the fragments leave both unset. The schema fallbacks have the same values,
+        so set them explicitly only to keep the authored USD identical. This class will be
+        removed in 3.2.
     """
 
-    def __post_init__(self):
-        warnings.warn(
-            "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 3.2. Use"
-            " 'isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
+
+@deprecated_schema_cfg(
+    "[OmniPhysicsDeformableBodyCfg(...), PhysxDeformableBodyCfg(...), PhysxSurfaceDeformableBodyCfg(...)] in the"
+    " spawner's surface_deformable_props slot if its physics_material is a surface deformable material, else"
+    " [OmniPhysicsDeformableBodyCfg(...), PhysxDeformableBodyCfg(...)] in volume_deformable_props"
+)
+@configclass
+class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
+    """Deprecated: use the deformable-body schema fragments.
+
+    .. deprecated:: 3.1
+        Pass ``[OmniPhysicsDeformableBodyCfg(...), PhysxDeformableBodyCfg(...)]`` in the spawner's
+        ``volume_deformable_props`` slot, adding ``PhysxSurfaceDeformableBodyCfg(...)`` and using
+        ``surface_deformable_props`` instead when the spawner's ``physics_material`` is a surface
+        deformable material. See :class:`PhysxDeformableBodyPropertiesCfg` for the field mapping.
+        This class will be removed in 3.2.
+    """
 
 
 @configclass
@@ -1250,7 +1294,7 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
         ``FixedTendonPropertiesCfg`` was relocated to
         :mod:`isaaclab_physx.sim.schemas` and renamed to
         :class:`PhysxFixedTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 4.0.
+        deprecation alias and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):
@@ -1307,7 +1351,7 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
         ``SpatialTendonPropertiesCfg`` was relocated to
         :mod:`isaaclab_physx.sim.schemas` and renamed to
         :class:`PhysxSpatialTendonPropertiesCfg`. The legacy name remains as a
-        deprecation alias and is scheduled for removal in 4.0.
+        deprecation alias and is scheduled for removal in 3.2.
     """
 
     def __post_init__(self):

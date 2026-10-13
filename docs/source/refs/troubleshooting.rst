@@ -89,7 +89,7 @@ or run a Newton-based task, which does not need Kit:
 
 .. code-block:: bash
 
-   uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton
+   uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton_gl
 
 See :doc:`/source/setup/quickstart` for the full list of ``physics=`` and ``renderer=``
 selectors and the extras each one requires.
@@ -255,7 +255,7 @@ mode because Isaac Lab computes their effort directly.
 
 Joints not covered by an Isaac Lab actuator configuration retain their imported
 USD target modes. Thus, zero-gain USD drives no longer require
-:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` solely
+:attr:`~isaaclab.sim.spawners.from_files.FileCfg.ensure_drives_exist` solely
 to make a configured joint actuate in Newton. The option remains available for
 workflows that need to author placeholder drives independently of an Isaac Lab
 actuator configuration. See :ref:`import-new-asset-ensure-drives-exist` for

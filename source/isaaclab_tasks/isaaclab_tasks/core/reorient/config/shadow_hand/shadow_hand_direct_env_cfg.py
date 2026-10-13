@@ -13,10 +13,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass
 
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
+from ...utils import GOAL_MARKER_OFFSET, VISUALIZER_CFG
 from .shadow_hand_common import (
     CUBE_CFG,
     GOAL_OBJECT_CFG,
@@ -88,8 +89,15 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     max_consecutive_success = 0
     in_hand_pos_offset: tuple[float, float, float] = (0.0, 0.0, -0.04)
     """In-hand goal anchor, relative to the object's default position [m]."""
-    goal_marker_position: tuple[float, float, float] = (-0.2, -0.45, 0.68)
-    """Fixed goal-marker display position [m], environment frame."""
+    goal_marker_position: tuple[float, float, float] | None = None
+    """Fixed goal-marker display position [m], environment frame, or ``None`` to follow the hand."""
+    goal_marker_offset: tuple[float, float, float] = GOAL_MARKER_OFFSET
+    """Goal-marker display offset from the in-hand position [m], used when no fixed position is set."""
     av_factor = 0.1
     act_moving_average = 1.0
     force_torque_obs_scale = 10.0
+
+    def play_mode(self) -> None:
+        """Frame one hand after applying the shared play-mode scene size."""
+        super().play_mode()
+        self.sim.default_visualizer_cfg = clone(VISUALIZER_CFG)

@@ -43,7 +43,10 @@ when the renderer must be fixed:
      - Kit-less Warp rasterization through Newton
 
 For an environment that exposes renderer presets, select the renderer at launch instead of editing
-the scene configuration:
+the scene configuration. Pass ``physics=`` and ``renderer=`` together, since the renderer must match
+your setup path. The command below is for the kit-less Newton path; for Isaac Sim, use
+``physics=isaacsim_physx renderer=isaacsim_rtx`` with ``--extra isaacsim``. See
+:doc:`/source/how-to/configure_rendering` for each pairing:
 
 .. tab-set::
    :sync-group: os
@@ -54,7 +57,8 @@ the scene configuration:
       .. code-block:: bash
 
          uv run isaaclab train --rl_library rsl_rl \
-             --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+             --task Isaac-Cartpole-Camera-Direct \
+             physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -62,7 +66,8 @@ the scene configuration:
       .. code-block:: batch
 
          uv run isaaclab train --rl_library rsl_rl ^
-             --task Isaac-Cartpole-Camera-Direct renderer=newton_renderer
+             --task Isaac-Cartpole-Camera-Direct ^
+             physics=newton_mjwarp renderer=newton_renderer presets=rgb
 
 Images are not written to disk by default. Set ``env.write_image_to_file=true`` to write
 ``cartpole_<data_type>.png`` in the current working directory.
@@ -120,6 +125,11 @@ configurations, including output types and backgrounds, remain per sensor.
 
 Read camera data
 ----------------
+
+``camera.get_world_poses(convention="opengl")`` reads the current world poses without capturing images
+or changing cached measurement poses. This includes motion of the camera's parent body even when
+``update_latest_camera_pose=False``. It accepts the same orientation conventions as
+``set_world_poses`` and returns device tensors for positions and quaternions.
 
 :attr:`~sensors.CameraData.output` maps each requested name to a
 :class:`~isaaclab.utils.warp.ProxyArray`. For ``N`` camera views, height ``H``, width ``W``, and
@@ -337,7 +347,10 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
    separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
    renderer leaves authored camera exposure unchanged.
 
-Run the ``ppisp-camera`` example for a complete PPISP workflow:
+Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
+``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
+The example runs 0 warmup steps for Newton Warp and 32 for Isaac RTX before saving images; override
+this with ``--warmup_steps``.
 
 .. tab-set::
    :sync-group: os
@@ -350,6 +363,10 @@ Run the ``ppisp-camera`` example for a complete PPISP workflow:
          uv run --extra isaacsim isaaclab example ppisp-camera \
              --renderer newton_renderer --max_steps 60
 
+         uv run --extra isaacsim isaaclab example ppisp-camera \
+             --input_scene /path/to/scene.usd --renderer isaac_rtx \
+             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
@@ -358,8 +375,23 @@ Run the ``ppisp-camera`` example for a complete PPISP workflow:
          uv run --extra isaacsim isaaclab example ppisp-camera ^
              --renderer newton_renderer --max_steps 60
 
-Images are written to ``output/ppisp_camera`` in the current working directory by default. Pass
-``--output_dir <path>`` to choose another location.
+         uv run --extra isaacsim isaaclab example ppisp-camera ^
+             --input_scene C:/path/to/scene.usd --renderer isaac_rtx ^
+             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+
+``--input_scene`` accepts a local path or URL to a USD or USDZ scene containing the Gaussian PPISP
+setup. If omitted, the example uses the ``Samples/Scene_ParticleField/valiant_auto.usdz``
+sample from ``ISAAC_NUCLEUS_DIR``.
+
+``--camera_prim_path`` is an optional absolute USD prim path in the input scene. The prim must exist,
+have type ``Camera``, and carry ``ppisp:*`` attributes. If omitted, the example selects the first
+camera with PPISP attributes. For both renderers, the input scene must have a ``defaultPrim`` and
+the camera must be a descendant of it (for example, ``/World`` for the camera path above).
+
+Images are saved to ``output/ppisp_camera`` in the current working directory; use ``--output_dir``
+to change it. ``--max_steps`` sets the number of steps after warmup (default: 120), and
+``--save_interval`` sets the image-saving interval in steps (default: 20).
+For all options, run ``uv run --extra isaacsim isaaclab example ppisp-camera --help``.
 
 Performance and validation
 --------------------------

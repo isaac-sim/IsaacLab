@@ -20,6 +20,12 @@ focused programs for learning an API or tuning a feature in directories such as 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
 
+Unlike ``train`` and ``play``, demos and examples usually open a visualizer by default, since they
+are meant to be watched. Demos mostly default to Newton GL (``newton_gl``), with Kit for some such as
+``pick-and-place``. The ``h1-locomotion`` demo defaults to Kit with PhysX and Newton GL with Newton.
+Examples default to Kit or Newton GL depending on the program, and a few, such as ``ppisp-camera``
+and ``tacsl-sensor``, run without a visualizer. Pass ``--viz`` to pick a different one.
+
 In any packaged demo or example running with ``--viz newton_gl``, the **Isaac Lab Programs**
 panel shows the core showcases first, with focused examples in a separate collapsed section.
 Selecting one closes the current simulation and relaunches it with ``--viz newton_gl``.
@@ -27,6 +33,7 @@ For example, run ``uvx isaaclab demo zoo --viz newton_gl`` to explore the catalo
 Programs whose required modules are unavailable, hardware-dependent teleoperation, and
 Kit-only demos are not shown.
 
+For cloth and rigid-soft contact guidance, see :ref:`newton-using-vbd`.
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
 Command Builder
@@ -127,3 +134,31 @@ Command Builder
        </button>
      </div>
    </div>
+
+.. _tablecloth-example:
+
+Focused examples
+----------------
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Tablecloth trick (Newton VBD, experimental)
+
+      .. image:: ../_static/examples/tablecloth_h2.jpg
+         :width: 100%
+         :alt: Five side-by-side H2 Plus robots pulling red tablecloths at different speeds.
+
+      Five H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
+      different speeds using GPU-captured Newton VBD and scripted Newton IK.
+      This is calibrated fixed-base manipulation, not balance or an RL task;
+      the settings favor contact accuracy over real-time throughput.
+
+      .. code-block:: bash
+
+         uvx isaaclab example tablecloth --device cuda:0
+
+      Kit videos: `five-speed overview
+      <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
+      and `wider-side grasp and pull
+      <https://github.com/user-attachments/assets/27ac0365-e862-4d60-bd85-51f585a580d5>`__.

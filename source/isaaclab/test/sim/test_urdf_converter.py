@@ -22,8 +22,10 @@ if _USE_RUNTIME:
             allow_module_level=True,
         )
 
+import json
 import math
 import os
+import shutil
 import warnings
 from types import SimpleNamespace
 
@@ -97,7 +99,7 @@ def test_no_change(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_config_change(sim_config, tmp_path):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+    """Reuse the importer's numbered output, and reject old records that cannot identify that output."""
 
     sim, config = sim_config
     output_dir = os.path.join(str(tmp_path), "urdf_config_change")
@@ -105,7 +107,6 @@ def test_config_change(sim_config, tmp_path):
 
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
-    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = config
@@ -116,7 +117,19 @@ def test_config_change(sim_config, tmp_path):
     new_urdf_converter = UrdfConverter(new_config)
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
-    assert time_usd_file_created != new_time_usd_file_created
+    assert new_urdf_converter.usd_path != urdf_converter.usd_path
+    lazy_urdf_converter = UrdfConverter(new_config)
+    assert lazy_urdf_converter.usd_path == new_urdf_converter.usd_path
+    assert os.stat(lazy_urdf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
+
+    # A hash-only record cannot identify B's missing numbered output while A still exists.
+    record_path = os.path.join(output_dir, ".asset_hash")
+    with open(record_path, encoding="utf-8") as f:
+        old_hash = json.load(f)["hash"]
+    shutil.rmtree(os.path.dirname(new_urdf_converter.usd_path))
+    with open(record_path, "w", encoding="utf-8") as f:
+        f.write(old_hash)
+    assert UrdfConverter(new_config).usd_path != urdf_converter.usd_path
 
 
 @pytest.mark.isaacsim_ci
