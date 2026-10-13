@@ -68,8 +68,12 @@ def upright(env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg) -> to
     return torch.exp(-xy_squared / std**2)
 
 
-class pose_mode_switch(ManagerTermBase):
-    """Reward holding the stand pose, with a per-joint tolerance that widens once the robot moves."""
+class joint_deviation_exp(ManagerTermBase):
+    """Reward staying near the default joint positions, with a per-joint tolerance that widens once the robot moves.
+
+    The tolerance is ``std_standing`` [rad] while the command magnitude is below ``walking_threshold``, and
+    ``std_walking`` [rad] otherwise.
+    """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         """Resolve the standing and walking per-joint standard deviations."""

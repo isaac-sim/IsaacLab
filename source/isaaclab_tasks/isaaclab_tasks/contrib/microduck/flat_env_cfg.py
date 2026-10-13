@@ -343,7 +343,7 @@ class RewardsCfg:
     )
     upright = RewTerm(func=mdp.upright, weight=2.0, params={"std": math.sqrt(0.05), "asset_cfg": _TRUNK_BODY_CFG})
     pose = RewTerm(
-        func=mdp.pose_mode_switch,
+        func=mdp.joint_deviation_exp,
         weight=1.0,
         params={
             "command_name": "base_velocity",
