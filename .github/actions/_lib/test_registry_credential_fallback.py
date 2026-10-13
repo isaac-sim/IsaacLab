@@ -189,6 +189,31 @@ def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
+def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> None:
+    """Cleanup must not leave a cached probe valid for newly copied credentials."""
+    runner_config = tmp_path / "home" / ".docker" / "config.json"
+    runner_config.parent.mkdir(parents=True)
+    _write_config(runner_config, ["nvcr.io", _ECR, _HUB])
+    removed_config = tmp_path / "removed-config"
+    ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
+    result = _run_setup(
+        tmp_path,
+        ref,
+        _DENY_UNLESS_ANONYMOUS,
+        extra_env={
+            "DOCKER_CONFIG": str(removed_config),
+            "SETUP_DOCKER_CONFIG_OWNED": str(removed_config),
+            "SETUP_DOCKER_CONFIG_CHECKED_REF": ref,
+            "TMPDIR": str(tmp_path),
+        },
+    )
+    assert result.returncode == 0, result.stderr
+    updates = dict(line.split("=", 1) for line in (tmp_path / "github-env").read_text().splitlines())
+    recreated_config = Path(updates["DOCKER_CONFIG"]) / "config.json"
+    assert _auths(recreated_config) == {_ECR, _HUB}
+    assert _auths(runner_config) == {"nvcr.io", _ECR, _HUB}
+
+
 def test_registry_host_canonicalization() -> None:
     """Case, port, and Docker Hub spellings resolve to one registry identity."""
     helper = _load_helper()
