@@ -32,7 +32,7 @@ import enum
 import sys
 import warnings
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import is_dataclass
+from dataclasses import dataclass, is_dataclass
 from types import SimpleNamespace
 
 import hydra
@@ -765,3 +765,83 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
             matched = next((target for target in typed_targets if target.matches(cfg)), PresetTarget.DOMAIN)
             result[matched].add(name)
     return {target: sorted(names) for target, names in result.items()}
+
+
+@dataclass(frozen=True)
+class TaskRun:
+    """The preset tokens that select one way to run a task; ``None`` leaves that axis to the config."""
+
+    physics: str | None = None
+    renderer: str | None = None
+    presets: str | None = None
+
+    @property
+    def overrides(self) -> list[str]:
+        """The command-line tokens for this run, e.g. ``["physics=ovphysx", "renderer=ovrtx"]``."""
+        tokens = (("physics", self.physics), ("renderer", self.renderer), ("presets", self.presets))
+        return [f"{key}={value}" for key, value in tokens if value is not None]
+
+
+@dataclass(frozen=True)
+class TaskRuns:
+    """The distinct runs a task supports, as returned by :func:`resolve_task_runs`."""
+
+    runs: tuple[TaskRun, ...]
+    """One spelling per distinct resolved config, the most explicit one seen."""
+
+    default: TaskRun | None
+    """The entry of :attr:`runs` that passing no tokens resolves to; ``None`` if that run is rejected."""
+
+
+def resolve_task_runs(task_name: str) -> TaskRuns | None:
+    """Return the preset combinations of *task_name* that can launch, one per distinct config.
+
+    Every declared physics and renderer preset is crossed with each domain preset in turn, and
+    each combination is resolved, validated with the env config's own checks, and checked with
+    :func:`~isaaclab.app.validate_launch` for a headless launch without livestreaming. Combinations
+    that resolve to the same config, such as ``physics=physx`` and the backend it selects, are
+    reported once.
+
+    Only one domain preset is applied per run, so a task with several independent domain
+    presets supports more combinations than are listed. A rejected combination is one whose
+    resolution or validation raises :class:`ValueError`; any other error propagates.
+
+    Args:
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-Camera-Direct"``).
+
+    Returns:
+        The task's runs, or ``None`` if its env config cannot be loaded.
+    """
+    from isaaclab.app import validate_launch
+
+    preset_map = enumerate_task_presets(task_name)
+    if preset_map is None:
+        return None
+    typed = {*preset_map[PresetTarget.PHYSICS], *preset_map[PresetTarget.RENDERER]}
+    domains = [name for name in preset_map[PresetTarget.DOMAIN] if name not in typed]
+    candidates = dict.fromkeys(
+        [TaskRun()]
+        + [
+            TaskRun(physics, renderer, domain)
+            for physics in preset_map[PresetTarget.PHYSICS] or [None]
+            for renderer in preset_map[PresetTarget.RENDERER] or [None]
+            for domain in [None, *domains]
+        ]
+    )
+
+    runs: dict[str, TaskRun] = {}
+    default_key = None
+    for run in candidates:
+        try:
+            env_cfg, _ = resolve_task_config(task_name, None, overrides=run.overrides)
+            env_cfg.validate()
+            validate_launch(env_cfg, {"livestream": 0})
+        except ValueError:
+            continue
+        # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
+        key = repr(to_dict(env_cfg))
+        if run == TaskRun():
+            default_key = key
+        if key not in runs or len(run.overrides) > len(runs[key].overrides):
+            runs[key] = run
+    return TaskRuns(runs=tuple(runs.values()), default=runs.get(default_key))

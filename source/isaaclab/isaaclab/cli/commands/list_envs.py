@@ -11,9 +11,12 @@ import argparse
 import contextlib
 import importlib.metadata
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import tomllib
+
+if TYPE_CHECKING:
+    from isaaclab_tasks.utils.hydra import TaskRuns
 
 
 def command_list_envs(args: list[str] | None = None) -> None:
@@ -31,6 +34,11 @@ def command_list_envs(args: list[str] | None = None) -> None:
     filter_group.add_argument("--keyword", help="Substring used to filter task ids.")
     filter_group.add_argument("--all", action="store_true", help="Show every registered Isaac Lab task.")
     parser.add_argument("--show_presets", action="store_true", help="Show physics, renderer, and domain presets.")
+    parser.add_argument(
+        "--resolve",
+        action="store_true",
+        help="Show the preset combinations that can launch headless. Slow: resolves every combination.",
+    )
     parsed_args = parser.parse_args(args)
 
     import gymnasium as gym
@@ -58,6 +66,8 @@ def command_list_envs(args: list[str] | None = None) -> None:
     columns = ["S. No.", "Task Name", "Entry Point", "Config", "RL Libraries"]
     if parsed_args.show_presets:
         columns.append("Presets")
+    if parsed_args.resolve:
+        columns.append("Runs")
     table = PrettyTable(columns)
     table.title = "Available Environments in Isaac Lab"
     for column in columns[1:]:
@@ -65,6 +75,8 @@ def command_list_envs(args: list[str] | None = None) -> None:
 
     if parsed_args.show_presets:
         from isaaclab_tasks.utils.hydra import enumerate_task_presets
+    if parsed_args.resolve:
+        from isaaclab_tasks.utils.hydra import resolve_task_runs
 
     for index, spec in enumerate(task_specs, start=1):
         libraries = [
@@ -75,6 +87,8 @@ def command_list_envs(args: list[str] | None = None) -> None:
         row = [index, spec.id, spec.entry_point, spec.kwargs["env_cfg_entry_point"], ", ".join(libraries) or "(none)"]
         if parsed_args.show_presets:
             row.append(_format_presets(enumerate_task_presets(spec.id)))
+        if parsed_args.resolve:
+            row.append(_format_runs(resolve_task_runs(spec.id)))
         table.add_row(row)
     print(table)
 
@@ -118,4 +132,15 @@ def _format_presets(preset_map: dict | None) -> str:
         PresetTarget.DOMAIN: "domain",
     }
     lines = [f"{label}: {', '.join(preset_map[target])}" for target, label in labels.items() if preset_map[target]]
+    return "\n".join(lines) if lines else "(none)"
+
+
+def _format_runs(task_runs: TaskRuns | None) -> str:
+    """Format the preset combinations that can launch, one per line, marking the default."""
+    if task_runs is None:
+        return "(unavailable)"
+    lines = []
+    for run in task_runs.runs:
+        line = " ".join(run.overrides) or "(defaults)"
+        lines.append(f"{line} [default]" if run == task_runs.default else line)
     return "\n".join(lines) if lines else "(none)"

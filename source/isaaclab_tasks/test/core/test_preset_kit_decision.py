@@ -23,7 +23,14 @@ from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import PresetTarget, collect_presets, enumerate_task_presets, resolve_presets
+from isaaclab_tasks.utils.hydra import (
+    PresetTarget,
+    TaskRun,
+    collect_presets,
+    enumerate_task_presets,
+    resolve_presets,
+    resolve_task_runs,
+)
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
@@ -150,3 +157,17 @@ def test_physx_and_isaacsim_physx_presets_conflict():
     """``physx`` and ``isaacsim_physx`` are distinct choices even when both use PhysxCfg."""
     with pytest.raises(ValueError, match="Conflicting global presets"):
         _resolve_with_presets("physx,isaacsim_physx")
+
+
+def test_resolve_task_runs_lists_each_launchable_combination_once():
+    """Kit and kitless runtimes never pair, env-config checks apply, and a selector folds into its target."""
+    task_runs = resolve_task_runs(_CAMERA_PRESETS_TASK)
+
+    pairs = {(run.physics, run.renderer) for run in task_runs.runs}
+    assert {("ovphysx", "ovrtx"), ("isaacsim_physx", "isaacsim_rtx")} <= pairs
+    assert not {("isaacsim_physx", "ovrtx"), ("ovphysx", "isaacsim_rtx")} & pairs
+    # The Warp renderer cannot produce shaded images; the env config rejects that pairing.
+    assert TaskRun("newton_mjwarp", "newton_renderer", "simple_shading_full_mdl") not in task_runs.runs
+    # ``physx`` and ``rtx`` select a concrete backend, so they resolve to a run already listed.
+    assert not {"physx", "rtx"} & {name for run in task_runs.runs for name in (run.physics, run.renderer)}
+    assert task_runs.default in task_runs.runs
