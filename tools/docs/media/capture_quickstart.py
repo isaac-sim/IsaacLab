@@ -58,6 +58,7 @@ class G1FlatCaptureCfg(G1FlatEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+        self.commands.base_velocity.debug_vis = False
         _configure_capture(
             self,
             eye=(_G1_EYE_OFFSET[0], _G1_EYE_OFFSET[1], _G1_EYE_OFFSET[2] + _G1_TARGET_HEIGHT),
