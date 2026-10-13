@@ -53,6 +53,9 @@ CUBE_CFG = RigidObjectCfg(
 )
 """In-hand cube for the Allegro reorientation task."""
 
+GOAL_MARKER_OFFSET = (-0.12, -0.14, 0.06)
+"""Goal-cube display offset from the in-hand position [m], wider than the shared one to clear the larger hand."""
+
 GOAL_OBJECT_CFG = VisualizationMarkersCfg(
     prim_path="/Visuals/goal_marker",
     markers={

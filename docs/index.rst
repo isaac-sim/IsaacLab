@@ -99,6 +99,7 @@ Table of Contents
    source/setup/quickstart
    source/setup/tutorial
    source/setup/demos
+   source/setup/interactive_demos
    source/how-to/index
    source/workflows/index
    source/migration/migrating_to_isaaclab_3-0

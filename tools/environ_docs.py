@@ -23,8 +23,7 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
+from isaaclab_tasks.utils.hydra import _LEGACY_PRESET_ALIASES, PresetTarget, enumerate_task_presets
 
 if TYPE_CHECKING:
     from gymnasium.envs.registration import EnvSpec
@@ -43,8 +42,8 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "ovrtx",
         "physx",
         "rtx",
-        *PresetTarget.all_legacy_aliases().keys(),
-        *PresetTarget.all_legacy_aliases().values(),
+        *_LEGACY_PRESET_ALIASES,
+        *_LEGACY_PRESET_ALIASES.values(),
     }
 )
 
@@ -133,10 +132,17 @@ class EnvironmentDocRow:
     supports_warp_frontend: bool = False
     pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
     required_extras: tuple[str, ...] = ()
+    # None reuses all domain presets; an empty tuple allows only the default.
+    warp_presets: tuple[str, ...] | None = None
 
 
-def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
-    """Return whether a task can run through ``--frontend warp``."""
+def _supports_warp_frontend(
+    task_name: str,
+    workflow: str,
+    presets: dict[PresetTarget, list[str]] | None,
+    domain_preset: str | None = None,
+) -> bool:
+    """Return whether a task configuration can run through ``--frontend warp``."""
     if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
         return False
 
@@ -145,7 +151,10 @@ def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetT
 
         from isaaclab_tasks.utils import resolve_task_config
 
-        cfg, _ = resolve_task_config(task_name, "", overrides=("physics=newton_mjwarp",))
+        overrides = ("physics=newton_mjwarp",)
+        if domain_preset is not None:
+            overrides += (f"presets={domain_preset}",)
+        cfg, _ = resolve_task_config(task_name, "", overrides=overrides)
         if workflow == "Direct":
             try:
                 return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
@@ -641,15 +650,25 @@ def collect_environment_doc_rows(
             checkpoint_preset_compatibility["*"] = default_checkpoint_presets
 
         workflow = get_workflow(spec.entry_point)
+        supports_warp_frontend = _supports_warp_frontend(spec.id, workflow, preset_map)
+        warp_presets = None
+        if supports_warp_frontend and visible_domain_presets:
+            domain_presets = tuple(sorted(visible_domain_presets))
+            compatible_presets = tuple(
+                name for name in domain_presets if _supports_warp_frontend(spec.id, workflow, preset_map, name)
+            )
+            if compatible_presets != domain_presets:
+                warp_presets = compatible_presets
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
                 workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
-                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
+                supports_warp_frontend=supports_warp_frontend,
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
                 required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
+                warp_presets=warp_presets,
             )
         )
 
@@ -741,8 +760,9 @@ def render_environment_browser_task_rows(
             row.pretrained_checkpoint_preset_compatibility,
             default_algorithms,
             ",".join(row.required_extras),
+            row.warp_presets,
         ]
-        optional_defaults = ["", False, {}, {}, ""]
+        optional_defaults = ["", False, {}, {}, "", None]
         last_value = next(
             (
                 index
