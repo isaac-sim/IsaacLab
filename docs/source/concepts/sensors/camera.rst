@@ -344,7 +344,10 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
    separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
    renderer leaves authored camera exposure unchanged.
 
-Run the ``ppisp-camera`` example for a complete PPISP workflow:
+Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
+``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
+The example runs 0 warmup steps for Newton Warp and 32 for Isaac RTX before saving images; override
+this with ``--warmup_steps``.
 
 .. tab-set::
    :sync-group: os
@@ -357,6 +360,10 @@ Run the ``ppisp-camera`` example for a complete PPISP workflow:
          uv run --extra isaacsim isaaclab example ppisp-camera \
              --renderer newton_renderer --max_steps 60
 
+         uv run --extra isaacsim isaaclab example ppisp-camera \
+             --input_scene /path/to/scene.usd --renderer isaac_rtx \
+             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
@@ -365,8 +372,23 @@ Run the ``ppisp-camera`` example for a complete PPISP workflow:
          uv run --extra isaacsim isaaclab example ppisp-camera ^
              --renderer newton_renderer --max_steps 60
 
-Images are written to ``output/ppisp_camera`` in the current working directory by default. Pass
-``--output_dir <path>`` to choose another location.
+         uv run --extra isaacsim isaaclab example ppisp-camera ^
+             --input_scene C:/path/to/scene.usd --renderer isaac_rtx ^
+             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+
+``--input_scene`` accepts a local path or URL to a USD or USDZ scene containing the Gaussian PPISP
+setup. If omitted, the example uses the ``Samples/Scene_ParticleField/valiant_auto.usdz``
+sample from ``ISAAC_NUCLEUS_DIR``. Replace the scene and camera paths above with your own.
+
+``--camera_prim_path`` is an optional absolute USD prim path in the input scene. The prim must exist,
+have type ``Camera``, and carry ``ppisp:*`` attributes. If omitted, the example selects the first
+camera with PPISP attributes. For both renderers, the input scene must have a ``defaultPrim`` and
+the camera must be a descendant of it (for example, ``/World`` for the camera path above).
+
+Images are saved to ``output/ppisp_camera`` in the current working directory; use ``--output_dir``
+to change it. ``--max_steps`` sets the number of steps after warmup (default: 120), and
+``--save_interval`` sets the image-saving interval in steps (default: 20).
+For all options, run ``uv run --extra isaacsim isaaclab example ppisp-camera --help``.
 
 Performance and validation
 --------------------------
