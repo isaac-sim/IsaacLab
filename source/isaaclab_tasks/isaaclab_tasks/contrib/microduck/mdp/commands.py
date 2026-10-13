@@ -50,9 +50,9 @@ class UniformPoseDeltaCommand(CommandTerm):
         num_envs = len(env_ids)
         if num_envs == 0:
             return
-        r = torch.empty(num_envs, device=self.device)
-        for dim, (low, high) in enumerate(self.cfg.ranges):
-            self._command[env_ids, dim] = r.uniform_(low, high)
+        # Read the bounds on every resample: the curriculum widens the head-pose ranges during training.
+        low, high = torch.tensor(self.cfg.ranges, device=self.device).unbind(-1)
+        self._command[env_ids] = low + (high - low) * torch.rand(num_envs, self.dim, device=self.device)
 
 
 @configclass
