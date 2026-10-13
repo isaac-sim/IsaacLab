@@ -786,6 +786,32 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     assert visualizer.close_calls == 1
 
 
+def test_cuda_graph_memory_is_reserved_after_device_selection_and_before_physics(monkeypatch):
+    """Graph memory must be reserved on the selected device before any backend can allocate managed memory."""
+    import isaaclab.sim.simulation_context as context_module
+
+    order = []
+    physics_manager = Mock()
+    physics_manager.initialize.side_effect = lambda sim: order.append("physics_initialize")
+    physics_cfg = SimpleNamespace(class_type=physics_manager, dt=0.01)
+    settings = {}
+    monkeypatch.setattr(context_module, "_resolve_physics_cfg", lambda cfg, use_isaac_sim: physics_cfg)
+    monkeypatch.setattr(context_module, "has_kit", lambda: False)
+    monkeypatch.setattr(context_module, "SceneDataProvider", lambda backend: _FakeProvider())
+    monkeypatch.setattr(
+        context_module, "get_settings_manager", lambda: SimpleNamespace(get=settings.get, set=settings.__setitem__)
+    )
+    monkeypatch.setattr(context_module.wp, "set_device", lambda device: order.append(("set_device", device)))
+    monkeypatch.setattr(context_module, "reserve_cuda_graph_memory", lambda device: order.append(("reserve", device)))
+    monkeypatch.setattr(SimulationContext, "_init_usd_physics_scene", lambda self: None)
+    monkeypatch.setattr(SimulationContext, "_instance", None)
+
+    SimulationContext(context_module.SimulationCfg(device="cpu"))
+
+    assert order[:3] == [("set_device", "cpu"), ("reserve", "cpu"), "physics_initialize"]
+    SimulationContext.clear_instance()
+
+
 def _make_context_with_settings(
     settings: dict,
     visualizer_cfgs=None,
