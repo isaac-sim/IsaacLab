@@ -166,6 +166,8 @@ def define_actuator_properties(
     * :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
       :class:`~isaaclab.actuators.ActuatorNetLSTMCfg` →
       ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
+    * :class:`~isaaclab.actuators.BamActuatorCfg` →
+      ``NewtonBamDriveAPI`` (effort limit as a drive attribute, no clamping schema)
 
     No-ops (returns immediately) when:
 
