@@ -211,7 +211,7 @@ CAMERA_EYE = (0.0, -0.72, 1.18)
 CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 
 if ROBOT_ENABLED:
-    # The optional robot example and its helpers live outside the curated demos.
+    # The optional robot example lives outside the curated demos.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     from rizon_sharpa_teapot import BOWL_BASE_POS, BOWL_SCALE, ROBOT_BASE_POS, pose_at_time
 
@@ -596,7 +596,7 @@ def create_sim_cfg():
         ),
     )
     if ROBOT_ENABLED:
-        from rizon_sharpa_teapot_cfg import make_solver_cfg
+        from rizon_sharpa_teapot import make_solver_cfg
 
         solver_cfg = cfg.physics.solver_cfg
         # Resolve pressure through the thin spout with particle-based, low-friction contacts.
@@ -795,8 +795,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
 
     cfg = TeapotFillSceneCfg(num_envs=1, env_spacing=0.0)
     if ROBOT_ENABLED:
-        from _rizon_sharpa_teapot import get_robot_cfg, prepared_contact_path
         from isaaclab_newton.sim.schemas import MujocoCollisionCfg
+        from rizon_sharpa_teapot import get_robot_cfg, prepared_contact_path
 
         cfg.robot = get_robot_cfg(base_position=ROBOT_BASE_POS)
         cfg.tabletop_collider.spawn.collision_props[1].contact_gap = 0.001
@@ -868,7 +868,7 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None, 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
     if ROBOT_ENABLED:
-        from _rizon_sharpa_teapot import configured_asset_path
+        from rizon_sharpa_teapot import configured_asset_path
 
         configured_asset_path()
     sim_cfg = create_sim_cfg()
@@ -898,11 +898,11 @@ def main() -> None:
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:
-            from _rizon_sharpa_teapot import TeapotPourMotion
             from rizon_sharpa_teapot import (
                 PICKUP_TIME,
                 POUR_PREFIX_TIME,
                 SEQUENCE_DURATION,
+                TeapotPourMotion,
                 approach_offset_at_time,
             )
 

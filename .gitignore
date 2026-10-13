@@ -62,8 +62,8 @@ _build
 **/logs/*
 **/recordings/*
 
-# Local teapot video production, archived capture helpers, and generated media.
-/tools/local/teapot/
+# Local development tools and generated media.
+/tools/local/
 
 # Pre-Trained Checkpoints
 /.pretrained_checkpoints/

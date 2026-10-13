@@ -222,15 +222,8 @@ OVERRIDES = {
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
-        args=("--max_steps", "10", "--visualizer", "none"),
-        fixed_physics_backend="newton_coupler",
-        visualizers=(None, "newton_gl", "newton_rtx"),
-        required_modules=("isaaclab_contrib",),
-        skip_reason=(
-            None
-            if os.environ.get("ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT")
-            else "requires a licensed Rizon--Sharpa bundle; set ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
-        ),
+        args=("--max_steps", "10"),
+        skip_reason="requires a licensed Rizon--Sharpa bundle",
     ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
@@ -455,7 +448,7 @@ def module_is_available(module: str) -> bool:
 
 def visualizer_is_available(visualizer: str | None) -> bool:
     """Return whether the package implementing a visualizer is importable."""
-    if visualizer in (None, "none"):
+    if visualizer is None:
         return True
     if visualizer == "kit":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
