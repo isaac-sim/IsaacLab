@@ -113,21 +113,34 @@ def process_video_and_demo(f_in, f_out, video_path, orig_demo_id, new_demo_id):
 
     # Extract frames from video with original resolution
     frames = get_frames_from_mp4(video_path, target_height, target_width)
+    if len(frames) == 0:
+        raise ValueError(f"No frames could be read from {video_path}.")
+
+    # Robomimic slices every observation of a demo using the demo length (``num_samples``), so all keys must share
+    # one length. If the video has fewer frames than the demo, truncate the whole demo to the video length instead
+    # of padding; shorter slices otherwise fail batching with "Trying to resize storage that is not resizable".
+    num_frames = min(len(frames), actions.shape[0])
+    if num_frames != len(frames) or num_frames != actions.shape[0]:
+        print(
+            f"[WARNING] {video_path} has {len(frames)} frames but the demo has {actions.shape[0]}. "
+            f"Using the first {num_frames} frames of the demo."
+        )
+    frames = frames[:num_frames]
 
     # Create new datasets
-    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/actions", data=actions, compression="gzip")
-    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/eef_pos", data=eef_pos, compression="gzip")
-    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/eef_quat", data=eef_quat, compression="gzip")
-    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/gripper_pos", data=gripper_pos, compression="gzip")
+    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/actions", data=actions[:num_frames], compression="gzip")
+    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/eef_pos", data=eef_pos[:num_frames], compression="gzip")
+    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/eef_quat", data=eef_quat[:num_frames], compression="gzip")
+    f_out.create_dataset(
+        f"data/demo_{str(new_demo_id)}/obs/gripper_pos", data=gripper_pos[:num_frames], compression="gzip"
+    )
     f_out.create_dataset(
         f"data/demo_{str(new_demo_id)}/obs/table_cam", data=frames.astype(np.uint8), compression="gzip"
     )
-    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/wrist_cam", data=wrist_cam, compression="gzip")
+    f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/wrist_cam", data=wrist_cam[:num_frames], compression="gzip")
 
     # Copy attributes
-    f_out[f"data/demo_{str(new_demo_id)}"].attrs["num_samples"] = f_in[f"data/demo_{str(orig_demo_id)}"].attrs[
-        "num_samples"
-    ]
+    f_out[f"data/demo_{str(new_demo_id)}"].attrs["num_samples"] = num_frames
 
 
 def main():
