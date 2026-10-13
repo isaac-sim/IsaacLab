@@ -105,7 +105,11 @@ class MicroDuckVelocityCommandCfg(UniformVelocityCommandCfg):
 
     class_type: type[MicroDuckVelocityCommand] = MicroDuckVelocityCommand
     rel_forward_envs: float = 0.0
-    """Probability that an environment is commanded to walk straight forward. Defaults to 0.0."""
+    """Probability that an environment is drawn into the forward-only bucket. Defaults to 0.0.
+
+    The turn-in-place bucket is drawn independently afterwards and takes precedence, so the effective forward-only
+    share is ``rel_forward_envs * (1 - rel_turn_in_place_envs)``.
+    """
     rel_turn_in_place_envs: float = 0.0
     """Probability that an environment is commanded to turn on the spot. Defaults to 0.0."""
     forward_min_speed: float = 0.3
