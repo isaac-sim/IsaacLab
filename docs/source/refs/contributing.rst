@@ -138,6 +138,28 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
+Browser-demo deployment bundles are hosted as Isaac Lab GitHub release assets. The docs workflow downloads
+the pinned archive, verifies its SHA-256, and stages it under ``docs/_build/demos/`` before publishing
+the Pages artifact. The source tree contains the staging script, documentation links, and small thumbnails.
+When publishing a new bundle, retain earlier version directories and update the archive URL and checksum
+together in ``.github/actions/_lib/stage-browser-demos.sh``. Run the staging step from the repository root:
+
+.. code-block:: bash
+
+   bash .github/actions/_lib/stage-browser-demos.sh
+
+The staging step also resolves demo links relative to each documentation version. To preview the
+complete site locally, serve ``docs/_build`` over HTTP:
+
+.. code-block:: bash
+
+   uv run --no-project python -m http.server 8000 --directory docs/_build
+
+Open ``http://localhost:8000/current/index.html`` for the docs or
+``http://localhost:8000/demos/v1/`` for the demos. Downloaded ``docs-html`` artifacts include
+``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
+The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
