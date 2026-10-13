@@ -49,7 +49,7 @@ class CartpoleCaptureCfg(CartpoleEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _configure_capture(self, eye=(4.5, -0.4, 3.3), lookat=(0.0, 0.0, 2.3), focal_length=32.0)
+        _configure_capture(self, eye=(4.5, -0.4, 4.5), lookat=(0.0, 0.0, 2.3), focal_length=32.0)
 
 
 @configclass
