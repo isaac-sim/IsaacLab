@@ -197,7 +197,9 @@ jobs:
         run: |
           $wheel = @(Get-ChildItem tools/wheel_builder/build/dist -Filter "isaaclab-*.whl")
           if ($wheel.Count -ne 1) { throw "expected one wheel, found $($wheel.Count)" }
-          $pytestArgs = @("--run-gpu", "--tb=short", "-sv", "--junitxml=${{ github.workspace }}\results\results.xml")
+          # pytest's default base sits under the NetworkService profile, deep enough that
+          # Kit's DLLs in a venv there pass the 260-character path limit.
+          $pytestArgs = @("--run-gpu", "--tb=short", "-sv", "--basetemp=$env:RUNNER_TEMP\i", "--junitxml=${{ github.workspace }}\results\results.xml")
           if ($env:TEST_FILTER) { $pytestArgs += @("-k", $env:TEST_FILTER) }
           uv run --no-project --python 3.12 --with pytest python tools/run_install_ci.py native --wheel $wheel[0].FullName -- @pytestArgs
           exit $LASTEXITCODE
