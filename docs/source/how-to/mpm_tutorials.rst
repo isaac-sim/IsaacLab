@@ -244,5 +244,5 @@ available in the installed package:
 
 .. code-block:: bash
 
-   uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
+   uvx --torch-backend cu130 --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
      --coupling two_way --viz kit
