@@ -28,6 +28,7 @@ import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
+from isaaclab.sim import SimulationCfg
 
 
 @pytest.fixture
@@ -82,7 +83,7 @@ def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPa
     ids=["dict", "namespace", "false_preserves_kit_requirement"],
 )
 def test_require_kit_is_additive(kit_branch_taken, launcher_args):
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
+    with launch_simulation(cfg=SimulationCfg(physics=PhysicsCfg(), device="cpu"), launcher_args=launcher_args):
         pass
 
     assert kit_branch_taken == [True]
@@ -100,7 +101,7 @@ def test_kit_rejects_ovrtx_before_loading_runtime(monkeypatch: pytest.MonkeyPatc
 
     for cfg, launcher_args in (
         (types.SimpleNamespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg()), {"require_kit": True}),
-        (CustomPhysxCfg(), {"visualizer": ["newton_rtx"]}),
+        (SimulationCfg(physics=CustomPhysxCfg()), {"visualizer": ["newton_rtx"]}),
     ):
         with pytest.raises(ValueError, match="OVRTX runtime"):
             with launch_simulation(cfg, launcher_args):
@@ -115,7 +116,9 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
     monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
-    with launch_simulation(sim_launcher.NewtonCfg(), {"visualizer": ["newton_rtx"]}):
+    with launch_simulation(
+        SimulationCfg(physics=sim_launcher.NewtonCfg(), device="cpu"), {"visualizer": ["newton_rtx"]}
+    ):
         calls.append("user")
 
     assert calls == ["register", "storage", "user"]
@@ -215,10 +218,6 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
         sim=SimulationCfg(device="cpu", physics=NewtonCfg(), visualizer_cfgs=visualizers),
         video_recorders=[VideoRecorderCfg(source=view) for view in views or [ImageViewCfg(source="front")]],
     )
-    declared = cfg.sim.visualizer_cfgs
-    preview = sim_launcher.scan(cfg, {"visualizer": [], "headless": True})
-    assert cfg.sim.visualizer_cfgs is declared
-    assert len(preview.visualizer_cfgs) == producer_count
     with launch_simulation(cfg, {"visualizer": [], "headless": True}):
         assert len(cfg.sim.visualizer_cfgs) == producer_count
         for producer, recorder in zip(cfg.sim.visualizer_cfgs, cfg.video_recorders):
@@ -240,8 +239,6 @@ def test_legacy_recording_reuses_the_display_producer(kit_branch_taken, visualiz
         video_recorders=[VideoRecorderCfg(source=f"viz:{source}"), VideoRecorderCfg(source=f"viz:{source}")],
     )
     args = {"visualizer": visualizers}
-    sim_launcher.scan(cfg, args)
-    assert "enable_cameras" not in args
     with launch_simulation(cfg, args):
         assert len(cfg.sim.visualizer_cfgs) == 1
         assert cfg.sim.visualizer_cfgs[0].headless == (not visualizers)

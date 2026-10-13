@@ -2558,9 +2558,17 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
   ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
-- If omitted, no visualizer runs. ``SimulationCfg.visualizer_cfgs`` only configures the visualizers
-  ``--viz`` selects: a selected type uses the configured visualizer of that type, with its settings, or
-  else its default config.
+- ``SimulationCfg.visualizer_cfgs`` defaults to an empty list. Concrete visualizer configs run as
+  declared; ``--viz`` selects which configured types run and supplies defaults for missing types.
+- Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
+  in ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``; pass configured instances instead
+  of subclassing it. ``resolve_task_config`` selects these alternatives before launch. Standalone
+  scripts using task presets must call ``isaaclab_tasks.utils.resolve_presets`` first.
+
+``launch_simulation`` now owns the runtime decisions previously exposed through ``scan`` and ``Scan``.
+Read physics, renderer, and visualizer choices directly from the config inside the launch context.
+Pass the same ``SimulationCfg`` (or enclosing environment config) to launch and simulation construction.
+Bare physics launches no longer transfer viewer names through global settings.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
@@ -2568,8 +2576,8 @@ see :ref:`visualization-common-modes`.
 **Breaking change — ``--headless`` is removed.**
 
 In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
-In Isaac Lab 3.0 the flag is removed: a run opens windows only for the visualizers ``--viz`` selects,
-and runs without visualizers when ``--viz`` is omitted. To keep a selected visualizer windowless, e.g. on a
+In Isaac Lab 3.0 the flag is removed: a run opens windows for the visualizers selected by CLI or config,
+with no visualizers selected by default. To keep a selected visualizer windowless, e.g. on a
 machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
 renderer and ``--viz newton_gl`` through pyglet's EGL backend.
 
@@ -3234,9 +3242,9 @@ RL libraries.
 
 **Running Benchmarks**
 
-The physics (and rendering) backend is selected with Hydra preset tokens — ``presets=``,
-exactly as for the training workflow. There is no ``--physics`` or ``--render`` flag; pass
-``presets=physx``, ``presets=newton_mjwarp``, etc. to choose the backend.
+Physics and rendering use task presets, as in training: ``physics=newton_mjwarp`` and
+``renderer=newton_renderer``. The equivalent flags are ``--physics newton_mjwarp`` and
+``--renderer newton_renderer``; there is no ``--render`` flag.
 
 **Before (Isaac Lab 2.x):**
 

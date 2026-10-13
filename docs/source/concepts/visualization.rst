@@ -145,6 +145,44 @@ alias.
 
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
 
+Visualizer presets
+~~~~~~~~~~~~~~~~~~
+
+Task commands accept ``visualizer=newton_gl``, ``visualizer=kit``, or
+``visualizer=rerun,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
+selection. ``visualizer=none`` disables viewers. Selection happens during configuration
+composition, before choosing process runtimes or creating the scene.
+
+Task scripts can declare alternatives with ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``.
+Customize them with configured instances; no preset subclass is needed. Resolve them in the
+script before calling ``launch_simulation``:
+
+.. code-block:: python
+
+   from isaaclab.sim import SimulationCfg
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab_tasks.utils import resolve_presets
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=MultiBackendVisualizerCfg(
+           newton_gl=NewtonGLVisualizerCfg(max_visible_envs=16)
+       )
+   )
+
+   sim_cfg = resolve_presets(sim_cfg, overrides={"visualizer_cfgs": "newton_gl"})
+
+Task entry points perform this selection through ``resolve_task_config`` when given
+``visualizer=newton_gl`` or ``--viz newton_gl``. The launcher and simulation receive concrete configs.
+
+After task composition, ``visualizer_cfgs`` contains the selected concrete config or list of configs.
+Standalone scripts can supply concrete visualizer configs directly, without task presets.
+Viewer implementations are imported only when constructed.
+
+For ``--video`` without a selected capture-capable viewer, launch selects a headless Newton GL
+producer. ``visualizer=none`` disables windows; recording still runs its producer on demand.
+Use ``--video sensor:<name>`` to record a scene camera without a visualizer producer.
+
 
 Visualizer Overview
 -------------------
@@ -742,15 +780,16 @@ Resolution Rules
 ~~~~~~~~~~~~~~~~
 
 ``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) selects which visualizers run, and
-``SimulationCfg.visualizer_cfgs`` configures them. Exactly the listed types are launched: each uses
-the configured visualizer of its type, with its settings, or else that type's default config. If
-``--viz`` is omitted, no visualizer runs, even if ``visualizer_cfgs`` lists some.
+``SimulationCfg.visualizer_cfgs`` configures them. Each selected type uses its configured settings,
+or else that type's default config. Concrete visualizer configs run as given when no CLI selection
+is supplied. ``SimulationCfg.visualizer_cfgs`` defaults to an empty list.
 
-Isaac Sim opens a window only when ``--viz`` selects ``kit``, and never with ``HEADLESS=1`` or
+Isaac Sim opens a window when CLI or config selects ``kit``, and never with ``HEADLESS=1`` or
 livestreaming. A visualizer a ``--video`` source adds for recording always runs headless.
 
-To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
-``SimulationCfg``; they take effect for the types ``--viz`` selects:
+Task configurations may use ``MultiBackendVisualizerCfg`` to declare inactive alternatives.
+Task composition selects the requested alternative before launch. Standalone scripts can configure
+concrete viewers directly:
 
 .. code-block:: python
 
@@ -788,7 +827,10 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
      - Launch default Kit and custom Newton GL; Rerun is not launched.
    * - no ``--viz``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
-     - No visualizer launches; the configs only apply when ``--viz`` selects their types.
+     - Launch both configured visualizers.
+   * - no ``--viz``
+     - Task preset: ``MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(...))``
+     - No visualizer launches; the customized choice remains inactive until selected.
    * - ``--viz newton_gl,rerun``
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - Launch custom Newton GL and Rerun from config.
