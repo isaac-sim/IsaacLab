@@ -291,6 +291,9 @@ def test_collision_base_cfg_no_physx_schema_when_only_usd_field_set(setup_simula
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.filterwarnings(
+    "ignore:(PhysxDeformableBodyPropertiesCfg|define_deformable_body_properties) is deprecated:DeprecationWarning"
+)
 def test_deformable_collision_props_land_on_simulation_mesh(setup_simulation):
     """Regression: ``collision_props`` on a deformable spawner must author ``physxCollision:*``
     on the simulation mesh, which is the prim carrying ``UsdPhysics.CollisionAPI``. Authoring
@@ -315,6 +318,9 @@ def test_deformable_collision_props_land_on_simulation_mesh(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.filterwarnings(
+    "ignore:(PhysxDeformableBodyPropertiesCfg|define_deformable_body_properties) is deprecated:DeprecationWarning"
+)
 def test_deformable_collision_props_reject_legacy_cfg(setup_simulation):
     """Legacy collision cfgs cannot resolve onto the simulation mesh, so they must be rejected."""
     cfg = sim_utils.MeshCuboidCfg(

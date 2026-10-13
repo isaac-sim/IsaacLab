@@ -69,10 +69,18 @@ Ownership and synchronization
      - Caller respects access mode, device, dtype, and shape
      - Reacquire after stage/runtime teardown
 
+Isaac Lab also reads the native state and model for you when feeding renderers and
+visualizers. See :doc:`scene_data_providers` for that read path.
+
 .. toctree::
    :maxdepth: 1
    :hidden:
 
-   physx
-   newton
-   ovphysx
+   scene_data_providers
+
+Backend-specific guides
+-----------------------
+
+* PhysX: :ref:`physx-native-access`
+* Newton: :ref:`newton-native-access`
+* OvPhysX: :ref:`ovphysx-native-access`

@@ -3,6 +3,134 @@ Changelog
 
 .. towncrier release notes start
 
+3.1.1 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Ctrl+C sometimes being swallowed by Kit while updating the visualizer.
+* Fixed Kit toolbar controls so they reflected the running state, paused and resumed training while keeping the app
+  responsive, and did not start PhysX when another physics backend owned the simulation.
+* Fixed Newton GL camera keyboard controls when ImGui captured only mouse input and kept the viewer compatible with
+  Newton's updated fullscreen image handling.
+* Prevented unchanged Rerun instance appearance from being retransmitted every frame during training.
+
+
+3.1.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Preserved the original ``ModuleNotFoundError`` when Viser or its dependencies were missing,
+  removing the installation-hint wrapper.
+* Simplified Viser initialization and camera updates around its native client API, preserving deferred
+  camera poses until clients connected and removing unused metadata and repeated capability checks.
+* Separated shared image selection from Newton window dimensions through ``WindowCfg``.
+  RTX capture copied native output directly on the GPU;
+  only CPU consumers downloaded pixels. Sensor-view window resizing retained source and output storage.
+  ``WindowCfg.size`` set initial viewer dimensions; RTX perspective rendering kept that resolution,
+  while GL perspective rendering followed its window framebuffer.
+  Unified GL and RTX capture lifecycle checks; call ``render_rgb_array()`` after ``sim.reset()``.
+* Kept shared views on ``VisualizerCfg.view``, separate from window presentation settings.
+  Detached perspective render callbacks when their owning viewer closed, allowing another viewer
+  to bind the retained view without accessing the destroyed renderer.
+* Shared Kit window docking between viewport and camera-image presentation.
+* Keyed sensor-view capture to the physics step, fixing frozen headless
+  ``--video viz:newton_gl:streaming_view`` clips while reusing repeated reads within one step.
+  Explicit headless viewer updates also refreshed perspective captures after marker edits without a physics step.
+
+
+3.0.0 (2026-10-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Presented Kit camera panels directly from composed device images, avoiding per-frame
+  pixel readback and host colorization for CUDA camera sources.
+* **Breaking:** Switched Kit, Newton, Rerun, and Viser streaming views to scene-owned camera sensors.
+  Moved generated-camera settings to scene ``CameraCfg`` declarations; visualizers selected them with
+  ``streaming_sensor_prim_path``. Removed late camera creation, follow-pose discovery, and camera teardown
+  from visualizers. Closing one viewer no longer affected a camera used by another viewer.
+* Added the shared ``cameras`` list for perspective and existing scene-camera sources.
+* Bound scene camera references before backend initialization and consumed the supplied camera
+  objects without cloning-plan dependencies. Custom visualizers must forward ``cameras`` and
+  ``stage`` to ``super().initialize()``.
+* **Breaking:** Removed ``newton_adapter.resolve_visible_env_indices`` and ``apply_viewer_visible_worlds``.
+  Backends consumed the base visualizer's final selection directly; custom visualizers should pass
+  ``get_visualized_env_ids()`` to their viewer after calling ``super().initialize()``.
+* **Breaking:** Replaced Newton GL's floating camera panel with a selectable main view.
+  Used the first configured ``cameras`` source initially, or perspective mode when none was configured.
+  Selected scene-camera views through the sidebar's Camera View dropdown instead of the old Open/Hide toggle.
+  Navigation applied the same camera-local motion to every copy of the selected sensor;
+  unselected sensors were neither read nor moved by the viewer.
+* Used scene-authored lights in Newton RTX by default, including HDR textures, intensity, initial
+  transforms, and clone placements. An explicit solid background preserved scene illumination.
+* Used Newton's native ``ViewerRTX`` with a simulation-owned OVStage and preserved its debug markers.
+  Added scene-camera selection and device-image presentation to RTX. Window resizing scaled the fixed
+  perspective image; resizing and closing the window left camera sensors unchanged.
+  Backend initialization resolved native resources from the explicitly supplied simulation owner;
+  core initialization and reset no longer passed backend-specific resources.
+  Pinned Newton to the merged borrowed-stage implementation pending its next release.
+* Presented Newton GL and RTX camera views directly from composed device images. Recording and web
+  transports read back only the composed image.
+* Unified Newton GL window and headless frame rendering, and propagated rendering errors after frame
+  cleanup. Kept contact-sensor arrow data on the viewer device during presentation.
+  Corrected PhysX contact arrow origins when displaying a subset of environments and removed
+  wind controls that did not apply forces to the simulation.
+* Read live-plot histories from Newton's plot logger, restoring scalar and array plots with the updated Newton API.
+* **Breaking:** Removed Newton RTX's viewer-only ``rtx_environment`` and ``world_spacing`` overrides
+  and GL model options. Declare lighting, materials, and environment placement in the scene instead.
+  Use Newton GL for rigid-body dragging and model overlays. Environment selection now limited RTX
+  sensor display tiles; its perspective camera viewed the full shared scene.
+* **Breaking:** Replaced ``window_width`` and ``window_height`` with ``window=WindowCfg(size=(width, height))``
+  for Newton and Kit. Replaced Newton's ``update_frequency`` frame skipping with ``window.fps``;
+  the default 30 Hz presentation limit used wall-clock time and did not throttle simulation or headless capture.
+
+Fixed
+^^^^^
+
+* Fixed Newton RTX (OVRTX) recordings stopping when a multi-prototype marker switches prototype mid-run.
+* Updated Newton GL live plots to read scalar and array histories from Newton's plot logger.
+* Fixed Newton GL perspective startup with depth-only scene cameras. The automatic selector offered
+  cameras supporting all requested channels, while explicit choices were validated at initialization.
+* Fixed scene-camera navigation to use live poses after parent-body motion, independently of cached
+  measurement poses and ``CameraCfg.update_latest_camera_pose``.
+* Fixed Newton RTX frame capture with OVRTX 0.5's RenderVar path keys.
+
+
+2.0.2 (2026-10-06)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the Newton GL and Newton RTX visualizers failing to open a window on an X server that reports no monitors, such as a GPU-backed virtual display, with ``AttributeError: 'XlibScreen' object has no attribute 'is_primary'``.
+* Fixed the Newton RTX visualizer freezing on Newton 1.6.1 with OVStage 0.2, where body motion was not
+  reflected in rendered frames. The viewer now holds an OVStage stage using Isaac Lab's hierarchy computation
+  model so the stage Newton creates inherits it.
+* Fixed the first asynchronous Newton RTX frame capture failing to find the color output before viewer warm-up.
+* Resolved Newton RTX color-output aliases from the returned render-variable keys without depending on package version metadata.
+* Fixed the Newton RTX visualizer dropping visualization markers, so both the interactive
+  ``--viz newton_rtx`` viewer and videos captured through it now draw the goal poses, command
+  arrows, and other debug markers the GL viewer already showed, sanitizing the marker group
+  ids into valid USD prim paths the RTX stage accepts.
+* Fixed the Newton RTX visualizer showing a black window and failing headless frame capture with
+  ``ovrtx`` 0.5, which keys render outputs by prim path (``/Render/Vars/LdrColor``) while Newton's
+  ``ViewerRTX`` looks up ``LdrColor``. The viewer now aliases the color output as ``LdrColor`` when ``ovrtx`` is 0.5 or newer.
+
+
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Newton visualizer "no display found" notice to use ``logger.warning`` instead of ``print``.
+
+
 2.0.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

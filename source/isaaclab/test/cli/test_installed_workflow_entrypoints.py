@@ -120,7 +120,7 @@ def test_cli_subcommand_dispatches_and_propagates_status(argv, module, runner, r
     run = mock.Mock(return_value=status)
     with (
         mock.patch.dict(sys.modules, {module: mock.Mock(**{runner: run})}),
-        mock.patch.object(cli, "_load_external_tasks"),
+        mock.patch.object(cli, "load_external_tasks"),
         mock.patch.object(sys, "argv", ["isaaclab", *argv]),
     ):
         if status:
@@ -302,7 +302,7 @@ def test_program_command_reports_missing_optional_dependencies(capsys):
 def test_cli_routes_program_without_loading_external_tasks(command_name, args):
     """Packaged programs do not need task plug-in discovery before dispatch."""
     with (
-        mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
+        mock.patch.object(cli, "load_external_tasks") as load_external_tasks,
         mock.patch.object(cli, command_name) as command,
         mock.patch.object(sys, "argv", ["isaaclab", command_name, *args]),
     ):
@@ -330,7 +330,7 @@ def test_cli_loads_downstream_tasks_before_benchmark():
 def test_list_envs_cli_dispatches_without_preloading_tasks():
     """Environment listing owns task discovery so its script wrapper can share the same behavior."""
     with (
-        mock.patch.object(cli, "_load_external_tasks") as load_external_tasks,
+        mock.patch.object(cli, "load_external_tasks") as load_external_tasks,
         mock.patch.object(cli, "list_envs") as list_environments,
         mock.patch.object(sys, "argv", ["isaaclab", "list_envs", "--show_presets"]),
     ):

@@ -55,7 +55,7 @@ def command_list_envs(args: list[str] | None = None) -> None:
         and (not project_modules or _belongs_to_project(spec, project_modules))
     ]
 
-    columns = ["S. No.", "Task Name", "Entry Point", "Config"]
+    columns = ["S. No.", "Task Name", "Entry Point", "Config", "RL Libraries"]
     if parsed_args.show_presets:
         columns.append("Presets")
     table = PrettyTable(columns)
@@ -64,10 +64,15 @@ def command_list_envs(args: list[str] | None = None) -> None:
         table.align[column] = "l"
 
     if parsed_args.show_presets:
-        from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
+        from isaaclab_tasks.utils.hydra import enumerate_task_presets
 
     for index, spec in enumerate(task_specs, start=1):
-        row = [index, spec.id, spec.entry_point, spec.kwargs["env_cfg_entry_point"]]
+        libraries = [
+            library
+            for library in ("rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl")
+            if spec.kwargs.get(f"{library}_cfg_entry_point") is not None
+        ]
+        row = [index, spec.id, spec.entry_point, spec.kwargs["env_cfg_entry_point"], ", ".join(libraries) or "(none)"]
         if parsed_args.show_presets:
             row.append(_format_presets(enumerate_task_presets(spec.id)))
         table.add_row(row)
@@ -105,7 +110,7 @@ def _format_presets(preset_map: dict | None) -> str:
     if preset_map is None:
         return "(unavailable)"
 
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+    from isaaclab_tasks.utils.hydra import PresetTarget
 
     labels = {
         PresetTarget.PHYSICS: "physics",

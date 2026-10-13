@@ -45,15 +45,16 @@ def _external_specification(
         "task_name": "place_vial",
         "robot_name": "so101",
         "include_ui_extension": include_ui_extension,
-        "workflows": [{"name": "manager-based", "type": "single-agent"}] if initial_content == "cartpole" else [],
-        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}] if initial_content == "cartpole" else [],
+        "workflows": [{"name": "manager-based", "type": "single-agent"}] if initial_content != "blank" else [],
+        "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}] if initial_content != "blank" else [],
     }
 
 
 def test_main_collects_canonical_external_project_choices():
     """The prompts must collect project layers and list flagship choices first."""
+    initial_content = "stubbed"
     handler = mock.Mock(spec=CLIHandler)
-    handler.input_select.side_effect = ["External", "Cartpole", "No"]
+    handler.input_select.side_effect = ["External", initial_content.title(), "No"]
     handler.input_path.return_value = "/tmp"
     handler.input_text.side_effect = ["test_project", "Test Author, Example Organization", "place_vial", "so101"]
     handler.input_checkbox.side_effect = lambda message, choices: [choices[0]]
@@ -72,7 +73,7 @@ def test_main_collects_canonical_external_project_choices():
     assert checkbox_calls[1].kwargs["choices"][0] == "rsl_rl"
     assert checkbox_calls[2].kwargs["choices"][0] == "PPO"
     content_prompt = handler.input_select.call_args_list[1]
-    assert content_prompt.kwargs["choices"] == ["Cartpole", "Blank"]
+    assert content_prompt.kwargs["choices"] == ["Cartpole", "Stubbed", "Blank"]
     assert content_prompt.kwargs["default"] == "Cartpole"
     ui_prompt = handler.input_select.call_args_list[2]
     assert ui_prompt.kwargs["choices"] == ["No", "Yes"]
@@ -81,7 +82,7 @@ def test_main_collects_canonical_external_project_choices():
     assert specification["task_name"] == "place_vial"
     assert specification["robot_name"] == "so101"
     assert specification["authors"] == ["Test Author", "Example Organization"]
-    assert specification["initial_content"] == "cartpole"
+    assert specification["initial_content"] == initial_content
     assert specification["include_ui_extension"] is False
     assert specification["isaaclab_version"] == "3.0.0"
     assert specification["isaaclab_source_path"] == _MODULE.ROOT_DIR
@@ -123,6 +124,14 @@ def test_main_skips_task_prompts_for_blank_project():
             },
         ),
         (["--initial_content", "blank"], {"workflows": [], "rl_libraries": []}),
+        (
+            ["--initial_content", "stubbed"],
+            {
+                "initial_content": "stubbed",
+                "workflows": [{"name": "manager-based", "type": "single-agent"}],
+                "rl_libraries": [{"name": "rsl_rl", "algorithms": ["ppo"]}],
+            },
+        ),
         (
             [
                 "--workflow",
