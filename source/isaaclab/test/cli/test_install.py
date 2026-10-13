@@ -5,6 +5,7 @@
 
 """Tests for CLI utility functions used by the uv installation path."""
 
+import json
 import os
 import subprocess
 import sys
@@ -35,6 +36,61 @@ def _python_for_conda(base: Path) -> Path:
     if sys.platform == "win32":
         return base / "python.exe"
     return base / "bin" / "python"
+
+
+def test_source_build_cli_child_loads_kit_once(tmp_path: Path) -> None:
+    """The CLI child loads native paths, keeps uv's Python, and does not recurse."""
+    local_sim = tmp_path / "_isaac_sim"
+    bindings = local_sim / "kit" / "plugins" / "bindings-python"
+    bindings.mkdir(parents=True)
+    (bindings / "kit_bootstrap_probe.py").write_text("VALUE = 'native binding loaded'\n")
+    (local_sim / ".isaaclab_source_build").touch()
+    launches = tmp_path / "launches"
+    launcher = local_sim / ("python.bat" if os.name == "nt" else "python.sh")
+    if os.name == "nt":
+        launcher.write_text(
+            "@echo off\n"
+            'echo launch>> "%BOOTSTRAP_LAUNCHES%"\n'
+            'set "ISAAC_PATH=%BOOTSTRAP_SIM%"\n'
+            '"%PYTHONEXE%" %*\n'
+            "exit /b %errorlevel%\n"
+        )
+    else:
+        launcher.write_text(
+            '#!/bin/sh\necho launch >> "$BOOTSTRAP_LAUNCHES"\nexport ISAAC_PATH="$BOOTSTRAP_SIM"\n'
+            'exec "$PYTHONEXE" "$@"\n'
+        )
+    launcher.chmod(0o755)
+    # Configure discovery in both interpreters without changing the developer's local link.
+    (tmp_path / "sitecustomize.py").write_text(
+        "import json, os, sys\n"
+        "from pathlib import Path\n"
+        "import isaaclab.cli as cli\n"
+        "from isaaclab.cli import utils\n"
+        "cli.DEFAULT_ISAAC_SIM_PATH = utils.DEFAULT_ISAAC_SIM_PATH = Path(os.environ['BOOTSTRAP_SIM'])\n"
+        "if os.environ.get('ISAAC_PATH') == os.environ['BOOTSTRAP_SIM']:\n"
+        "    import kit_bootstrap_probe\n"
+        "    print(json.dumps({'python': sys.executable, 'binding': kit_bootstrap_probe.VALUE}))\n"
+    )
+    env = dict(os.environ)
+    env.pop("ISAAC_PATH", None)
+    env["BOOTSTRAP_SIM"] = str(local_sim)
+    env["BOOTSTRAP_LAUNCHES"] = str(launches)
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, [str(tmp_path), env.get("PYTHONPATH")]))
+    result = subprocess.run(
+        [sys.executable, "-m", "isaaclab", "demo", "--help"],
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    probe = next(json.loads(line) for line in result.stdout.splitlines() if line.startswith('{"python":'))
+    assert Path(probe["python"]).resolve() == Path(sys.executable).resolve()
+    assert probe["binding"] == "native binding loaded"
+    assert "usage:" in result.stdout
+    assert launches.read_text().splitlines() == ["launch"]
 
 
 # ---------------------------------------------------------------------------
