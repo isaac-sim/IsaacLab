@@ -176,6 +176,15 @@ jobs:
           WHEEL_SHA: ${{ github.sha }}
         run: bash tools/wheel_builder/build.sh
 
+      - name: Validate PyPI metadata
+        if: >-
+          steps.changes.outputs.run_build == 'true' &&
+          (github.ref == 'refs/heads/main' ||
+           startsWith(github.ref, 'refs/heads/release/') ||
+           github.base_ref == 'main' ||
+           startsWith(github.base_ref, 'release/'))
+        run: python tools/wheel_builder/validate_pypi_metadata.py tools/wheel_builder/build/dist/isaaclab-*.whl
+
       - name: Upload wheel artifact
         if: steps.changes.outputs.run_build == 'true'
         uses: actions/upload-artifact@v7
@@ -211,16 +220,21 @@ jobs:
             exit 1
           fi
 
-          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install --dry-run "${wheel}[all]"
+          bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
+            --dry-run \
+            --extra-index-url https://download.pytorch.org/whl/cu130 \
+            "${wheel}[all]"
 
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
+            --extra-index-url https://download.pytorch.org/whl/cu130 \
             "${wheel}[importers]"
 
           bash "$GITHUB_WORKSPACE/.github/actions/_lib/with-python-package-retries.sh" uv pip install \
             --dry-run \
             --overrides "$overrides" \
             --extra-index-url https://pypi.nvidia.com \
+            --extra-index-url https://download.pytorch.org/whl/cu130 \
             --index-strategy unsafe-best-match \
             "${wheel}[isaacsim]"

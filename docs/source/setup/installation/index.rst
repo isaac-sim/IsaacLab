@@ -246,9 +246,9 @@ and then runs the command.
 
 The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
 No additional command flags are needed.
-The aggregate wheel uses platform-specific CUDA PyTorch wheel URLs from the source lockfile.
-This also selects CUDA builds for ``uvx`` and downstream projects, which do not inherit a dependency
-project's ``tool.uv.sources`` settings. The wheel supports Python 3.12, matching the source checkout.
+The aggregate wheel pins the PyTorch versions, but downstream uv projects must configure their own
+PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
+The wheel supports Python 3.12, matching the source checkout.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -609,10 +609,29 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
    .. tab-item:: uv project dependency
 
+      Create the project, then add the CUDA 13.0 PyTorch source mapping to its
+      ``pyproject.toml`` before resolving Isaac Lab:
+
       .. code-block:: bash
 
          uv init --python 3.12 my_isaaclab_project
          cd my_isaaclab_project
+
+      .. code-block:: toml
+
+         [tool.uv.sources]
+         torch = { index = "pytorch-cu130" }
+         torchvision = { index = "pytorch-cu130" }
+
+         [[tool.uv.index]]
+         name = "pytorch-cu130"
+         url = "https://download.pytorch.org/whl/cu130"
+         explicit = true
+
+      Then add the published wheel:
+
+      .. code-block:: bash
+
          uv add --index https://pypi.nvidia.com isaaclab==3.0.0rc1
 
    .. tab-item:: Standalone uv environment
@@ -627,7 +646,10 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+               uv pip install isaaclab==3.0.0rc1 \
+                  --index https://pypi.nvidia.com \
+                  --index https://download.pytorch.org/whl/cu130 \
+                  --index-strategy unsafe-best-match
 
          .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
             :sync: windows-x86_64
@@ -636,7 +658,10 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                env_isaaclab\Scripts\activate
-               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+               uv pip install isaaclab==3.0.0rc1 ^
+                  --index https://pypi.nvidia.com ^
+                  --index https://download.pytorch.org/whl/cu130 ^
+                  --index-strategy unsafe-best-match
 
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
             :sync: linux-aarch64
@@ -645,11 +670,14 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+               uv pip install isaaclab==3.0.0rc1 \
+                  --index https://pypi.nvidia.com \
+                  --index https://download.pytorch.org/whl/cu130 \
+                  --index-strategy unsafe-best-match
 
-The project workflow records the dependency in ``pyproject.toml`` and updates ``uv.lock``. Use it
-when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
-or temporary work.
+The project workflow records the dependency and CUDA PyTorch source in ``pyproject.toml`` and
+updates ``uv.lock``. Use it when Isaac Lab is part of an application you maintain; use a standalone
+environment for exploratory or temporary work.
 
 .. _installation-optional-extras:
 
@@ -738,7 +766,9 @@ Add other extras inside the brackets when needed; for example, use
 Installing CUDA-enabled PyTorch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Install the CUDA 13.0 PyTorch build using the commands for your platform:
+The published-wheel commands above select the CUDA 13.0 PyTorch build during dependency
+resolution. To update an existing standalone environment that was installed without the CUDA
+index, use the command for your platform:
 
 .. tab-set::
    :sync-group: pip-platform

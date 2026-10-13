@@ -13,12 +13,10 @@ import sys
 from importlib import util
 from pathlib import Path
 from unittest import mock
-from urllib.parse import unquote
 
 import pytest
 import tomllib
 from packaging.requirements import Requirement
-from packaging.utils import parse_wheel_filename
 
 pytestmark = pytest.mark.unit
 
@@ -181,28 +179,20 @@ def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(source_checkout_root: P
     assert rsl_rl_pins == [expected_pin]
 
 
-def test_wheel_builder_requires_cuda_torch_on_supported_platforms(generated_wheel_project: dict):
-    """An index-free install must select CUDA wheels, including on Windows Blackwell machines."""
-    requirements = [Requirement(dep) for dep in generated_wheel_project["dependencies"]]
-    for system, machine, wheel_platform in (
-        ("win32", "AMD64", "win_amd64"),
-        ("linux", "x86_64", "manylinux_2_28_x86_64"),
-        ("linux", "aarch64", "manylinux_2_28_aarch64"),
-    ):
-        for name in ("torch", "torchvision"):
-            selected = [
-                dep
-                for dep in requirements
-                if dep.name == name
-                and (dep.marker is None or dep.marker.evaluate({"sys_platform": system, "platform_machine": machine}))
-            ]
-            assert len(selected) == 1
-            assert selected[0].url is not None, f"{name} could resolve to a CPU build from PyPI"
-            filename = unquote(selected[0].url.split("#")[0].rsplit("/", 1)[1])
-            wheel_name, version, _, tags = parse_wheel_filename(filename)
-            assert wheel_name == name
-            assert version.local == "cu130"
-            assert any(tag.interpreter == "cp312" and tag.platform == wheel_platform for tag in tags)
+def test_wheel_builder_preserves_registry_compatible_torch_requirements(
+    source_checkout_root: Path, generated_wheel_project: dict
+):
+    """The wheel must preserve index-resolvable Torch pins instead of transitive URLs."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        source_dependencies = tomllib.load(f)["project"]["dependencies"]
+    generated_requirements = [Requirement(dep) for dep in generated_wheel_project["dependencies"]]
+
+    for name in ("torch", "torchvision"):
+        expected = [dep for dep in source_dependencies if _requirement_name(dep) == name]
+        actual = [dep for dep in generated_requirements if dep.name == name]
+        assert len(expected) == 1
+        assert [str(dep) for dep in actual] == expected
+        assert all(dep.url is None for dep in actual)
     assert generated_wheel_project["requires-python"] == ">=3.12,<3.13"
 
 
