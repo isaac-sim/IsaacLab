@@ -240,7 +240,8 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
     if isinstance(camera.renderer_cfg, OVRTXRendererCfg) and camera.renderer_cfg.async_rendering:
         raise ValueError(
             "The Shadow Hand Cosmos preset requires synchronous OVRTX rendering; set "
-            "scene.tiled_camera.renderer_cfg.async_rendering=False."
+            "scene.tiled_camera.renderer_cfg.async_rendering=False "
+            "(env.scene.tiled_camera.renderer_cfg.async_rendering=False on the command line)."
         )
     transfers = [
         cfg for cfg in camera.modifiers.get(_COSMOS_DEPTH_INPUT, ()) if isinstance(cfg, CosmosTransferModifierCfg)
@@ -261,7 +262,7 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
         raise ValueError(
             f"The Shadow Hand Cosmos preset needs up to {episode_frames} camera captures per episode, "
             f"but the Cosmos frame budget is {frame_budget}. Shorten episode_length_s or increase "
-            "scene.tiled_camera.update_period."
+            "scene.tiled_camera.update_period (env.scene.tiled_camera.update_period on the command line)."
         )
 
 
