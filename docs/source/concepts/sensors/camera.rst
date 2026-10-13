@@ -378,7 +378,7 @@ this with ``--warmup_steps``.
 
 ``--input_scene`` accepts a local path or URL to a USD or USDZ scene containing the Gaussian PPISP
 setup. If omitted, the example uses the ``Samples/Scene_ParticleField/valiant_auto.usdz``
-sample from ``ISAAC_NUCLEUS_DIR``. Replace the scene and camera paths above with your own.
+sample from ``ISAAC_NUCLEUS_DIR``.
 
 ``--camera_prim_path`` is an optional absolute USD prim path in the input scene. The prim must exist,
 have type ``Camera``, and carry ``ppisp:*`` attributes. If omitted, the example selects the first
