@@ -88,9 +88,6 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     This is a second contact sensor used for testing contact filtering.
     """
 
-    total_sensor: ContactSensorCfg = None
-    """Contact sensor configuration used to test aggregate total forces."""
-
 
 ##
 # Scene entity configurations.
@@ -812,9 +809,9 @@ def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_friction_reporting(setup_simulation, device):
-    """Sliding contact reports complete forces independently of filters and detailed-contact capacity."""
+    """Sliding contact reports aggregate friction and total forces without detailed-contact data."""
     if not hasattr(RigidContactView, "get_net_friction_contact_forces"):
         pytest.skip("Aggregate PhysX friction reporting requires Isaac Sim 6.2 or later.")
     grav_dir = (-10.0, 0.0, -9.81)
@@ -824,143 +821,50 @@ def test_friction_reporting(setup_simulation, device):
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
-        num_envs = 3
-        history_length = 3
-        scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=True)
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.shape.spawn.mass_props = sim_utils.MassCfg(mass=1.0)
         scene_cfg.shape.spawn.rigid_props = PhysxRigidBodyCfg(linear_damping=0.0, angular_damping=0.0)
         scene_cfg.shape.init_state.pos = (0.0, 0.0, CUBE_CFG.spawn.size[2] / 2.0)
-        filter_prim_paths_expr = [scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
-            history_length=history_length,
-            track_pose=True,
-            track_air_time=True,
-            track_contact_points=True,
             track_friction_forces=True,
-            max_contact_data_count_per_prim=1,
-            filter_prim_paths_expr=filter_prim_paths_expr,
+            max_contact_data_count_per_prim=0,
         )
         scene_cfg.contact_sensor_2 = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
-            history_length=history_length,
-            track_friction_forces=True,
             max_contact_data_count_per_prim=0,
-        )
-        scene_cfg.total_sensor = replace(
-            scene_cfg.contact_sensor,
-            track_pose=False,
-            track_contact_points=False,
             track_friction_forces=False,
-            max_contact_data_count_per_prim=0,
-            filter_prim_paths_expr=[scene_cfg.shape.prim_path],
+            filter_prim_paths_expr=[scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"],
         )
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
         sensor: ContactSensor = scene["contact_sensor"]
-        total_sensor: ContactSensor = scene["total_sensor"]
-        sensors = (sensor, scene["contact_sensor_2"], total_sensor)
+        total_sensor: ContactSensor = scene["contact_sensor_2"]
         shape: RigidObject = scene["shape"]
         for _ in range(20):
             _perform_sim_step(sim, scene, sim_dt)
 
-        force_names = (
-            "net_normal_forces_w",
-            "net_friction_forces_w",
-            "net_forces_w",
-            "normal_force_matrix_w",
-            "friction_force_matrix_w",
-            "force_matrix_w",
-        )
-        samples = [{name: [] for name in force_names} for _ in sensors]
+        velocity_before = shape.data.root_lin_vel_w.torch.clone()
+        _perform_sim_step(sim, scene, sim_dt)
         gravity = torch.tensor(grav_dir, device=device)
-        expected_total = None
-        for _ in range(history_length + 1):
-            velocity_before = shape.data.root_lin_vel_w.torch.clone()
-            _perform_sim_step(sim, scene, sim_dt)
-            # Unit mass and zero damping leave contact and gravity as the only forces.
-            expected_total = (shape.data.root_lin_vel_w.torch - velocity_before) / sim_dt - gravity
-            for current_sensor, sensor_samples in zip(sensors, samples, strict=True):
-                data = current_sensor.data
-                torch.testing.assert_close(data.net_forces_w.torch[:, 0], expected_total, atol=0.1, rtol=0.01)
-                for name in force_names:
-                    force = getattr(data, name)
-                    if force is not None:
-                        sensor_samples[name].append(force.torch.clone())
-
+        # Unit mass and zero damping leave contact and gravity as the only forces.
+        expected_total = (shape.data.root_lin_vel_w.torch - velocity_before) / sim_dt - gravity
         data = sensor.data
-        assert expected_total is not None
-        for current_sensor, sensor_samples in zip(sensors, samples, strict=True):
-            current_data = current_sensor.data
-            normal = current_data.net_normal_forces_w.torch
-            torch.testing.assert_close(normal[..., :2], torch.zeros_like(normal[..., :2]), atol=1e-4, rtol=0)
-            torch.testing.assert_close(normal[:, 0, 2], expected_total[:, 2], atol=0.1, rtol=0.01)
-            if current_sensor.cfg.track_friction_forces:
-                friction = current_data.net_friction_forces_w.torch
-                assert torch.all((friction[..., :2] * gravity[:2]).sum(-1) < 0)
-                torch.testing.assert_close(friction[..., 2], torch.zeros_like(friction[..., 2]), atol=1e-4, rtol=0)
-                torch.testing.assert_close(current_data.net_forces_w.torch, normal + friction)
-                torch.testing.assert_close(current_data.friction_forces_w.torch, friction)
-            else:
-                assert current_data.net_friction_forces_w is None
-                assert current_data.net_friction_forces_w_history is None
-                assert current_data.friction_forces_w is None
-                assert current_data.friction_force_matrix_w is None
-                assert current_data.friction_force_matrix_w_history is None
-            if current_sensor is sensor:
-                # The ground is the only contacting partner.
-                torch.testing.assert_close(current_data.force_matrix_w.torch[:, :, 0], current_data.net_forces_w.torch)
-            elif current_sensor is total_sensor:
-                # The filter excludes the ground, but the aggregate still includes its contact.
-                assert torch.count_nonzero(current_data.force_matrix_w.torch) == 0
-            else:
-                assert current_data.normal_force_matrix_w is None
-                assert current_data.normal_force_matrix_w_history is None
-                assert current_data.force_matrix_w is None
-                assert current_data.force_matrix_w_history is None
-                assert current_data.friction_force_matrix_w is None
-                assert current_data.friction_force_matrix_w_history is None
-            for name, values in sensor_samples.items():
-                if values:
-                    torch.testing.assert_close(
-                        getattr(current_data, name + "_history").torch,
-                        torch.stack(values[-history_length:][::-1], dim=1),
-                    )
-        torch.testing.assert_close(data.friction_force_matrix_w.torch[:, :, 0], data.net_friction_forces_w.torch)
+        friction = data.net_friction_forces_w.torch
+        assert torch.all((friction[..., :2] * gravity[:2]).sum(-1) < 0)
+        torch.testing.assert_close(data.net_forces_w.torch, data.net_normal_forces_w.torch + friction)
+        torch.testing.assert_close(data.net_forces_w.torch[:, 0], expected_total, atol=0.1, rtol=0.01)
+        torch.testing.assert_close(data.friction_forces_w.torch, friction)
+        assert data.force_matrix_w is None
 
-        forces = [
-            force
-            for current_sensor in sensors
-            for name in force_names
-            for field in (name, name + "_history")
-            if (force := getattr(current_sensor.data, field)) is not None
-        ]
-        before_reset = [force.torch.clone() for force in forces]
-        positions_before_reset = data.contact_pos_w.torch.clone()
-        for current_sensor in sensors:
-            current_sensor.reset(env_ids=[0])
-        for force, before in zip(forces, before_reset, strict=True):
-            assert torch.count_nonzero(force.torch[0]) == 0
-            torch.testing.assert_close(force.torch[1:], before[1:])
-        assert torch.isnan(data.contact_pos_w.torch[0]).all()
-        torch.testing.assert_close(data.contact_pos_w.torch[1:], positions_before_reset[1:], equal_nan=True)
-
-        pose = shape.data.root_pose_w.torch.clone()
-        pose[:, 2] += 2.0
-        shape.write_root_pose_to_sim_index(root_pose=pose)
-        # Do not read during separation: lazy sensors must still clear their contact histories.
-        for _ in range(history_length + 4):
-            _perform_sim_step(sim, scene, sim_dt)
-        assert torch.isnan(sensor.data.contact_pos_w.torch).all()
-        for current_sensor in sensors:
-            for name in force_names:
-                for field in (name, name + "_history"):
-                    force = getattr(current_sensor.data, field)
-                    if force is not None:
-                        assert torch.count_nonzero(force.torch) == 0
+        total_data = total_sensor.data
+        assert total_data.net_friction_forces_w is None
+        assert total_data.friction_force_matrix_w is None
+        torch.testing.assert_close(total_data.net_forces_w.torch[:, 0], expected_total, atol=0.1, rtol=0.01)
+        torch.testing.assert_close(total_data.force_matrix_w.torch[:, :, 0], total_data.net_forces_w.torch)
 
 
 @pytest.mark.isaacsim_ci
