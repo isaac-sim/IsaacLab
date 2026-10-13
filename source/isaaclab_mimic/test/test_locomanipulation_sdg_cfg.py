@@ -18,13 +18,14 @@ def test_sdg_config_loads_before_runtime():
             textwrap.dedent("""\
                 import sys
                 import isaaclab_mimic.locomanipulation_sdg.envs
+                from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
                 from isaaclab_tasks.utils import parse_env_cfg
 
                 sys.modules["isaaclab_mimic.locomanipulation_sdg.envs.g1_locomanipulation_sdg_env"] = None
                 cfg = parse_env_cfg("Isaac-G1-SteeringWheel-Locomanipulation", device="cpu", num_envs=1)
                 assert cfg.scene.num_envs == 1
                 assert cfg.sim.device == "cpu"
-                assert cfg.actions.upper_body_ik.controller.urdf_path.endswith(".urdf")
+                assert cfg.actions.upper_body_ik.controller.urdf_path.startswith(ISAACLAB_NUCLEUS_DIR + "/")
                 assert not {"pxr", "omni", "carb", "isaacsim", "scipy"}.intersection(sys.modules)
             """),
         ],

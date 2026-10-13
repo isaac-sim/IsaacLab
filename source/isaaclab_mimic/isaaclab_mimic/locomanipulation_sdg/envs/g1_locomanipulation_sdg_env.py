@@ -6,7 +6,6 @@
 import numpy as np
 import torch
 
-from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.datasets import EpisodeData
 
 from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDGInputData
@@ -26,9 +25,6 @@ NUM_BOXES = 0
 
 class G1LocomanipulationSDGEnv(LocomanipulationSDGEnv):
     def __init__(self, cfg: G1LocomanipulationSDGEnvCfg, **kwargs):
-        cfg.actions.upper_body_ik.controller.urdf_path = retrieve_file_path(
-            cfg.actions.upper_body_ik.controller.urdf_path
-        )
         if cfg.background_usd_path is not None:
             self._num_forklifts = 0
             self._num_boxes = 0

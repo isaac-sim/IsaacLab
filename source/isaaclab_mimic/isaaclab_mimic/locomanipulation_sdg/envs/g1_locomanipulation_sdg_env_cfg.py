@@ -150,10 +150,11 @@ class G1LocomanipulationSDGEnvCfg(LocomanipulationG1EnvCfg, LocomanipulationSDGE
         self.sim.render_interval = 6
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.0, 3.0, 1.25), lookat=(0.0, 0.0, 0.5))
 
-        # Set the URDF and mesh paths for the IK controller
-        urdf_omniverse_path = f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/g1_29dof_with_hand_only_kinematics.urdf"  # noqa: E501
-
-        self.actions.upper_body_ik.controller.urdf_path = urdf_omniverse_path
+        # The IK controller retrieves the URDF when it initializes.
+        self.actions.upper_body_ik.controller.urdf_path = (
+            f"{ISAACLAB_NUCLEUS_DIR}/Controllers/LocomanipulationAssets/unitree_g1_kinematics_asset/"
+            "g1_29dof_with_hand_only_kinematics.urdf"
+        )
 
         # Override success condition: check placement relative to the drop-off table (packing_table_2),
         # since this env has two tables: packing_table (pick-up) and packing_table_2 (drop-off).

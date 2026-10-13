@@ -48,9 +48,9 @@ parser.add_argument(
 add_launcher_args(parser)
 # forward unrecognized args as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
-# The config is loaded after launch, so the launcher cannot discover the policy's camera yet.
+# The environment creates its policy camera at runtime.
 args_cli.enable_cameras = True
-# the task config imports USD, so the Kit runtime is always launched before the config is parsed
+# The SDG environment uses Kit scene and occupancy-map APIs.
 args_cli.require_kit = True
 
 from typing import TYPE_CHECKING
