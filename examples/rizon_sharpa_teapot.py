@@ -27,22 +27,23 @@ from pathlib import Path
 
 TABLETOP_CONTAINER_POS = (-0.355, 0.0, 0.90041)
 CONTAINER_BASE_POS = (-0.340, 0.0, 1.020)
-BOWL_BASE_POS = (-0.144, 0.0, 0.900408217)
+BOWL_SCALE = 1.5
+BOWL_BASE_POS = (-0.144, 0.0, 0.9004073255)
 ROBOT_BASE_POS = (-0.930, 0.0, 1.15041)
 PICKUP_TIME = 5.6
 INITIAL_LIFT_TIME = 5.0
 POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
 HOLD_TIME = 0.55
 TILT_TIME = 4.0
-LIFT_TIME = 12.0
+LIFT_TIME = 24.0
 LIFT_HEIGHT = 0.70
 RECOVERY_TIME = 5.0
 SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + LIFT_TIME + RECOVERY_TIME + 0.45
-_POUR_ANGLE = math.radians(54.0)
+_POUR_ANGLE = math.radians(20.0)
 _UPPER_ANGLE = math.radians(49.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
-_SPOUT_POUR_POS = (-0.169, 0.0, 0.971979469)
+_SPOUT_POUR_POS = (-0.169, 0.0, 0.9937642035)
 
 
 def _blend(raw: float) -> tuple[float, float]:
@@ -68,13 +69,13 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
     time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
     tilt, tilt_derivative = _blend(time / TILT_TIME)
     lift, lift_derivative = _blend((time - TILT_TIME) / LIFT_TIME)
-    taper, taper_derivative = _blend(((time - TILT_TIME) / LIFT_TIME - 0.15) / 0.20)
     recovery_raw = (time - TILT_TIME - LIFT_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
-    angle = _POUR_ANGLE * tilt - (_POUR_ANGLE - _UPPER_ANGLE) * taper - _UPPER_ANGLE * recovery
+    # Increase tilt gradually so the fuller open pot drains through the spout before its rim lowers.
+    angle = _POUR_ANGLE * tilt + (_UPPER_ANGLE - _POUR_ANGLE) * lift - _UPPER_ANGLE * recovery
     angular_speed = (
         _POUR_ANGLE * tilt_derivative / TILT_TIME
-        - (_POUR_ANGLE - _UPPER_ANGLE) * taper_derivative / (0.20 * LIFT_TIME)
+        + (_UPPER_ANGLE - _POUR_ANGLE) * lift_derivative / LIFT_TIME
         - _UPPER_ANGLE * recovery_derivative / RECOVERY_TIME
     )
     lift_speed = LIFT_HEIGHT * lift_derivative / LIFT_TIME
@@ -134,7 +135,7 @@ def main() -> None:
         "--robot",
         "rizon_sharpa",
         "--fill_level",
-        "0.35",
+        "0.70",
         "--fluid_render_mode",
         "particles",
         "--max_steps",

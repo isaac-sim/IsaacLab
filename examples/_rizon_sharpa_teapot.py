@@ -111,7 +111,8 @@ HAND_GRASP_POSITIONS = (
 """Index hooked through the handle, opposed by the thumb [rad]."""
 
 HAND_HOLD_POSITIONS = (
-    (0.769337998127, 0.347099993706, 0.116388337027, -0.138365810236, 0.304292971503)  # Thumb
+    # Oppose the handle without running the thumb pad onto the hooked index's middle phalanx.
+    (0.769337998127, 0.317099993706, 0.116388337027, -0.138365810236, 0.304292971503)  # Thumb
     + (0.836523531919, -0.321860616915, 0.615938444479, 0.907486536391)  # Index
     + _CLEARED_FINGERS
 )
@@ -122,6 +123,10 @@ PALM_IN_POT = (
     (0.815358862991, 0.016218134562, 0.024054733648, -0.578228558999),
 )
 """Palm pose near the loaded grasp equilibrium, reducing recoil during pickup."""
+
+_THUMB_CONTACT_POINT = np.array((0.004038638, -0.016705590, -0.004974879))
+_THUMB_CONTACT_NORMAL = np.array((-0.320969277, 0.308200555, 0.895539581))
+"""Calibrated upper-handle contact point and outward normal in the thumb-pad frame."""
 
 
 def configured_asset_path() -> Path:
@@ -405,8 +410,8 @@ def _verify_asset_bundle(root: Path) -> None:
         if not path.is_file():
             raise FileNotFoundError(
                 f"Missing Rizon/Sharpa asset: {path}. Set {ASSET_ROOT_ENV} to the licensed bundle directory "
-                f"containing {ASSET_USD_NAME} and textures/. See the Rizon--Sharpa prerequisite in "
-                "docs/source/setup/demos.rst."
+                f"containing {ASSET_USD_NAME} and textures/. See the prerequisites in "
+                "examples/rizon_sharpa_teapot.py."
             )
         with path.open("rb") as stream:
             file_digest = hashlib.file_digest(stream, "sha256").hexdigest()
@@ -477,8 +482,6 @@ class _TeapotColliderSyncSolver(SolverCoupled):
         )
         self._notify_input_state_update(fluid, StateFlags.BODY_Q | StateFlags.BODY_QD, dt=dt)
         self._step_entry(fluid, control, contacts, dt)
-        # Newton's native projection prevents drift through the thin triangle shell.
-        fluid.solver.project_outside(fluid.state_1, fluid.state_1, dt)
 
 
 class NewtonTeapotCouplerManager(NewtonCouplerManager):
@@ -540,6 +543,7 @@ class TeapotPourMotion:
 
     Startup IK supplies the approach; bounded differential IK uses the measured
     object pose to compensate for contact compliance during pickup and pouring.
+    Thumb feedback maintains acquired opposition while permitting pad rotation.
     Finger contacts hold the handle throughout the lift and pour. The teapot
     remains dynamic; no attachment constraint or body pose override is used.
     """
@@ -578,12 +582,18 @@ class TeapotPourMotion:
         self._palm_jacobian = self._palm - int(robot.is_fixed_base)
         joint_ids = robot.find_joints(list(ARM_JOINT_NAMES + HAND_JOINT_NAMES), preserve_order=True)[0]
         self._arm_jacobian_dofs = [joint + robot.num_base_dofs for joint in joint_ids[:7]]
+        self._thumb = robot.body_names.index("right_thumb_elastomer")
+        self._thumb_jacobian = self._thumb - int(robot.is_fixed_base)
+        self._thumb_joints = joint_ids[7:12]
+        self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
         mj = NewtonManager._solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]
         self._qmin, self._qmax = mj.jnt_range[joints[:7], 0] + 0.03, mj.jnt_range[joints[:7], 1] - 0.03
+        self._thumb_qmin = mj.jnt_range[joints[7:12], 0] + 0.002
+        self._thumb_qmax = mj.jnt_range[joints[7:12], 1] - 0.002
         self._speed_limits = robot.data.joint_vel_limits.warp.numpy()[0, joint_ids].astype(np.float64)
         data = mujoco.MjData(mj)
         mj_palm = mujoco.mj_name2id(mj, mujoco.mjtObj.mjOBJ_BODY, "_World_envs_env_0_Robot_" + PALM_BODY_NAME)
@@ -650,6 +660,10 @@ class TeapotPourMotion:
         self._hand_joint_ids = wp.array(joint_ids[7:], dtype=int, device=robot.device)
         self._arm_position = trajectory[-1, :7].astype(np.float64)
         self._arm_velocity = np.zeros(7)
+        self._thumb_position = np.asarray(HAND_HOLD_POSITIONS[:5]).copy()
+        self._thumb_velocity = np.zeros(5)
+        self._thumb_anchor: tuple[np.ndarray, np.ndarray] | None = None
+        self._thumb_position_gpu = wp.array(self._thumb_position[None].astype(np.float32), device=robot.device)
         self._arm_position_gpu, self._arm_velocity_gpu = (
             wp.zeros(7, device=robot.device),
             wp.zeros(7, device=robot.device),
@@ -692,6 +706,7 @@ class TeapotPourMotion:
                 1.0 / self._path_hz,
                 self._arm_position_gpu,
                 self._arm_velocity_gpu,
+                self._thumb_position_gpu,
                 feedback_active,
                 feedback_elapsed,
                 self._robot.actuators.target_command.position,
@@ -701,14 +716,12 @@ class TeapotPourMotion:
         )
 
     def _update_feedback(self, sim_time: float, step: int) -> None:
-        """Solve bounded differential IK at the actual pot root, driving only arm joints.
+        """Follow the measured pot with bounded arm and thumb position targets.
 
         Finger contacts supply every force on the pot. Object feedback compensates
         for finger compliance and pivoting in the handle. The velocity solve respects
         rated speeds, an 8 rad/s^2 acceleration envelope, and joint stopping distances.
         """
-        from scipy.optimize import lsq_linear
-
         if self._last_feedback_step is not None:
             self._arm_position += self._arm_velocity * (step - self._last_feedback_step) / self._physics_hz
         pot = self._container.data.root_link_pose_w.warp.numpy()[0].astype(np.float64)
@@ -726,10 +739,10 @@ class TeapotPourMotion:
         rotation_gain = (8.0 + 4.0 * pickup_weight) * feedback_weight
         command = np.asarray(twist) + error * np.array((10.0, 10.0, 10.0, rotation_gain, rotation_gain, rotation_gain))
         command[:3], command[3:] = np.clip(command[:3], -0.45, 0.45), np.clip(command[3:], -1.5, 1.5)
-        palm = self._robot.data.body_link_pose_w.warp.numpy()[0, self._palm, :3]
-        jacobian = self._robot.data.body_link_jacobian_w.warp.numpy()[0, self._palm_jacobian][
-            :, self._arm_jacobian_dofs
-        ].astype(np.float64)
+        poses = self._robot.data.body_link_pose_w.warp.numpy()[0]
+        jacobians = self._robot.data.body_link_jacobian_w.warp.numpy()[0]
+        palm = poses[self._palm, :3]
+        jacobian = jacobians[self._palm_jacobian][:, self._arm_jacobian_dofs].astype(np.float64)
         # Evaluate the palm's twist at the measured pot root, preserving the
         # object-centered task without treating the contact grasp as a weld.
         jacobian[:3] += np.cross(jacobian[3:].T, pot[:3] - palm).T
@@ -741,38 +754,105 @@ class TeapotPourMotion:
         )
         # Preserve the joint-limit avoidance direction when bounding posture speed.
         posture *= 2.0 / max(2.0, float(np.max(np.abs(posture))))
-        period, acceleration = 1.0 / self._path_hz, 8.0
-        half_increment = 0.5 * acceleration * period
-        brake_lower = half_increment - np.sqrt(2.0 * acceleration * np.maximum(q - self._qmin, 0.0) + half_increment**2)
-        brake_upper = np.sqrt(2.0 * acceleration * np.maximum(self._qmax - q, 0.0) + half_increment**2) - half_increment
-        lower = np.maximum.reduce((-self._speed_limits[:7], brake_lower, self._arm_velocity - acceleration * period))
-        upper = np.minimum.reduce((self._speed_limits[:7], brake_upper, self._arm_velocity + acceleration * period))
-        if np.any(lower > upper + 1.0e-7):
-            raise RuntimeError(f"Infeasible arm braking envelope at {sim_time:.3f}s.")
         matrix = np.vstack((jacobian, 0.005 * np.eye(7)))
         target = np.concatenate((command, 0.005 * posture))
+        self._arm_velocity = self._bounded_velocity(
+            q, self._arm_velocity, self._qmin, self._qmax, self._speed_limits[:7], matrix, target
+        )
+        self._update_thumb_feedback(pot, poses, jacobians)
+        self._arm_position_gpu.assign(self._arm_position.astype(np.float32))
+        self._arm_velocity_gpu.assign(self._arm_velocity.astype(np.float32))
+        self._last_feedback_step = step
+        self._next_feedback_step = step + self._control_decimation
+
+    def _update_thumb_feedback(self, pot: np.ndarray, poses: np.ndarray, jacobians: np.ndarray) -> None:
+        """Maintain acquired thumb opposition through physical, torque-limited finger motion."""
+        pose = poses[self._thumb].astype(np.float64)
+        rotation = Rotation.from_quat(pose[3:])
+        offset = rotation.apply(_THUMB_CONTACT_POINT)
+        point, normal = pose[:3] + offset, rotation.apply(_THUMB_CONTACT_NORMAL)
+        jacobian = jacobians[self._thumb_jacobian][:, self._thumb_jacobian_dofs].astype(np.float64)
+        jacobian[:3] += np.cross(jacobian[3:].T, offset).T
+        actual = self._robot.data.joint_pos.warp.numpy()[0, self._thumb_joints]
+        delta = self._thumb_position - actual
+        # Track the commanded pad point rather than integrating elastic compression
+        # into more squeeze. This preserves the acquired preload without winding up.
+        predicted_point = point + jacobian[:3] @ delta
+        predicted_normal = normal + np.cross(jacobian[3:] @ delta, normal)
+        predicted_normal /= np.linalg.norm(predicted_normal)
+        pot_rotation = Rotation.from_quat(pot[3:])
+        if self._thumb_anchor is None:
+            self._thumb_anchor = (
+                pot_rotation.inv().apply(predicted_point - pot[:3]),
+                pot_rotation.inv().apply(predicted_normal),
+            )
+        desired_point = pot[:3] + pot_rotation.apply(self._thumb_anchor[0])
+        desired_normal = pot_rotation.apply(self._thumb_anchor[1])
+        # Prioritize opposition at the contact point; a soft normal target permits
+        # pad rotation instead of forcing a singular five-coordinate pose lock.
+        matrix = np.vstack((jacobian[:3], 0.002 * np.cross(jacobian[3:].T, normal).T, 0.005 * np.eye(5)))
+        target = np.concatenate(
+            (
+                10.0 * (desired_point - predicted_point),
+                0.016 * (desired_normal - predicted_normal),
+                0.002 * (np.asarray(HAND_HOLD_POSITIONS[:5]) - self._thumb_position),
+            )
+        )
+        self._thumb_velocity = self._bounded_velocity(
+            self._thumb_position,
+            self._thumb_velocity,
+            self._thumb_qmin,
+            self._thumb_qmax,
+            self._speed_limits[7:12],
+            matrix,
+            target,
+        )
+        self._thumb_position += self._thumb_velocity / self._path_hz
+        self._thumb_position_gpu.assign(self._thumb_position[None].astype(np.float32))
+
+    def _bounded_velocity(
+        self,
+        q: np.ndarray,
+        velocity: np.ndarray,
+        qmin: np.ndarray,
+        qmax: np.ndarray,
+        speed_limits: np.ndarray,
+        matrix: np.ndarray,
+        target: np.ndarray,
+    ) -> np.ndarray:
+        """Solve joint velocities within rated speeds, acceleration, and stopping distance."""
+        from scipy.optimize import lsq_linear
+
+        period, acceleration = 1.0 / self._path_hz, 8.0
+        increment = acceleration * period
+        distances = np.maximum(np.stack((q - qmin, qmax - q)), 0.0) / (increment * period)
+        braking_steps = np.floor((np.sqrt(1.0 + 8.0 * distances) - 1.0) / 2.0)
+        # Invert dt * sum(max(v - k * acceleration * dt, 0)). The continuous
+        # stopping distance can leave no feasible velocity at the next update.
+        braking_speeds = increment * (distances / (braking_steps + 1.0) + braking_steps / 2.0)
+        lower = np.maximum(-speed_limits, np.maximum(-braking_speeds[0], velocity - increment))
+        upper = np.minimum(speed_limits, np.minimum(braking_speeds[1], velocity + increment))
+        if np.any(lower > upper + 1.0e-7):
+            raise RuntimeError("Infeasible joint braking envelope.")
         # A joint at its stopping boundary has one feasible velocity. Eliminate
         # those coordinates because scipy's box solver requires strict bounds.
         fixed = upper - lower < 1.0e-8
         free = ~fixed
-        self._arm_velocity = np.zeros(7)
-        self._arm_velocity[fixed] = 0.5 * (lower[fixed] + upper[fixed])
+        result = np.zeros_like(q)
+        result[fixed] = 0.5 * (lower[fixed] + upper[fixed])
         if np.any(free):
             solution = lsq_linear(
                 matrix[:, free],
-                target - matrix[:, fixed] @ self._arm_velocity[fixed],
+                target - matrix[:, fixed] @ result[fixed],
                 bounds=(lower[free], upper[free]),
                 method="bvls",
                 tol=1.0e-9,
                 max_iter=50,
             )
             if not solution.success or not np.isfinite(solution.x).all():
-                raise RuntimeError(f"Arm velocity solve failed at {sim_time:.3f}s: {solution.message}")
-            self._arm_velocity[free] = solution.x
-        self._arm_position_gpu.assign(self._arm_position.astype(np.float32))
-        self._arm_velocity_gpu.assign(self._arm_velocity.astype(np.float32))
-        self._last_feedback_step = step
-        self._next_feedback_step = step + self._control_decimation
+                raise RuntimeError(f"Joint velocity solve failed: {solution.message}")
+            result[free] = solution.x
+        return result
 
 
 @wp.kernel
@@ -803,6 +883,7 @@ def _interpolate_joints(
     path_dt: float,
     arm_position: wp.array[float],
     arm_velocity: wp.array[float],
+    thumb_position: wp.array2d[float],
     feedback_active: bool,
     feedback_elapsed: float,
     targets: wp.array2d[float],
@@ -825,3 +906,5 @@ def _interpolate_joints(
         if feedback_active:
             targets[0, joints[i]] = arm_position[i] + feedback_elapsed * arm_velocity[i]
             velocities[0, joints[i]] = arm_velocity[i]
+    elif feedback_active and i < 12:
+        targets[0, joints[i]] = thumb_position[0, i - 7]

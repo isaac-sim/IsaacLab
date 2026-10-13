@@ -38,9 +38,11 @@ def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
                     impratio=20.0,
                     iterations=16,
                     ls_iterations=32,
+                    # Distributed mesh contacts support the handle against the finger pads.
+                    enable_multiccd=True,
                     # Keep headroom for hand self-contacts and the pot without
                     # oversized dense constraint buffers.
-                    njmax=96,
+                    njmax=128,
                     nconmax=256,
                 ),
                 bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/PourContainer"],

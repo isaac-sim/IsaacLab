@@ -222,9 +222,9 @@ OVERRIDES = {
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
-        args=("--max_steps", "10"),
+        args=("--max_steps", "10", "--visualizer", "none"),
         fixed_physics_backend="newton_coupler",
-        visualizers=("none", "newton_gl", "newton_rtx"),
+        visualizers=(None, "newton_gl", "newton_rtx"),
         required_modules=("isaaclab_contrib",),
         skip_reason=(
             None

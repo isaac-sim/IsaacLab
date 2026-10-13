@@ -209,7 +209,9 @@ CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 if ROBOT_ENABLED:
     # The optional robot example and its helpers live outside the curated demos.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from rizon_sharpa_teapot import BOWL_BASE_POS, ROBOT_BASE_POS, pose_at_time
+    from rizon_sharpa_teapot import BOWL_BASE_POS, BOWL_SCALE, ROBOT_BASE_POS, pose_at_time
+
+    BOWL_WORLD_TOP_Z = BOWL_BASE_POS[2] + BOWL_SCALE * BOWL_LOCAL_Z_MAX
 
     CAMERA_EYE = (0.55, -1.5, 1.72)
     CAMERA_TARGET = (-0.28, 0.0, 1.22)
@@ -657,7 +659,13 @@ def create_sim_cfg():
         from rizon_sharpa_teapot_cfg import make_solver_cfg
 
         solver_cfg = cfg.physics.solver_cfg
+        # Resolve pressure through the thin spout with particle-based, low-friction contacts.
         solver_cfg.air_drag = 1.0
+        solver_cfg.strain_basis = "P1d"
+        solver_cfg.transfer_scheme = "pic"
+        # Retain particle contacts in densely packed cells during pouring and impact.
+        solver_cfg.collider_basis = "pic256"
+        solver_cfg.solver = "gauss-seidel"
         cfg.physics = NewtonCfg(
             solver_cfg=make_solver_cfg(solver_cfg),
             num_substeps=MPM_SUBSTEPS,
@@ -854,6 +862,8 @@ def create_scene_cfg(container_usd: str, island_usd: str | None, bowl_usd: str |
         cfg.tabletop_collider.spawn.collision_props.append(MujocoCollisionCfg(condim=4, solref=(0.0025, 1.0)))
         cfg.container.spawn.rigid_props = sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=False)
         cfg.container.spawn.mass_props = sim_utils.MassCfg(mass=0.45)
+        # Keep the exact fluid passage open; the initial particles retain their larger clearance.
+        cfg.container.spawn.collision_props[1].contact_margin = 0.0005
         cfg.container.spawn.rigid_contact_usd = str(prepared_contact_path(Path(container_usd)))
         cfg.container.spawn.visual_material = sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 1.0, 1.0))
         cfg.robot_pedestal = AssetBaseCfg(
