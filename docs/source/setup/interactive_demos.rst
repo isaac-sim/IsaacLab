@@ -13,7 +13,7 @@ one self-contained Newton simulation with camera controls, pause, and reset.
 The simulation runs locally on the CPU through WebAssembly; no Isaac Lab
 installation or remote simulation server is needed.
 
-Open the `hosted gallery <../../../demos/v1/>`_ to browse all demos.
+Open the `hosted gallery <../../../demos/v2/>`_ to browse all demos.
 
 These compact scenes illustrate individual effects. Use the full Isaac Lab
 examples and tasks for evaluation, training, and measured comparisons.
@@ -107,11 +107,24 @@ Policy control
       Drive an ANYmal-D with travel and yaw pads using a published
       Isaac Lab Newton checkpoint.
 
+   .. grid-item-card:: MicroDuck walking
+      :img-top: ../_static/browser_demos/previews/microduck.jpg
+      :link: ../../../demos/v2/?demo=microduck
+
+      .. _interactive-demo-microduck:
+
+      Walk through a miniature courtyard with travel and yaw pads.
+      Shift-drag the robot to push it, then release to watch it recover.
+
 Cartpole uses the published ``Isaac-Cartpole-Direct`` Newton policy. G1 uses
 the external 29-joint WBC-AGILE ``Velocity-G1-v0`` policy. ANYmal-D uses the
 ``Isaac-Velocity-Flat-AnymalD`` RSL-RL checkpoint with a tuned PD drive in
 place of the native task's LSTM actuator. Its motion can differ from a full
-task run. See :ref:`reinforcement-learning` for native playback and training.
+task run. MicroDuck uses Pollen Robotics' published v5 ``velstand`` policy
+and native BAM servos from `task PR #8270 <https://github.com/isaac-sim/IsaacLab/pull/8270>`_.
+Its courtyard is decorative scenery over flat ground; playback uses one
+captured reset with selected observation randomization disabled.
+See :ref:`reinforcement-learning` for native playback and training.
 
 Manipulation
 ------------
@@ -165,6 +178,7 @@ The exporters and demo application are maintained separately from Isaac Lab.
 The docs deployment downloads a versioned archive from Isaac Lab GitHub releases
 and verifies its checksum before publishing; compiled assets are kept outside the source tree.
 The public `reference PR #7974 <https://github.com/isaac-sim/IsaacLab/pull/7974>`_
-records the original exporters, source assets, and scene adaptations.
+records the exporters, shared viewer, and scene adaptations.
 Rebuilding requires the pinned internal Newton Web compiler and Emscripten.
-Documentation links pin version 1; later releases retain earlier version URLs.
+MicroDuck is published in version 2. Existing demo links retain version 1,
+and each release archive preserves earlier version directories.
