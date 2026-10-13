@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 import torch
 import warp as wp
@@ -34,7 +34,7 @@ class DriveBam(DriveBase):
     unregistered ``NewtonBamDriveAPI`` token hides the drive from Newton's schema discovery.
     """
 
-    SHARED_PARAMS = {
+    SHARED_PARAMS: ClassVar[set[str]] = {
         "has_backlash",
         "stribeck",
         "load_dependent",
@@ -47,7 +47,7 @@ class DriveBam(DriveBase):
         "delay_seed",
     }
 
-    PER_DOF_PARAMS = (
+    PER_DOF_PARAMS: ClassVar[tuple[str, ...]] = (
         "kp_fw",
         "kp_scale",
         "kd_scale",

@@ -16,6 +16,8 @@ the live budget.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import mujoco
 import numpy as np
 import warp as wp
@@ -116,10 +118,10 @@ def _stiffen_model_friction_solver_kernel(
 class MjWarpActuatorBridge:
     """Per-step MuJoCo Warp DOF channel for one Newton actuator."""
 
-    STIFF_SOLREF_FRICTION: tuple[float, float] = (-5.0e4, -2.0e2)
+    STIFF_SOLREF_FRICTION: ClassVar[tuple[float, float]] = (-5.0e4, -2.0e2)
     """Stiff ``(-stiffness, -damping)`` friction solref from the reference BAM implementation [N.m/rad, N.m.s/rad]."""
 
-    STIFF_SOLIMP_FRICTION: tuple[float, float, float, float, float] = (0.99, 0.9999, 0.001, 0.5, 2.0)
+    STIFF_SOLIMP_FRICTION: ClassVar[tuple[float, float, float, float, float]] = (0.99, 0.9999, 0.001, 0.5, 2.0)
     """Friction-constraint impedance profile paired with :attr:`STIFF_SOLREF_FRICTION` [-]."""
 
     @staticmethod
