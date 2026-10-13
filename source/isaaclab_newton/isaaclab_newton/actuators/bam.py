@@ -472,7 +472,7 @@ class DriveBam(DriveBase):
         wp.copy(next_state.delay_rng_seed, current_state.delay_rng_seed)
 
 
-def apply_bam_startup_sampling(drive: DriveBam, cfg: BamActuatorCfg) -> None:
+def _apply_bam_startup_sampling(drive: DriveBam, cfg: BamActuatorCfg) -> None:
     """Draw the per-environment supply voltage and sag gain of one BAM drive.
 
     A USD prim is shared by every clone, so these ranges are sampled once here instead and held

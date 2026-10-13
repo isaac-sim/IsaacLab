@@ -9,7 +9,6 @@ isaaclab_newton.actuators
    :nosignatures:
 
    DriveBam
-   apply_bam_startup_sampling
 
 BAM Servo Drive
 ---------------
@@ -17,5 +16,3 @@ BAM Servo Drive
 .. autoclass:: DriveBam
     :members:
     :show-inheritance:
-
-.. autofunction:: apply_bam_startup_sampling

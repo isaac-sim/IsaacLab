@@ -25,7 +25,7 @@ from isaaclab.actuators.newton.adapter import NewtonActuatorSelection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 
-from isaaclab_newton.actuators.bam import DriveBam, apply_bam_startup_sampling
+from isaaclab_newton.actuators.bam import DriveBam, _apply_bam_startup_sampling
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
@@ -278,7 +278,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             setting = _bam_startup_settings(cfg)
             if drive.startup_settings is None:
                 drive.startup_settings = setting
-                apply_bam_startup_sampling(drive, cfg)
+                _apply_bam_startup_sampling(drive, cfg)
             elif drive.startup_settings != setting:
                 raise ValueError(
                     "Articulations sharing a Newton BAM actuator must agree on 'vin_range', 'vin_drop_gain_range',"

@@ -5,7 +5,6 @@
 
 __all__ = [
     "DriveBam",
-    "apply_bam_startup_sampling",
 ]
 
-from .bam import DriveBam, apply_bam_startup_sampling
+from .bam import DriveBam
