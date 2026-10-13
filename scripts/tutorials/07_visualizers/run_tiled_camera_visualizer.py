@@ -50,10 +50,11 @@ KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
 NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
 
 
-def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
+def _configure_visualizers(env_cfg) -> None:
     """Declare a scene camera before launch; every viewer borrows the same sensor."""
-    visualizers = args_cli.visualizer
-    if any(kind not in ("kit", "newton_gl") for kind in visualizers):
+    visualizers = env_cfg.sim.visualizer_cfgs
+    visualizers = visualizers if isinstance(visualizers, list) else [visualizers] if visualizers else []
+    if not visualizers or any(not isinstance(cfg, (KitVisualizerCfg, NewtonGLVisualizerCfg)) for cfg in visualizers):
         raise ValueError("This tutorial supports --viz kit or --viz newton_gl.")
     camera_cfg = next((cfg for cfg in vars(env_cfg.scene).values() if isinstance(cfg, CameraCfg)), None)
     if camera_cfg is None:
@@ -67,17 +68,17 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
             data_types=["rgb"],
             spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
-            renderer_cfg=IsaacRtxRendererCfg() if "kit" in visualizers else NewtonWarpRendererCfg(),
+            renderer_cfg=(
+                IsaacRtxRendererCfg()
+                if any(isinstance(cfg, KitVisualizerCfg) for cfg in visualizers)
+                else NewtonWarpRendererCfg()
+            ),
         )
         env_cfg.scene.streaming_camera = camera_cfg
-    env_cfg.sim.visualizer_cfgs = [
-        (KitVisualizerCfg if kind == "kit" else NewtonGLVisualizerCfg)(
-            streaming_view=True,
-            streaming_envs=36 if kind == "kit" else 12,
-            cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)],
-        )
-        for kind in visualizers
-    ]
+    for cfg in visualizers:
+        cfg.streaming_view = True
+        cfg.streaming_envs = 36 if isinstance(cfg, KitVisualizerCfg) else 12
+        cfg.cameras = [SceneCameraCfg(prim_path=camera_cfg.prim_path)]
 
 
 # add argparse arguments
@@ -89,7 +90,8 @@ add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.task is None:
-    args_cli.task = NEWTON_DEFAULT_TASK if "newton_gl" in args_cli.visualizer else KIT_DEFAULT_TASK
+    visualizers = next(arg.split("=", 1)[1].split(",") for arg in hydra_args if arg.startswith("visualizer="))
+    args_cli.task = NEWTON_DEFAULT_TASK if {"newton", "newton_gl"}.intersection(visualizers) else KIT_DEFAULT_TASK
 sys.argv = [sys.argv[0]] + hydra_args
 
 
@@ -97,7 +99,7 @@ def main():
     """Run a random-action environment with a tiled camera visualizer."""
     # parse configuration via Hydra (supports preset selection, e.g. presets=newton_mjwarp)
     env_cfg, _ = resolve_task_config(args_cli.task, "")
-    _configure_visualizers(env_cfg, args_cli)
+    _configure_visualizers(env_cfg)
 
     with launch_simulation(env_cfg, args_cli):
         # override with CLI arguments

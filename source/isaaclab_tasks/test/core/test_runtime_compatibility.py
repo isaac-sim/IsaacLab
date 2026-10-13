@@ -14,6 +14,7 @@ concrete renderer configurations. No Kit/GPU required.
 import argparse
 import sys
 
+import isaaclab_ov.app as ov_app
 import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
@@ -21,16 +22,21 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
-from isaaclab.app import SimulationLauncher, scan, validate_launch
-from isaaclab.app.sim_launcher import launch_simulation
+from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
 _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
+
+
+@pytest.fixture(autouse=True)
+def runtimes(monkeypatch):
+    monkeypatch.setattr(physx_app, "KitLauncher", SimulationLauncher)
+    monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
 
 
 def _resolve_with_presets(presets: str):
@@ -58,32 +64,27 @@ def test_isaacsim_physx_plus_ovrtx_raises():
     """Concrete Isaac Sim PhysX plus OVRTX is the canonical invalid combination."""
     env_cfg = _resolve_with_presets("isaacsim_physx,ovrtx")
     with pytest.raises(ValueError) as excinfo:
-        validate_launch(env_cfg)
+        with launch_simulation(env_cfg):
+            pass
     msg = str(excinfo.value)
     assert "PhysxCfg" in msg
     assert "IsaacRtxRendererCfg" in msg
 
 
-def test_kit_visualizer_plus_ovrtx_raises():
-    """``--visualizer kit`` combined with OVRTX renderer must raise.
+@pytest.mark.parametrize("visualizer", ["kit", "kit,newton_gl"])
+def test_kit_visualizer_plus_ovrtx_raises(visualizer):
+    """Selecting Kit alone or with another viewer must reject the OVRTX renderer.
 
     Use Newton physics so the only Kit-side runtime is the visualizer; this
     isolates the visualizer-vs-renderer check from the physics-vs-renderer one.
     """
-    env_cfg = _resolve_with_presets("newton,ovrtx")
-    launcher_args = argparse.Namespace(visualizer="kit")
+    env_cfg = _resolve_with_args("physics=newton_mjwarp", "renderer=ovrtx", f"visualizer={visualizer}")
     with pytest.raises(ValueError) as excinfo:
-        validate_launch(env_cfg, launcher_args)
+        with launch_simulation(env_cfg):
+            pass
     msg = str(excinfo.value)
     assert "Kit visualizer" in msg
     assert "IsaacRtxRendererCfg" in msg
-
-
-def test_kit_visualizer_dict_args_plus_ovrtx_raises():
-    """The dict form of launcher args (used by Hydra) must also be inspected."""
-    env_cfg = _resolve_with_presets("newton,ovrtx")
-    with pytest.raises(ValueError, match=r"Kit visualizer"):
-        validate_launch(env_cfg, {"visualizer": "kit,newton"})
 
 
 def test_kit_renderer_plus_ovrtx_raises():
@@ -96,7 +97,8 @@ def test_kit_renderer_plus_ovrtx_raises():
     )
 
     with pytest.raises(ValueError, match="Kit-based renderer"):
-        validate_launch(mixed_cfg)
+        with launch_simulation(mixed_cfg):
+            pass
 
 
 @pytest.mark.parametrize(
@@ -111,7 +113,8 @@ def test_launcher_kit_source_plus_ovrtx_raises(launcher_args, source):
     env_cfg = _resolve_with_presets("newton,ovrtx")
 
     with pytest.raises(ValueError, match=source):
-        validate_launch(env_cfg, launcher_args)
+        with launch_simulation(env_cfg, launcher_args):
+            pass
 
 
 def test_default_kit_runtime_plus_ovrtx_raises(monkeypatch: pytest.MonkeyPatch):
@@ -120,7 +123,8 @@ def test_default_kit_runtime_plus_ovrtx_raises(monkeypatch: pytest.MonkeyPatch):
     renderer_only_cfg = argparse.Namespace(renderer=OVRTXRendererCfg())
 
     with pytest.raises(ValueError, match="default Isaac Sim / Kit runtime"):
-        validate_launch(renderer_only_cfg)
+        with launch_simulation(renderer_only_cfg):
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -130,10 +134,10 @@ def test_default_kit_runtime_plus_ovrtx_raises(monkeypatch: pytest.MonkeyPatch):
 
 def test_ovphysx_plus_kit_visualizer_raises():
     """OvPhysX cannot share a process with the Kit visualizer."""
-    env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx")
-    launcher_args = argparse.Namespace(visualizer="kit")
+    env_cfg = _resolve_with_args("physics=ovphysx", "renderer=isaacsim_rtx", "visualizer=kit")
     with pytest.raises(ValueError) as excinfo:
-        validate_launch(env_cfg, launcher_args)
+        with launch_simulation(env_cfg):
+            pass
     msg = str(excinfo.value)
     assert "OvPhysX" in msg
     assert "Kit visualizer" in msg
@@ -147,7 +151,8 @@ def test_ovphysx_plus_kit_physics_raises():
     )
 
     with pytest.raises(ValueError, match="PhysxCfg"):
-        validate_launch(mixed_cfg)
+        with launch_simulation(mixed_cfg):
+            pass
 
 
 def test_explicit_kit_experience_plus_ovphysx_raises():
@@ -156,7 +161,8 @@ def test_explicit_kit_experience_plus_ovphysx_raises():
     launcher_args = argparse.Namespace(experience="custom.kit")
 
     with pytest.raises(ValueError, match="explicit Kit experience"):
-        validate_launch(env_cfg, launcher_args)
+        with launch_simulation(env_cfg, launcher_args):
+            pass
 
 
 def test_ovphysx_plus_kit_camera_without_visualizer_raises():
@@ -167,7 +173,8 @@ def test_ovphysx_plus_kit_camera_without_visualizer_raises():
     """
     env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx")
     with pytest.raises(ValueError) as excinfo:
-        validate_launch(env_cfg, argparse.Namespace(visualizer=None))
+        with launch_simulation(env_cfg, argparse.Namespace(visualizer=None)):
+            pass
     msg = str(excinfo.value)
     assert "OvPhysX" in msg
     assert "renderer" in msg
@@ -183,10 +190,10 @@ def test_default_newton_plus_ovrtx_is_valid():
     env_cfg = _resolve_with_presets("ovrtx")
 
     assert isinstance(env_cfg.sim.physics, NewtonCfg)
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
 
 
 def test_explicit_auto_physx_plus_ovrtx_resolves_to_ovphysx():
@@ -195,39 +202,33 @@ def test_explicit_auto_physx_plus_ovrtx_resolves_to_ovphysx():
 
     assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
 
 
 def test_physx_plus_isaacsim_rtx_is_valid():
     """PhysX physics + Isaac RTX renderer is the supported Kit combination."""
     env_cfg = _resolve_with_presets("physx,isaacsim_rtx")
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
 
 
-@pytest.mark.parametrize(
-    "visualizer, expected_physics, expected_renderer",
-    [(None, OvPhysxCfg, OVRTXRendererCfg), ("kit", PhysxCfg, IsaacRtxRendererCfg)],
-    ids=["unselected", "selected"],
-)
-def test_auto_physx_configured_kit_visualizer_counts_only_when_selected(
-    visualizer, expected_physics, expected_renderer
-):
-    """A configured Kit visualizer drives automatic PhysX and RTX resolution only when ``--viz`` selects it."""
+def test_auto_physx_configured_kit_visualizer_resolves_to_isaac_sim_backends():
+    """Config-declared Kit visualizers should drive automatic PhysX and RTX resolution."""
+
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
-    env_cfg.sim.visualizer_cfgs = VisualizerCfg(visualizer_type="kit")
-    config_scan, _ = validate_launch(env_cfg, {"visualizer": visualizer})
+    env_cfg.sim.visualizer_cfgs = KitVisualizerCfg()
+    with launch_simulation(env_cfg):
+        pass
 
-    assert isinstance(env_cfg.sim.physics, expected_physics)
-    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, expected_renderer)
-    assert config_scan.needs_kit is (visualizer == "kit")
+    assert isinstance(env_cfg.sim.physics, PhysxCfg)
+    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
 
 
 def test_auto_physx_livestream_without_launcher_args_resolves_to_isaac_sim_backends(
@@ -236,37 +237,38 @@ def test_auto_physx_livestream_without_launcher_args_resolves_to_isaac_sim_backe
     """Livestream env vars should require Kit even when no launcher args object is provided."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
     monkeypatch.setenv("LIVESTREAM", "2")
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
 
 
 def test_auto_physx_explicit_experience_resolves_to_isaac_sim_backends():
     """An explicit Kit experience should drive automatic PhysX and RTX resolution."""
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
-    config_scan, _ = validate_launch(env_cfg, argparse.Namespace(experience="custom.kit"))
+    with launch_simulation(env_cfg, argparse.Namespace(experience="custom.kit")):
+        pass
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
 
 
 def test_default_preset_is_valid():
     """The default preset (Newton + Newton renderer) is supported."""
     env_cfg = _resolve_with_presets("default")
-    validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
 
 def test_rtx_with_default_newton_is_valid_and_resolves_to_ovrtx():
     """The RTX selector resolves to OVRTX with the default Newton backend."""
     env_cfg = _resolve_with_presets("rtx")
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.sim.physics, NewtonCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
 
 
 def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx():
@@ -275,81 +277,83 @@ def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx(
 
     assert isinstance(env_cfg.sim.physics, PhysxAutoCfg)
 
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
 
 
 def test_renderer_selector_physx_rtx_with_kit_visualizer_resolves_to_isaac_sim_backends():
     """The automatic PhysX and RTX selectors choose Isaac Sim backends when the Kit viewer is requested."""
-    env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
-    config_scan, _ = validate_launch(env_cfg, argparse.Namespace(visualizer="kit"))
+    env_cfg = _resolve_with_args("physics=physx", "renderer=rtx", "visualizer=kit")
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
 
 
 def test_rtx_with_ovphysx_is_valid_and_resolves_to_ovrtx():
     """The RTX preset chooses OVRTX for an OvPhysX kitless run."""
     env_cfg = _resolve_with_presets("ovphysx,rtx")
-    config_scan, _ = validate_launch(env_cfg)
+    with launch_simulation(env_cfg):
+        pass
 
-    assert config_scan.has_ovphysx_physics is True
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
 
 
 @pytest.mark.parametrize(
     "presets, expected_renderer",
     [("physx,rtx", OVRTXRendererCfg), ("isaacsim_physx,rtx", IsaacRtxRendererCfg)],
 )
-def test_scanning_twice_reaches_the_same_launch_decision(presets, expected_renderer):
-    """Resolving a placeholder consumes it, so a second scan sees the same signals.
-
-    Callers scan ahead of :func:`launch_simulation` to report the backends a run
-    will use; the launch then scans the same config again.
-    """
+def test_repeated_launch_preserves_selected_configs_and_aliases(presets, expected_renderer):
+    """Root, tuple, and camera references select the same renderer across launches."""
     env_cfg = _resolve_with_presets(presets)
-
-    first = scan(env_cfg, argparse.Namespace())
-    second = scan(env_cfg, argparse.Namespace())
-
-    assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, expected_renderer)
-    assert (second.needs_kit, second.has_ovrtx, second.has_kit_camera) == (
-        first.needs_kit,
-        first.has_ovrtx,
-        first.has_kit_camera,
-    )
-    assert type(second.resolved_physics_cfg) is type(first.resolved_physics_cfg)
+    tree = {"env": env_cfg, "renderers": (env_cfg.scene.tiled_camera.renderer_cfg,)}
+    args = argparse.Namespace()
+    with launch_simulation(tree, args):
+        pass
+    physics, renderer = env_cfg.sim.physics, env_cfg.scene.tiled_camera.renderer_cfg
+    assert isinstance(renderer, expected_renderer)
+    assert tree["renderers"][0] is renderer
+    with launch_simulation(tree, args):
+        pass
+    assert env_cfg.sim.physics is physics and env_cfg.scene.tiled_camera.renderer_cfg is renderer
 
 
 def test_rtx_with_kit_visualizer_is_valid_and_resolves_to_isaac_rtx():
     """The RTX preset chooses Isaac RTX when the Kit visualizer is requested."""
-    env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
-    config_scan, _ = validate_launch(env_cfg, argparse.Namespace(visualizer="kit"))
+    env_cfg = _resolve_with_args("physics=newton_mjwarp", "renderer=rtx", "visualizer=kit")
+    with launch_simulation(env_cfg):
+        pass
 
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
-    assert config_scan.needs_kit is True
 
 
 def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pytest.MonkeyPatch):
     """Livestreaming should make ``presets=newton_mjwarp,rtx`` choose Isaac RTX."""
     env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
     launcher_args = argparse.Namespace(livestream=2, visualizer=None)
-    monkeypatch.setattr(physx_app, "KitLauncher", SimulationLauncher)
+    received = {}
+
+    class KitRuntime(SimulationLauncher):
+        def __init__(self, args):
+            received.update(args)
+
+    monkeypatch.setattr(physx_app, "KitLauncher", KitRuntime)
 
     with launch_simulation(env_cfg, launcher_args) as physics_cfg:
         assert type(physics_cfg).__name__ == "NewtonCfg"
 
-    assert launcher_args.visualizer == ["kit"]
-    assert launcher_args.enable_cameras is True
+    assert isinstance(env_cfg.sim.visualizer_cfgs[0], KitVisualizerCfg)
+    assert received["enable_cameras"] is True
+    assert launcher_args.visualizer is None
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
 
 
 def test_kit_visualizer_with_isaacsim_rtx_is_valid():
     """``--visualizer kit`` is fine as long as no OVRTX renderer is configured."""
-    env_cfg = _resolve_with_presets("newton,isaacsim_rtx")
-    validate_launch(env_cfg, argparse.Namespace(visualizer="kit"))
+    env_cfg = _resolve_with_args("physics=newton_mjwarp", "renderer=isaacsim_rtx", "visualizer=kit")
+    with launch_simulation(env_cfg):
+        pass

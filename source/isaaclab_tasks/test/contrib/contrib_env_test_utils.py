@@ -8,8 +8,8 @@
 The smoke tests are split by the runtime each environment needs, so a test process only starts what its
 environments use: ``kitless`` environments run without Isaac Sim, ``kit`` environments need Isaac Sim for
 PhysX but no renderer, and ``kit_cameras`` environments also need the RTX renderer, the expensive part of
-starting Isaac Sim. The runtime comes from :func:`isaaclab.app.sim_launcher.scan`, the same check
-``launch_simulation`` uses to decide whether to start Isaac Sim, so a new environment lands in the right file
+starting Isaac Sim. The runtime comes from the requirements ``launch_simulation`` checks to decide
+whether to start Isaac Sim, so a new environment lands in the right file
 without being listed anywhere.
 
 Contributed environments are intentionally sampled once per task package, robot directory, and runtime.
@@ -22,7 +22,8 @@ from typing import Literal
 import gymnasium as gym
 import pytest
 
-from isaaclab.app.sim_launcher import scan
+from isaaclab.app.sim_launcher import _iter_runtime_configs, _kit_runtime_sources
+from isaaclab.sensors import CameraCfg
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -54,10 +55,15 @@ def _skip_reason(task_name: str) -> str | None:
 
 def task_runtime(task_name: str) -> Runtime:
     """Return the runtime an environment's default configuration launches with."""
-    config_scan = scan(parse_env_cfg(task_name))
-    if not config_scan.needs_kit:
+    configs = tuple(_iter_runtime_configs(parse_env_cfg(task_name)))
+    if not _kit_runtime_sources(configs, {}):
         return "kitless"
-    return "kit_cameras" if config_scan.has_kit_camera else "kit"
+    for cfg in configs:
+        if isinstance(cfg, CameraCfg) and (
+            cfg.renderer_cfg is None or cfg.renderer_cfg.renderer_type in ("default", "isaac_rtx", "auto_rtx")
+        ):
+            return "kit_cameras"
+    return "kit"
 
 
 def _variant_family(task_name: str) -> tuple[str, str]:
