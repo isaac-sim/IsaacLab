@@ -107,13 +107,13 @@ Benchmarks
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-release-dates="2026-09-09"
-        data-benchmark-develop-dates="2026-08-23,2026-08-30,2026-09-06,2026-09-13,2026-09-20,2026-09-27,2026-10-04">
+        data-benchmark-release-dates="2026-09-09:EA 3.0,2026-10-12:GA 3.0"
+        data-benchmark-develop-dates="2026-08-23,2026-08-30,2026-09-06,2026-09-13,2026-09-20,2026-09-27,2026-10-04,2026-10-11">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark channel">
-           <button type="button" class="is-active" data-benchmark-channel="release" aria-pressed="true">Release</button>
-           <button type="button" data-benchmark-channel="develop" aria-pressed="false">Develop</button>
+           <button type="button" data-benchmark-channel="release" aria-pressed="false">Release</button>
+           <button type="button" class="is-active" data-benchmark-channel="develop" aria-pressed="true">Develop</button>
          </div>
          <div class="environment-benchmark-switch" role="group" aria-label="Benchmark workload">
            <button type="button" class="is-active" data-benchmark-workload="collection" aria-pressed="true">Collection</button>
