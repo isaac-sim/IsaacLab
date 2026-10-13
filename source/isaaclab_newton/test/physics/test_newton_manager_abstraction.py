@@ -25,7 +25,6 @@ import contextlib
 import logging
 from types import SimpleNamespace
 
-import isaaclab_newton.physics.mjwarp_manager as mjwarp_manager_module
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
@@ -199,29 +198,6 @@ def test_solver_kwargs_include_newton_deterministic_mode(monkeypatch: pytest.Mon
     kwargs = NewtonManager._filter_solver_kwargs(SolverXPBD, XPBDSolverCfg())
 
     assert kwargs["deterministic"] == wp.DeterministicMode.GPU_TO_GPU
-
-
-@pytest.mark.parametrize("block_dim", [None, 32, 128])
-def test_mjwarp_cholesky_launch_override(monkeypatch, block_dim):
-    """The optional launch override is applied before returning the constructed solver."""
-    original = object()
-    solver = SimpleNamespace(mjw_model=SimpleNamespace(block_dim=SimpleNamespace(cholesky_solve=original)))
-    monkeypatch.setattr(mjwarp_manager_module, "SolverMuJoCo", lambda model: solver)
-    cfg = MJWarpSolverCfg(cholesky_solve_block_dim=block_dim)
-
-    assert NewtonMJWarpManager._create_solver(None, cfg) is solver
-    assert solver.mjw_model.block_dim.cholesky_solve == (original if block_dim is None else block_dim)
-
-
-@pytest.mark.parametrize("block_dim, use_cpu", [(0, False), (48, False), (2048, False), (32.0, False), (32, True)])
-def test_mjwarp_cholesky_launch_override_rejects_invalid_config(block_dim, use_cpu):
-    """Invalid or CPU-only launch settings fail before solver construction, even after config mutation."""
-    cfg = MJWarpSolverCfg()
-    cfg.cholesky_solve_block_dim = block_dim
-    cfg.use_mujoco_cpu = use_cpu
-
-    with pytest.raises(ValueError, match="cholesky_solve_block_dim"):
-        NewtonMJWarpManager._create_solver(None, cfg)
 
 
 @pytest.mark.parametrize(
@@ -1598,7 +1574,7 @@ def _count_physics_steps(counter: wp.array(dtype=wp.int32)):
 
 @pytest.mark.parametrize(
     ("solver_cfg", "rtx_capture"),
-    [(MJWarpSolverCfg(use_mujoco_contacts=True, cholesky_solve_block_dim=32), True), (KaminoPADMMSolverCfg(), False)],
+    [(MJWarpSolverCfg(use_mujoco_contacts=True), True), (KaminoPADMMSolverCfg(), False)],
     ids=["mjwarp_rtx", "kamino_standard"],
 )
 def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cfg, rtx_capture):
@@ -1615,7 +1591,6 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         builder.joint_q[-7:] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
         sim.reset()
         if rtx_capture:
-            assert NewtonManager._solver.mjw_model.block_dim.cholesky_solve == 32
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
         NewtonManager.activate_newton_actuator_path()
