@@ -22,6 +22,7 @@ Covers:
 from __future__ import annotations
 
 import contextlib
+import gc
 import logging
 from types import SimpleNamespace
 
@@ -970,15 +971,92 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
     monkeypatch.setattr(newton_manager_module, "has_kit", lambda: False)
+    monkeypatch.setattr(newton_manager_module._GraphLifetimeAllocator, "begin_recording", lambda self: None)
     stream = SimpleNamespace(device="cuda:1")
     monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
     monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
+    monkeypatch.setattr(wp, "ScopedAllocator", lambda device, allocator: contextlib.nullcontext())
     monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
 
     graph = NewtonManager._capture_graph(lambda: None)
 
     assert captured_devices == ["cuda:1"]
     assert graph is captured_graph
+
+
+@wp.kernel
+def _fill_scratch(scratch: wp.array(dtype=wp.int32), value: wp.int32):
+    scratch[wp.tid()] = value
+
+
+@wp.kernel
+def _accumulate_and_count_down(
+    total: wp.array(dtype=wp.int32), source: wp.array(dtype=wp.int32), condition: wp.array(dtype=wp.int32)
+):
+    total[0] += source[0]
+    condition[0] -= 1
+
+
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+@pytest.mark.parametrize("relaxed", [False, True], ids=["standard", "relaxed"])
+def test_graph_capture_allocations_avoid_graph_memory(relaxed):
+    """Arrays allocated during capture use device memory held by the graph, not graph memory nodes."""
+    device = wp.get_device("cuda:0")
+    core = wp._src.context.runtime.core
+    output = wp.zeros(4, dtype=wp.int32, device=device)
+    total = wp.zeros(1, dtype=wp.int32, device=device)
+    condition = wp.zeros(1, dtype=wp.int32, device=device)
+    survivors = []
+
+    def loop_body():
+        # Each iteration reads a value written by the previous one; reusing a block freed in the body
+        # for a later body allocation would overwrite it, so body frees must be held.
+        source = wp.full(1, 2, dtype=wp.int32, device=device)
+        wp.launch(_accumulate_and_count_down, dim=1, inputs=[total, source, condition], device=device)
+        del source
+        wp.full(1, 100, dtype=wp.int32, device=device)
+
+    def capture_target():
+        scratch = wp.empty(4, dtype=wp.int32, device=device)
+        wp.launch(_fill_scratch, dim=4, inputs=[scratch, 7], device=device)
+        wp.copy(output, scratch)
+        scratch_ptr = scratch.ptr
+        del scratch
+        # A same-size allocation later in the recording reuses the freed block, as graph memory does.
+        survivors.append(wp.full(4, 3, dtype=wp.int32, device=device))
+        assert survivors[0].ptr == scratch_ptr
+        # A freed block that is not reused stays with the graph, which still reads it on replay.
+        unused = wp.empty(8, dtype=wp.int32, device=device)
+        wp.launch(_fill_scratch, dim=8, inputs=[unused, 1], device=device)
+        del unused
+        wp.capture_while(condition, loop_body)
+
+    # Collect graphs from earlier tests first: the graph-memory counter is process-wide.
+    gc.collect()
+    wp.synchronize_device(device)
+    core.wp_cuda_device_graph_mem_trim(device.ordinal)
+    baseline = core.wp_cuda_device_get_graph_mem_current(device.ordinal)
+    graph = NewtonQueries.capture_graph(str(device), capture_target, relaxed=relaxed)
+    output.zero_()
+    total.zero_()
+    condition.fill_(3)
+    wp.capture_launch(graph)
+    wp.synchronize_device(device)
+
+    np.testing.assert_array_equal(output.numpy(), [7, 7, 7, 7])
+    assert total.numpy()[0] == 6
+    assert core.wp_cuda_device_get_graph_mem_current(device.ordinal) == baseline
+    allocator = survivors[0]._allocator
+    assert sorted(size for _, size in allocator._held_blocks) == [4, 4, 32]
+
+    del graph
+    gc.collect()
+    assert allocator._held_blocks == []
+    np.testing.assert_array_equal(survivors[0].numpy(), [3, 3, 3, 3])
+    # After release, frees go straight to the device.
+    survivor_ptr = survivors.pop().ptr
+    gc.collect()
+    assert all(ptr != survivor_ptr for ptr, _ in allocator._held_blocks)
 
 
 # ---------------------------------------------------------------------------

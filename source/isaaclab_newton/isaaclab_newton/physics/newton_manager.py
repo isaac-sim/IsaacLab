@@ -12,6 +12,7 @@ import gc
 import inspect
 import logging
 import re
+import weakref
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from functools import partial
@@ -207,6 +208,81 @@ class NewtonBackend:
         self.bvh_refit = TimestampedBuffer()
 
 
+class _GraphLifetimeAllocator:
+    """Serve Python array allocations made during CUDA graph capture from ordinary device memory.
+
+    Captured memory-pool allocations become graph memory nodes. On Windows, the driver's first
+    graph-memory reservation can retry its placement for minutes when the renderer occupies the GPU
+    addresses it tries. Allocating outside the graph avoids that reservation; Warp's native scratch
+    allocations (scan, sort) still use graph memory. A block freed in the top-level recording is reused
+    by later same-size allocations in that recording, as graph memory is. Other freed blocks may still
+    be read by replays, so they are freed when the graph is released.
+    """
+
+    memory_kind = wp.MemoryKind.CUDA_DEVICE
+
+    def __init__(self, stream: wp.Stream):
+        self.device = stream.device
+        self.allocation_count = 0
+        self._stream = stream
+        self._recording_capture_id = None
+        self._reusable_blocks: dict[int, list[int]] = {}
+        self._held_blocks: list[tuple[int, int]] = []
+        self._graph_released = False
+
+    def begin_recording(self) -> None:
+        self._recording_capture_id = self._current_capture_id()
+
+    def allocate(self, size_in_bytes: int) -> int:
+        self.allocation_count += 1
+        reusable = self._reusable_blocks.get(size_in_bytes) if self._in_top_level_recording() else None
+        if reusable:
+            return reusable.pop()
+        # Warp's native sort uses the same capture-mode exchange for its capture-time allocations.
+        core = wp._src.context.runtime.core
+        previous_mode = core.wp_cuda_thread_exchange_capture_mode(int(wp.CaptureMode.RELAXED))
+        if previous_mode < 0:
+            raise RuntimeError(f"Failed to switch thread capture mode: {wp._src.context.runtime.get_error_string()}")
+        try:
+            return self.device.default_allocator.allocate(size_in_bytes)
+        finally:
+            core.wp_cuda_thread_exchange_capture_mode(previous_mode)
+
+    def deallocate(self, ptr: int, size_in_bytes: int) -> None:
+        if self._graph_released:
+            self.device.default_allocator.deallocate(ptr, size_in_bytes)
+        elif self._in_top_level_recording():
+            # Captured top-level work runs in recording order on this stream. Conditional bodies
+            # (capture_while/capture_if) repeat, so their frees are held instead.
+            self._reusable_blocks.setdefault(size_in_bytes, []).append(ptr)
+        else:
+            self._held_blocks.append((ptr, size_in_bytes))
+
+    def end_recording(self) -> None:
+        self._recording_capture_id = None
+        for size_in_bytes, ptrs in self._reusable_blocks.items():
+            self._held_blocks.extend((ptr, size_in_bytes) for ptr in ptrs)
+        self._reusable_blocks = {}
+
+    def release_graph(self) -> None:
+        """Free blocks the graph used; later frees go straight to the device."""
+        self.end_recording()
+        self._graph_released = True
+        blocks, self._held_blocks = self._held_blocks, []
+        try:
+            for ptr, size_in_bytes in blocks:
+                self.device.default_allocator.deallocate(ptr, size_in_bytes)
+        except (TypeError, AttributeError):
+            # Warp may already be torn down at interpreter shutdown.
+            pass
+
+    def _current_capture_id(self) -> int:
+        return wp._src.context.runtime.core.wp_cuda_stream_get_capture_id(self._stream.cuda_stream)
+
+    def _in_top_level_recording(self) -> bool:
+        return self._recording_capture_id is not None and self._current_capture_id() == self._recording_capture_id
+
+
 class NewtonQueries:
     """Stateless query and capture functions operating on an explicit Newton resource."""
 
@@ -253,16 +329,26 @@ class NewtonQueries:
 
     @staticmethod
     def capture_graph(device: str, capture_target: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
-        """Record work without an eager warmup or graph replay, using Warp's public capture API."""
+        """Record work without an eager warmup or graph replay."""
         stream = wp.get_stream(device)
         mode = wp.CaptureMode.THREAD_LOCAL
         if relaxed:
             # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
             stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
             mode = wp.CaptureMode.RELAXED
-        with NewtonQueries._paused_gc(), wp.ScopedStream(stream):
-            with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
-                capture_target()
+        allocator = _GraphLifetimeAllocator(stream)
+        try:
+            with NewtonQueries._paused_gc(), wp.ScopedStream(stream), wp.ScopedAllocator(stream.device, allocator):
+                with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
+                    allocator.begin_recording()
+                    capture_target()
+        except BaseException:
+            allocator.release_graph()
+            raise
+        allocator.end_recording()
+        if allocator.allocation_count:
+            # Process exit releases device memory; freeing after CUDA teardown would only report errors.
+            weakref.finalize(capture.graph, allocator.release_graph).atexit = False
         return capture.graph
 
     @staticmethod
