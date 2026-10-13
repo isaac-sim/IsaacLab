@@ -11,7 +11,7 @@ export class OrbitCamera {
     this.elevation = elevation;
     this.distance = distance;
     this.onPointerDown = (event) => {
-      if (event.shiftKey || this.enabled === false) return;
+      if (event.button !== 0 || this.drag) return;
       this.drag = { x: event.clientX, y: event.clientY, id: event.pointerId };
       canvas.setPointerCapture(event.pointerId);
     };
@@ -22,7 +22,7 @@ export class OrbitCamera {
       this.drag.x = event.clientX;
       this.drag.y = event.clientY;
     };
-    this.onPointerUp = () => { this.drag = null; };
+    this.onPointerUp = (event) => { if (event.pointerId === this.drag?.id) this.drag = null; };
     this.onWheel = (event) => {
       event.preventDefault();
       this.distance = Math.max(0.35, Math.min(6, this.distance * Math.exp(event.deltaY * 0.001)));

@@ -157,6 +157,9 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.observer = null;
     cancelAnimationFrame(this.frameId);
     this.frameId = 0;
+    this.releaseControls?.();
+    window.removeEventListener('blur', this.releaseControls);
+    this.releaseControls = null;
     this.plot?.dispose();
     this.plot = null;
     this.viewer?.dispose();
@@ -167,6 +170,10 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   async load(generation) {
+    this.releaseControls?.();
+    window.removeEventListener('blur', this.releaseControls);
+    this.releaseControls = null;
+    this.viewport = null;
     this.ready = false;
     this.failed = false;
     this.innerHTML = '<section class="browser-demo"><div class="browser-demo-head"><strong>Newton simulation</strong><span role="status">Loading…</span></div><canvas aria-label="Interactive Isaac Lab simulation"></canvas><div class="browser-demo-controls"></div></section>';
@@ -239,7 +246,6 @@ class IsaacLabBrowserDemo extends HTMLElement {
       this.tick = 0;
       this.elapsed = 0;
       this.setupControls();
-      if (this.demo.kind === 'microduck') this.setVelocityCommand([0.35, 0, 0]);
       this.running = true;
       this.previousTime = performance.now();
       this.status.textContent = 'Running in your browser';
@@ -408,37 +414,27 @@ class IsaacLabBrowserDemo extends HTMLElement {
       this.policyReadout.className = 'browser-demo-material-hint';
       panel.append(this.policyReadout);
     } else {
-      this.addVelocityControls(panel);
-      if (this.demo.pushMaxForce) {
-        const push = document.createElement('button');
-        push.textContent = 'Mouse push';
-        push.setAttribute('aria-pressed', 'false');
-        push.addEventListener('click', () => {
-          this.viewer.releasePush();
-          this.viewer.pushMode = !this.viewer.pushMode;
-          this.viewer.orbit.enabled = !this.viewer.pushMode;
-          push.setAttribute('aria-pressed', String(this.viewer.pushMode));
-        });
-        panel.append(push);
-        this.addSlider(panel, 'Push strength', 0.1, this.demo.pushMaxForce, 0.1, this.viewer.pushStrength,
-          (value) => { this.viewer.pushStrength = value; }, (value) => `${value.toFixed(1)} N`);
-        const hint = document.createElement('small');
-        hint.className = 'browser-demo-material-hint';
-        hint.textContent = 'Shift + drag the robot to push, or enable Mouse push. Release to let the policy recover.';
-        panel.append(hint);
-      }
+      this.addVelocityControls();
     }
     const buttons = document.createElement('div');
     buttons.className = 'browser-demo-buttons';
     const pause = document.createElement('button');
+    pause.className = 'browser-demo-pause';
     pause.textContent = 'Pause';
+    pause.setAttribute('aria-label', 'Pause simulation');
+    pause.title = 'Pause simulation';
     pause.addEventListener('click', () => {
       this.running = !this.running;
       pause.textContent = this.running ? 'Pause' : 'Play';
+      pause.title = `${pause.textContent} simulation`;
+      pause.setAttribute('aria-label', pause.title);
       if (!this.failed) this.status.textContent = this.running ? 'Running in your browser' : 'Paused';
     });
     const reset = document.createElement('button');
+    reset.className = 'browser-demo-reset';
     reset.textContent = this.demo.kind === 'mpm' ? 'Reset & drop' : 'Reset';
+    reset.title = 'Reset simulation';
+    reset.setAttribute('aria-label', reset.title);
     reset.addEventListener('click', () => {
       this.resetSimulation();
       if (this.demo.kind === 'mpm') {
@@ -447,7 +443,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
       }
     });
     buttons.append(pause, reset);
-    panel.append(buttons);
+    (this.viewport || panel).append(buttons);
   }
 
   setupJointPdControls(panel) {
@@ -560,20 +556,31 @@ class IsaacLabBrowserDemo extends HTMLElement {
     return slider;
   }
 
-  addVelocityControls(panel) {
+  addVelocityControls() {
+    this.classList.add('locomotion');
+    this.viewport = document.createElement('div');
+    this.viewport.className = 'browser-demo-viewport';
+    this.canvas.before(this.viewport);
+    this.viewport.append(this.canvas);
+    const hint = document.createElement('small');
+    hint.className = 'browser-demo-viewer-hint';
+    hint.textContent = this.demo.pushMaxForce
+      ? 'Drag robot to push · Drag scene to rotate'
+      : 'Drag scene to rotate · Scroll to zoom';
+    this.viewport.append(hint);
     const controls = document.createElement('div');
     controls.className = 'browser-demo-joysticks';
-    const linear = this.addStick(controls, 'Travel', 'Forward / back · left / right', true,
+    const linear = this.addStick(controls, 'Move', 'Forward / back · left / right', true,
       (x, y, readout) => {
         const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1' ? [y < 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
         this.command[0] = -y * scale[0];
         this.command[1] = -x * scale[1];
-        readout.value = `x ${this.command[0].toFixed(2)} · y ${this.command[1].toFixed(2)} m/s`;
+        readout.value = x || y ? `${Math.hypot(this.command[0], this.command[1]).toFixed(2)} m/s` : 'Hold to move';
       });
     const yaw = this.addStick(controls, 'Turn', 'Yaw left / right', false,
       (x, _y, readout) => {
         this.command[2] = -x * (this.demo.velocityScale?.[2] || 1);
-        readout.value = `${this.command[2].toFixed(2)} rad/s`;
+        readout.value = x ? `${Math.abs(this.command[2]).toFixed(2)} rad/s` : 'Hold to turn';
       });
     this.resetSticks = () => { linear.reset(); yaw.reset(); };
     this.setVelocityCommand = ([x, y, turn]) => {
@@ -581,18 +588,9 @@ class IsaacLabBrowserDemo extends HTMLElement {
       linear.move(-y / scale[1], -x / scale[0]);
       yaw.move(-turn / scale[2], 0);
     };
-    panel.append(controls);
-    if (this.demo.kind === 'microduck') {
-      const presets = document.createElement('div');
-      presets.className = 'browser-demo-buttons';
-      for (const [label, command] of [['Walk forward', [0.35, 0, 0]], ['Stand', [0, 0, 0]]]) {
-        const button = document.createElement('button');
-        button.textContent = label;
-        button.addEventListener('click', () => this.setVelocityCommand(command));
-        presets.append(button);
-      }
-      panel.append(presets);
-    }
+    this.viewport.append(controls);
+    this.releaseControls = () => this.resetSticks();
+    window.addEventListener('blur', this.releaseControls);
   }
 
   addStick(panel, label, hint, linear, apply) {
@@ -606,6 +604,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
     pad.className = `browser-demo-stick ${linear ? 'browser-demo-stick-linear' : 'browser-demo-stick-yaw'}`;
     pad.tabIndex = 0;
     pad.setAttribute('role', 'group');
+    pad.setAttribute('aria-roledescription', 'joystick');
+    pad.title = `${label}: ${hint}. Use arrow keys or drag; release to stop.`;
     pad.setAttribute('aria-label', `${label}: drag or use arrow keys; release to stop`);
     for (const [side, glyph] of linear
       ? [['top', '↑'], ['right', '→'], ['bottom', '↓'], ['left', '←']]
@@ -625,8 +625,10 @@ class IsaacLabBrowserDemo extends HTMLElement {
     let activePointer = null;
     const keys = new Set();
     const move = (x, y) => {
-      x = Math.max(-1, Math.min(1, x));
-      y = linear ? Math.max(-1, Math.min(1, y)) : 0;
+      if (!linear) y = 0;
+      const radius = Math.max(1, Math.hypot(x, y));
+      x /= radius;
+      y /= radius;
       knob.style.transform = `translate(${x * pad.clientWidth * 0.32}px, ${y * pad.clientWidth * 0.32}px)`;
       apply(x, y, readout);
     };
@@ -643,7 +645,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
         (event.clientY - box.top - box.height / 2) / travel);
     };
     pad.addEventListener('pointerdown', (event) => {
-      if (activePointer !== null) return;
+      if (activePointer !== null || event.button !== 0) return;
       event.preventDefault();
       activePointer = event.pointerId;
       pad.setPointerCapture(event.pointerId);

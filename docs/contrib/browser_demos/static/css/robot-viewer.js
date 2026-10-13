@@ -183,7 +183,6 @@ export class RobotViewer {
   }
 
   addMousePush() {
-    this.pushStrength = this.demo.pushMaxForce * 0.4;
     const raycaster = new THREE.Raycaster();
     const point = new THREE.Vector3();
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(this.demo.cameraHeight || 0.13));
@@ -201,9 +200,14 @@ export class RobotViewer {
       return raycaster.ray.intersectPlane(plane, point);
     };
     const down = (event) => {
-      if ((!event.shiftKey && !this.pushMode) || event.button !== 0 || active !== null || !project(event)) return;
+      if (active !== null) {
+        event.stopImmediatePropagation();
+        return;
+      }
+      if (event.button !== 0 || !project(event)) return;
       if (!raycaster.intersectObject(this.robot, true).length) return;
       event.preventDefault();
+      event.stopImmediatePropagation();
       active = { id: event.pointerId, start: point.clone() };
       this.canvas.setPointerCapture(event.pointerId);
       this.canvas.classList.add('browser-demo-pushing');
@@ -214,7 +218,7 @@ export class RobotViewer {
       direction.y = 0;
       const force = this.simulation.binding('force');
       const length = direction.length();
-      const magnitude = this.pushStrength * Math.min(1, length / 0.15);
+      const magnitude = length > 0.003 ? this.demo.pushMaxForce : 0;
       direction.normalize();
       force[0] = direction.x * magnitude;
       force[1] = -direction.z * magnitude;
@@ -222,20 +226,23 @@ export class RobotViewer {
       arrow.setLength(Math.max(0.03, Math.min(length, 0.3)), 0.035, 0.02);
       arrow.visible = magnitude > 0;
     };
-    const release = () => {
+    const release = (event) => {
+      if (event?.pointerId !== undefined && event.pointerId !== active?.id) return;
+      const id = active?.id;
       active = null;
+      if (id !== undefined && this.canvas.hasPointerCapture(id)) this.canvas.releasePointerCapture(id);
       this.simulation.binding('force').fill(0);
       arrow.visible = false;
       this.canvas.classList.remove('browser-demo-pushing');
     };
     this.releasePush = release;
-    this.canvas.addEventListener('pointerdown', down);
+    this.canvas.addEventListener('pointerdown', down, { capture: true });
     this.canvas.addEventListener('pointermove', move);
     for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) this.canvas.addEventListener(name, release);
     window.addEventListener('blur', release);
     this.disposePush = () => {
       release();
-      this.canvas.removeEventListener('pointerdown', down);
+      this.canvas.removeEventListener('pointerdown', down, { capture: true });
       this.canvas.removeEventListener('pointermove', move);
       for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) this.canvas.removeEventListener(name, release);
       window.removeEventListener('blur', release);

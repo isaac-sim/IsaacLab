@@ -52,21 +52,33 @@ isaaclab-browser-demo.compact .browser-demo canvas.browser-demo-tracking-canvas 
 .browser-demo-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; width: 100%; font-size: .78rem; color: #536b74; }
 .browser-demo-legend > span { display: inline-flex; align-items: center; gap: .4rem; }
 .browser-demo-legend i { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; }
-.browser-demo-joysticks { display: flex; flex-wrap: wrap; align-items: start; gap: 1.2rem; width: 100%; }
-.browser-demo-stick-section { display: grid; align-content: start; gap: .5rem; width: 192px; font-size: .84rem; }
-.browser-demo-stick-heading { display: grid; gap: .15rem; font-weight: 600; }
-.browser-demo-stick-heading output { font-variant-numeric: tabular-nums; font-weight: 400; color: #49616b; font-size: .76rem; }
-.browser-demo-stick-section small { color: #667b84; font-size: .72rem; }
-.browser-demo-stick { position: relative; box-sizing: border-box; width: 168px; height: 168px; border: 1px solid #cbd8de; border-radius: 50%; background: radial-gradient(circle at center, #dae6e9 0 2px, transparent 3px 15px, #dbe6e9 16px 17px, transparent 18px 53px, #dce7ea 54px 55px, transparent 56px), linear-gradient(90deg, transparent calc(50% - .5px), #dce7ea 50%, transparent calc(50% + .5px)), linear-gradient(transparent calc(50% - .5px), #dce7ea 50%, transparent calc(50% + .5px)), #f3f7f8; box-shadow: inset 0 2px 7px #172f390c, 0 2px 7px #172f390a; touch-action: none; cursor: pointer; user-select: none; }
-.browser-demo-stick-yaw { height: 70px; border-radius: 35px; background: linear-gradient(90deg, transparent calc(50% - .5px), #dce7ea 50%, transparent calc(50% + .5px)), #f3f7f8; }
-.browser-demo-stick-mark { position: absolute; color: #8299a2; font-size: 1rem; line-height: 1; pointer-events: none; }
-.browser-demo-stick-mark-top { top: 10px; left: 50%; transform: translateX(-50%); }
-.browser-demo-stick-mark-bottom { bottom: 10px; left: 50%; transform: translateX(-50%); }
-.browser-demo-stick-mark-left { left: 11px; top: 50%; transform: translateY(-50%); }
-.browser-demo-stick-mark-right { right: 11px; top: 50%; transform: translateY(-50%); }
-.browser-demo-stick-knob { position: absolute; box-sizing: border-box; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #a5d954, #76b900 72%); border: 3px solid #fff; box-shadow: 0 2px 8px #31500055, 0 0 0 1px #588d12; pointer-events: none; transition: transform .1s ease-out; }
-.browser-demo-stick.active .browser-demo-stick-knob { background: radial-gradient(circle at 36% 30%, #b8e66f, #81c511 72%); transition: none; }
+.browser-demo-controls:empty { display: none; }
+isaaclab-browser-demo.locomotion { min-height: 0; }
+.browser-demo-viewport { position: relative; isolation: isolate; }
+.browser-demo-joysticks { --stick-size: 132px; position: absolute; inset: auto 0 0; display: flex; justify-content: space-between; align-items: end; padding: 20px; pointer-events: none; }
+.browser-demo-stick-section { display: grid; justify-items: center; gap: 8px; width: var(--stick-size); font-size: .8rem; }
+.browser-demo-stick-heading { display: grid; justify-items: center; gap: 2px; order: 1; font-weight: 600; text-shadow: 0 1px 3px #fff; }
+.browser-demo-stick-heading output { font-variant-numeric: tabular-nums; font-weight: 400; color: #435960; font-size: .7rem; }
+.browser-demo-stick-section small { display: none; }
+.browser-demo-stick { position: relative; box-sizing: border-box; width: var(--stick-size); height: var(--stick-size); border: 1px solid #fff9; border-radius: 50%; background: radial-gradient(circle, transparent 51%, #263c4220 52% 53%, transparent 54%), linear-gradient(90deg, transparent calc(50% - .5px), #263c4215 50%, transparent calc(50% + .5px)), linear-gradient(transparent calc(50% - .5px), #263c4215 50%, transparent calc(50% + .5px)), #ffffff38; backdrop-filter: blur(5px); box-shadow: inset 0 1px 0 #fffa, 0 4px 18px #192e3614; touch-action: none; cursor: pointer; user-select: none; pointer-events: auto; }
+.browser-demo-stick-mark { position: absolute; color: #3c555e99; font-size: 1rem; line-height: 1; pointer-events: none; }
+.browser-demo-stick-mark-top { top: 9px; left: 50%; transform: translateX(-50%); }
+.browser-demo-stick-mark-bottom { bottom: 9px; left: 50%; transform: translateX(-50%); }
+.browser-demo-stick-mark-left { left: 10px; top: 50%; transform: translateY(-50%); }
+.browser-demo-stick-mark-right { right: 10px; top: 50%; transform: translateY(-50%); }
+.browser-demo-stick-knob { position: absolute; box-sizing: border-box; left: 50%; top: 50%; width: 40px; height: 40px; margin: -20px; border-radius: 50%; background: #ffffffd9; border: 1px solid #fff; box-shadow: 0 3px 12px #213b4326; pointer-events: none; transition: transform .1s ease-out; }
+.browser-demo-stick-knob::after { content: ''; position: absolute; inset: 14px; border-radius: 50%; background: #76b900; }
+.browser-demo-stick.active { border-color: #76b90099; background-color: #ffffff60; }
+.browser-demo-stick.active .browser-demo-stick-knob { box-shadow: 0 3px 14px #41631938; transition: none; }
 .browser-demo-stick:focus-visible { outline: 2px solid #76b900; outline-offset: 3px; }
+.browser-demo-viewer-hint { position: absolute; top: 16px; left: 16px; max-width: calc(100% - 120px); color: #40565e; font-size: .72rem; text-shadow: 0 1px 3px #fff; pointer-events: none; }
+.browser-demo-viewport .browser-demo-buttons { position: absolute; top: 12px; right: 12px; }
+.browser-demo-viewport .browser-demo-buttons button { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid #fff9; border-radius: 10px; background: #ffffff60; backdrop-filter: blur(5px); color: #263c42; font-size: 0; box-shadow: 0 2px 8px #192e3610; }
+.browser-demo-viewport .browser-demo-buttons button:hover { background: #ffffffbc; }
+.browser-demo-viewport .browser-demo-pause::before { content: ''; box-sizing: border-box; width: 12px; height: 14px; border-left: 4px solid currentColor; border-right: 4px solid currentColor; }
+.browser-demo-viewport .browser-demo-pause[aria-label="Play simulation"]::before { width: 14px; border: 0; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); }
+.browser-demo-viewport .browser-demo-reset::before { content: '↺'; font: 24px/1 system-ui, sans-serif; }
+@media (max-width: 600px) { .browser-demo-joysticks { --stick-size: 104px; padding: 12px; } .browser-demo-stick-knob { width: 34px; height: 34px; margin: -17px; } .browser-demo-stick-knob::after { inset: 11px; } .browser-demo-viewer-hint { top: 14px; left: 12px; font-size: .66rem; } }
 .browser-demo-buttons { display: flex; gap: .5rem; }
 .browser-demo button { cursor: pointer; padding: .42rem .9rem; border: 1px solid #b9c7cc; border-radius: 6px; background: #fff; color: inherit; font: inherit; font-size: .83rem; }
 .browser-demo-buttons button:hover { background: #eaf5dc; }

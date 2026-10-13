@@ -365,8 +365,9 @@ MicroDuck uses the native robot and BAM servo implementation from
 [Isaac Lab #8270](https://github.com/isaac-sim/IsaacLab/pull/8270), with Pollen Robotics'
 published v5 `velstand.onnx` actor. Physics and policy inference run on the browser's CPU.
 The shared viewer provides travel and yaw sticks, arrow-key control, play/pause, and reset.
-Walk forward and Stand buttons provide useful starting commands. Shift-drag the robot,
-or enable Mouse push, to apply a bounded horizontal force; releasing the pointer removes it.
+MicroDuck starts standing. Hold the transparent viewport joysticks to move or turn,
+then release to stop. Drag the robot to apply a fixed 2 N horizontal push;
+releasing the pointer removes it. Drag the background to orbit the camera.
 
 The courtyard uses inexpensive procedural scenery over the task's flat ground.
 Its paving and lawn share an edge without overlapping ground layers. The robot keeps
