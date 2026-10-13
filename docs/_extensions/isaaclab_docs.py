@@ -200,6 +200,7 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
    uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
+     --extra-index-url https://download.pytorch.org/whl/cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -221,6 +222,7 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
    uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --index https://pypi.nvidia.com \\
+     --index https://download.pytorch.org/whl/cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
