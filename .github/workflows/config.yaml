@@ -5,9 +5,9 @@
 
 # Shared image config for CI workflows. Loaded by the `config` job in each
 # workflow via yq and exposed as job outputs (see e.g. .github/workflows/build.yaml).
-# Use the published Isaac Sim 6.2 GA image.
-isaacsim_image_name: nvcr.io/nvidia/isaac-sim
+# Follow the Isaac Sim 6.3 release stream.
+isaacsim_image_name: nvcr.io/0947644777160149/internal/isaac-sim
 # Pin the multi-arch manifest list digest, not a per-architecture one: ARM CI pulls linux/arm64.
-isaacsim_image_tag: 6.2.0@sha256:a025b65a7442d56806a1cc3f5eed081caf736c24b72d62dccf68ef66945d8690
+isaacsim_image_tag: latest-release-6-3@sha256:1edfc7c434197e5e4b0750207c35b3074d5b09e344e8e98770f53eb4f40bbc34
 isaaclab_image_name: nvcr.io/0947644777160149/internal/isaac-lab
 ovphysx_wheelhouse_image: ""
