@@ -356,7 +356,9 @@ class RewardsCfg:
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
     angular_momentum = RewTerm(func=mdp.angular_momentum_l2, weight=-0.02)
     # Play hinges rest against their stops, so only servos incur the soft-limit penalty with backlash.
-    dof_pos_limits = _backlash_preset(RewTerm(func=mdp.joint_pos_limits, weight=-1.0), asset_cfg=_SERVO_JOINT_CFG)
+    dof_pos_limits = _backlash_preset(
+        RewTerm(func=mdp.joint_pos_limits_finite, weight=-1.0), asset_cfg=_SERVO_JOINT_CFG
+    )
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-0.1)
     air_time = RewTerm(
         func=mdp.feet_air_time_windowed,

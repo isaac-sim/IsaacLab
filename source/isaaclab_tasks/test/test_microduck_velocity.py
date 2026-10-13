@@ -54,7 +54,10 @@ def _make_env(task: str, device: str, num_envs: int, overrides: tuple[str, ...] 
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_microduck_deploy_interface_and_friction_reset(device):
-    """The deployed policy's 61/76 inputs and joint order hold, resets redraw BAM friction, and steps stay finite."""
+    """The deployed policy's 61/76 inputs and joint order hold, resets redraw BAM friction, and steps stay finite.
+
+    A diverged state terminates only its environment, whose final reward and reset observations stay finite.
+    """
     env = _make_env(TASK, device, num_envs=2)
     try:
         obs, _ = env.reset()
@@ -76,6 +79,13 @@ def test_microduck_deploy_interface_and_friction_reset(device):
                 obs, reward, *_ = env.step(torch.randn(2, 14, device=env.device) * 0.1)
                 assert all(torch.isfinite(value).all() for value in obs.values())
                 assert torch.isfinite(reward).all()
+            # A diverged state terminates, and its final reward stays finite although rewards precede resets.
+            nan = torch.full((1, 1), float("nan"), device=env.device)
+            robot.write_joint_velocity_to_sim_index(velocity=nan, joint_ids=[0], env_ids=[0])
+            obs, reward, *_ = env.step(torch.zeros(2, 14, device=env.device))
+            assert env.termination_manager.get_term("nan_state").tolist() == [True, False]
+            assert torch.isfinite(reward).all()
+            assert all(torch.isfinite(value).all() for value in obs.values())
     finally:
         env.close()
         SimulationContext.clear_instance()
