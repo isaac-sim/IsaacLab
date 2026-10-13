@@ -8,7 +8,7 @@
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import preset
@@ -17,6 +17,7 @@ from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES
 
 from ... import mdp
 from ...reorient_manager_env_cfg import ReorientFullStateObsCfg, ReorientRobotObsCfg
+from ...utils import CAMERA_VISUALIZER_CFG
 from .feature_extractor import FeatureExtractorCfg
 from .shadow_hand_direct_camera_env_cfg import (
     ShadowHandTiledCameraCfg,
@@ -115,8 +116,6 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        # the goal cube must sit inside the tiled camera's frustum
-        self.commands.object_pose.fixed_marker_pos = (-0.2, 0.1, 0.6)
         self.observations.policy.camera_features.params["feature_extractor_cfg"] = self.feature_extractor
 
     def validate_config(self):
@@ -127,6 +126,7 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
         super().play_mode()
         # the tiled camera needs more environments than the shared play default
         self.scene.num_envs = 64
+        self.sim.default_visualizer_cfg = clone(CAMERA_VISUALIZER_CFG)
         # mutate rather than replace: subclasses may have disabled the CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True
