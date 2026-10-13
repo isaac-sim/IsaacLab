@@ -783,8 +783,18 @@ def test_native_group_parameters_route_through_the_collection_door(env_ids):
 
     with pytest.raises(ValueError, match=r"No Newton actuator exposes parameter \('drive', 'kq'\)"):
         write_group_parameter(collection, "native", "drive", "kq", values=torch.zeros((2, 3)))
-    with pytest.raises(ValueError, match=r"Unknown actuator component 'controller'"):
-        read_group_parameter(collection, "native", "controller", "kp")
+    with pytest.raises(ValueError, match=r"Unknown actuator component 'gains'"):
+        read_group_parameter(collection, "native", "gains", "kp")
+
+    # The pre-Newton-1.6 "controller" component still resolves to the drive, with a warning at the caller.
+    with pytest.warns(DeprecationWarning, match="'controller' actuator component is deprecated") as record:
+        write_group_parameter(collection, "native", "controller", "kd", values=torch.full((2, 3), 0.8))
+    assert record[0].filename == __file__
+    torch.testing.assert_close(control.native_gains["kd"], torch.full((2, 3), 0.8))
+    with pytest.warns(DeprecationWarning, match="'controller' actuator component is deprecated") as record:
+        kd = read_group_parameter(collection, "native", "controller", "kd")
+    assert record[0].filename == __file__
+    torch.testing.assert_close(kd, control.native_gains["kd"])
 
     # A parameter the drives do not expose raises instead of falling back to stale values.
     unsupported_control = NativeGainFakeActuatorControl()

@@ -1174,7 +1174,8 @@ The backend articulation methods ``write_actuator_stiffness_to_sim`` and
 updates actuator-owned gains, implicit solver drives, or native drive parameters as
 appropriate. For direct writes to a Newton-executed group's drive, use
 :func:`~isaaclab.actuators.newton.write_group_parameter` with the ``"drive"`` component. It was renamed
-from ``"controller"`` to follow the Newton 1.6 drive API, and ``"controller"`` now raises ``ValueError``.
+from ``"controller"`` to follow the Newton 1.6 drive API. ``"controller"`` remains a deprecated alias that
+warns and will be removed in 3.2.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and
 its canonical replacement are present in the same group, use only the canonical name; equivalent

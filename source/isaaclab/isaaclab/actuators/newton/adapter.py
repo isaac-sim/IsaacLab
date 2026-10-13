@@ -17,6 +17,7 @@ to drive arrays.
 
 from __future__ import annotations
 
+import warnings
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -334,6 +335,7 @@ def read_group_parameter(collection: ActuatorCollection, name: str, component: s
         collection: The articulation's actuator collection.
         name: Actuator group name.
         component: Component kind: ``"drive"``, ``"delay"``, or ``"clamping"``.
+            ``"controller"`` is a deprecated alias for ``"drive"``.
         attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
 
     Returns:
@@ -374,6 +376,7 @@ def write_group_parameter(
         collection: The articulation's actuator collection.
         name: Actuator group name.
         component: Component kind: ``"drive"``, ``"delay"``, or ``"clamping"``.
+            ``"controller"`` is a deprecated alias for ``"drive"``.
         attr: Parameter name on that component (e.g. ``"kp"``, ``"max_effort"``).
         values: New values, shape ``(len(env_ids), len(joint_ids))``. Units
             follow the addressed parameter.
@@ -412,6 +415,15 @@ def _group_parameter_owners(
     collection: ActuatorCollection, name: str, component: str, attr: str
 ) -> list[tuple[Actuator, Any]]:
     """Resolve the component instances exposing ``attr`` for one native group."""
+    if component == "controller":
+        # stacklevel=3 points at the caller of read_group_parameter / write_group_parameter.
+        warnings.warn(
+            "The 'controller' actuator component is deprecated. Use 'drive' instead; "
+            "'controller' will be removed in 3.2.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        component = "drive"
     if name not in collection._groups:
         raise KeyError(name)
     if collection._newton_selection is None or name not in collection._native_group_names:
