@@ -60,11 +60,7 @@ class ShadowHandCameraEnv(ShadowHandDirectEnv):
 
         # train CNN to regress on keypoint positions
         camera_output = self._tiled_camera.data.output
-        pose_loss, embeddings = self.feature_extractor.step(
-            camera_output,
-            object_pose,
-            camera_frame=self._tiled_camera.frame.torch,
-        )
+        pose_loss, embeddings = self.feature_extractor.step(camera_output, object_pose)
 
         self.embeddings = embeddings.clone().detach()
         # compute keypoints for goal cube
