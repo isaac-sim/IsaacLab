@@ -107,7 +107,7 @@ Benchmarks
 .. raw:: html
 
    <div class="environment-browser" data-environment-benchmarks
-        data-benchmark-release-dates="2026-09-09,2026-10-12"
+        data-benchmark-release-dates="2026-09-09:EA 3.0,2026-10-12:GA 3.0"
         data-benchmark-develop-dates="2026-08-23,2026-08-30,2026-09-06,2026-09-13,2026-09-20,2026-09-27,2026-10-04,2026-10-11">
      <section class="environment-benchmark-panel">
        <div class="environment-benchmark-toolbar">

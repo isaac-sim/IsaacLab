@@ -54,5 +54,3 @@ Available Cable/Cloth camera runs use 128×128 with unspecified shading presets;
 they do not qualify for the fixed 64×64 comparison. Missing data is not backfilled.
 Resolved camera dimensions remain empty when metadata does not record them.
 Dirty-source and FPS variability above 25% are flagged in `quality_notes`.
-The GA label identifies this requested develop-run snapshot, not a verified clean
-release-tag reproduction.
