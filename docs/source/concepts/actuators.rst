@@ -270,7 +270,7 @@ every physics step:
 
 * the position command is delayed by a randomly resampled lag;
 * the supply sags with the summed torque of the drive's joints in that environment,
-  ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min)``;
+  ``vin_eff = max(vin - sag_gain * sum_j |tau_j|, vin_min, 0)``;
 * the firmware law ``duty = (q_des - q) * kp_fw * error_gain`` is clipped by the current limiter
   and the PWM range;
 * the DC motor gives ``tau = kt * vin_eff * duty / R - kt^2 * dq / R``, so damping is back-EMF;
@@ -305,6 +305,7 @@ every physics step:
                 vin=7.4,                           # nominal voltage [V]
                 vin_range=(7.0, 8.0),              # per-robot battery voltage [V]
                 vin_drop_gain_range=(0.0, 3.0),    # per-robot supply sag [V/(N*m)]
+                vin_min=6.0,                       # supply floor under sag [V]
                 max_delay=2,                       # command lag [physics steps]
             ),
         },

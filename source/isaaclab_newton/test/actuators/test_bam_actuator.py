@@ -396,6 +396,21 @@ def test_shared_supply_sags_with_the_group_load(goldens, servo_usd, device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("vin_min", [-np.inf, 0.0])
+def test_exhausted_supply_leaves_only_back_emf(servo_usd, device, vin_min):
+    """A supply sagged to or below zero applies no voltage, so only the back-EMF brake remains."""
+    # -inf is what authoring writes for vin_min=None.
+    bam = make_actuator(servo_usd, num_envs=1, device=device, sag_gain=100.0, vin_min=vin_min)
+    pos, vel, target = np.array([[0.3, -0.3]]), np.array([[2.0, -2.0]]), np.zeros((1, 2))
+    step(bam, pos, vel, target)  # this step's torque collapses the next step's supply
+    step(bam, pos, vel, target)
+
+    np.testing.assert_array_equal(bam.drive.effective_vin.numpy(), 0.0)
+    kt, resistance = bam.drive.kt.numpy(), bam.drive.resistance.numpy()
+    np.testing.assert_allclose(bam.drive.motor_torque.numpy(), -(kt**2) * vel.ravel() / resistance, rtol=1e-6)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
     """Replay mjlab's recorded 3--6-step lags through warm-up, ring wrap, and a partial reset.
 

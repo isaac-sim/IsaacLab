@@ -115,11 +115,12 @@ class BamActuatorCfg(ActuatorBaseCfg):
     vin_drop_gain_range: tuple[float, float] | None = None
     """Range of the per-environment supply sag gain [V/(N.m)], sampled once and held across resets.
 
-    The sagged supply is ``vin - gain * sum_j |tau_j|``. None disables sag.
+    The sagged supply is ``vin - gain * sum_j |tau_j|``, floored at :attr:`vin_min` and 0 V. None
+    disables sag.
     """
 
     vin_min: float | None = None
-    """Lower bound on the sagged supply voltage [V]. None for no bound."""
+    """Lower bound on the sagged supply voltage [V]. None keeps only the 0 V floor."""
 
     min_delay: int = 0
     """Minimum command delay [physics steps]."""

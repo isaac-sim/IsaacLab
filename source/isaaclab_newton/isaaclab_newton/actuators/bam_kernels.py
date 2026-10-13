@@ -105,7 +105,8 @@ def bam_motor_kernel(
     for offset in range(env_dof_stride):
         load += wp.abs(prev_motor_torque[base + offset])
     vin_eff = vin[i] - sag_gain[i] * load
-    vin_eff = wp.max(vin_eff, vin_min)
+    # The supply cannot go negative; at 0 V the bridge applies no voltage and only back-EMF brakes.
+    vin_eff = wp.max(wp.max(vin_eff, vin_min), 0.0)
     effective_vin[i] = vin_eff
 
     # kd_scale scales the electrical damping only: the velocity enters the firmware law
@@ -117,7 +118,8 @@ def bam_motor_kernel(
         measured += positions[backlash_pos_indices[i]]
 
     duty = (delayed_target[i] - measured) * (kp_fw[i] * kp_scale[i]) * error_gain[i]
-    if max_current[i] > 0.0:
+    # At 0 V the duty window divides by zero; the bridge outputs 0 V whatever the duty.
+    if max_current[i] > 0.0 and vin_eff > 0.0:
         duty_center = kt[i] * scaled_vel / vin_eff
         duty_span = resistance[i] * max_current[i] / vin_eff
         duty = wp.clamp(duty, duty_center - duty_span, duty_center + duty_span)

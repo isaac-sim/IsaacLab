@@ -260,7 +260,8 @@ class DriveBam(DriveBase):
             stribeck: Whether the Stribeck friction terms are active.
             load_dependent: Whether gearbox friction grows with the transmitted torque.
             quadratic: Whether the quadratic load-coupling term is active.
-            vin_min: Lower bound on the sagged supply voltage [V].
+            vin_min: Lower bound on the sagged supply voltage [V]. The default ``-inf`` keeps only
+                the 0 V floor.
             min_delay: Minimum command delay [physics steps].
             max_delay: Maximum command delay [physics steps]. ``0`` disables the delay.
             delay_hold_prob: Probability of keeping the current lag instead of resampling it.
