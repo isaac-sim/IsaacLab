@@ -118,13 +118,14 @@ def process_video_and_demo(f_in, f_out, video_path, orig_demo_id, new_demo_id):
         raise ValueError(f"No frames could be read from {video_path}.")
 
     # Robomimic slices every observation of a demo using the demo length (``num_samples``), so all keys must share
-    # one length. If the video has fewer frames than the demo, truncate the whole demo to the video length instead
-    # of padding; shorter slices otherwise fail batching with "Trying to resize storage that is not resizable".
-    num_frames = min(len(frames), actions.shape[0])
-    if num_frames != len(frames) or num_frames != actions.shape[0]:
+    # one length. Truncate both the video and the demo to the shorter of the two instead of padding; mismatched
+    # slices otherwise fail batching with "Trying to resize storage that is not resizable".
+    demo_length = actions.shape[0]
+    num_frames = min(len(frames), demo_length)
+    if len(frames) != demo_length:
         warnings.warn(
-            f"{video_path} has {len(frames)} frames but the demo has {actions.shape[0]}. "
-            f"Using the first {num_frames} frames of the demo.",
+            f"{video_path} has {len(frames)} frames but the demo has {demo_length} steps. "
+            f"Using the first {num_frames} steps of both.",
             stacklevel=2,
         )
     frames = frames[:num_frames]
@@ -141,7 +142,7 @@ def process_video_and_demo(f_in, f_out, video_path, orig_demo_id, new_demo_id):
     )
     f_out.create_dataset(f"data/demo_{str(new_demo_id)}/obs/wrist_cam", data=wrist_cam[:num_frames], compression="gzip")
 
-    # Copy attributes
+    # Set the number of samples to the (possibly truncated) demo length
     f_out[f"data/demo_{str(new_demo_id)}"].attrs["num_samples"] = num_frames
 
 
