@@ -44,10 +44,6 @@ def _acquire_settings_applier() -> Callable[[str], bool] | None:
     Only loads the ovrtx library. ``ovrtx_initialize`` and its configuration are left
     to the first renderer, and settings applied before it still take effect.
     """
-    # Deliberately local, not moved to the top with `ctypes`: this is the only place
-    # the ovrtx runtime is touched, so an import here is what lets the rest of this
-    # module - and the tests that exercise it - import without the ovrtx runtime
-    # installed (see the module docstring).
     from ovrtx._src import bindings as ovrtx_bindings
 
     class _ApplySettingsVTable(ctypes.Structure):
@@ -81,27 +77,6 @@ def _acquire_settings_applier() -> Callable[[str], bool] | None:
     return apply_setting
 
 
-def apply_shader_cache_settings(apply_setting: Callable[[str], bool], cache_path: str) -> None:
-    """Point every driver shader-cache setting at ``cache_path``.
-
-    Args:
-        apply_setting: Applies one setting string, returning whether it took effect.
-        cache_path: Directory the driver should write its compiled shaders to.
-
-    Raises:
-        RuntimeError: A setting was rejected, so the cache would silently stay at
-            its default path despite having been explicitly redirected.
-    """
-    for setting in SHADER_CACHE_SETTINGS:
-        if not apply_setting(f"--{setting}={cache_path}"):
-            raise RuntimeError(
-                f"{SHADER_CACHE_PATH_ENV} requested {cache_path!r}, but the ovrtx settings"
-                f" extension rejected {setting!r}."
-            )
-    # Only once every setting took effect - a partial redirect still compiles cold.
-    logger.info("OVRTX driver shader cache redirected to %r.", cache_path)
-
-
 def redirect_shader_cache() -> None:
     """Redirect the driver shader cache to :data:`SHADER_CACHE_PATH_ENV` when set.
 
@@ -112,13 +87,8 @@ def redirect_shader_cache() -> None:
     configuration.
 
     Raises:
-        RuntimeError: The variable is set but the redirect could not be applied, either
-            because a setting was rejected or because this runtime has no settings
-            extension. A silent fallback to the default cache path would report the
-            same cache-restore hit CI already logged before this call ran, even
-            though this run recompiles from scratch at a path that is never mounted
-            or published - so an unusable redirect is surfaced the same way a
-            rejected setting is, not degraded to a warning.
+        RuntimeError: The variable is set but the runtime has no settings extension or
+            rejected a setting; silently compiling at the default path would hide it.
     """
     cache_path = os.environ.get(SHADER_CACHE_PATH_ENV)
     if not cache_path:
@@ -131,4 +101,11 @@ def redirect_shader_cache() -> None:
             " settings extension, so the driver shader cache cannot be redirected."
         )
 
-    apply_shader_cache_settings(apply_setting, cache_path)
+    for setting in SHADER_CACHE_SETTINGS:
+        if not apply_setting(f"--{setting}={cache_path}"):
+            raise RuntimeError(
+                f"{SHADER_CACHE_PATH_ENV} requested {cache_path!r}, but the ovrtx settings"
+                f" extension rejected {setting!r}."
+            )
+    # Only once every setting took effect - a partial redirect still compiles cold.
+    logger.info("OVRTX driver shader cache redirected to %r.", cache_path)

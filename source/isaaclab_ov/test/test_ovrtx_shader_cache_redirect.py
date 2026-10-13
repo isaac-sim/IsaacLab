@@ -15,11 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 from isaaclab_ov.renderers import ovrtx_shader_cache
-from isaaclab_ov.renderers.ovrtx_shader_cache import (
-    SHADER_CACHE_PATH_ENV,
-    apply_shader_cache_settings,
-    redirect_shader_cache,
-)
+from isaaclab_ov.renderers.ovrtx_shader_cache import SHADER_CACHE_PATH_ENV, redirect_shader_cache
 
 _CACHE_PATH = "/tmp/isaaclab-ovrtx-kitless-cache"
 
@@ -37,13 +33,14 @@ class _RecordingApplier:
 
 
 @pytest.mark.parametrize("rejected", ["driverShaderCachePath", "driverAppShaderCachePath"])
-def test_apply_settings_raises_when_a_setting_is_rejected(rejected, caplog):
+def test_redirect_raises_when_a_setting_is_rejected(rejected, monkeypatch, caplog):
     """A rejected setting must fail loudly, and must not be reported as a working redirect."""
-    applier = _RecordingApplier(reject=rejected)
+    monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
+    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda: _RecordingApplier(reject=rejected))
 
     with caplog.at_level("INFO", logger=ovrtx_shader_cache.__name__):
         with pytest.raises(RuntimeError, match=rejected):
-            apply_shader_cache_settings(applier, _CACHE_PATH)
+            redirect_shader_cache()
 
     assert "redirected" not in caplog.text
 
