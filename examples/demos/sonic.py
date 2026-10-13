@@ -212,20 +212,40 @@ class SonicPolicy:
 
 
 def _prepare_view(env: G1TerrainEnv, visualizer: KitVisualizer) -> None:
-    """Set the fixed RTX camera and hide robot collision shapes."""
+    """Set the RTX camera and the unbranded, matte robot appearance."""
     import omni.kit.app  # noqa: PLC0415
-    from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade  # noqa: PLC0415
 
     from isaaclab.sim import get_current_stage  # noqa: PLC0415
+
+    from isaaclab_tasks.contrib.g1_terrain.terrain import visual_material  # noqa: PLC0415
 
     omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
     import omni.replicator.core as rep  # noqa: PLC0415
 
     rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
     stage = get_current_stage()
+    light = visual_material(stage, "/World/SonicLooks/light", (0.7, 0.7, 0.7), roughness=0.5)
+    dark = visual_material(stage, "/World/SonicLooks/dark", (0.2, 0.2, 0.2), roughness=0.5)
+    dark_parts = {
+        "head_link",
+        "pelvis",
+        "left_hip_pitch_link",
+        "right_hip_pitch_link",
+        "left_ankle_roll_link",
+        "right_ankle_roll_link",
+    }
     for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/envs/env_0/Robot")):
         if prim.HasAPI(UsdPhysics.CollisionAPI) or prim.GetName().startswith("imu_in_"):
             UsdGeom.Imageable(prim).MakeInvisible()
+        if prim.GetName() == "visuals":
+            prim.SetInstanceable(False)
+            for part in prim.GetChildren():
+                if part.GetName() == "logo_link":
+                    UsdGeom.Imageable(part).MakeInvisible()
+                else:
+                    material = dark if part.GetName() in dark_parts else light
+                    UsdShade.MaterialBindingAPI.Apply(part).Bind(material, UsdShade.Tokens.strongerThanDescendants)
     # Kit's viewport camera opinions in the session layer override the scene layer.
     with Usd.EditContext(stage, stage.GetSessionLayer()):
         camera_path = "/OmniverseKit_Persp"
