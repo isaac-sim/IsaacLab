@@ -37,8 +37,9 @@ HOLD_TIME = 0.55
 TILT_TIME = 4.0
 LIFT_TIME = 24.0
 LIFT_HEIGHT = 0.70
+HIGH_POUR_HOLD_TIME = 8.0
 RECOVERY_TIME = 5.0
-SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + LIFT_TIME + RECOVERY_TIME + 0.45
+SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + LIFT_TIME + HIGH_POUR_HOLD_TIME + RECOVERY_TIME + 0.45
 _POUR_ANGLE = math.radians(20.0)
 _UPPER_ANGLE = math.radians(49.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
@@ -69,7 +70,7 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
     time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
     tilt, tilt_derivative = _blend(time / TILT_TIME)
     lift, lift_derivative = _blend((time - TILT_TIME) / LIFT_TIME)
-    recovery_raw = (time - TILT_TIME - LIFT_TIME) / RECOVERY_TIME
+    recovery_raw = (time - TILT_TIME - LIFT_TIME - HIGH_POUR_HOLD_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
     # Increase tilt gradually so the fuller open pot drains through the spout before its rim lowers.
     angle = _POUR_ANGLE * tilt + (_UPPER_ANGLE - _POUR_ANGLE) * lift - _UPPER_ANGLE * recovery

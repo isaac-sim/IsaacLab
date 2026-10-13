@@ -482,8 +482,6 @@ class _TeapotColliderSyncSolver(SolverCoupled):
         )
         self._notify_input_state_update(fluid, StateFlags.BODY_Q | StateFlags.BODY_QD, dt=dt)
         self._step_entry(fluid, control, contacts, dt)
-        # Preserve the original demo's collision correction for the thin fluid shell.
-        fluid.solver.project_outside(fluid.state_0, fluid.state_0, dt)
 
 
 class NewtonTeapotCouplerManager(NewtonCouplerManager):
