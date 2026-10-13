@@ -30,40 +30,16 @@ from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import preset
 
-from isaaclab_assets import MICRODUCK_BACKLASH_CFG, MICRODUCK_CFG
+from isaaclab_assets.robots.microduck import (
+    MICRODUCK_BACKLASH_CFG,
+    MICRODUCK_CFG,
+    MICRODUCK_HEAD_JOINT_NAMES,
+    MICRODUCK_JOINT_NAMES,
+    MICRODUCK_LEG_JOINT_NAMES,
+)
 
 from . import mdp
 
-# Pin the deployed policy order; USD articulation order differs.
-MICRODUCK_JOINT_NAMES = [
-    "left_hip_yaw",
-    "left_hip_roll",
-    "left_hip_pitch",
-    "left_knee",
-    "left_ankle",
-    "neck_pitch",
-    "head_pitch",
-    "head_yaw",
-    "head_roll",
-    "right_hip_yaw",
-    "right_hip_roll",
-    "right_hip_pitch",
-    "right_knee",
-    "right_ankle",
-]
-MICRODUCK_LEG_JOINT_NAMES = [
-    "left_hip_yaw",
-    "left_hip_roll",
-    "left_hip_pitch",
-    "left_knee",
-    "left_ankle",
-    "right_hip_yaw",
-    "right_hip_roll",
-    "right_hip_pitch",
-    "right_knee",
-    "right_ankle",
-]
-MICRODUCK_HEAD_JOINT_NAMES = ["neck_pitch", "head_pitch", "head_yaw", "head_roll"]
 MICRODUCK_FOOT_BODY_NAMES = ["ankle_left", "ankle_right"]
 MICRODUCK_TRUNK_BODY_NAME = "trunk_base"
 MICRODUCK_HEAD_BODY_NAMES = ["neck", "neck_pitch(_[0-9]+)?", "yaw_roll_motion", "jaw_soft"]

@@ -45,6 +45,33 @@ _XL330_MOTOR_CFG = BamMotorCfg(
 )
 """XL330 m6 fit from Rhoban BAM revision ``62bd8ce12154340be97e06f7f41a0ca8f116d967``."""
 
+MICRODUCK_JOINT_NAMES: list[str] = [
+    "left_hip_yaw",
+    "left_hip_roll",
+    "left_hip_pitch",
+    "left_knee",
+    "left_ankle",
+    "neck_pitch",
+    "head_pitch",
+    "head_yaw",
+    "head_roll",
+    "right_hip_yaw",
+    "right_hip_roll",
+    "right_hip_pitch",
+    "right_knee",
+    "right_ankle",
+]
+"""The 14 servos in the robot's servo order: left leg, neck and head, right leg (the mouth servo is not modeled).
+
+Every MicroDuck USD lists the right leg first, so select these with ``preserve_order=True`` where order matters.
+"""
+
+MICRODUCK_HEAD_JOINT_NAMES: list[str] = ["neck_pitch", "head_pitch", "head_yaw", "head_roll"]
+"""The 4 neck and head servos, in servo order."""
+
+MICRODUCK_LEG_JOINT_NAMES: list[str] = [n for n in MICRODUCK_JOINT_NAMES if n not in MICRODUCK_HEAD_JOINT_NAMES]
+"""The 10 leg servos, in servo order (left leg first)."""
+
 MICRODUCK_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_walk.usd",

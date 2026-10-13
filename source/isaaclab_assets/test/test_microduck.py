@@ -24,6 +24,7 @@ from isaaclab_assets import (
     MICRODUCK_ROLLERS_BACKLASH_CFG,
     MICRODUCK_ROLLERS_CFG,
 )
+from isaaclab_assets.robots.microduck import MICRODUCK_JOINT_NAMES
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
@@ -81,6 +82,7 @@ def test_microduck_native_bam(asset_cfg, num_joints, device):
         assert robot.num_joints == num_joints
         servo_ids, _ = robot.find_joints("^(?!passive_).*")
         assert len(servo_ids) == 14
+        assert robot.find_joints(MICRODUCK_JOINT_NAMES, preserve_order=True)[1] == MICRODUCK_JOINT_NAMES
         assert (robot.data.joint_armature.torch[:, servo_ids] > 0.0).all()
         assert (robot.data.joint_friction_coeff.torch[:, servo_ids] > 0.0).all()
 

@@ -22,9 +22,10 @@ from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.contrib.microduck.flat_env_cfg import MICRODUCK_JOINT_NAMES
 from isaaclab_tasks.contrib.microduck.mdp.observations import foot_height_safe
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+from isaaclab_assets.robots.microduck import MICRODUCK_JOINT_NAMES
 
 TASK = "IsaacContrib-Velocity-Flat-MicroDuck"
 ROUGH_TASK = "IsaacContrib-Velocity-Rough-MicroDuck"
