@@ -40,9 +40,10 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
+from isaaclab_physx.assets.articulation.articulation import _reorder_prims_like_ovphysx
 from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_state_data_kernel
 
-from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
+from pxr import Gf, PhysxSchema, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -410,6 +411,25 @@ def articulation_scene(request) -> Iterator[_ArticulationScene]:
             cold_inertial_reads=cold_reads,
             **islands,
         )
+
+
+def test_physx_reorder_sorts_links_that_hold_their_joints():
+    """Requesting ``"physx"`` sorts link prims by the joints they hold, as in the Shadow Hand, fixed joints first."""
+    stage = Usd.Stage.CreateInMemory()
+    robot = stage.DefinePrim("/Robot", "Xform")
+    for link, schema in (
+        ("tip", UsdPhysics.RevoluteJoint),
+        ("mount", UsdPhysics.FixedJoint),
+        ("arm", UsdPhysics.RevoluteJoint),
+    ):
+        stage.DefinePrim(f"/Robot/base/{link}", "Xform")
+        joint = schema.Define(stage, f"/Robot/base/{link}/{link}_joint")
+        joint.CreateBody0Rel().SetTargets(["/Robot/base"])
+        joint.CreateBody1Rel().SetTargets([f"/Robot/base/{link}"])
+
+    _reorder_prims_like_ovphysx([robot])
+
+    assert [child.GetName() for child in stage.GetPrimAtPath("/Robot/base").GetChildren()] == ["mount", "arm", "tip"]
 
 
 def test_articulation_initialization_and_ordering(articulation_scene: _ArticulationScene) -> None:

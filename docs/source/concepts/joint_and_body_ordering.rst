@@ -45,11 +45,11 @@ Set ``joint_ordering`` and ``body_ordering`` on
 
 * ``None`` -- backend-native order and the zero-conversion default (see below).
 * ``"physx"`` -- OVPhysX articulation-view order. Requesting it on Isaac Sim PhysX
-  reorders the articulation's sibling joint prims at spawn, so the native order
-  matches without an ordering map. PhysX then also solves the articulation in that
-  order, so trajectories differ from runs with the authored order. Joints the
-  reorder cannot reach, such as sibling joints under different parent prims, are
-  mapped.
+  reorders the articulation's joint prims, and link prims that hold their own
+  joints, at spawn, so the native order matches without an ordering map. PhysX
+  then also solves the articulation in that order, so trajectories differ from
+  runs with the authored order. Joints inside instanced prims keep the authored
+  order.
 * ``"mjwarp"`` -- Newton or MJWarp articulation-view order.
 * ``"robot_schema"`` -- the order authored on the asset's
   ``isaac:physics:robotJoints`` (joints) or ``isaac:physics:robotLinks``
