@@ -24,8 +24,8 @@ is task-specific.
      - Typical command
    * - Newton Warp
      - You need the lowest VRAM use and high camera throughput for Newton training.
-     - Lightweight rasterization; it has a smaller output set and does not provide motion vectors
-       or full RTX material transport.
+     - Lightweight ray tracing with direct lighting; it has a smaller output set and does not provide
+       motion vectors or full RTX material transport.
      - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb``
    * - OVRTX
      - You need scalable kit-less RTX rendering and higher visual fidelity.
@@ -34,7 +34,7 @@ is task-specific.
      - ``physics=newton_mjwarp renderer=ovrtx presets=rgb``
    * - Isaac RTX (legacy)
      - A workflow must run through Isaac Sim/Kit or needs its broad RTX and Replicator output set.
-     - Requires Isaac Sim and PhysX; do not use it as the default performance path for new work.
+     - Requires Isaac Sim; do not use it as the default performance path for new work.
      - ``physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb``
 
 For example, start a camera task with the low-VRAM Newton renderer:
@@ -57,6 +57,7 @@ The :ref:`renderer details <renderer-details>` and the
 :ref:`camera renderer support matrix <camera-supported-annotators>` are the authoritative references
 for output availability and runtime requirements. Do not compare the renderer choices through a
 camera-count heuristic: measure the complete task and observation configuration you intend to train.
+See :ref:`renderer-performance` for a measured comparison on one task.
 
 Customize Newton Warp
 ---------------------
@@ -73,6 +74,25 @@ For a task with a camera renderer configuration, enable directional-light shadow
       --task Isaac-Cartpole-Camera \
       physics=newton_mjwarp renderer=newton_renderer presets=rgb \
       env.scene.tiled_camera.renderer_cfg.enable_shadows=true
+
+.. grid:: 1 2 2 2
+   :gutter: 2
+
+   .. grid-item::
+
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-disabled.png
+         :width: 100%
+         :alt: Newton Warp RGB output with directional-light shadows disabled.
+
+         Without shadows (default)
+
+   .. grid-item::
+
+      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-enabled.png
+         :width: 100%
+         :alt: Newton Warp RGB output with directional-light shadows enabled.
+
+         With shadows
 
 When defining a camera in Python, configure the renderer directly:
 
@@ -92,9 +112,10 @@ implementation-level throughput controls, not visual-quality settings.
 Customize OVRTX
 ---------------
 
-OVRTX provides RTX Minimal and photo-real paths without Isaac Sim. Use the regular ``rgb`` output
-when material appearance, reflections, transparency, or the broader RTX output set matter. For
-training that only needs simplified color, select a ``simple_shading_*`` preset instead:
+OVRTX provides the RTPT and RTX Minimal :ref:`render modes <renderer-render-modes>` without Isaac
+Sim. Use the regular ``rgb`` output when material appearance, reflections, transparency, or the
+broader RTX output set matter. For training that only needs simplified color, select a
+``simple_shading_*`` preset instead:
 
 .. code-block:: bash
 
@@ -116,8 +137,8 @@ OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`
 Customize Isaac RTX
 -------------------
 
-Isaac RTX remains available for Isaac Sim and PhysX workflows. The settings below are specific to
-that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
+Isaac RTX remains available for workflows that run inside Isaac Sim. The settings below are specific
+to that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
 
 .. note::
 
