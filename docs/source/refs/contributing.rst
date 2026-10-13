@@ -148,6 +148,18 @@ together in ``.github/actions/_lib/stage-browser-demos.sh``. Run the staging ste
 
    bash .github/actions/_lib/stage-browser-demos.sh
 
+The staging step also resolves demo links relative to each documentation version. To preview the
+complete site locally, serve ``docs/_build`` over HTTP:
+
+.. code-block:: bash
+
+   uv run --no-project python -m http.server 8000 --directory docs/_build
+
+Open ``http://localhost:8000/current/index.html`` for the docs or
+``http://localhost:8000/demos/v1/`` for the demos. Downloaded ``docs-html`` artifacts include
+``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
+The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building

@@ -19,3 +19,29 @@ printf '%s  %s\n' "$archive_sha256" "$archive" | sha256sum --check
 
 mkdir -p docs/_build/demos
 tar --extract --gzip --file "$archive" --directory docs/_build/demos --no-same-owner
+
+# Resolve links per version so local artifacts and nested release branches use the same files.
+uv run --no-sync python - <<'PY'
+import os
+from pathlib import Path
+
+build = Path("docs/_build")
+for page in build.glob("**/source/setup/interactive_demos.html"):
+    relative = Path(os.path.relpath(build / "demos", page.parent)).as_posix()
+    content = page.read_text()
+    page.write_text(content.replace('href="../../../demos/', f'href="{relative}/'))
+PY
+
+if [[ -d docs/_build/current ]]; then
+  cat > docs/_build/PREVIEW.txt <<'TXT'
+Extract the complete docs-html artifact, then run this command in its root directory:
+
+    python -m http.server 8000
+
+Documentation: http://localhost:8000/current/index.html
+Interactive demos: http://localhost:8000/demos/v1/
+
+Use HTTP to preview the demos; opening the HTML files directly does not allow
+the browser to load their WebAssembly modules and data through fetch().
+TXT
+fi
