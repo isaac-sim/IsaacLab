@@ -40,9 +40,6 @@ WIDTH = 256
 # number of sim steps before capturing a stabilised reference frame
 STABILISATION_STEPS = 5
 
-# far camera clipping distance [m]
-DEPTH_FAR = 10.0
-
 # cube reset pose relative to its spawn pose along x [m]
 CUBE_RESET_X_OFFSET = 0.15
 
@@ -82,7 +79,7 @@ def _make_reset_env_cfg(device: str) -> ManagerBasedEnvCfg:
         width=WIDTH,
         data_types=["distance_to_image_plane"],
         offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 2.0), convention="opengl"),
-        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, DEPTH_FAR)),
+        spawn=sim_utils.PinholeCameraCfg(),
     )
     return cfg
 
@@ -293,7 +290,8 @@ def test_env_reset_after_resume_publishes_reset_pose_to_fabric(device: str):
         try:
             _assert_transforms_match(_fabric_world_transforms(cube_paths), reset_pose)
         except AssertionError as error:
-            # pytest.xfail() does not set sys.last_exc, which makes the Kit launcher exit with status 1.
+            # The Kit launcher exits with status 1 when sys.last_exc is set. pytest sets it for exceptions that
+            # escape a test, but not for pytest.xfail().
             pytest.xfail(f"Fabric holds a stale pose: {error}")
     finally:
         env.close()
