@@ -13,6 +13,7 @@ import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_, instantiate
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -198,7 +199,7 @@ class ThrustAction(ActionTerm):
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
         """
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
     def process_actions(self, actions: torch.Tensor):
         r"""Process actions by applying scaling, offset, and clipping.
@@ -293,9 +294,7 @@ class NavigationAction(ThrustAction):
         super().__init__(cfg, env)
 
         # Initialize controller using class_type from config
-        self._lc = self.cfg.controller_cfg.class_type(
-            cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
-        )
+        self._lc = instantiate(self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device)
 
         # Log warning if not using velocity controller
         from isaaclab_contrib.controllers import LeeVelControllerCfg
@@ -381,8 +380,5 @@ class NavigationAction(ThrustAction):
         # Reset controller internal states
         self._lc.reset_idx(env_ids)
 
-        if env_ids is None:
-            env_ids = slice(None)
-
-        self._commands[env_ids] = 0.0
-        self._prev_commands[env_ids] = 0.0
+        index_fill_(self._commands, env_ids, 0.0)
+        index_fill_(self._prev_commands, env_ids, 0.0)

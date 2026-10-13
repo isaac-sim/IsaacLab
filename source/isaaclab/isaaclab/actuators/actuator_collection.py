@@ -17,15 +17,15 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils.types import ArticulationActions
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.launch_cache import _WarpLaunchCache
-
+from ..utils import clone, instantiate
+from ..utils.types import ArticulationActions
+from ..utils.warp import ProxyArray
+from ..utils.warp.launch_cache import _WarpLaunchCache
 from . import actuator_kernels
-from ._compat import _resolve_limit_aliases
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
-from .actuator_control import ActuatorControl
+from .actuator_compat import resolve_limit_aliases
+from .actuator_control import _JOINT_PROPERTY_KEYS, ActuatorControl
 from .actuator_pd import IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
@@ -83,13 +83,13 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._has_implicit_actuators = False
         self._launch_cache = _WarpLaunchCache(self.device)
 
-        resolved_cfgs = {name: cfg.copy() for name, cfg in actuator_cfgs.items()}
+        resolved_cfgs = {name: clone(cfg) for name, cfg in actuator_cfgs.items()}
         resolved_group_joints = self._resolve_group_joints(resolved_cfgs)
         self._allocate_buffers()
         self._target_command = ActuatorTargetCommand(self)
         self._output_command = ActuatorOutputCommand(self)
         for name, cfg in resolved_cfgs.items():
-            _resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
+            resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
@@ -336,7 +336,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 self._groups[actuator_name] = None
             else:
                 actuator_kwargs = dict(
-                    cfg=actuator_cfg,
                     joint_names=joint_names,
                     joint_ids=actuator_joint_ids,
                     num_envs=self.num_instances,
@@ -352,7 +351,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 else:
                     # explicit models default their clip limit to the authored joint effort limit.
                     actuator_kwargs["actuator_effort_limit"] = joint_defaults["joint_effort_limit"]
-                self._groups[actuator_name] = actuator_cfg.class_type(**actuator_kwargs)
+                self._groups[actuator_name] = instantiate(actuator_cfg, **actuator_kwargs)
             if self._debug_value_resolution:
                 self._joint_property_resolution_rows[actuator_name] = table_rows
             construction_records.append(
@@ -412,19 +411,10 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         """
         values: dict[str, torch.Tensor] = {}
         resolution_rows: dict[str, tuple[tuple[object, ...], ...]] = {}
-        for cfg_name in (
-            "stiffness",
-            "damping",
-            "armature",
-            "friction",
-            "dynamic_friction",
-            "viscous_friction",
-            "joint_effort_limit",
-            "joint_velocity_limit",
-        ):
+        for cfg_name in _JOINT_PROPERTY_KEYS:
             default_value = defaults[cfg_name]
             cfg_value = getattr(cfg, cfg_name)
-            value = self._resolve_joint_property(cfg_value, default_value, joint_names)
+            value = resolve_joint_parameter(cfg_value, default_value, joint_names, self.num_instances, self.device)
             values[cfg_name] = value
             if self._debug_value_resolution:
                 rows = self._joint_property_resolution_rows_for(
@@ -438,15 +428,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                     resolution_rows[cfg_name] = rows
 
         return values, resolution_rows
-
-    def _resolve_joint_property(
-        self,
-        cfg_value: float | dict[str, float] | None,
-        default_value: torch.Tensor,
-        joint_names: list[str],
-    ) -> torch.Tensor:
-        """Resolve one group-shaped joint property from config and authored defaults."""
-        return resolve_joint_parameter(cfg_value, default_value, joint_names, self.num_instances, self.device)
 
     def _joint_property_resolution_rows_for(
         self,
@@ -476,23 +457,23 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
 
     # Execution planning and runtime.
 
-    def _joint_indices_as_wp(self, actuator: ActuatorBase) -> wp.array(dtype=wp.int32):
-        """Return an actuator group's joint indices as a Warp int32 array."""
-        if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
-            return self._all_joint_ids
-        joint_indices = actuator.joint_indices
-        if isinstance(joint_indices, wp.array):
-            return joint_indices
-        return wp.from_torch(joint_indices.to(self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
-
     def _joint_indices_as_torch(self, actuator: ActuatorBase) -> torch.Tensor:
         """Return an actuator group's joint indices as a contiguous Torch int32 tensor."""
-        if actuator.joint_indices == slice(None) or actuator.joint_indices is None:
-            return torch.arange(self.num_joints, dtype=torch.int32, device=self.device)
         joint_indices = actuator.joint_indices
+        if joint_indices is None or joint_indices == slice(None):
+            return torch.arange(self.num_joints, dtype=torch.int32, device=self.device)
         if isinstance(joint_indices, wp.array):
             joint_indices = wp.to_torch(joint_indices)
         return joint_indices.to(self.device, dtype=torch.int32).contiguous()
+
+    def _joint_indices_as_wp(self, actuator: ActuatorBase) -> wp.array(dtype=wp.int32):
+        """Return an actuator group's joint indices as a Warp int32 array."""
+        joint_indices = actuator.joint_indices
+        if joint_indices is None or joint_indices == slice(None):
+            return self._all_joint_ids
+        if isinstance(joint_indices, wp.array):
+            return joint_indices
+        return wp.from_torch(self._joint_indices_as_torch(actuator), dtype=wp.int32)
 
     def _build_execution_plan(self) -> None:
         """Partition the actuator groups into the fused implicit executor and a per-group list.
@@ -521,16 +502,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         self._implicit_executor = (
             _ImplicitExecutor(self, tuple(implicit_names), tuple(implicit_groups)) if implicit_groups else None
         )
-
-    def _rebind_state_inputs(self) -> None:
-        """Rebind the implicit executor after backend state storage is replaced.
-
-        Per-group execution reads backend state through the control object on every
-        :meth:`compute` call, so only the cached implicit launch holds state references
-        that need rebinding.
-        """
-        if self._implicit_executor is not None:
-            self._implicit_executor.rebind(self)
 
     def _scatter_actuator_output(
         self,
@@ -619,9 +590,29 @@ class _ImplicitExecutor:
             joint_indices = torch.cat([collection._joint_indices_as_torch(group) for group in groups])
             self.actuator = self._build_shadow_actuator(groups, joint_indices)
         self.joint_indices_wp = wp.from_torch(joint_indices, dtype=wp.int32)
-        self.kernel_inputs: list[wp.array] | None = None
-        self.kernel_outputs: list[wp.array] | None = None
-        self._assemble_kernel_arrays(collection)
+        control = collection._control
+        self.kernel_inputs = [
+            collection._joint_pos_target,
+            collection._joint_vel_target,
+            collection._joint_effort_target,
+            control.joint_pos.warp,
+            control.joint_vel.warp,
+            control.joint_stiffness.warp,
+            control.joint_damping.warp,
+            control.joint_effort_limits.warp,
+            wp.from_torch(self.actuator.actuator_velocity_limit, dtype=wp.float32),
+            self.joint_indices_wp,
+        ]
+        self.kernel_outputs = [
+            wp.from_torch(self.actuator.computed_effort, dtype=wp.float32),
+            wp.from_torch(self.actuator.applied_effort, dtype=wp.float32),
+            collection._joint_pos_target_sim,
+            collection._joint_vel_target_sim,
+            collection._joint_effort_target_sim,
+            collection._computed_effort,
+            collection._applied_effort,
+            collection._soft_joint_vel_limits,
+        ]
 
     @staticmethod
     def _build_shadow_actuator(groups: tuple[ImplicitActuator, ...], joint_indices: torch.Tensor) -> ImplicitActuator:
@@ -645,42 +636,6 @@ class _ImplicitExecutor:
             group.applied_effort = shadow.applied_effort[:, group_slice]
         return shadow
 
-    def _assemble_kernel_arrays(self, collection: ActuatorCollection) -> None:
-        """Assemble the implicit kernel argument arrays.
-
-        Existing argument lists are updated in place so holders of the list objects
-        observe rebound backend state.
-        """
-        control = collection._control
-        inputs = [
-            collection._joint_pos_target,
-            collection._joint_vel_target,
-            collection._joint_effort_target,
-            control.joint_pos.warp,
-            control.joint_vel.warp,
-            control.joint_stiffness.warp,
-            control.joint_damping.warp,
-            control.joint_effort_limits.warp,
-            wp.from_torch(self.actuator.actuator_velocity_limit, dtype=wp.float32),
-            self.joint_indices_wp,
-        ]
-        outputs = [
-            wp.from_torch(self.actuator.computed_effort, dtype=wp.float32),
-            wp.from_torch(self.actuator.applied_effort, dtype=wp.float32),
-            collection._joint_pos_target_sim,
-            collection._joint_vel_target_sim,
-            collection._joint_effort_target_sim,
-            collection._computed_effort,
-            collection._applied_effort,
-            collection._soft_joint_vel_limits,
-        ]
-        if self.kernel_inputs is None:
-            self.kernel_inputs = inputs
-            self.kernel_outputs = outputs
-        else:
-            self.kernel_inputs[:] = inputs
-            self.kernel_outputs[:] = outputs
-
     def launch(self, collection: ActuatorCollection) -> None:
         """Compute all the executor's joints through the cached Warp launch."""
         collection._launch_cache.launch(
@@ -690,11 +645,6 @@ class _ImplicitExecutor:
             inputs=self.kernel_inputs,
             outputs=self.kernel_outputs,
         )
-
-    def rebind(self, collection: ActuatorCollection) -> None:
-        """Reassemble the kernel arguments after backend state storage is replaced."""
-        self._assemble_kernel_arrays(collection)
-        collection._launch_cache.clear(self._cache_key)
 
 
 class ActuatorTargetCommand:
@@ -749,17 +699,7 @@ class ActuatorTargetCommand:
             env_ids: Environment indices. Defaults to all environments.
             full_data: Whether :paramref:`value` is a full articulation command buffer.
         """
-        collection = self._collection
-        env_ids_resolved = collection._control.resolve_env_ids(env_ids)
-        joint_ids_resolved = collection._control.resolve_joint_ids(joint_ids)
-        self._write_index_target(
-            value,
-            env_ids_resolved,
-            joint_ids_resolved,
-            collection._joint_pos_target,
-            full_data=full_data,
-            command_name="position",
-        )
+        self._set_index("position", self._collection._joint_pos_target, value, env_ids, joint_ids, full_data)
 
     def set_velocity_index(
         self,
@@ -779,17 +719,7 @@ class ActuatorTargetCommand:
             env_ids: Environment indices. Defaults to all environments.
             full_data: Whether :paramref:`value` is a full articulation command buffer.
         """
-        collection = self._collection
-        env_ids_resolved = collection._control.resolve_env_ids(env_ids)
-        joint_ids_resolved = collection._control.resolve_joint_ids(joint_ids)
-        self._write_index_target(
-            value,
-            env_ids_resolved,
-            joint_ids_resolved,
-            collection._joint_vel_target,
-            full_data=full_data,
-            command_name="velocity",
-        )
+        self._set_index("velocity", self._collection._joint_vel_target, value, env_ids, joint_ids, full_data)
 
     def set_effort_index(
         self,
@@ -809,17 +739,7 @@ class ActuatorTargetCommand:
             env_ids: Environment indices. Defaults to all environments.
             full_data: Whether :paramref:`value` is a full articulation command buffer.
         """
-        collection = self._collection
-        env_ids_resolved = collection._control.resolve_env_ids(env_ids)
-        joint_ids_resolved = collection._control.resolve_joint_ids(joint_ids)
-        self._write_index_target(
-            value,
-            env_ids_resolved,
-            joint_ids_resolved,
-            collection._joint_effort_target,
-            full_data=full_data,
-            command_name="effort",
-        )
+        self._set_index("effort", self._collection._joint_effort_target, value, env_ids, joint_ids, full_data)
 
     def set_position_mask(
         self,
@@ -836,16 +756,7 @@ class ActuatorTargetCommand:
             joint_mask: Joint selection mask. Defaults to all joints.
             env_mask: Environment selection mask. Defaults to all environments.
         """
-        collection = self._collection
-        env_mask_resolved = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
-        joint_mask_resolved = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
-        self._write_mask_target(
-            value,
-            env_mask_resolved,
-            joint_mask_resolved,
-            collection._joint_pos_target,
-            command_name="position",
-        )
+        self._set_mask("position", self._collection._joint_pos_target, value, env_mask, joint_mask)
 
     def set_velocity_mask(
         self,
@@ -862,16 +773,7 @@ class ActuatorTargetCommand:
             joint_mask: Joint selection mask. Defaults to all joints.
             env_mask: Environment selection mask. Defaults to all environments.
         """
-        collection = self._collection
-        env_mask_resolved = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
-        joint_mask_resolved = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
-        self._write_mask_target(
-            value,
-            env_mask_resolved,
-            joint_mask_resolved,
-            collection._joint_vel_target,
-            command_name="velocity",
-        )
+        self._set_mask("velocity", self._collection._joint_vel_target, value, env_mask, joint_mask)
 
     def set_effort_mask(
         self,
@@ -888,16 +790,55 @@ class ActuatorTargetCommand:
             joint_mask: Joint selection mask. Defaults to all joints.
             env_mask: Environment selection mask. Defaults to all environments.
         """
+        self._set_mask("effort", self._collection._joint_effort_target, value, env_mask, joint_mask)
+
+    def _set_index(
+        self,
+        command_name: str,
+        target_buffer: wp.array(dtype=wp.float32),
+        value: torch.Tensor | wp.array(dtype=wp.float32),
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None,
+        full_data: bool,
+    ) -> None:
+        """Resolve the index selectors and write one command buffer."""
         collection = self._collection
-        env_mask_resolved = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
-        joint_mask_resolved = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
-        self._write_mask_target(
-            value,
-            env_mask_resolved,
-            joint_mask_resolved,
-            collection._joint_effort_target,
-            command_name="effort",
+        env_ids = collection._control.resolve_env_ids(env_ids)
+        joint_ids = collection._control.resolve_joint_ids(joint_ids)
+        expected_shape = (
+            (collection.num_instances, collection.num_joints) if full_data else (env_ids.shape[0], joint_ids.shape[0])
         )
+        collection._control.assert_shape_and_dtype(value, expected_shape, wp.float32, "target")
+        wp.launch(
+            actuator_kernels.write_2d_float_with_indices_kernel(env_ids, joint_ids),
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[value, env_ids, joint_ids, full_data],
+            outputs=[target_buffer],
+            device=collection.device,
+        )
+        collection._control.stage_user_command(command_name, collection, env_ids, joint_ids, None, None)
+
+    def _set_mask(
+        self,
+        command_name: str,
+        target_buffer: wp.array(dtype=wp.float32),
+        value: torch.Tensor | wp.array(dtype=wp.float32),
+        env_mask: wp.array(dtype=wp.bool) | None,
+        joint_mask: wp.array(dtype=wp.bool) | None,
+    ) -> None:
+        """Resolve the mask selectors and write one command buffer."""
+        collection = self._collection
+        env_mask = self._resolve_mask(env_mask, collection._all_true_env_mask, "env_mask")
+        joint_mask = self._resolve_mask(joint_mask, collection._all_true_joint_mask, "joint_mask")
+        collection._control.assert_shape_and_dtype_mask(value, (env_mask, joint_mask), wp.float32, "target")
+        wp.launch(
+            actuator_kernels.write_2d_float_with_mask,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[value, env_mask, joint_mask],
+            outputs=[target_buffer],
+            device=collection.device,
+        )
+        collection._control.stage_user_command(command_name, collection, None, None, env_mask, joint_mask)
 
     @staticmethod
     def _resolve_mask(
@@ -909,50 +850,6 @@ class ActuatorTargetCommand:
         if not isinstance(mask, wp.array) or mask.dtype != wp.bool:
             raise TypeError(f"Expected '{name}' to be a wp.array of dtype wp.bool, got {type(mask)!r}.")
         return mask
-
-    def _write_index_target(
-        self,
-        target: torch.Tensor | wp.array(dtype=wp.float32),
-        env_ids: torch.Tensor | wp.array,
-        joint_ids: torch.Tensor | wp.array,
-        target_buffer: wp.array(dtype=wp.float32),
-        *,
-        full_data: bool,
-        command_name: str,
-    ) -> None:
-        collection = self._collection
-        expected_shape = (
-            (collection.num_instances, collection.num_joints) if full_data else (env_ids.shape[0], joint_ids.shape[0])
-        )
-        collection._control.assert_shape_and_dtype(target, expected_shape, wp.float32, "target")
-        wp.launch(
-            actuator_kernels.write_2d_float_with_indices_kernel(env_ids, joint_ids),
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids, full_data],
-            outputs=[target_buffer],
-            device=collection.device,
-        )
-        collection._control.stage_user_command(command_name, collection, env_ids, joint_ids, None, None)
-
-    def _write_mask_target(
-        self,
-        target: torch.Tensor | wp.array(dtype=wp.float32),
-        env_mask: wp.array(dtype=wp.bool),
-        joint_mask: wp.array(dtype=wp.bool),
-        target_buffer: wp.array(dtype=wp.float32),
-        *,
-        command_name: str,
-    ) -> None:
-        collection = self._collection
-        collection._control.assert_shape_and_dtype_mask(target, (env_mask, joint_mask), wp.float32, "target")
-        wp.launch(
-            actuator_kernels.write_2d_float_with_mask,
-            dim=(env_mask.shape[0], joint_mask.shape[0]),
-            inputs=[target, env_mask, joint_mask],
-            outputs=[target_buffer],
-            device=collection.device,
-        )
-        collection._control.stage_user_command(command_name, collection, None, None, env_mask, joint_mask)
 
 
 class ActuatorOutputCommand:

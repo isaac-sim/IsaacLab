@@ -9,10 +9,13 @@ from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd, UsdShade
 
-from isaaclab.sim.utils import clone, safe_set_attribute_on_usd_prim
-from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils import to_dict
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
+
+from ...utils import clone, safe_set_attribute_on_usd_prim
+from ...utils.stage import get_current_stage
+from .visual_materials_cfg import PreviewSurfaceCfg
 
 if TYPE_CHECKING:
     from . import visual_materials_cfg
@@ -60,7 +63,7 @@ def spawn_preview_surface(
     shader.CreateIdAttr("UsdPreviewSurface")
     material.CreateSurfaceOutput().ConnectToSource(shader.CreateOutput("surface", Sdf.ValueTypeNames.Token))
     material.CreateDisplacementOutput().ConnectToSource(shader.CreateOutput("displacement", Sdf.ValueTypeNames.Token))
-    _author_cfg_inputs(shader.GetPrim(), cfg, camel_case=True)
+    _author_material_inputs(shader.GetPrim(), cfg)
     return shader.GetPrim()
 
 
@@ -111,14 +114,18 @@ def spawn_from_mdl_file(
     material.CreateSurfaceOutput("mdl").ConnectToSource(output)
     material.CreateDisplacementOutput("mdl").ConnectToSource(output)
     material.CreateVolumeOutput("mdl").ConnectToSource(output)
-    _author_cfg_inputs(shader.GetPrim(), cfg, camel_case=False, ignored=("mdl_path",))
+    _author_material_inputs(shader.GetPrim(), cfg)
     return shader.GetPrim()
 
 
-def _author_cfg_inputs(prim: Usd.Prim, cfg, *, camel_case: bool, ignored: tuple[str, ...] = ()) -> None:
-    """Author material-specific config fields as shader inputs."""
-    ignored = (*ignored, "func", "visible", "semantic_tags", "copy_from_source", "spawn_path")
-    for name, value in cfg.to_dict().items():
+def _author_material_inputs(prim: Usd.Prim, cfg: visual_materials_cfg.VisualMaterialCfg) -> None:
+    """Author non-None inputs on one shader. Keep asset traversal in the file spawner.
+
+    The caller supplies a shader matching the config; its source and connections remain unchanged.
+    """
+    ignored = ("func", "visible", "semantic_tags", "copy_from_source", "spawn_path", "mdl_path")
+    camel_case = isinstance(cfg, PreviewSurfaceCfg)
+    for name, value in to_dict(cfg).items():
         if name not in ignored and value is not None:
             input_name = to_camel_case(name, to="cC") if camel_case else name
             if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:

@@ -32,6 +32,12 @@
    .. autosummary::
 
       configclass
+      instantiate
+      clone
+      replace
+      validate
+      to_dict
+      update_from_dict
 
 Configuration class
 ~~~~~~~~~~~~~~~~~~~
@@ -160,8 +166,33 @@ String operations
    :members:
    :show-inheritance:
 
+Image operations
+~~~~~~~~~~~~~~~~
+
+.. autofunction:: isaaclab.utils.images.compose_image
+
 Timer operations
 ~~~~~~~~~~~~~~~~
+
+By default, :class:`~isaaclab.utils.timer.Timer` waits for all GPU devices when it stops,
+preserving its existing behavior. Work queued before the timer starts can therefore contribute
+to the measured duration. Choose synchronization boundaries explicitly when profiling:
+
+.. code-block:: python
+
+   # CPU wall time without waiting for GPU work.
+   with Timer(synchronize="none"):
+       preprocess()
+
+   # Finish earlier work before starting, then wait for this device before stopping.
+   with Timer(synchronize="both", device="cuda:0"):
+       step()
+
+``synchronize="stop"`` selects the default stop-only boundary. ``device=None`` synchronizes all
+devices; a device name restricts synchronization to that device, including all of its streams.
+These measurements include CPU overhead and concurrent work on the selected device. They are
+wall-clock measurements, not CUDA event measurements. :attr:`~isaaclab.utils.timer.Timer.time_elapsed`
+does not synchronize pending work.
 
 .. automodule:: isaaclab.utils.timer
    :members:

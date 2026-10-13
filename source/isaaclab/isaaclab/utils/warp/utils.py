@@ -78,10 +78,10 @@ def resolve_1d_mask(
     if ids is None:
         return all_mask
 
-    # --- Normalize slice to list ---
     if isinstance(ids, slice):
-        start, stop, step = ids.indices(scratch_mask.shape[0])
-        ids = list(range(start, stop, step))
+        scratch_mask.zero_()
+        wp.to_torch(scratch_mask)[ids] = True
+        return scratch_mask
 
     # --- Normalize to concrete type ---
     if not isinstance(ids, (torch.Tensor, wp.array)):

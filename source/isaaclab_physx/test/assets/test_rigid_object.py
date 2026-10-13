@@ -3,1219 +3,541 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Real PhysX rigid-object and rigid-object-collection coverage.
+
+Most checks run against one module-scoped scene of locally authored cubes, holding both asset families. Each asset
+holds two environments so that partial writes can target one environment and prove that the other is preserved in
+the real PhysX state; PhysX stores collection bodies in body-major view order, so collection writes select
+non-sorted environment and body subsets and read the view back. Tests that need their own simulation context are
+defined first: pytest runs them before the composite scene is created, and a new simulation context would replace
+the composite stage.
+"""
+
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-"""Launch Isaac Sim Simulator first."""
+launch_test_simulation()
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device, test_devices
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
-
-"""Rest everything follows."""
-
+import math
 import sys
+from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Literal
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
 import warp as wp
-from flaky import flaky
-from isaaclab_physx.assets import RigidObject
+from isaaclab_physx.assets import RigidObject, RigidObjectCollection
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
+import omni.kit.app
+import omni.physx
+from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
-from isaaclab.sim import build_simulation_context
-from isaaclab.sim.spawners import materials
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.math import (
-    combine_frame_transforms,
-    default_orientation,
-    quat_apply_inverse,
-    quat_inv,
-    quat_mul,
-    quat_rotate,
-    random_orientation,
-)
+from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.sim.schemas import apply_articulation_root_properties
+from isaaclab.utils.math import combine_frame_transforms, quat_apply, quat_apply_inverse, quat_mul
+
+_NUM_ENVS = 2
+_NUM_CUBES = 3
+"""Cubes per environment of the dynamic collection."""
 
 
-def generate_cubes_scene(
-    num_cubes: int = 1,
-    height=1.0,
-    api: Literal["none", "rigid_body", "articulation_root"] = "rigid_body",
-    kinematic_enabled: bool = False,
-    device: str = "cuda:0",
-) -> tuple[RigidObject, torch.Tensor]:
-    """Generate a scene with the provided number of cubes.
+def _cube_spawn(*, kinematic: bool = False, disable_gravity: bool = False) -> sim_utils.CuboidCfg:
+    """Create the spawn configuration of a local 1 kg collision cube."""
+    return sim_utils.CuboidCfg(
+        size=(0.2, 0.2, 0.2),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=kinematic),
+            PhysxRigidBodyCfg(disable_gravity=disable_gravity),
+        ],
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    )
 
-    Args:
-        num_cubes: Number of cubes to generate.
-        height: Height of the cubes.
-        api: The type of API that the cubes should have.
-        kinematic_enabled: Whether the cubes are kinematic.
-        device: Device to use for the simulation.
+
+_STATIC_COLLIDER = sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), collision_props=sim_utils.UsdPhysicsCollisionCfg())
+"""A cube without rigid body properties, which PhysX treats as a static collider."""
+
+
+def _cube_cfg(prim_path: str, **spawn_kwargs) -> RigidObjectCfg:
+    """Create a local cube one meter above its environment origin."""
+    return RigidObjectCfg(
+        prim_path=prim_path,
+        spawn=_cube_spawn(**spawn_kwargs),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
+
+
+def _spawn_envs(root: str, y_offset: float = 0.0) -> torch.Tensor:
+    """Create two environment prims 2 m apart and return their origins."""
+    origins = torch.tensor([(2.0 * index, y_offset, 0.0) for index in range(_NUM_ENVS)])
+    for index, origin in enumerate(origins.tolist()):
+        sim_utils.create_prim(f"{root}/Env_{index}", "Xform", translation=origin)
+    return origins
+
+
+def _collection(
+    root: str, num_envs: int, num_cubes: int, spawn: sim_utils.CuboidCfg, y_offset: float = 0.0
+) -> tuple[RigidObjectCollection, torch.Tensor]:
+    """Create a collection of cubes 3 m apart along y within environments 3 m apart along x, 1 m above ground.
 
     Returns:
-        A tuple containing the rigid object representing the cubes and the origins of the cubes.
-
+        The collection and the origins of its environments.
     """
-    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
-    # Create Top-level Xforms, one for each cube
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
+    origins = torch.tensor([(3.0 * index, y_offset, 1.0) for index in range(num_envs)])
+    for index, origin in enumerate(origins.tolist()):
+        sim_utils.create_prim(f"{root}/Table_{index}", "Xform", translation=origin)
+    rigid_objects = {
+        f"cube_{index}": RigidObjectCfg(
+            prim_path=f"{root}/Table_[^/]*/Object_{index}",
+            spawn=spawn,
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3.0 * index, 1.0)),
+        )
+        for index in range(num_cubes)
+    }
+    return RigidObjectCollection(cfg=RigidObjectCollectionCfg(rigid_objects=rigid_objects)), origins
 
-    # Resolve spawn configuration
+
+def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
+    """Return a unit quaternion ``(x, y, z, w)`` for a rotation of ``angle`` [rad] about the world z axis."""
+    return (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
+
+
+@pytest.fixture
+def sim(device: str) -> Iterator[SimulationContext]:
+    """Create a function-scoped simulation context for tests that own their scene."""
+    # A new context would replace the stage of a live composite scene, so these tests must run before it.
+    assert SimulationContext.instance() is None, "define tests that own a simulation above the composite scene"
+    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        yield sim
+
+
+##
+# Tests that own their simulation context. Keep them above the composite scene.
+##
+
+
+@pytest.mark.xfail(
+    strict=True, raises=AssertionError, reason="The first CPU simulation after a failed initialization reads zero poses"
+)
+def test_collection_without_rigid_bodies_fails_without_leaking_into_the_next_cpu_simulation() -> None:
+    """A collection of static colliders fails to initialize; a kinematic cube then reports its spawn pose in the next
+    CPU simulation.
+
+    The failure only reproduces before any CUDA simulation ran in the process, so this test comes first.
+    """
+    with build_simulation_context(device="cpu") as sim:
+        sim._app_control_on_stop_handle = None
+        invalid_collection, _ = _collection("/World", 1, 2, _STATIC_COLLIDER)
+        # Check that the framework doesn't hold excessive strong references.
+        assert sys.getrefcount(invalid_collection) < 10
+        with pytest.raises(RuntimeError):
+            sim.reset()
+    with build_simulation_context(device="cpu") as sim:
+        sim._app_control_on_stop_handle = None
+        kinematic, origins = _collection("/World", 1, 1, _cube_spawn(kinematic=True))
+        sim.reset()
+        torch.testing.assert_close(kinematic.data.body_link_pos_w.torch[:, 0], origins + torch.tensor([0.0, 0.0, 1.0]))
+
+
+@pytest.mark.parametrize(
+    "api",
+    [
+        "none",
+        pytest.param(
+            "articulation_root",
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=pytest.fail.Exception,
+                reason="The PhysX rigid object does not reject an enabled articulation root.",
+            ),
+        ),
+    ],
+)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.isaacsim_ci
+def test_initialization_rejects_invalid_rigid_body(sim, device, api: Literal["none", "articulation_root"]) -> None:
+    """Initialization fails without a rigid body and when the rigid body is an articulation root."""
+    _spawn_envs("/World")
     if api == "none":
-        # since no rigid body properties defined, this is just a static collider
-        spawn_cfg = sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        )
-    elif api == "rigid_body":
-        spawn_cfg = sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
-        )
-    elif api == "articulation_root":
-        spawn_cfg = sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Tests/RigidObject/Cube/dex_cube_instanceable_with_articulation_root.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
-        )
+        # Without rigid body properties the cube is a static collider.
+        cube_object = RigidObject(cfg=RigidObjectCfg(prim_path="/World/Env_[^/]*/Object", spawn=_STATIC_COLLIDER))
     else:
-        raise ValueError(f"Unknown api: {api}")
+        cube_object = RigidObject(cfg=_cube_cfg("/World/Env_[^/]*/Object"))
+        # An enabled articulation root on the rigid body turns the body into an articulation link.
+        assert apply_articulation_root_properties(
+            "/World/Env_[^/]*/Object",
+            [PhysxArticulationCfg(articulation_enabled=True)],
+            stage=sim.stage,
+            create_if_missing=True,
+        )
+        for index in range(_NUM_ENVS):
+            prim = sim.stage.GetPrimAtPath(f"/World/Env_{index}/Object")
+            assert prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+            assert prim.GetAttribute("physxArticulation:articulationEnabled").Get()
 
-    # Create rigid object
-    cube_object_cfg = RigidObjectCfg(
-        prim_path="/World/Table_[^/]*/Object",
-        spawn=spawn_cfg,
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height)),
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(cube_object) < 10
+
+    with pytest.raises(RuntimeError):
+        sim.reset()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", test_devices())
+def test_warmup_loads_physics_once(sim, device) -> None:
+    """Attach on GPU or force-load on CPU, without destroying and rebuilding native objects."""
+    sim_utils.create_prim("/World/Table_0", "Xform", translation=(0.0, 0.0, 1.0))
+    cube = RigidObject(cfg=_cube_cfg("/World/Table_[^/]*/Object"))
+
+    # Wrap read-only native interfaces through their accessors; real calls still execute.
+    physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
+    physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
+    with (
+        patch("omni.physx.get_physx_interface", return_value=physx_spy),
+        patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
+    ):
+        sim.reset()
+
+    extension_manager = omni.kit.app.get_app().get_extension_manager()
+    assert extension_manager.is_extension_enabled("omni.physics.physx"), (
+        "The omni.physics.physx bridge must register PhysX with the unified physics API."
     )
-    cube_object = RigidObject(cfg=cube_object_cfg)
+    assert physx_sim_spy.attach_stage.call_count == int(device.startswith("cuda"))
+    assert physx_spy.force_load_physics_from_usd.call_count == int(device == "cpu")
+    assert cube.is_initialized and cube.num_instances == 1
+    initial = cube.data.root_pos_w.torch.clone()
+    for _ in range(10):
+        sim.step(render=False)
+        cube.update(sim.get_physics_dt())
+    assert torch.all(cube.data.root_pos_w.torch[:, 2] < initial[:, 2])
 
-    return cube_object, origins
+
+##
+# Composite scene shared by the remaining tests.
+##
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_initialization(num_cubes, device):
-    """Test initialization for prim with rigid body API at the provided prim path."""
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
+@dataclass
+class _Scene:
+    """Rigid objects and collections that share one real PhysX lifecycle under gravity."""
+
+    sim: SimulationContext
+    device: str
+    cubes: RigidObject
+    """Dynamic cubes that ignore gravity."""
+    kinematic: RigidObject
+    """Kinematic cubes."""
+    falling: RigidObject
+    """Dynamic cubes under gravity."""
+    collection: RigidObjectCollection
+    """Two environments of three dynamic cubes that ignore gravity."""
+    kinematic_collection: RigidObjectCollection
+    """One environment of one kinematic cube."""
+    falling_collection: RigidObjectCollection
+    """Two environments of two dynamic cubes under gravity."""
+    origins: dict[str, torch.Tensor]
+    """Environment origins keyed by asset name."""
+    refcounts: dict[str, int]
+    """Reference count of each asset right after construction."""
+
+    @property
+    def assets(self) -> tuple[RigidObject | RigidObjectCollection, ...]:
+        return (
+            self.cubes,
+            self.kinematic,
+            self.falling,
+            self.collection,
+            self.kinematic_collection,
+            self.falling_collection,
+        )
+
+    def step(self, num_steps: int = 1) -> None:
+        """Write, step, and update every asset."""
+        for _ in range(num_steps):
+            for asset in self.assets:
+                asset.write_data_to_sim()
+            self.sim.step()
+            for asset in self.assets:
+                asset.update(self.sim.cfg.dt)
+
+    def place_cubes_at_rest(self, root_pose: torch.Tensor) -> None:
+        """Teleport the dynamic cubes to ``root_pose`` at rest and clear their external wrenches."""
+        self.cubes.write_root_link_pose_to_sim_index(root_pose=root_pose)
+        self.cubes.write_root_com_velocity_to_sim_index(root_velocity=torch.zeros((_NUM_ENVS, 6), device=self.device))
+        self.cubes.reset()
+
+    def place_collection_at_rest(self, yaw: float = 0.0) -> torch.Tensor:
+        """Teleport the dynamic collection to its default poses with a given yaw, at rest and without wrenches.
+
+        Returns:
+            The body poses the collection was placed at.
+        """
+        poses = self.collection.data.default_body_pose.torch.clone()
+        poses[..., :2] += self.origins["collection"].unsqueeze(1)[..., :2]
+        poses[..., 3:] = torch.tensor(_yaw_quat(yaw), device=self.device)
+        self.collection.write_body_link_pose_to_sim_index(body_poses=poses)
+        self.collection.write_body_com_velocity_to_sim_index(
+            body_velocities=torch.zeros((_NUM_ENVS, _NUM_CUBES, 6), device=self.device)
+        )
+        self.collection.permanent_wrench_composer.reset()
+        self.collection.instantaneous_wrench_composer.reset()
+        return poses
+
+
+@pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
+def scene(request) -> Iterator[_Scene]:
+    """Initialize the composite scene once."""
+    device = request.param
+    with build_simulation_context(device=device, gravity_enabled=True) as sim:
         sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+        origins = {
+            "cubes": _spawn_envs("/World/Cubes"),
+            "kinematic": _spawn_envs("/World/Kinematic", 3.0),
+            "falling": _spawn_envs("/World/Falling", 6.0),
+        }
+        assets = {
+            "cubes": RigidObject(cfg=_cube_cfg("/World/Cubes/Env_[^/]*/Object", disable_gravity=True)),
+            "kinematic": RigidObject(cfg=_cube_cfg("/World/Kinematic/Env_[^/]*/Object", kinematic=True)),
+            "falling": RigidObject(cfg=_cube_cfg("/World/Falling/Env_[^/]*/Object")),
+        }
+        for name, num_envs, num_cubes, spawn, y_offset in (
+            ("collection", _NUM_ENVS, _NUM_CUBES, _cube_spawn(disable_gravity=True), 10.0),
+            ("kinematic_collection", 1, 1, _cube_spawn(kinematic=True), 22.0),
+            ("falling_collection", _NUM_ENVS, 2, _cube_spawn(), 26.0),
+        ):
+            assets[name], origins[name] = _collection(f"/World/{name}", num_envs, num_cubes, spawn, y_offset)
+        refcounts = {name: sys.getrefcount(asset) for name, asset in assets.items()}
+        sim.reset()
+        yield _Scene(
+            sim=sim,
+            device=device,
+            origins={name: value.to(device) for name, value in origins.items()},
+            refcounts=refcounts,
+            **assets,
+        )
 
+
+# Run before the other composite-scene tests read the collection COM cache.
+def test_collection_inertial_properties_reach_selected_view_entries(scene: _Scene) -> None:
+    """Mass, center-of-mass, and inertia writes to a non-sorted subset reach only the selected body-major entries."""
+    device = scene.device
+    collection = scene.collection
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    body_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    initial = {
+        "masses": collection.data.body_mass.torch.clone(),
+        "coms": wp.to_torch(collection.root_view.get_coms())
+        .to(device)
+        .reshape(_NUM_CUBES, _NUM_ENVS, 7)
+        .transpose(0, 1)
+        .clone(),
+        "inertias": collection.data.body_inertia.torch.clone(),
+    }
+    values = {name: value[env_ids][:, body_ids].clone() for name, value in initial.items()}
+    values["masses"][:, 0] = torch.tensor([5.0, 7.0], device=device)
+    values["coms"][:, 0, :3] = torch.tensor([[0.02, 0.03, 0.04], [-0.01, 0.01, 0.02]], device=device)
+    values["inertias"][:] = torch.tensor([3.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 5.0], device=device)
+    values["inertias"][1] *= 2.0
+    collection.set_masses_index(masses=values["masses"], env_ids=env_ids, body_ids=body_ids)
+    collection.set_coms_index(coms=values["coms"], env_ids=env_ids, body_ids=body_ids)
+    # Check the partial write before any COM cache read, then prime the derived pose before changing inertia.
+    expected_coms = initial["coms"].clone()
+    expected_coms[env_ids[:, None], body_ids] = values["coms"]
+    torch.testing.assert_close(collection.data.body_com_pose_b.torch, expected_coms)
+    expected_com_pose_w = collection.data.body_com_pose_w.torch.clone()
+    collection.set_inertias_index(inertias=values["inertias"], env_ids=env_ids, body_ids=body_ids)
+    updated_coms = (
+        wp.to_torch(collection.root_view.get_coms()).to(device).reshape(_NUM_CUBES, _NUM_ENVS, 7).transpose(0, 1)
+    )
+    assert not torch.allclose(updated_coms[0, 1, 3:], expected_coms[0, 1, 3:])
+    values["coms"][..., 3:] = updated_coms[env_ids[:, None], body_ids, 3:]
+    expected_com_pose_w[..., 3:] = quat_mul(collection.data.body_link_quat_w.torch, updated_coms[..., 3:])
+    torch.testing.assert_close(collection.data.body_com_pose_w.torch, expected_com_pose_w)
+    for name, data, raw in (
+        ("masses", collection.data.body_mass, collection.root_view.get_masses()),
+        ("coms", collection.data.body_com_pose_b, collection.root_view.get_coms().view(wp.float32)),
+        ("inertias", collection.data.body_inertia, collection.root_view.get_inertias()),
+    ):
+        expected = initial[name].clone()
+        expected[env_ids[:, None], body_ids] = values[name]
+        torch.testing.assert_close(data.torch, expected)
+        # The view is body-major: (num_cubes * num_envs, ...).
+        raw = wp.to_torch(raw).to(device).reshape(_NUM_CUBES, _NUM_ENVS, -1).transpose(0, 1)
+        torch.testing.assert_close(raw, expected.reshape(_NUM_ENVS, _NUM_CUBES, -1))
+    # Restore the initial properties for the wrench checks.
+    collection.set_masses_index(masses=initial["masses"])
+    collection.set_coms_index(coms=initial["coms"])
+    collection.set_inertias_index(inertias=initial["inertias"])
+
+
+@pytest.mark.isaacsim_ci
+def test_initialization(scene: _Scene) -> None:
+    """Initialize local rigid objects and collections, including a single-cube collection; under gravity, kinematic
+    cubes hold their default pose and dynamic cubes accelerate downward on every step."""
+    for name, asset in zip(
+        ("cubes", "kinematic", "collection", "kinematic_collection"), scene.assets[:2] + scene.assets[3:5]
+    ):
         # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(cube_object) < 10
-
-        # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert cube_object.is_initialized
-        assert len(cube_object.body_names) == 1
-
-        # Check buffers that exists and have correct shapes
-        assert cube_object.data.root_pos_w.torch.shape == (num_cubes, 3)
-        assert cube_object.data.root_quat_w.torch.shape == (num_cubes, 4)
-        assert cube_object.data.body_mass.torch.shape == (num_cubes, 1)
-        assert cube_object.data.body_inertia.torch.shape == (num_cubes, 1, 9)
-
-        # Simulate physics
-        for _ in range(2):
-            # perform rendering
-            sim.step()
-            # update object
-            cube_object.update(sim.cfg.dt)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_initialization_with_kinematic_enabled(num_cubes, device):
-    """Test that initialization for prim with kinematic flag enabled."""
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, kinematic_enabled=True, device=device)
-
-        # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(cube_object) < 10
-
-        # Play sim
-        sim.reset()
-
-        # Check if object is initialized
-        assert cube_object.is_initialized
-        assert len(cube_object.body_names) == 1
-
-        # Check buffers that exists and have correct shapes
-        assert cube_object.data.root_pos_w.torch.shape == (num_cubes, 3)
-        assert cube_object.data.root_quat_w.torch.shape == (num_cubes, 4)
-
-        # Simulate physics
-        for _ in range(2):
-            # perform rendering
-            sim.step()
-            # update object
-            cube_object.update(sim.cfg.dt)
-            # check that the object is kinematic
-            default_root_pose = cube_object.data.default_root_pose.torch.clone()
-            default_root_vel = cube_object.data.default_root_vel.torch.clone()
-            default_root_pose[:, :3] += origins
-            torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, default_root_pose)
-            torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, default_root_vel)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_initialization_with_no_rigid_body(num_cubes, device):
-    """Test that initialization fails when no rigid body is found at the provided prim path."""
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="none", device=device)
-
-        # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(cube_object) < 10
-
-        # Play sim
-        with pytest.raises(RuntimeError):
-            sim.reset()
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_initialization_with_articulation_root(num_cubes, device):
-    """Test that initialization fails when an articulation root is found at the provided prim path."""
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, api="articulation_root", device=device)
-
-        # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(cube_object) < 10
-
-        # Play sim
-        with pytest.raises(RuntimeError):
-            sim.reset()
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_external_force_buffer(device):
-    """Test if external force buffer correctly updates in the force value is zero case.
-
-    In this test, we apply a non-zero force, then a zero force, then finally a non-zero force
-    to an object. We check if the force buffer is properly updated at each step.
-    """
-
-    # Generate cubes scene
-    with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, origins = generate_cubes_scene(num_cubes=1, device=device)
-
-        # play the simulator
-        sim.reset()
-
-        # find bodies to apply the force
-        body_ids, body_names = cube_object.find_bodies(".*")
-
-        # reset object
-        cube_object.reset()
-
-        # perform simulation
-        for step in range(5):
-            # initiate force tensor
-            external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
-
-            if step == 0 or step == 3:
-                # set a non-zero force
-                force = 1
-            else:
-                # set a zero force
-                force = 0
-
-            # set force value
-            external_wrench_b[:, :, 0] = force
-            external_wrench_b[:, :, 3] = force
-
-            # apply force
-            cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-                forces=external_wrench_b[..., :3],
-                torques=external_wrench_b[..., 3:],
-                body_ids=body_ids,
-            )
-
-            # check if the cube's force and torque buffers are correctly updated
-            for i in range(cube_object.num_instances):
-                assert cube_object._permanent_wrench_composer.out_force_b.torch[i, 0, 0].item() == force
-                assert cube_object._permanent_wrench_composer.out_torque_b.torch[i, 0, 0].item() == force
-
-            # Check if the instantaneous wrench is correctly added to the permanent wrench
-            cube_object.permanent_wrench_composer.add_forces_and_torques_index(
-                forces=external_wrench_b[..., :3],
-                torques=external_wrench_b[..., 3:],
-                body_ids=body_ids,
-            )
-
-            # apply action to the object
-            cube_object.write_data_to_sim()
-
-            # perform step
-            sim.step()
-
-            # update buffers
-            cube_object.update(sim.cfg.dt)
-
-
-@pytest.mark.parametrize("num_cubes", [2, 4])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_external_force_on_single_body(num_cubes, device):
-    """Test application of external force on the base of the object.
-
-    In this test, we apply a force equal to the weight of an object on the base of
-    one of the objects. We check that the object does not move. For the other object,
-    we do not apply any force and check that it falls down.
-
-    We validate that this works when we apply the force in the global frame and in the local frame.
-    """
-    # Generate cubes scene
-    with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play the simulator
-        sim.reset()
-
-        # Find bodies to apply the force
-        body_ids, body_names = cube_object.find_bodies(".*")
-
-        # Sample a force equal to the weight of the object
-        external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
-        # Every 2nd cube should have a force applied to it
-        external_wrench_b[0::2, :, 2] = 9.81 * wp.to_torch(cube_object.root_view.get_masses())[0]
-
-        # Now we are ready!
-        for i in range(5):
-            # reset root state
-            root_pose = cube_object.data.default_root_pose.torch.clone()
-            root_vel = cube_object.data.default_root_vel.torch.clone()
-
-            # need to shift the position of the cubes otherwise they will be on top of each other
-            root_pose[:, :3] = origins
-            cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-            cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-
-            # reset object
-            cube_object.reset()
-
-            is_global = False
-            if i % 2 == 0:
-                is_global = True
-                positions = cube_object.data.body_com_pos_w.torch[:, body_ids, :3]
-            else:
-                positions = None
-
-            # apply force
-            cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-                forces=external_wrench_b[..., :3],
-                torques=external_wrench_b[..., 3:],
-                positions=positions,
-                body_ids=body_ids,
-                is_global=is_global,
-            )
-            # perform simulation
-            for _ in range(5):
-                # apply action to the object
-                cube_object.write_data_to_sim()
-
-                # perform step
-                sim.step()
-
-                # update buffers
-                cube_object.update(sim.cfg.dt)
-
-            # First object should still be at the same Z position (1.0)
-            torch.testing.assert_close(
-                cube_object.data.root_pos_w.torch[0::2, 2], torch.ones(num_cubes // 2, device=sim.device)
-            )
-            # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-            assert torch.all(cube_object.data.root_pos_w.torch[1::2, 2] < 1.0)
-
-
-@pytest.mark.parametrize("num_cubes", [2, 4])
-@pytest.mark.parametrize("device", test_devices())
-def test_external_force_on_single_body_at_position(num_cubes, device):
-    """Test application of external force on the base of the object at a specific position.
-
-    In this test, we apply a force equal to the weight of an object on the base of
-    one of the objects at 1m in the Y direction, we check that the object rotates around it's X axis.
-    For the other object, we do not apply any force and check that it falls down.
-
-    We validate that this works when we apply the force in the global frame and in the local frame.
-    """
-    # Generate cubes scene
-    with build_simulation_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, origins = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play the simulator
-        sim.reset()
-
-        # Find bodies to apply the force
-        body_ids, body_names = cube_object.find_bodies(".*")
-
-        # Sample a force equal to the weight of the object
-        external_wrench_b = torch.zeros(cube_object.num_instances, len(body_ids), 6, device=sim.device)
-        external_wrench_positions_b = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
-        # Every 2nd cube should have a force applied to it
-        external_wrench_b[0::2, :, 2] = 500.0
-        external_wrench_positions_b[0::2, :, 1] = 1.0
-
-        # Desired force and torque
-        desired_force = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
-        desired_force[0::2, :, 2] = 1000.0
-        desired_torque = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=sim.device)
-        desired_torque[0::2, :, 0] = 1000.0
-        # Now we are ready!
-        for i in range(5):
-            # reset root state
-            root_pose = cube_object.data.default_root_pose.torch.clone()
-            root_vel = cube_object.data.default_root_vel.torch.clone()
-
-            # need to shift the position of the cubes otherwise they will be on top of each other
-            root_pose[:, :3] = origins
-            cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-            cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-
-            # reset object
-            cube_object.reset()
-
-            is_global = False
-            if i % 2 == 0:
-                is_global = True
-                body_com_pos_w = cube_object.data.body_com_pos_w.torch[:, body_ids, :3]
-                external_wrench_positions_b[..., 0] = 0.0
-                external_wrench_positions_b[..., 1] = 1.0
-                external_wrench_positions_b[..., 2] = 0.0
-                external_wrench_positions_b += body_com_pos_w
-            else:
-                external_wrench_positions_b[..., 0] = 0.0
-                external_wrench_positions_b[..., 1] = 1.0
-                external_wrench_positions_b[..., 2] = 0.0
-
-            # apply force
-            cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-                forces=external_wrench_b[..., :3],
-                torques=external_wrench_b[..., 3:],
-                positions=external_wrench_positions_b,
-                body_ids=body_ids,
-                is_global=is_global,
-            )
-            cube_object.permanent_wrench_composer.add_forces_and_torques_index(
-                forces=external_wrench_b[..., :3],
-                torques=external_wrench_b[..., 3:],
-                positions=external_wrench_positions_b,
-                body_ids=body_ids,
-                is_global=is_global,
-            )
-            torch.testing.assert_close(
-                cube_object._permanent_wrench_composer.out_force_b.torch[:, 0, :],
-                desired_force[:, 0, :],
-                rtol=1e-6,
-                atol=1e-7,
-            )
-            torch.testing.assert_close(
-                cube_object._permanent_wrench_composer.out_torque_b.torch[:, 0, :],
-                desired_torque[:, 0, :],
-                rtol=1e-6,
-                atol=1e-7,
-            )
-            # perform simulation
-            for _ in range(5):
-                # apply action to the object
-                cube_object.write_data_to_sim()
-
-                # perform step
-                sim.step()
-
-                # update buffers
-                cube_object.update(sim.cfg.dt)
-
-            # The first object should be rotating around it's X axis
-            assert torch.all(torch.abs(cube_object.data.root_ang_vel_b.torch[0::2, 0]) > 0.1)
-            # Second object should have fallen, so it's Z height should be less than initial height of 1.0
-            assert torch.all(cube_object.data.root_pos_w.torch[1::2, 2] < 1.0)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_set_rigid_object_state(num_cubes, device):
-    """Test setting the state of the rigid object.
-
-    In this test, we set the state of the rigid object to a random state and check
-    that the object is in that state after simulation. We set gravity to zero as
-    we don't want any external forces acting on the object to ensure state remains static.
-    """
-    # Turn off gravity for this test as we don't want any external forces acting on the object
-    # to ensure state remains static
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play the simulator
-        sim.reset()
-
-        state_types = ["root_pos_w", "root_quat_w", "root_lin_vel_w", "root_ang_vel_w"]
-
-        # Set each state type individually as they are dependent on each other
-        for state_type_to_randomize in state_types:
-            state_dict = {
-                "root_pos_w": torch.zeros_like(cube_object.data.root_pos_w.torch, device=sim.device),
-                "root_quat_w": default_orientation(num=num_cubes, device=sim.device),
-                "root_lin_vel_w": torch.zeros_like(cube_object.data.root_lin_vel_w.torch, device=sim.device),
-                "root_ang_vel_w": torch.zeros_like(cube_object.data.root_ang_vel_w.torch, device=sim.device),
-            }
-
-            # Now we are ready!
-            for _ in range(5):
-                # reset object
-                cube_object.reset()
-
-                # Set random state
-                if state_type_to_randomize == "root_quat_w":
-                    state_dict[state_type_to_randomize] = random_orientation(num=num_cubes, device=sim.device)
-                else:
-                    state_dict[state_type_to_randomize] = torch.randn(num_cubes, 3, device=sim.device)
-
-                # perform simulation
-                for _ in range(5):
-                    root_pose = torch.cat(
-                        [state_dict["root_pos_w"], state_dict["root_quat_w"]],
-                        dim=-1,
-                    )
-                    root_vel = torch.cat(
-                        [state_dict["root_lin_vel_w"], state_dict["root_ang_vel_w"]],
-                        dim=-1,
-                    )
-                    # reset root state
-                    cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-                    cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-
-                    sim.step()
-
-                    # assert that set root quantities are equal to the ones set in the state_dict
-                    for key, expected_value in state_dict.items():
-                        value = getattr(cube_object.data, key).torch
-                        torch.testing.assert_close(value, expected_value, rtol=1e-3, atol=1e-3)
-
-                    cube_object.update(sim.cfg.dt)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_reset_rigid_object(num_cubes, device):
-    """Test resetting the state of the rigid object."""
-    with build_simulation_context(device=device, gravity_enabled=True, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play the simulator
-        sim.reset()
-
-        for i in range(5):
-            # perform rendering
-            sim.step()
-
-            # update object
-            cube_object.update(sim.cfg.dt)
-
-            # Move the object to a random position
-            root_pose = cube_object.data.default_root_pose.torch.clone()
-            root_pose[:, :3] = torch.randn(num_cubes, 3, device=sim.device)
-
-            # Random orientation
-            root_pose[:, 3:7] = random_orientation(num=num_cubes, device=sim.device)
-            cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-            root_vel = cube_object.data.default_root_vel.torch.clone()
-            cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-
-            if i % 2 == 0:
-                # reset object
-                cube_object.reset()
-
-                # Reset should zero external forces and torques
-                assert not cube_object._instantaneous_wrench_composer.active
-                assert not cube_object._permanent_wrench_composer.active
-                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.out_force_b.torch) == 0
-                assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.out_torque_b.torch) == 0
-                assert torch.count_nonzero(cube_object._permanent_wrench_composer.out_force_b.torch) == 0
-                assert torch.count_nonzero(cube_object._permanent_wrench_composer.out_torque_b.torch) == 0
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_rigid_body_set_material_properties(num_cubes, device):
-    """Test getting and setting material properties of rigid object."""
-    with build_simulation_context(
-        device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
-    ) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play sim
-        sim.reset()
-
-        # Set material properties
-        static_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        dynamic_friction = torch.FloatTensor(num_cubes, 1).uniform_(0.4, 0.8)
-        restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
-
-        materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-        indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-        # Add friction to cube
-        cube_object.root_view.set_material_properties(
-            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
+        assert scene.refcounts[name] < 10, name
+        assert asset.is_initialized, name
+    for rigid_object in (scene.cubes, scene.kinematic):
+        assert rigid_object.num_instances == _NUM_ENVS
+        assert len(rigid_object.body_names) == 1
+        assert rigid_object.data.root_pos_w.torch.shape == (_NUM_ENVS, 3)
+        assert rigid_object.data.root_quat_w.torch.shape == (_NUM_ENVS, 4)
+        assert rigid_object.data.body_mass.torch.shape == (_NUM_ENVS, 1)
+        assert rigid_object.data.body_inertia.torch.shape == (_NUM_ENVS, 1, 9)
+        torch.testing.assert_close(
+            rigid_object.data.GRAVITY_VEC_W.torch, torch.tensor([[0.0, 0.0, -1.0]] * _NUM_ENVS, device=scene.device)
+        )
+    for collection, num_envs, num_cubes in (
+        (scene.collection, _NUM_ENVS, _NUM_CUBES),
+        (scene.kinematic_collection, 1, 1),
+    ):
+        assert collection.num_instances == num_envs
+        assert len(collection.body_names) == num_cubes
+        assert collection.data.body_link_pos_w.torch.shape == (num_envs, num_cubes, 3)
+        assert collection.data.body_link_quat_w.torch.shape == (num_envs, num_cubes, 4)
+        assert collection.data.body_mass.torch.shape == (num_envs, num_cubes)
+        assert collection.data.body_inertia.torch.shape == (num_envs, num_cubes, 9)
+        torch.testing.assert_close(
+            collection.data.GRAVITY_VEC_W.torch[..., 2], torch.full((num_envs, num_cubes), -1.0, device=scene.device)
         )
 
-        # Simulate physics
-        # perform rendering
-        sim.step()
-        # update object
-        cube_object.update(sim.cfg.dt)
-
-        # Get material properties
-        materials_to_check = wp.to_torch(cube_object.root_view.get_material_properties())
-
-        # Check if material properties are set correctly
-        torch.testing.assert_close(materials_to_check.reshape(num_cubes, 3), materials)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_set_material_properties_via_view(num_cubes, device):
-    """Test setting material properties via the PhysX view-level API."""
-    with build_simulation_context(
-        device=device, gravity_enabled=True, add_ground_plane=True, auto_add_lighting=True
-    ) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Play sim
-        sim.reset()
-
-        # Get number of shapes
-        max_shapes = cube_object.root_view.max_shapes
-
-        # Generate random material properties: (static_friction, dynamic_friction, restitution)
-        materials = torch.empty(num_cubes, max_shapes, 3, device="cpu").uniform_(0.0, 1.0)
-        # Ensure dynamic friction <= static friction
-        materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])
-
-        # Set material properties via the PhysX view-level API
-        env_ids = torch.arange(num_cubes, dtype=torch.int32)
-        cube_object.root_view.set_material_properties(
-            wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
+    gravity_acceleration = torch.tensor([0.0, 0.0, -9.81, 0.0, 0.0, 0.0], device=scene.device)
+    kinematic, kinematic_collection = scene.kinematic, scene.kinematic_collection
+    for _ in range(2):
+        scene.step()
+        torch.testing.assert_close(scene.falling.data.body_acc_w.torch, gravity_acceleration.expand(_NUM_ENVS, 1, 6))
+        torch.testing.assert_close(
+            scene.falling_collection.data.body_com_acc_w.torch, gravity_acceleration.expand(_NUM_ENVS, 2, 6)
+        )
+        default_root_pose = kinematic.data.default_root_pose.torch.clone()
+        default_root_pose[:, :3] += scene.origins["kinematic"]
+        torch.testing.assert_close(kinematic.data.root_link_pose_w.torch, default_root_pose)
+        torch.testing.assert_close(kinematic.data.root_com_vel_w.torch, kinematic.data.default_root_vel.torch)
+        default_body_pose = kinematic_collection.data.default_body_pose.torch.clone()
+        default_body_pose[..., :3] += scene.origins["kinematic_collection"].unsqueeze(1)
+        torch.testing.assert_close(kinematic_collection.data.body_link_pose_w.torch, default_body_pose)
+        torch.testing.assert_close(
+            kinematic_collection.data.body_link_vel_w.torch, kinematic_collection.data.default_body_vel.torch
         )
 
-        # Simulate physics
-        sim.step()
-        cube_object.update(sim.cfg.dt)
 
-        # Get material properties from simulation
-        materials_check = wp.to_torch(cube_object.root_view.get_material_properties())
-
-        # Check if material properties are set correctly
-        torch.testing.assert_close(materials_check, materials)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
-def test_rigid_body_no_friction(num_cubes, device):
-    """Test that a rigid object with no friction maintains its tangential velocity on a plane."""
-    with build_simulation_context(device=device, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Generate cubes scene
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+def test_rigid_object_inertial_properties(scene: _Scene) -> None:
+    """Mass, center-of-mass, and inertia writes reach only the selected PhysX entries and survive a step."""
+    device = scene.device
+    cube_object = scene.cubes
 
-        # Create ground plane with no friction
-        cfg = sim_utils.GroundPlaneCfg(
-            physics_material=materials.RigidBodyMaterialCfg(
-                static_friction=0.0,
-                dynamic_friction=0.0,
-                restitution=0.0,
-            )
-        )
-        cfg.func("/World/GroundPlane", cfg)
+    # Full-data mass writes reach the view and survive a simulation step.
+    original_masses = wp.to_torch(cube_object.root_view.get_masses()).clone()
+    assert original_masses.shape == (_NUM_ENVS, 1)
+    masses = original_masses + torch.tensor([[4.5], [6.5]])
+    cube_object.set_masses_index(masses=masses.to(device))
+    torch.testing.assert_close(cube_object.data.body_mass.torch, masses.to(device))
+    torch.testing.assert_close(wp.to_torch(cube_object.root_view.get_masses()), masses)
+    scene.step()
+    torch.testing.assert_close(cube_object.data.body_mass.torch, masses.to(device))
+    torch.testing.assert_close(wp.to_torch(cube_object.root_view.get_masses()), masses)
 
-        # Play sim
-        sim.reset()
-
-        # Set material friction properties to be all zero
-        static_friction = torch.zeros(num_cubes, 1)
-        dynamic_friction = torch.zeros(num_cubes, 1)
-        restitution = torch.FloatTensor(num_cubes, 1).uniform_(0.0, 0.2)
-
-        cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-        indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-
-        cube_object.root_view.set_material_properties(
-            wp.from_torch(cube_object_materials, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
-        )
-
-        # Set initial velocity
-        # Initial velocity in X to get the block moving
-        initial_velocity = torch.zeros((num_cubes, 6), device=sim.cfg.device)
-        initial_velocity[:, 0] = 0.1
-
-        cube_object.write_root_velocity_to_sim_index(root_velocity=initial_velocity)
-
-        # Simulate physics
-        for _ in range(5):
-            # perform rendering
-            sim.step()
-            # update object
-            cube_object.update(sim.cfg.dt)
-
-            # Non-deterministic when on GPU, so we use different tolerances
-            if device.startswith("cuda"):
-                tolerance = 1e-2
-            else:
-                tolerance = 1e-5
-
-            torch.testing.assert_close(
-                cube_object.data.root_lin_vel_w.torch[:, :2], initial_velocity[:, :2], rtol=1e-5, atol=tolerance
-            )
+    # Partial writes with an int64 selector change environment 1 only.
+    env_ids = torch.tensor([1], dtype=torch.int64, device=device)
+    body_ids = torch.tensor([0], dtype=torch.int32, device=device)
+    expected = {
+        "body_mass": cube_object.data.body_mass.torch.clone(),
+        "body_com_pose_b": cube_object.data.body_com_pose_b.torch.clone(),
+        "body_inertia": cube_object.data.body_inertia.torch.clone(),
+    }
+    expected["body_mass"][1, 0] = 3.0
+    expected["body_com_pose_b"][1, 0, :3] = torch.tensor([0.03, -0.02, 0.01], device=device)
+    expected["body_inertia"][1, 0, [0, 4, 8]] *= torch.tensor([1.2, 1.3, 1.4], device=device)
+    cube_object.set_masses_index(masses=expected["body_mass"][1:], env_ids=env_ids, body_ids=body_ids)
+    cube_object.set_coms_index(coms=expected["body_com_pose_b"][1:], env_ids=env_ids, body_ids=body_ids)
+    cube_object.set_inertias_index(inertias=expected["body_inertia"][1:], env_ids=env_ids, body_ids=body_ids)
+    for name, data, raw in (
+        ("body_mass", cube_object.data.body_mass, cube_object.root_view.get_masses()),
+        ("body_com_pose_b", cube_object.data.body_com_pose_b, cube_object.root_view.get_coms().view(wp.float32)),
+        ("body_inertia", cube_object.data.body_inertia, cube_object.root_view.get_inertias()),
+    ):
+        torch.testing.assert_close(data.torch, expected[name])
+        torch.testing.assert_close(wp.to_torch(raw).to(device).reshape(expected[name].shape), expected[name])
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.isaacsim_ci
-def test_rigid_body_with_static_friction(num_cubes, device):
-    """Test that static friction applied to rigid object works as expected.
-
-    This test works by applying a force to the object and checking if the object moves or not based on the
-    mu (coefficient of static friction) value set for the object. We set the static friction to be non-zero and
-    apply a force to the object. When the force applied is below mu, the object should not move. When the force
-    applied is above mu, the object should move.
-    """
-    with build_simulation_context(device=device, dt=0.01, add_ground_plane=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
-
-        # Create ground plane
-        static_friction_coefficient = 0.5
-        cfg = sim_utils.GroundPlaneCfg(
-            physics_material=materials.RigidBodyMaterialCfg(
-                static_friction=static_friction_coefficient,
-                dynamic_friction=static_friction_coefficient,  # This shouldn't be required but is due to a bug in PhysX
-            )
-        )
-        cfg.func("/World/GroundPlane", cfg)
-
-        # Play sim
-        sim.reset()
-
-        # Set static friction to be non-zero
-        # Dynamic friction also needs to be zero due to a bug in PhysX
-        static_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
-        dynamic_friction = torch.Tensor([[static_friction_coefficient]] * num_cubes)
-        restitution = torch.zeros(num_cubes, 1)
-
-        cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-        indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-
-        # Add friction to cube
-        cube_object.root_view.set_material_properties(
-            wp.from_torch(cube_object_materials, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
-        )
-
-        # let everything settle
-        for _ in range(100):
-            sim.step()
-            cube_object.update(sim.cfg.dt)
-        cube_object.write_root_velocity_to_sim_index(root_velocity=torch.zeros((num_cubes, 6), device=sim.device))
-        cube_mass = wp.to_torch(cube_object.root_view.get_masses())
-        gravity_magnitude = abs(sim.cfg.gravity[2])
-        # 2 cases: force applied is below and above mu
-        # below mu: block should not move as the force applied is <= mu
-        # above mu: block should move as the force applied is > mu
-        for force in "below_mu", "above_mu":
-            # set initial velocity to zero
-            cube_object.write_root_velocity_to_sim_index(root_velocity=torch.zeros((num_cubes, 6), device=sim.device))
-
-            external_wrench_b = torch.zeros((num_cubes, 1, 6), device=sim.device)
-            if force == "below_mu":
-                external_wrench_b[..., 0] = static_friction_coefficient * cube_mass * gravity_magnitude * 0.99
-            else:
-                external_wrench_b[..., 0] = static_friction_coefficient * cube_mass * gravity_magnitude * 1.01
-
-            cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-                forces=external_wrench_b[..., :3],
-                torques=external_wrench_b[..., 3:],
-            )
-
-            # Get root state
-            initial_root_pos = cube_object.data.root_pos_w.torch.clone()
-            # Simulate physics
-            for _ in range(200):
-                # apply the wrench
-                cube_object.write_data_to_sim()
-                sim.step()
-                # update object
-                cube_object.update(sim.cfg.dt)
-                if force == "below_mu":
-                    # Assert that the block has not moved
-                    torch.testing.assert_close(
-                        cube_object.data.root_pos_w.torch, initial_root_pos, rtol=2e-3, atol=2e-3
-                    )
-            if force == "above_mu":
-                assert (cube_object.data.root_pos_w.torch[..., 0] - initial_root_pos[..., 0] > 0.02).all()
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_rigid_body_with_restitution(num_cubes, device):
-    """Test that restitution when applied to rigid object works as expected.
-
-    This test works by dropping a block from a height and checking if the block bounces or not based on the
-    restitution value set for the object. We set the restitution to be non-zero and drop the block from a height.
-    When the restitution is 0, the block should not bounce. When the restitution is between 0 and 1, the block
-    should bounce with less energy.
-    """
-    for expected_collision_type in "partially_elastic", "inelastic":
-        with build_simulation_context(device=device, add_ground_plane=False, auto_add_lighting=True) as sim:
-            sim._app_control_on_stop_handle = None
-            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
-
-            # Set static friction to be non-zero
-            if expected_collision_type == "inelastic":
-                restitution_coefficient = 0.0
-            elif expected_collision_type == "partially_elastic":
-                restitution_coefficient = 0.5
-
-            # Create ground plane such that has a restitution of 1.0 (perfectly elastic collision)
-            cfg = sim_utils.GroundPlaneCfg(
-                physics_material=materials.RigidBodyMaterialCfg(
-                    restitution=restitution_coefficient,
-                )
-            )
-            cfg.func("/World/GroundPlane", cfg)
-
-            indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-
-            # Play sim
-            sim.reset()
-
-            root_pose = torch.zeros(num_cubes, 7, device=sim.device)
-            root_pose[:, 3] = 1.0  # To make orientation a quaternion
-            for i in range(num_cubes):
-                root_pose[i, 1] = 1.0 * i
-            root_pose[:, 2] = 1.0  # Set an initial drop height
-            root_vel = torch.zeros(num_cubes, 6, device=sim.device)
-            root_vel[:, 2] = -1.0  # Set an initial downward velocity
-
-            cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-            cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-
-            static_friction = torch.zeros(num_cubes, 1)
-            dynamic_friction = torch.zeros(num_cubes, 1)
-            restitution = torch.Tensor([[restitution_coefficient]] * num_cubes)
-
-            cube_object_materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
-
-            # Add restitution to cube
-            cube_object.root_view.set_material_properties(
-                wp.from_torch(cube_object_materials, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
-            )
-
-            curr_z_velocity = cube_object.data.root_lin_vel_w.torch[:, 2].clone()
-
-            for _ in range(100):
-                sim.step()
-
-                # update object
-                cube_object.update(sim.cfg.dt)
-                curr_z_velocity = cube_object.data.root_lin_vel_w.torch[:, 2].clone()
-
-                if expected_collision_type == "inelastic":
-                    # Allow a small contact separation velocity while ensuring that the block does not bounce.
-                    assert (curr_z_velocity <= 1e-3).all()
-
-                if torch.all(curr_z_velocity <= 0.0):
-                    # Still in the air
-                    prev_z_velocity = curr_z_velocity
-                else:
-                    # collision has happened, exit the for loop
-                    break
-
-            if expected_collision_type == "partially_elastic":
-                # Assert that the block has lost some energy by checking that the z velocity is less
-                assert torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity)))
-                assert (curr_z_velocity > 0.0).all()
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.isaacsim_ci
-def test_rigid_body_set_mass(num_cubes, device):
-    """Test getting and setting mass of rigid object."""
-    with build_simulation_context(
-        device=device, gravity_enabled=False, add_ground_plane=True, auto_add_lighting=True
-    ) as sim:
-        sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
-
-        # Play sim
-        sim.reset()
-
-        # Get masses before increasing
-        original_masses = wp.to_torch(cube_object.root_view.get_masses())
-
-        assert original_masses.shape == (num_cubes, 1)
-
-        # Randomize mass of the object
-        masses = original_masses + torch.FloatTensor(num_cubes, 1).uniform_(4, 8)
-
-        indices = torch.tensor(range(num_cubes), dtype=torch.int32)
-
-        # Add friction to cube
-        cube_object.root_view.set_masses(
-            wp.from_torch(masses, dtype=wp.float32), wp.from_torch(indices, dtype=wp.int32)
-        )
-
-        torch.testing.assert_close(wp.to_torch(cube_object.root_view.get_masses()), masses)
-
-        # Simulate physics
-        # perform rendering
-        sim.step()
-        # update object
-        cube_object.update(sim.cfg.dt)
-
-        masses_to_check = wp.to_torch(cube_object.root_view.get_masses())
-
-        # Check if mass is set correctly
-        torch.testing.assert_close(masses, masses_to_check)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [True, False])
-@pytest.mark.isaacsim_ci
-def test_gravity_vec_w(num_cubes, device, gravity_enabled):
-    """Test that gravity vector direction is set correctly for the rigid object."""
-    with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
-        sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
-
-        # Obtain gravity direction
-        if gravity_enabled:
-            gravity_dir = (0.0, 0.0, -1.0)
-        else:
-            gravity_dir = (0.0, 0.0, 0.0)
-
-        # Play sim
-        sim.reset()
-
-        # Check that gravity is set correctly
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 0] == gravity_dir[0]
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 1] == gravity_dir[1]
-        assert cube_object.data.GRAVITY_VEC_W.torch[0, 2] == gravity_dir[2]
-
-        # Simulate physics
-        for _ in range(2):
-            # perform rendering
-            sim.step()
-            # update object
-            cube_object.update(sim.cfg.dt)
-
-            # Expected gravity value is the acceleration of the body
-            gravity = torch.zeros(num_cubes, 1, 6, device=device)
-            if gravity_enabled:
-                gravity[:, :, 2] = -9.81
-            # Check the body accelerations are correct
-            torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("with_offset", [True, False])
-@pytest.mark.isaacsim_ci
-@flaky(max_runs=3, min_passes=1)
-def test_body_root_state_properties(num_cubes, device, with_offset):
-    """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
-
-        # Play sim
-        sim.reset()
-
-        # Check if cube_object is initialized
-        assert cube_object.is_initialized
-
-        # change center of mass offset from link frame
-        if with_offset:
-            offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
-        else:
-            offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
-
-        com = wp.to_torch(cube_object.root_view.get_coms())
-        com[..., :3] = offset.to("cpu")
-        cube_object.root_view.set_coms(wp.from_torch(com, dtype=wp.float32), wp.from_torch(env_idx, dtype=wp.int32))
-
-        # check ceter of mass has been set
-        torch.testing.assert_close(wp.to_torch(cube_object.root_view.get_coms()), com)
-
-        # random z spin velocity
-        spin_twist = torch.zeros(6, device=device)
-        spin_twist[5] = torch.randn(1, device=device)
-
-        # Simulate physics
-        for _ in range(100):
-            # spin the object around Z axis (com)
-            cube_object.write_root_velocity_to_sim_index(root_velocity=spin_twist.repeat(num_cubes, 1))
-            # perform rendering
-            sim.step()
-            # update object
-            cube_object.update(sim.cfg.dt)
-
-            # get state properties
-            root_link_pose_w = cube_object.data.root_link_pose_w.torch
-            root_link_vel_w = cube_object.data.root_link_vel_w.torch
-            root_com_pose_w = cube_object.data.root_com_pose_w.torch
-            root_com_vel_w = cube_object.data.root_com_vel_w.torch
-            body_link_pose_w = cube_object.data.body_link_pose_w.torch
-            body_link_vel_w = cube_object.data.body_link_vel_w.torch
-            body_com_pose_w = cube_object.data.body_com_pose_w.torch
-            body_com_vel_w = cube_object.data.body_com_vel_w.torch
-
-            # if offset is [0,0,0] all root_state_%_w will match and all body_%_w will match
-            if not with_offset:
-                torch.testing.assert_close(root_link_pose_w, root_com_pose_w)
-                torch.testing.assert_close(root_com_vel_w, root_link_vel_w)
-                torch.testing.assert_close(root_link_pose_w, root_link_pose_w)
-                torch.testing.assert_close(root_com_vel_w, root_link_vel_w)
-                torch.testing.assert_close(body_link_pose_w, body_com_pose_w)
-                torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
-                torch.testing.assert_close(body_link_pose_w, body_link_pose_w)
-                torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
-            else:
-                # cubes are spinning around center of mass
-                # position will not match
-                # center of mass position will be constant (i.e. spinning around com)
-                torch.testing.assert_close(env_pos + offset, root_com_pose_w[..., :3])
-                torch.testing.assert_close(env_pos + offset, body_com_pose_w[..., :3].squeeze(-2))
-                # link position will be moving but should stay constant away from center of mass
-                root_link_state_pos_rel_com = quat_apply_inverse(
-                    root_link_pose_w[..., 3:],
-                    root_link_pose_w[..., :3] - root_com_pose_w[..., :3],
-                )
-                torch.testing.assert_close(-offset, root_link_state_pos_rel_com)
-                body_link_state_pos_rel_com = quat_apply_inverse(
-                    body_link_pose_w[..., 3:],
-                    body_link_pose_w[..., :3] - body_com_pose_w[..., :3],
-                )
-                torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
-
-                # orientation of com will be a constant rotation from link orientation
-                com_quat_b = cube_object.data.body_com_quat_b.torch
-                com_quat_w = quat_mul(body_link_pose_w[..., 3:], com_quat_b)
-                torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
-                torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_pose_w[..., 3:])
-
-                # orientation of link will match root state will always match
-                torch.testing.assert_close(root_link_pose_w[..., 3:], root_link_pose_w[..., 3:])
-                torch.testing.assert_close(body_link_pose_w[..., 3:], body_link_pose_w[..., 3:])
-
-                # lin_vel will not match
-                # center of mass vel will be constant (i.e. spinning around com)
-                torch.testing.assert_close(torch.zeros_like(root_com_vel_w[..., :3]), root_com_vel_w[..., :3])
-                torch.testing.assert_close(torch.zeros_like(body_com_vel_w[..., :3]), body_com_vel_w[..., :3])
-                # link frame will be moving, and should be equal to input angular velocity cross offset
-                lin_vel_rel_root_gt = quat_apply_inverse(root_link_pose_w[..., 3:], root_link_vel_w[..., :3])
-                lin_vel_rel_body_gt = quat_apply_inverse(body_link_pose_w[..., 3:], body_link_vel_w[..., :3])
-                lin_vel_rel_gt = torch.linalg.cross(spin_twist.repeat(num_cubes, 1)[..., 3:], -offset)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
-                torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
-
-                # ang_vel will always match
-                torch.testing.assert_close(root_com_vel_w[..., 3:], root_com_vel_w[..., 3:])
-                torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
-                torch.testing.assert_close(body_com_vel_w[..., 3:], body_com_vel_w[..., 3:])
-                torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
-
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("with_offset", [True, False])
-@pytest.mark.parametrize("state_location", ["com", "link"])
-@pytest.mark.isaacsim_ci
-def test_write_root_state(num_cubes, device, with_offset, state_location):
-    """Test the setters for root_state using both the link frame and center of mass as reference frame."""
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
-
-        # Play sim
-        sim.reset()
-
-        # Check if cube_object is initialized
-        assert cube_object.is_initialized
-
-        # change center of mass offset from link frame
-        if with_offset:
-            offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
-        else:
-            offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
-
-        com = wp.to_torch(cube_object.root_view.get_coms())
-        com[..., :3] = offset.to("cpu")
-        cube_object.root_view.set_coms(wp.from_torch(com, dtype=wp.float32), wp.from_torch(env_idx, dtype=wp.int32))
-
-        # check center of mass has been set
-        torch.testing.assert_close(wp.to_torch(cube_object.root_view.get_coms()), com)
-
-        rand_state = torch.zeros(num_cubes, 13, device=device)
-        rand_state[..., :7] = cube_object.data.default_root_pose.torch
-        rand_state[..., :3] += env_pos
-        # make quaternion a unit vector
-        rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
-
-        env_idx = env_idx.to(device)
-        for i in range(10):
-            # perform step
-            sim.step()
-            # update buffers
-            cube_object.update(sim.cfg.dt)
-
+def test_rigid_object_root_state_writes(scene: _Scene) -> None:
+    """Root writes round-trip through the written frame and keep the other frame consistent with the offset."""
+    device = scene.device
+    cube_object = scene.cubes
+    rest_pose = torch.cat(
+        (scene.origins["cubes"], torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).repeat(_NUM_ENVS, 1)), -1
+    )
+    rest_pose[:, 2] += 1.0
+    scene.place_cubes_at_rest(rest_pose)
+
+    # A partial pose and velocity write reaches only the selected root.
+    initial_pose = cube_object.data.root_link_pose_w.torch.clone()
+    initial_velocity = cube_object.data.root_link_vel_w.torch.clone()
+    initial_com_velocity = cube_object.data.root_com_vel_w.torch.clone()
+    target_pose = initial_pose[1:].clone()
+    target_pose[:, :3] += torch.tensor([0.25, -0.1, 0.3], device=device)
+    target_pose[:, 3:] = torch.tensor(_yaw_quat(0.4), device=device)
+    target_velocity = torch.tensor([[0.0, 0.2, 0.0, 0.0, 0.0, 0.1]], device=device)
+    cube_object.write_root_link_pose_to_sim_index(root_pose=target_pose, env_ids=[1])
+    cube_object.write_root_link_velocity_to_sim_index(root_velocity=target_velocity, env_ids=[1])
+    torch.testing.assert_close(cube_object.data.root_link_pose_w.torch[1:], target_pose)
+    torch.testing.assert_close(cube_object.data.root_link_vel_w.torch[1:], target_velocity)
+    torch.testing.assert_close(cube_object.data.root_link_pose_w.torch[:1], initial_pose[:1])
+    torch.testing.assert_close(cube_object.data.root_link_vel_w.torch[:1], initial_velocity[:1])
+    raw_pose = wp.to_torch(cube_object.root_view.get_transforms()).to(device)
+    torch.testing.assert_close(raw_pose, torch.cat((initial_pose[:1], target_pose)))
+    # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed with the
+    # world-frame center-of-mass offset.
+    com_offset_w = quat_apply(target_pose[:, 3:], cube_object.data.body_com_pos_b.torch[1:, 0])
+    target_com_velocity = target_velocity.clone()
+    target_com_velocity[:, :3] += torch.linalg.cross(target_velocity[:, 3:], com_offset_w)
+    raw_velocity = wp.to_torch(cube_object.root_view.get_velocities()).to(device)
+    torch.testing.assert_close(raw_velocity, torch.cat((initial_com_velocity[:1], target_com_velocity)))
+
+    # With a center-of-mass offset, every writer round-trips through its own frame.
+    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(_NUM_ENVS, 1)
+    coms = cube_object.data.body_com_pose_b.torch.clone()
+    coms[:, 0, :3] = offset
+    coms[:, 0, 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+    cube_object.set_coms_index(coms=coms)
+    # random pose and velocity so frame conversions see a non-trivial rotation
+    rand_state = torch.rand(_NUM_ENVS, 13, device=device)
+    rand_state[..., :3] += rest_pose[:, :3]
+    rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+    env_idx = torch.arange(_NUM_ENVS, dtype=torch.int32, device=device)
+    for state_location in ("com", "link", "root"):
+        for env_ids in (None, env_idx):
             if state_location == "com":
-                if i % 2 == 0:
-                    cube_object.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7])
-                    cube_object.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-                else:
-                    cube_object.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_idx)
-                    cube_object.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_idx)
-            elif state_location == "link":
-                if i % 2 == 0:
-                    cube_object.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7])
-                    cube_object.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-                else:
-                    cube_object.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_idx)
-                    cube_object.write_root_link_velocity_to_sim_index(
-                        root_velocity=rand_state[..., 7:], env_ids=env_idx
-                    )
-
-            if state_location == "com":
+                cube_object.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_ids)
+                cube_object.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_ids)
                 torch.testing.assert_close(rand_state[..., :7], cube_object.data.root_com_pose_w.torch)
                 torch.testing.assert_close(rand_state[..., 7:], cube_object.data.root_com_vel_w.torch)
             elif state_location == "link":
+                cube_object.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_ids)
+                cube_object.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_ids)
                 torch.testing.assert_close(rand_state[..., :7], cube_object.data.root_link_pose_w.torch)
                 torch.testing.assert_close(rand_state[..., 7:], cube_object.data.root_link_vel_w.torch)
+            else:
+                cube_object.write_root_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_ids)
+                cube_object.write_root_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_ids)
+                torch.testing.assert_close(rand_state[..., :7], cube_object.data.root_link_pose_w.torch)
+                torch.testing.assert_close(rand_state[..., 7:], cube_object.data.root_com_vel_w.torch)
 
-
-@pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("with_offset", [True])
-@pytest.mark.parametrize("state_location", ["com", "link", "root"])
-@pytest.mark.isaacsim_ci
-def test_write_state_functions_data_consistency(num_cubes, device, with_offset, state_location):
-    """Test the setters for root_state using both the link frame and center of mass as reference frame."""
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        # Create a scene with random cubes
-        cube_object, env_pos = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
-        env_idx = torch.tensor([x for x in range(num_cubes)], dtype=torch.int32)
-
-        # Play sim
-        sim.reset()
-
-        # Check if cube_object is initialized
-        assert cube_object.is_initialized
-
-        # change center of mass offset from link frame
-        if with_offset:
-            offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(num_cubes, 1)
-        else:
-            offset = torch.tensor([0.0, 0.0, 0.0], device=device).repeat(num_cubes, 1)
-
-        com = wp.to_torch(cube_object.root_view.get_coms())
-        com[..., :3] = offset.to("cpu")
-        cube_object.root_view.set_coms(wp.from_torch(com, dtype=wp.float32), wp.from_torch(env_idx, dtype=wp.int32))
-
-        # check ceter of mass has been set
-        torch.testing.assert_close(wp.to_torch(cube_object.root_view.get_coms()), com)
-
-        rand_state = torch.rand(num_cubes, 13, device=device)
-        rand_state[..., :3] += env_pos
-        # make quaternion a unit vector
-        rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
-
-        env_idx = env_idx.to(device)
-
-        # perform step
-        sim.step()
-        # update buffers
-        cube_object.update(sim.cfg.dt)
-
-        if state_location == "com":
-            cube_object.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7])
-            cube_object.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-        elif state_location == "link":
-            cube_object.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7])
-            cube_object.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-        elif state_location == "root":
-            cube_object.write_root_pose_to_sim_index(root_pose=rand_state[..., :7])
-            cube_object.write_root_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-
-        if state_location == "com":
-            root_com_pose_w = cube_object.data.root_com_pose_w.torch
-            root_com_vel_w = cube_object.data.root_com_vel_w.torch
-            body_com_pose_b = cube_object.data.body_com_pose_b.torch
-            expected_root_link_pos, expected_root_link_quat = combine_frame_transforms(
-                root_com_pose_w[:, :3],
-                root_com_pose_w[:, 3:],
-                quat_rotate(quat_inv(body_com_pose_b[:, 0, 3:7]), -body_com_pose_b[:, 0, :3]),
-                quat_inv(body_com_pose_b[:, 0, 3:7]),
-            )
-            expected_root_link_pose = torch.cat((expected_root_link_pos, expected_root_link_quat), dim=1)
+            # the frame that was not written must follow through the center-of-mass offset
             root_link_pose_w = cube_object.data.root_link_pose_w.torch
-            root_link_vel_w = cube_object.data.root_link_vel_w.torch
-            # test both root_pose and root_link successfully updated when root_com updates
-            torch.testing.assert_close(expected_root_link_pose, root_link_pose_w)
-            # skip lin_vel because it differs from link frame, this should be fine because we are only checking
-            # if velocity update is triggered, which can be determined by comparing angular velocity
-            torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
-            torch.testing.assert_close(expected_root_link_pose, root_link_pose_w)
-            torch.testing.assert_close(root_com_vel_w[:, 3:], cube_object.data.root_com_vel_w.torch[:, 3:])
-        elif state_location == "link":
-            root_link_pose_w = cube_object.data.root_link_pose_w.torch
-            root_link_vel_w = cube_object.data.root_link_vel_w.torch
             body_com_pose_b = cube_object.data.body_com_pose_b.torch
             expected_com_pos, expected_com_quat = combine_frame_transforms(
                 root_link_pose_w[:, :3],
@@ -1223,80 +545,309 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
                 body_com_pose_b[:, 0, :3],
                 body_com_pose_b[:, 0, 3:7],
             )
-            expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
-            root_com_pose_w = cube_object.data.root_com_pose_w.torch
-            root_com_vel_w = cube_object.data.root_com_vel_w.torch
-            # test both root_pose and root_com successfully updated when root_link updates
-            torch.testing.assert_close(expected_com_pose, root_com_pose_w)
-            # skip lin_vel because it differs from link frame, this should be fine because we are only checking
-            # if velocity update is triggered, which can be determined by comparing angular velocity
-            torch.testing.assert_close(root_link_vel_w[:, 3:], root_com_vel_w[:, 3:])
-            torch.testing.assert_close(root_link_pose_w, cube_object.data.root_link_pose_w.torch)
-            torch.testing.assert_close(root_link_vel_w[:, 3:], cube_object.data.root_com_vel_w.torch[:, 3:])
-        elif state_location == "root":
-            root_link_pose_w = cube_object.data.root_link_pose_w.torch
-            root_com_vel_w = cube_object.data.root_com_vel_w.torch
-            body_com_pose_b = cube_object.data.body_com_pose_b.torch
-            expected_com_pos, expected_com_quat = combine_frame_transforms(
-                root_link_pose_w[:, :3],
-                root_link_pose_w[:, 3:],
-                body_com_pose_b[:, 0, :3],
-                body_com_pose_b[:, 0, 3:7],
+            torch.testing.assert_close(
+                torch.cat((expected_com_pos, expected_com_quat), dim=1), cube_object.data.root_com_pose_w.torch
             )
-            expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
-            root_com_pose_w = cube_object.data.root_com_pose_w.torch
-            root_link_vel_w = cube_object.data.root_link_vel_w.torch
-            # test both root_com and root_link successfully updated when root_pose updates
-            torch.testing.assert_close(expected_com_pose, root_com_pose_w)
-            torch.testing.assert_close(root_com_vel_w, cube_object.data.root_com_vel_w.torch)
-            torch.testing.assert_close(root_link_pose_w, cube_object.data.root_link_pose_w.torch)
-            torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
+            torch.testing.assert_close(
+                cube_object.data.root_com_vel_w.torch[:, 3:], cube_object.data.root_link_vel_w.torch[:, 3:]
+            )
+            # Move away from the written state so that the next pass writes it again.
+            scene.step()
+
+    # Spinning about the center of mass keeps it in place while the link frame orbits it.
+    scene.place_cubes_at_rest(rest_pose)
+    spin_twist = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 1.3], device=device).repeat(_NUM_ENVS, 1)
+    initial_com_pos = cube_object.data.root_com_pose_w.torch[:, :3].clone()
+    for _ in range(10):
+        cube_object.write_root_com_velocity_to_sim_index(root_velocity=spin_twist)
+        scene.step()
+        root_link_pose_w = cube_object.data.root_link_pose_w.torch
+        root_link_vel_w = cube_object.data.root_link_vel_w.torch
+        root_com_pose_w = cube_object.data.root_com_pose_w.torch
+        root_com_vel_w = cube_object.data.root_com_vel_w.torch
+        body_link_pose_w = cube_object.data.body_link_pose_w.torch
+        body_com_pose_w = cube_object.data.body_com_pose_w.torch
+        # center of mass position will be constant (i.e. spinning around com)
+        torch.testing.assert_close(root_com_pose_w[:, :3], initial_com_pos)
+        torch.testing.assert_close(body_com_pose_w[:, 0, :3], initial_com_pos)
+        # link position will be moving but should stay constant away from center of mass
+        torch.testing.assert_close(
+            -offset, quat_apply_inverse(root_link_pose_w[:, 3:], root_link_pose_w[:, :3] - root_com_pose_w[:, :3])
+        )
+        # orientation of com will be a constant rotation from link orientation
+        com_quat_w = quat_mul(body_link_pose_w[..., 3:], cube_object.data.body_com_quat_b.torch)
+        torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
+        torch.testing.assert_close(com_quat_w[:, 0], root_com_pose_w[:, 3:])
+        # center of mass is at rest while the link frame moves with angular velocity cross offset
+        torch.testing.assert_close(torch.zeros_like(root_com_vel_w[:, :3]), root_com_vel_w[:, :3])
+        lin_vel_rel_root = quat_apply_inverse(root_link_pose_w[:, 3:], root_link_vel_w[:, :3])
+        lin_vel_rel_gt = torch.linalg.cross(spin_twist[:, 3:], -offset)
+        torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root, atol=1e-4, rtol=1e-4)
+        # ang_vel will always match
+        torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
 
 
 @pytest.mark.isaacsim_ci
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: CPU warmup must force-load without explicitly attaching the stage.
+def test_rigid_object_wrench_delivery_and_reset(scene: _Scene) -> None:
+    """External wrenches act in the frame they are given in on the selected root; reset clears them."""
+    device = scene.device
+    cube_object = scene.cubes
+    rest_pose = torch.cat(
+        (scene.origins["cubes"], torch.tensor(_yaw_quat(0.5 * math.pi), device=device).expand(_NUM_ENVS, 4)), -1
+    )
+    rest_pose[:, 2] += 1.0
+    # Give both environments the inertial properties of a uniform 1 kg cube so that their responses are comparable.
+    cube_object.set_masses_index(masses=torch.ones((_NUM_ENVS, 1), device=device))
+    coms = torch.zeros((_NUM_ENVS, 1, 7), device=device)
+    coms[..., 6] = 1.0
+    cube_object.set_coms_index(coms=coms)
+    inertias = torch.zeros((_NUM_ENVS, 1, 9), device=device)
+    inertias[..., [0, 4, 8]] = 1.0 * (0.2**2 + 0.2**2) / 12.0
+    cube_object.set_inertias_index(inertias=inertias)
 
-    Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
-    ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
-    These are two alternative initialization patterns; combining them causes
-    double-initialization that corrupts the CPU MBP broadphase, producing
-    non-deterministic collision failures (objects passing through surfaces).
+    # A body-frame force on environment 1 accelerates only that cube, along the rotated force direction.
+    scene.place_cubes_at_rest(rest_pose)
+    cube_object.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=torch.tensor([[[6.0, 0.0, 0.0]]], device=device), env_ids=[1]
+    )
+    scene.step()
+    velocity = cube_object.data.root_com_lin_vel_w.torch
+    assert velocity[1, 1] > 1e-2, velocity
+    torch.testing.assert_close(velocity[0], torch.zeros(3, device=device), atol=1e-5, rtol=0.0)
 
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()`` when
-    the ``omni.physics.physx`` bridge registers the backend.
+    # A world-frame force, and a force at a position, match their body-frame counterparts.
+    for local_wrench, global_wrench, response in (
+        ({"forces": [[[6.0, 0.0, 0.0]]]}, {"forces": [[[0.0, 6.0, 0.0]]]}, lambda: cube_object.data.root_com_lin_vel_w),
+        (
+            {"forces": [[[0.0, 0.0, 6.0]]], "positions": [[[0.0, 0.1, 0.0]]]},
+            {"forces": [[[0.0, 0.0, 6.0]]], "positions": [[[-0.1, 0.0, 0.0]]]},
+            lambda: cube_object.data.root_com_ang_vel_b,
+        ),
+    ):
+        scene.place_cubes_at_rest(rest_pose)
+        local_wrench = {key: torch.tensor(value, device=device) for key, value in local_wrench.items()}
+        global_wrench = {key: torch.tensor(value, device=device) for key, value in global_wrench.items()}
+        if "positions" in global_wrench:
+            # World-frame positions add the rotated body-frame lever arm to the center of mass.
+            global_wrench["positions"] = global_wrench["positions"] + cube_object.data.body_com_pos_w.torch[:1]
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(env_ids=[1], **local_wrench)
+        cube_object.permanent_wrench_composer.set_forces_and_torques_index(env_ids=[0], is_global=True, **global_wrench)
+        scene.step()
+        response_value = response().torch
+        torch.testing.assert_close(response_value[0], response_value[1], atol=1e-4, rtol=1e-3)
+    # An upward force 0.1 m along the body y-axis rolls the cube about its x-axis.
+    assert torch.all(cube_object.data.root_com_ang_vel_b.torch[:, 0] > 0.1)
+    assert torch.all(
+        quat_apply(
+            cube_object.data.root_link_quat_w.torch, torch.tensor([1.0, 0.0, 0.0], device=device).repeat(_NUM_ENVS, 1)
+        )[:, 1]
+        > 0.99
+    )
 
-    This test verifies that the PhysX backend is registered with the unified physics
-    API, ``attach_stage`` is not called, and ``force_load_physics_from_usd`` is called
-    exactly once during CPU warmup.
-    """
-    from unittest.mock import MagicMock, patch
+    # A partial reset clears only the selected environment; a full reset deactivates the composers.
+    composers = (cube_object.instantaneous_wrench_composer, cube_object.permanent_wrench_composer)
+    ones = torch.ones((_NUM_ENVS, 1, 3), device=device)
+    cube_object.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    cube_object.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
+    cube_object.reset(env_ids=torch.tensor([0], device=device))
+    for composer in composers:
+        assert composer.active
+        for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
+            assert torch.count_nonzero(buffer[0]) == 0
+            assert torch.count_nonzero(buffer[1:]) == buffer[1:].numel()
+    cube_object.reset()
+    for composer in composers:
+        assert not composer.active
+        assert torch.count_nonzero(composer.out_force_b.torch) == 0
+        assert torch.count_nonzero(composer.out_torque_b.torch) == 0
 
-    import omni.kit.app
-    import omni.physx
 
-    with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
+def test_collection_state_writes(scene: _Scene) -> None:
+    """Body state writes reach the selected body-major view entries in the frame they are given in."""
+    device = scene.device
+    collection = scene.collection
+    scene.place_collection_at_rest()
 
-        # PhysxManager no longer caches the simulation interface; it resolves it on each use
-        # via ``omni.physx.get_physx_simulation_interface()`` (the accessor memoizes it).
-        # The PhysX interfaces are C++ bindings whose attributes are read-only. Patch
-        # their accessors with wrapping mocks so the real calls still execute.
-        physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
-        physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
-        with (
-            patch("omni.physx.get_physx_interface", return_value=physx_spy),
-            patch("omni.physx.get_physx_simulation_interface", return_value=physx_sim_spy),
-        ):
-            sim.reset()
+    # A non-sorted partial write reaches only the selected view entries.
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    body_ids = torch.tensor([2], dtype=torch.int32, device=device)
+    initial_pose = collection.data.body_link_pose_w.torch.clone()
+    initial_velocity = collection.data.body_com_vel_w.torch.clone()
+    target_pose = initial_pose[env_ids][:, body_ids].clone()
+    target_pose[0, 0, :3] += torch.tensor([0.2, 0.3, 0.4], device=device)
+    target_pose[1, 0, :3] += torch.tensor([-0.1, -0.2, 0.1], device=device)
+    target_pose[..., 3:] = torch.tensor(_yaw_quat(0.3), device=device)
+    target_velocity = torch.tensor([[[0.1, 0.2, 0.3, 0.4, 0.5, 0.6]], [[-0.6, -0.5, -0.4, -0.3, -0.2, -0.1]]])
+    target_velocity = target_velocity.to(device)
+    collection.write_body_link_pose_to_sim_index(body_poses=target_pose, env_ids=env_ids, body_ids=body_ids)
+    collection.write_body_com_velocity_to_sim_index(body_velocities=target_velocity, env_ids=env_ids, body_ids=body_ids)
+    expected_pose = initial_pose.clone()
+    expected_pose[env_ids[:, None], body_ids] = target_pose
+    expected_velocity = initial_velocity.clone()
+    expected_velocity[env_ids[:, None], body_ids] = target_velocity
+    torch.testing.assert_close(collection.data.body_link_pose_w.torch, expected_pose)
+    torch.testing.assert_close(collection.data.body_com_vel_w.torch, expected_velocity)
+    for raw, expected in (
+        (collection.root_view.get_transforms(), expected_pose),
+        (collection.root_view.get_velocities(), expected_velocity),
+    ):
+        raw_by_env = wp.to_torch(raw).to(device).reshape(_NUM_CUBES, _NUM_ENVS, -1).transpose(0, 1)
+        torch.testing.assert_close(raw_by_env, expected)
 
-        extension_manager = omni.kit.app.get_app().get_extension_manager()
-        assert extension_manager.is_extension_enabled("omni.physics.physx"), (
-            "The omni.physics.physx bridge must register PhysX with the unified physics API."
+    # With a center-of-mass offset, every writer round-trips through its own frame.
+    scene.place_collection_at_rest()
+    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(_NUM_ENVS, _NUM_CUBES, 1)
+    coms = collection.data.body_com_pose_b.torch.clone()
+    coms[..., :3] = offset
+    coms[..., 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
+    collection.set_coms_index(coms=coms)
+    # random pose and velocity so frame conversions see a non-trivial rotation
+    rand_state = torch.rand(_NUM_ENVS, _NUM_CUBES, 13, device=device)
+    rand_state[..., :3] += collection.data.body_link_pos_w.torch
+    rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+    all_ids = {"env_ids": torch.arange(_NUM_ENVS, device=device), "body_ids": torch.arange(_NUM_CUBES, device=device)}
+    for state_location in ("com", "link", "root"):
+        for ids in ({}, all_ids):
+            if state_location == "com":
+                collection.write_body_com_pose_to_sim_index(body_poses=rand_state[..., :7], **ids)
+                collection.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:], **ids)
+                torch.testing.assert_close(rand_state[..., :7], collection.data.body_com_pose_w.torch)
+                torch.testing.assert_close(rand_state[..., 7:], collection.data.body_com_vel_w.torch)
+            elif state_location == "link":
+                collection.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7], **ids)
+                collection.write_body_link_velocity_to_sim_index(body_velocities=rand_state[..., 7:], **ids)
+                torch.testing.assert_close(rand_state[..., :7], collection.data.body_link_pose_w.torch)
+                torch.testing.assert_close(rand_state[..., 7:], collection.data.body_link_vel_w.torch)
+                # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed
+                # with the world-frame center-of-mass offset.
+                com_offset_w = quat_apply(rand_state[..., 3:7], offset)
+                expected_com_velocity = rand_state[..., 7:].clone()
+                expected_com_velocity[..., :3] += torch.linalg.cross(rand_state[..., 10:], com_offset_w, dim=-1)
+                raw_velocity = wp.to_torch(collection.root_view.get_velocities()).to(device)
+                raw_velocity = raw_velocity.reshape(_NUM_CUBES, _NUM_ENVS, 6).transpose(0, 1)
+                torch.testing.assert_close(raw_velocity, expected_com_velocity)
+            else:
+                collection.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7], **ids)
+                collection.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:], **ids)
+                torch.testing.assert_close(rand_state[..., :7], collection.data.body_link_pose_w.torch)
+                torch.testing.assert_close(rand_state[..., 7:], collection.data.body_com_vel_w.torch)
+
+            # the frame that was not written must follow through the center-of-mass offset
+            link_pose_w = collection.data.body_link_pose_w.torch
+            body_com_pose_b = collection.data.body_com_pose_b.torch
+            expected_com_pos, expected_com_quat = combine_frame_transforms(
+                link_pose_w[..., :3].reshape(-1, 3),
+                link_pose_w[..., 3:].reshape(-1, 4),
+                body_com_pose_b[..., :3].reshape(-1, 3),
+                body_com_pose_b[..., 3:].reshape(-1, 4),
+            )
+            expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1).view(_NUM_ENVS, _NUM_CUBES, 7)
+            torch.testing.assert_close(expected_com_pose, collection.data.body_com_pose_w.torch)
+            torch.testing.assert_close(
+                collection.data.body_com_vel_w.torch[..., 3:], collection.data.body_link_vel_w.torch[..., 3:]
+            )
+            # Move away from the written state so that the next pass writes it again.
+            scene.step()
+
+    # Spinning about the center of mass keeps it in place while the link frame orbits it.
+    scene.place_collection_at_rest()
+    spin_twist = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 1.3], device=device).repeat(_NUM_ENVS, _NUM_CUBES, 1)
+    init_com = collection.data.body_com_pose_w.torch[..., :3].clone()
+    for _ in range(10):
+        collection.write_body_com_velocity_to_sim_index(body_velocities=spin_twist)
+        scene.step()
+        object_link_pose_w = collection.data.body_link_pose_w.torch
+        object_link_vel_w = collection.data.body_link_vel_w.torch
+        object_com_pose_w = collection.data.body_com_pose_w.torch
+        object_com_vel_w = collection.data.body_com_vel_w.torch
+        # center of mass position will be constant (i.e. spinning around com)
+        torch.testing.assert_close(init_com, object_com_pose_w[..., :3])
+        # link position will be moving but should stay constant away from center of mass
+        object_link_state_pos_rel_com = quat_apply_inverse(
+            object_link_pose_w[..., 3:], object_link_pose_w[..., :3] - object_com_pose_w[..., :3]
         )
-        assert physx_sim_spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup. "
-            "This indicates the CPU MBP broadphase double-initialization regression is present."
-        )
-        physx_spy.force_load_physics_from_usd.assert_called_once_with()
+        torch.testing.assert_close(-offset, object_link_state_pos_rel_com)
+        # orientation of com will be a constant rotation from link orientation
+        com_quat_w = quat_mul(object_link_pose_w[..., 3:], collection.data.body_com_quat_b.torch)
+        torch.testing.assert_close(com_quat_w, object_com_pose_w[..., 3:])
+        # center of mass is at rest while the link frame moves with angular velocity cross offset
+        torch.testing.assert_close(torch.zeros_like(object_com_vel_w[..., :3]), object_com_vel_w[..., :3])
+        lin_vel_rel_object_gt = quat_apply_inverse(object_link_pose_w[..., 3:], object_link_vel_w[..., :3])
+        lin_vel_rel_gt = torch.linalg.cross(spin_twist[..., 3:], -offset)
+        torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3)
+        # ang_vel will always match
+        torch.testing.assert_close(object_com_vel_w[..., 3:], object_link_vel_w[..., 3:])
+
+
+def test_collection_wrench_delivery_and_reset(scene: _Scene) -> None:
+    """External wrenches act on the selected bodies in the frame they are given in; reset clears them."""
+    device = scene.device
+    collection = scene.collection
+    # Give every body a 1 kg mass and the center of mass and inertia of the first body so that their responses are
+    # comparable.
+    collection.set_masses_index(masses=torch.ones((_NUM_ENVS, _NUM_CUBES), device=device))
+    coms = collection.data.body_com_pose_b.torch[:1, :1]
+    collection.set_coms_index(coms=coms.expand(_NUM_ENVS, _NUM_CUBES, 7).contiguous())
+    inertias = collection.data.body_inertia.torch[:1, :1]
+    collection.set_inertias_index(inertias=inertias.expand(_NUM_ENVS, _NUM_CUBES, 9).contiguous())
+
+    # A body-frame force on bodies 0 and 2 accelerates only those bodies, along the rotated force direction; the
+    # same force given in the world frame produces the same response.
+    object_ids, _ = collection.find_bodies(".*")
+    for local_wrench, global_wrench, response, is_linear in (
+        (
+            {"forces": [[6.0, 0.0, 0.0]]},
+            {"forces": [[0.0, 6.0, 0.0]]},
+            lambda: collection.data.body_com_lin_vel_w,
+            True,
+        ),
+        (
+            {"forces": [[0.0, 0.0, 6.0]], "positions": [[0.0, 0.1, 0.0]]},
+            {"forces": [[0.0, 0.0, 6.0]], "positions": [[-0.1, 0.0, 0.0]]},
+            lambda: collection.data.body_com_ang_vel_b,
+            False,
+        ),
+    ):
+        scene.place_collection_at_rest(yaw=0.5 * math.pi)
+        for env_id, wrench, is_global in ((1, local_wrench, False), (0, global_wrench, True)):
+            wrench = {key: torch.tensor(value, device=device).expand(1, 2, 3).clone() for key, value in wrench.items()}
+            if is_global and "positions" in wrench:
+                # World-frame positions add the rotated body-frame lever arm to the center of mass.
+                wrench["positions"] += collection.data.body_com_pos_w.torch[env_id : env_id + 1, 0::2]
+            collection.permanent_wrench_composer.set_forces_and_torques_index(
+                body_ids=object_ids[0::2], env_ids=[env_id], is_global=is_global, **wrench
+            )
+        scene.step()
+        response_value = response().torch
+        torch.testing.assert_close(response_value[0], response_value[1], atol=1e-4, rtol=1e-3)
+        torch.testing.assert_close(response_value[:, 1], torch.zeros_like(response_value[:, 1]), atol=1e-5, rtol=0)
+        if is_linear:
+            assert torch.all(response_value[:, 0::2, 1] > 1e-2), response_value
+            # The permanent force persists across steps, so a second step doubles the velocity.
+            first_step_value = response_value.clone()
+            scene.step()
+            torch.testing.assert_close(response().torch, 2.0 * first_step_value, atol=1e-4, rtol=1e-3)
+    # An upward force 0.1 m along the body y-axis rolls the cube about its x-axis.
+    assert torch.all(collection.data.body_com_ang_vel_b.torch[:, 0::2, 0] > 0.1)
+    heading = quat_apply(
+        collection.data.body_link_quat_w.torch, torch.tensor([1.0, 0.0, 0.0], device=device).expand(2, 3, 3)
+    )
+    assert torch.all(heading[..., 1] > 0.99)
+
+    # A partial reset clears the external wrenches of the selected environments only.
+    composers = (collection.instantaneous_wrench_composer, collection.permanent_wrench_composer)
+    ones = torch.ones((_NUM_ENVS, _NUM_CUBES, 3), device=device)
+    collection.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    collection.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
+    collection.reset(env_ids=torch.tensor([0], device=device))
+    for composer in composers:
+        assert composer.active
+        for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
+            assert torch.count_nonzero(buffer[0]) == 0
+            assert torch.count_nonzero(buffer[1:]) == buffer[1:].numel()
+
+    # A full reset clears every environment
+    collection.reset()
+    for composer in composers:
+        assert torch.count_nonzero(composer.out_force_b.torch) == 0
+        assert torch.count_nonzero(composer.out_torque_b.torch) == 0

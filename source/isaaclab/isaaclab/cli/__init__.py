@@ -4,68 +4,134 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import importlib.metadata
+import os
 import sys
 from pathlib import Path
 
-from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
-from .commands.install import (
-    CORE_ISAACLAB_SUBMODULES,
-    OPTIONAL_ISAACLAB_SUBMODULES,
-    VALID_EXTRA_FEATURES,
-    command_install,
-)
+from .commands.list_envs import command_list_envs
 from .commands.misc import (
     command_build_docs,
     command_build_isaacsim,
+    command_editor,
     command_new,
     command_run_docker,
     command_run_isaacsim,
     command_test,
-    command_vscode_settings,
 )
 from .utils import (
+    DEFAULT_ISAAC_SIM_PATH,
     ISAACLAB_ROOT,
-    is_windows,
+    is_isaac_sim_source_build,
+    runs_isaac_sim_python,
     run_python_command,
 )
 
+_TASK_ENTRY_POINT_GROUP = "isaaclab.tasks"
+
+
+def _exit_on_error(status: int) -> None:
+    """Raise ``SystemExit`` when an in-process command reports a failure."""
+    if status != 0:
+        raise SystemExit(status)
+
+
+def load_external_tasks() -> None:
+    """Import task packages registered by installed downstream projects.
+
+    Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
+    Entry points should reference modules so repeated discovery uses Python's import cache.
+    """
+    for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
+        entry_point.load()
+
 
 def train(args: list[str] | None = None) -> None:
-    """Run the unified reinforcement learning training script."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train.py", args, check=True)
+    """Run unified reinforcement learning training."""
+    from isaaclab_rl.entrypoints import run_train_cli
+
+    _exit_on_error(run_train_cli(args))
 
 
 def train_multigpu(args: list[str] | None = None) -> None:
-    """Run the unified multi-GPU reinforcement learning training script."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(
-        ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "train_multigpu.py", args, check=True
-    )
+    """Run unified multi-GPU reinforcement learning training."""
+    from isaaclab_rl.entrypoints import run_train_multigpu_cli
+
+    _exit_on_error(run_train_multigpu_cli(args))
 
 
 def play(args: list[str] | None = None) -> None:
-    """Run the unified reinforcement learning play script."""
+    """Run unified reinforcement learning playback."""
+    from isaaclab_rl.entrypoints import run_play_cli
+
+    _exit_on_error(run_play_cli(args))
+
+
+def leapp(args: list[str] | None = None) -> None:
+    """Export or deploy a policy with LEAPP."""
+    parser = argparse.ArgumentParser(
+        description="Export or deploy policies with LEAPP.",
+        prog=f"{Path(sys.argv[0]).name} leapp",
+    )
+    parser.add_argument("command", choices=("export", "deploy"), help="LEAPP workflow to run.")
     if args is None:
         args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py", args, check=True)
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    command_args = args[1:]
+
+    if parsed_args.command == "export":
+        from isaaclab_rl.entrypoints import run_export_cli
+
+        _exit_on_error(run_export_cli(command_args))
+    else:
+        from .commands.deploy import command_deploy_leapp
+
+        _exit_on_error(command_deploy_leapp(command_args))
 
 
 def zero_agent(args: list[str] | None = None) -> None:
     """Run an environment with a zero-action agent."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "zero_agent.py", args, check=True)
+    from isaaclab_rl.entrypoints import run_zero_agent_cli
+
+    _exit_on_error(run_zero_agent_cli(args))
 
 
 def random_agent(args: list[str] | None = None) -> None:
     """Run an environment with a random-action agent."""
-    if args is None:
-        args = sys.argv[1:]
-    run_python_command(ISAACLAB_ROOT / "scripts" / "environments" / "random_agent.py", args, check=True)
+    from isaaclab_rl.entrypoints import run_random_agent_cli
+
+    _exit_on_error(run_random_agent_cli(args))
+
+
+def list_envs(args: list[str] | None = None) -> None:
+    """List registered Isaac Lab environments."""
+    command_list_envs(args)
+
+
+def demo(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab demo.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import DEMOS, run_program_cli
+
+    run_program_cli("demo", DEMOS, args)
+
+
+def example(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab example.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import EXAMPLES, run_program_cli
+
+    run_program_cli("example", EXAMPLES, args)
+
 
 def teleop(args: list[str] | None = None) -> None:
     """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
@@ -94,26 +160,23 @@ def benchmark(args: list[str] | None = None) -> None:
     Args:
         args: Command-line arguments. Uses sys.argv when omitted.
     """
-    from isaaclab.benchmark import run_benchmark_cli
+    from ..benchmark import run_benchmark_cli
 
-    status = run_benchmark_cli(args)
-    if status != 0:
-        raise SystemExit(status)
+    _exit_on_error(run_benchmark_cli(args))
 
 
 def microbenchmark(args: list[str] | None = None) -> None:
     """Run a component micro-benchmark with an exact physics variant."""
-    from isaaclab.benchmark import run_microbenchmark_cli
+    from ..benchmark import run_microbenchmark_cli
 
-    status = run_microbenchmark_cli(args)
-    if status != 0:
-        raise SystemExit(status)
+    _exit_on_error(run_microbenchmark_cli(args))
 
 
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
     subcommands = {
         "benchmark": benchmark,
+        "leapp": leapp,
         "microbenchmark": microbenchmark,
         "train": train,
         "train_multigpu": train_multigpu,
@@ -121,7 +184,33 @@ def cli() -> None:
         "zero_agent": zero_agent,
         "random_agent": random_agent,
     }
+    # uv selects the environment; local Kit builds still need their native runtime paths.
+    # Delegate before importing tasks or simulator libraries, and avoid wrapping the child twice.
+    runtime_commands = {*subcommands, "list_envs", "demo", "example", "teleop"}
+    configured_path = os.environ.get("ISAAC_PATH")
+    if (
+        len(sys.argv) > 1
+        and sys.argv[1] in runtime_commands
+        and (DEFAULT_ISAAC_SIM_PATH / ("python.bat" if os.name == "nt" else "python.sh")).is_file()
+        and (
+            is_isaac_sim_source_build(DEFAULT_ISAAC_SIM_PATH)
+            or runs_isaac_sim_python(DEFAULT_ISAAC_SIM_PATH, sys.executable, os.environ.get("VIRTUAL_ENV"))
+        )
+        and (configured_path is None or Path(configured_path).resolve() != DEFAULT_ISAAC_SIM_PATH.resolve())
+    ):
+        run_python_command("-m", ["isaaclab", *sys.argv[1:]], check=True)
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
+        list_envs(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "demo":
+        demo(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "example":
+        example(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
+        load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":
@@ -129,7 +218,7 @@ def cli() -> None:
         return
 
     executable_name = Path(sys.argv[0]).name
-    default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
+    default_prog = "isaaclab"
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
         prog=executable_name if executable_name != "__main__.py" else default_prog,
@@ -137,81 +226,33 @@ def cli() -> None:
         epilog=(
             "commands:\n"
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
-            "                  (append -multigpu to a workflow to run it across GPUs)\n"
+            "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
-            "  train           Run scripts/reinforcement_learning/train.py\n"
-            "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
-            "  play            Run scripts/reinforcement_learning/play.py\n"
-            "  zero_agent      Run scripts/environments/zero_agent.py\n"
-            "  random_agent    Run scripts/environments/random_agent.py\n"
+            "  demo            List or run packaged demonstrations\n"
+            "  example         List or run packaged standalone examples\n"
+            "  leapp           Export or deploy a policy with LEAPP\n"
+            "  list_envs       List registered environments and presets\n"
+            "  train           Train an RL policy\n"
+            "  train_multigpu  Train an RL policy across multiple GPUs\n"
+            "  play            Play a trained RL policy\n"
+            "  zero_agent      Run an environment with zero actions\n"
+            "  random_agent    Run an environment with random actions\n"
             "  teleop          Run a live teleoperation, demo recording, or demo replay workflow"
         ),
     )
 
-    _optional_str = ", ".join(sorted(OPTIONAL_ISAACLAB_SUBMODULES))
-    _extras_str = ", ".join(sorted(VALID_EXTRA_FEATURES))
-    _core_str = ", ".join(CORE_ISAACLAB_SUBMODULES)
-    parser.add_argument(
-        "-i",
-        "--install",
-        nargs="?",
-        const="all",
-        help=(
-            "Install Isaac Lab submodules and optional extra dependencies.\n"
-            "\n"
-            "All core submodules are always installed:\n"
-            f"  {_core_str}\n"
-            "\n"
-            "Accepts a comma-separated list of optional submodule names and/or\n"
-            "extra feature selectors, or one of the special values below.\n"
-            "\n"
-            f"* Optional submodules: {_optional_str}\n"
-            "  Installed by 'all' or by explicit token.\n"
-            "\n"
-            f"* Extra feature sets: {_extras_str}\n"
-            "  Install optional heavy dependencies for a feature on top of the core.\n"
-            "  Supports an optional selector in brackets:\n"
-            "    contrib[rlinf]\n"
-            "    ov[ovrtx|ovphysx|all]\n"
-            "    rl[rsl-rl|skrl|sb3|rl-games]  (default: all)\n"
-            "    visualizer[kit|rerun|viser]  (default: all)\n"
-            "  Tetrahedralization has no selector and must be requested explicitly.\n"
-            "  On Linux/macOS, quote selectors containing brackets:\n"
-            "    --install 'rl[rsl-rl]'\n"
-            "\n"
-            "* Special values:\n"
-            "  all   - Core + optional submodules (mimic, teleop) + auto extra\n"
-            "          features (newton, rl, visualizer). Does not install contrib/ov\n"
-            "          dependency extras or tetrahedralization (default).\n"
-            "  core  - Core submodules only; no optional submodules, no extra features.\n"
-            "  <empty> (-i with no value) - Same as 'all'.\n"
-            "\n"
-            "Explicit-only dependency extras:\n"
-            "  ./isaaclab.sh -i 'contrib[rlinf]'\n"
-            "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
-            "  ./isaaclab.sh -i tetrahedralization\n"
-            "\n"
-            "Examples:\n"
-            "  ./isaaclab.sh -i\n"
-            "  ./isaaclab.sh -i core\n"
-            "  ./isaaclab.sh -i tetrahedralization\n"
-            "  ./isaaclab.sh -i 'rl[rsl-rl]'\n"
-            "  ./isaaclab.sh -i mimic,teleop,'visualizer[rerun]'\n"
-            "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
-            "\n"
-        ),
-    )
     parser.add_argument(
         "-f",
         "--format",
-        action="store_true",
-        help="Run pre-commit to format the code and check lints.",
+        nargs="*",
+        metavar="FILE",
+        help="Run pre-commit on selected files, or on all tracked files when none are supplied.",
     )
     parser.add_argument(
         "-p",
         "--python",
         nargs=argparse.REMAINDER,
-        help="Run the python executable provided by Isaac Sim or virtual environment (if active).",
+        help="Run Python in the active environment, initializing the linked Isaac Sim runtime when needed.",
     )
     parser.add_argument(
         "-s",
@@ -223,19 +264,18 @@ def cli() -> None:
         "-t",
         "--test",
         nargs=argparse.REMAINDER,
-        help="Run all python pytest tests.",
+        help="Run the repository tooling tests under tools/ with pytest.",
     )
     parser.add_argument(
         "-o",
         "--docker",
         nargs=argparse.REMAINDER,
-        help="Run the docker container helper script (docker/container.sh).",
+        help="Run the docker container helper script (docker/container.py).",
     )
     parser.add_argument(
-        "-v",
-        "--vscode",
-        action="store_true",
-        help="Generate the VSCode settings file from template.",
+        "--editor",
+        nargs=argparse.REMAINDER,
+        help="Generate editor settings and import paths for the current workspace.",
     )
     parser.add_argument(
         "-d",
@@ -244,24 +284,15 @@ def cli() -> None:
         help="Build the documentation from source using sphinx.",
     )
     parser.add_argument(
+        "--docs_multi",
+        action="store_true",
+        help="Build the multi-version documentation from source using sphinx-multiversion.",
+    )
+    parser.add_argument(
         "-n",
         "--new",
         nargs=argparse.REMAINDER,
         help="Create a new external project or internal task from template.",
-    )
-    parser.add_argument(
-        "-c",
-        "--conda",
-        nargs="?",
-        const="env_isaaclab",
-        help="Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'.",
-    )
-    parser.add_argument(
-        "-u",
-        "--uv",
-        nargs="?",
-        const="env_isaaclab",
-        help="Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'.",
     )
     parser.add_argument(
         "--isaacsim_source",
@@ -274,26 +305,30 @@ def cli() -> None:
 
     args = parser.parse_args()
 
-    if args.install:
-        command_install(args.install)
+    if (
+        args.format is not None
+        or args.docs
+        or args.docs_multi
+        or args.docker is not None
+        or args.test is not None
+        or args.isaacsim_source is not None
+    ) and not (ISAACLAB_ROOT / "pyproject.toml").is_file():
+        parser.error("This command requires an Isaac Lab source checkout. Run it with uv run isaaclab from that checkout.")
 
-    elif args.format:
-        command_format()
-
-    elif args.conda:
-        command_setup_conda(args.conda)
-
-    elif args.uv:
-        command_setup_uv(args.uv)
+    if args.format is not None:
+        command_format(args.format)
 
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)
 
-    elif args.vscode:
-        command_vscode_settings()
+    elif args.editor is not None:
+        command_editor(args.editor)
 
     elif args.docs:
         command_build_docs()
+
+    elif args.docs_multi:
+        command_build_docs(multi_version=True)
 
     elif args.docker is not None:
         command_run_docker(args.docker)

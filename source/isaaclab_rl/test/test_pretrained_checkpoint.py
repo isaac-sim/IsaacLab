@@ -8,14 +8,15 @@
 from pathlib import Path
 
 import pytest
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoDVISolverCfg, KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_rl.utils import pretrained_checkpoint
 
@@ -47,9 +48,33 @@ def test_get_pretrained_checkpoint_filename_includes_backends():
     assert filename == "Isaac-Cartpole_newtonmjwarp_rtx_rsl_rl.pt"
 
 
-def test_get_pretrained_checkpoint_filename_preserves_legacy_layout():
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        (("presets=depth",), ("depth",)),
+        (("presets=rgb",), ()),
+        (("physics=newton_mjwarp", "renderer=newton_renderer"), ()),
+    ],
+)
+def test_get_pretrained_checkpoint_preset_names_uses_non_default_domain_presets(overrides, expected):
+    """Test that default aliases and typed backends do not duplicate checkpoint identity fields."""
+    preset_names = pretrained_checkpoint.get_pretrained_checkpoint_preset_names(
+        "Isaac-Cartpole-Camera-Direct", overrides
+    )
+
+    assert preset_names == expected
+
+
+def test_get_pretrained_checkpoint_filename_preserves_legacy_layout(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     """Test that callers omitting both backends retain the legacy filename."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
+    cached_path = Path(".pretrained_checkpoints/rl_games/Isaac-Cartpole/checkpoint.pth")
+    cached_path.parent.mkdir(parents=True)
+    cached_path.touch()
+
     assert pretrained_checkpoint.get_pretrained_checkpoint_filename("rl_games", "Isaac-Cartpole") == "checkpoint.pth"
+    assert pretrained_checkpoint.get_published_pretrained_checkpoint("rl_games", "Isaac-Cartpole") == str(cached_path)
 
 
 def test_get_log_root_path_preserves_legacy_task_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
@@ -71,9 +96,10 @@ def test_get_pretrained_checkpoint_filename_requires_both_backends():
         )
 
 
-def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer():
-    """Test backend discovery for a state-only PhysX task."""
-    env_cfg = _EnvCfg(camera=None)
+@pytest.mark.parametrize("visualizer_cfgs", [[], [NewtonGLVisualizerCfg()]], ids=["no-visualizer", "visualizer"])
+def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer(visualizer_cfgs):
+    """Test backend discovery for a state-only PhysX task; a visualizer's renderer does not count."""
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=PhysxCfg(), visualizer_cfgs=visualizer_cfgs))
 
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("physx", "none")
 
@@ -88,12 +114,19 @@ def test_get_pretrained_checkpoint_backend_names_identifies_newton_renderer():
     assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == ("newtonmjwarp", "newton")
 
 
-def test_get_pretrained_checkpoint_backend_names_rejects_other_newton_solvers():
-    """Test that a non-MJWarp Newton solver is not mislabeled as MJWarp."""
-    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=KaminoPADMMSolverCfg())))
+@pytest.mark.parametrize(
+    "solver_cfg, expected",
+    [
+        (MJWarpSolverCfg(), "newtonmjwarp"),
+        (KaminoPADMMSolverCfg(), "newtonkaminopadmm"),
+        (KaminoDVISolverCfg(), "newtonkaminodvi"),
+    ],
+)
+def test_get_pretrained_checkpoint_backend_names_names_each_newton_solver(solver_cfg, expected):
+    """Test that each Newton solver gets its own checkpoint name rather than being mislabeled as MJWarp."""
+    env_cfg = _EnvCfg(sim=SimulationCfg(physics=NewtonCfg(solver_cfg=solver_cfg)))
 
-    with pytest.raises(ValueError, match="Unsupported Newton solver"):
-        pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg)
+    assert pretrained_checkpoint.get_pretrained_checkpoint_backend_names(env_cfg) == (expected, "none")
 
 
 def test_get_pretrained_checkpoint_backend_names_identifies_rtx_renderer():
@@ -149,6 +182,7 @@ def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
     """Test that backend-aware downloads use the workflow cache directory."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    monkeypatch.setattr("sys.argv", ["play.py", "presets=depth"])
     retrieved = {}
 
     def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
@@ -162,15 +196,68 @@ def test_get_published_pretrained_checkpoint_downloads_to_flat_cache(
     monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
 
     path = pretrained_checkpoint.get_published_pretrained_checkpoint(
+        "rl_games",
+        "Isaac-Cartpole-Camera-Direct",
+        "newtonmjwarp",
+        "newton",
+    )
+
+    expected_download_dir = str(Path(".pretrained_checkpoints") / "rl_games")
+    filename = "Isaac-Cartpole-Camera-Direct_depth_newtonmjwarp_newton_rl_games.pth"
+    assert path == str(Path(expected_download_dir) / filename)
+    assert retrieved == {
+        "remote_path": f"omniverse://IsaacLab/PretrainedCheckpoints/rl_games/{filename}",
+        "download_dir": expected_download_dir,
+    }
+
+
+def test_get_published_pretrained_checkpoint_reports_unpublished_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+):
+    """Test that a checkpoint missing from the asset server names the location that was tried."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+
+    def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
+        raise FileNotFoundError(f"Unable to find the file: {remote_path}")
+
+    monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
+
+    path = pretrained_checkpoint.get_published_pretrained_checkpoint(
         "rsl_rl",
         "Isaac-Cartpole",
         "physx",
         "none",
     )
 
-    expected_download_dir = str(Path(".pretrained_checkpoints") / "rsl_rl")
-    assert path == str(Path(expected_download_dir) / "Isaac-Cartpole_physx_none_rsl_rl.pt")
-    assert retrieved == {
-        "remote_path": "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt",
-        "download_dir": expected_download_dir,
-    }
+    assert path is None
+    output = capsys.readouterr().out
+    assert "A pre-trained checkpoint is currently unavailable for this task." in output
+    assert "omniverse://IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Cartpole_physx_none_rsl_rl.pt" in output
+    assert "'physx' physics and 'none' render backends" in output
+
+
+def test_get_published_pretrained_checkpoint_raises_on_unwritable_cache(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+):
+    """Test that a local download failure is reported instead of being reported as unavailable."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(pretrained_checkpoint, "ISAACLAB_NUCLEUS_DIR", "omniverse://IsaacLab")
+    cause = PermissionError(13, "Permission denied", str(tmp_path / ".pretrained_checkpoints"))
+
+    def _retrieve_file_path(remote_path: str, download_dir: str) -> str:
+        raise cause
+
+    monkeypatch.setattr(pretrained_checkpoint, "retrieve_file_path", _retrieve_file_path)
+
+    with pytest.raises(RuntimeError) as error:
+        pretrained_checkpoint.get_published_pretrained_checkpoint("rsl_rl", "Isaac-Cartpole", "physx", "none")
+
+    message = str(error.value)
+    assert "Isaac-Cartpole_physx_none_rsl_rl.pt" in message
+    assert str(tmp_path / ".pretrained_checkpoints" / "rsl_rl") in message
+    assert "Permission denied" in message
+    assert error.value.__cause__ is cause

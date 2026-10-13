@@ -120,13 +120,10 @@ def test_shutdown_restores_output_when_live_rendering_fails(monkeypatch: pytest.
     restore.assert_called_once_with()
 
 
-@pytest.mark.parametrize("platform", ["darwin", "win32"])
-def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(
-    monkeypatch: pytest.MonkeyPatch, platform: str
-):
+def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirection(monkeypatch: pytest.MonkeyPatch):
     original_stdout = _OpenStringIO()
     original_stderr = _OpenStringIO()
-    monkeypatch.setattr(loading_screen.sys, "platform", platform)
+    monkeypatch.setattr(loading_screen.sys, "platform", "win32")
     monkeypatch.setattr(loading_screen.sys, "stdout", original_stdout)
     monkeypatch.setattr(loading_screen.sys, "stderr", original_stderr)
     screen = loading_screen.LoadingScreen(1, enabled=True)
@@ -140,20 +137,3 @@ def test_redirect_uses_stream_swapping_on_platforms_without_descriptor_redirecti
     assert screen._console is original_stdout
     assert loading_screen.sys.stdout is original_stdout
     assert loading_screen.sys.stderr is original_stderr
-
-
-def test_static_logos_omit_the_tagline():
-    assert all("trained" not in logo for logo in loading_screen.LoadingScreen(1)._logos)
-
-
-def test_static_isaac_lab_logos_use_the_original_coloured_artwork():
-    expected_colour = "\x1b[38;2;118;185;0m"
-
-    assert expected_colour in loading_screen.LOGO
-    assert expected_colour in loading_screen.LOGO_WIDE
-
-
-def test_static_nvidia_logo_uses_artwork(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(loading_screen.random, "choice", lambda pairs: pairs[1])
-
-    assert "▄▄" in loading_screen.LoadingScreen(1)._logos[0]

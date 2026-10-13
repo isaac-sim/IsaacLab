@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTermCfg
+from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.assembly_keypoints import Offset
 from isaaclab_tasks.contrib.nist.assembly_profile import AssemblyProfile
@@ -53,12 +54,12 @@ def out_of_bound(
 class progress_context(ManagerTermBase):
     def __init__(self, cfg: DoneTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self.held_asset: Articulation | RigidObject = env.scene[cfg.params.get("held_asset_cfg").name]  # type: ignore
-        self.fixed_asset: Articulation | RigidObject = env.scene[cfg.params.get("fixed_asset_cfg").name]  # type: ignore
-        self.held_asset_offset: Offset = cfg.params.get("held_asset_offset")  # type: ignore
-        profile_cfg: AssemblyProfileCfg = cfg.params.get("assembly_profile")  # type: ignore
-        self.profile: AssemblyProfile = profile_cfg.class_type(profile_cfg)
-        self.success_threshold: float = cfg.params.get("success_threshold")  # type: ignore
+        self.held_asset: Articulation | RigidObject = env.scene[cfg.params["held_asset_cfg"].name]  # type: ignore
+        self.fixed_asset: Articulation | RigidObject = env.scene[cfg.params["fixed_asset_cfg"].name]  # type: ignore
+        self.held_asset_offset: Offset = cfg.params["held_asset_offset"]  # type: ignore
+        profile_cfg: AssemblyProfileCfg = cfg.params["assembly_profile"]  # type: ignore
+        self.profile: AssemblyProfile = instantiate(profile_cfg)
+        self.success_threshold: float = cfg.params["success_threshold"]  # type: ignore
 
         self.orientation_aligned = torch.zeros((env.num_envs), dtype=torch.bool, device=env.device)
         self.position_centered = torch.zeros((env.num_envs), dtype=torch.bool, device=env.device)

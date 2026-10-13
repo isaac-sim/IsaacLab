@@ -42,6 +42,10 @@ _STABLE_MANAGER_ENTRY_POINT = "isaaclab.envs:ManagerBasedRLEnv"
 # Stable task ids that adapt cleanly under ``--frontend warp``, as produced by
 # :func:`_sweep_warp_support`. Do not curate this by hand: when the test fails it prints the
 # exact set to paste back.
+#
+# The sweep reports what adapts today; this set records what must keep adapting. Without it a
+# task losing warp support only shrinks the computed answer, with nothing to compare against —
+# which is how Reach lost support unnoticed.
 _WARP_SUPPORTED_TASKS = frozenset(
     {
         "Isaac-Ant",
@@ -63,8 +67,8 @@ _WARP_SUPPORTED_TASKS = frozenset(
 
 # Manager-based warp tasks are exactly those whose entry point is the shared warp
 # env class; direct tasks provide their own env class (resolved by name-based
-# mirror, or an explicit ``warp_entry_point`` override) and are not cfg-adapted,
-# so they are excluded here.
+# mirror, or an explicit ``warp_entry_point`` override). Their task terms are not
+# cfg-adapted, so they are excluded here.
 _MANAGER_WARP_ENTRY_POINT = "isaaclab_experimental.envs:ManagerBasedRLEnvWarp"
 
 _WARP_ROOTS = ("isaaclab_experimental", "isaaclab_tasks_experimental")
@@ -92,17 +96,19 @@ def _load_adapted_cfg(task_id: str):
 
 
 @functools.lru_cache(maxsize=1)
-def _sweep_warp_support() -> tuple[frozenset[str], dict[str, str], dict[str, str]]:
+def _sweep_warp_support() -> tuple[frozenset[str], dict[str, str], dict[str, str], dict[str, object]]:
     """Ask every stable manager-based task whether it adapts for warp.
 
     Cached: the sweep instantiates every registered cfg, so it runs once per session.
 
     Returns:
-        ``(supported, incompatible, unimportable)`` — task ids that adapt, task ids that
-        do not mapped to the reason, and task ids whose cfg could not be built at all
-        (an optional dependency missing from this environment).
+        ``(supported, incompatible, unimportable, adapted)`` — task ids that adapt, task ids
+        that do not mapped to the reason, task ids whose cfg could not be built at all (an
+        optional dependency missing from this environment), and the adapted cfg per
+        supported task id.
     """
     supported: set[str] = set()
+    adapted: dict[str, object] = {}
     incompatible: dict[str, str] = {}
     unimportable: dict[str, str] = {}
     for task_id, spec in gym.registry.items():
@@ -120,9 +126,10 @@ def _sweep_warp_support() -> tuple[frozenset[str], dict[str, str], dict[str, str
         reason = WarpFrontend.check_compatibility(cfg)
         if reason is None:
             supported.add(task_id)
+            adapted[task_id] = cfg  # adapted in place by check_compatibility
         else:
             incompatible[task_id] = reason
-    return frozenset(supported), incompatible, unimportable
+    return frozenset(supported), incompatible, unimportable, adapted
 
 
 def _format_task_set(task_ids) -> str:
@@ -136,13 +143,29 @@ def test_warp_supported_task_set_matches_the_registry():
     Losing a task is always a failure — that is a task that used to train under
     ``--frontend warp`` and no longer does. Gaining one is a failure only when every
     candidate cfg was importable, since a partial environment cannot see the full set.
+
+    Every supported cfg must also have its action terms swapped: they carry a ``class_type``
+    (not a ``func``) on a base that is not a ManagerTermBaseCfg, and the warp ActionManager
+    rejects a stable ActionTerm at runtime.
     """
-    supported, _, unimportable = _sweep_warp_support()
+    supported, incompatible, unimportable, adapted = _sweep_warp_support()
 
     lost = _WARP_SUPPORTED_TASKS - supported
     assert not lost, "tasks lost warp frontend support:\n  " + "\n  ".join(
-        f"{task_id}: {_sweep_warp_support()[1].get(task_id, 'cfg no longer importable')}" for task_id in sorted(lost)
+        f"{task_id}: {incompatible.get(task_id, 'cfg no longer importable')}" for task_id in sorted(lost)
     )
+
+    for task_id in sorted(supported):
+        actions = getattr(adapted[task_id], "actions", None)
+        if actions is None:
+            continue
+        for name, term in vars(actions).items():
+            class_type = getattr(term, "class_type", None)
+            if class_type is not None:
+                assert class_type.__module__.startswith(_WARP_ROOTS), (
+                    f"{task_id}: action term '{name}' class_type was not swapped to a warp twin"
+                    f" (got {class_type.__module__}.{class_type.__name__})"
+                )
 
     gained = supported - _WARP_SUPPORTED_TASKS
     if unimportable:
@@ -166,34 +189,11 @@ def _cfg_entry_point(task_id: str) -> str:
     return cfg_entry
 
 
-def test_no_manager_warp_variants_remain():
-    """End-state pin: manager-based warp execution needs no parallel registrations."""
-    assert _manager_warp_tasks() == [], "unexpected ManagerBasedRLEnvWarp registrations reappeared"
-
-
 def test_no_warp_task_registrations_remain():
-    """End-state pin: warp execution needs no parallel ``-Warp`` task ids at all."""
+    """End-state pin: warp execution needs no parallel ``-Warp`` task ids or ManagerBasedRLEnvWarp registrations."""
     warp_ids = sorted(task_id for task_id in gym.registry if "-Warp" in task_id)
     assert warp_ids == [], f"unexpected warp task registrations: {warp_ids}"
-
-
-@pytest.mark.parametrize("task_id", sorted(_WARP_SUPPORTED_TASKS), ids=sorted(_WARP_SUPPORTED_TASKS))
-def test_stable_task_cfg_adapts_to_warp(task_id: str):
-    """Each covered stable task adapts without a missing twin (the --frontend warp path)."""
-    cfg = _load_adapted_cfg(task_id)
-
-    # Action terms carry a ``class_type`` (not a ``func``) and live on a base that
-    # is not a ManagerTermBaseCfg; guard that the adapter still swaps them to the
-    # warp ActionTerm, otherwise the warp ActionManager rejects them at runtime.
-    actions = getattr(cfg, "actions", None)
-    if actions is not None:
-        for name, term in vars(actions).items():
-            class_type = getattr(term, "class_type", None)
-            if class_type is not None:
-                assert class_type.__module__.startswith(_WARP_ROOTS), (
-                    f"{task_id}: action term '{name}' class_type was not swapped to a warp twin"
-                    f" (got {class_type.__module__}.{class_type.__name__})"
-                )
+    assert _manager_warp_tasks() == [], "unexpected ManagerBasedRLEnvWarp registrations reappeared"
 
 
 _DIRECT_WARP_TASKS = [

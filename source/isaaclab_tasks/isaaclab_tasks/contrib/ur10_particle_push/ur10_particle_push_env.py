@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source
-from isaaclab_newton.ik import (
+from isaaclab_newton.controllers.ik import (
     NewtonIKJointLimitObjectiveCfg,
     NewtonIKPoseObjectiveCfg,
     NewtonIKSolver,
@@ -27,6 +27,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply
 
 from . import mdp
@@ -366,21 +367,15 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
                 f"Reset paddle quaternions have shape {tuple(paddle_quaternion.shape)}; expected {(pose_count, 4)}."
             )
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = cloner.query.path_to_source(plan, self._robot.cfg.prim_path) if plan is not None else None
-        if resolved is None:
-            raise RuntimeError(f"Could not resolve clone-plan source for {self._robot.cfg.prim_path!r}.")
-        source_path = resolved[0]
-        prototype_origin = -self.scene.env_origins[0]
-        prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
-
+        asset_ids = cloner.path.get_asset_prototypes(plan, self._robot.cfg.prim_path)
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
+        prototype_xform = wp.transform(wp.vec3(*(-self.scene.env_origins[0]).tolist()), wp.quat_identity())
         prototype_builder = copy_newton_clone_source(source_path, xform=prototype_xform)
         model = prototype_builder.finalize(device=self.device)
 
-        ee_matches = [
-            body_id
-            for body_id, label in enumerate(model.body_label)
-            if str(label).rsplit("/", 1)[-1] == self.cfg.ee_body_name
-        ]
+        body_names = (str(label).rsplit("/", 1)[-1] for label in model.body_label)
+        ee_matches = [body_id for body_id, name in enumerate(body_names) if name == self.cfg.ee_body_name]
         if len(ee_matches) != 1:
             raise RuntimeError(f"Expected one {self.cfg.ee_body_name!r} body in the IK prototype, found {ee_matches}.")
         ee_body_id = ee_matches[0]
@@ -717,11 +712,10 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
 
     def randomize_push_scene(self, env_ids: Sequence[int] | torch.Tensor) -> None:
         """Randomize a collision-screened robot start and its nearby single pile."""
-        env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=self.device)
-        if len(env_ids) == 0:
+        reset_count = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if reset_count == 0:
             return
 
-        reset_count = len(env_ids)
         curriculum = self.curriculum_manager.cfg.reset_randomization.func
         if not isinstance(curriculum, mdp.SinglePushCurriculum):
             raise TypeError("The push reset event requires SinglePushCurriculum.")
@@ -794,7 +788,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Clear constitutive/contact/collider history for exactly the reset worlds.
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
-        world_mask[env_ids] = True
+        index_fill_(world_mask[: self.num_envs], env_ids, True)
         NewtonMPMManager.reset_solver_state(
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
@@ -812,12 +806,12 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         self._episode_start_centroid_x[env_ids] = start_centroid_x
         self.transport_progress[env_ids] = transport_progress
 
-        self._success_streak[env_ids] = 0
-        self.success_this_step[env_ids] = False
-        self._rms_particle_speed[env_ids] = 0.0
-        self.invalid_state[env_ids] = False
-        self.escaped_workspace[env_ids] = False
-        self.excessive_spill[env_ids] = False
+        index_fill_(self._success_streak, env_ids, 0)
+        index_fill_(self.success_this_step, env_ids, False)
+        index_fill_(self._rms_particle_speed, env_ids, 0.0)
+        index_fill_(self.invalid_state, env_ids, False)
+        index_fill_(self.escaped_workspace, env_ids, False)
+        index_fill_(self.excessive_spill, env_ids, False)
         if self.cfg.heightmap_xy_noise_std > 0.0:
             offset = torch.randn((reset_count, 2), device=self.device) * self.cfg.heightmap_xy_noise_std
             self._heightmap_xy_offset[env_ids] = offset.clamp(
@@ -825,8 +819,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
                 3.0 * self.cfg.heightmap_xy_noise_std,
             )
         else:
-            self._heightmap_xy_offset[env_ids] = 0.0
-        self._heightmap_history_reset[env_ids] = True
+            index_fill_(self._heightmap_xy_offset, env_ids, 0.0)
+        index_fill_(self._heightmap_history_reset, env_ids, True)
         self._heightmap_history_reset_pending = True
         self._task_state_step = self.common_step_counter
 

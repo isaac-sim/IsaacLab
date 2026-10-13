@@ -8,7 +8,6 @@
 import pytest
 
 from isaaclab.benchmark.metrics import (
-    RL_LIBRARY_DESCRIPTORS,
     SUCCESS_RATE_LOG_TAGS,
     SuccessRateTracker,
     check_convergence,
@@ -20,29 +19,6 @@ from isaaclab.benchmark.metrics import (
     success_rate_step_value,
 )
 from isaaclab.benchmark.schema import MeanStd
-
-
-@pytest.mark.parametrize(
-    ("framework", "tfevents_pattern", "reward_tag", "ep_length_tag"),
-    [
-        ("rsl_rl", "events*", "Train/mean_reward", "Train/mean_episode_length"),
-        ("rl_games", "summaries/events*", "rewards/iter", "episode_lengths/iter"),
-        ("skrl", "events*", "Reward / Total reward (mean)", "Episode / Total timesteps (mean)"),
-        ("sb3", "PPO_*/events*", "rollout/ep_rew_mean", "rollout/ep_len_mean"),
-    ],
-)
-def test_rl_library_descriptors(
-    framework: str,
-    tfevents_pattern: str,
-    reward_tag: str,
-    ep_length_tag: str,
-):
-    descriptor = RL_LIBRARY_DESCRIPTORS[framework]
-
-    assert descriptor.framework == framework
-    assert descriptor.tfevents_pattern == tfevents_pattern
-    assert descriptor.reward_tag == reward_tag
-    assert descriptor.ep_length_tag == ep_length_tag
 
 
 def test_mean_std_peak_computes_peak():
@@ -65,12 +41,8 @@ def test_mean_std_empty_is_zero():
 
 
 def test_ema_matches_manual():
-    series = [0.0, 10.0, 10.0]
-    a = 0.5
-    e = series[0]
-    for x in series[1:]:
-        e = a * x + (1 - a) * e
-    assert ema(series, a) == pytest.approx(e)
+    # e0 = 2.0; e1 = 0.25 * 10 + 0.75 * 2.0 = 4.0; e2 = 0.25 * 10 + 0.75 * 4.0 = 5.5
+    assert ema([2.0, 10.0, 10.0], 0.25) == pytest.approx(5.5)
 
 
 def test_ema_empty_is_zero():
@@ -98,6 +70,8 @@ def test_success_rate_tracker_convergence():
     t = SuccessRateTracker(threshold=0.5, window=2, num_steps_per_env=1)
     for v in (0.6, 0.7):
         t.record_step({"log": {"Metrics/success_rate": v}})
+        # No process group is initialized, so the reduction leaves the local samples unchanged.
+        t.all_reduce_iteration("cpu")
         t.end_iteration()
     assert t.converged is True
     assert t.tail_mean == pytest.approx(0.65)
@@ -145,9 +119,10 @@ def test_success_rate_tracker_item_tensor_path():
 
 
 def test_success_rate_tracker_no_data_end_iteration_returns_none():
-    t = SuccessRateTracker(threshold=0.5, window=1, num_steps_per_env=1)
+    t = SuccessRateTracker(threshold=0.5, window=1, num_steps_per_env=2)
     t.record_step({"log": {}})
-    assert t._step_count == 1
+    # A step without success data still advances the iteration step count.
+    assert t.at_iteration_boundary is False
     result = t.end_iteration()
     assert result is None
     assert t.history == []

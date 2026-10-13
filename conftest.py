@@ -19,7 +19,8 @@ and registered in the repo-root ``pyproject.toml``. Select them with the standar
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
 
 Also loads ``tools/ovrtx_log.py``, which replays the OVRTX renderer log per test, so every suite that
-builds a renderer reports what it logged the same way.
+builds a renderer reports what it logged the same way, and ``tools/hang_dump.py``, which lets the CI
+runner ask this process for a stack dump before it kills it for hanging.
 """
 
 from __future__ import annotations
@@ -35,7 +36,7 @@ except ModuleNotFoundError as exc:
 else:
     wp.config.enable_backward = False
 
-pytest_plugins = ["tools.ovrtx_log"]
+pytest_plugins = ["tools.ovrtx_log", "tools.hang_dump"]
 
 JOURNAL_ENV_VAR = "ISAACLAB_TEST_JOURNAL"
 """Environment variable naming the crash-journal file. Unset (the default) disables journaling."""
@@ -50,9 +51,18 @@ def _journal_write(record: dict) -> None:
     The per-record flush is the whole point: it puts the data in the OS page cache before the
     next test starts, so a process killed by a signal cannot take down verdicts it had already
     reported. Journaling failures are swallowed — losing debug context must never fail a run.
+
+    Under ``pytest-xdist`` the controller receives every worker's start, report and finish, so only
+    it journals those; each worker journaling too would record every event twice and leave a
+    worker crash that xdist recovered from looking like an in-flight test. The controller never
+    collects, so the ``collected`` record comes from the first worker instead (every worker
+    collects the same items).
     """
     path = os.environ.get(JOURNAL_ENV_VAR)
     if not path:
+        return
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if worker and (record["event"] != "collected" or worker != "gw0"):
         return
     try:
         with open(path, "a", encoding="utf-8") as handle:

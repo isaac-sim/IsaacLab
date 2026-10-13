@@ -22,7 +22,6 @@ from parity_helpers import (
     NUM_ACTIONS,
     NUM_ENVS,
     NUM_JOINTS,
-    MockActionManagerTorch,
     MockActionManagerWarp,
     MockArticulation,
     MockArticulationData,
@@ -108,100 +107,25 @@ def warp_env(scene, action_wp, episode_length_buf):
 
 
 @pytest.fixture()
-def stable_env(scene, action_wp, episode_length_buf):
-    """Env with torch action manager (for stable functions)."""
-
-    class _Env:
-        pass
-
-    env = _Env()
-    env.scene = scene
-    env.action_manager = MockActionManagerTorch(action_wp[0], action_wp[1])
-    env.num_envs = NUM_ENVS
-    env.device = DEVICE
-    env.episode_length_buf = episode_length_buf
-    env.step_dt = 0.02
-    env.max_episode_length_s = 10.0
-    return env
-
-
-@pytest.fixture()
 def all_joints_cfg():
     return MockSceneEntityCfg("robot", list(range(NUM_JOINTS)), NUM_JOINTS, DEVICE)
 
 
 # ============================================================================
-# Event parity tests: deterministic (zero-width range) warp vs stable
+# Event capture-mutate-replay tests
 # ============================================================================
 
 
-class TestEventParity:
-    """Verify warp event functions produce the same result as stable torch equivalents.
-
-    Since warp and stable use different RNG implementations, parity is tested using
-    deterministic (zero-width) ranges where randomness has no effect. Both must
-    produce ``default + 0`` (offset) or ``default * 1`` (scale), clamped to limits.
-    """
-
-    def test_reset_joints_by_offset_parity(self, warp_env, stable_env, art_data, all_joints_cfg):
-        """Zero-offset: both warp and stable should produce clamped defaults."""
-        cfg = all_joints_cfg
-        mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
-
-        # Set known defaults
-        new_defaults = np.full((NUM_ENVS, NUM_JOINTS), 0.5, dtype=np.float32)
-        copy_np_to_wp(art_data.default_joint_pos, new_defaults)
-
-        # Run warp version
-        warp_evt.reset_joints_by_offset(
-            warp_env, mask, position_range=(0.0, 0.0), velocity_range=(0.0, 0.0), asset_cfg=cfg
-        )
-        wp.synchronize()
-        warp_pos = art_data.joint_pos.torch.clone()
-        warp_vel = art_data.joint_vel.torch.clone()
-
-        # Run stable version (writes via write_joint_position_to_sim_index — which our mock
-        # does not implement, so we compute the expected result directly)
-        defaults_t = art_data.default_joint_pos.torch.clone()
-        limits_t = art_data.soft_joint_pos_limits.torch
-        vel_limits_t = art_data.soft_joint_vel_limits.torch
-        expected_pos = defaults_t.clamp(limits_t[..., 0], limits_t[..., 1])
-        expected_vel = art_data.default_joint_vel.torch.clone().clamp(-vel_limits_t, vel_limits_t)
-
-        assert_close(warp_pos, expected_pos)
-        assert_close(warp_vel, expected_vel)
-
-    def test_reset_joints_by_scale_parity(self, warp_env, stable_env, art_data, all_joints_cfg):
-        """Scale=1.0: both warp and stable should produce clamped defaults."""
-        cfg = all_joints_cfg
-        mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
-
-        # Set known defaults
-        new_defaults = np.full((NUM_ENVS, NUM_JOINTS), 0.25, dtype=np.float32)
-        copy_np_to_wp(art_data.default_joint_pos, new_defaults)
-
-        # Run warp version
-        warp_evt.reset_joints_by_scale(
-            warp_env, mask, position_range=(1.0, 1.0), velocity_range=(1.0, 1.0), asset_cfg=cfg
-        )
-        wp.synchronize()
-        warp_pos = art_data.joint_pos.torch.clone()
-        warp_vel = art_data.joint_vel.torch.clone()
-
-        # Expected: default * 1.0, clamped to limits
-        defaults_t = art_data.default_joint_pos.torch.clone()
-        limits_t = art_data.soft_joint_pos_limits.torch
-        vel_limits_t = art_data.soft_joint_vel_limits.torch
-        expected_pos = defaults_t.clamp(limits_t[..., 0], limits_t[..., 1])
-        expected_vel = art_data.default_joint_vel.torch.clone().clamp(-vel_limits_t, vel_limits_t)
-
-        assert_close(warp_pos, expected_pos)
-        assert_close(warp_vel, expected_vel)
+def _defaults_beyond_limits(value: float) -> np.ndarray:
+    """Defaults at ``value`` with half the joints pushed past the +/-3.14 soft limits."""
+    defaults = np.full((NUM_ENVS, NUM_JOINTS), value, dtype=np.float32)
+    defaults[:, 0::4] = 5.0
+    defaults[:, 1::4] = -5.0
+    return defaults
 
 
-# ============================================================================
-# Event capture-mutate-replay tests (from test_mdp_warp_parity.py)
-# ============================================================================
+def _clamped(defaults: np.ndarray) -> torch.Tensor:
+    return torch.tensor(np.clip(defaults, -3.14, 3.14), device=DEVICE)
 
 
 class TestEventCapturedDataMutation:
@@ -210,7 +134,7 @@ class TestEventCapturedDataMutation:
     # -- reset_joints_by_offset -------------------------------------------------
 
     def test_reset_joints_by_offset(self, warp_env, art_data, all_joints_cfg):
-        """With zero-width offset, result == defaults.  Mutate defaults -> result tracks."""
+        """With zero-width offset, result == defaults clamped to limits.  Mutate defaults -> result tracks."""
         cfg = all_joints_cfg
         mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
 
@@ -225,23 +149,23 @@ class TestEventCapturedDataMutation:
                 warp_env, mask, position_range=(0.0, 0.0), velocity_range=(0.0, 0.0), asset_cfg=cfg
             )
 
-        # Mutate defaults in-place
-        new_defaults = np.full((NUM_ENVS, NUM_JOINTS), 0.5, dtype=np.float32)
+        # Mutate defaults in-place, some beyond the soft limits
+        new_defaults = _defaults_beyond_limits(0.5)
         copy_np_to_wp(art_data.default_joint_pos, new_defaults)
 
         # Replay
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        # With zero offset, joint_pos should equal new defaults (clamped to limits [-3.14, 3.14])
-        result = art_data.joint_pos.torch
-        expected = torch.full((NUM_ENVS, NUM_JOINTS), 0.5, device=DEVICE)
-        assert_close(result, expected)
+        assert_close(art_data.joint_pos.torch, _clamped(new_defaults))
+        vel_limits_t = art_data.soft_joint_vel_limits.torch
+        expected_vel = art_data.default_joint_vel.torch.clone().clamp(-vel_limits_t, vel_limits_t)
+        assert_close(art_data.joint_vel.torch, expected_vel)
 
     # -- reset_joints_by_scale --------------------------------------------------
 
     def test_reset_joints_by_scale(self, warp_env, art_data, all_joints_cfg):
-        """With scale=1.0, result == defaults.  Mutate defaults -> result tracks."""
+        """With scale=1.0, result == defaults clamped to limits.  Mutate defaults -> result tracks."""
         cfg = all_joints_cfg
         mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
 
@@ -253,20 +177,21 @@ class TestEventCapturedDataMutation:
                 warp_env, mask, position_range=(1.0, 1.0), velocity_range=(1.0, 1.0), asset_cfg=cfg
             )
 
-        new_defaults = np.full((NUM_ENVS, NUM_JOINTS), 0.25, dtype=np.float32)
+        new_defaults = _defaults_beyond_limits(0.25)
         copy_np_to_wp(art_data.default_joint_pos, new_defaults)
 
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        result = art_data.joint_pos.torch
-        expected = torch.full((NUM_ENVS, NUM_JOINTS), 0.25, device=DEVICE)
-        assert_close(result, expected)
+        assert_close(art_data.joint_pos.torch, _clamped(new_defaults))
+        vel_limits_t = art_data.soft_joint_vel_limits.torch
+        expected_vel = art_data.default_joint_vel.torch.clone().clamp(-vel_limits_t, vel_limits_t)
+        assert_close(art_data.joint_vel.torch, expected_vel)
 
     # -- push_by_setting_velocity -----------------------------------------------
 
     def test_push_by_setting_velocity(self, warp_env, art_data, all_joints_cfg):
-        """With zero-width velocity range, scratch == root_vel_w.  Mutate root_vel_w -> scratch tracks."""
+        """With zero-width velocity range, the written root velocity == root_vel_w.  Mutate root_vel_w -> tracks."""
         mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
         zero_range = {
             "x": (0.0, 0.0),
@@ -288,29 +213,33 @@ class TestEventCapturedDataMutation:
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        scratch = wp.to_torch(warp_evt.push_by_setting_velocity._scratch_vel)
+        written = wp.to_torch(warp_env.scene["robot"].last_root_velocity)
         expected = torch.tensor([1.0, 2.0, 3.0, 0.1, 0.2, 0.3], device=DEVICE).expand(NUM_ENVS, -1)
-        assert_close(scratch, expected)
+        assert_close(written, expected)
 
     # -- apply_external_force_torque --------------------------------------------
 
     def test_apply_external_force_torque(self, warp_env, art_data, all_joints_cfg):
-        """With zero-width ranges, forces/torques are zero.  Non-zero ranges produce non-zero output."""
-        mask = wp.array([True] * NUM_ENVS, dtype=wp.bool, device=DEVICE)
+        """A degenerate non-zero range reaches masked envs through the replayed kernel; unmasked envs get zero."""
+        mask = wp.array([i < NUM_ENVS // 2 for i in range(NUM_ENVS)], dtype=wp.bool, device=DEVICE)
 
-        # Zero-range: forces and torques should be zero
-        warp_evt.apply_external_force_torque(warp_env, mask, force_range=(0.0, 0.0), torque_range=(0.0, 0.0))
+        warp_evt.apply_external_force_torque(warp_env, mask, force_range=(2.0, 2.0), torque_range=(3.0, 3.0))
         with wp.ScopedCapture() as cap:
-            warp_evt.apply_external_force_torque(warp_env, mask, force_range=(0.0, 0.0), torque_range=(0.0, 0.0))
+            warp_evt.apply_external_force_torque(warp_env, mask, force_range=(2.0, 2.0), torque_range=(3.0, 3.0))
+        composer = warp_env.scene["robot"].permanent_wrench_composer
+        forces = wp.to_torch(composer.last_forces)
+        torques = wp.to_torch(composer.last_torques)
+        # clear the buffers so only the replayed kernel can produce the expected values
+        forces.fill_(-1.0)
+        torques.fill_(-1.0)
         wp.capture_launch(cap.graph)
         wp.synchronize()
 
-        forces = wp.to_torch(warp_evt.apply_external_force_torque._scratch_forces)
-        torques = wp.to_torch(warp_evt.apply_external_force_torque._scratch_torques)
-        assert_close(forces, torch.zeros_like(forces))
-        assert_close(torques, torch.zeros_like(torques))
-
-    # -- reset_root_state_uniform -----------------------------------------------
+        half = NUM_ENVS // 2
+        assert_close(forces[:half], torch.full_like(forces[:half], 2.0))
+        assert_close(torques[:half], torch.full_like(torques[:half], 3.0))
+        assert_close(forces[half:], torch.zeros_like(forces[half:]))
+        assert_close(torques[half:], torch.zeros_like(torques[half:]))
 
     # -- env_mask selectivity ---------------------------------------------------
 

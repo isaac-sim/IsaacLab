@@ -21,10 +21,10 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg
+from isaaclab.sim.schemas import MassCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
 
 from . import mdp
 
@@ -32,7 +32,7 @@ from isaaclab_assets.robots.unitree import G1_INSPIRE_FTP_CFG  # isort: skip
 
 
 def _build_g1_inspire_pickplace_pipeline():
-    """Build an IsaacTeleop retargeting pipeline for Unitree G1 Inspire Hand pick-place teleoperation.
+    """Build an Isaac Capture retargeting pipeline for Unitree G1 Inspire Hand pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
     two DexHandRetargeters for left and right dexterous hand finger control
@@ -270,7 +270,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -280,15 +280,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=MassPropertiesCfg(
-                mass=0.05,
-            ),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=MassCfg(mass=0.05),
         ),
     )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_INSPIRE_FTP_CFG.replace(
+    robot: ArticulationCfg = replace(
+        G1_INSPIRE_FTP_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 1.0),
@@ -593,7 +592,7 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.pink_ik_cfg.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.pink_ik_cfg.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # IsaacTeleop-based teleoperation pipeline (resolved lazily at runtime).
+        # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
         self.xr = XrCfg(
             anchor_pos=(0.0, 0.0, 0.0),
             anchor_rot=(0.0, 0.0, 0.0, 1.0),

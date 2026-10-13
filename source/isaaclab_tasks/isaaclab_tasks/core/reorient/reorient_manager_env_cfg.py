@@ -22,13 +22,18 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim.simulation_cfg import SimulationCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.utils import clone, configclass
 
-import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
+
+from . import mdp
+from .utils import GOAL_MARKER_OFFSET, VISUALIZER_CFG
+
+##
+# Scene definition
+##
 
 
 @configclass
@@ -47,6 +52,11 @@ class ReorientSceneBaseCfg(InteractiveSceneCfg):
     )
 
 
+##
+# MDP settings
+##
+
+
 @configclass
 class CommandsCfg:
     """In-hand goal pose, re-drawn on success."""
@@ -57,14 +67,18 @@ class CommandsCfg:
         update_goal_on_success=True,
         orientation_success_threshold=MISSING,
         make_quat_unique=False,
-        fixed_marker_pos=(-0.2, -0.45, 0.68),
+        marker_pos_offset=GOAL_MARKER_OFFSET,
         debug_vis=True,
     )
 
 
 @configclass
 class ActionsCfg:
-    """Joint-position targets for the hand's actuated joints."""
+    """Position targets for the hand's joint-driven motors.
+
+    A hand whose motors also pull tendons declares those in its own subclass; a tendon is not a
+    joint and cannot be reached by a joint term, so it does not belong to every hand.
+    """
 
     joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="robot",
@@ -127,7 +141,9 @@ class ObservationsCfg:
 
     @configclass
     class PolicyCfg(ReorientFullStateObsCfg):
-        last_action = ObsTerm(func=mdp.last_action, params={"action_name": "joint_pos"})
+        # No action_name: the observation covers every motor, and a tendon-driven hand splits its
+        # motors across two action terms.
+        last_action = ObsTerm(func=mdp.last_action)
 
     policy: PolicyCfg = PolicyCfg()
 
@@ -165,6 +181,11 @@ class TerminationsCfg:
     )
 
 
+##
+# Environment configuration
+##
+
+
 @configclass
 class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     """Manager-based reorientation with Direct-compatible semantics.
@@ -182,19 +203,24 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
     goal_marker_cfg: VisualizationMarkersCfg = MISSING
     """Marker spawned at the goal pose."""
 
+    # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     commands: CommandsCfg = CommandsCfg()
+    # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
 
+    # general settings
     episode_length_s = 10.0
+    # simulation settings
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 120,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
     )
 
     def __post_init__(self):
+        """Post initialization."""
         for group in vars(self.observations).values():
             for name in ("fingertip_pose", "fingertip_vel"):
                 term = getattr(group, name, None)
@@ -206,4 +232,8 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(2.0, 2.0, 2.0))
+
+    def play_mode(self) -> None:
+        """Frame one hand after applying the shared play-mode scene size."""
+        super().play_mode()
+        self.sim.default_visualizer_cfg = clone(VISUALIZER_CFG)

@@ -26,7 +26,7 @@ def test_write_run_manifest_records_normalized_run_identity(tmp_path: Path) -> N
     write_run_manifest(
         str(run_dir),
         library="rsl_rl",
-        task="example:Isaac-Cartpole-Direct-Play",
+        task="example:Isaac-Cartpole-Direct",
         metadata={"agent": "rsl_rl_cfg_entry_point"},
     )
 
@@ -42,12 +42,15 @@ def test_latest_selects_naturally_last_checkpoint_from_newest_compatible_run(tmp
     old_run = tmp_path / "old"
     new_run = tmp_path / "new"
     incompatible_run = tmp_path / "incompatible"
-    for run_dir in (old_run, new_run, incompatible_run):
+    incomplete_run = tmp_path / "incomplete"
+    for run_dir in (old_run, new_run, incompatible_run, incomplete_run):
         (run_dir / "checkpoints").mkdir(parents=True)
 
     write_run_manifest(str(old_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"})
     write_run_manifest(str(new_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"})
     write_run_manifest(str(incompatible_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "mappo"})
+    write_run_manifest(str(incomplete_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"})
+    _set_created_at(incomplete_run, "2026-01-04T00:00:00+00:00")
     _set_created_at(old_run, "2026-01-01T00:00:00+00:00")
     _set_created_at(new_run, "2026-01-02T00:00:00+00:00")
     _set_created_at(incompatible_run, "2026-01-03T00:00:00+00:00")
@@ -62,7 +65,7 @@ def test_latest_selects_naturally_last_checkpoint_from_newest_compatible_run(tmp
         str(tmp_path),
         "latest",
         library="skrl",
-        task="Isaac-Cartpole-Play",
+        task="Isaac-Cartpole",
         checkpoint_pattern=r".*\.pt",
         other_dirs=["checkpoints"],
         metadata={"algorithm": "ppo"},
@@ -91,50 +94,25 @@ def test_best_prefers_final_checkpoint(tmp_path: Path) -> None:
     assert checkpoint == str(expected.resolve())
 
 
-def test_latest_skips_newer_run_without_checkpoint(tmp_path: Path) -> None:
-    complete_run = tmp_path / "complete"
-    incomplete_run = tmp_path / "incomplete"
-    complete_run.mkdir()
-    incomplete_run.mkdir()
-    write_run_manifest(str(complete_run), library="rsl_rl", task="Isaac-Cartpole")
-    write_run_manifest(str(incomplete_run), library="rsl_rl", task="Isaac-Cartpole")
-    _set_created_at(complete_run, "2026-01-01T00:00:00+00:00")
-    _set_created_at(incomplete_run, "2026-01-02T00:00:00+00:00")
-    expected = complete_run / "model_10.pt"
-    expected.touch()
+def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path, monkeypatch) -> None:
+    """RLinf accepts selectors and paths, but never guesses between checkpoint files."""
+    from isaaclab_rl.entrypoints.backends.cli_args_rlinf import resolve_rlinf_checkpoint
 
-    checkpoint = resolve_checkpoint_selector(
-        str(tmp_path),
-        "latest",
-        library="rsl_rl",
-        task="Isaac-Cartpole",
-        checkpoint_pattern=r"model_.*\.pt",
-    )
-
-    assert checkpoint == str(expected.resolve())
-
-
-def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path) -> None:
-    """Nested RLinf checkpoints participate in the shared selector contract."""
+    monkeypatch.chdir(tmp_path)
     run_dir = tmp_path / "run"
-    expected = run_dir / "test_gr00t" / "checkpoints" / "global_step_10" / "full_weights.pt"
-    expected.parent.mkdir(parents=True)
-    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2").mkdir()
-    (run_dir / "test_gr00t" / "checkpoints" / "global_step_2" / "full_weights.pt").touch()
-    expected.touch()
+    for step in (2, 10):
+        expected = run_dir / "checkpoints" / f"global_step_{step}" / "actor" / "model_state_dict" / "full_weights.pt"
+        expected.parent.mkdir(parents=True)
+        expected.touch()
     write_run_manifest(str(run_dir), library="rlinf", task="Isaac-Cartpole", metadata={"config_name": "ppo"})
-
-    checkpoint = resolve_checkpoint_selector(
-        str(tmp_path),
-        "latest",
-        library="rlinf",
-        task="Isaac-Cartpole",
-        checkpoint_pattern=r"full_weights[.]pt",
-        metadata={"config_name": "ppo"},
-        recursive=True,
-    )
-
-    assert checkpoint == str(expected.resolve())
+    kwargs = dict(log_root_path=str(tmp_path), task="Isaac-Cartpole", config_name="ppo")
+    paths = (expected, expected.parents[2])
+    for checkpoint in ("latest", "best", *(str(path.relative_to(tmp_path)) for path in paths)):
+        assert resolve_rlinf_checkpoint(checkpoint, **kwargs) == str(expected)
+    with pytest.raises(ValueError):
+        resolve_rlinf_checkpoint(str(run_dir), **kwargs)
+    with pytest.raises(FileNotFoundError):
+        resolve_rlinf_checkpoint("missing.pt", **kwargs)
 
 
 def test_latest_rejects_unmanifested_historical_run(tmp_path: Path) -> None:

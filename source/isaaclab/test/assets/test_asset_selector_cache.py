@@ -115,20 +115,6 @@ def test_clear_releases_cached_entries():
     assert first.warp.ptr != second.warp.ptr
 
 
-def test_legacy_list_mode_is_default():
-    asset = _make_asset()
-
-    implicit = asset._resolve_finder_indices(
-        [2, 5],
-        domain="joint",
-        legacy_type="list",
-    )
-    explicit = _find(asset, [2, 5], as_proxy=False)
-
-    assert implicit == explicit == [2, 5]
-    assert implicit is not explicit
-
-
 def test_legacy_tensor_mode_is_int32_on_asset_device():
     asset = _make_asset()
 

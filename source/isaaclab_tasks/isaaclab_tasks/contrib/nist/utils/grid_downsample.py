@@ -14,6 +14,8 @@ from collections.abc import Callable
 
 import torch
 
+from isaaclab.utils import index_fill_
+
 
 def extract_features(states: torch.Tensor, extractor: Callable | None) -> torch.Tensor:
     """Run :paramref:`extractor` against ``states`` with the standard dispatch.
@@ -104,7 +106,7 @@ def grid_bucket_downsample(pts: torch.Tensor, k: int) -> torch.Tensor:
         # un-chosen points. Preserves spatial coverage for the first M picks
         # while guaranteeing the caller gets exactly ``k`` entries.
         chosen_mask = torch.zeros(n, dtype=torch.bool, device=pts.device)
-        chosen_mask[chosen] = True
+        index_fill_(chosen_mask, chosen, True)
         remaining = (~chosen_mask).nonzero(as_tuple=False).squeeze(-1)
         need = k - chosen.numel()
         extra = remaining[torch.randperm(remaining.numel(), device=pts.device)[:need]]

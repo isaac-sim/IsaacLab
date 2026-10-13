@@ -177,8 +177,6 @@ def create_test_collection(
 
 def _refresh_data(data, component: str) -> None:
     data._sim_timestamp += 1.0
-    if component == "articulation":
-        data._fk_timestamp = data._sim_timestamp
 
 
 def _create_data_target(component, config):

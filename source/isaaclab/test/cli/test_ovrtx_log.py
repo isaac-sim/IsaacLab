@@ -20,8 +20,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 _INNER_CONFTEST = (
@@ -58,24 +56,6 @@ def reopen():
     _log()
 '''
 
-_STDOUT_RENDERER = '''\
-import os
-
-_FD = []
-
-
-def _fd():
-    """Open pytest's stdout once and keep the descriptor, as the removed /dev/stdout override did."""
-    if not _FD:
-        _FD.append(os.open("/dev/stdout", os.O_WRONLY))
-    return _FD[0]
-
-
-def render(tag, count=1):
-    """Append ``count`` renderer log lines tagged ``tag``."""
-    os.write(_fd(), f"[omni.rtx] {tag}-line\\n".encode() * count)
-'''
-
 
 def _load_collector_module():
     """Import ``tools/ovrtx_log.py`` the way the repo-root conftest loads it."""
@@ -91,7 +71,7 @@ def _inner_log_path(tmp_path: Path) -> Path:
     return tmp_path / "ovrtx_renderer.log"
 
 
-def _run_inner_pytest(tmp_path: Path, renderer: str, tests: str) -> bytes:
+def _run_inner_pytest(tmp_path: Path, renderer: str, tests: str, save_dir: Path | None = None) -> bytes:
     """Run ``tests`` in a nested pytest session and return its raw output.
 
     The session's temp directory is redirected to ``tmp_path`` so its renderer log is this test's own file
@@ -101,6 +81,8 @@ def _run_inner_pytest(tmp_path: Path, renderer: str, tests: str) -> bytes:
         tmp_path: Directory the nested session is written to, run from, and given as its temp directory.
         renderer: Source of the fake renderer module prepended to the test module.
         tests: Source of the tests themselves.
+        save_dir: Directory the session saves each test's log to, as CI asks it to. ``None`` leaves the
+            environment variable unset, which is what a local run does.
 
     Returns:
         The nested session's stdout and stderr, undecoded, so NUL bytes survive.
@@ -112,6 +94,11 @@ def _run_inner_pytest(tmp_path: Path, renderer: str, tests: str) -> bytes:
     env.pop("PYTEST_ADDOPTS", None)
     env["TMPDIR"] = str(tmp_path)
     env["PYTHONPATH"] = os.pathsep.join([str(_REPO_ROOT), env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
+    # Dropped rather than left alone: under CI this test process already has it set, and the nested
+    # session would otherwise inherit that directory and save into the real job artifact.
+    env.pop(_load_collector_module().LOG_DIR_ENV_VAR, None)
+    if save_dir is not None:
+        env[_load_collector_module().LOG_DIR_ENV_VAR] = str(save_dir)
 
     result = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly", "test_inner.py"],
@@ -126,64 +113,6 @@ def _run_inner_pytest(tmp_path: Path, renderer: str, tests: str) -> bytes:
 def test_collector_is_loaded_into_every_session(request) -> None:
     """The repo-root conftest wires the collector in, so no suite has to wire it in itself."""
     assert request.config.pluginmanager.hasplugin("tools.ovrtx_log")
-
-
-def test_retained_handle_on_pytest_stdout_writes_nul_blocks(tmp_path: Path) -> None:
-    """Pin the failure this collector exists to avoid.
-
-    Pointing the renderer at ``/dev/stdout`` hands it a second handle on the temporary file pytest captures
-    file descriptor 1 into. Pytest rewinds and truncates that file between tests while the renderer's own
-    offset keeps advancing, so the next native write lands past the end and the gap reads back as NUL bytes.
-    """
-    if os.name == "nt":
-        pytest.skip("/dev/stdout is POSIX-only")
-
-    output = _run_inner_pytest(
-        tmp_path,
-        _STDOUT_RENDERER,
-        """
-        def test_alpha():
-            render("alpha", 40)
-            assert False
-
-
-        def test_beta():
-            render("beta")
-            assert False
-        """,
-    )
-
-    assert b"\x00" in output
-
-
-def test_replayed_log_is_free_of_nul_blocks_and_attributed_per_test(tmp_path: Path) -> None:
-    """A renderer logging to the claimed file keeps pytest's capture intact and its output readable.
-
-    The same retained-handle writer as above, pointed at the log the collector claims for the process: no
-    descriptor of pytest's is shared, so nothing is written past the end of the capture file, and each
-    test's failure carries the renderer output produced while it ran.
-    """
-    output = _run_inner_pytest(
-        tmp_path,
-        _FAKE_RENDERER,
-        """
-        def test_alpha():
-            render("alpha", 40)
-            assert False
-
-
-        def test_beta():
-            render("beta")
-            assert False
-        """,
-    )
-
-    assert b"\x00" not in output
-    assert b"----- OVRTX renderer log: test_alpha -----" in output
-    assert b"----- OVRTX renderer log: test_beta -----" in output
-    # Replayed once each: a repeat would mean one test was credited with another's output.
-    assert output.count(b"alpha-line") == 40
-    assert output.count(b"beta-line") == 1
 
 
 def test_replay_restarts_when_the_log_is_rewritten(tmp_path: Path) -> None:
@@ -214,13 +143,18 @@ def test_replay_caps_a_long_log_and_reports_what_it_dropped(tmp_path: Path) -> N
     The cap is what keeps a long renderer log out of the job log and the JUnit XML, which is the problem the
     NUL blocks caused with sparse bytes rather than text.
     """
+    collector = _load_collector_module()
+    # Enough filler to push the head out of the reported tail, counted from the cap itself so that
+    # raising the cap does not quietly turn this into a test of a log that fits inside it.
+    filler_lines = collector.LOG_LIMIT_BYTES // len(b"[omni.rtx] filler-line\n") + 1
+
     output = _run_inner_pytest(
         tmp_path,
         _FAKE_RENDERER,
-        """
+        f"""
         def test_verbose():
             render("head")
-            render("filler", 8000)
+            render("filler", {filler_lines})
             render("tail")
             assert False
         """,
@@ -231,12 +165,19 @@ def test_replay_caps_a_long_log_and_reports_what_it_dropped(tmp_path: Path) -> N
     assert b"earlier bytes omitted" in output
 
 
-def test_log_left_behind_by_a_previous_owner_is_discarded(tmp_path: Path) -> None:
-    """One path is shared by every session on the machine, so a session starts by claiming it.
+def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path) -> None:
+    """With the artifact directory named, each test's log is saved under a directory of its own name.
 
-    Without dropping what is already there, the offset recorded before the renderer rewrites the file is
-    measured against a previous session's bytes, and the start of this session's log is skipped.
+    This is the copy that survives the caps: the replay and the crash report both quote a bounded tail,
+    so a run whose renderer log outgrows the cap is only diagnosable from the saved file. What is saved
+    is that test's own range of a log the renderer keeps appending to for the lifetime of the process.
+
+    The renderer is a retained-handle writer pointed at the log the collector claims for the process: no
+    descriptor of pytest's is shared, so nothing is written past the end of the capture file (NUL blocks).
+    One path is shared by every session on the machine, so the session first claims it by dropping a
+    previous owner's bytes; otherwise offsets would be measured against them.
     """
+    save_dir = tmp_path / "ovrtx-logs"
     _inner_log_path(tmp_path).write_bytes(b"[omni.rtx] stale-line\n" * 10)
 
     output = _run_inner_pytest(
@@ -246,11 +187,117 @@ def test_log_left_behind_by_a_previous_owner_is_discarded(tmp_path: Path) -> Non
         def test_alpha():
             render("alpha", 40)
             assert False
+
+
+        def test_beta():
+            render("beta")
+            assert False
         """,
+        save_dir=save_dir,
     )
 
+    assert b"\x00" not in output
     assert b"stale-line" not in output
+    # Reported against the test's name, the same string the saved copy is named after.
+    assert b"----- OVRTX renderer log: test_alpha -----" in output
+    assert b"----- OVRTX renderer log: test_beta -----" in output
+    # Replayed once each: a repeat would mean one test was credited with another's output.
+    assert output.count(b"beta-line") == 1
+    saved = sorted(path.name for path in save_dir.iterdir())
+    assert saved == ["test_alpha.0", "test_beta.0"]
+    assert b"stale-line" not in (save_dir / "test_alpha.0" / "ovrtx_renderer.log").read_bytes()
+    # The saved copy is unbounded where the replay is capped, and the replay still happens alongside it.
+    assert (save_dir / "test_alpha.0" / "ovrtx_renderer.log").read_bytes().count(b"alpha-line") == 40
     assert output.count(b"alpha-line") == 40
+    # Saving the file whole instead would credit beta with alpha's output, and every test after them
+    # with both -- an artifact that grows as the square of a run whose logs are already the large part.
+    beta_log = (save_dir / "test_beta.0" / "ovrtx_renderer.log").read_bytes()
+    assert beta_log.count(b"beta-line") == 1
+    assert b"alpha-line" not in beta_log
+
+
+def test_dumps_written_beside_the_log_are_saved_with_it(tmp_path: Path) -> None:
+    """A crashing renderer leaves a dump next to its log, which is why the log's directory is saved.
+
+    Neither the replay nor the crash report quotes anything but the log, so a dump reaches a diagnosis
+    through this copy or not at all. Subdirectories are left alone: the log's directory is the system temp
+    directory, which every other process on the machine is free to build trees in.
+    """
+    save_dir = tmp_path / "ovrtx-logs"
+    (tmp_path / "somebody_elses_tree").mkdir()
+
+    _run_inner_pytest(
+        tmp_path,
+        _FAKE_RENDERER,
+        """
+        def test_crashing():
+            render("alpha")
+            # Where a crashing renderer drops its dump: beside the log it was writing.
+            with open(os.path.join(os.path.dirname(LOG_PATH), "ovrtx_crash.dmp"), "wb") as handle:
+                handle.write(b"dump-bytes")
+            assert False
+        """,
+        save_dir=save_dir,
+    )
+
+    saved = {path.name for path in (save_dir / "test_crashing.0").iterdir()}
+    assert {"ovrtx_renderer.log", "ovrtx_crash.dmp"} <= saved
+    assert "somebody_elses_tree" not in saved
+
+
+def test_nothing_is_saved_for_a_test_that_never_builds_a_renderer(tmp_path: Path) -> None:
+    """The artifact directory is named for the whole run, but most tests never write renderer output.
+
+    Nothing creates the log until the renderer's first write, so the save has to tolerate its absence
+    rather than failing the test that ran without one.
+    """
+    save_dir = tmp_path / "ovrtx-logs"
+
+    output = _run_inner_pytest(
+        tmp_path,
+        _FAKE_RENDERER,
+        """
+        def test_no_renderer():
+            assert True
+        """,
+        save_dir=save_dir,
+    )
+
+    assert b"1 passed" in output
+    assert not save_dir.exists()
+
+
+def test_nothing_is_saved_for_a_test_that_adds_nothing_to_an_existing_log(tmp_path: Path) -> None:
+    """Once one test has built a renderer, the tests after it still save only what they wrote themselves.
+
+    The log outlives the test that wrote it, so finding it there says nothing about the test now running.
+    Saving on its existence alone gave a directory to every test that followed the first renderer --
+    skips included, which is most of a run parametrized over backends a task does not support.
+    """
+    save_dir = tmp_path / "ovrtx-logs"
+
+    _run_inner_pytest(
+        tmp_path,
+        _FAKE_RENDERER,
+        """
+        import pytest
+
+
+        def test_alpha():
+            render("alpha")
+
+
+        def test_beta_skipped():
+            pytest.skip("no renderer for this backend")
+
+
+        def test_gamma_builds_no_renderer():
+            assert True
+        """,
+        save_dir=save_dir,
+    )
+
+    assert sorted(path.name for path in save_dir.iterdir()) == ["test_alpha.0"]
 
 
 def test_missing_log_reports_nothing(tmp_path: Path) -> None:

@@ -17,13 +17,10 @@ golden; the test fails so the file can be reviewed before committing.
 import sys
 from pathlib import Path
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(
-    headless=True,
-    enable_cameras=True,
-    visualizer_intent={"has_any_visualizers": True, "has_kit_visualizer": True},
-).app
+launch_test_simulation(enable_cameras=True, visualizer="kit")
+
 
 import pytest  # noqa: E402
 
@@ -32,9 +29,6 @@ if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
 import visualizer_golden_utils as _golden  # noqa: E402
-import visualizer_integration_utils as _viz_utils  # noqa: E402
-
-_viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
 pytestmark = [pytest.mark.isaacsim_ci, _golden.FLAKY_MARK]
 

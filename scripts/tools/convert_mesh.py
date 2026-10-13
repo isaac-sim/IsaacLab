@@ -37,12 +37,10 @@ optional arguments:
 
 """
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, to_dict
 
 # Define collision approximation choices (must be defined before parser)
 _valid_collision_approx = [
@@ -56,7 +54,6 @@ _valid_collision_approx = [
     "none",
 ]
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Utility to convert a mesh file into USD format.")
 parser.add_argument("input", type=str, help="The path to the input mesh file.")
 parser.add_argument("output", type=str, help="The path to store the USD file.")
@@ -79,35 +76,64 @@ parser.add_argument(
     default=None,
     help="The mass (in kg) to assign to the converted asset. If not provided, then no mass is added.",
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+# the mesh converter uses the Kit asset converter extension, which the Isaac Sim PhysX runtime provides
+args_cli.physics = "isaacsim_physx"
 
 import os
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim.converters import MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.dict import print_dict
 
+# Mesh-collision approximation token authored for each collision approximation choice.
+# A triangle-mesh collider uses the "none" token (the mesh itself is the collider).
 collision_approximation_map = {
-    "convexDecomposition": schemas_cfg.ConvexDecompositionPropertiesCfg,
-    "convexHull": schemas_cfg.ConvexHullPropertiesCfg,
-    "triangleMesh": schemas_cfg.TriangleMeshPropertiesCfg,
-    "meshSimplification": schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-    "sdf": schemas_cfg.SDFMeshPropertiesCfg,
-    "boundingCube": schemas_cfg.BoundingCubePropertiesCfg,
-    "boundingSphere": schemas_cfg.BoundingSpherePropertiesCfg,
+    "convexDecomposition": "convexDecomposition",
+    "convexHull": "convexHull",
+    "triangleMesh": "none",
+    "meshSimplification": "meshSimplification",
+    "sdf": "sdf",
+    "boundingCube": "boundingCube",
+    "boundingSphere": "boundingSphere",
     "none": None,
 }
+
+
+def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
+    """Open the converted asset in the visualizer selected on the command line.
+
+    Args:
+        usd_path: Path of the generated USD file to display.
+        physics_cfg: Physics config resolved by :func:`~isaaclab.app.launch_simulation`.
+    """
+    visualizers = args_cli.visualizer or []
+    if not visualizers:
+        return
+
+    # The physics backend ingests the USD stage and every visualizer renders the shared scene data,
+    # so no backend-specific code is needed here. Physics is not stepped -- the
+    # asset is shown in its imported pose until the visualizer window is closed.
+    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+    scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
+    _scene = instantiate(scene_cfg)
+    sim.reset()
+
+    # Checked per visualizer rather than through ``SimulationContext.is_running``:
+    # that predicate also reports True for an empty visualizer list (headless stepping), and ``render``
+    # drops visualizers once they close, so the preview would never exit.
+    while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
+        sim.render()
 
 
 def main():
@@ -125,24 +151,28 @@ def main():
 
     # Mass properties
     if args_cli.mass is not None:
-        mass_props = schemas_cfg.MassPropertiesCfg(mass=args_cli.mass)
-        rigid_props = schemas_cfg.RigidBodyPropertiesCfg()
+        mass_props = schemas_cfg.MassCfg(mass=args_cli.mass)
+        rigid_props = schemas_cfg.UsdPhysicsRigidBodyCfg()
     else:
         mass_props = None
         rigid_props = None
 
     # Collision properties
-    collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=args_cli.collision_approximation != "none")
+    collision_props = schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=args_cli.collision_approximation != "none")
 
     # Create Mesh converter config
-    cfg_class = collision_approximation_map.get(args_cli.collision_approximation)
-    if cfg_class is None and args_cli.collision_approximation != "none":
+    approximation_name = collision_approximation_map.get(args_cli.collision_approximation)
+    if approximation_name is None and args_cli.collision_approximation != "none":
         valid_keys = ", ".join(sorted(collision_approximation_map.keys()))
         raise ValueError(
             f"Invalid collision approximation type '{args_cli.collision_approximation}'. "
             f"Valid options are: {valid_keys}."
         )
-    collision_cfg = cfg_class() if cfg_class is not None else None
+    collision_cfg = (
+        schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=approximation_name)
+        if approximation_name is not None
+        else None
+    )
 
     mesh_converter_cfg = MeshConverterCfg(
         mass_props=mass_props,
@@ -161,25 +191,24 @@ def main():
     print("-" * 80)
     print(f"Input Mesh file: {mesh_path}")
     print("Mesh importer config:")
-    print_dict(mesh_converter_cfg.to_dict(), nesting=0)
+    print_dict(to_dict(mesh_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 
-    # Create Mesh converter and import the file
-    mesh_converter = MeshConverter(mesh_converter_cfg)
-    # print output
-    print("Mesh importer output:")
-    print(f"Generated USD file: {mesh_converter.usd_path}")
-    print("-" * 80)
-    print("-" * 80)
+    with launch_simulation(PhysicsCfg(), args_cli) as physics_cfg:
+        # the mesh converter imports Kit modules, so load it after Kit starts
+        from isaaclab.sim.converters import MeshConverter
 
-    # Show the converted asset if the launch resolved to a window or livestream
-    if AppLauncher.has_gui():
-        sim_utils.show_stage_in_viewport(mesh_converter.usd_path)
+        # Create Mesh converter and import the file
+        mesh_converter = MeshConverter(mesh_converter_cfg)
+        # print output
+        print("Mesh importer output:")
+        print(f"Generated USD file: {mesh_converter.usd_path}")
+        print("-" * 80)
+        print("-" * 80)
+
+        preview(mesh_converter.usd_path, physics_cfg)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

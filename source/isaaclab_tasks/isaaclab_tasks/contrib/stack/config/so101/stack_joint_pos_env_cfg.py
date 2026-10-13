@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -13,6 +13,7 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     apply_default_semantics,
     make_ee_frame_cfg,
 )
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -63,6 +64,15 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        # Expand the USD-authored actuator defaults to every Newton articulation clone.
+        self.scene.replicate_physics = True
+        self.sim.physics.newton_mjwarp.solver_cfg.nconmax = 600
+        self.sim.physics = preset(
+            default=self.sim.physics.isaacsim_physx,
+            isaacsim_physx=self.sim.physics.isaacsim_physx,
+            physx=self.sim.physics.physx,
+            newton_mjwarp=self.sim.physics.newton_mjwarp,
+        )
 
         # Robot-neutral reset events, with the cube workspace shrunk to the SO-101's ~0.3 m reach
         # (Franka uses x in [0.4, 0.6]). The joint-randomization term holds the ``gripper`` joint
@@ -78,12 +88,19 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
 
         # Set SO-101 as robot. Seat the base on the table-top and face it toward the cube
         # workspace (see ``_SO101_MOUNT_Z`` / ``_SO101_BASE_SEAT_ROT``).
-        self.scene.robot = SO101_CFG.replace(
+        self.scene.robot = replace(
+            SO101_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=replace(
+                SO101_CFG.spawn,
+                variants={
+                    "Robot": "robot",
+                    "Sensor": "sensors",
+                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                },
+            ),
             init_state=ArticulationCfg.InitialStateCfg(
-                pos=_SO101_BASE_SEAT_POS,
-                rot=_SO101_BASE_SEAT_ROT,
-                joint_pos=_SO101_STACK_INIT_JOINT_POS,
+                pos=_SO101_BASE_SEAT_POS, rot=_SO101_BASE_SEAT_ROT, joint_pos=_SO101_STACK_INIT_JOINT_POS
             ),
         )
 

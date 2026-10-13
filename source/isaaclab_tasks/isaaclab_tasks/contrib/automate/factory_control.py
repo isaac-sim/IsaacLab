@@ -133,7 +133,7 @@ def get_pose_error(
         raise ValueError(f"Unsupported rotation error type: {rot_error_type}. Valid: 'quat', 'axis_angle'.")
 
 
-def _get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
+def get_delta_dof_pos(delta_pose, ik_method, jacobian, device):
     """Get delta Franka DOF position from delta pose using specified IK method."""
     # References:
     # 1) https://www.cs.cmu.edu/~15464-s13/lectures/lecture6/iksurvey.pdf

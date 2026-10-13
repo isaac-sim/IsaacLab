@@ -3,10 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the drone pose command."""
+
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .drone_pose_command import DroneUniformPoseCommand

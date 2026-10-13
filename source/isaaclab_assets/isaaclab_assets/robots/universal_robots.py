@@ -15,9 +15,13 @@ The following configuration parameters are available:
 Reference: https://github.com/ros-industrial/universal_robot
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 ##
@@ -27,10 +31,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 UR10_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/UniversalRobots/UR10/ur10_instanceable.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -56,13 +57,13 @@ UR10_CFG = ArticulationCfg(
 UR10e_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10e/ur10e.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=True,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False, solver_position_iteration_count=16, solver_velocity_iteration_count=1
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=True, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=16, solver_velocity_iteration_count=1
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -105,7 +106,7 @@ UR10e_CFG = ArticulationCfg(
 
 """Configuration of UR-10 arm using implicit actuator models."""
 
-UR10_LONG_SUCTION_CFG = UR10_CFG.copy()
+UR10_LONG_SUCTION_CFG = clone(UR10_CFG)
 UR10_LONG_SUCTION_CFG.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/UniversalRobots/ur10/ur10.usd"
 UR10_LONG_SUCTION_CFG.spawn.variants = {"Gripper": "Long_Suction"}
 UR10_LONG_SUCTION_CFG.spawn.rigid_props.disable_gravity = True
@@ -120,12 +121,12 @@ UR10_LONG_SUCTION_CFG.init_state.joint_pos = {
 
 """Configuration of UR10 arm with long suction gripper."""
 
-UR10_SHORT_SUCTION_CFG = UR10_LONG_SUCTION_CFG.copy()
+UR10_SHORT_SUCTION_CFG = clone(UR10_LONG_SUCTION_CFG)
 UR10_SHORT_SUCTION_CFG.spawn.variants = {"Gripper": "Short_Suction"}
 
 """Configuration of UR10 arm with short suction gripper."""
 
-UR10e_ROBOTIQ_GRIPPER_CFG = UR10e_CFG.copy()
+UR10e_ROBOTIQ_GRIPPER_CFG = clone(UR10e_CFG)
 """Configuration of UR10e arm with Robotiq_2f_140 gripper."""
 UR10e_ROBOTIQ_GRIPPER_CFG.spawn.variants = {"Gripper": "Robotiq_2f_140"}
 UR10e_ROBOTIQ_GRIPPER_CFG.spawn.rigid_props.disable_gravity = True
@@ -165,7 +166,7 @@ UR10e_ROBOTIQ_GRIPPER_CFG.actuators["gripper_passive"] = ImplicitActuatorCfg(
 )
 
 
-UR10e_ROBOTIQ_2F_85_CFG = UR10e_CFG.copy()
+UR10e_ROBOTIQ_2F_85_CFG = clone(UR10e_CFG)
 """Configuration of UR-10E arm with Robotiq_2f_140 gripper."""
 UR10e_ROBOTIQ_2F_85_CFG.spawn.variants = {"Gripper": "Robotiq_2f_85"}
 UR10e_ROBOTIQ_2F_85_CFG.spawn.rigid_props.disable_gravity = True

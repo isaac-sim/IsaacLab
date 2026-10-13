@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_frame_transformer import BaseFrameTransformer
 from .base_frame_transformer_data import BaseFrameTransformerData
 

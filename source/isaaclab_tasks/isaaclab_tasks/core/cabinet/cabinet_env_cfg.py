@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Base configuration for the manager-based cabinet-opening environment."""
 
 from dataclasses import MISSING
 
@@ -12,7 +13,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -26,21 +27,51 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 from isaaclab.visualizers import VisualizerCfg
 
-import isaaclab_tasks.core.cabinet.mdp as mdp
 from isaaclab_tasks.utils import PresetCfg
 
-FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
+from . import mdp
+
+##
+# Scene assets
+##
+
+FRAME_MARKER_SMALL_CFG = clone(FRAME_MARKER_CFG)
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
+"""Frame marker for the end-effector and drawer-handle frame transformers."""
+
+CABINET_BODY_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetBody",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.78, 0.69, 0.56), roughness=0.55),
+)
+CABINET_FRONT_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetFront",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.52, 0.32, 0.18), roughness=0.4),
+)
+CABINET_HARDWARE_MATERIAL_CFG = VisualMaterialCfg(
+    prim_path="/World/Looks/CabinetHardware",
+    spawn=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.16, 0.10, 0.055), metallic=0.75, roughness=0.26),
+)
 
 CABINET_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Cabinet",
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
         activate_contact_sensors=False,
+        visual_material_bindings={
+            "sektion": "/World/Looks/CabinetBody",
+            "door_left_link": "/World/Looks/CabinetFront",
+            "door_right_link": "/World/Looks/CabinetFront",
+            "drawer_bottom": "/World/Looks/CabinetFront",
+            "drawer_top": "/World/Looks/CabinetFront",
+            "door_left_nob_link": "/World/Looks/CabinetHardware",
+            "door_right_nob_link": "/World/Looks/CabinetHardware",
+            "drawer_handle_bottom": "/World/Looks/CabinetHardware",
+            "drawer_handle_top": "/World/Looks/CabinetHardware",
+        },
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.8, 0, 0.4),
@@ -84,6 +115,11 @@ LIGHT_CFG = AssetBaseCfg(
 """Shared dome-light configuration."""
 
 
+##
+# Simulation presets
+##
+
+
 @configclass
 class CabinetSimCfg(PresetCfg):
     """Simulation configuration presets for the cabinet environment.
@@ -98,9 +134,9 @@ class CabinetSimCfg(PresetCfg):
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
         default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
     )
-    ovphysx: SimulationCfg = isaacsim_physx.replace(physics=OvPhysxCfg())
-    physx: SimulationCfg = isaacsim_physx.replace(
-        physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
+    ovphysx: SimulationCfg = replace(isaacsim_physx, physics=OvPhysxCfg())
+    physx: SimulationCfg = replace(
+        isaacsim_physx, physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
     )
     newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
@@ -145,21 +181,24 @@ class CabinetDecimationCfg(PresetCfg):
 class CabinetSceneCfg(InteractiveSceneCfg):
     """Configuration for the cabinet scene with a robot and a cabinet.
 
-    This is the abstract base implementation, the exact scene is defined in the derived classes
-    which need to set the robot and end-effector frames
+    This is the abstract base implementation. The exact scene is defined in the derived classes,
+    which need to set the robot and end-effector frames.
     """
 
     # robot and end-effector frames -- set by a robot-specific subclass
     robot: ArticulationCfg = MISSING
     ee_frame: FrameTransformerCfg = MISSING
 
+    cabinet_body_material = CABINET_BODY_MATERIAL_CFG
+    cabinet_front_material = CABINET_FRONT_MATERIAL_CFG
+    cabinet_hardware_material = CABINET_HARDWARE_MATERIAL_CFG
     cabinet = CABINET_CFG
 
     # drawer handle frame, aligned with the end-effector frame
     cabinet_frame = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
         debug_vis=True,
-        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/CabinetFrameTransformer"),
+        visualizer_cfg=replace(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/CabinetFrameTransformer"),
         target_frames=[
             FrameTransformerCfg.FrameCfg(
                 prim_path="{ENV_REGEX_NS}/Cabinet/drawer_handle_top",
@@ -268,11 +307,11 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
-    # 1. Approach the handle
+    # (1) approach the handle
     approach_ee_handle = RewTerm(func=mdp.approach_ee_handle, weight=2.0, params={"threshold": 0.2})
     align_ee_handle = RewTerm(func=mdp.align_ee_handle, weight=0.5)
 
-    # 2. Grasp the handle
+    # (2) grasp the handle
     approach_gripper_handle = RewTerm(func=mdp.approach_gripper_handle, weight=5.0, params={"offset": MISSING})
     align_grasp_around_handle = RewTerm(func=mdp.align_grasp_around_handle, weight=0.125)
     grasp_handle = RewTerm(
@@ -285,7 +324,7 @@ class RewardsCfg:
         },
     )
 
-    # 3. Open the drawer
+    # (3) open the drawer
     open_drawer_bonus = RewTerm(
         func=mdp.open_drawer_bonus,
         weight=7.5,
@@ -300,7 +339,7 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["drawer_top_joint"])},
     )
 
-    # 4. Penalize actions for cosmetic reasons
+    # (4) penalize actions for cosmetic reasons
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2, weight=-1e-2)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.0001)
 
@@ -321,7 +360,9 @@ class TerminationsCfg:
 class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cabinet environment."""
 
+    # Simulation settings: the time step and physics vary per backend
     sim: CabinetSimCfg = CabinetSimCfg()
+    decimation: int = CabinetDecimationCfg()
     # Scene settings
     scene: CabinetSceneCfg = CabinetSceneCfg(num_envs=4096, env_spacing=2.0)
     # Basic settings
@@ -332,10 +373,7 @@ class CabinetEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
-    decimation: int = CabinetDecimationCfg()
-
     def __post_init__(self):
         """Post initialization."""
         # general settings
         self.episode_length_s = 8.0
-        # simulation settings are defined in CabinetSimCfg (dt/physics vary per backend)

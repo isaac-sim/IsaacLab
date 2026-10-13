@@ -7,6 +7,7 @@
 
   .. autosummary::
 
+    Asset
     AssetBase
     AssetBaseCfg
     VisualMaterial
@@ -45,8 +46,11 @@
 
 .. currentmodule:: isaaclab.assets
 
-Asset Base
-----------
+Assets
+------
+
+.. autoclass:: Asset
+    :members:
 
 .. autoclass:: AssetBase
     :members:

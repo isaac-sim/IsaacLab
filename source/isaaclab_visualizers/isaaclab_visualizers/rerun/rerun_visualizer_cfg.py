@@ -7,16 +7,26 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
+from typing import TYPE_CHECKING
+
+from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .rerun_visualizer import RerunVisualizer
 
 
 @configclass
 class RerunVisualizerCfg(VisualizerCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
 
+    class_type: type[RerunVisualizer] | str = "{DIR}.rerun_visualizer:RerunVisualizer"
+    """Visualizer implementation class."""
+
     visualizer_type: str = "rerun"
     """Type identifier for Rerun visualizer."""
+
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""

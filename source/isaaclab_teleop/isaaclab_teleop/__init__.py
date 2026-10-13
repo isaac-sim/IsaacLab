@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Package providing IsaacTeleop-based teleoperation for Isaac Lab."""
+"""Package providing Isaac Capture-based teleoperation for Isaac Lab."""
 
 import importlib.metadata
 

@@ -23,7 +23,7 @@ class UiVisualizerBase:
         when the checkbox for debug visualization is toggled.
     * :func:`set_vis_frame`: Assigns a small frame within the isaac lab tab that can be used to visualize debug
         information. Such as e.g. plots or images. It is called by the main UI on startup to create the frame.
-    * :func:`set_window`: Assigngs the main window that is used by the main UI. This allows the user
+    * :func:`set_window`: Assigns the main window that is used by the main UI. This allows the user
         to have full controller over all UI elements. But be warned, with great power comes great responsibility.
     """
 
@@ -34,30 +34,22 @@ class UiVisualizerBase:
     @property
     def has_debug_vis_implementation(self) -> bool:
         """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self._set_debug_vis_impl)
-        return "NotImplementedError" not in source_code
+        return self._has_implementation(self._set_debug_vis_impl)
 
     @property
     def has_vis_frame_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self._set_vis_frame_impl)
-        return "NotImplementedError" not in source_code
+        """Whether the component has a debug visualization frame implemented."""
+        return self._has_implementation(self._set_vis_frame_impl)
 
     @property
     def has_window_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self._set_window_impl)
-        return "NotImplementedError" not in source_code
+        """Whether the component has a window implementation."""
+        return self._has_implementation(self._set_window_impl)
 
     @property
     def has_env_selection_implementation(self) -> bool:
-        """Whether the component has a debug visualization implemented."""
-        # check if function raises NotImplementedError
-        source_code = inspect.getsource(self._set_env_selection_impl)
-        return "NotImplementedError" not in source_code
+        """Whether the component has an environment selection implementation."""
+        return self._has_implementation(self._set_env_selection_impl)
 
     """
     Exposed Setters
@@ -75,10 +67,8 @@ class UiVisualizerBase:
             Whether the environment selection was successfully set. False if the component
             does not support environment selection.
         """
-        # check if environment selection is supported
         if not self.has_env_selection_implementation:
             return False
-        # set environment selection
         self._set_env_selection_impl(env_selection)
         return True
 
@@ -95,10 +85,8 @@ class UiVisualizerBase:
             Whether the window was successfully set. False if the component
             does not support this functionality.
         """
-        # check if window is supported
         if not self.has_window_implementation:
             return False
-        # set window
         self._set_window_impl(window)
         return True
 
@@ -115,16 +103,19 @@ class UiVisualizerBase:
             Whether the debug visualization frame was successfully set. False if the component
             does not support debug visualization.
         """
-        # check if debug visualization is supported
         if not self.has_vis_frame_implementation:
             return False
-        # set debug visualization frame
         self._set_vis_frame_impl(vis_frame)
         return True
 
     """
     Internal Implementation
     """
+
+    @staticmethod
+    def _has_implementation(method) -> bool:
+        """Whether ``method`` is overridden, i.e. its source does not raise :class:`NotImplementedError`."""
+        return "NotImplementedError" not in inspect.getsource(method)
 
     def _set_env_selection_impl(self, env_idx: int):
         """Set the environment selection."""

@@ -3,10 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 ASSET_DIR = f"{ISAACLAB_NUCLEUS_DIR}/AutoMate"
 
@@ -210,7 +213,7 @@ class Insertion(AssemblyTask):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{assembly_dir}{fixed_asset_cfg.usd_path}",
             activate_contact_sensors=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=False,
                 max_depenetration_velocity=5.0,
                 linear_damping=0.0,
@@ -222,12 +225,13 @@ class Insertion(AssemblyTask):
                 solver_velocity_iteration_count=1,
                 max_contact_impulse=1e32,
             ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True,
-                fix_root_link=True,  # add this so the fixed asset is set to have a fixed base
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=fixed_asset_cfg.mass),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+            articulation_props=[
+                PhysxArticulationCfg(enabled_self_collisions=True),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
+            fix_root_link=True,  # add this so the fixed asset is set to have a fixed base
+            mass_props=sim_utils.MassCfg(mass=fixed_asset_cfg.mass),
+            collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             # init_state=RigidObjectCfg.InitialStateCfg(
@@ -244,7 +248,7 @@ class Insertion(AssemblyTask):
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{assembly_dir}{held_asset_cfg.usd_path}",
             activate_contact_sensors=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=True,
                 max_depenetration_velocity=5.0,
                 linear_damping=0.0,
@@ -256,8 +260,8 @@ class Insertion(AssemblyTask):
                 solver_velocity_iteration_count=1,
                 max_contact_impulse=1e32,
             ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=held_asset_cfg.mass),
-            collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0),
+            mass_props=sim_utils.MassCfg(mass=held_asset_cfg.mass),
+            collision_props=PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0),
         ),
         # init_state=ArticulationCfg.InitialStateCfg(
         init_state=RigidObjectCfg.InitialStateCfg(

@@ -7,61 +7,24 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import ClassVar
 
-from newton import Model
+from newton import Model, ModelBuilder, eval_ik
 from newton.solvers import SolverVBD
 
 from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
 
-if TYPE_CHECKING:
-    from isaaclab.sim.simulation_context import SimulationContext
-
 
 class NewtonVBDManager(NewtonManager):
     """Newton manager specialization for the VBD solver."""
 
-    @classmethod
-    def initialize(cls, sim_context: SimulationContext) -> None:
-        """Initialize VBD deformable integration when contrib is available."""
-        try:
-            from isaaclab_contrib.deformable.deformable_object import install_deformable_builder_hooks
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            install_deformable_builder_hooks()
-        super().initialize(sim_context)
+    _update_joint_state: ClassVar[bool] = True
 
     @classmethod
-    def start_simulation(cls) -> None:
-        """Start simulation and bind registered deformables to Fabric."""
-        if cls._builder is not None:
-            cls._builder.color()
-        super().start_simulation()
-        try:
-            from isaaclab_contrib.deformable.deformable_object import setup_registered_deformable_fabric_sync
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            setup_registered_deformable_fabric_sync(cls)
-
-    @classmethod
-    def instantiate_builder_from_stage(cls) -> None:
-        """Create and color the VBD builder from the USD stage."""
-        super().instantiate_builder_from_stage()
-        if cls._builder is None:
-            raise RuntimeError("Newton stage import did not create a builder.")
-        cls._builder.color()
-
-    @classmethod
-    def _get_usd_import_ignore_paths(cls) -> list[str]:
-        """Return registered deformable mesh paths excluded from USD import."""
-        return [
-            path for entry in cls._deformable_registry for path in (entry.sim_mesh_prim_path, entry.vis_mesh_prim_path)
-        ]
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Color the completed builder before allocating the model."""
+        builder.color(include_bending=True, balance_colors=False)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
@@ -75,21 +38,24 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
         NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
+        cls._update_joint_state = solver_cfg.update_joint_state and not solver_cfg.integrate_with_external_rigid_solver
 
     @classmethod
-    def _solver_specific_clear(cls) -> None:
-        """Clear contrib deformable integration when available."""
-        try:
-            from isaaclab_contrib.deformable.deformable_object import clear_deformable_builder_hooks
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            clear_deformable_builder_hooks()
+    def _run_solver_substeps(cls, contacts) -> None:
+        """Publish standalone VBD joint state without changing coupled-solver ownership."""
+        super()._run_solver_substeps(contacts)
+        if (
+            isinstance(cls._solver, SolverVBD)
+            and cls._update_joint_state
+            and cls.backend.model.articulation_count > 0
+            and cls.backend.model.joint_coord_count > 0
+        ):
+            state = cls.backend.state_0
+            eval_ik(cls.backend.model, state, state.joint_q, state.joint_qd)
 
     @classmethod
     def _simulate_physics_only(cls) -> None:
         """Rebuild the VBD particle BVH before stepping physics."""
-        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
-            cls._solver.rebuild_bvh(cls._state_0)
+        if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
+            cls._solver.rebuild_bvh(cls.backend.state_0)
         super()._simulate_physics_only()

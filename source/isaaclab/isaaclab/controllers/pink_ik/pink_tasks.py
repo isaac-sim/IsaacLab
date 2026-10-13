@@ -16,7 +16,7 @@ from .pink_kinematics_configuration import PinkKinematicsConfiguration
 class FrameTask(PinkFrameTask):
     """Thin wrapper around Pink's :class:`~pink.tasks.frame_task.FrameTask`.
 
-    Adds support for the ``class_type(cfg)`` construction pattern used by
+    Adds support for the ``instantiate(cfg)`` construction pattern used by
     Isaac Lab task configuration dataclasses, while remaining fully compatible
     with the original string-based constructor.
     """
@@ -73,7 +73,7 @@ class DampingTask(PinkDampingTask):
     """Thin wrapper around Pink's :class:`~pink.tasks.DampingTask`.
 
     Adds joint-velocity damping to the IK problem for numerical stability.
-    Accepts either a configuration dataclass (``class_type(cfg)`` pattern) or a
+    Accepts either a configuration dataclass (``instantiate(cfg)`` pattern) or a
     direct scalar cost value.
     """
 

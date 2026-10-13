@@ -6,13 +6,19 @@
 """Tests for OvPhysX cloning."""
 
 import math
+from types import SimpleNamespace
 
+import numpy as np
 import pytest
-import torch
-from isaaclab_ov.cloner import OvPhysxReplicateContext
+from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
+from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
+
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
+from isaaclab.physics import PhysicsManager
 
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:
@@ -25,8 +31,7 @@ def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, 
 
 def test_nested_clone_uses_final_target_pose(monkeypatch):
     """Nested clone rows keep their source-local pose under the target environment."""
-    monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
-    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
     half_sqrt_two = math.sqrt(0.5)
     source_half_angle_sin = 0.5
     source_half_angle_cos = math.sqrt(0.75)
@@ -40,72 +45,211 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     source_row.AddTransformOp().Set(
         _pose_matrix((0.0, 1.0, 2.0), (source_half_angle_sin, 0.0, 0.0, source_half_angle_cos))
     )
+    source_row.AddScaleOp().Set((2, 2, 2))
+    body = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/Body")
+    body.AddTranslateOp().Set((1, 0, 0))
+    UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
 
-    context = OvPhysxReplicateContext(stage)
-    context.queue_mapping(
-        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
-        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
-        env_ids=torch.tensor([0, 1]),
-        mapping=torch.tensor([[True, True], [False, False]]),
-        positions=torch.tensor([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]]),
-        quaternions=torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]]),
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=OvPhysxManager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive", "/World/envs/env_0/Robot"],
+        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive", "/World/envs/env_{}/Robot"],
+        env_ids=np.array([0, 1], dtype=np.int64),
+        mapping=np.array([[True, True], [False, False], [True, False]], dtype=np.bool_),
+        positions=np.array([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]], dtype=np.float32),
+        quaternions=np.array(
+            [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]],
+            dtype=np.float32,
+        ),
     )
 
-    expected_orientation = torch.tensor(
+    expected_orientation = np.array(
         [
             target_half_angle_cos * source_half_angle_sin,
             target_half_angle_sin * source_half_angle_sin,
             target_half_angle_sin * source_half_angle_cos,
             target_half_angle_cos * source_half_angle_cos,
-        ]
+        ],
+        dtype=np.float32,
     )
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
-    context.replicate()
-
-    assert context._queue == []
-    assert len(OvPhysxManager._pending_clones) == 1
-    pending_source, pending_targets, pending_transforms = OvPhysxManager._pending_clones[0]
-    assert pending_source == "/World/envs/env_0/Robot"
-    assert pending_targets == ["/World/envs/env_1/Robot"]
-    assert len(pending_transforms) == 1
-    assert pending_transforms[0][:3] == pytest.approx(expected_transform[:3])
-    orientation = torch.tensor(pending_transforms[0][3:])
-    if torch.dot(orientation, expected_orientation) < 0.0:
+    assert len(OvPhysxManager._clone_recipes) == 1
+    source, targets, poses, env_ids, source_env_id = OvPhysxManager._clone_recipes[0]
+    assert source == "/World/envs/env_0/Robot"
+    assert targets == ["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"]
+    assert env_ids == [0, 1]
+    assert source_env_id == 0
+    assert len(poses) == 2
+    assert poses[1][:3] == pytest.approx(expected_transform[:3])
+    orientation = np.asarray(poses[1][3:], dtype=np.float32)
+    if np.dot(orientation, expected_orientation) < 0.0:
         orientation = -orientation
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
+    layer = Sdf.Layer.CreateAnonymous("export.usda")
+    serialized, native = _serialize_stage(stage, OvPhysxManager._clone_recipes, full_stage=True)
+    assert not native
+    layer.ImportFromString(serialized)
+    exported = Usd.Stage.Open(layer)
+    target = exported.GetPrimAtPath(targets[1] + "/Body")
+    actual = UsdGeom.XformCache().GetLocalToWorldTransform(target).ExtractTranslation()
+    expected = _pose_matrix(expected_transform[:3], expected_transform[3:]).Transform(Gf.Vec3d(2, 0, 0))
+    np.testing.assert_allclose(actual, expected, atol=1e-6)
+
+
+def test_ovphysx_context_consumes_plan():
+    """The registered context publishes the rows routed to it by one clone plan."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
+    recipes = []
+    manager = SimpleNamespace(_clone_recipes=recipes)
+    assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
+    positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
+    plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
+
+    assert len(recipes) == 2
+    assert recipes[0][0:2] == ("/World/envs/env_0/Robot", [f"/World/envs/env_{i}/Robot" for i in range(3)])
+    assert recipes[0][2][1] == pytest.approx((5.25, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
+    assert recipes[1][1] == ["/World/envs/env_0/Robot_1", "/World/envs/env_1/Robot_1"]
+    np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
+    assert recipes[0][3] == [0, 1, 2]
+    assert recipes[1][3] == [0, 1]
+
+
+def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
+    """Each world prototype keeps its authored geometry and disjoint destination IDs."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, geometry_type in ((0, "Cube"), (1, "Sphere")):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        source = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(source)
+        stage.DefinePrim(f"/World/envs/env_{env_id}/Object/Geometry", geometry_type)
+
+    recipes = []
+    manager = SimpleNamespace(_clone_recipes=recipes)
+    assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2
+    plan = make_clone_plan(assets, ((0,), (1,)), 4, clone_strategy=lambda weights, count: np.arange(count) % 2)
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0, 1))
+
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
+        ("/World/envs/env_0/Object", ["/World/envs/env_0/Object", "/World/envs/env_2/Object"], [0, 2]),
+        ("/World/envs/env_1/Object", ["/World/envs/env_1/Object", "/World/envs/env_3/Object"], [1, 3]),
+    ]
+
+
+def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
+    """Each rigid-body geometry variant becomes one clone call with its selected env ids."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, geometry_type in ((0, "Cube"), (1, "Sphere")):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        source = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(source)
+        stage.DefinePrim(f"/World/envs/env_{env_id}/Object/Geometry", geometry_type)
+
+    recipes = []
+    manager = SimpleNamespace(_clone_recipes=recipes)
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
+        destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"],
+        env_ids=np.arange(6, dtype=np.int64),
+        mapping=np.array(
+            [[True, False, True, False, True, False], [False, True, False, True, False, True]], dtype=np.bool_
+        ),
+    )
+
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
+        ("/World/envs/env_0/Object", [f"/World/envs/env_{i}/Object" for i in (0, 2, 4)], [0, 2, 4]),
+        ("/World/envs/env_1/Object", [f"/World/envs/env_{i}/Object" for i in (1, 3, 5)], [1, 3, 5]),
+    ]
+    assert set(recipes[0][3]).isdisjoint(recipes[1][3])
+
+
+def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
+    """A nonzero source environment is retained even when its variant has no clone targets."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id in range(2):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        source = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(source)
+
+    recipes = []
+    manager = SimpleNamespace(_clone_recipes=recipes)
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
+        destinations=["/World/envs/env_{}/Object", "/World/envs/env_{}/Object"],
+        env_ids=np.arange(2, dtype=np.int64),
+        mapping=np.eye(2, dtype=np.bool_),
+    )
+
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
+        (f"/World/envs/env_{i}/Object", [f"/World/envs/env_{i}/Object"], [i]) for i in range(2)
+    ]
+    assert not _serialize_stage(stage, recipes, full_stage=False)[1]
+
+
+def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monkeypatch):
+    """Equivalent articulations with distinct link geometry retain separate clone batches."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, geometry_type in ((0, "Cube"), (1, "Sphere")):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+        robot = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot").GetPrim()
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        link = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot/Link").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(link)
+        UsdPhysics.RevoluteJoint.Define(stage, f"/World/envs/env_{env_id}/Robot/Joint")
+        stage.DefinePrim(f"/World/envs/env_{env_id}/Robot/Link/Geometry", geometry_type)
+
+    recipes = []
+    manager = SimpleNamespace(_clone_recipes=recipes)
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    ovphysx_replicate(
+        stage,
+        sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],
+        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot"],
+        env_ids=np.arange(4, dtype=np.int64),
+        mapping=np.array([[True, False, True, False], [False, True, False, True]], dtype=np.bool_),
+    )
+
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
+        ("/World/envs/env_0/Robot", ["/World/envs/env_0/Robot", "/World/envs/env_2/Robot"], [0, 2]),
+        ("/World/envs/env_1/Robot", ["/World/envs/env_1/Robot", "/World/envs/env_3/Robot"], [1, 3]),
+    ]
 
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
-    monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
-    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
 
     OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
-    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
-    assert OvPhysxManager._active_clone_recipes == expected_recipes
-    assert OvPhysxManager._pending_clones == expected_recipes
+    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None, 0)]
+    assert OvPhysxManager._clone_recipes == expected_recipes
 
 
-def test_queue_mapping_rejects_invalid_source_prim():
-    """Active clone rows require a valid source prim."""
+def test_raw_replicate_validates_sources_and_pose_arrays():
+    """Cloning requires source/anchor prims and a complete, correctly shaped pose array."""
     stage = Usd.Stage.CreateInMemory()
-    context = OvPhysxReplicateContext(stage)
-
+    sources, destinations = ["/World/envs/env_0/Robot"], ["/World/envs/env_{}/Robot"]
+    options = dict(env_ids=np.array([0, 1], dtype=np.int64), mapping=np.array([[True, True]], dtype=np.bool_))
     with pytest.raises(ValueError, match="/World/envs/env_0/Robot"):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
-        )
+        ovphysx_replicate(stage, sources, destinations, **options)
 
-
-def test_queue_mapping_rejects_invalid_source_anchor():
-    """Active nested clone rows require a valid source-environment anchor."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
+    UsdGeom.Xform.Define(stage, sources[0])
+    for name, shape in (
+        ("positions", (2, 2)),
+        ("quaternions", (2, 3)),  # Wrong component count.
+        ("positions", (1, 3)),
+        ("quaternions", (1, 4)),  # Missing a selected environment.
+    ):
+        with pytest.raises(ValueError, match=rf"{name} must have shape"):
+            ovphysx_replicate(stage, sources, destinations, **options, **{name: np.zeros(shape, dtype=np.float32)})
 
     class StageWithoutAnchor:
         def GetPrimAtPath(self, path):
@@ -113,51 +257,108 @@ def test_queue_mapping_rejects_invalid_source_anchor():
                 return Usd.Prim()
             return stage.GetPrimAtPath(path)
 
-    context = OvPhysxReplicateContext(StageWithoutAnchor())
     with pytest.raises(ValueError, match="/World/envs/env_0"):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
-        )
+        ovphysx_replicate(StageWithoutAnchor(), sources, destinations, **options)
 
 
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [("positions", torch.zeros((1, 3))), ("quaternions", torch.zeros((1, 4)))],
-)
-def test_queue_mapping_rejects_pose_tensor_missing_selected_environment(name, value):
-    """Provided pose tensors include every selected environment."""
+@pytest.mark.parametrize("full_stage", [False, True])
+@pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/Scenes/World_{}"])
+@pytest.mark.parametrize("independent_physics", [False, True])
+@pytest.mark.parametrize("nested", [False, True], ids=["sibling", "nested"])
+def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template, independent_physics, nested):
+    """Export exact targets, preserve unrelated assets, and replay without consuming the recipes."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    context = OvPhysxReplicateContext(stage)
+    for env_id, variant in enumerate(("cube", "sphere", "target", "target")):
+        root = env_template.format(env_id)
+        prim = stage.DefinePrim(root + "/Object", "Xform")
+        prim.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set(variant)
+    stage.DefinePrim("/Shared/Ground", "Xform")
+    independent_path = "/Support/Independent" if nested else "/Independent"
+    for world in range(4) if nested else (1, 3):
+        independent = stage.DefinePrim(env_template.format(world) + independent_path, "Xform")
+        if independent_physics:
+            UsdPhysics.RigidBodyAPI.Apply(independent)
+    assets = tuple(
+        AssetBaseCfg(prim_path=env_template.format("[^/]+") + name)
+        for name in ("/Object", "/Object", "/Support", independent_path)
+    )
+    worlds = ((0, 2, 3), (1, 3)) if nested else ((0, 2), (1, 2, 3))
+    plan = make_clone_plan(assets, worlds, 4, env_template=env_template, clone_strategy=lambda _, n: np.arange(n) % 2)
+    object_paths = [env_template.format(i) + "/Object" for i in range(4)]
+    recipes = [(object_paths[i], [object_paths[i], object_paths[i + 2]], [], [i, i + 2], i) for i in range(2)]
+    # A target can also be inside a world which retains a different prototype.
+    support = stage.DefinePrim(env_template.format(0) + "/Support", "Xform")
+    support.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
+    support_worlds = [0, 2] if nested else list(range(4))
+    targets = [env_template.format(i) + "/Support" for i in support_worlds]
+    recipes.append((str(support.GetPath()), targets, [], support_worlds, 0))
+    if not nested:
+        stage.DefinePrim(targets[1], "Xform")
+    before = stage.GetRootLayer().ExportToString()
 
-    with pytest.raises(ValueError, match=name):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
-            **{name: value},
-        )
+    for _ in range(2):
+        layer = Sdf.Layer.CreateAnonymous("export.usda")
+        serialized, native = _serialize_stage(stage, recipes, full_stage, plan)
+        assert layer.ImportFromString(serialized)
+        exported = Usd.Stage.Open(layer)
+        for env_id, variant in enumerate(("cube", "sphere")):
+            prim = exported.GetPrimAtPath(object_paths[env_id])
+            assert prim.GetAttribute("test:variant").Get() == variant
+        assert exported.GetPrimAtPath("/Shared/Ground")
+        assert exported.GetPrimAtPath(env_template.format(3) + independent_path)
+        assert bool(exported.GetPrimAtPath(env_template.format(2))) is full_stage
+        for world, target in zip(support_worlds, targets, strict=True):
+            prim = exported.GetPrimAtPath(target)
+            assert bool(prim) is (full_stage or world < 2 or (independent_physics and world == 3))
+            if prim:
+                assert prim.GetAttribute("test:physics").Get()
+        if full_stage:
+            assert not native
+        else:
+            assert {
+                (source, target, world) for source, paths, _, ids, _ in native for target, world in zip(paths, ids)
+            } == {
+                (env_template.format(i) + name, env_template.format(i + 2) + name, i + 2)
+                for i in range(2)
+                for name in ("/Object", "/Support")
+                if (not independent_physics or i == 0) and (name == "/Object" or i == 0 or not nested)
+            }
+        assert stage.GetRootLayer().ExportToString() == before
+        assert len(recipes) == 3
 
 
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [("positions", torch.zeros((2, 2))), ("quaternions", torch.zeros((2, 3)))],
-)
-def test_queue_mapping_rejects_malformed_pose_tensor(name, value):
-    """Provided pose tensors use the documented component counts."""
+def test_full_stage_export_preserves_nested_authored_opinions():
+    """Copy parents before children and keep independently authored descendants."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    context = OvPhysxReplicateContext(stage)
+    source = stage.DefinePrim("/Source/Robot", "Xform")
+    source.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
+    child = stage.DefinePrim("/Source/Robot/Link", "Xform")
+    child.CreateAttribute("test:mass", Sdf.ValueTypeNames.Float).Set(3.0)
+    UsdGeom.Mesh.Define(stage, "/Target/Robot")
+    stage.DefinePrim("/Target/Robot/Camera", "Camera")
+    recipes = [
+        ("/Source/Robot/Link", ["/Target/Robot/Link", "/Other/Nested/Robot/Link"], [], [1, 2], 0),
+        ("/Source/Robot", ["/Target/Robot"], [], [1], 0),
+    ]
+    layer = Sdf.Layer.CreateAnonymous("export.usda")
+    serialized, native = _serialize_stage(stage, recipes, full_stage=True)
+    assert not native
+    assert layer.ImportFromString(serialized)
+    exported = Usd.Stage.Open(layer)
+    assert exported.GetPrimAtPath("/Target/Robot").GetAttribute("test:physics").Get()
+    assert exported.GetPrimAtPath("/Target/Robot").IsA(UsdGeom.Mesh)
+    assert exported.GetPrimAtPath("/Target/Robot/Camera").IsA(UsdGeom.Camera)
+    for root in ("/Target", "/Other/Nested"):
+        prim = exported.GetPrimAtPath(root + "/Robot/Link")
+        assert prim.IsDefined()
+        assert prim.GetAttribute("test:mass").Get() == 3.0
+    assert not stage.GetPrimAtPath("/Target/Robot/Link")
 
-    with pytest.raises(ValueError, match=rf"{name} must have shape"):
-        context.queue_mapping(
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=torch.tensor([0, 1]),
-            mapping=torch.tensor([[True, True]]),
-            **{name: value},
-        )
+
+def test_native_clone_export_rejects_source_overlap():
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/Source", "Xform")
+    before = stage.GetRootLayer().ExportToString()
+    with pytest.raises(ValueError, match="overlaps a clone source"):
+        _serialize_stage(stage, [("/World/Source", ["/World"], [], [0], 0)], full_stage=False)
+    assert stage.GetRootLayer().ExportToString() == before

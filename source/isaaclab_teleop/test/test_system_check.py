@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 
 import pytest
-from isaaclab_teleop import system_check
+from isaaclab_teleop import session_lifecycle, system_check
 from isaaclab_teleop.system_check import SystemCheckItem, SystemCheckResult, check_system_requirements
 
 
@@ -175,6 +175,10 @@ class TestGovernorGating:
         assert not result.passed
         assert {item.name for item in result.failures} == {"CPU single-thread", "CPU governor"}
         assert items["CPU governor"].detail == system_check.CPU_GOVERNOR_FIX
+        # The client notice carries the fix command too.
+        message_items = {item["name"]: item for item in result.to_message()["message"]["items"]}
+        assert message_items["CPU governor"]["detail"] == system_check.CPU_GOVERNOR_FIX
+        assert message_items["CPU governor"]["actual"] == "powersave"
 
     def test_unmeasurable_score_still_flags_the_governor(self, monkeypatch):
         # Without a score there is no evidence the machine is fast enough, so
@@ -186,10 +190,6 @@ class TestGovernorGating:
     def test_performance_governor_passes_regardless_of_score(self, monkeypatch):
         _, items = _at_spec(monkeypatch, score=0.5, governor="performance")
         assert items["CPU governor"].passed
-
-    def test_requirement_text_names_the_alternative(self, monkeypatch):
-        _, items = _at_spec(monkeypatch, governor="performance")
-        assert "single-thread" in items["CPU governor"].required
 
 
 class TestMultiGpuDeviceSelection:
@@ -211,6 +211,8 @@ class TestMultiGpuDeviceSelection:
         result, items = _at_spec(monkeypatch, gpus=self._MIXED, current_device=0, device="cuda:1")
         assert result.passed
         assert "RTX PRO 6000" in items["GPU memory"].actual
+        # The reported ordinal identifies the measured adapter.
+        assert "cuda:1" in items["GPU memory"].actual
 
     def test_weak_selected_device_is_not_masked_by_a_capable_ordinal_zero(self, monkeypatch):
         # The inverse error: passing because ordinal 0 happens to be capable.
@@ -218,15 +220,6 @@ class TestMultiGpuDeviceSelection:
         result, _ = _at_spec(monkeypatch, gpus=flipped, current_device=0, device="cuda:1")
         assert not result.passed
         assert {item.name for item in result.failures} == {"GPU memory", "GPU architecture"}
-
-    def test_reported_ordinal_identifies_the_measured_adapter(self, monkeypatch):
-        _, items = _at_spec(monkeypatch, gpus=self._MIXED, current_device=0, device="cuda:1")
-        assert "cuda:1" in items["GPU memory"].actual
-
-    def test_unset_device_falls_back_to_the_current_device(self, monkeypatch):
-        result, items = _at_spec(monkeypatch, gpus=self._MIXED, current_device=1, device=None)
-        assert result.passed
-        assert "cuda:1" in items["GPU memory"].actual
 
     @pytest.mark.parametrize("device", ["cuda", "cpu", None])
     def test_non_ordinal_devices_use_the_current_device(self, monkeypatch, device):
@@ -298,19 +291,6 @@ class TestSystemCheckMessage:
             "System memory",
         }
 
-    def test_governor_failure_carries_the_fix_command(self, monkeypatch):
-        # A failing score is what makes the governor gate at all now.
-        result, _ = _at_spec(monkeypatch, score=0.5, governor="powersave")
-        items = {item["name"]: item for item in result.to_message()["message"]["items"]}
-        assert items["CPU governor"]["detail"] == system_check.CPU_GOVERNOR_FIX
-        assert items["CPU governor"]["actual"] == "powersave"
-
-    def test_message_is_json_serializable(self, monkeypatch):
-        import json
-
-        result, _ = _at_spec(monkeypatch, score=0.4)
-        assert json.loads(json.dumps(result.to_message()))["type"] == "system_notice"
-
 
 class TestMessageBudget:
     """A notice must fit the teleop channel, which does not fragment.
@@ -321,7 +301,8 @@ class TestMessageBudget:
     an unbudgeted notice goes missing exactly when it matters most.
     """
 
-    LIMIT = 900
+    # The budget the lifecycle actually enforces, so the two cannot drift apart.
+    LIMIT = session_lifecycle._MAX_CLIENT_MESSAGE_BYTES
 
     def _failing(self, count: int) -> SystemCheckResult:
         return SystemCheckResult(
@@ -337,16 +318,10 @@ class TestMessageBudget:
             )
         )
 
-    @pytest.mark.parametrize("count", [1, 2, 3, 4, 5, 9, 20])
+    @pytest.mark.parametrize("count", [1, 5, 9, 20])
     def test_notice_always_fits_the_budget(self, count):
         message = self._failing(count).to_message(max_bytes=self.LIMIT)
         assert len(json.dumps(message).encode()) <= self.LIMIT
-
-    def test_every_check_failing_at_once_fits(self):
-        # The realistic worst case: one failure per check the module performs.
-        message = self._failing(9).to_message(max_bytes=self.LIMIT)
-        assert len(json.dumps(message).encode()) <= self.LIMIT
-        assert message["message"]["items"]
 
     def test_small_notice_keeps_its_remediation_hints(self):
         # Budgeting must not strip the actionable part when there is room.
@@ -362,19 +337,13 @@ class TestMessageBudget:
     def test_truncation_says_how_many_were_omitted(self):
         message = self._failing(9).to_message(max_bytes=self.LIMIT)
         shown = len(message["message"]["items"])
+        assert shown > 0
         assert f"{9 - shown} more not shown" in message["message"]["summary"]
 
     def test_no_budget_returns_the_full_notice(self):
         message = self._failing(9).to_message()
         assert len(message["message"]["items"]) == 9
         assert all(item["detail"] for item in message["message"]["items"])
-
-    def test_budget_matches_the_transport_limit(self):
-        # Pins the test budget to what the lifecycle actually enforces, so the
-        # two cannot drift apart.
-        from isaaclab_teleop import session_lifecycle
-
-        assert session_lifecycle._MAX_CLIENT_MESSAGE_BYTES == self.LIMIT
 
 
 class TestSystemCheckFormatting:

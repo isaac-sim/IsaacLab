@@ -5,11 +5,9 @@
 
 """Rendering correctness tests for camera-based registered tasks."""
 
-# Launch Isaac Sim Simulator first for kit-based combinations.
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+launch_test_simulation(enable_cameras=True)
 
 from pathlib import Path  # noqa: E402
 from typing import Any  # noqa: E402
@@ -76,18 +74,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
         "cartpole",
         id="Isaac-Cartpole-Camera-Direct-albedo-depth-cartpole",
     ),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
-    pytest.param(
-        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
-        None,
-        "shadow_hand",
-        # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
-        # exceeds the 3% diff threshold by a fraction of a percent. Allow up to 3 attempts and
-        # require at least one pass while we tighten the validation tolerances for this scene.
-        marks=pytest.mark.flaky(max_runs=3, min_passes=1),
-    ),
+    ("Isaac-Reorient-Cube-Shadow-Camera-Direct", None, "shadow_hand"),
 ]
 
 
@@ -112,7 +99,7 @@ def test_rendering_registered_tasks(
         env_cfg.sim.device = "cuda:0"
         env_cfg.scene.num_envs = 4
         if allow_multiple_data_types:
-            env_cfg.tiled_camera.data_types = list(presets)
+            env_cfg.scene.tiled_camera.data_types = list(presets)
 
         env = make_cartpole_rendering_test_env(env_cfg) if allow_multiple_data_types else gym.make(task_id, cfg=env_cfg)
         unwrapped: Any = env.unwrapped

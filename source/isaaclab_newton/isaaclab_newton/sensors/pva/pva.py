@@ -153,7 +153,7 @@ class Pva(BasePva):
                 site_indices.append(world_sites[0])
 
         self._site_indices = wp.array(site_indices, dtype=int, device=self._device)
-        self._newton_model = NewtonManager._model
+        self._newton_model = NewtonManager.backend.model
 
         self._data.create_buffers(num_envs=num_envs, device=self._device)
 
@@ -166,7 +166,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
-        state = NewtonManager._state_0
+        state = NewtonManager.backend.state_0
 
         wp.launch(
             pva_update_kernel,
@@ -209,6 +209,7 @@ class Pva(BasePva):
     def _debug_vis_callback(self, event):
         if self._newton_model is None:
             return
+        self._update_outdated_buffers()
         # base position (offset upward for visibility)
         base_pos_w = self._data.pos_w.torch.clone()
         base_pos_w[:, 2] += 0.5

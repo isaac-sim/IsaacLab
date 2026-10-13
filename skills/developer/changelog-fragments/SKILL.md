@@ -18,37 +18,27 @@ Do not use this skill for pure docs, CI, tools, or skills changes unless they al
 ## Workflow
 
 1. Identify each changed package under `source/`.
-2. Add one fragment per touched package under `source/<package>/changelog.d/`.
-3. Choose the suffix:
-   - `<slug>.rst` for patch changes.
-   - `<slug>.minor.rst` for minor changes.
-   - `<slug>.major.rst` for major changes.
-   - `<slug>.skip` for package changes that intentionally have no user-facing entry.
-4. Place entries under `Added`, `Changed`, `Deprecated`, `Removed`, or `Fixed`.
-5. Include migration guidance for `Deprecated`, `Changed`, and `Removed` entries.
-6. Prefix breaking changes with `**Breaking:**`.
+2. Add fragments for each touched package under `source/<package>/changelog.d/`.
+3. Follow the contribution guide's [changelog section](../../../docs/source/refs/contributing.rst#maintaining-package-changelogs-and-versions)
+   for fragment tiers, entry format, breaking-change labels, and migration guidance.
 
 ## Validation
 
-Run the changelog gate:
+Run the changelog gate against the PR base (here, `upstream/develop`):
 
 ```bash
-uv run python tools/changelog/cli.py check develop
+uv run python tools/changelog/cli.py check upstream/develop --include-worktree
 ```
 
-Then run the normal formatting gate:
-
-```bash
-uv run isaaclab -f
-```
+For pre-commit validation, set `ISAACLAB_CHANGELOG_BASE_REF` to the same base. Follow the guide's Tools section for the final formatting gate.
 
 ## Maintenance
 
-Keep this skill synchronized with `AGENTS.md`, `docs/source/refs/contributing.rst`, and `tools/changelog/cli.py`. If changelog policy changes, update those authoritative sources first and keep this skill focused on routing agents to the right workflow.
+Keep this skill synchronized with `AGENTS.md`, `docs/source/refs/contributing.rst`, and `tools/changelog/`. If changelog policy changes, update those authoritative sources first and keep this skill focused on routing agents to the right workflow.
 
 ## References
 
 - [Contributing guide](../../../docs/source/refs/contributing.rst)
 - [Changelog tool](../../../tools/changelog/cli.py)
-- [Integration examples](../../../tools/changelog/test/integration/README.md)
+- [Towncrier config](../../../tools/changelog/towncrier.toml)
 - [Examples](examples.md)

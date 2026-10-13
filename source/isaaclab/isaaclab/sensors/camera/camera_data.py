@@ -10,9 +10,10 @@ from typing import Any
 import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
-from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
+from ...renderers.output_contract import RenderBufferKind, RenderBufferSpec
+from ...utils.leapp import leapp_tensor_semantics
+from ...utils.warp import ProxyArray
+from ...utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
 __all__ = ["CameraData", "RenderBufferKind", "RenderBufferSpec"]
 
@@ -43,8 +44,10 @@ class CameraData:
         """The retrieved sensor info with sensor types as key.
 
         This contains extra information provided by the sensor such as semantic segmentation label mapping, prim paths.
-        For semantic-based data, this corresponds to the ``"info"`` key in the output of the sensor. For other sensor
-        types, the info is empty.
+        For semantic-based data, this corresponds to the ``"info"`` key in the output of the sensor.
+        Delayed OVRTX images also include ``"capture"``: snapshots of ``pos_w``, ``quat_w_world``,
+        ``intrinsic_matrices``, and per-environment ``frame`` indices matching the returned pixels.
+        Live pose and calibration fields are unchanged. Other outputs may have empty info.
         """
 
     ##
@@ -90,8 +93,11 @@ class CameraData:
         return self._intrinsic_matrices
 
     @property
+    @leapp_tensor_semantics(kind="state/camera/image")
     def output(self) -> dict[str, ProxyArray] | None:
         """The retrieved sensor data with sensor types as key.
+
+        LEAPP exports each accessed output buffer as a separate input.
 
         Each value is a :class:`~isaaclab.utils.warp.ProxyArray` of shape
         ``(N, H, W, C)`` where N is the number of views, H/W are image dimensions,

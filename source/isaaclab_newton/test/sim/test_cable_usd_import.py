@@ -15,7 +15,7 @@ _STRETCH, _SHEAR, _BEND, _TWIST = range(4)
 
 
 def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
-    """Spawn a cable, import it into Newton, and return its first joint's per-DOF stiffness."""
+    """Spawn a cable, import it into Newton, and return its first cable joint's per-DOF stiffness."""
     sim_utils.create_new_stage()
     stage = sim_utils.get_current_stage()
     cfg = CableCfg(
@@ -28,21 +28,15 @@ def _import_cable_joint_stiffness(**material_kwargs) -> list[float]:
 
     builder = newton.ModelBuilder()
     builder.add_usd(stage, root_path="/World/Cable")
-    dof0 = builder.joint_qd_start[0]
-    return [builder.joint_target_ke[dof0 + offset] for offset in range(4)]
-
-
-def test_newton_cable_shear_and_twist_fall_back_when_unset():
-    """Test that unset shear/twist reuse the stretch/bend stiffness."""
-    stiffness = _import_cable_joint_stiffness()
-
-    assert stiffness[_SHEAR] == pytest.approx(stiffness[_STRETCH])
-    assert stiffness[_TWIST] == pytest.approx(stiffness[_BEND])
+    dof0 = builder.joint_qd_start[builder.joint_type.index(newton.JointType.ROD)]
+    return builder.joint_target_ke[dof0 : dof0 + 4]
 
 
 def test_newton_cable_authored_shear_and_twist_override_fallbacks():
-    """Test that authored moduli decouple shear from stretch and twist from bend."""
+    """Test that unset shear/twist reuse stretch/bend and authored moduli decouple them."""
     fallback = _import_cable_joint_stiffness()
+    assert fallback[_SHEAR] == pytest.approx(fallback[_STRETCH])
+    assert fallback[_TWIST] == pytest.approx(fallback[_BEND])
     stiffness = _import_cable_joint_stiffness(shear_stiffness=9.0e9, twist_stiffness=7.0e7)
 
     # Stretch and bend are untouched; only the newly authored degrees of freedom move.
@@ -87,9 +81,9 @@ def test_newton_imports_cable_without_registry():
     cable_attrs = import_result["path_cable_attrs"][cable_path]
 
     assert builder.body_count == 2
-    assert builder.joint_count == 1
+    assert builder.joint_type == [newton.JointType.FREE, newton.JointType.ROD]
     assert builder.shape_count == 2
-    assert import_result["path_cable_map"][cable_path] == ([0, 1], [0])
+    assert import_result["path_cable_map"][cable_path] == ([0, 1], [1])
     assert cable_attrs["closed"] is False
     assert cable_attrs["material"]["thickness"] == pytest.approx(material.thickness)
     assert cable_attrs["material"]["density"] == pytest.approx(material.density)

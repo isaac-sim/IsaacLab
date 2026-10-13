@@ -1,6 +1,109 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+4.0.1 (2026-10-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale action chunks driving freshly reset environments when
+  ``hold_pose_on_midchunk_reset`` was enabled for absolute joint-position policies.
+
+
+4.0.0 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added GR00T N1.7 support through RLinf's native model and processor loader, with configurable
+  ``gr00t_mapping.language`` and ``action_mapping.keys`` for observation and action conversion.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both GR00T setups to the documented RLinf revision with per-generation model packages
+  and action registries. Existing RLinf 0.2 installations must rerun the shared installation step.
+
+
+3.1.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed visuo-tactile sensor debug visualization to refresh outdated sensor buffers before drawing.
+
+
+3.1.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``CouplerAdmmCfg.contact_max_triangle_pairs`` and
+  ``contact_reduction_hashtable_size_factor`` to configure the internal ADMM collision
+  buffers independently of the outer Newton collision pipeline, preserving Newton's
+  defaults. Validation rejected triangle-pair capacities at or above ``2**20`` with
+  ``"latest"`` or ``"sticky"`` matching and explicit overrides unsupported by Newton.
+
+
+3.0.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Avoided scalar uploads and CUDA synchronization when resetting selected thrust-action commands.
+* Changed the RLinf Isaac Lab environment factory to start the simulation runtime through
+  :func:`~isaaclab.app.launch_simulation`, so kitless tasks no longer start Isaac Sim / Kit.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_contrib.deformable`` after moving the implementation to Newton.
+  Import ``DeformableObject`` and ``DeformableObjectData`` from :mod:`isaaclab_newton.assets` instead,
+  or use the backend-independent :class:`isaaclab.assets.DeformableObject`.
+
+Fixed
+^^^^^
+
+* Prepared coupled Newton builders once per selected solver manager, avoiding unnecessary or repeated VBD coloring.
+
+
+2.0.3 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated deformable storage to the shared ``TimestampedBuffer`` container and removed redundant
+  zero initialization from fully overwritten read caches.
+
+Fixed
+^^^^^
+
+* Accepted environment slices in :meth:`~isaaclab_contrib.assets.Multirotor.reset` and sized thruster
+  parameter resampling from the selected slice, so partial slice resets no longer fail.
+* Applied Newton's deferred capture lifecycle to coupled solvers and kept fixed MPM entries with
+  an unbounded active-cell partition eager. Set the entry's ``max_active_cell_count`` to a positive
+  capacity to enable capture for fixed grids.
+
+
+2.0.2 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Published deformable geometry through SDP using clone-plan paths and native particle ranges,
+  preserving nonconsecutive environment IDs, custom paths, and position writes between renders.
+  Removed the internal Fabric-sync helper; rendering consumers now bind through SDP.
+
+
 2.0.1 (2026-08-23)
 ~~~~~~~~~~~~~~~~~~
 

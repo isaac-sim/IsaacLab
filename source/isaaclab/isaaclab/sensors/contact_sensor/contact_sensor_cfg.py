@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import CONTACT_SENSOR_MARKER_CFG
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
+    from ...sim.spawners.from_files.from_files_cfg import UsdFileCfg
     from .contact_sensor import ContactSensor
 
 
@@ -35,13 +35,24 @@ class ContactSensorCfg(SensorBaseCfg):
     """Whether to track the contact point locations. Defaults to False."""
 
     track_friction_forces: bool = False
-    """Whether to track the friction forces at the contact points. Defaults to False."""
+    """Whether to track friction contact forces. Defaults to False.
+
+    Newton, OVPhysX, and Isaac Sim PhysX 6.2 or later report aggregate friction forces without
+    requiring filters and additionally report per-filter friction when
+    :attr:`filter_prim_paths_expr` is configured. Their total-force buffers include friction
+    regardless of this option. Isaac Sim PhysX 6.1 reports per-filter friction forces only and
+    therefore requires filters.
+    """
 
     max_contact_data_count_per_prim: int | None = None
     """The maximum number of contacts across all batches of the sensor to keep track of. Default is 4, where supported.
 
     This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
     of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.
+
+    OVPhysX and Isaac Sim PhysX 6.2 or later require a positive capacity only for
+    :attr:`track_contact_points`; aggregate and filtered force reporting do not depend on this
+    capacity. Isaac Sim PhysX 6.1 also uses this capacity for filtered friction data.
 
     .. note::
 
@@ -73,7 +84,7 @@ class ContactSensorCfg(SensorBaseCfg):
     """List of body prim path expressions to filter contacts against. Defaults to empty,
     meaning contacts with all bodies are aggregated into the net force.
 
-    If provided, a per-partner force matrix (:attr:`ContactSensorData.force_matrix_w`) is
+    If provided, a per-partner force matrix (:attr:`ContactSensorData.normal_force_matrix_w`) is
     reported in addition to the net force. Each expression is matched against body prim paths
     in the scene.
 
@@ -113,9 +124,24 @@ class ContactSensorCfg(SensorBaseCfg):
     Matched against shape paths on the same terms as :attr:`sensor_shape_prim_expr`.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
+    visualizer_cfg: VisualizationMarkersCfg = replace(CONTACT_SENSOR_MARKER_CFG, prim_path="/Visuals/ContactSensor")
     """The configuration object for the visualization markers. Defaults to CONTACT_SENSOR_MARKER_CFG.
 
     .. note::
         This attribute is only used when debug visualization is enabled.
     """
+
+    normal_force_visualizer_cfg: VisualizationMarkersCfg = replace(
+        BLUE_ARROW_X_MARKER_CFG, prim_path="/Visuals/ContactSensor"
+    )
+    """Configuration for net normal-force arrows."""
+    cast("UsdFileCfg", normal_force_visualizer_cfg.markers["arrow"]).scale = (0.04, 0.04, 0.2)
+
+    friction_force_visualizer_cfg: VisualizationMarkersCfg = replace(
+        RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/ContactSensor"
+    )
+    """Configuration for net friction-force arrows."""
+    cast("UsdFileCfg", friction_force_visualizer_cfg.markers["arrow"]).scale = (0.04, 0.04, 0.2)
+
+    force_visualization_scale: float = 0.01
+    """Arrow length per force magnitude [m/N]."""

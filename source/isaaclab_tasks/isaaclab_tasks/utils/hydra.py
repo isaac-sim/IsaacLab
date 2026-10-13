@@ -26,27 +26,70 @@ Example usage::
     presets=newton_mjwarp env.backend.dt=0.001 env.decimation=10
 """
 
+import argparse
 import ast
-import functools
+import enum
 import sys
 import warnings
-from collections import deque
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import is_dataclass
+from types import SimpleNamespace
 
 import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
-from isaaclab.utils.configclass import configclass
-
-from .preset_target import PresetTarget
+from isaaclab.physics import PhysicsCfg
+from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import (
+    configclass,
+    replace_slices_with_strings,
+    replace_strings_with_slices,
+    to_dict,
+    update_from_dict,
+)
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
-def _user_stacklevel() -> int:
+_LEGACY_PRESET_ALIASES = {
+    "newton": "newton_mjwarp",
+    "kamino": "newton_kamino",
+    "ovrtx_renderer": "ovrtx",
+    "isaacsim_rtx_renderer": "isaacsim_rtx",
+}
+
+
+class PresetTarget(enum.Enum):
+    """Classify preset alternatives; untyped values belong to the domain category."""
+
+    PHYSICS = ("physics", (PhysicsCfg,))
+    RENDERER = ("renderer", (RendererCfg,))
+    DOMAIN = ("presets", ())
+
+    def __new__(cls, label: str, base_classes: tuple[type, ...]):
+        obj = object.__new__(cls)
+        obj._value_ = label
+        obj.base_classes = base_classes
+        return obj
+
+    def matches(self, cfg: object) -> bool:
+        """Match a config type, including physics bundled with simulation-wide settings.
+
+        Args:
+            cfg: Preset alternative to classify.
+
+        Returns:
+            Whether the alternative belongs to this category.
+        """
+        return isinstance(cfg, self.base_classes) or (
+            self is PresetTarget.PHYSICS and isinstance(cfg, SimulationCfg) and isinstance(cfg.physics, PhysicsCfg)
+        )
+
+
+def user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
     outside the ``isaaclab_tasks.utils`` package, so deprecation messages
     cite user code rather than internal utility frames.
@@ -63,17 +106,12 @@ def _user_stacklevel() -> int:
     max_walk = 16
     level = 1
     frame = sys._getframe(1)
-    while frame is not None and frame.f_globals.get("__name__", "").startswith(__package__):
+    while frame is not None and frame.f_globals.get("__name__", "").startswith("isaaclab_tasks.utils"):
         level += 1
         frame = frame.f_back
         if level > max_walk:
             return 2
     return level
-
-
-def _known_preset_names(presets: dict) -> set[str]:
-    """Return all preset names declared in a collected preset dictionary."""
-    return {name for section in presets.values() for fields in section.values() for name in fields}
 
 
 def _normalize_preset_name(name: str, known_names: set[str]) -> str:
@@ -82,18 +120,17 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
     Returns ``name`` unchanged when:
         * ``name`` is not a deprecated alias, or
         * the replacement is not declared in ``known_names`` (so the user-supplied
-          value can flow into the standard "unknown preset" error path, where
-          :func:`_format_unknown_presets_error` will surface the rename), or
+          value can flow into the unknown-preset error), or
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
     """
-    replacement = PresetTarget.all_legacy_aliases().get(name)
+    replacement = _LEGACY_PRESET_ALIASES.get(name)
     if replacement is None or replacement not in known_names or name in known_names:
         return name
     warnings.warn(
         f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
         FutureWarning,
-        stacklevel=_user_stacklevel(),
+        stacklevel=user_stacklevel(),
     )
     return replacement
 
@@ -143,13 +180,13 @@ class PresetCfg:
         real field on the subclass, so a user redefining the deprecated name
         shadows the alias.
         """
-        replacement = PresetTarget.all_legacy_aliases().get(name)
-        fields = getattr(type(self), "__dataclass_fields__", {})
+        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
             warnings.warn(
                 f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
                 FutureWarning,
-                stacklevel=_user_stacklevel(),
+                stacklevel=user_stacklevel(),
             )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
@@ -199,6 +236,8 @@ def _preset_fields(preset_obj) -> dict:
     cls = type(preset_obj)
     d = {}
     for fn in preset_obj.__dataclass_fields__:
+        if fn.startswith("_"):
+            continue
         cls_val = getattr(cls, fn, None)
         d[fn] = cls_val if cls_val is not None else getattr(preset_obj, fn)
     for attr in vars(cls):
@@ -209,64 +248,34 @@ def _preset_fields(preset_obj) -> dict:
 
 
 def _iter_cfg_items(cfg):
+    """Iterate declared config fields and container entries without inspecting properties."""
+    if is_dataclass(cfg) and not isinstance(cfg, type) or isinstance(cfg, (argparse.Namespace, SimpleNamespace)):
+        return ((name, value) for name, value in vars(cfg).items() if not name.startswith("_"))
     if isinstance(cfg, Mapping):
         return cfg.items()
-    if isinstance(cfg, list):
+    if isinstance(cfg, (list, tuple)):
         return enumerate(cfg)
-    return ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
-
-
-def _is_walkable_cfg(cfg) -> bool:
-    return hasattr(cfg, "__dataclass_fields__") or isinstance(cfg, (Mapping, list))
-
-
-def _walk_cfg(cfg, path: str, on_preset: Callable) -> None:
-    """Depth-first walk of a config tree, calling *on_preset(parent, key, obj, path)*
-    for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts,
-    nested dicts, and lists transparently."""
-    for key, val in _iter_cfg_items(cfg):
-        child_path = f"{path}.{key}" if path else str(key)
-        if isinstance(val, PresetCfg):
-            on_preset(cfg, key, val, child_path)
-        elif _is_walkable_cfg(val):
-            _walk_cfg(val, child_path, on_preset)
+    return ()
 
 
 def collect_presets(cfg, path: str = "") -> dict:
-    """Recursively discover :class:`PresetCfg` nodes in the config tree.
-
-    Walks dataclass fields and dict values at any nesting depth.
+    """Discover preset alternatives, including those inside inactive branches.
 
     Args:
-        cfg: A configclass instance to walk.
-        path: Current path prefix (used during recursion).
+        cfg: Configuration tree to inspect.
+        path: Prefix for the returned dotted paths.
 
     Returns:
-        Dict mapping dotted paths to preset dicts, e.g.:
-        ``{"backend": {"default": PhysxCfg(), "newton_mjwarp": NewtonCfg()}}``
+        A mapping from config paths to named alternatives.
     """
     result = {}
-
-    def _record(preset_obj, preset_path):
-        fields = _preset_fields(preset_obj)
-        result[preset_path] = fields
-        for alt in fields.values():
-            if hasattr(alt, "__dataclass_fields__"):
-                result.update(collect_presets(alt, preset_path))
-            elif isinstance(alt, dict):
-                for v in alt.values():
-                    if _is_walkable_cfg(v):
-                        result.update(collect_presets(v, preset_path))
-            elif isinstance(alt, list):
-                for v in alt:
-                    if _is_walkable_cfg(v):
-                        result.update(collect_presets(v, preset_path))
-
     if isinstance(cfg, PresetCfg):
-        _record(cfg, path)
-        return result
-
-    _walk_cfg(cfg, path, lambda _p, _k, obj, cp: _record(obj, cp))
+        result[path] = _preset_fields(cfg)
+        for alternative in result[path].values():
+            result.update(collect_presets(alternative, path))
+    else:
+        for key, value in _iter_cfg_items(cfg):
+            result.update(collect_presets(value, f"{path}.{key}" if path else str(key)))
     return result
 
 
@@ -281,7 +290,7 @@ def _pick_alternative(
     path: str = "",
     explicit_name: str | None = None,
     consumed_selected: set[str] | None = None,
-    typed_hits: dict[str, set[PresetTarget]] | None = None,
+    on_selected: Callable[[str, object], None] | None = None,
 ):
     """Choose the best alternative from a PresetCfg.
 
@@ -299,8 +308,8 @@ def _pick_alternative(
             return fields[explicit_name]
         avail = list(fields)
         hint = ""
-        if explicit_name in PresetTarget.all_legacy_aliases():
-            replacement = PresetTarget.all_legacy_aliases()[explicit_name]
+        if explicit_name in _LEGACY_PRESET_ALIASES:
+            replacement = _LEGACY_PRESET_ALIASES[explicit_name]
             hint = (
                 f" '{explicit_name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
             )
@@ -317,12 +326,10 @@ def _pick_alternative(
         if consumed_selected is not None:
             consumed_selected.add(raw_name)
             consumed_selected.add(name)
-        if typed_hits is not None:
-            # record which typed targets (physics/renderer) this name landed on
-            targets = {target for target in PresetTarget if target.base_classes and target.matches(val)}
-            if targets:
-                typed_hits.setdefault(raw_name, set()).update(targets)
-                typed_hits.setdefault(name, set()).update(targets)
+        if on_selected is not None:
+            on_selected(raw_name, val)
+            if name != raw_name:
+                on_selected(name, val)
         if match_name is not None:
             if match_value is not val and match_value != val:
                 raise ValueError(
@@ -343,68 +350,44 @@ def _resolve_active_presets(
     cfg,
     selected=(),
     explicit: dict[str, str] | None = None,
-    root_path: str = "",
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
-    typed_hits: dict[str, set[PresetTarget]] | None = None,
+    on_selected: Callable[[str, object], None] | None = None,
     consumed_explicit: set[str] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
 
-    Preset alternatives are choice nodes. Once a choice is resolved, only the
-    selected replacement is queued for further traversal, so inactive sibling
-    branches cannot contribute descendant presets.
+    Only the selected alternative contributes descendant presets.
     """
     explicit = explicit or {}
     consumed_explicit = consumed_explicit if consumed_explicit is not None else set()
 
-    def resolve_chain(preset_obj: PresetCfg, path: str):
-        seen: set[int] = set()
-        val = preset_obj
-        while isinstance(val, PresetCfg):
-            if id(val) in seen:
+    def resolve(value, path):
+        seen = set()
+        while isinstance(value, PresetCfg):
+            if id(value) in seen:
                 raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '{path}': {type(val).__name__} was already visited."
+                    f"Cyclic PresetCfg chain detected at '{path}': {type(value).__name__} was already visited."
                 )
-            seen.add(id(val))
-            val = _pick_alternative(
-                val,
-                selected,
-                path=path,
-                explicit_name=explicit.get(path),
-                consumed_selected=consumed_selected,
-                typed_hits=typed_hits,
-            )
-        return val
+            seen.add(id(value))
+            choice = explicit.get(path)
+            if choice is not None:
+                consumed_explicit.add(path)
+            value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
+        if isinstance(value, tuple):
+            return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
+        for key, child in _iter_cfg_items(value):
+            resolved = resolve(child, f"{path}.{key}" if path else str(key))
+            if resolved is child:
+                continue
+            if isinstance(value, (dict, list)):
+                value[key] = resolved
+            else:
+                setattr(value, key, resolved)
+        return value
 
-    if isinstance(cfg, PresetCfg):
-        if root_path in explicit:
-            consumed_explicit.add(root_path)
-        cfg = resolve_chain(cfg, root_path or "<root>")
-
-    queue = deque([(root_path, cfg)])
-    while queue:
-        path, obj = queue.popleft()
-        if not _is_walkable_cfg(obj):
-            continue
-        for key, val in _iter_cfg_items(obj):
-            child_path = f"{path}.{key}" if path else str(key)
-            if isinstance(val, PresetCfg):
-                if child_path in explicit:
-                    consumed_explicit.add(child_path)
-                resolved = resolve_chain(val, child_path or "<root>")
-                if isinstance(obj, list):
-                    obj[int(key)] = resolved
-                elif isinstance(obj, dict):
-                    obj[key] = resolved
-                else:
-                    setattr(obj, key, resolved)
-                if _is_walkable_cfg(resolved):
-                    queue.append((child_path, resolved))
-            elif _is_walkable_cfg(val):
-                queue.append((child_path, val))
-
+    cfg = resolve(cfg, "")
     missing = sorted(set(explicit) - consumed_explicit)
     if strict_explicit and missing:
         raise ValueError(f"Unknown or inactive preset group(s): {', '.join(missing)}")
@@ -414,10 +397,10 @@ def _resolve_active_presets(
 def resolve_presets(cfg, selected=()):
     """Replace every :class:`PresetCfg` in the tree with the best alternative.
 
-    For each ``PresetCfg`` found during an active-tree breadth-first walk:
+    For each ``PresetCfg`` found in the active configuration tree:
 
-    1. Pick the first name from *selected* that exists as a field on the
-       preset, otherwise fall back to ``default``.
+    1. Choose a matching name from *selected*, rejecting conflicting alternatives,
+       or use ``default`` if none match.
     2. Replace the preset in its parent (dict key or dataclass attr).
     3. Continue walking the replacement (which may contain more presets).
 
@@ -436,32 +419,6 @@ def resolve_presets(cfg, selected=()):
 # ============================================================================
 # CLI / Hydra integration
 # ============================================================================
-
-
-def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
-    """Shared Hydra entry point for :func:`resolve_task_config` and :func:`hydra_task_config`."""
-    if not hydra_args:
-        env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
-        callback(env_cfg, agent_cfg)
-        return
-
-    original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
-
-    @hydra.main(config_path=None, config_name=task, version_base="1.3")
-    def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
-        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        env_cfg.from_dict(hydra_cfg["env"])
-        env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
-        if isinstance(agent_cfg, dict) or agent_cfg is None:
-            agent_cfg = hydra_cfg["agent"]
-        else:
-            agent_cfg.from_dict(hydra_cfg["agent"])
-        callback(env_cfg, agent_cfg)
-
-    try:
-        hydra_main()
-    finally:
-        sys.argv = original_argv
 
 
 def resolve_task_config(
@@ -492,102 +449,27 @@ def resolve_task_config(
     env_cfg, agent_cfg, hydra_args = register_task(
         task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides
     )
+    if not hydra_args:
+        return replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg
+
     resolved = {}
-    _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: resolved.update(env_cfg=e, agent_cfg=a))
-    return resolved["env_cfg"], resolved["agent_cfg"]
+    original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
 
-
-def hydra_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: bool = False) -> Callable:
-    """Decorator for Hydra config with REPLACE-only preset semantics.
-
-    Args:
-        task_name: Task name (e.g., "Isaac-Reach-Franka")
-        agent_cfg_entry_point: Agent config entry point key
-        play_mode: Whether to apply the play-mode overrides defined by the environment
-            configuration's ``play_mode`` method after loading. Defaults to False.
-
-    Returns:
-        Decorated function receiving ``(env_cfg, agent_cfg, *args, **kwargs)``
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            task = task_name.split(":")[-1]
-            env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point, play_mode=play_mode)
-            _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: func(e, a, *args, **kwargs))
-
-        return wrapper
-
-    return decorator
-
-
-def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, list[str]], max_paths: int = 5) -> str:
-    """Build a readable error message grouping presets by identical path fingerprints.
-
-    When an unknown name matches a deprecated alias (e.g. ``newton``), the
-    message explicitly calls out the rename so users updating from older
-    tutorials or scripts get an actionable hint instead of a bare "unknown".
-    """
-    fingerprint_to_names: dict[tuple[str, ...], list[str]] = {}
-    for name, paths in name_to_paths.items():
-        key = tuple(sorted(paths))
-        fingerprint_to_names.setdefault(key, []).append(name)
-
-    lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
-    deprecated_hits = sorted(name for name in unknown if name in PresetTarget.all_legacy_aliases())
-    for legacy in deprecated_hits:
-        replacement = PresetTarget.all_legacy_aliases()[legacy]
-        lines.append(f"  '{legacy}' was renamed to '{replacement}'; this task does not declare '{replacement}' either.")
-    lines += [
-        "",
-        "Available presets (grouped by affected paths):",
-        "",
-    ]
-    for paths_tuple in sorted(fingerprint_to_names, key=lambda k: fingerprint_to_names[k][0]):
-        names = sorted(fingerprint_to_names[paths_tuple])
-        if len(names) <= 30:
-            lines.append(f"  {', '.join(names)}")
+    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
+        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+        update_from_dict(env_cfg, hydra_cfg["env"])
+        if isinstance(agent_cfg, dict) or agent_cfg is None:
+            agent_cfg = hydra_cfg["agent"]
         else:
-            lines.append(f"  {', '.join(names[:25])}, ... ({len(names)} total)")
-        shown = list(paths_tuple[:max_paths])
-        for p in shown:
-            lines.append(f"    -> {p}")
-        remaining = len(paths_tuple) - len(shown)
-        if remaining > 0:
-            lines.append(f"    ... ({remaining} more)")
-        lines.append("")
-    return "\n".join(lines)
+            agent_cfg.from_dict(hydra_cfg["agent"])
+        resolved.update(env_cfg=replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg=agent_cfg)
 
-
-def _validate_typed_presets(
-    requested: dict[PresetTarget, set[str]],
-    typed_hits: dict[str, set[PresetTarget]],
-) -> None:
-    """Check that each typed selector landed on a config of its own type.
-
-    A typed selector (``physics=NAME`` / ``renderer=NAME``) is an explicit
-    request for a backend of that type, so ``NAME`` must replace at least one
-    config of that type during resolution. If it only matched unrelated presets
-    that happen to share the name (a scalar, a sensor variant), the backend
-    silently stays unchanged, so raise. The free-form ``presets=NAME`` broadcast
-    is intentionally *not* checked -- there the user makes no typing claim.
-
-    Raises:
-        ValueError: If a ``physics=`` / ``renderer=`` name never resolved
-            against a config of that target's type.
-    """
-    aliases = PresetTarget.all_legacy_aliases()
-    missing = sorted(
-        (t.value, n) for t, ns in requested.items() for n in ns if t not in typed_hits.get(aliases.get(n, n), set())
-    )
-    if missing:
-        clauses = ", ".join(f"{label}={name}" for label, name in missing)
-        raise ValueError(
-            f"Typed preset selector(s) {clauses} did not match any preset of that type for this task. "
-            "The name only matched unrelated presets (or nothing), so the backend would stay unchanged. "
-            "Use a task that declares it on the matching config, or drop the selector."
-        )
+    try:
+        hydra_main()
+    finally:
+        sys.argv = original_argv
+    return resolved["env_cfg"], resolved["agent_cfg"]
 
 
 def register_task(
@@ -607,6 +489,7 @@ def register_task(
         play_mode: Whether to apply the play-mode overrides defined by the environment
             configuration's ``play_mode`` method after loading. Defaults to False.
         overrides: Optional Hydra arguments to compose instead of :data:`sys.argv`.
+            Non-string literals replace resolved preset values; strings at preset paths select alternatives.
 
     Returns:
         Tuple of ``(env_cfg, agent_cfg, hydra_args)`` where presets have been
@@ -641,33 +524,27 @@ def register_task(
         else:
             override_items.append((key, val, arg))
 
-    explicit = {key: val for key, val, _arg in override_items}
+    # Literal values replace the resolved value after presets and play-mode overrides.
+    explicit = {key: val for key, val, _arg in override_items if isinstance(_parse_val(val), str)}
     consumed_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
+
+    def record_selection(name, value):
+        targets = {target for target in PresetTarget if target.base_classes and target.matches(value)}
+        typed_hits.setdefault(name, set()).update(targets)
+
     consumed_explicit: set[str] = set()
-    env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
-    agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
-    env_cfg = _resolve_active_presets(
-        env_cfg,
+    cfgs = {"env": env_cfg, "agent": agent_cfg}
+    _resolve_active_presets(
+        cfgs,
         global_presets,
-        env_explicit,
-        root_path="env",
+        explicit,
         strict_explicit=False,
         consumed_selected=consumed_presets,
-        typed_hits=typed_hits,
+        on_selected=record_selection,
         consumed_explicit=consumed_explicit,
     )
-    if agent_cfg is not None:
-        agent_cfg = _resolve_active_presets(
-            agent_cfg,
-            global_presets,
-            agent_explicit,
-            root_path="agent",
-            strict_explicit=False,
-            consumed_selected=consumed_presets,
-            typed_hits=typed_hits,
-            consumed_explicit=consumed_explicit,
-        )
+    env_cfg, agent_cfg = cfgs["env"], cfgs["agent"]
 
     unknown_presets = set(global_presets) - consumed_presets
     if unknown_presets:
@@ -678,33 +555,46 @@ def register_task(
             "env": collect_presets(load_cfg_from_registry(task_name, "env_cfg_entry_point")),
             "agent": collect_presets(load_cfg_from_registry(task_name, agent_entry)) if agent_entry else {},
         }
-        name_to_paths: dict[str, list[str]] = {}
-        for sec, sec_presets in all_presets.items():
-            for path, fields in sec_presets.items():
-                full = f"{sec}.{path}" if path else sec
-                for name in fields:
-                    name_to_paths.setdefault(name, []).append(full)
-        known_names = set(name_to_paths)
+        available = {
+            f"{section}.{path}" if path else section: fields
+            for section, presets in all_presets.items()
+            for path, fields in presets.items()
+        }
+        known_names = {name for fields in available.values() for name in fields}
         unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
         if unknown:
-            display = {n: p for n, p in name_to_paths.items() if n != "default"}
-            raise ValueError(_format_unknown_presets_error(unknown, display))
+            lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
+            for name in sorted(unknown & _LEGACY_PRESET_ALIASES.keys()):
+                lines.append(f"'{name}' was renamed to '{_LEGACY_PRESET_ALIASES[name]}'; this task declares neither.")
+            lines.append("Available presets by config path:")
+            lines.extend(
+                f"  {path}: {', '.join(name for name in fields if name != 'default')}"
+                for path, fields in available.items()
+            )
+            raise ValueError("\n".join(lines))
 
-    # Typed selectors (physics=/renderer=) must have landed on a cfg of their type
-    _validate_typed_presets(requested_targets, typed_hits)
-
+    missing = [
+        f"{target.value}={name}"
+        for target, names in requested_targets.items()
+        for name in sorted(names)
+        if target not in typed_hits.get(_LEGACY_PRESET_ALIASES.get(name, name), ())
+    ]
+    if missing:
+        raise ValueError(
+            f"Typed preset selector(s) {', '.join(missing)} did not match any preset of that type for this task."
+        )
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
     if play_mode and hasattr(env_cfg, "play_mode"):
         env_cfg.play_mode()
 
-    cfgs = {"env": env_cfg, "agent": agent_cfg}
     for key, val, arg in override_items:
-        if key in consumed_explicit:
+        value = _parse_val(val)
+        if key in consumed_explicit and isinstance(value, str):
             continue
         if key.startswith(("env.", "agent.")) and not key.endswith("+"):
             sec, path = key.split(".", 1)
-            _setattr(cfgs[sec], path, _parse_val(val))
+            _setattr(cfgs[sec], path, value)
         else:
             hydra_args.append(arg)
 
@@ -714,105 +604,12 @@ def register_task(
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
     agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
-    env_dict = env_cfg.to_dict()  # type: ignore[union-attr]
+    env_dict = to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars
     ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
     return env_cfg, agent_cfg, hydra_args
-
-
-def parse_overrides(args: list[str], presets: dict) -> tuple:
-    """Categorize command line args by type.
-
-    Args:
-        args: Command line args (without script name)
-        presets: {"env": {"path": {"name": cfg}}, "agent": {...}}
-
-    Returns:
-        (global_presets, preset_sel, preset_scalar, global_scalar) where:
-        - global_presets: [name, ...] - apply to all matching configs
-        - preset_sel: [(section, path, name), ...] - REPLACE selections
-        - preset_scalar: [(full_path, value), ...] - scalars in preset paths
-        - global_scalar: [arg, ...] - pass to Hydra
-    """
-    preset_paths = {f"{s}.{p}" if p else s for s, v in presets.items() for p in v}
-    global_presets, preset_sel, preset_scalar, global_scalar = [], [], [], []
-
-    for arg in args:
-        if "=" not in arg:
-            global_scalar.append(arg)
-            continue
-        key, val = arg.split("=", 1)
-        if key == "presets":
-            known_names = _known_preset_names(presets)
-            global_presets.extend(_normalize_preset_name(v.strip(), known_names) for v in val.split(",") if v.strip())
-        elif key in preset_paths:
-            sec, path = key.split(".", 1) if "." in key else (key, "")
-            known_names = set(presets[sec][path])
-            preset_sel.append((sec, path, _normalize_preset_name(val, known_names)))
-        elif any(key.startswith(pp + ".") for pp in preset_paths):
-            preset_scalar.append((key, val))
-        else:
-            global_scalar.append(arg)
-
-    preset_sel.sort(key=lambda x: x[1].count("."))
-    return global_presets, preset_sel, preset_scalar, global_scalar
-
-
-def apply_overrides(
-    env_cfg,
-    agent_cfg,
-    hydra_cfg: dict,
-    global_presets: list,
-    preset_sel: list,
-    preset_scalar: list,
-    presets: dict,
-):
-    """Apply preset selections and scalar overrides with REPLACE semantics.
-
-    Presets are resolved by walking the active tree from root to leaves. A
-    nested preset is only considered after its parent branch has been selected,
-    which prevents inactive sibling branches from contributing colliding
-    descendant paths.
-
-    Returns:
-        (env_cfg, agent_cfg) -- possibly replaced if root-level PresetCfg was resolved.
-
-    Raises:
-        ValueError: If multiple global presets conflict on an active path, or
-            an explicit preset path is not reachable in the active tree.
-    """
-    cfgs = {"env": env_cfg, "agent": agent_cfg}
-
-    explicit = {f"{sec}.{path}" if path else sec: name for sec, path, name in preset_sel}
-    for sec in ("env", "agent"):
-        if cfgs[sec] is None:
-            continue
-        section_explicit = {path: name for path, name in explicit.items() if path == sec or path.startswith(sec + ".")}
-        cfgs[sec] = _resolve_active_presets(cfgs[sec], global_presets, section_explicit, root_path=sec)
-        hydra_cfg[sec] = (
-            cfgs[sec].to_dict()
-            if hasattr(cfgs[sec], "to_dict")
-            else dict(cfgs[sec])
-            if isinstance(cfgs[sec], Mapping)
-            else cfgs[sec]
-        )
-
-    _apply_preset_scalars(cfgs, hydra_cfg, preset_scalar)
-    return cfgs["env"], cfgs["agent"]
-
-
-def _apply_preset_scalars(cfgs: dict, hydra_cfg: dict, preset_scalar: list) -> None:
-    for full_path, val_str in preset_scalar:
-        sec = full_path.split(".", 1)[0]
-        if sec not in cfgs:
-            continue
-        path = full_path[len(sec) + 1 :]
-        if cfgs[sec] is not None:
-            val = _parse_val(val_str)
-            _setattr(cfgs[sec], path, val)
-            _setattr(hydra_cfg, full_path, val)
 
 
 def _setattr(obj, path: str, val):
@@ -834,3 +631,137 @@ def _parse_val(s: str):
         return ast.literal_eval(s)
     except (ValueError, SyntaxError):
         return s
+
+
+def setup_preset_cli(
+    parser: argparse.ArgumentParser, argv: list[str] | None = None
+) -> tuple[argparse.Namespace, list[str]]:
+    """Register the preset-selection help description and parse argv.
+
+    Must be called *after* launcher flags and script-specific arguments are
+    registered on ``parser`` -- otherwise those unknown tokens land in
+    ``parse_known_args``'s remainder.
+
+    The returned remainder contains the user-typed ``physics=`` / ``renderer=``
+    / ``presets=`` tokens verbatim, alongside any Hydra path overrides and any
+    unknown argparse flags, ready to assign to ``sys.argv`` for hydra to parse.
+
+    Does not mutate ``sys.argv``; the caller assigns
+    ``sys.argv = [sys.argv[0]] + remaining`` when ready, so any argv-aware logic
+    that re-reads ``sys.argv`` (e.g. an external callback) runs against the
+    user's original command line first.
+
+    A Hydra override is never the value of an option whose value is optional
+    (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
+    option's default source and passes the override on. Overrides always
+    contain ``=``, so such an option followed by a token with ``=`` takes its
+    ``const`` instead.
+
+    Args:
+        parser: Caller's argument parser. An ``argument_group`` is attached
+            for help-time variant discovery. No preset selector arguments are
+            added, so the Namespace gains no preset attributes.
+        argv: Arguments to parse, including help-time task selection. Defaults to ``sys.argv[1:]``.
+
+    Returns:
+        ``(args, remaining)`` where ``remaining`` is the verbatim output of
+        ``parser.parse_known_args(argv)``, ready to hand to Hydra via
+        ``sys.argv``.
+
+    Raises:
+        SystemExit: If ``argv`` requests help, after printing it.
+    """
+    args_to_parse = sys.argv[1:] if argv is None else argv
+    help_requested = "-h" in args_to_parse or "--help" in args_to_parse
+    variants = None
+    if help_requested:
+        # Read the task before the main parser's help action exits.
+        task_parser = argparse.ArgumentParser(add_help=False, allow_abbrev=False)
+        task_parser.add_argument("--task")
+        task_args, _ = task_parser.parse_known_args(args_to_parse)
+        if task_args.task:
+            variants = _enumerate_variants(task_args.task)
+    if parser.formatter_class is argparse.HelpFormatter:
+        parser.formatter_class = argparse.RawDescriptionHelpFormatter
+    description = ["Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"]
+    for target in PresetTarget:
+        syntax = f"{target.value}=NAME"
+        if target is PresetTarget.DOMAIN:
+            syntax += "[,NAME,...]"
+        meaning = (
+            f"(typed) selects a {target.value} backend"
+            if target.base_classes
+            else "broadcast: applied to every matching PresetCfg"
+        )
+        description.append(f"    {syntax:23}   {meaning}" + (". Available:" if variants is not None else ""))
+        if variants is not None:
+            description.extend(f"                              - {name}" for name in variants[target])
+            if not variants[target]:
+                description.append("                              (none)")
+    if variants is None:
+        description.append("\nPass `--task=X` along with `--help` to see preset variants available for that task.")
+    description.append("\nHydra also accepts path-targeted overrides like env.sim.physics=NAME.")
+    parser.add_argument_group("preset selection", description="\n".join(description))
+    if help_requested:
+        parser.print_help()
+        raise SystemExit(0)
+
+    optional_value_consts = {
+        option: action.const
+        for action in parser._actions
+        if action.nargs == argparse.OPTIONAL
+        for option in action.option_strings
+    }
+    args_to_parse = [
+        f"{token}={optional_value_consts[token]}" if token in optional_value_consts and "=" in next_token else token
+        for token, next_token in zip(args_to_parse, [*args_to_parse[1:], ""])
+    ]
+    return parser.parse_known_args(args_to_parse)
+
+
+def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | None:
+    """Return the available preset names for *task_name*, bucketed by selector type.
+
+    Loads the env config registered under *task_name* and walks its preset tree
+    using the same logic that the CLI help-text renderer uses, so the returned
+    view matches what ``--task=<name> --help`` shows at the command line.
+
+    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
+    booted (i.e. inside a running Isaac Sim session).
+
+    Args:
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole"``).
+
+    Returns:
+        A mapping ``{PresetTarget: sorted list of preset names}`` on success.
+        Returns ``None`` if the env config cannot be loaded (import error,
+        missing registration, etc.).  The ``"default"`` fallback is excluded
+        from every list because it is implicit, not a user-selectable name.
+    """
+    try:
+        return _enumerate_variants(task_name)
+    except Exception:
+        return None
+
+
+def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
+    """Load env_cfg for *task_name* and bucket its variants by target.
+
+    Uses the same walker hydra's resolver runs so help and resolve see one
+    view of the cfg tree. The env_cfg load is safe before the simulation runtime starts
+    because ``test_env_cfg_no_forbidden_imports`` blocks Kit-only imports at
+    the top level of cfg modules. Exceptions from the loader propagate
+    verbatim -- they surface as the natural error, not a buried help string.
+    """
+    from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+    typed_targets = [t for t in PresetTarget if t.base_classes]
+    result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
+    for path_dict in collect_presets(env_cfg).values():
+        for name, cfg in path_dict.items():
+            if name == "default":
+                continue
+            matched = next((target for target in typed_targets if target.matches(cfg)), PresetTarget.DOMAIN)
+            result[matched].add(name)
+    return {target: sorted(names) for target, names in result.items()}

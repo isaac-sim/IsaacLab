@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_contact_sensor import BaseContactSensor
 from .base_contact_sensor_data import BaseContactSensorData
 

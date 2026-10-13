@@ -23,13 +23,11 @@ def _kill_process_group(pgid: int, sig: int):
         os.killpg(pgid, sig)
 
 
-def run_script(command: list[str], timeout: int = 5000) -> subprocess.CompletedProcess:
+def run_script(command: list[str], timeout: int = 1500) -> subprocess.CompletedProcess:
     """Run a script in a subprocess and return a CompletedProcess.
 
-    The Kit / Omniverse runtime's ``simulation_app.close()`` can hang
-    indefinitely when another ``SimulationApp`` instance is alive in the parent
-    test process (shared GPU / IPC resources).  To avoid blocking the test
-    suite we use ``Popen`` with an explicit timeout:
+    The Kit / Omniverse runtime's ``simulation_app.close()`` can hang.
+    To avoid blocking the test suite we use ``Popen`` with an explicit timeout:
 
     1. Wait up to *timeout* seconds for the process to finish.
     2. On timeout send ``SIGTERM`` to the **entire process group** and wait

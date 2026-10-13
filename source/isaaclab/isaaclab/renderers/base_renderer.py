@@ -15,12 +15,13 @@ from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     import torch
+    import warp as wp
 
-    from isaaclab.sensors.camera.camera_data import CameraData
-    from isaaclab.utils.warp import ProxyArray
+    from ..sensors.camera.camera_data import CameraData
+    from ..utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)
@@ -102,6 +103,19 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def resize_render_product(self, render_data: Any, *, width: int, height: int) -> None:
+        """Resize a viewer-owned product without replacing its camera.
+
+        The caller must replace output buffers through :meth:`set_outputs` after resizing.
+        Scene-camera sensors retain their configured resolution and do not call this method.
+
+        Args:
+            render_data: Renderer-owned resources for one perspective view.
+            width: Output width in pixels.
+            height: Output height in pixels.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support resizable render products.")
+
     @abstractmethod
     def set_outputs(self, render_data: Any, output_data: dict[str, ProxyArray]) -> None:
         """Store reference to output buffers for writing during render.
@@ -114,6 +128,19 @@ class BaseRenderer(ABC):
                 or ``.torch`` for a zero-copy tensor view.
         """
         pass
+
+    def prepare_capture(self, render_data: Any, camera_data: CameraData, frame: ProxyArray) -> None:
+        """Snapshot metadata for the next capture when its image will be delivered asynchronously.
+
+        Synchronous renderers need no snapshot. Delayed captures publish their pose, calibration,
+        and frame indices through ``camera_data.info[output_name]["capture"]`` without changing
+        the live camera fields.
+
+        Args:
+            render_data: Renderer-owned camera resources.
+            camera_data: Current camera pose and calibration.
+            frame: Current per-environment capture indices, shape (N,), dtype ``wp.int64``.
+        """
 
     @abstractmethod
     def update_transforms(self) -> None:
@@ -140,7 +167,10 @@ class BaseRenderer(ABC):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ) -> None:
-        """Update camera poses and intrinsics for the next render.
+        """Update camera poses and supply initial calibration for the next render.
+
+        Backends may use ``intrinsics`` to initialize projection state. Runtime calibration changes
+        are submitted separately through :meth:`update_camera_intrinsics`.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -153,18 +183,52 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def update_camera_intrinsics(self, render_data: Any, intrinsics: wp.array, parameters: wp.array) -> None:
+        """Apply a proposed runtime calibration without accessing the authored USD stage.
+
+        Called only for calibration changes, independently of pose updates. The camera commits its
+        public buffers after this succeeds. Backends validate restrictions before modifying runtime
+        state, and consume the arrays before returning or order their reads on the producing Warp
+        stream; the camera reuses their storage on the next call.
+
+        Args:
+            render_data: The camera's renderer-owned state.
+            intrinsics: Complete proposed calibration, shape (N,), dtype ``wp.mat33f``.
+            parameters: Complete physical projection parameters, shape (5, N), dtype ``wp.float32``.
+                Rows are focal length, horizontal/vertical aperture, and horizontal/vertical aperture
+                offsets, in the scene's camera length units. Unselected cameras retain their values.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support runtime camera calibration.")
+
     @abstractmethod
     def render(self, render_data: Any) -> None:
-        """Perform rendering and write to output buffers.
+        """Submit a capture; :meth:`read_output` publishes its camera's available observation.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
         """
         pass
 
+    def render_batch(self, render_data: Sequence[Any]) -> None:
+        """Submit captures for a collection of cameras.
+
+        All camera poses and shared scene state must be prepared before calling this method.
+        An empty sequence is a no-op. Each object must belong to this renderer and appear once.
+        The default implementation calls :meth:`render` for each camera; subclasses may override
+        this method to submit all cameras together.
+
+        Args:
+            render_data: Renderer-specific objects from :meth:`create_render_data`.
+        """
+        for data in render_data:
+            self.render(data)
+
     @abstractmethod
     def read_output(self, render_data: Any, camera_data: CameraData) -> None:
         """Read rendered outputs from the renderer into the camera data container.
+
+        Asynchronous renderers may return the previous capture with its matching metadata in
+        ``camera_data.info``. Publishing one camera must not change another camera's observations.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -182,13 +246,26 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def reset(self, render_data: Any, env_ids: Sequence[int] | None = None) -> None:
+        """Reset the renderer-owned state of a camera when its environments reset.
+
+        A renderer implementation drops whatever per-camera state must not survive a reset.
+        Examples are pending asynchronous observations and accumulated temporal render history.
+        The default does nothing.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            env_ids: Environments being reset, or ``None`` for all. An implementation may reset
+                more than the given environments when its state is not separable per environment.
+        """
+
     def close(self) -> None:
         """Release resources owned by the renderer itself rather than by a render data.
 
         A renderer is shared by every camera whose configuration resolves to it (see
-        :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so state it owns
+        :meth:`~isaaclab.sim.SimulationContext.get_or_create_backend`), so state it owns
         outlives any single camera and cannot be released from :meth:`cleanup`.
-        :meth:`~isaaclab.renderers.render_context.RenderContext.close` calls this once at
+        :meth:`~isaaclab.sim.SimulationContext.clear_instance` calls this once at
         simulation teardown, while the stage and the underlying renderer backend are still alive.
 
         The default implementation is a no-op, for backends whose state lives entirely on the

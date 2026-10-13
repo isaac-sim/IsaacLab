@@ -20,7 +20,7 @@ import numpy as np
 import torch
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ViewerCfg
+    from .. import ViewerCfg
 
 
 def _warn_method(name: str) -> None:

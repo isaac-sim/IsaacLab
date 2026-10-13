@@ -7,11 +7,11 @@ from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg, XrCameraFeedCfg
 
 from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpacePostureTaskCfg, PinkIKControllerCfg
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.pick_place.nutpour_gr1t2_base_env_cfg import NutPourGR1T2BaseEnvCfg
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
-    _build_gr1t2_pickplace_pipeline,
+    build_gr1t2_pickplace_pipeline,
 )
 
 
@@ -125,9 +125,9 @@ class NutPourGR1T2PinkIKEnvCfg(NutPourGR1T2BaseEnvCfg):
         self.actions.gr1_action.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.gr1_action.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # IsaacTeleop-based teleoperation pipeline.
+        # Isaac Capture-based teleoperation pipeline.
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
             xr_camera_feeds=[

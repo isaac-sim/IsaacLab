@@ -19,8 +19,8 @@ from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
@@ -30,10 +30,10 @@ from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 _TASK_CONFIGS = {
-    "Isaac-Cartpole": "capture:CartpoleCaptureCfg",
-    "Isaac-Lift-KukaAllegro": "capture:KukaAllegroCaptureCfg",
-    "Isaac-Open-Drawer-Franka": "capture:FrankaCabinetCaptureCfg",
-    "Isaac-Velocity-Flat-G1": "capture:G1FlatCaptureCfg",
+    "Isaac-Cartpole": "capture_quickstart:CartpoleCaptureCfg",
+    "Isaac-Lift-KukaAllegro": "capture_quickstart:KukaAllegroCaptureCfg",
+    "Isaac-Open-Drawer-Franka": "capture_quickstart:FrankaCabinetCaptureCfg",
+    "Isaac-Velocity-Flat-G1": "capture_quickstart:G1FlatCaptureCfg",
 }
 
 
@@ -100,7 +100,7 @@ def main():
     _configure_resolved_sim(env_cfg.sim, focal_length=22.0)
     env_cfg.video_recorders = [
         VideoRecorderCfg(
-            source="visualizer:newton_rtx",
+            source="viz:newton_rtx",
             output_dir=args.output_dir,
             output_filename_prefix=args.policy,
             video_length=args.video_length,
@@ -135,7 +135,7 @@ def _configure_capture(env_cfg: object, focal_length: float):
     if output_dir:
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source="visualizer:newton_rtx",
+                source="viz:newton_rtx",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("QUICKSTART_VIDEO_PREFIX", "clip"),
                 fps=60,
@@ -151,10 +151,9 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg, focal_length: float):
             eye=default_camera.eye,
             lookat=default_camera.lookat,
             focal_length=focal_length,
-            window_width=320,
-            window_height=240,
+            window=WindowCfg(size=(320, 240)),
             headless=True,
-            rtx_environment="default",
+            render_settings={"omni:rtx:quality": ("Int", 100)},
         )
     ]
 

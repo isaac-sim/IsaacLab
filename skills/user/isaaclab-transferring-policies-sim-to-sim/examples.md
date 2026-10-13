@@ -6,7 +6,7 @@ Keep one MDP for the registered task, resolve and audit each backend's `PresetCf
 
 ## MJWarp-Trained Franka To PhysX
 
-Use the same contract and control settings, reproduce NN with the explicit checkpoint, and run NP in PhysX. Keep the training and inference task IDs from the how-to.
+Use the same contract and control settings, reproduce NN with the explicit checkpoint, and run NP in PhysX. Keep the training and inference task IDs from the guide.
 
 ## PhysX-Trained ANYmal D Or G1 To MJWarp
 

@@ -349,7 +349,7 @@ def _get_complete_convention_names_by_kind(
 def _get_source_asset_prim(articulation: BaseArticulation) -> Usd.Prim | None:
     """Return the source asset prim for an articulation config when available."""
     prim_path = articulation.cfg.prim_path
-    from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
+    from ...sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
 
     source_asset_matches = resolve_matching_prims_from_source(prim_path, expected_num_matches=1)
     if not source_asset_matches:
@@ -437,8 +437,8 @@ def _get_names_from_newton_usd_builder(
 
         from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
 
-        from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
-        from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+        from ...sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
+        from ...sim.utils.stage import get_current_stage  # noqa: PLC0415
     except ModuleNotFoundError as exc:
         missing_module = exc.name or ""
         if missing_module not in {"newton", "pxr"} and not missing_module.startswith(("newton.", "pxr.")):
@@ -514,14 +514,14 @@ def _get_mjwarp_names_from_newton_usd_builder(
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with MJWarp-style articulation names."""
     # NOTE: "dfs" and bodies_follow_joint_ordering=True mirror the defaults of
-    # Newton's ModelBuilder.add_usd. isaaclab_newton's NewtonManager calls
-    # add_usd (see instantiate_builder_from_stage) without passing
+    # Newton's ModelBuilder.add_usd. isaaclab_newton's build_source_builders calls
+    # add_usd without passing
     # joint_ordering/bodies_follow_joint_ordering, so a live Newton backend's
     # native order matches this emulation only because both sides currently
     # rely on the same Newton library defaults. The "mjwarp" convention's
     # same-backend identity path (active backend "newton") returns that live
     # order directly, assuming it equals what these hardcoded constants would
-    # produce. If NewtonManager ever passes explicit ordering arguments to
+    # produce. If the cloner ever passes explicit ordering arguments to
     # add_usd, these constants must be updated in lockstep or MJWarp
     # resolution will silently diverge from the live backend.
     return _get_names_from_newton_usd_builder(
@@ -563,8 +563,8 @@ def _describe_newton_usd_builder_unavailability(articulation: BaseArticulation) 
 
         from pxr import UsdPhysics  # noqa: PLC0415
 
-        from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
-        from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+        from ...sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
+        from ...sim.utils.stage import get_current_stage  # noqa: PLC0415
     except ModuleNotFoundError as exc:
         return f"'{exc.name or 'unknown'}' module is not installed"
 

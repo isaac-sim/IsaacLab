@@ -17,8 +17,6 @@ from pathlib import Path
 
 import pytest
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-
 _ENTRY_SCRIPTS = [
     "scripts/reinforcement_learning/train.py",
     "scripts/reinforcement_learning/play.py",
@@ -29,10 +27,12 @@ _ENTRY_SCRIPTS = [
 _SETTING = "wp.config.enable_backward = False"
 
 
-@pytest.mark.unit
+pytestmark = pytest.mark.unit
+
+
 @pytest.mark.parametrize("script", _ENTRY_SCRIPTS)
-def test_entry_script_disables_warp_backward_before_isaaclab_imports(script: str):
-    lines = (_REPO_ROOT / script).read_text().splitlines()
+def test_entry_script_disables_warp_backward_before_isaaclab_imports(source_checkout_root: Path, script: str):
+    lines = (source_checkout_root / script).read_text().splitlines()
 
     setting_at = next((i for i, line in enumerate(lines) if line.strip() == _SETTING), None)
     assert setting_at is not None, f"{script} does not set '{_SETTING}'"

@@ -6,22 +6,17 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import instantiate
 
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 # Define a fixture to replace setUpClass
 import pytest
 
 from isaaclab.assets import AssetBase, AssetBaseCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_assets as lab_assets  # noqa: F401
 
@@ -41,8 +36,8 @@ def registered_entities():
     return registered_entities
 
 
-# Add parameterization for the device
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# config validity (USD paths, joint/body names, actuator patterns) does not depend on the device
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_asset_configs(registered_entities, device):
     """Check all registered asset configurations."""
     # iterate over all registered assets
@@ -55,7 +50,7 @@ def test_asset_configs(registered_entities, device):
             # name the prim path
             entity_cfg.prim_path = "/World/asset"
             # create the asset / sensors
-            entity: AssetBase = entity_cfg.class_type(entity_cfg)  # type: ignore
+            entity: AssetBase = instantiate(entity_cfg)  # type: ignore
 
             # play the sim
             sim.reset()

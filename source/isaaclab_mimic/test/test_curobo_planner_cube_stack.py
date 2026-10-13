@@ -17,11 +17,11 @@ import pytest
 SEED: int = 42
 random.seed(SEED)
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
 headless = True
-app_launcher = AppLauncher(headless=headless)
-simulation_app: Any = app_launcher.app
+launch_test_simulation(headless=headless)
 
 from collections.abc import Generator
 
@@ -126,7 +126,7 @@ def cube_stack_test_env() -> Generator[dict[str, Any], None, None]:
 
     goal_pose_visualizer = None
     if not headless:
-        marker_cfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/goal_pose")
+        marker_cfg = replace(FRAME_MARKER_CFG, prim_path="/World/Visuals/goal_pose")
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         goal_pose_visualizer = VisualizationMarkers(marker_cfg)
 
@@ -177,6 +177,23 @@ class TestCubeStackPlanner:
         cube_1_pos = self._get_cube_pos("cube_1")
         cube_2_pos = self._get_cube_pos("cube_2")
         cube_3_pos = self._get_cube_pos("cube_3")
+
+        scene = self.env.scene
+        original_origin = scene.env_origins[0].clone()
+        robot_pos = self.robot.data.root_pos_w.torch[0].clone()
+        robot_quat = self.robot.data.root_quat_w.torch[0]
+        torch.testing.assert_close(robot_quat, torch.tensor([0.0, 0.0, 0.0, 1.0], device=robot_quat.device))
+        try:
+            scene.env_origins[0] = original_origin + torch.tensor([2.0, -3.0, 0.0], device=original_origin.device)
+            self.planner.update_world()
+            obstacle_pose = self.planner.get_object_pose("cube_2")
+            assert obstacle_pose is not None
+            expected_pos = cube_2_pos - robot_pos
+            torch.testing.assert_close(obstacle_pose.position.squeeze(), expected_pos.to(obstacle_pose.position.device))
+        finally:
+            scene.env_origins[0] = original_origin
+            self.planner.update_world()
+
         print(f"Cube 1 position: {cube_1_pos}")
         print(f"Cube 2 position: {cube_2_pos}")
         print(f"Cube 3 position: {cube_3_pos}")

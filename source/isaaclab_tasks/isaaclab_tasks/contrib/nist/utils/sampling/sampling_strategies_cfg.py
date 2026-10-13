@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.nist.utils.sampling.sampling_strategies import (
     BetaSamplingStrategy,

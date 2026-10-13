@@ -14,17 +14,16 @@ from __future__ import annotations
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
-import isaaclab.envs.mdp as mdp
-from isaaclab.devices.device_base import DevicesCfg
+from ..devices.device_base import DevicesCfg
+from . import mdp as mdp
 
 if TYPE_CHECKING:
-    from isaaclab.devices.openxr import XrCfg
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
-
+    from ..devices.openxr import XrCfg
+from ..managers import EventTermCfg as EventTerm
+from ..managers import RecorderManagerBaseCfg as DefaultEmptyRecorderManagerCfg
+from ..scene import InteractiveSceneCfg
+from ..sim import SimulationCfg
+from ..utils import configclass
 from .common import ViewerCfg
 from .utils.video_recorder_cfg import VideoRecorderCfg
 
@@ -43,6 +42,9 @@ class DefaultEventManagerCfg:
 @configclass
 class ManagerBasedEnvCfg:
     """Base configuration of the environment."""
+
+    class_type: type | str = "{DIR}.manager_based_env:ManagerBasedEnv"
+    """The environment class constructed from this configuration."""
 
     # simulation settings
     sim: SimulationCfg = SimulationCfg()
@@ -146,18 +148,23 @@ class ManagerBasedEnvCfg:
     """Configuration for teleoperation devices."""
 
     isaac_teleop: object | None = None
-    """Configuration for IsaacTeleop-based teleoperation.
+    """Configuration for Isaac Capture-based teleoperation.
 
-    When set, the environment uses the IsaacTeleop stack for XR teleoperation instead
+    When set, the environment uses the Isaac Capture stack for XR teleoperation instead
     of the native Isaac Lab teleop devices. This should be a IsaacTeleopCfg instance
     from the isaaclab_teleop package.
 
     The teleop scripts will automatically detect this configuration and use the
-    IsaacTeleop stack when present.
+    Isaac Capture stack when present.
     """
 
     export_io_descriptors: bool = False
-    """Whether to export the IO descriptors for the environment. Defaults to False."""
+    """Whether to export the IO descriptors for the environment. Defaults to False.
+
+    .. deprecated:: 3.0
+       IO descriptors will be removed in Isaac Lab 3.2. Use the LEAPP export
+       workflow for supported RSL-RL/PyTorch deployments.
+    """
 
     log_dir: str | None = None
     """Directory for logging experiment artifacts. Defaults to None, in which case no specific log directory is set."""

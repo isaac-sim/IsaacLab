@@ -30,7 +30,7 @@ adaptability, and support for running in the cloud.
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. Browse the registered tasks and build a command in the
-`environment browser <source/setup/environments>`_.
+:doc:`environment browser <source/setup/environments>`.
 
 Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
@@ -42,6 +42,11 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 
 The platform is also designed so that you can add your own robots! Please refer to the
 :ref:`how-to` section for details.
+
+.. tip::
+
+   Working with a coding agent? Isaac Lab ships a library of agent skills for installation, environment
+   creation, RL training, migration, and more. See :doc:`source/developer-tools/agent_skills`.
 
 For more information about the framework, please refer to the `technical report <https://arxiv.org/abs/2511.04831>`_
 :cite:`mittal2025isaaclab`. For clarifications on NVIDIA Isaac ecosystem, please check out the
@@ -92,6 +97,10 @@ Table of Contents
    source/setup/installation/index
    source/setup/environments
    source/setup/quickstart
+   source/setup/tutorial
+   source/setup/demos
+   source/how-to/index
+   source/workflows/index
    source/migration/migrating_to_isaaclab_3-0
 
 
@@ -100,45 +109,44 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
+   source/concepts/backend_architecture
+   source/concepts/physics_backends
+   source/concepts/solver_differences
+   source/concepts/native-physics-api/index
+   source/concepts/renderers
    source/concepts/actuators
-
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
-   :titlesonly:
-
-   source/overview/own-project/index
-   source/setup/walkthrough/index
-   source/tutorials/index
-   source/how-to/index
-   source/overview/developer-guide/index
-   source/testing/index
-
-
-.. toctree::
-   :maxdepth: 3
-   :caption: Overview
-   :titlesonly:
-
-
-   source/overview/core-concepts/index
-   source/overview/reinforcement-learning/index
-   source/overview/imitation-learning/index
-   source/overview/showroom
+   source/concepts/sensors/index
+   source/concepts/coupled_solvers
+   source/concepts/visualization
+   source/concepts/reinforcement_learning
+   source/concepts/deformables
+   source/concepts/schema_cfgs
+   source/concepts/schema_fragments
+   source/concepts/task_workflows
+   source/concepts/motion_generators
 
 
 .. toctree::
    :maxdepth: 2
    :caption: Features
 
+   source/features/imitation-learning/index
    source/features/isaac_teleop
-   source/features/docker_cloud
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   source/features/ray
-   source/features/reproducibility
+
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Developer Tools
+
+   source/developer-tools/editor_setup
+   source/developer-tools/template_generator
+   source/developer-tools/add_physics_backend
+   source/developer-tools/extending_newton_solvers
+   source/developer-tools/agent_skills
+   source/developer-tools/benchmarking/index
 
 
 .. toctree::
@@ -146,6 +154,7 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
+   source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
 

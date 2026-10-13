@@ -107,8 +107,8 @@ Teleoperation, Mimic & Policy Deployment
 
 Teleoperation and imitation-learning workflows were updated for the 3.0 stack:
 
-* Adds Isaac Teleop MCAP record/replay support and a non-interactive ``teleop_replay_agent.py`` for CI replay.
-* Defers optional ``isaacteleop`` imports so task configs can be parsed without the Isaac Teleop runtime installed.
+* Adds Isaac Capture MCAP record/replay support and a non-interactive ``teleop_replay_agent.py`` for CI replay.
+* Defers optional ``isaacteleop`` imports so task configs can be parsed without the Isaac Capture runtime installed.
 * Improves CloudXR defaults, XR performance guidance, native keyboard/gamepad/SpaceMouse mappings, and RMPFlow
   teleoperation behavior.
 * Updates Mimic installation to include ``isaaclab_teleop`` and removes the obsolete
@@ -185,6 +185,11 @@ Breaking Changes
 Preset CLI
 ~~~~~~~~~~
 
+Task preset utilities now share ``isaaclab_tasks.utils.hydra``. Replace imports from
+``isaaclab_tasks.utils.preset_cli`` or ``isaaclab_tasks.utils.preset_target`` with imports from
+``isaaclab_tasks.utils.hydra``. The package-level ``from isaaclab_tasks.utils import setup_preset_cli``
+entry point is unchanged.
+
 ``isaaclab_tasks.utils.fold_preset_tokens`` has been removed. ``setup_preset_cli()`` now returns ``physics=``,
 ``renderer=``, and ``presets=`` tokens verbatim, and ``register_task()`` parses them directly. Scripts should assign
 the returned remainder to ``sys.argv`` unchanged.
@@ -193,7 +198,7 @@ Teleoperation Replay
 ~~~~~~~~~~~~~~~~~~~~
 
 The transitional ``isaaclab_teleop.automation`` package, including ``XcrReplayConfig`` and ``start_xcr_replay``, has
-been removed. Replay workflows now use Isaac Teleop MCAP replay through
+been removed. Replay workflows now use Isaac Capture MCAP replay through
 ``scripts/environments/teleoperation/teleop_replay_agent.py``.
 
 The legacy lazy ``teleop_devices`` accessor on GR1T2 pick-place environment configs has also been removed. Use
@@ -271,6 +276,11 @@ Known Limitations
   release. We anticipate the branch will stabilize towards a final Isaac Lab 3.0 release in the coming 1-2 months.
 * Newton remains under active development. Some features, task presets, and surface gripper workflows remain
   backend-specific or unsupported.
+* Surface grippers require CPU simulation with ``physics=isaacsim_physx``, including the UR10 Long/Short Suction
+  and Galbot Right Arm Suction stacking tasks and the Galbot Mimic variants. Pass ``--device cpu`` for teleoperation;
+  zero and random agents preserve the tasks' CPU defaults when ``--device`` is omitted.
+* Pink IK dependencies are provided by the standard installation only on Linux x86_64 and aarch64. The Windows
+  uv/pip installation does not provide Pinocchio, so Pink IK tasks cannot run with that installation.
 * OVRTX and OVPhysX require their optional runtime wheels. Isaac Lab now reports clearer install guidance when those
   wheels are missing, but those backends are still optional installs.
 
@@ -284,7 +294,7 @@ Migration Notes
 * Move deformable imports to backend-neutral ``isaaclab.assets`` and ``isaaclab.sim`` APIs where possible.
 * Migrate tiled-camera code toward ``Camera`` / ``CameraCfg``.
 * Use ``ProxyArray.torch`` or ``ProxyArray.warp`` explicitly when crossing between Torch and Warp code.
-* Use Isaac Teleop MCAP replay and ``teleop_replay_agent.py`` for replay automation instead of the removed XCR
+* Use Isaac Capture MCAP replay and ``teleop_replay_agent.py`` for replay automation instead of the removed XCR
   automation helpers.
 
 v3.0.0-beta
@@ -336,7 +346,8 @@ Newton support includes:
 Pluggable Renderer System
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A new ``BaseRenderer`` abstraction supports multiple rendering backends via a factory pattern:
+A new ``BaseRenderer`` abstraction supports configuration-owned implementations managed by
+``RenderContext``:
 
 .. list-table::
    :header-rows: 1
@@ -441,10 +452,10 @@ All packages now use lazy exporting with ``.pyi`` stubs, so importing a top-leve
 store references as resolvable strings that are resolved only after ``SimulationApp`` is initialized, enabling
 automatic physics-backend selection.
 
-Isaac Teleop Integration
-~~~~~~~~~~~~~~~~~~~~~~~~
+Isaac Capture Integration
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-XR teleoperation is now powered by Isaac Teleop via the new ``isaaclab_teleop`` extension, replacing the previous
+XR teleoperation is now powered by Isaac Capture via the new ``isaaclab_teleop`` extension, replacing the previous
 ``isaaclab.devices.openxr`` stack. The new system provides a unified teleoperation interface with pipeline-based
 retargeting configuration.
 
@@ -2169,12 +2180,12 @@ New Features
 * Adds the direct workflow multi-agent environments ``Isaac-Cart-Double-Pendulum-Direct-v0`` and ``Isaac-Shadow-Hand-Over-Direct-v0`` by @Toni-SM
 * Adds throughput benchmarking scripts for the different learning workflows by @kellyguo11
 * Adds results for the benchmarks in the documentation
-  :ref:`here <testing_benchmarks>`
+  :ref:`here <developer_tools_benchmarking_run>`
   for different types of hardware by @kellyguo11
 * Adds the direct workflow Allegro hand environment by @kellyguo11
 * Adds video recording to the play scripts in RL workflows by @j3soon
 * Adds comparison tables for the supported RL libraries
-  `here <https://isaac-sim.github.io/IsaacLab/main/source/overview/reinforcement-learning/rl_frameworks.html>`__ by @kellyguo11
+  :doc:`here </source/concepts/reinforcement_learning>` by @kellyguo11
 * Add APIs for deformable asset by @masoudmoghani
 * Adds support for MJCF converter by @qqqwan
 * Adds a function to define camera configs through intrinsic matrix by @pascal-roth
