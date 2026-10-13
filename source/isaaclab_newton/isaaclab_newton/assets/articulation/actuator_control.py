@@ -318,11 +318,13 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         post-actuator hook publishes the drive's friction budget before the substeps.
 
         Raises:
-            ValueError: If the active solver is not MJWarp.
+            ValueError: If the active solver is not MJWarp or runs CPU MuJoCo (``use_mujoco_cpu=True``).
         """
         solver = SimulationManager._solver
         if not MjWarpActuatorBridge.is_available(solver):
-            raise ValueError("BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg).")
+            raise ValueError(
+                "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
+            )
         model = SimulationManager.backend.model
         for actuator, cfg in self._bam_actuators():
             drive = actuator.drive

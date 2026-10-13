@@ -12,6 +12,8 @@ import pytest
 import torch
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
+from newton import ModelBuilder
+from newton.solvers import SolverMuJoCo
 from newton_test_utils import local_usd, spawn_assets
 
 import isaaclab.sim as sim_utils
@@ -308,6 +310,18 @@ def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
         sim_ctx._app_control_on_stop_handle = None  # noqa: SLF001
         with pytest.raises(ValueError, match="BAM actuators require.*MJWarp"):
             _spawn_pendulums(sim_ctx, pendulum_usd, {"Robot": _make_cfg(vin_range=(6.0, 8.0))})
+
+
+@pytest.mark.parametrize("use_mujoco_cpu", [False, True])
+def test_bridge_requires_mujoco_warp_stepping(use_mujoco_cpu):
+    """CPU MuJoCo builds the MuJoCo Warp model too, but steps the host model the bridge never reaches."""
+    builder = ModelBuilder()
+    body = builder.add_link(mass=1.0)
+    builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
+    builder.add_articulation([builder.add_joint_revolute(-1, body, axis=(0.0, 0.0, 1.0))])
+    solver = SolverMuJoCo(builder.finalize(device="cpu"), use_mujoco_cpu=use_mujoco_cpu)
+    assert solver.mjw_model is not None
+    assert MjWarpActuatorBridge.is_available(solver) is not use_mujoco_cpu
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

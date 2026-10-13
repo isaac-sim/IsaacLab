@@ -129,8 +129,12 @@ class MjWarpActuatorBridge:
 
     @staticmethod
     def is_available(solver: SolverBase | None) -> bool:
-        """Return whether *solver* is MuJoCo Warp. CPU MuJoCo has no device model and is unsupported."""
-        return isinstance(solver, SolverMuJoCo) and solver.mjw_model is not None
+        """Return whether *solver* steps MuJoCo Warp.
+
+        CPU MuJoCo is unsupported: it still builds the MuJoCo Warp model, but steps the host MuJoCo
+        model, which the bridge neither writes nor reads.
+        """
+        return isinstance(solver, SolverMuJoCo) and not solver.use_mujoco_cpu
 
     def __init__(self, solver: SolverMuJoCo, model: Model, dof_indices: wp.array, device: str):
         """Bind the bridge to a MuJoCo Warp solver.
