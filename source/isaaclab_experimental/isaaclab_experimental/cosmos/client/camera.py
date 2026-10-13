@@ -201,7 +201,10 @@ def apply_cosmos(
     if not env_cfg.scene.lazy_sensor_update:
         raise ValueError("Cosmos needs scene.lazy_sensor_update=True so each image matches its simulation state.")
     if getattr(camera_cfg.renderer_cfg, "async_rendering", False):
-        raise ValueError("Cosmos needs synchronous rendering; set the camera's renderer_cfg.async_rendering=False.")
+        raise ValueError(
+            "Cosmos needs synchronous rendering; set the camera's renderer_cfg.async_rendering=False "
+            "(for a task's scene camera on the command line: env.scene.<camera>.renderer_cfg.async_rendering=False)."
+        )
     if existing is None and hasattr(env_cfg, "observation_space") and not hasattr(env_cfg, "observations"):
         logger.warning(
             "Direct tasks that size their observation space from the camera configuration do not support --cosmos; "
