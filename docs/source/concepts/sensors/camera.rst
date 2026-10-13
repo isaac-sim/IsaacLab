@@ -16,7 +16,7 @@ camera copies from cloned environments into tiled render passes and exposes the 
 one device-resident buffer per requested output.
 
 For silent black or corrupted RTX camera images when scaling the workload, see
-:ref:`troubleshooting-rtx-black-frames`.
+:ref:`known-issues-rtx-buffer-limit`.
 
 Rendering model
 ---------------
