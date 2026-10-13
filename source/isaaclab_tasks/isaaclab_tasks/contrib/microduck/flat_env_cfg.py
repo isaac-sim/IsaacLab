@@ -489,8 +489,8 @@ class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
             solver_cfg=MJWarpSolverCfg(
                 njmax=96,
                 nconmax=16,
-                # Gearbox limit contacts exhaust 10 iterations at training scale.
-                iterations=preset(default=10, backlash=100),
+                # microduck_rl's 10 iterations stop some contact solves short; MJWarp exits once every world converges.
+                iterations=100,
                 # The original 20-step budget exhausts line search with the current MJWarp solver.
                 ls_iterations=50,
                 cone="pyramidal",

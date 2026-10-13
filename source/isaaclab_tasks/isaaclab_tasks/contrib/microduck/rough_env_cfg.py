@@ -98,8 +98,6 @@ class MicroDuckVelocityRoughEnvCfg(MicroDuckVelocityFlatEnvCfg):
         self.scene.right_foot_height.update_period = self.sim.dt * self.decimation
         self.sim.physics.solver_cfg.nconmax = 200
         self.sim.physics.solver_cfg.njmax = 1024
-        # The current MJWarp solver exhausts the flat recipe's 10-iteration budget.
-        self.sim.physics.solver_cfg.iterations = 100
 
     def play_mode(self):
         """Use a smaller terrain map with randomly sampled difficulty for playback."""
