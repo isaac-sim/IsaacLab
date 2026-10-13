@@ -1547,20 +1547,20 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
 .. rubric:: Contact force property names
 
 Contact sensor force properties now state whether they contain aggregate or filtered normal and
-friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton and
-OVPhysX report this quantity even when ``track_friction_forces=False``. The Isaac Sim PhysX backend
-currently returns the corresponding normal-force quantity and warns.
-``friction_forces_w`` is the aggregate friction force. Newton and OVPhysX report it as
-``net_friction_forces_w``; Isaac Sim PhysX only provides filtered friction, so it returns
-``friction_force_matrix_w`` and warns.
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton, OVPhysX,
+and Isaac Sim PhysX 6.2 or later report this quantity even when ``track_friction_forces=False``.
+Isaac Sim PhysX 6.1 returns the corresponding normal-force quantity and warns.
+``friction_forces_w`` is the aggregate friction force. Newton, OVPhysX, and Isaac Sim PhysX 6.2 or
+later report it as ``net_friction_forces_w``; Isaac Sim PhysX 6.1 only provides filtered friction,
+so it returns ``friction_force_matrix_w`` and warns.
 
 .. list-table::
    :header-rows: 1
 
    * - Property
      - Meaning
-     - Isaac Sim PhysX
-     - Newton / OVPhysX
+     - Isaac Sim PhysX 6.1
+     - Newton / OVPhysX / Isaac Sim PhysX 6.2+
    * - ``net_forces_w``
      - Total contact force
      - Returns ``net_normal_forces_w`` with a warning
@@ -1584,16 +1584,17 @@ currently returns the corresponding normal-force quantity and warns.
 
 Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
 ``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
-when the normal / friction split matters. Newton and OVPhysX also expose ``net_friction_forces_w_history``
-and ``friction_force_matrix_w_history``. The Isaac Sim PhysX backend does not expose aggregate friction
-and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
-``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
+when the normal / friction split matters. Newton, OVPhysX, and Isaac Sim PhysX 6.2 or later also
+expose ``net_friction_forces_w_history`` and ``friction_force_matrix_w_history``. Isaac Sim PhysX 6.1
+does not expose aggregate friction and raises ``NotImplementedError`` when
+``net_friction_forces_w`` or ``net_friction_forces_w_history`` is accessed; use the filtered
+friction matrix instead.
 
-On OVPhysX, ``track_friction_forces=True`` enables separate friction buffers and histories without
-requiring contact filters. Force matrices still require filters. Aggregate and filtered forces do
-not depend on ``max_contact_data_count_per_prim``; a positive capacity is required only when
-``track_contact_points=True``. Total-force buffers always include friction, whether or not its
-separate buffers are enabled.
+On OVPhysX and Isaac Sim PhysX 6.2 or later, ``track_friction_forces=True`` enables separate
+friction buffers and histories without requiring contact filters. Force matrices still require
+filters. Aggregate and filtered forces do not depend on ``max_contact_data_count_per_prim``; a
+positive capacity is required only when ``track_contact_points=True``. Total-force buffers always
+include friction, whether or not its separate buffers are enabled.
 
 
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
