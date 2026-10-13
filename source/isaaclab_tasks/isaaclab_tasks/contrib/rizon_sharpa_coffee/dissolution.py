@@ -80,7 +80,7 @@ class CoffeeDissolution:
         self.liquid_flags = wp.zeros(self.liquid_ids.size, dtype=int, device=self._model.device)
         self.liquid_flags[: water_ids.size].fill_(1)  # Newton ParticleFlags.ACTIVE.
         self.wet_time = wp.zeros(coffee_ids.size, dtype=float, device=self._model.device)
-        # Warp 20260930 captures one mutable host descriptor per grid dtype.
+        # Warp captures one mutable host descriptor per grid dtype.
         # Rendering rebuilds float grids outside physics capture, overwriting
         # that descriptor. A double grid isolates the captured wetting queries;
         # particle state and MPM arithmetic retain their native precision.

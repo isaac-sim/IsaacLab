@@ -65,6 +65,7 @@ def main() -> None:
                 if env.sim.consume_reset_request():
                     env.reset()
                     controller.reset()
+                    step = 0
                     if camera is not None:
                         camera.reset()
                 if controller.finished:

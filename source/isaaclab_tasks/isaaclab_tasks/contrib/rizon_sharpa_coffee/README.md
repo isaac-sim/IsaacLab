@@ -25,7 +25,8 @@ The fixed bowl, cup, spoon, table and prepared kitchen are supplied at
 `{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaCoffee`. The bundle includes
 `walnut.png`, `CoffeeWater.mdl`, `kitchen.usda`, the collected kitchen geometry,
 materials and textures in `Kitchen/`, the prepared robot in `Robot/`, licenses
-and checksum manifests. Props are authored in metres with Z up; their default
+and checksum manifests, and `contact_grasp.json` for the optional contact reset.
+Props are authored in metres with Z up; their default
 prim is `/Asset`. The exact concave spoon triangles and material groups are
 required for MPM contact. Assets load without runtime generation.
 
@@ -64,7 +65,7 @@ not generate or modify the kitchen asset at runtime.
 The supported default mounts the spoon to the measured palm pose. The optional
 `--grasp_mode contact` uses a free spoon, authored finger preload and Newton
 proxy coupling; complete contact-mode manipulation remains experimental.
-`--grasp_reset` accepts a named-joint reset JSON; reset-authoring tools are not
+`--grasp_reset` accepts a local or hosted named-joint reset JSON; reset-authoring tools are not
 part of this demo.
 
 The controller commands a 29-value action: robot-base palm XYZ, XYZW quaternion,

@@ -14,9 +14,13 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from isaaclab.utils.assets import retrieve_file_path
+
+from .assets import COFFEE_ASSET_DIR
 from .robot import (
     ARM_JOINT_NAMES,
     ASSET_BUNDLE_SHA256,
@@ -67,8 +71,8 @@ class CoffeeGraspReset:
 
 
 def load_grasp_reset(path: str | Path) -> CoffeeGraspReset:
-    """Load an authored candidate with an exact asset and named-joint contract."""
-    state = CoffeeGraspReset(**json.loads(Path(path).expanduser().read_text()))
+    """Load a local or hosted candidate with an exact asset and named-joint contract."""
+    state = CoffeeGraspReset(**json.loads(Path(retrieve_file_path(os.path.expanduser(str(path)))).read_text()))
     state.validate()
     state.spoon_offset_pos = tuple(state.spoon_offset_pos)
     state.spoon_offset_rot = tuple(state.spoon_offset_rot)
@@ -78,7 +82,7 @@ def load_grasp_reset(path: str | Path) -> CoffeeGraspReset:
 def configure_grasp_reset(cfg) -> None:
     """Apply an optional saved candidate before the environment is constructed."""
     if cfg.grasp_reset_path is None and cfg.grasp_mode == "contact":
-        cfg.grasp_reset_path = str(Path(__file__).with_name("assets") / "contact_grasp.json")
+        cfg.grasp_reset_path = f"{COFFEE_ASSET_DIR}/contact_grasp.json"
     if cfg.grasp_reset_path is None:
         return
     state = load_grasp_reset(cfg.grasp_reset_path)
