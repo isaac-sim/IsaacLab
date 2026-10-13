@@ -793,6 +793,28 @@ class TaskRuns:
     """The entry of :attr:`runs` that passing no tokens resolves to; ``None`` if that run is rejected."""
 
 
+def _launchable_env_cfg(task_name: str, run: TaskRun):
+    """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
+    from isaaclab.app import validate_launch
+
+    try:
+        env_cfg, _ = resolve_task_config(task_name, None, overrides=run.overrides)
+        env_cfg.validate()
+        validate_launch(env_cfg, {"livestream": 0})
+    except ValueError:
+        return None
+    return env_cfg
+
+
+def is_task_run_launchable(task_name: str, run: TaskRun) -> bool:
+    """Return whether *run* of *task_name* resolves, passes the env config's checks, and can launch headless.
+
+    A rejected combination is one whose resolution or validation raises :class:`ValueError`; any other
+    error propagates.
+    """
+    return _launchable_env_cfg(task_name, run) is not None
+
+
 def resolve_task_runs(task_name: str) -> TaskRuns | None:
     """Return the preset combinations of *task_name* that can launch, one per distinct config.
 
@@ -812,8 +834,6 @@ def resolve_task_runs(task_name: str) -> TaskRuns | None:
     Returns:
         The task's runs, or ``None`` if its env config cannot be loaded.
     """
-    from isaaclab.app import validate_launch
-
     preset_map = enumerate_task_presets(task_name)
     if preset_map is None:
         return None
@@ -832,11 +852,8 @@ def resolve_task_runs(task_name: str) -> TaskRuns | None:
     runs: dict[str, TaskRun] = {}
     default_key = None
     for run in candidates:
-        try:
-            env_cfg, _ = resolve_task_config(task_name, None, overrides=run.overrides)
-            env_cfg.validate()
-            validate_launch(env_cfg, {"livestream": 0})
-        except ValueError:
+        env_cfg = _launchable_env_cfg(task_name, run)
+        if env_cfg is None:
             continue
         # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
         key = repr(to_dict(env_cfg))
