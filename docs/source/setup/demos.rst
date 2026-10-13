@@ -18,7 +18,8 @@ focused programs for learning an API or tuning a feature in directories such as 
 ``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
 
 Run ``uv run isaaclab demo rizon-sharpa-rj45`` from a checkout for the continuous cable insertion
-and extraction example. The original ``isaaclab example gb300-sharpa-insertion`` command remains available.
+and extraction example using a non-RL manager-based environment. Record it with ``--video``.
+The ``isaaclab example gb300-sharpa-insertion`` command runs the same example.
 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.

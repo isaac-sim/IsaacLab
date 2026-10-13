@@ -203,7 +203,7 @@ def spawn_patch_cable(
     """Spawn a native cable, two connector housings, and an independently moving clip."""
     from pxr import Gf, UsdGeom, UsdPhysics, Vt
 
-    from .assets import connector_render_parts
+    from .assets import LATCH_LIMIT_LOWER, LATCH_LIMIT_UPPER, LATCH_SPRING_KE, connector_render_parts
 
     root = spawn_cable.__wrapped__(prim_path, cfg, translation=translation, orientation=orientation, **kwargs)
     # Explicit cross-section frames keep both rectangular plugs level. Automatic
@@ -221,7 +221,7 @@ def spawn_patch_cable(
     ):
         head = UsdGeom.Xform.Define(root.GetStage(), f"{prim_path}/{name}")
         head.AddTranslateOp().Set(Gf.Vec3d(*(0.5 * (a + b) for a, b in zip(start, end, strict=True))))
-        if cfg.rigid_connector and name == "head":
+        if name == "head":
             UsdPhysics.RigidBodyAPI.Apply(head.GetPrim())
             points = np.asarray(connector_render_parts(CONNECTOR_SPAN_M)[0].points)
             center, half = (points.max(0) + points.min(0)) / 2, np.ptp(points, axis=0) / 2
@@ -233,8 +233,7 @@ def spawn_patch_cable(
             mass_api.CreateCenterOfMassAttr(Gf.Vec3f(*center))
             mass_api.CreateDiagonalInertiaAttr(Gf.Vec3f(*inertia))
         elif name == "latch":
-            # An independent free root keeps the standard RigidObject reset API
-            # valid; the builder adds its physical spring hinge as a loop joint.
+            # The closed CAD volume supplies the spring clip's mass and inertia.
             UsdPhysics.RigidBodyAPI.Apply(head.GetPrim())
             mesh = _connector_closed_mesh("latch")
             inertia, axes = np.linalg.eigh(np.asarray(mesh.inertia).reshape(3, 3))
@@ -265,31 +264,28 @@ def spawn_patch_cable(
                 mesh.CreateNormalsAttr(Vt.Vec3fArray.FromNumpy(normals))
                 mesh.SetNormalsInterpolation(part.normals_interpolation)
             mesh.CreateDisplayColorAttr(Vt.Vec3fArray([Gf.Vec3f(*CONNECTOR_COLORS[part.name])]))
-    if cfg.rigid_connector:
-        from .assets import LATCH_LIMIT_LOWER, LATCH_LIMIT_UPPER, LATCH_SPRING_KE
-
-        if not math.isfinite(cfg.latch_damping_scale) or cfg.latch_damping_scale <= 0.0:
-            raise ValueError("latch_damping_scale must be finite and positive.")
-        # MJWarp needs a tree hinge to preserve its spring and limits; a loop
-        # hinge becomes two connect constraints without an actuated coordinate.
-        UsdPhysics.ArticulationRootAPI.Apply(root)
-        joint = UsdPhysics.RevoluteJoint.Define(root.GetStage(), f"{prim_path}/spring_hinge")
-        joint.CreateBody0Rel().SetTargets([f"{prim_path}/head"])
-        joint.CreateBody1Rel().SetTargets([f"{prim_path}/latch"])
-        joint.CreateAxisAttr("X")
-        joint.CreateLocalPos0Attr(Gf.Vec3f(*LATCH_HINGE_POSITION_M))
-        joint.CreateLocalPos1Attr(Gf.Vec3f(*LATCH_HINGE_POSITION_M))
-        joint.CreateLocalRot0Attr(Gf.Quatf(0.0, Gf.Vec3f(0.0, 0.0, 1.0)))
-        joint.CreateLocalRot1Attr(Gf.Quatf(0.0, Gf.Vec3f(0.0, 0.0, 1.0)))
-        joint.CreateLowerLimitAttr(math.degrees(LATCH_LIMIT_LOWER))
-        joint.CreateUpperLimitAttr(math.degrees(LATCH_LIMIT_UPPER))
-        joint.CreateCollisionEnabledAttr(False)
-        drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
-        # USD angular gains are per degree; Newton imports them into SI units.
-        drive.CreateStiffnessAttr(LATCH_SPRING_KE * math.pi / 180.0)
-        drive.CreateDampingAttr(cfg.latch_damping_scale * _latch_hinge_damping() * math.pi / 180.0)
-        drive.CreateTargetPositionAttr(0.0)
-        drive.CreateTargetVelocityAttr(0.0)
+    if not math.isfinite(cfg.latch_damping_scale) or cfg.latch_damping_scale <= 0.0:
+        raise ValueError("latch_damping_scale must be finite and positive.")
+    # MJWarp needs a tree hinge to preserve its spring and limits; a loop
+    # hinge becomes two connect constraints without an actuated coordinate.
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    joint = UsdPhysics.RevoluteJoint.Define(root.GetStage(), f"{prim_path}/spring_hinge")
+    joint.CreateBody0Rel().SetTargets([f"{prim_path}/head"])
+    joint.CreateBody1Rel().SetTargets([f"{prim_path}/latch"])
+    joint.CreateAxisAttr("X")
+    joint.CreateLocalPos0Attr(Gf.Vec3f(*LATCH_HINGE_POSITION_M))
+    joint.CreateLocalPos1Attr(Gf.Vec3f(*LATCH_HINGE_POSITION_M))
+    joint.CreateLocalRot0Attr(Gf.Quatf(0.0, Gf.Vec3f(0.0, 0.0, 1.0)))
+    joint.CreateLocalRot1Attr(Gf.Quatf(0.0, Gf.Vec3f(0.0, 0.0, 1.0)))
+    joint.CreateLowerLimitAttr(math.degrees(LATCH_LIMIT_LOWER))
+    joint.CreateUpperLimitAttr(math.degrees(LATCH_LIMIT_UPPER))
+    joint.CreateCollisionEnabledAttr(False)
+    drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
+    # USD angular gains are per degree; Newton imports them into SI units.
+    drive.CreateStiffnessAttr(LATCH_SPRING_KE * math.pi / 180.0)
+    drive.CreateDampingAttr(cfg.latch_damping_scale * _latch_hinge_damping() * math.pi / 180.0)
+    drive.CreateTargetPositionAttr(0.0)
+    drive.CreateTargetVelocityAttr(0.0)
     return root
 
 
@@ -298,9 +294,6 @@ class PatchCableCfg(sim_utils.CableCfg):
     """An RJ45 connector owns each terminal 40 mm cable span."""
 
     func = spawn_patch_cable
-
-    rigid_connector: bool = False
-    """Use a separate rigid loose plug with a measured one-way VBD cable endpoint."""
 
     latch_damping_scale: float = 1.0
     """Scale the imported rigid connector's inertia-derived spring-clip damping."""
@@ -355,7 +348,6 @@ def add_connectors(
     env_rotation: wp.quat,
     *,
     grasp_body_patterns: tuple[str, ...] = (),
-    rigid_connector: bool = False,
     rigid_connector_contact_stiffness: float = 1.0e5,
 ) -> None:
     """Add physical connector shapes to native end bodies before model finalization.
@@ -391,22 +383,20 @@ def add_connectors(
     _assign_fixed_fixtures(builder, world_idx, env_root, fixtures)
     add_rack_colliders(builder, fixtures, env_position, env_rotation)
     start, end = int(builder._curve_body_start[group]), int(builder._curve_body_end[group])
-    head_body = start
-    if rigid_connector:
-        matches = [
-            body
-            for body, (label, world) in enumerate(zip(builder.body_label, builder.body_world, strict=True))
-            if str(label) == f"{root}/head" and int(world) == world_idx
-        ]
-        if len(matches) != 1:
-            raise ValueError(f"Expected one imported rigid connector at {root}/head, found {len(matches)}.")
-        head_body = matches[0]
-        # Only the root terminal is prescribed; the remaining rod stays dynamic.
-        builder.body_label[start] = f"{root}/geometry/plug_endpoint"
-        builder.body_flags[start] = int(newton.BodyFlags.KINEMATIC)
-        builder.body_inv_mass[start] = 0.0
-        builder.body_inv_inertia[start] = wp.mat33(0.0)
-        _filter_terminal_rod_contacts(builder, start, grasp_body_patterns)
+    matches = [
+        body
+        for body, (label, world) in enumerate(zip(builder.body_label, builder.body_world, strict=True))
+        if str(label) == f"{root}/head" and int(world) == world_idx
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"Expected one imported rigid connector at {root}/head, found {len(matches)}.")
+    head_body = matches[0]
+    # Only the root terminal is prescribed; the remaining rod stays dynamic.
+    builder.body_label[start] = f"{root}/geometry/plug_endpoint"
+    builder.body_flags[start] = int(newton.BodyFlags.KINEMATIC)
+    builder.body_inv_mass[start] = 0.0
+    builder.body_inv_inertia[start] = wp.mat33(0.0)
+    _filter_terminal_rod_contacts(builder, start, grasp_body_patterns)
     latch_bodies = [
         body
         for body, (label, world) in enumerate(zip(builder.body_label, builder.body_world, strict=True))
@@ -415,30 +405,6 @@ def add_connectors(
     if len(latch_bodies) != 1:
         raise ValueError(f"Expected one imported spring latch at {root}/latch, found {len(latch_bodies)}.")
     latch_body = latch_bodies[0]
-    from .assets import (
-        LATCH_LIMIT_KD,
-        LATCH_LIMIT_LOWER,
-        LATCH_LIMIT_UPPER,
-        LATCH_SPRING_KE,
-    )
-
-    if not rigid_connector:
-        hinge = wp.transform(wp.vec3(*LATCH_HINGE_POSITION_M), wp.quat_identity())
-        builder.add_joint_revolute(
-            parent=head_body,
-            child=latch_body,
-            axis=(-1.0, 0.0, 0.0),
-            parent_xform=hinge,
-            child_xform=hinge,
-            target_ke=LATCH_SPRING_KE,
-            target_kd=_latch_hinge_damping(),
-            limit_lower=LATCH_LIMIT_LOWER,
-            limit_upper=LATCH_LIMIT_UPPER,
-            limit_kd=LATCH_LIMIT_KD,
-            collision_filter_parent=True,
-            label=f"{root}/latch/spring_hinge",
-        )
-    grip_shapes = []
     for name, body, reverse in (("head", head_body, False), ("latch", latch_body, False), ("tail", end - 1, True)):
         builder.body_label[body] = f"{root}/{name}"
         # The terminal rod is inside the connector housing. Let the rectangular
@@ -457,11 +423,9 @@ def add_connectors(
             counts = np.asarray(part.face_vertex_counts)
             triangles = convert_faces_to_triangles(np.asarray(part.face_vertex_indices), counts)
             mesh = newton.Mesh(_gb300_connector_points(part.points), triangles.reshape(-1))
-            if name == "latch" or (rigid_connector and name == "head"):
-                contact_stiffness = rigid_connector_contact_stiffness if name == "head" else 1.0e5
-                if rigid_connector and name == "latch":
-                    # Keep keeper contact stiff after MJWarp's timestep safety clamp on the tiny hinge.
-                    contact_stiffness = 1.0e6
+            if name in ("head", "latch"):
+                # Keep keeper contact stiff after MJWarp's timestep safety clamp on the tiny hinge.
+                contact_stiffness = rigid_connector_contact_stiffness if name == "head" else 1.0e6
                 builder.add_shape_mesh(
                     body=body,
                     mesh=_connector_contact_mesh(part.name),
@@ -481,21 +445,6 @@ def add_connectors(
                     ),
                     label=f"{root}/{name}/{'grip' if part.name == 'plug' else 'contact'}",
                 )
-            elif part.name == "plug" and name != "tail":
-                # Support cable bending loads without stiffening the spring clip or finger grasp.
-                exact = builder.add_shape_mesh(
-                    body=body,
-                    mesh=_connector_contact_mesh(part.name),
-                    xform=wp.transform(wp.vec3(), rotation),
-                    cfg=newton.ModelBuilder.ShapeConfig(
-                        density=0.0, mu=0.8, ke=1.0e6, kd=0.1, margin=0.0, gap=0.002, is_visible=False
-                    ),
-                    label=f"{root}/{name}/exact",
-                )
-                # Finger pads use the rectangular grasp surface, not overlapping mesh contacts.
-                for other, label in enumerate(builder.shape_label):
-                    if any(pattern in str(label) for pattern in grasp_body_patterns):
-                        builder.add_shape_collision_filter_pair(exact, other)
             visual_mesh = mesh
             normals = _gb300_connector_normals(part)
             if len(normals):
@@ -520,42 +469,12 @@ def add_connectors(
                 color=CONNECTOR_COLORS[part.name],
                 label=f"{root}/{name}/{part.name}_visual",
             )
-        if name in ("latch", "tail") or (rigid_connector and name == "head"):
-            continue
-        points = np.asarray(parts[0].points)
-        center, half = (points.max(0) + points.min(0)) / 2, np.ptp(points, axis=0) / 2
-        center = wp.quat_rotate(rotation, wp.vec3(*center))
-        grip_shapes.append(
-            builder.add_shape_box(
-                body=body,
-                xform=wp.transform(center, rotation),
-                hx=float(half[0]),
-                hy=float(half[1]),
-                hz=float(half[2]),
-                cfg=newton.ModelBuilder.ShapeConfig(
-                    density=CONNECTOR_DENSITY_KG_M3,
-                    mu=8.0,
-                    ke=5.0e4,
-                    kd=0.1,
-                    margin=0.0002,
-                    gap=0.002,
-                    is_visible=False,
-                ),
-                label=f"{root}/{name}/grip",
-            )
-        )
-    if rigid_connector:
-        _filter_embedded_rods(builder, head_body, latch_body, start)
-    # The exact connector owns rack contact. The wider rectangular grip
-    # exists only to provide a clean finger contact surface.
-    for grip in grip_shapes:
-        for other, label in enumerate(builder.shape_label):
-            if str(label).startswith(f"{env_root}/Fixtures/GB300/"):
-                builder.add_shape_collision_filter_pair(grip, other)
+    _filter_embedded_rods(builder, head_body, latch_body, start)
     for joint in range(int(builder._curve_joint_start[group]), int(builder._curve_joint_end[group])):
         if builder.joint_type[joint] != newton.JointType.ROD:
             continue
         dof = int(builder.joint_qd_start[joint])
-        builder.joint_target_kd[dof : dof + 4] = [0.01, 0.01, 0.02, 0.02]
+        # Native rod material axes: shear X/Y, stretch Z, bend X/Y, twist Z.
+        builder.joint_target_kd[dof : dof + 6] = [0.01, 0.01, 0.01, 0.02, 0.02, 0.02]
     # The far plug is already latched; the loose connector and spans are dynamic.
     _pin_seated_tail(builder, end - 1)

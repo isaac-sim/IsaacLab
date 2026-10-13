@@ -172,19 +172,14 @@ RJ45_PLUG_DOWNLOAD_URL = (
 LATCH_LIMIT_LOWER = -0.225
 LATCH_LIMIT_UPPER = 0.3
 LATCH_SPRING_KE = 0.15
-LATCH_LIMIT_KD = 1.0e-4
 
 
 def configured_rj45_plug_usd() -> Path:
     """Resolve and verify the canonical connector CAD without downloading it."""
-    import newton
+    from newton.examples import get_asset
 
     configured = os.environ.get(RJ45_PLUG_ASSET_ENV)
-    candidate = (
-        Path(configured).expanduser()
-        if configured
-        else Path(newton.__file__).resolve().parent / "examples" / "assets" / "rj45_plug.usd"
-    )
+    candidate = Path(configured).expanduser() if configured else Path(get_asset("rj45_plug.usd"))
     if not candidate.is_file():
         raise FileNotFoundError(
             f"Canonical RJ45 USD is missing: {candidate}. Download {RJ45_PLUG_DOWNLOAD_URL} "

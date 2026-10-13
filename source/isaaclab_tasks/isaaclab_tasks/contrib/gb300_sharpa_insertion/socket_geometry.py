@@ -74,23 +74,6 @@ LATCH_CONTACT_BOUNDS_M = (
 """Native clip collision bounds in its rest head-center frame [m]."""
 
 
-def latch_engagement_margins(latch_pose_in_socket: torch.Tensor) -> torch.Tensor:
-    """Measure whether both physical latch barbs have passed the socket keepers.
-
-    Args:
-        latch_pose_in_socket: Measured latch-body pose [m, XYZW], shape (..., 7).
-            Its local frame coincides with the head-center frame at zero deflection,
-            not with the hinge pivot. Socket +Y points into the cavity and +Z upward.
-
-    Returns:
-        Signed axial clearance, lateral overlap and vertical overlap [m], shape (..., 3).
-        Each margin is the minimum over both barb rear faces. All three must be
-        positive for capture. Use this geometric check alongside seated-head and
-        velocity checks; it does not establish successful load-bearing retention.
-    """
-    return _latch_barb_engagement_margins(latch_pose_in_socket).amin(dim=-2)
-
-
 def latch_keeper_exit_margin(latch_pose_in_socket: torch.Tensor) -> torch.Tensor:
     """Return conservative axial clip overlap with the keeper front plane [m].
 

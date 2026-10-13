@@ -3,9 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Insert, release, regrasp and extract an Ethernet cable in one physical episode.
+"""Insert, release, regrasp and extract an Ethernet cable in one continuous simulation.
 
-The manager-based task owns physics and reset. This example returns ordinary TCP
+The non-RL manager-based environment owns physics and reset. This example returns ordinary TCP
 and finger targets. Measured poses, finger opening and latch clearance gate the
 sequence. The managed dependencies include the Newton hydroelastic contact correction.
 
@@ -69,7 +69,7 @@ _SUPPORT_HAND_RAD = (
 
 def main() -> int:
     """Run the bounded physical cycle; return success only after extraction."""
-    from isaaclab.app import add_launcher_args, launch_simulation
+    from isaaclab.app import add_launcher_args
 
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--max_steps", "--num_steps", dest="num_steps", type=int, default=3600)
@@ -89,13 +89,7 @@ def main() -> int:
         value = getattr(args, name)
         if not math.isfinite(value) or value < 0.0:
             parser.error(f"--{name} must be finite and nonnegative")
-    from isaaclab_newton.physics import NewtonCfg
-
-    with launch_simulation(NewtonCfg(), args):
-        result = _run(args)
-        if result:
-            raise SystemExit(result)
-    return result
+    return _run(args)
 
 
 @dataclass(frozen=True)
@@ -483,25 +477,22 @@ class CableCycleStateMachine:
 
 
 def _run(args: argparse.Namespace) -> int:
-    import gymnasium as gym
     import torch
 
     from isaaclab.app import launch_simulation
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+    from isaaclab.utils import instantiate
     from isaaclab.utils.math import subtract_frame_transforms
 
-    import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.contrib.gb300_sharpa_insertion import mdp
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.assets import RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES
+    from isaaclab_tasks.contrib.gb300_sharpa_insertion.env_cfg import GB300SharpaInsertionEnvCfg
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.robot_cfg import CLOSE_HAND_RAD
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.workcell import head_goal_for_socket
-    from isaaclab_tasks.utils import parse_env_cfg
 
-    task = "IsaacContrib-Rizon-Sharpa-GB300-Cable-Install"
-    cfg = parse_env_cfg(task, overrides=["presets=scripted"])
+    cfg = GB300SharpaInsertionEnvCfg()
     cfg.seed = args.seed
     cfg.sim.device = args.device
-    cfg.episode_length_s = args.num_steps * cfg.sim.dt * cfg.decimation + 1.0
     if args.video:
         cfg.video_recorders = [
             VideoRecorderCfg(
@@ -511,16 +502,16 @@ def _run(args: argparse.Namespace) -> int:
             )
         ]
     with launch_simulation(cfg, args):
-        env = gym.make(task, cfg=cfg).unwrapped
+        env = instantiate(cfg)
         try:
             observations, _ = env.reset(seed=args.seed)
             if env.action_manager.total_action_dim != 29:
-                raise RuntimeError("The scripted preset must provide absolute TCP and 22 finger targets.")
+                raise RuntimeError("The example must provide absolute TCP and 22 finger targets.")
             robot = env.scene["robot"]
             hand_ids, _ = robot.find_joints(RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES, preserve_order=True)
 
             def controller_state(status: torch.Tensor) -> np.ndarray:
-                # One readback of poses, clip geometry, finger opening and reset status.
+                # One readback of poses, clip geometry, finger opening and state validity.
                 captured, margins, release, exit_margin = mdp.latch_metrics(env)
                 return (
                     torch.cat(
@@ -540,15 +531,8 @@ def _run(args: argparse.Namespace) -> int:
                     .numpy()
                 )
 
-            state = controller_state(
-                torch.stack(
-                    (
-                        torch.isfinite(observations["policy"]).all(),
-                        torch.zeros((), dtype=torch.bool, device=env.device),
-                    )
-                )
-            )
-            if not state[-2]:
+            state = controller_state(torch.isfinite(observations["state"]).all()[None])
+            if not state[-1]:
                 raise RuntimeError("Cable cycle encountered a non-finite reset state.")
             goal_position = np.asarray(head_goal_for_socket(cfg.target_socket_position_e))
             goal_position += env.scene.env_origins[0].cpu().numpy()
@@ -561,7 +545,7 @@ def _run(args: argparse.Namespace) -> int:
             )
             initial_hand = robot.data.joint_pos.torch[:, hand_ids].clone()
             closed_hand = initial_hand.new_tensor(CLOSE_HAND_RAD)[None]
-            step = reset_count = 0
+            step = 0
             failure_step: int | None = None
             failure_tail_steps = math.ceil(min(args.failure_tail_s / env.step_dt, args.num_steps))
             reason = "Simulation closed or step budget exhausted before the complete cycle."
@@ -606,26 +590,12 @@ def _run(args: argparse.Namespace) -> int:
                     if failure_step is None and step * env.step_dt < 0.2:
                         fraction = min((step + 1) * env.step_dt / 0.2, 1.0)
                         hand_targets = torch.lerp(initial_hand, closed_hand, fraction)
-                    observations, rewards, terminated, truncated, _ = env.step(
-                        torch.cat((position, rotation, hand_targets), dim=-1)
-                    )
+                    observations, _ = env.step(torch.cat((position, rotation, hand_targets), dim=-1))
                     step += 1
-                    state = controller_state(
-                        torch.stack(
-                            (
-                                torch.isfinite(observations["policy"]).all() & torch.isfinite(rewards).all(),
-                                (terminated | truncated).sum(),
-                            )
-                        )
-                    )
-                    if not state[-2]:
+                    state = controller_state(torch.isfinite(observations["state"]).all()[None])
+                    if not state[-1]:
                         raise RuntimeError("Cable cycle encountered a non-finite simulation state.")
-                    if state[-1]:
-                        reset_count += int(state[-1])
-                        if failure_step is None:
-                            reason = "Environment reset before the complete cycle."
-                        break
-            success = machine.phase == "DONE" and machine.insertion_completed and reset_count == 0
+            success = machine.phase == "DONE" and machine.insertion_completed
             print(
                 json.dumps(
                     {
@@ -633,7 +603,6 @@ def _run(args: argparse.Namespace) -> int:
                         "phase": machine.phase,
                         "reason": reason,
                         "insertion_completed": machine.insertion_completed,
-                        "environment_resets": reset_count,
                         "steps": step,
                         "failure_step": failure_step,
                         "post_failure_simulation_s": 0.0

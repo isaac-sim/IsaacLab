@@ -36,6 +36,19 @@ def spawn_sharpa_contact_meshes(
     from pxr import Gf, Usd, UsdGeom, UsdPhysics, Vt
 
     root = sim_utils.spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
+    for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+        if not prim.IsA(UsdGeom.Mesh):
+            continue
+        mesh = UsdGeom.Mesh(prim)
+        normals = mesh.GetNormalsAttr().Get()
+        if (
+            normals is not None
+            and mesh.GetNormalsInterpolation() == UsdGeom.Tokens.faceVarying
+            and len(normals) != len(mesh.GetFaceVertexIndicesAttr().Get())
+        ):
+            # Two native shell meshes retain normals from an older topology.
+            # Let the renderer derive normals without changing their geometry.
+            mesh.GetNormalsAttr().Block()
     cache = UsdGeom.XformCache()
     for finger in ("thumb", "index", "middle", "ring", "pinky"):
         body = root.GetChild(f"right_{finger}_elastomer")
@@ -63,6 +76,11 @@ def spawn_sharpa_contact_meshes(
         collider.GetFaceVertexCountsAttr().Set(Vt.IntArray.FromNumpy(np.full(len(surface.faces), 3, dtype=np.int32)))
         collider.GetFaceVertexIndicesAttr().Set(Vt.IntArray.FromNumpy(surface.faces.reshape(-1).astype(np.int32)))
         collider.GetNormalsAttr().Block()
+        # Per-face data from the coarse collider cannot describe the replacement topology.
+        primvars = UsdGeom.PrimvarsAPI(collider.GetPrim())
+        for name in ("normals", "st"):
+            if primvars.HasPrimvar(name):
+                primvars.BlockPrimvar(f"primvars:{name}")
         collider.CreateSubdivisionSchemeAttr("none")
         collider.CreateExtentAttr(Vt.Vec3fArray.FromNumpy(np.asarray((points.min(0), points.max(0)))))
         UsdPhysics.MeshCollisionAPI.Apply(collider.GetPrim()).CreateApproximationAttr("none")

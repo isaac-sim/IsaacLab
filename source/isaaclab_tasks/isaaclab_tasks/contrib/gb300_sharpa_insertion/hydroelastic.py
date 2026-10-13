@@ -31,11 +31,6 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
     rigid, cable = physics.solver_cfg.entries
     rigid.bodies.extend((r"/World/envs/env_.*/Cable/head", r"/World/envs/env_.*/Cable/latch"))
     cable.bodies = [r"/World/envs/env_.*/Cable/(?!(?:head|latch)(?:/|$)).*"]
-    # Distributed contacts require more rows than the point-contact default.
-    rigid.solver_cfg.nconmax = 1024
-    # Up to six rows per frictional contact, plus articulation joint limits.
-    rigid.solver_cfg.njmax = 6 * rigid.solver_cfg.nconmax + 128
-    cable.solver_cfg.rigid_contact_history = False
     # The fixture proxy includes the pedestal and rack; only the ground needs static ownership.
     cable.include_static_shapes = False
     cable.shape_label_patterns = [r"/World/GroundPlane/.*"]
@@ -58,8 +53,6 @@ def configure_hydroelastic_physics(physics: NewtonCfg) -> None:
     physics.collision_cfg = NewtonCollisionPipelineCfg(
         sdf_hydroelastic_config=HydroelasticSDFCfg(
             output_contact_surface=True,
-            # The detailed Sharpa pads generated 6336 broad-phase candidates.
-            buffer_fraction=1.0,
             # A 1 mm² speculative patch; penetrating contacts retain their SDF area.
             margin_contact_area=1.0e-6,
         )
@@ -73,7 +66,7 @@ def configure_hydroelastic_shapes(
     *,
     pad_pressure_gradient: float = 5.0e8,
 ) -> None:
-    """Cook fingertip/plug SDFs while retaining ordinary contacts for every other pair.
+    """Author fingertip/plug SDFs while retaining ordinary contacts for every other pair.
 
     Massless fingertip copies contact the housing; the thumb also contacts the clip.
     Original colliders retain finger self-contact and contact with the socket.
@@ -171,22 +164,18 @@ def configure_hydroelastic_shapes(
                 thumb_grasp_shapes.add(shape)
                 for latch in latches:
                     builder.add_shape_collision_filter_pair(original, latch)
-        if builder.shape_type[shape] in (newton.GeoType.MESH, newton.GeoType.CONVEX_MESH):
-            mesh = builder.shape_source[shape]
-            scale = np.asarray(builder.shape_scale[shape], dtype=np.float32)
-            if soft_pad or not np.allclose(scale, 1.0):
-                mesh = mesh.copy(vertices=mesh.vertices * scale, recompute_inertia=True)
-                builder.shape_source[shape] = mesh
-                builder.shape_scale[shape] = (1.0, 1.0, 1.0)
-            if mesh.sdf is None:
-                mesh.build_sdf(max_resolution=128, narrow_band_range=(-0.003, 0.003), margin=0.0003)
-            if soft_pad:
-                # Reuse the cooked surface for ordinary pairs that support SDF queries.
-                builder.shape_source[original] = mesh
-                builder.shape_scale[original] = (1.0, 1.0, 1.0)
-        else:
-            builder.shape_sdf_max_resolution[shape] = 128
-            builder.shape_sdf_narrow_band_range[shape] = (-0.003, 0.003)
+        # Native finalization handles scale and shares identical SDFs between pad copies.
+        # Keep the connector's already cooked, higher-resolution CAD fields intact.
+        sdf_shapes = (original, shape) if soft_pad else (shape,)
+        for sdf_shape in sdf_shapes:
+            if (
+                builder.shape_type[sdf_shape] in (newton.GeoType.MESH, newton.GeoType.CONVEX_MESH)
+                and builder.shape_source[sdf_shape].sdf is not None
+            ):
+                continue
+            builder.shape_sdf_max_resolution[sdf_shape] = 128
+            builder.shape_sdf_narrow_band_range[sdf_shape] = (-0.003, 0.003)
+            builder.shape_sdf_padding[sdf_shape] = 0.0003
         builder.shape_flags[shape] |= int(newton.ShapeFlags.HYDROELASTIC)
         # Linear pressure gradients [N/m^3]: compliant finger covering and hard
         # connector housing, estimated rather than measured hardware properties.

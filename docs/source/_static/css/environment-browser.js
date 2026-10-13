@@ -108,7 +108,6 @@
             ["IsaacContrib-Reach-OpenArmBi", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_bi_reach.jpg"],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/shadow_cube.jpg"],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/shadow_cube.jpg"],
-            ["IsaacContrib-Rizon-Sharpa-GB300-Cable-Install", "rsl_rl", "", "", "scripted"],
             ["IsaacContrib-Shoelace-DualFranka", "rsl_rl", "", "", "", "environment-previews/shoelace_dual_franka.jpg"],
             ["IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic", "", "isaacsim_physx", "", "", "environment-previews/franka_bin_stack.jpg"],
             ["IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg"],
