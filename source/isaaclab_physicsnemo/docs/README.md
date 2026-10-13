@@ -20,7 +20,7 @@ The extension is experimental and depends on an unreleased PhysicsNeMo Robotics.
 | Integration (manager, preflight, model identity, recording, training, deployment) | Complete for whole-scene learned physics of joint-backed robots; covered by CPU tests and CUDA tests of the data semantics |
 | Cartpole | Usable: a PPO policy trained only in learned physics transfers to MuJoCo Warp with the same return |
 | FlashNeRD CartPole benchmark | Reproduced: on the study's own teacher the recipe improves on every horizon of the paper's Table I |
-| ANYmal-C locomotion with target control | Usable: PPO policies trained only in learned physics reach 97 and 93 % of the MuJoCo Warp policies' return in MuJoCo Warp (two seeds), see below |
+| ANYmal-C locomotion with target control | Usable: PPO policies trained only in learned physics reach 90 and 94 % of the MuJoCo Warp policies' return in MuJoCo Warp (two seeds), see below |
 | Variable contact tokens, hybrid learned/Newton coupling | Not supported |
 
 Known limitations:
@@ -116,11 +116,12 @@ ANYmal-C training use, needs a C compiler and the Python headers for `torch.comp
 `python3.12-dev` on Ubuntu, as the container installs).
 
 The integration was validated with PhysicsNeMo Robotics tag `mnabian/flashnerd-benchmark-v1`
-(`a81160e`), Newton 1.6.1, Warp 1.17.0, Torch 2.12 (CUDA 13), PhysicsNeMo 2.1.1, and RSL-RL 5.5.1, on one
-NVIDIA RTX PRO 5000 Blackwell GPU and in the container on two NVIDIA L40S GPUs. The tag adds the FlashNeRD
-benchmark tooling and the ParallelNeRD FP16 safeguards to `mataei/icra` at `4e4be69`; its library sources
-otherwise equal that commit. All results below were measured with the tag and Newton 1.6.1. The tests
-also pass with the Newton 1.7.0.dev0 (`5ea82ee`), MuJoCo 3.14, and Torch 2.11 that Isaac Lab now locks.
+(`a81160e`), Newton 1.7.0.dev0 (`5ea82ee`), MuJoCo 3.14, Warp 1.17.0, Torch 2.11 (CUDA 13), PhysicsNeMo
+2.1.1, and RSL-RL 5.5.1, on one NVIDIA RTX PRO 5000 Blackwell GPU and in the container on two NVIDIA L40S
+GPUs. The tag adds the FlashNeRD benchmark tooling and the ParallelNeRD FP16 safeguards to `mataei/icra` at
+`4e4be69`; its library sources otherwise equal that commit. All results below were measured with these
+versions; earlier runs with Newton 1.6.1, MuJoCo 3.12, and Torch 2.12 recorded the same Cartpole data and
+gave results in the same ranges.
 
 ## Examples
 
@@ -154,27 +155,31 @@ done
 The recording follows the task-independent data of NeRD and FlashNeRD (`CartpoleExplorationEnvCfg`):
 episodes start anywhere on the track, at every pole angle, and with large velocities, and each episode draws
 its own action scale, so the data covers the command range that controllers use. The dataset holds about
-10,800 episodes and 1.5 million frames. On one RTX PRO 5000 GPU, recording takes 10 minutes, training 13
-minutes, and each PPO run under 3 minutes. Held-out results of this model after 30,000 updates (1/120 s
-frames; each horizon uses the episodes long enough for it, from 1,069 at E1 to 373 at E200):
+10,800 episodes and 1.5 million frames. On one RTX PRO 5000 GPU, recording takes 12 minutes, training 12
+minutes, and each PPO run under 3 minutes. Held-out results after 30,000 updates (1/120 s frames; each horizon
+uses the episodes long enough for it, from 1,069 at E1 to 373 at E200), for two trainings on the same data
+with seeds 7 and 8:
 
 | E1 | E15 | E100 | E200 |
 | --- | --- | --- | --- |
-| 2.1e-4 | 9.7e-4 | 7.7e-3 | 0.060 |
+| 3.1e-4 / 4.1e-4 | 1.7e-3 / 2.2e-3 | 0.019 / 0.027 | 0.103 / 0.092 |
+
+GPU training is not deterministic, so single runs on the same data vary: earlier trainings of the same
+configuration reached E100 between 0.008 and 0.012 and E200 between 0.060 and 0.104.
 
 These frames are half as long as the FlashNeRD study's, so the values are not comparable with the paper;
 the benchmark below repeats the study's configuration.
 
-The deployed model stays within 0.007 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
-random actions. PPO policies trained only in the learned environment balance the MuJoCo Warp Cartpole in
-99.8 and 100 % of 1,536 evaluation episodes, with returns of 4.93 and 4.95 against 4.94 and 4.95 for
-policies trained in MuJoCo Warp (seeds 42 and 43). In an earlier ablation with `4e4be69` and a fixed action
+The seed-7 model stays within 0.019 m or rad of MuJoCo Warp joint positions after 0.5 s of open-loop
+random actions. PPO policies trained only in its learned environment balance the MuJoCo Warp Cartpole in all
+1,536 evaluation episodes, with returns of 4.947 and 4.943 against 4.943 and 4.949 for policies trained in
+MuJoCo Warp (seeds 42 and 43). In an earlier ablation with `4e4be69` and a fixed action
 scale of 0.5 (about 50 N), the model reached a lower E200 of 0.023, but the PPO policy exploited its errors
 at larger efforts and succeeded in only 55 % of MuJoCo Warp episodes.
 
 PPO training curves of these runs. Each return is measured in the physics the policy trains in, MuJoCo Warp
 on the left and the learned model on the right. All four runs pass a return of 4.8 between iterations 32
-and 47 and end between 4.93 and 4.96.
+and 47 and end between 4.93 and 4.95.
 
 ![Cartpole PPO training return in MuJoCo Warp and in learned physics](media/cartpole_ppo_reward.png)
 
@@ -201,15 +206,15 @@ torchrun --standalone --nproc-per-node 2 $B --output /tmp/fnb-physicsnemo --stag
   --teacher physicsnemo --physicsnemo-root "$ROBOTICS_ROOT" --max-updates 5000000 --checkpoint-every 250000
 ```
 
-The `data` stage runs in one process (about ten minutes for either teacher); the `train` stage runs under
+The `data` stage runs in one process (about 17 minutes for either teacher in the container); the `train` stage runs under
 `torchrun` for the study's two data-parallel ranks, or as a single process with the same global batch. Training uses FP16 autocast,
 appends the held-out `E_H` of every checkpoint to `rollout_nrmse.jsonl`, prints the final table next to the
 paper's values, and resumes from its last checkpoint when rerun with the same arguments. The
 study's own teacher separates the training recipe from the difference in teacher systems. Five million
-updates take about ten hours on two L40S GPUs (135 updates per second). `--max-updates 50000
+updates take about twelve hours on two L40S GPUs (116 updates per second). `--max-updates 50000
 --checkpoint-every 25000` checks a setup in about 16 minutes on one RTX PRO 5000 GPU (93 updates per second)
-and gives E1 = 9.9e-5 and E200 = 0.11 on the study's teacher, and E1 = 1.6e-4 and E200 = 0.020 on the Isaac
-Lab teacher.
+and gave E1 = 9.9e-5 and E200 = 0.11 on the study's teacher, and E1 = 1.6e-4 and E200 = 0.020 on the Isaac
+Lab teacher, with Newton 1.6.1 and Torch 2.12.
 
 | Setting | Study | This benchmark |
 | --- | --- | --- |
@@ -219,18 +224,19 @@ Lab teacher.
 | Optimization | Global batch 4,096, 1e-3 to 1e-4, 5,000,000 updates, FP16 autocast, two ranks | Same, with `--max-updates` updates and `torch.compile` |
 | Metric | Prefix-pooled `E_H` on the finite held-out cohort, training-state scale | Same (`evaluate_rollout_nrmse`) |
 
-Results after the study's 5,000,000 updates on two L40S GPUs (about ten hours each), on all 2,048 held-out
+Results after the study's 5,000,000 updates on two L40S GPUs (about twelve hours each), on all 2,048 held-out
 trajectories, none non-finite:
 
 | E_H | E1 | E15 | E50 | E100 | E200 | E500 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Study teacher (`--teacher physicsnemo`) | 1.8e-5 | 8.7e-5 | 2.6e-4 | 1.8e-3 | 0.048 | 0.92 |
-| Isaac Lab teacher | 7.0e-5 | 2.5e-4 | 8.5e-4 | 4.2e-3 | 0.012 | 0.025 |
+| Study teacher (`--teacher physicsnemo`) | 2.3e-5 | 1.3e-4 | 3.3e-4 | 2.5e-3 | 0.059 | 0.92 |
+| Isaac Lab teacher | 5.4e-5 | 2.3e-4 | 5.8e-4 | 2.1e-3 | 4.9e-3 | 0.018 |
 | FlashNeRD paper | 4.4e-5 | 1.7e-4 | - | 3.2e-3 | 0.060 | - |
 
-On the study's own teacher, the recipe reproduces Table I of the paper and improves on every reported horizon.
-On the Isaac Lab Cartpole, short horizons are within 1.6 times the paper and long horizons are five times
-better, because its cart is damped and rarely reaches the track limits. With forces up to the 400 N actuator
+On the study's own teacher, the recipe reproduces Table I of the paper and improves on every reported horizon;
+an earlier run with Newton 1.6.1 reached E200 = 0.048. On the Isaac Lab Cartpole, short horizons are within
+1.3 times the paper and E100 and E200 are 1.5 and 12 times better, because its cart is damped and rarely
+reaches the track limits. With forces up to the 400 N actuator
 limit instead, the cart accelerates ten times harder than the study's and a third of the trajectories hit the
 track limits; E100 then stays near 0.07, twenty times the paper.
 
@@ -272,7 +278,7 @@ python $E/train_policy.py --output /tmp/anymal-c/ppo-learned --artifact /tmp/any
 
 | Stage | Cost and remedy |
 | --- | --- |
-| Recording | PhysicsNeMo Robotics rewrites a dataset's whole manifest after every episode, and writing is single-threaded. With 2 processes of 8,192 environments, ten million transitions took over six hours; with 8 processes of 2,048 environments and shards of 4,000 episodes (`shard_episodes`), 14 minutes on two L40S GPUs |
+| Recording | PhysicsNeMo Robotics rewrites a dataset's whole manifest after every episode, and writing is single-threaded. With 2 processes of 8,192 environments, ten million transitions took over six hours; with 8 processes of 2,048 environments and shards of 4,000 episodes (`shard_episodes`), 13 minutes on two L40S GPUs |
 | Loading | Every trajectory is a Zarr group. Worker processes read them in parallel (`TrainingSettings.read_workers`, 5.6 times faster for 16,384 trajectories), data-parallel ranks share one read through a cache file, and `cache_dataset` keeps it for later runs (16,384 trajectories in 1.2 s) |
 | Normalization | `normalizer_windows` fits the statistics on a spread subset (2,000,000 of 9.5 million windows) |
 | Windows | Gathered in batches on the GPU from the stacked trajectories; 1.6 million ANYmal-C windows take 1.6 s instead of 140 s with the PhysicsNeMo Robotics loader, with identical values |
@@ -293,14 +299,14 @@ The recorded targets equal what the learned scene hands the model, element for e
 Data. With 2.46 million transitions (4,096 x 600 control periods) the model overfits: from 10,000 to 60,000
 updates the training RMSE of the normalized one-step prediction falls from 0.24 to 0.11 while the validation
 RMSE rises from 0.281 to 0.286. With ten million transitions (8 x 2,048 x 618, the commands above) the
-validation RMSE keeps falling, to 0.213 after 60,000 updates. On a second recording with the same settings,
-200,000 updates (94 minutes on two L40S GPUs) end at 0.217, flat after 120,000 updates while the training RMSE
-falls to 0.13, but lower the open-loop error of 64 random-target rollouts after 2 s from 0.114 to 0.103 rad in joint positions and from
-0.023 to 0.018 m in base height. The results below use the 200,000-update model.
+validation RMSE keeps falling: to 0.260, 0.225, 0.221, and 0.219 after 10,000, 60,000, 120,000, and 200,000
+updates (92 minutes on two L40S GPUs), with a training RMSE of about 0.14 at the end. After 2 s of open-loop
+random targets in 64 environments, the model is 0.126 rad from MuJoCo Warp in joint positions and 0.028 m in
+base height. The results below use this model.
 
 Reward. Isaac Lab differences joint velocities over every physics step for `joint_acc`, 5 ms in MuJoCo
 Warp but 20 ms in the learned model, so the ANYmal-D `dof_acc_l2` penalty measures different quantities in
-the two physics. With it and the 60,000-update model, the same MuJoCo Warp policy loses 0.057 per step to the penalty in MuJoCo Warp and
+the two physics. In an earlier run with Newton 1.6.1 and a 60,000-update model, the same MuJoCo Warp policy loses 0.057 per step to the penalty in MuJoCo Warp and
 0.010 in learned physics, and PPO in learned physics found a crouched, fast-stepping gait whose 5 ms
 accelerations cost 0.95 per step in MuJoCo Warp: its policies scored 28 in learned physics and 8.2 and
 -1.7 in MuJoCo Warp, while tracking velocity better than the MuJoCo Warp policies. `control_period_joint_acc_l2`
@@ -308,21 +314,19 @@ differences over the 20 ms environment step in both physics, with the weight sca
 walking gait's squared accelerations at the two intervals; the same MuJoCo Warp policy then loses 0.056 and
 0.050 per step.
 
-With this reward, every result over 256 environments and 1,000 steps with mean actions; each seed's two PPO
-runs took 40 minutes in parallel on two L40S GPUs:
+With this reward, every result over 256 environments and 1,000 steps with mean actions; the two PPO runs in
+learned physics took 40 minutes in parallel on two L40S GPUs:
 
 | Policy, seed | Return in MuJoCo Warp | Velocity tracking error | Fall rate | Return in learned physics |
 | --- | --- | --- | --- | --- |
-| Trained in MuJoCo Warp, 42 / 43 | 27.15 / 27.09 | 0.086 / 0.083 m/s | 0 / 0.4 % | 27.01 / 27.14 |
-| Trained in learned physics, 42 / 43 | 26.28 / 25.26 | 0.089 / 0.108 m/s | 1.6 / 1.6 % | 27.54 / 26.97 |
+| Trained in MuJoCo Warp, 42 / 43 | 27.29 / 27.12 | 0.083 / 0.085 m/s | 0 / 0.4 % | 27.13 / 27.28 |
+| Trained in learned physics, 42 / 43 | 24.66 / 25.61 | 0.101 / 0.096 m/s | 6.2 / 1.2 % | 27.33 / 27.23 |
 
-The learned environment reproduces the MuJoCo Warp policies within 0.15, and the policies trained only in
-learned physics keep 97 and 93 % of the MuJoCo Warp return when they run in MuJoCo Warp, against parity (28.0
-and 27.8) in the FlashNeRD paper. The longer-trained model matters: with the 60,000-update model, the seed-42
-policy kept 89 % (24.05 against 27.05). For the seed-42 policy, the loss in MuJoCo Warp shrinks from 0.15 to
-0.05 per step, of which the acceleration penalty is 0.02: for its lower gait (base 0.41 m high against 0.50 m)
-the model predicts 1.5 times smaller control-period accelerations than MuJoCo Warp produces, against 2.6 times
-with the 60,000-update model.
+The learned environment reproduces the MuJoCo Warp policies within 0.16, and the policies trained only in
+learned physics keep 90 and 94 % of the MuJoCo Warp return when they run in MuJoCo Warp, against parity (28.0
+and 27.8) in the FlashNeRD paper. Their remaining loss in MuJoCo Warp comes with more falls, 6.2 % of the
+seed-42 episodes. These are two seeds of one recording and one model; as the Cartpole trainings show, single
+runs vary.
 
 PPO training curves of these runs, each measured in the physics the policy trains in; diamonds are the final
 policies' returns in MuJoCo Warp:
