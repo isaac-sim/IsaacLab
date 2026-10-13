@@ -726,7 +726,7 @@ class ContactSensor(BaseContactSensor):
             # set their visibility to true
             self.contact_visualizer.set_visibility(True)
             self.normal_force_visualizer.set_visibility(True)
-            if not self._supports_total_contact_forces:
+            if self._is_initialized and not self._supports_total_contact_forces:
                 logger.warning(
                     "Isaac Sim PhysX 6.1 contact sensor visualization cannot display net friction forces because"
                     " the backend only reports friction for configured filter objects."
