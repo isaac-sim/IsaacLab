@@ -312,6 +312,14 @@ def _blur_controls(frames: np.ndarray | torch.Tensor) -> np.ndarray | torch.Tens
     """Turn uint8 THWC RGB into the blur control with the Framework's own filter, as its Transfer inference does.
 
     The recipe's medium preset has no random parameters, so filtering chunk by chunk matches filtering the video.
+
+    Only the ``blur`` modality calls this. The default ``depth`` modality, which the current Sim-Transfer checkpoint is
+    post-trained on, never does; blur stays supported for the other Transfer modalities.
+
+    Controls arrive as NumPy arrays over the socket transport and as device tensors over CUDA IPC, so both are
+    accepted and the result has the input's type and device. The Framework filter takes a CPU tensor, so a device
+    tensor makes a GPU to CPU to GPU round trip per chunk (about 5 MB per view for four frames at 736 x 544); a NumPy
+    input makes no copy. The cost has not been measured; generation takes about 0.85 s per four-frame chunk.
     """
     import torch
     from cosmos_framework.inference.args import PresetBlurStrength, PresetEdgeThreshold, TransferHintKey
