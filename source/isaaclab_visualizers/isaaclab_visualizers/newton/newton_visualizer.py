@@ -519,6 +519,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = cfg.headless
         self._last_present_time = -math.inf
         self._last_render_step = -1
+        self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind scene data and the Newton model shared with the simulation."""
@@ -531,6 +532,54 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
+
+    def log_mesh(
+        self,
+        name: str,
+        points: wp.array[wp.vec3],
+        indices: wp.array[wp.int32] | wp.array[wp.uint32],
+        normals: wp.array[wp.vec3] | None = None,
+        uvs: wp.array[wp.vec2] | None = None,
+        texture: np.ndarray | str | None = None,
+        hidden: bool = False,
+        backface_culling: bool = True,
+        color: tuple[float, float, float] | None = None,
+        roughness: float | None = None,
+        metallic: float | None = None,
+        dynamic: bool = False,
+        opacity: float | None = None,
+    ) -> None:
+        """Stage a mesh registration or update for the next Newton viewer frame.
+
+        Newton viewers require geometry updates between ``begin_frame()`` and
+        ``end_frame()``. Staging here keeps that lifecycle internal to the
+        visualizer and lets callers submit meshes before :meth:`step`.
+
+        Args:
+            name: Unique viewer path for the mesh.
+            points: Vertex positions [m].
+            indices: Flattened triangle vertex indices.
+            normals: Optional per-vertex normals.
+            uvs: Optional per-vertex texture coordinates.
+            texture: Optional texture path or image.
+            hidden: Whether to hide the mesh.
+            backface_culling: Whether to cull back-facing triangles.
+            color: Optional RGB base color in ``[0, 1]``.
+            roughness: Optional surface roughness in ``[0, 1]``.
+            metallic: Optional surface metallic value in ``[0, 1]``.
+            dynamic: Whether the mesh topology may change between updates.
+            opacity: Optional surface opacity in ``[0, 1]``.
+
+        Raises:
+            RuntimeError: If the Newton viewer has not been initialized.
+        """
+        if not self._is_initialized or self._viewer is None:
+            raise RuntimeError("Newton visualizer must be initialized before logging meshes.")
+        self._pending_mesh_submissions[name] = partial(
+            self._viewer.log_mesh, name, points, indices, normals=normals, uvs=uvs,
+            texture=texture, hidden=hidden, backface_culling=backface_culling, color=color,
+            roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
+        )  # fmt: skip
 
     def _update_state(self) -> newton.State:
         """Bind current scene arrays without reading any camera sensors."""
@@ -642,6 +691,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
+        self._pending_mesh_submissions.clear()
         for view in self._image_views:
             if view.render == self._capture_perspective:
                 view.render = None
@@ -683,6 +733,13 @@ class NewtonVisualizerBase(BaseVisualizer):
             composite = self.current_image_view.read(self._sim.get_physics_step_count())
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
+
+    def _log_pending_meshes(self) -> None:
+        """Submit the latest mesh updates inside the viewer's active frame."""
+        submissions = tuple(self._pending_mesh_submissions.values())
+        self._pending_mesh_submissions.clear()
+        for submit in submissions:
+            submit()
 
     def _capture_perspective(self, output: wp.array | None) -> wp.array:
         """Read the frame already displayed, or render once when capture is the only consumer."""
@@ -757,7 +814,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
-        self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -865,10 +921,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                             render_newton_visualization_markers(
                                 viewer, self._env_ids, num_envs=self.backend.model.num_envs
                             )
-                submissions = tuple(self._pending_mesh_submissions.values())
-                self._pending_mesh_submissions.clear()
-                for submit in submissions:
-                    submit()
+            self._log_pending_meshes()
             if not viewer.is_paused():
                 self._render_live_plots()
         finally:
@@ -904,56 +957,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._viewer_picking_binding.deactivate()
         finally:
             self._viewer = self.backend = self._transform_mapping = None
-            self._pending_mesh_submissions.clear()
             super().close()
-
-    def log_mesh(
-        self,
-        name: str,
-        points: wp.array[wp.vec3],
-        indices: wp.array[wp.int32] | wp.array[wp.uint32],
-        normals: wp.array[wp.vec3] | None = None,
-        uvs: wp.array[wp.vec2] | None = None,
-        texture: np.ndarray | str | None = None,
-        hidden: bool = False,
-        backface_culling: bool = True,
-        color: tuple[float, float, float] | None = None,
-        roughness: float | None = None,
-        metallic: float | None = None,
-        dynamic: bool = False,
-        opacity: float | None = None,
-    ) -> None:
-        """Stage a mesh registration or update for the next Newton viewer frame.
-
-        Newton viewers require geometry updates between ``begin_frame()`` and
-        ``end_frame()``. Staging here keeps that lifecycle internal to the
-        visualizer and lets callers submit meshes before :meth:`step`.
-
-        Args:
-            name: Unique viewer path for the mesh.
-            points: Vertex positions [m].
-            indices: Flattened triangle vertex indices.
-            normals: Optional per-vertex normals.
-            uvs: Optional per-vertex texture coordinates.
-            texture: Optional texture path or image.
-            hidden: Whether to hide the mesh.
-            backface_culling: Whether to cull back-facing triangles.
-            color: Optional RGB base color in ``[0, 1]``.
-            roughness: Optional surface roughness in ``[0, 1]``.
-            metallic: Optional surface metallic value in ``[0, 1]``.
-            dynamic: Whether the mesh topology may change between updates.
-            opacity: Optional surface opacity in ``[0, 1]``.
-
-        Raises:
-            RuntimeError: If the Newton viewer has not been initialized.
-        """
-        if not self._is_initialized or self._viewer is None:
-            raise RuntimeError("Newton visualizer must be initialized before logging meshes.")
-        self._pending_mesh_submissions[name] = partial(
-            self._viewer.log_mesh, name, points, indices, normals=normals, uvs=uvs,
-            texture=texture, hidden=hidden, backface_culling=backface_culling, color=color,
-            roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
-        )  # fmt: skip
 
     # ------------------------------------------------------------------
     # Shared internals
@@ -1200,6 +1204,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                     viewer.log_state(self._update_state())
                 if self.cfg.enable_markers:
                     render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+            self._log_pending_meshes()
         finally:
             viewer.end_frame()
         self._last_render_step = self._sim.get_physics_step_count()
