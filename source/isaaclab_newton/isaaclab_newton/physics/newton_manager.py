@@ -291,6 +291,26 @@ class NewtonQueries:
                 gc.collect()
 
 
+_GRAPH_MEMORY_RESERVED_DEVICES: set[str] = set()
+"""CUDA devices whose graph-memory address range :func:`_reserve_graph_memory` has reserved."""
+
+
+def _reserve_graph_memory(device: str) -> None:
+    """Reserve the device's CUDA graph-memory address range before a renderer claims GPU addresses.
+
+    On Windows, the driver's first graph-memory allocation can retry its address-range placement for
+    minutes when the renderer already occupies the addresses it tries. Capturing one tiny allocation
+    before the renderer starts places the range early; later captures reuse it.
+    """
+    if device in _GRAPH_MEMORY_RESERVED_DEVICES or not wp.is_mempool_enabled(device):
+        return
+    with Timer(name="newton_reserve_graph_memory", msg="Reserve CUDA graph memory took:"):
+        with NewtonQueries._paused_gc(), wp.ScopedCapture(device=device, force_module_load=False):
+            scratch = wp.empty(1, dtype=wp.int32, device=device)
+            del scratch
+    _GRAPH_MEMORY_RESERVED_DEVICES.add(device)
+
+
 class NewtonSceneDataBackend(SceneDataBackend):
     """Scene data backend that reads rigid body transforms from Newton's simulation state.
 
@@ -583,6 +603,12 @@ class NewtonManager(PhysicsManager):
             NewtonManager._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
 
         NewtonManager._scene_data_backend = NewtonSceneDataBackend()
+
+        cfg = PhysicsManager._cfg
+        device = PhysicsManager._device
+        if cfg is not None and cfg.use_cuda_graph and device is not None and "cuda" in device:
+            # Must run before any renderer exists; see _reserve_graph_memory.
+            _reserve_graph_memory(device)
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
