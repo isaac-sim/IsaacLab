@@ -34,6 +34,8 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject, RigidObjectCollection  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
@@ -140,30 +142,51 @@ _CUDA_SCENES = [
 
 
 @pytest.mark.parametrize(
-    ("device", "support_cloning", "filter_collisions"),
+    ("device", "scene_variant", "filter_collisions"),
     # CUDA replays native clones, so it covers every cloning path. CPU serializes the full stage, one path.
     [(device, "native", False) for device in _CPU]
     + [
         (device, *row)
         for device in _CUDA
-        for row in (("native", False), ("usd_and_native", True), ("usd", False), ("usd_nested", True))
+        for row in (
+            ("native", False),
+            ("compliant", False),
+            ("usd_and_native", True),
+            ("usd", False),
+            ("usd_nested", True),
+        )
     ],
 )
-def test_heterogeneous_clone_contacts_and_indexed_state(device, support_cloning, filter_collisions):
+def test_heterogeneous_clone_contacts_and_indexed_state(device, scene_variant, filter_collisions):
     """Variants contact their own support, and indexed writes reach the environment-ordered bodies.
 
-    Collision filtering is an independent scene setting, so it alternates across the cloning paths.
+    Scene variants cover cloning paths and compliant contacts; collision filtering varies independently.
     """
     with build_simulation_context(
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, dt=1.0 / 120.0)
     ) as sim:
         cfg = HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=2.0, filter_collisions=filter_collisions)
-        if support_cloning != "native":
+        compliant = scene_variant == "compliant"
+        if compliant:
+            material = PhysxRigidBodyMaterialCfg(
+                compliant_contact_stiffness=15700.0,
+                compliant_contact_damping=1120.0,
+                compliant_contact_acceleration_spring=True,
+            )
+            cfg.support.spawn.physics_material = cfg.object.spawn.physics_material = material
+            cfg.object.spawn.mass_props.mass = 0.02
+            cfg.object.spawn.rigid_props = [
+                sim_utils.UsdPhysicsRigidBodyCfg(),
+                PhysxRigidBodyCfg(
+                    sleep_threshold=0.0, stabilization_threshold=0.0, solver_position_iteration_count=128
+                ),
+            ]
+        if scene_variant not in ("native", "compliant"):
             cfg.clone_cfg.clone_template = "/Scenes/World_{}"
             cfg.support.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-            if support_cloning == "usd_and_native":
+            if scene_variant == "usd_and_native":
                 cfg.support.cloning_contexts += ("isaaclab_ov.cloner:OvPhysxReplicateContext",)
-        if support_cloning == "usd_nested":
+        if scene_variant == "usd_nested":
             cfg.support.prim_path = "{ENV_REGEX_NS}/Assembly/Support"
             cfg.object.spawn.assets_cfg = cfg.object.spawn.assets_cfg[:1]
             spawn = sim_utils.SpawnerCfg(func=lambda path, cfg, **kwargs: sim.stage.DefinePrim(path, "Xform"))
@@ -174,12 +197,15 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, support_cloning,
         obj = scene["object"]
         expected_paths = [f"{cfg.clone_cfg.clone_template.format(i)}/Object" for i in range(scene.num_envs)]
         assert obj.root_view.prim_paths == expected_paths
-        for _ in range(60):
+        for _ in range(360 if compliant else 60):
             sim.step()
             scene.update(sim.get_physics_dt())
         positions = obj.data.root_pos_w.torch
         torch.testing.assert_close(positions[:, 2], torch.full_like(positions[:, 2], 0.2), atol=0.02, rtol=0.0)
         torch.testing.assert_close(positions[:, :2], scene.env_origins[:, :2], atol=0.02, rtol=0.0)
+        if compliant:
+            heights = positions[:, 2].reshape(2, 3)
+            torch.testing.assert_close(heights[:, 1:], heights[:, :1].expand(-1, 2), atol=1e-5, rtol=0.0)
 
         # Lift one resting body; an independent exact-path binding detects a write to the wrong body.
         selected = torch.tensor([3], device=device)

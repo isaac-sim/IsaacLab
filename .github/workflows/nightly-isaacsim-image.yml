@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Resolve the moving Isaac Sim ``latest-release-6-2`` tag to its immutable
+# Resolve the moving Isaac Sim ``latest-release-6-3`` tag to its immutable
 # manifest digest and open (or refresh) a draft PR against ``develop``.
 #
 # Scheduled workflows register only from the default branch, so this file
@@ -40,7 +40,7 @@ concurrency:
 env:
   CONFIG_PATH: .github/workflows/config.yaml
   SOURCE_IMAGE: nvcr.io/0947644777160149/internal/isaac-sim
-  SOURCE_TAG: latest-release-6-2
+  SOURCE_TAG: latest-release-6-3
   TARGET_BRANCH: develop
   UPDATE_BRANCH: ci/nightly-isaacsim-image-update
 
@@ -75,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$NGC_API_KEY" ]; then
-            echo "::error::NGC_API_KEY is required to inspect the private Isaac Sim image."
+            echo "::error::NGC_API_KEY is required for the registry login."
             exit 1
           fi
           printf '%s' "$NGC_API_KEY" | docker login -u '$oauthtoken' --password-stdin nvcr.io

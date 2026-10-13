@@ -108,6 +108,7 @@
             ["IsaacContrib-Reach-OpenArmBi", "rl_games,rsl_rl", "", "", "", "environment-previews/openarm_bi_reach.jpg"],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-FF-Direct", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/shadow_cube.jpg"],
             ["IsaacContrib-Reorient-Cube-Shadow-OpenAI-LSTM-Direct", "rl_games,rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "environment-previews/shadow_cube.jpg"],
+            ["IsaacContrib-Shoelace-DualFranka", "rsl_rl", "", "", "", "environment-previews/shoelace_dual_franka.jpg"],
             ["IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic", "", "isaacsim_physx", "", "", "environment-previews/franka_bin_stack.jpg"],
             ["IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg"],
             ["IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel", "", "isaacsim_physx", "", "", "environment-previews/franka_stack.jpg"],
@@ -201,7 +202,7 @@
         scope: "core",
         task: "Isaac-Cartpole",
         benchmarkWorkload: "collection",
-        benchmarkChannel: "release",
+        benchmarkChannel: "develop",
     };
     const rlLibraryExtras = {rl_games: "rl-games", sb3: "sb3", skrl: "skrl", rlinf: "rlinf", torchrl: "torchrl"};
     let benchmarkRows = [];
@@ -712,7 +713,6 @@
     };
 
     const benchmarkDate = (row) => (row.snapshot_date_utc || row.benchmark_date_utc).slice(0, 10);
-    const benchmarkDates = () => benchmarks.getAttribute(`data-benchmark-${state.benchmarkChannel}-dates`).split(",");
     const benchmarkFps = (row) => Number(row[state.benchmarkWorkload === "collection"
         ? "collection_fps_mean" : "total_fps_mean"]);
     const benchmarkMetricLabel = () => state.benchmarkWorkload === "collection" ? "Collection FPS" : "Training FPS";
@@ -734,7 +734,9 @@
         const margins = {top: 38, right: 50, bottom: 60, left: 65};
         const plotWidth = width - margins.left - margins.right;
         const plotHeight = height - margins.top - margins.bottom;
-        const dateKeys = benchmarkDates();
+        const snapshots = benchmarks.getAttribute(`data-benchmark-${state.benchmarkChannel}-dates`)
+            .split(",").map((entry) => entry.split(":"));
+        const dateKeys = snapshots.map(([date]) => date);
         const latestBySeriesAndDate = new Map();
         for (const row of rows) {
             const key = `${seriesKey(row)}:${benchmarkDate(row)}`;
@@ -775,9 +777,10 @@
             const label = createSvgElement("text", {
                 x: xPosition(date), y: height - 15, class: "environment-chart-axis-label", "text-anchor": "middle",
             });
-            label.textContent = state.benchmarkChannel === "release" ? "EA 3.0" : new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
-                month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
-            });
+            label.textContent = snapshots[index][1]
+                || new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, {
+                    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+                });
             svg.appendChild(label);
         }
 
