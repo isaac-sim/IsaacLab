@@ -193,7 +193,7 @@ class NewtonViewerUI:
                 live_plots_cb(imgui)
 
             # --- Model overlays ---------------------------------------------
-            if isinstance(viewer, ViewerGL) and viewer.model is not None and viewer._main_image_name is None:
+            if isinstance(viewer, NewtonViewerGL) and viewer.model is not None and not viewer._fullscreen_image_active:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Model Overlays"):
                     imgui.separator()
@@ -283,7 +283,11 @@ class NewtonViewerUI:
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                if isinstance(viewer, ViewerGL) and viewer.picking_enabled and viewer._main_image_name is None:
+                if (
+                    isinstance(viewer, NewtonViewerGL)
+                    and viewer.picking_enabled
+                    and not viewer._fullscreen_image_active
+                ):
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
@@ -397,10 +401,13 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         self._particle_color_buffer_value: tuple[float, float, float] | None = None
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
+        self._fullscreen_image_active = False
         self._implot = self._implot_ctx = None
         if self.gui is not None:
             from imgui_bundle import implot
 
+            # Keep camera keys active while ImGui captures mouse input for its controls.
+            self.gui.is_capturing = self.gui.should_ignore_keyboard_input
             self._implot = implot
             self._implot_ctx = implot.create_context()
             implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
@@ -416,19 +423,22 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
 
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""
-        super().end_frame()
+        try:
+            super().end_frame()
+        finally:
+            self._fullscreen_image_active = False
         if self._close_requested:
             self.renderer.close()
 
-    def on_key_press(self, symbol, modifiers):
-        """Forward key presses unless UI is currently capturing input."""
-        if self.ui.is_capturing():
-            return
-        super().on_key_press(symbol, modifiers)
+    def log_image(self, name: str, image: wp.array | np.ndarray, *, fullscreen: bool = False) -> None:
+        """Track whether the current frame replaces the perspective scene with an image."""
+        super().log_image(name, image, fullscreen=fullscreen)
+        if fullscreen:
+            self._fullscreen_image_active = True
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Image coordinates must not pick objects in the hidden perspective scene."""
-        if self._main_image_name is None:
+        if not self._fullscreen_image_active:
             super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):

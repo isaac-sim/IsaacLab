@@ -71,6 +71,76 @@ class ContactSensorData(BaseContactSensorData):
         return self._quat_w_ta
 
     @property
+    def net_forces_w(self) -> ProxyArray | None:
+        """The net total contact forces (normal + friction) [N] in world frame.
+
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+
+        On Isaac Sim 6.1, this returns :attr:`net_normal_forces_w` with a warning.
+        """
+        if not self._supports_total_contact_forces:
+            return super().net_forces_w
+        if self._net_forces_w is None:
+            return None
+        if self._net_forces_w_ta is None:
+            self._net_forces_w_ta = ProxyArray(self._net_forces_w)
+        return self._net_forces_w_ta
+
+    @property
+    def net_forces_w_history(self) -> ProxyArray | None:
+        """History of net total contact forces (normal + friction) [N].
+
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+
+        On Isaac Sim 6.1, this returns :attr:`net_normal_forces_w_history` with a warning.
+        """
+        if not self._supports_total_contact_forces:
+            return super().net_forces_w_history
+        if self._net_forces_w_history is None:
+            return None
+        if self._net_forces_w_history_ta is None:
+            self._net_forces_w_history_ta = ProxyArray(self._net_forces_w_history)
+        return self._net_forces_w_history_ta
+
+    @property
+    def force_matrix_w(self) -> ProxyArray | None:
+        """Total contact forces (normal + friction) [N] filtered between sensor and filtered bodies.
+
+        Shape is (num_instances, num_sensors, num_filter_shapes), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty. On Isaac Sim 6.1,
+        this returns :attr:`normal_force_matrix_w` with a warning.
+        """
+        if not self._supports_total_contact_forces:
+            return super().force_matrix_w
+        if self._force_matrix_w is None:
+            return None
+        if self._force_matrix_w_ta is None:
+            self._force_matrix_w_ta = ProxyArray(self._force_matrix_w)
+        return self._force_matrix_w_ta
+
+    @property
+    def force_matrix_w_history(self) -> ProxyArray | None:
+        """History of filtered total contact forces [N].
+
+        Shape is (num_instances, history_length, num_sensors, num_filter_shapes), dtype = wp.vec3f.
+        In torch this resolves to (num_instances, history_length, num_sensors, num_filter_shapes, 3).
+
+        None if :attr:`ContactSensorCfg.filter_prim_paths_expr` is empty. On Isaac Sim 6.1,
+        this returns :attr:`normal_force_matrix_w_history` with a warning.
+        """
+        if not self._supports_total_contact_forces:
+            return super().force_matrix_w_history
+        if self._force_matrix_w_history is None:
+            return None
+        if self._force_matrix_w_history_ta is None:
+            self._force_matrix_w_history_ta = ProxyArray(self._force_matrix_w_history)
+        return self._force_matrix_w_history_ta
+
+    @property
     def net_normal_forces_w(self) -> ProxyArray | None:
         """The net normal contact forces [N] in world frame.
 
@@ -143,27 +213,62 @@ class ContactSensorData(BaseContactSensorData):
 
     @property
     def net_friction_forces_w(self) -> ProxyArray | None:
-        """Not supported by the PhysX contact sensor.
+        """The net friction contact forces [N] in world frame.
 
-        PhysX only exposes friction data for configured sensor-filter pairs, so it cannot report an
-        unfiltered net friction force.
+        Shape is (num_instances, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, num_sensors, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+
+        Raises:
+            NotImplementedError: When running with Isaac Sim 6.1, which only exposes friction data
+                for configured sensor-filter pairs.
         """
-        raise NotImplementedError(
-            "PhysX does not support 'net_friction_forces_w'; use 'friction_force_matrix_w' with configured"
-            " filter objects."
-        )
+        if not self._supports_total_contact_forces:
+            raise NotImplementedError(
+                "Isaac Sim PhysX 6.1 does not support 'net_friction_forces_w'; use"
+                " 'friction_force_matrix_w' with configured filter objects."
+            )
+        if self._net_friction_forces_w is None:
+            return None
+        if self._net_friction_forces_w_ta is None:
+            self._net_friction_forces_w_ta = ProxyArray(self._net_friction_forces_w)
+        return self._net_friction_forces_w_ta
 
     @property
     def net_friction_forces_w_history(self) -> ProxyArray | None:
-        """Not supported by the PhysX contact sensor.
+        """History of net friction contact forces [N].
 
-        PhysX only exposes friction data for configured sensor-filter pairs, so it cannot report an
-        unfiltered net friction force history.
+        Shape is (num_instances, history_length, num_sensors), dtype = wp.vec3f. In torch this resolves to
+        (num_instances, history_length, num_sensors, 3).
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False.
+
+        Raises:
+            NotImplementedError: When running with Isaac Sim 6.1, which only exposes friction data
+                for configured sensor-filter pairs.
         """
-        raise NotImplementedError(
-            "PhysX does not support 'net_friction_forces_w_history'; use 'friction_force_matrix_w_history'"
-            " with configured filter objects."
-        )
+        if not self._supports_total_contact_forces:
+            raise NotImplementedError(
+                "Isaac Sim PhysX 6.1 does not support 'net_friction_forces_w_history'; use"
+                " 'friction_force_matrix_w_history' with configured filter objects."
+            )
+        if self._net_friction_forces_w_history is None:
+            return None
+        if self._net_friction_forces_w_history_ta is None:
+            self._net_friction_forces_w_history_ta = ProxyArray(self._net_friction_forces_w_history)
+        return self._net_friction_forces_w_history_ta
+
+    @property
+    def friction_forces_w(self) -> ProxyArray | None:
+        """Aggregate friction forces [N], identical to :attr:`net_friction_forces_w`.
+
+        None if :attr:`ContactSensorCfg.track_friction_forces` is False. On Isaac Sim 6.1,
+        this returns :attr:`friction_force_matrix_w` with a warning.
+        """
+        if not self._supports_total_contact_forces:
+            return super().friction_forces_w
+        return self.net_friction_forces_w
 
     @property
     def friction_force_matrix_w(self) -> ProxyArray | None:
@@ -261,6 +366,7 @@ class ContactSensorData(BaseContactSensorData):
         track_air_time: bool,
         track_contact_points: bool,
         track_friction_forces: bool,
+        supports_total_contact_forces: bool,
         device: str,
     ) -> None:
         """Create internal buffers for sensor data.
@@ -274,11 +380,14 @@ class ContactSensorData(BaseContactSensorData):
             track_air_time: Whether to track air/contact time.
             track_contact_points: Whether to track contact points.
             track_friction_forces: Whether to track friction forces.
+            supports_total_contact_forces: Whether the runtime exposes separate aggregate normal
+                and friction force buffers.
             device: Device for tensor storage.
         """
         self._num_envs = num_envs
         self._num_sensors = num_sensors
         self._device = device
+        self._supports_total_contact_forces = supports_total_contact_forces
         # Ensure history_length >= 1 for consistent buffer shapes
         effective_history = max(history_length, 1)
 
@@ -288,6 +397,14 @@ class ContactSensorData(BaseContactSensorData):
             (num_envs, effective_history, num_sensors), dtype=wp.vec3f, device=device
         )
 
+        # Total forces include friction even when the optional friction split is disabled.
+        if supports_total_contact_forces:
+            self._net_forces_w = wp.zeros_like(self._net_normal_forces_w)
+            self._net_forces_w_history = wp.zeros_like(self._net_normal_forces_w_history)
+        else:
+            self._net_forces_w = None
+            self._net_forces_w_history = None
+
         # Track force matrix if requested - only with filter
         if num_filter_shapes > 0:
             self._normal_force_matrix_w = wp.zeros(
@@ -296,9 +413,17 @@ class ContactSensorData(BaseContactSensorData):
             self._normal_force_matrix_w_history = wp.zeros(
                 (num_envs, effective_history, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
             )
+            if supports_total_contact_forces:
+                self._force_matrix_w = wp.zeros_like(self._normal_force_matrix_w)
+                self._force_matrix_w_history = wp.zeros_like(self._normal_force_matrix_w_history)
+            else:
+                self._force_matrix_w = None
+                self._force_matrix_w_history = None
         else:
             self._normal_force_matrix_w = None
             self._normal_force_matrix_w_history = None
+            self._force_matrix_w = None
+            self._force_matrix_w_history = None
 
         # Track pose if requested
         if track_pose:
@@ -337,8 +462,14 @@ class ContactSensorData(BaseContactSensorData):
         else:
             self._contact_pos_w = None
 
-        # Track friction forces if requested
-        if track_friction_forces:
+        # Expose separate aggregate friction data when requested and supported.
+        if track_friction_forces and supports_total_contact_forces:
+            self._net_friction_forces_w = wp.zeros_like(self._net_normal_forces_w)
+            self._net_friction_forces_w_history = wp.zeros_like(self._net_normal_forces_w_history)
+        else:
+            self._net_friction_forces_w = None
+            self._net_friction_forces_w_history = None
+        if track_friction_forces and num_filter_shapes > 0:
             self._friction_force_matrix_w = wp.zeros(
                 (num_envs, num_sensors, num_filter_shapes), dtype=wp.vec3f, device=device
             )
@@ -353,6 +484,12 @@ class ContactSensorData(BaseContactSensorData):
         self._pose_w_ta: ProxyArray | None = None
         self._pos_w_ta: ProxyArray | None = None
         self._quat_w_ta: ProxyArray | None = None
+        self._net_forces_w_ta: ProxyArray | None = None
+        self._net_forces_w_history_ta: ProxyArray | None = None
+        self._force_matrix_w_ta: ProxyArray | None = None
+        self._force_matrix_w_history_ta: ProxyArray | None = None
+        self._net_friction_forces_w_ta: ProxyArray | None = None
+        self._net_friction_forces_w_history_ta: ProxyArray | None = None
         self._net_normal_forces_w_ta: ProxyArray | None = None
         self._net_normal_forces_w_history_ta: ProxyArray | None = None
         self._normal_force_matrix_w_ta: ProxyArray | None = None

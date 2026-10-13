@@ -65,7 +65,7 @@ def _parse_kit_asset_root() -> str:
 
 _ASSET_REGION_PROFILE_ENV_VAR = "ISAACSIM_ASSET_REGION_PROFILE"
 # Update this value when the China mirror moves to a new Isaac Sim asset release.
-_ISAAC_SIM_ASSET_RELEASE = "6.1"
+_ISAAC_SIM_ASSET_RELEASE = "6.2"
 _CHINA_ASSET_ENDPOINT = "simready-cn.s3.oss-cn-shanghai.aliyuncs.com"
 _US_ASSET_ROOT = _parse_kit_asset_root()
 

@@ -88,7 +88,7 @@ ovphysx_version = _pinned_versions["ovphysx"]
 
 # Short version strings used in external documentation URLs and badges.
 torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
-isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.1.0"
+isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.2.0"
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
@@ -403,6 +403,12 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
+    "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
+    "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
+    "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx",
+    "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
+    "source/concepts/warp_environment_migration": "source/concepts/warp_environments",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
     "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
@@ -442,8 +448,58 @@ isaaclab_doc_redirects = {
 
 _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
-# Sections of the former combined Docker page now live on separate pages.
+# Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/joint_and_body_ordering": {
+        "": "source/how-to/transfer_policies_between_physx_and_newton#joint-and-body-ordering",
+        **{
+            anchor: f"source/how-to/transfer_policies_between_physx_and_newton#{anchor}"
+            for anchor in (
+                "joint-and-body-ordering",
+                "why-articulation-orders-differ",
+                "public-and-backend-order",
+                "high-level-mdp-terms",
+                "conversion-cost",
+                "direct-backend-view-access",
+                "torch-conversion",
+                "warp-conversion",
+                "what-ordering-does-not-solve",
+                "verification-and-troubleshooting",
+            )
+        },
+    },
+    "source/concepts/native-physics-api/newton": {
+        "": "source/concepts/physics-backends/newton#newton-native-access",
+        "newton-native-data-and-selection-api": "source/concepts/physics-backends/newton#newton-native-access",
+    },
+    "source/concepts/native-physics-api/ovphysx": {
+        "": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+        "ovphysx-tensor-bindings": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+    },
+    "source/concepts/native-physics-api/physx": {
+        "": "source/concepts/physics-backends/physx#physx-native-access",
+        "physx-tensor-api": "source/concepts/physics-backends/physx#physx-native-access",
+    },
+    "source/concepts/warp_environment_migration": {
+        "": "source/concepts/warp_environments#warp-env-migration",
+        **{
+            anchor: f"source/concepts/warp_environments#{anchor}"
+            for anchor in (
+                "warp-env-migration",
+                "design-rationale",
+                "project-structure",
+                "writing-warp-mdp-terms",
+                "imports",
+                "common-pattern",
+                "observation-terms",
+                "event-terms",
+                "action-terms",
+                "capture-safety",
+                "parity-testing",
+                "available-warp-mdp-terms",
+            )
+        },
+    },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",

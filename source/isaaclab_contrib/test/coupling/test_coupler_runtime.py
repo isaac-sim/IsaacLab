@@ -14,10 +14,12 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics import NewtonManager, XPBDSolverCfg
+from isaaclab_newton.physics import NewtonManager, NewtonVBDManager, XPBDSolverCfg
 from newton import CollisionPipeline, Mesh, Model, ModelBuilder
 from newton.solvers import SolverXPBD
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
+
+from isaaclab.physics import PhysicsManager
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
@@ -32,7 +34,7 @@ from isaaclab_contrib.coupling import (
 def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
     """Isolate every global manager slot touched by coupler construction."""
     clean_values = {
-        "backend": SimpleNamespace(model=None),
+        "backend": SimpleNamespace(model=None, state_0=None, state_1=None, control=None),
         "_solver": None,
         "_use_single_state": None,
         "_contacts": None,
@@ -42,9 +44,15 @@ def isolated_newton_manager(monkeypatch: pytest.MonkeyPatch):
         "_supports_contact_sensors": True,
         "_supports_rigid_body_force_input": False,
         "_report_contacts": False,
+        "_solver_dt": 1.0 / 60.0,
+        "_num_substeps": 1,
+        "_collision_decimation": 0,
+        "_state_force_callbacks": [],
     }
     for name, value in clean_values.items():
         monkeypatch.setattr(NewtonManager, name, value)
+    monkeypatch.setattr(NewtonVBDManager, "_update_joint_state", True)
+    monkeypatch.setattr(PhysicsManager, "_cfg", None)
     yield
 
 
@@ -131,7 +139,7 @@ def test_real_coupler_constructs_resets_and_steps(
     expected_solver_type: type,
     isolated_newton_manager,
 ):
-    """Exercise supported coupling configurations or reject unsupported capacity overrides."""
+    """Step supported coupling configurations without overwriting nested-solver joint state."""
     model = _build_overlapping_body_model(mesh_contact=algorithm == "admm_capacity")
     entries = _entry_configs()
     if algorithm == "proxy":
@@ -192,18 +200,30 @@ def test_real_coupler_constructs_resets_and_steps(
     state_1 = model.state()
     solver.reset(state_0)
     assert solver.entry_output_state_valid() is False
+    state_0.joint_qd.fill_(0.125)
 
     collision_pipeline.collide(state_0, contacts)
     assert int(contacts.rigid_contact_count.numpy()[0]) >= 1
     body_q_before = state_0.body_q.numpy().copy()
 
-    solver.step(state_0, state_1, model.control(), contacts, 1.0 / 60.0)
+    # The native coupled solver, not global inverse kinematics, owns the published joint state.
+    native_output = model.state()
+    control = model.control()
+    solver.step(state_0, native_output, control, contacts, 1.0 / 60.0)
+    solver.reset(state_0, flags=0)
+    NewtonManager.backend.state_0 = state_0
+    NewtonManager.backend.state_1 = state_1
+    NewtonManager.backend.control = control
+    NewtonCouplerManager._run_solver_substeps(contacts)
+    state_1 = NewtonManager.backend.state_0
 
     body_q_after = state_1.body_q.numpy()
     assert solver.entry_output_state_valid() is True
     assert np.all(np.isfinite(body_q_after))
     assert np.all(np.isfinite(state_1.body_qd.numpy()))
     assert np.any(body_q_after[:, 2] < body_q_before[:, 2])
+    np.testing.assert_array_equal(state_1.joint_q.numpy(), native_output.joint_q.numpy())
+    np.testing.assert_array_equal(state_1.joint_qd.numpy(), native_output.joint_qd.numpy())
     if algorithm == "admm_capacity":
         assert int(solver._admm_internal_contacts.rigid_contact_count.numpy()[0]) >= 1
         assert solver._admm_internal_contacts.rigid_contact_match_index is not None

@@ -45,7 +45,6 @@ from typing import TYPE_CHECKING
 
 # Isaac Lab simulation launcher
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import replace
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
@@ -180,7 +179,8 @@ from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.managers import DatasetExportMode
+from isaaclab.envs.utils._manual_success import _prepare_success_term
+from isaaclab.managers import CommandTermCfg, DatasetExportMode
 
 import isaaclab_mimic.envs  # noqa: F401
 
@@ -192,10 +192,8 @@ logger = logging.getLogger(__name__)
 
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
-
-def _never_terminate(env: gym.Env) -> torch.Tensor:
-    """Return a false termination signal for every environment."""
-    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+# CommandTerm samples its timer with uniform_, which requires finite bounds.
+_RECORDING_COMMAND_RESAMPLING_TIME_S = 1.0e9
 
 
 def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
@@ -333,10 +331,8 @@ def create_environment_config(
     # Extract the success condition for manual evaluation in the main loop. Keep
     # an inert term registered under the same name so rewards and other manager
     # terms that reference "success" can still resolve it during initialization.
-    success_term = getattr(env_cfg.terminations, "success", None)
-    if success_term is not None:
-        env_cfg.terminations.success = replace(success_term, func=_never_terminate, params={})
-    else:
+    success_term = _prepare_success_term(env_cfg)
+    if success_term is None:
         logger.warning(
             "No success termination term was found in the environment."
             " Will not be able to mark recorded demos as successful."
@@ -354,6 +350,19 @@ def create_environment_config(
     # the goal is reached or other termination conditions are met
     env_cfg.terminations.time_out = None
     env_cfg.observations.policy.concatenate_terms = False
+
+    # Keep each demonstration's goals fixed; command generators still sample
+    # fresh goals when the environment resets for the next recording attempt.
+    if env_cfg.commands is not None:
+        command_cfgs = (
+            env_cfg.commands.values() if isinstance(env_cfg.commands, dict) else vars(env_cfg.commands).values()
+        )
+        for command_cfg in command_cfgs:
+            if isinstance(command_cfg, CommandTermCfg):
+                command_cfg.resampling_time_range = (
+                    _RECORDING_COMMAND_RESAMPLING_TIME_S,
+                    _RECORDING_COMMAND_RESAMPLING_TIME_S,
+                )
 
     demo_recorder_cfg_entry_point = gym.spec(args_cli.task.split(":")[-1]).kwargs.get("demo_recorder_cfg_entry_point")
     if demo_recorder_cfg_entry_point is None:

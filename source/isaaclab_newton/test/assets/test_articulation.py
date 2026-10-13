@@ -15,9 +15,9 @@ backend state. The islands of one environment share a solver world, so every tes
 rest and restores the properties it changes. Scene gravity is off; a test that needs gravity applies it to every
 world for its own duration.
 
-Configurations that fail initialization, the rebind scenario, which swaps the live Newton state, and the
-CUDA-graph check build their own small scenes. Only one simulation context can be alive, so these tests come
-first and fail if selected after a composite-scene test.
+Configurations that fail initialization, nested-root IK, the rebind scenario, which swaps the live Newton
+state, and the CUDA-graph check build their own small scenes. Only one simulation context can be alive, so
+these tests come first and fail if selected after a composite-scene test.
 
 The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own-scene test covers the
 ordered-state republish recorded into a captured graph.
@@ -46,6 +46,9 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
+from isaaclab_newton.controllers.ik import NewtonIKPoseObjectiveCfg
+from isaaclab_newton.envs.mdp.actions.newton_ik_actions import NewtonInverseKinematicsAction
+from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointType, ModelBuilder, ModelFlags, ShapeFlags
@@ -503,6 +506,55 @@ def test_world_hinged_root_has_no_base_dofs(monkeypatch, device):
 ##
 # Own scenes. These tests run before the composite scene exists: only one simulation context can be alive.
 ##
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_newton_ik_action_resolves_nested_articulation_root(device: str) -> None:
+    """Resolve the nested prototype root and drive its joint toward an independently derived child pose."""
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        spawn=local_usd("floating_two_link.usda", fix_root_link=True),
+        articulation_root_prim_path="/Root",
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint"], stiffness=20.0, damping=2.0)},
+    )
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
+        assets = spawn_assets({"robot": articulation_cfg}, num_envs=1)
+        sim.reset()
+        env = SimpleNamespace(scene=assets, sim=sim, num_envs=1, device=device)
+        action = NewtonInverseKinematicsAction(
+            NewtonInverseKinematicsActionCfg(
+                asset_name="robot",
+                joint_names=["Joint"],
+                objectives=[NewtonIKPoseObjectiveCfg(body_name="Child", use_relative_mode=False)],
+            ),
+            env,
+        )
+        angle = 0.4
+        # The Z hinge is 0.25 m from each link origin in the checked-in two-link fixture.
+        target = torch.tensor(
+            [
+                [
+                    0.25 + 0.25 * np.cos(angle),
+                    0.25 * np.sin(angle),
+                    0.0,
+                    0.0,
+                    0.0,
+                    np.sin(0.5 * angle),
+                    np.cos(0.5 * angle),
+                ]
+            ],
+            dtype=torch.float32,
+            device=device,
+        )
+        action.process_actions(target)
+        action.apply_actions()
+
+        torch.testing.assert_close(
+            assets["robot"].actuators.target_command.position.torch,
+            torch.tensor([[angle]], dtype=torch.float32, device=device),
+            atol=1.0e-4,
+            rtol=0.0,
+        )
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
