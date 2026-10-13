@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import itertools
 import json
 import re
 from collections.abc import Callable
@@ -23,7 +24,13 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils.hydra import _LEGACY_PRESET_ALIASES, PresetTarget, enumerate_task_presets
+from isaaclab_tasks.utils.hydra import (
+    _LEGACY_PRESET_ALIASES,
+    PresetTarget,
+    TaskRun,
+    enumerate_task_presets,
+    is_task_run_launchable,
+)
 
 if TYPE_CHECKING:
     from gymnasium.envs.registration import EnvSpec
@@ -134,6 +141,8 @@ class EnvironmentDocRow:
     required_extras: tuple[str, ...] = ()
     # None reuses all domain presets; an empty tuple allows only the default.
     warp_presets: tuple[str, ...] | None = None
+    # Selector pairs that cannot launch together, as command-line tokens.
+    incompatible_selectors: tuple[tuple[str, str], ...] = ()
 
 
 def _supports_warp_frontend(
@@ -353,6 +362,50 @@ def _selector_names_for_docs(
         PresetTarget.RENDERER: _filter_selector_names(PresetTarget.RENDERER, preset_map.get(PresetTarget.RENDERER, [])),
         PresetTarget.DOMAIN: _filter_selector_names(PresetTarget.DOMAIN, _domain_presets_for_docs(preset_map)),
     }
+
+
+_SELECTOR_AXES = ("physics", "renderer", "presets")
+
+
+def launchable_selectors(
+    task_name: str,
+    options: tuple[list[str], list[str], list[str]],
+    rejected: set[tuple[str | None, str | None, str | None]],
+) -> tuple[tuple[list[str], list[str], list[str]], tuple[tuple[str, str], ...]]:
+    """Return the displayed names that can launch, and the pairs of them that cannot launch together.
+
+    A name that launches with no other displayed name is dropped, since the browser always sends a value for
+    every axis it shows. The remaining rejections must each be explained by one pair of names.
+
+    Args:
+        task_name: Task the options belong to, named in errors.
+        options: Displayed physics, renderer and preset names; an empty list is an axis left to the config.
+        rejected: The combinations of *options* that cannot launch, with ``None`` for an empty axis.
+
+    Returns:
+        The kept names per axis, and the incompatible pairs as command-line tokens.
+
+    Raises:
+        ValueError: If a rejection is not explained by a single pair of names.
+    """
+    combinations = set(itertools.product(*(names or [None] for names in options)))
+    launchable = combinations - rejected
+    kept = tuple(
+        [name for name in names if any(c[axis] == name for c in launchable)] for axis, names in enumerate(options)
+    )
+    combinations = set(itertools.product(*(names or [None] for names in kept)))
+    rejected = combinations & rejected
+    pairs = []
+    explained = set()
+    for left, right in itertools.combinations(range(len(_SELECTOR_AXES)), 2):
+        for left_name, right_name in itertools.product(kept[left], kept[right]):
+            matching = {c for c in combinations if c[left] == left_name and c[right] == right_name}
+            if matching <= rejected:
+                pairs.append((f"{_SELECTOR_AXES[left]}={left_name}", f"{_SELECTOR_AXES[right]}={right_name}"))
+                explained |= matching
+    if explained != rejected:
+        raise ValueError(f"{task_name}: no single selector pair explains {sorted(rejected - explained, key=str)}.")
+    return kept, tuple(pairs)
 
 
 def format_presets_rst(preset_map: dict[PresetTarget, list[str]] | None) -> str:
@@ -629,10 +682,22 @@ def collect_environment_doc_rows(
             continue
 
         preset_map = enumerate_task_presets(spec.id)
+        incompatible = ()
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
             preset_map = _apply_preset_exclusions(spec.id, preset_map)
+            targets = (PresetTarget.PHYSICS, PresetTarget.RENDERER, PresetTarget.DOMAIN)
+            selectors = _selector_names_for_docs(preset_map)
+            options = tuple(sorted(selectors[target]) for target in targets)
+            rejected = {
+                combination
+                for combination in itertools.product(*(names or [None] for names in options))
+                if not is_task_run_launchable(spec.id, TaskRun(*combination))
+            }
+            kept, incompatible = launchable_selectors(spec.id, options, rejected)
+            for target, shown, names in zip(targets, options, kept):
+                preset_map[target] = [name for name in preset_map[target] if name not in set(shown) - set(names)]
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
         visible_domain_presets = set(_selector_names_for_docs(preset_map)[PresetTarget.DOMAIN])
         default_checkpoint_presets = ()
@@ -669,6 +734,7 @@ def collect_environment_doc_rows(
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
                 required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
                 warp_presets=warp_presets,
+                incompatible_selectors=incompatible,
             )
         )
 
@@ -761,8 +827,9 @@ def render_environment_browser_task_rows(
             default_algorithms,
             ",".join(row.required_extras),
             row.warp_presets,
+            [list(pair) for pair in row.incompatible_selectors],
         ]
-        optional_defaults = ["", False, {}, {}, "", None]
+        optional_defaults = ["", False, {}, {}, "", None, []]
         last_value = next(
             (
                 index
