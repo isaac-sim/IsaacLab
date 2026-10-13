@@ -84,6 +84,14 @@ DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
     ProgramSpec(
+        "sonic",
+        "examples/demos/sonic.py",
+        "Record SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
+        extras=("isaacsim", "video", "g1-terrain"),
+        required_modules=("isaacsim", "imageio", "imageio_ffmpeg", "huggingface_hub", "onnxruntime"),
+        newton_gl_args=None,
+    ),
+    ProgramSpec(
         "pick-and-place",
         "examples/demos/pick_and_place.py",
         "Interactively pick and place a cube.",

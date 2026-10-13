@@ -194,6 +194,37 @@ def _platforms_and_ramps(stage, directory, extended_exit):
         )
 
 
+def separate_ramp_base(stage: Usd.Stage) -> None:
+    """Inset the visible ramp base by 1 mm after collision and depth geometry are imported."""
+    base = next(prim for prim in stage.Traverse() if prim.GetName() == "wood_base")
+    wood = next(prim for prim in stage.Traverse() if prim.GetName() == "wood_0_0")
+    source = UsdGeom.Mesh(base)
+    points = np.asarray(source.GetPointsAttr().Get(), dtype=np.float32).copy()
+    lower, upper = points.min(axis=0), points.max(axis=0)
+    center = 0.5 * (lower + upper)
+    points[:, :2] = center[:2] + (points[:, :2] - center[:2]) * (1.0 - 0.002 / (upper - lower)[:2])
+    visual = UsdGeom.Mesh.Define(stage, base.GetPath().GetParentPath().AppendChild("wood_base_visual"))
+    visual.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(points))
+    visual.CreateFaceVertexCountsAttr(source.GetFaceVertexCountsAttr().Get())
+    visual.CreateFaceVertexIndicesAttr(source.GetFaceVertexIndicesAttr().Get())
+    visual.CreateSubdivisionSchemeAttr("none")
+    UsdGeom.PrimvarsAPI(visual).CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray, "vertex").Set(
+        UsdGeom.PrimvarsAPI(source).GetPrimvar("st").Get()
+    )
+    UsdShade.MaterialBindingAPI.Apply(visual.GetPrim()).Bind(
+        UsdShade.MaterialBindingAPI(base).ComputeBoundMaterial()[0]
+    )
+    faces = np.asarray(source.GetFaceVertexIndicesAttr().Get()).reshape(-1, 3)
+    top_faces = np.flatnonzero(np.all(np.isclose(points[faces, 2], upper[2]), axis=1))
+    subset = UsdGeom.Subset.CreateGeomSubset(
+        visual, "wood_top", UsdGeom.Tokens.face, top_faces.tolist(), "materialBind"
+    )
+    UsdShade.MaterialBindingAPI.Apply(subset.GetPrim()).Bind(
+        UsdShade.MaterialBindingAPI(wood).ComputeBoundMaterial()[0]
+    )
+    UsdGeom.Imageable(base).MakeInvisible()
+
+
 def _container_mesh():
     """Triangulate a closed tray without overlapping internal contact surfaces."""
     bottom = GRANULAR_TOP - 0.03
