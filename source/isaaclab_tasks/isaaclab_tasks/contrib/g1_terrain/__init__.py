@@ -3,13 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""G1 platform and ramp traversals with a pretrained depth policy."""
+"""G1 terrain traversals with pretrained locomotion policies."""
 
 import gymnasium as gym
 
 for terrain, config in (
     ("Platforms", "G1PlatformsEnvCfg"),
     ("Ramps", "G1RampsEnvCfg"),
+    ("Granular", "G1GranularEnvCfg"),
 ):
     gym.register(
         id=f"IsaacContrib-G1-Terrain-{terrain}",

@@ -3,8 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Procedural geometry and materials for the G1 platform and ramp courses."""
+"""Procedural geometry and materials for the G1 terrain courses."""
 
+import itertools
 import math
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
+GRANULAR_TOP = 2.5 * math.tan(math.radians(10.0))
 PLATFORM_HEIGHTS = (
     (0.51, 0.56, 0.50),
     (0.56, 0.51, 0.58),
@@ -192,7 +194,69 @@ def _platforms_and_ramps(stage, directory, extended_exit):
         )
 
 
-def create_terrain(directory: Path, terrain_name: str) -> Path:
+def _container_mesh():
+    """Triangulate a closed tray without overlapping internal contact surfaces."""
+    bottom = GRANULAR_TOP - 0.03
+    axes = (
+        np.array([5.4, 5.5, 11.5, 11.6]),
+        np.array([-0.7, -0.6, 0.6, 0.7]),
+        np.array([bottom - 0.1, bottom, GRANULAR_TOP]),
+    )
+    filled = {(i, j, k) for i, j, k in itertools.product(range(3), range(3), range(2)) if k == 0 or i != 1 or j != 1}
+    vertices, faces, ids = [], [], {}
+    for cell in sorted(filled):
+        for axis, side in itertools.product(range(3), (-1, 1)):
+            neighbor = list(cell)
+            neighbor[axis] += side
+            if tuple(neighbor) in filled:
+                continue
+            other = [a for a in range(3) if a != axis]
+            quad = []
+            for u, v in ((0, 0), (1, 0), (1, 1), (0, 1)):
+                index = list(cell)
+                index[axis] += int(side > 0)
+                index[other[0]] += u
+                index[other[1]] += v
+                index = tuple(index)
+                if index not in ids:
+                    ids[index] = len(vertices)
+                    vertices.append([axes[a][index[a]] for a in range(3)])
+                quad.append(ids[index])
+            a, b, c = np.asarray(vertices)[quad[:3]]
+            if np.cross(b - a, c - a)[axis] * side < 0:
+                quad.reverse()
+            faces.extend(((quad[0], quad[1], quad[2]), (quad[0], quad[2], quad[3])))
+    return np.asarray(vertices, dtype=np.float32), np.asarray(faces, dtype=np.int32)
+
+
+def _granular(stage, directory, is_physx):
+    for name, start, end in (("approach", -1.5, 5.5), ("end", 11.5, 16.5)):
+        x = np.round(np.arange(start, end + 0.025, 0.05), 6)
+        y = np.round(np.arange(-4.0, 4.025, 0.05), 6)
+        xx, yy = np.meshgrid(x, y, indexing="ij")
+        zz = np.clip((xx - 1.0) / 2.5, 0, 1) * GRANULAR_TOP
+        vertices = np.stack((xx, yy, zz), -1).reshape(-1, 3)
+        i, j = np.meshgrid(np.arange(len(x) - 1), np.arange(len(y) - 1), indexing="ij")
+        a = (i * len(y) + j).ravel()
+        b, c, d = a + len(y), a + len(y) + 1, a + 1
+        faces = np.concatenate((np.stack((a, b, c), -1), np.stack((a, c, d), -1)))
+        material = visual_material(
+            stage, f"/Course/Looks/{name}", (0.055, 0.065, 0.08), 0.96, directory / "asphalt.png"
+        )
+        physics = _physics_material(stage, f"/Course/{name}_material", 1.0)
+        mesh = _mesh(stage, name, vertices, faces, material, physics)
+        mesh.CreateDisplayColorAttr([(0.22, 0.23, 0.25)])
+    vertices, faces = _container_mesh()
+    tray = _mesh(stage, "granular_container", vertices, faces)
+    tray.CreateDisplayColorAttr([(0.18, 0.19, 0.20)])
+    if is_physx:
+        from .granular import create_pbd_beds  # noqa: PLC0415
+
+        tray.GetPrim().RemoveAPI(UsdPhysics.CollisionAPI)
+        create_pbd_beds(stage)
+
+
+def create_terrain(directory: Path, terrain_name: str, is_physx: bool = False) -> Path:
     """Write a course and its procedural textures into the run's asset directory."""
     directory.mkdir(parents=True, exist_ok=True)
     _textures(directory)
@@ -201,6 +265,9 @@ def create_terrain(directory: Path, terrain_name: str) -> Path:
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Course").GetPrim())
-    _platforms_and_ramps(stage, directory, extended_exit=terrain_name == "platforms")
+    if terrain_name == "granular":
+        _granular(stage, directory, is_physx)
+    else:
+        _platforms_and_ramps(stage, directory, extended_exit=terrain_name == "platforms")
     stage.GetRootLayer().Save()
     return path

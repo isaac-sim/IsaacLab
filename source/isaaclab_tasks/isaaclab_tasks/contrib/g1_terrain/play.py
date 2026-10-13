@@ -7,6 +7,7 @@
 
 import argparse
 import math
+import os
 import time
 from pathlib import Path
 
@@ -14,6 +15,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
@@ -28,7 +30,7 @@ from isaaclab_tasks.utils.hydra import resolve_task_config
 def main():
     """Run the pretrained policy in simulation time and optionally record RTX frames."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--task", choices=("platforms", "ramps"), required=True)
+    parser.add_argument("--task", choices=("platforms", "ramps", "granular"), required=True)
     parser.add_argument("--checkpoint", help="Override the pretrained TorchScript checkpoint path or URL")
     parser.add_argument("--video", action="store_true", help="Record video.mp4")
     parser.add_argument("--output", type=Path, default=Path("logs/g1_terrain"))
@@ -40,13 +42,31 @@ def main():
         parser.error("--seconds must be finite and positive")
     if min(args.width, args.height) < 2 or args.width % 2 or args.height % 2:
         parser.error("Capture dimensions must be positive even integers")
+    granular = args.task == "granular"
+    if granular and args.checkpoint is not None:
+        parser.error("--checkpoint selects a depth policy; SONIC models use env.policy_repo and env.policy_revision")
     task = f"IsaacContrib-G1-Terrain-{args.task.title()}"
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
+    headless = granular and not isinstance(cfg.sim.physics, PhysxCfg)
     if args.checkpoint is not None:
         cfg.policy_path = args.checkpoint
+    if granular:
+        from huggingface_hub import snapshot_download  # noqa: PLC0415
+
+        model_dir = snapshot_download(
+            repo_id=cfg.policy_repo,
+            revision=cfg.policy_revision,
+            allow_patterns=[
+                "model_encoder.onnx",
+                "model_decoder.onnx",
+                "planner_sonic.onnx",
+                "observation_config.yaml",
+                "LICENSE",
+            ],
+        )
     cfg.sim.visualizer_cfgs = [
         KitVisualizerCfg(
-            headless=False,
+            headless=headless,
             window=WindowCfg(size=(args.width, args.height)),
             eye=cfg.camera_eye,
             lookat=cfg.camera_target,
@@ -56,8 +76,9 @@ def main():
         )
     ]
     torch.set_num_threads(1)
+    if headless:
+        os.environ["HEADLESS"] = "1"
     with launch_simulation(cfg, {"visualizer": ["kit"], "enable_cameras": True}):
-        from .depth_policy import DepthStudentPolicy  # noqa: PLC0415
         from .rendering import prepare_view  # noqa: PLC0415
 
         env = gym.make(task, cfg=cfg).unwrapped
@@ -67,10 +88,19 @@ def main():
             robot = env.scene["robot"]
             visualizer = env.sim.visualizers[0]
             prepare_view(env, visualizer)
-            policy = DepthStudentPolicy(cfg.policy_path)
+            if granular:
+                from .sonic_parameters import JOINT_NAMES  # noqa: PLC0415
+                from .sonic_policy import SonicPolicy, command_speed  # noqa: PLC0415
+
+                policy_ids = [robot.joint_names.index(name) for name in JOINT_NAMES]
+                policy = SonicPolicy(model_dir, robot.data.joint_pos.torch.cpu().numpy()[0, policy_ids])
+            else:
+                from .depth_policy import DepthStudentPolicy  # noqa: PLC0415
+
+                policy = DepthStudentPolicy(cfg.policy_path)
             policy_ids = [robot.joint_names.index(name) for name in policy.joint_names]
             action = robot.data.default_joint_pos.torch.clone()
-            if args.video:
+            if args.video or granular:
                 import imageio.v2 as imageio  # noqa: PLC0415
 
                 args.output.mkdir(parents=True, exist_ok=True)
@@ -91,15 +121,22 @@ def main():
                     break
                 t = step * env.step_dt
                 quat = robot.data.root_quat_w.torch.cpu().numpy()[0]
-                x, y, z, w = quat
-                yaw = math.atan2(2 * (x * y + w * z), 1 - 2 * (y * y + z * z))
-                yaw_error = (cfg.heading - yaw + math.pi) % (2 * math.pi) - math.pi
-                command = np.array([0.6 * min(t / 0.3, 1.0), 0.0, np.clip(0.5 * yaw_error, -1.0, 1.0)], np.float32)
                 joint_pos = robot.data.joint_pos.torch.cpu().numpy()[0, policy_ids]
                 joint_vel = robot.data.joint_vel.torch.cpu().numpy()[0, policy_ids]
                 gyro = robot.data.root_ang_vel_b.torch.cpu().numpy()[0]
-                depth = env.scene["depth_camera"].data.output["distance_to_image_plane"].torch.cpu().numpy()[0, ..., 0]
-                target = policy.step(joint_pos, joint_vel, quat, gyro, command, depth[::-1, ::-1])
+                if granular:
+                    speed = command_speed(step)
+                    target = policy.step(joint_pos, joint_vel, quat, gyro, speed)
+                else:
+                    x, y, z, w = quat
+                    yaw = math.atan2(2 * (x * y + w * z), 1 - 2 * (y * y + z * z))
+                    yaw_error = (cfg.heading - yaw + math.pi) % (2 * math.pi) - math.pi
+                    speed = 0.6 * min(t / 0.3, 1.0)
+                    command = np.array([speed, 0.0, np.clip(0.5 * yaw_error, -1.0, 1.0)], np.float32)
+                    depth = (
+                        env.scene["depth_camera"].data.output["distance_to_image_plane"].torch.cpu().numpy()[0, ..., 0]
+                    )
+                    target = policy.step(joint_pos, joint_vel, quat, gyro, command, depth[::-1, ::-1])
                 action[0, policy_ids] = torch.as_tensor(target, device=env.device)
                 if not np.isfinite(target).all():
                     raise RuntimeError(f"Non-finite policy targets at t={t:.2f}s")
@@ -108,7 +145,7 @@ def main():
                     position = robot.data.root_pos_w.torch.cpu().numpy()[0].tolist()
                     print(
                         f"sim={t:.2f}/{duration:.2f}s wall={now - started:.1f}s"
-                        f" vx_cmd={command[0]:.2f}m/s position={position}",
+                        f" vx_cmd={speed:.2f}m/s position={position}",
                         flush=True,
                     )
                     last_log = now

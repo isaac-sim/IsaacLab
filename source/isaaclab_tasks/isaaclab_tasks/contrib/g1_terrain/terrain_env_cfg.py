@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Single-robot reconstructions of uneven platforms and ramps."""
+"""Single-robot demonstrations on platforms, ramps, and granular terrain."""
 
 import math
 
@@ -16,11 +16,12 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
-from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg
+from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -180,7 +181,7 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
         "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/"
         "IsaacContrib-Velocity-Rough-G1_Terrain_newtonmjwarp_none_rsl_rl.pt"
     )
-    warmup_height: float = 1.38
+    warmup_height: float | None = 1.38
     terrain_name: str = "platforms"
     duration: float = 7.76
     heading: float = math.pi
@@ -230,3 +231,39 @@ class G1RampsEnvCfg(G1PlatformsEnvCfg):
     def __post_init__(self):
         self.scene.robot.init_state.pos = (0.22, -0.3, 1.308342456817627)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+
+
+@configclass
+class G1GranularEnvCfg(G1PlatformsEnvCfg):
+    """SONIC traversal of gravel and sand using MPM or PhysX PBD."""
+
+    policy_repo: str = "nvidia/GEAR-SONIC"
+    policy_revision: str = "6733128a3d8a523b1418b06bca3cdf61c8b0987f"
+    terrain_name = "granular"
+    warmup_height = None
+    duration = 23.04
+    heading = 0.0
+    camera_eye = (12.640227474658403, -1.9951440805141667, 1.529737129878094)
+    camera_target = (6.525763654021182, 1.2626086601986954, 0.5295475146069122)
+    camera_vfov = 30.974660215824073
+    seed = 42
+
+    def __post_init__(self):
+        self.scene.robot.init_state.pos = (5.1, 0.0, 1.2338175773620605)
+        self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        self.scene.depth_camera = None
+        self.scene.light.spawn.intensity = 750.0
+        self.scene.light.spawn.texture_file = (
+            f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr"
+        )
+        self.events.physics_material = EventTermCfg(
+            func=mdp.randomize_rigid_body_material,
+            mode="startup",
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+                "static_friction_range": (0.8, 0.8),
+                "dynamic_friction_range": (0.6, 0.6),
+                "restitution_range": (0.0, 0.0),
+                "num_buckets": 64,
+            },
+        )

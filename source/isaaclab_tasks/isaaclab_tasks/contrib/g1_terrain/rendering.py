@@ -45,8 +45,9 @@ def prepare_view(env, visualizer):
         visualizer.render_rgb_array()
     env.sim.forward()
     env.scene.update(0.0)
-    env.scene["depth_camera"].update(0.0, force_recompute=True)
-    _separate_ramp_base(stage)
+    if env.cfg.scene.depth_camera is not None:
+        env.scene["depth_camera"].update(0.0, force_recompute=True)
+        _separate_ramp_base(stage)
     for _ in range(30):
         env.sim.render()
         visualizer.render_rgb_array()

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Environment setup for the G1 platform and ramp traversals."""
+"""Environment setup for the G1 terrain traversals."""
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -29,9 +29,15 @@ class G1TerrainEnv(ManagerBasedRLEnv):
         cfg.sim.dt = 0.0025 if is_physx else 0.005
         cfg.decimation = 8 if is_physx else 4
         cfg.sim.render_interval = cfg.decimation
+        if cfg.terrain_name == "granular":
+            from .granular import configure_granular  # noqa: PLC0415
+
+            configure_granular(cfg, is_physx)
         self._terrain_directory = TemporaryDirectory(prefix="g1-terrain-")
-        cfg.scene.terrain.usd_path = str(create_terrain(Path(self._terrain_directory.name), cfg.terrain_name))
+        cfg.scene.terrain.usd_path = str(create_terrain(Path(self._terrain_directory.name), cfg.terrain_name, is_physx))
         super().__init__(cfg, **kwargs)
+        if cfg.terrain_name == "granular" and is_physx:
+            self.sim.set_setting("/physics/updateParticlesToUsd", True)
 
     def close(self):
         """Release the generated terrain after the simulator closes."""
@@ -41,7 +47,9 @@ class G1TerrainEnv(ManagerBasedRLEnv):
 
     def reset(self, **kwargs):
         """Initialize solver and sensor buffers with a neutral airborne step before resetting."""
-        super().reset(**kwargs)
+        result = super().reset(**kwargs)
+        if self.cfg.warmup_height is None:
+            return result
         robot = self.scene["robot"]
         pose = robot.data.root_pose_w.torch.clone()
         pose[:, 2] = self.cfg.warmup_height
