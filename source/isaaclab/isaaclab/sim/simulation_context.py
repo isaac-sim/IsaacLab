@@ -201,6 +201,7 @@ class SimulationContext:
             torch.cuda.set_device(self.cfg.device)
         wp.set_device(self.cfg.device)
         # Must precede physics backends and renderers created by this context; see reserve_cuda_graph_memory.
+        # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
         reserve_cuda_graph_memory(self.cfg.device)
 
         self.physics_manager: type[PhysicsManager] = self._physics.class_type

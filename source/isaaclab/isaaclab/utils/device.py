@@ -58,10 +58,11 @@ def reserve_cuda_graph_memory(device: str) -> None:
         or warp_device.alias in _GRAPH_MEMORY_RESERVED_DEVICES
     ):
         return
-    _GRAPH_MEMORY_RESERVED_DEVICES.add(warp_device.alias)
     try:
         # The array is freed inside the capture; the driver keeps the address range after the graph is destroyed.
         with wp.ScopedCapture(device=warp_device, force_module_load=False):
             wp.empty(1, dtype=wp.int32, device=warp_device)
     except Exception as error:
         logger.warning("Could not reserve CUDA graph memory on %s: %s", warp_device.alias, error)
+        return
+    _GRAPH_MEMORY_RESERVED_DEVICES.add(warp_device.alias)
