@@ -40,7 +40,7 @@ class randomize_imu_misalignment(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
         self.quat = torch.zeros(env.num_envs, 4, device=env.device)
-        self.quat[:, 0] = 1.0
+        self.quat[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor | None, max_angle_deg: float) -> None:
         """Draw a uniformly random axis and an angle in ``[0, max_angle_deg]`` [deg]."""
