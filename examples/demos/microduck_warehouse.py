@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""View the static MicroDuck factory with selectable camera-renderer presets.
+"""View the static MicroDuck Warehouse with selectable camera-renderer presets.
 
 Keep the poster and flag's ``textures/`` directory beside the USD. ``--usd_path``
 accepts a local filename or a Nucleus/HTTPS URL; the scene is not distributed with the code.
 
 .. code-block:: bash
 
-    uv run isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc
-    uv run isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc \\
+    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc
+    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc \\
         renderer=isaacsim_rtx presets=minimal
-    uv run isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc \\
+    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc \\
         renderer=isaacsim_rtx presets=path_traced
-    uv run isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc \\
+    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc \\
         renderer=newton_renderer presets=depth
 
 Use ``presets=aisle`` for the other saved camera. Resolution and renderer settings
@@ -35,7 +35,9 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("--usd_path", required=True, help="Static factory USD, loaded locally or from an asset-server URL.")
+parser.add_argument(
+    "--usd_path", required=True, help="Static warehouse USD, loaded locally or from an asset-server URL."
+)
 parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
@@ -66,10 +68,10 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
 @configclass
-class FactorySceneCfg(InteractiveSceneCfg):
+class WarehouseSceneCfg(InteractiveSceneCfg):
     """Borrow the static geometry and one camera from the loaded stage."""
 
-    factory = AssetBaseCfg(prim_path="/World", spawn=None)
+    warehouse = AssetBaseCfg(prim_path="/World", spawn=None)
     lighting = AssetBaseCfg(prim_path="/RoofReview", spawn=None)
     camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
@@ -102,7 +104,7 @@ class FactorySceneCfg(InteractiveSceneCfg):
 
 
 @configclass
-class FactoryDemoCfg(ManagerBasedEnvCfg):
+class WarehouseDemoCfg(ManagerBasedEnvCfg):
     """Rendering presets; physics initializes the scene but never advances."""
 
     decimation = 1
@@ -110,7 +112,7 @@ class FactoryDemoCfg(ManagerBasedEnvCfg):
     observations = {}
     events = None
     ui_window_class_type = None
-    scene: FactorySceneCfg = FactorySceneCfg(num_envs=1, env_spacing=0.0)
+    scene: WarehouseSceneCfg = WarehouseSceneCfg(num_envs=1, env_spacing=0.0)
     sim: sim_utils.SimulationCfg = sim_utils.SimulationCfg(
         physics=preset(
             default=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False, load_visual_shapes=True),
@@ -129,11 +131,11 @@ def main() -> None:
     """Resolve normal Isaac Lab presets and render the scene without stepping physics."""
     # Config-only registration reuses the standard preset and Hydra override resolver.
     gym.register(
-        "MicroDuckFactoryDemo",
+        "MicroDuckWarehouseDemo",
         entry_point="isaaclab.envs:ManagerBasedEnv",
-        kwargs={"env_cfg_entry_point": FactoryDemoCfg},
+        kwargs={"env_cfg_entry_point": WarehouseDemoCfg},
     )
-    cfg, _ = resolve_task_config("MicroDuckFactoryDemo", None, overrides=overrides)
+    cfg, _ = resolve_task_config("MicroDuckWarehouseDemo", None, overrides=overrides)
     output = cfg.scene.camera.data_types[0]
     channel = {
         "simple_shading_full_mdl": "rgb",

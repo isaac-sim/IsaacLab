@@ -83,9 +83,9 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec(
-        "microduck-factory",
-        "examples/demos/microduck_factory.py",
-        "View the static MicroDuck factory with renderer and camera presets (--usd_path required).",
+        "microduck-warehouse",
+        "examples/demos/microduck_warehouse.py",
+        "View the static MicroDuck Warehouse with renderer and camera presets (--usd_path required).",
         extras=("ovrtx",),
         newton_gl_args=None,
     ),

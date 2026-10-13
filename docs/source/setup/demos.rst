@@ -35,19 +35,19 @@ Kit-only demos are not shown.
 
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
-MicroDuck factory rendering
----------------------------
+MicroDuck Warehouse rendering
+-----------------------------
 
-The factory demo loads a static scene, including the duck's final looking-up pose, without advancing
-physics. Until the asset is published, supply the local ``microduck_factory_static.usdc`` and keep
-its ``textures/`` directory alongside it. The same ``--usd_path`` option accepts a Nucleus or HTTPS URL.
+The warehouse demo loads a static scene, including the duck's final looking-up pose, without advancing
+physics. Pass the scene's Nucleus or HTTPS URL using ``--usd_path``. In the examples below,
+set ``WAREHOUSE_USD_URL`` to the scene's asset-server URL.
 
 .. code-block:: bash
 
-   uv run --extra ovrtx isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc
-   uv run --extra isaacsim isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc renderer=isaacsim_rtx presets=minimal
-   uv run --extra isaacsim isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc renderer=isaacsim_rtx presets=path_traced
-   uv run isaaclab demo microduck-factory --usd_path /path/to/microduck_factory_static.usdc renderer=newton_renderer presets=depth
+   uv run --extra ovrtx isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL"
+   uv run --extra isaacsim isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL" renderer=isaacsim_rtx presets=minimal
+   uv run --extra isaacsim isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL" renderer=isaacsim_rtx presets=path_traced
+   uv run isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL" renderer=newton_renderer presets=depth
 
 Select ``renderer=ovrtx``, ``renderer=isaacsim_rtx``, or ``renderer=newton_renderer`` independently
 from the viewer selected by ``--viz``. The default Newton GL window displays the selected camera
