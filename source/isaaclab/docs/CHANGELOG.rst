@@ -3,6 +3,25 @@ Changelog
 
 .. towncrier release notes start
 
+37.1.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed ``isaaclab.cli.load_external_tasks()`` for launchers to discover installed downstream task registrations.
+
+Fixed
+^^^^^
+
+* Fixed Ctrl+C being lost when Kit dispatched a Python event callback during a visualizer update.
+* Fixed manual joint-velocity termination to detect non-finite values.
+* Fixed manual demonstration success evaluation by keeping inert termination terms
+  registered for dependent rewards, while preserving curricula needed by reset events.
+* Fixed explicit rendering deadlocking while a visualizer had paused training.
+* Documented preservation of compliant-contact stiffness during material randomization on PhysX and OVPhysX.
+
+
 37.0.0 (2026-10-12)
 ~~~~~~~~~~~~~~~~~~~
 

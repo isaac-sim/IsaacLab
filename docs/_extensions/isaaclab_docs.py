@@ -290,7 +290,7 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
             page = Path(app.builder.get_outfilename(doc))
             if not page.is_file():
                 raise ValueError(f"Documentation redirect target was not built: {doc}")
-            sections[f"#{fragment}"] = [
+            sections[f"#{fragment}" if fragment else ""] = [
                 posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
             ]
         output.parent.mkdir(parents=True, exist_ok=True)

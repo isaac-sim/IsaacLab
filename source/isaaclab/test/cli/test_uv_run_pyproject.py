@@ -45,6 +45,7 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
         "dev",
         "sb3",
         "skrl",
+        "skrl-jax",
         "rl-games",
         "wandb",
         "rsl-rl",
@@ -70,6 +71,8 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     # ``ov`` installs both Omniverse backends and ``ovstage``, which both backends need.
     # The single-backend ``ovphysx`` / ``ovrtx`` extras are checked against the pinned versions below.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
+    assert any(dep.startswith("jax[cuda13]") for dep in optional_dependencies["skrl-jax"])
+    assert any(dep.startswith("skrl[jax]") for dep in optional_dependencies["skrl-jax"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
@@ -88,6 +91,7 @@ def test_all_extra_aggregates_curated_ov_rl_and_visualizer_extras(source_checkou
     assert set(optional) - reachable - {"all"} == {
         "rlinf",
         "torchrl",
+        "skrl-jax",
         "isaacsim",
         "importers",
         "mimic",
@@ -193,22 +197,25 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from the standalone importers. The remaining ``packaging`` override reconciles
-    ovphysx. The importers install beside Isaac Sim without displacing it: the two distributions share
-    no files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
+    and briefly away from the standalone importers. The remaining dependency overrides reconcile
+    packages whose Isaac Sim pins lag the standalone stack. The importers install beside Isaac Sim
+    without displacing it: the two distributions share no files, and Kit serves ``isaacsim.asset``
+    from its extension roots either way.
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
+    assert "fsspec>=2026.6.0" in tool_uv["override-dependencies"]
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
+    assert "urllib3>=2.8.0" in tool_uv["override-dependencies"]
 
 
-def test_rl_games_aiohttp_requirement_accepts_isaacsim_kernel_versions(source_checkout_root: Path):
-    """The aggregate RL extra must coexist with supported Isaac Sim kernels."""
+def test_rl_games_aiohttp_requirement_uses_security_floor(source_checkout_root: Path):
+    """The aggregate RL extra must reject vulnerable aiohttp versions."""
     optional = _root_pyproject(source_checkout_root)["project"]["optional-dependencies"]
     aiohttp = next(Requirement(dependency) for dependency in optional["rl-games"] if dependency.startswith("aiohttp"))
 
-    assert Version("3.14.1") in aiohttp.specifier
+    assert Version("3.14.2") not in aiohttp.specifier
     assert Version("3.14.3") in aiohttp.specifier
 
 

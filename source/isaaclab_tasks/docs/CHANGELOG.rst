@@ -3,6 +3,57 @@ Changelog
 
 .. towncrier release notes start
 
+27.0.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a Franka Reach ``hold`` preset with end-effector pose-error feedback, a fixed episode goal,
+  continued pose-success rewards, task-level Newton and Isaac Sim PhysX control profiles for
+  quiet holding, and a separate RSL-RL experiment directory for its 38-input policies.
+  Holding requires the Torch frontend and a trained or local holding checkpoint until pretrained
+  policies are published. The environment browser filters domain presets by Warp compatibility
+  and only offers pretrained checkpoints for declared published presets.
+* Added a contributed dual-Franka shoelace task with Newton MJWarp/VBD coupling, contact-aware rewards,
+  randomized resets, and an RSL-RL PPO configuration.
+  Supported seven externally supplied shoe variants with mixed eyelet counts and baked USD friction,
+  retaining Franka finger friction overrides for grasp retention.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Aligned Franka Reach with the shared reach success reward and reset behavior and increased
+  RSL-RL PPO exploration to match UR10. Existing Franka Reach policies should be retrained for
+  the updated task; continuous tracking evaluations can disable the success reward and termination.
+  The default reward configuration now uses the shared ``RewardsCfg`` and no longer includes
+  ``end_effector_position_tracking_fine_grained``; add that term explicitly for custom tracking tasks.
+* Tuned Franka Reach arm damping per joint and used bounded initial joint offsets supported by
+  both frontends to avoid concentrating reset samples at joint limits, while retaining the shared robot
+  asset and finger drives.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``FrankaReachRewardsCfg`` while retaining its legacy rewards for existing imports.
+  Use the shared Reach ``RewardsCfg`` and add ``end_effector_position_tracking_fine_grained``
+  explicitly if needed.
+
+Fixed
+^^^^^
+
+* Fixed DR Legs training with the Newton Kamino solver by constraining destabilizing
+  initialization randomization and joint-position targets, terminating invalid joint states before observation,
+  and preventing non-finite solver rewards from reaching the trainer.
+* Tuned the DR Legs walking actions, actuator gains, observations, gait timing, rewards, and exploration noise for
+  stable locomotion on Newton and PhysX, and separated the strict walk-success metric from command metrics.
+* Fixed the Shadow Hand and Allegro Hand reorientation task videos missing the hands in play mode;
+  they now record a close view of one hand and its cube.
+* Fixed the reorientation goal cube displaying away from the hand, outside the recording view. It now
+  follows the hand at ``goal_marker_offset`` from the in-hand position.
+* Allowed non-string literal overrides to replace resolved preset values while preserving named preset selection.
+
+
 26.0.0 (2026-10-12)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -29,9 +29,10 @@ The total force is therefore
 
    \boldsymbol{f}_{total} = \boldsymbol{f}_{normal} + \boldsymbol{f}_{friction}.
 
-On Newton and OvPhysX, :attr:`~sensors.ContactSensorData.net_forces_w` reports this total,
-including friction even when ``track_friction_forces=False``. The Isaac Sim PhysX backend currently
-returns ``net_normal_forces_w`` from ``net_forces_w`` with a warning.
+On Newton, OvPhysX, and Isaac Sim PhysX 6.2 or later,
+:attr:`~sensors.ContactSensorData.net_forces_w` reports this total, including friction even when
+``track_friction_forces=False``. Isaac Sim PhysX 6.1 returns ``net_normal_forces_w`` from
+``net_forces_w`` with a warning.
 Use the explicit normal and friction properties when the split matters.
 
 Set :attr:`~sensors.ContactSensorCfg.filter_prim_paths_expr` when forces from specific collision
@@ -39,7 +40,7 @@ partners are also needed. :attr:`~sensors.ContactSensorData.normal_force_matrix_
 :attr:`~sensors.ContactSensorData.friction_force_matrix_w` retain one entry per configured
 filter expression.
 The corresponding :attr:`~sensors.ContactSensorData.force_matrix_w` reports normal plus friction
-on Newton and OvPhysX, regardless of ``track_friction_forces``.
+on Newton, OvPhysX, and Isaac Sim PhysX 6.2 or later, regardless of ``track_friction_forces``.
 
 Summing a force matrix over its filter dimension reconstructs the corresponding aggregate
 force only when the filters cover every contacting object.
@@ -73,24 +74,24 @@ Add the configuration to an :class:`~isaaclab.scene.InteractiveSceneCfg`:
 ``update_period=0.0`` samples every physics step. ``history_length`` stores earlier force samples.
 Enable optional buffers only when they are needed. Their backend support differs:
 
-* Isaac Sim PhysX supports pose, filtered contact-point, and filtered friction-force
-  tracking, but not aggregate friction-force tracking.
+* Isaac Sim PhysX 6.2 or later supports pose, filtered contact-point, and aggregate or filtered
+  friction-force tracking. Isaac Sim PhysX 6.1 supports only filtered friction-force tracking.
 * OvPhysX supports filtered contact-point and aggregate or filtered friction-force tracking.
   Pose tracking is supported for a single sensor body per environment.
 * Newton supports filtered contact-point and aggregate or filtered friction-force tracking, but not
   pose tracking.
 
-Filtered contact points and force matrices require filters. Aggregate friction on Newton and
-OvPhysX works without filters. Isaac Sim PhysX requires a positive
-``max_contact_data_count_per_prim`` for contact-point or friction-force tracking. OvPhysX requires
-that capacity only for contact points; its aggregate and filtered forces do not depend on detailed
-contact capacity. OvPhysX warns and truncates detailed contacts when capacity is exceeded; increase
-the configured capacity before recreating the sensor to retain all contact points.
+Filtered contact points and force matrices require filters. Aggregate friction on Newton, OvPhysX,
+and Isaac Sim PhysX 6.2 or later works without filters. OvPhysX and Isaac Sim PhysX 6.2 or later
+require a positive ``max_contact_data_count_per_prim`` only for contact points; their aggregate and
+filtered forces do not depend on detailed contact capacity. Isaac Sim PhysX 6.1 also requires this
+capacity for filtered friction. OvPhysX warns and truncates detailed contacts when capacity is
+exceeded; increase the configured capacity before recreating the sensor to retain all contact points.
 
 Contact positions are averaged over each sensor/filter pair and are ``NaN`` when the pair has no
-contacts. OvPhysX also resets contact positions to ``NaN``. Filtered friction forces sum the pair's
-friction forces and are zero without contact. On Isaac Sim PhysX, contact points and friction
-anchors can have different counts.
+contacts. Isaac Sim PhysX and OvPhysX also reset contact positions to ``NaN``. Filtered friction
+forces sum the pair's friction forces and are zero without contact. On Isaac Sim PhysX 6.1, contact
+points and friction anchors can have different counts.
 
 Read the data
 -------------
@@ -110,10 +111,10 @@ principal Torch views have these contracts:
      - Net normal contact force [N] in world frame
    * - ``net_friction_forces_w.torch``
      - ``(E, S, 3)``
-     - Net friction force [N] in world frame; Newton and OvPhysX
+     - Net friction force [N] in world frame; Newton, OvPhysX, and Isaac Sim PhysX 6.2+
    * - ``net_forces_w.torch``
      - ``(E, S, 3)``
-     - Total force [N] on Newton and OvPhysX; normal force with a warning on Isaac Sim PhysX
+     - Total force [N]; normal force with a warning on Isaac Sim PhysX 6.1
    * - ``normal_force_matrix_w.torch``
      - ``(E, S, F, 3)``
      - Normal force [N] from each filtered partner
@@ -122,7 +123,7 @@ principal Torch views have these contracts:
      - Friction force [N] from each filtered partner; Isaac Sim PhysX, OvPhysX, and Newton
    * - ``force_matrix_w.torch``
      - ``(E, S, F, 3)``
-     - Total filtered force [N] on Newton and OvPhysX; normal force with a warning on Isaac Sim PhysX
+     - Total filtered force [N]; normal force with a warning on Isaac Sim PhysX 6.1
    * - ``contact_pos_w.torch``
      - ``(E, S, F, 3)``
      - Average filtered contact position [m] in world frame
@@ -132,9 +133,9 @@ principal Torch views have these contracts:
 
 Supported optional buffers are ``None`` unless their matching tracking option or filter is enabled.
 Normal, friction, and total force histories add an ``H`` dimension after ``E``, with the newest
-sample at index zero. Reading aggregate friction on Isaac Sim PhysX raises ``NotImplementedError``.
-The compatibility alias ``friction_forces_w`` returns the aggregate on Newton and OvPhysX;
-on Isaac Sim PhysX it returns ``friction_force_matrix_w`` with a warning.
+sample at index zero. Reading aggregate friction on Isaac Sim PhysX 6.1 raises ``NotImplementedError``.
+The compatibility alias ``friction_forces_w`` returns the aggregate on Newton, OvPhysX, and Isaac
+Sim PhysX 6.2 or later; on Isaac Sim PhysX 6.1 it returns ``friction_force_matrix_w`` with a warning.
 Reading pose data on Newton raises ``NotImplementedError``.
 
 .. code-block:: python

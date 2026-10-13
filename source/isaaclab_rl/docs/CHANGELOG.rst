@@ -3,6 +3,21 @@ Changelog
 
 .. towncrier release notes start
 
+5.1.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--no-resume_optimizer_state`` to RSL-RL training to restore checkpoint models and iteration with a fresh policy optimizer. RND retained its separate optimizer state.
+
+Fixed
+^^^^^
+
+* Allowed a further Ctrl+C during environment shutdown to force process termination.
+* Loaded installed downstream task registrations in direct distributed workers before selecting the training backend.
+
+
 5.0.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

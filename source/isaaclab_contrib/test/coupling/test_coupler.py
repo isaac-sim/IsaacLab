@@ -545,7 +545,7 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
     """Prepare the shared builder once per selected solver, without unconditional VBD coloring."""
     events: list[tuple[str, object]] = []
     builder = ModelBuilder()
-    monkeypatch.setattr(builder, "color", lambda *, balance_colors: events.append(("color", balance_colors)))
+    monkeypatch.setattr(builder, "color", lambda *, balance_colors, **_: events.append(("color", balance_colors)))
     entries = [CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())]
     entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
     solver_cfg = CouplerProxyCfg(entries=entries)

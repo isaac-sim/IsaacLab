@@ -76,7 +76,11 @@ visualizers. See :doc:`scene_data_providers` for that read path.
    :maxdepth: 1
    :hidden:
 
-   physx
-   newton
-   ovphysx
    scene_data_providers
+
+Backend-specific guides
+-----------------------
+
+* PhysX: :ref:`physx-native-access`
+* Newton: :ref:`newton-native-access`
+* OvPhysX: :ref:`ovphysx-native-access`

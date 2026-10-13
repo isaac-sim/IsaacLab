@@ -311,6 +311,7 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
+  Use argparse's parsing and formatting for CLI help instead of private argv-scanner or help-builder classes.
 * Place shared operations in the existing module that owns their contract before adding a new file.
   Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.
