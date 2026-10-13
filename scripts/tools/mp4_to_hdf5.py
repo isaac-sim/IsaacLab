@@ -20,6 +20,7 @@ required arguments:
 import argparse
 import glob
 import os
+import warnings
 
 import cv2
 import h5py
@@ -121,9 +122,10 @@ def process_video_and_demo(f_in, f_out, video_path, orig_demo_id, new_demo_id):
     # of padding; shorter slices otherwise fail batching with "Trying to resize storage that is not resizable".
     num_frames = min(len(frames), actions.shape[0])
     if num_frames != len(frames) or num_frames != actions.shape[0]:
-        print(
-            f"[WARNING] {video_path} has {len(frames)} frames but the demo has {actions.shape[0]}. "
-            f"Using the first {num_frames} frames of the demo."
+        warnings.warn(
+            f"{video_path} has {len(frames)} frames but the demo has {actions.shape[0]}. "
+            f"Using the first {num_frames} frames of the demo.",
+            stacklevel=2,
         )
     frames = frames[:num_frames]
 
