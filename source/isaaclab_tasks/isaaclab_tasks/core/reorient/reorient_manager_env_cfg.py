@@ -24,7 +24,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -232,4 +232,8 @@ class ReorientManagerEnvBaseCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.orientation_success_threshold = self.goal_orientation_threshold
         self.commands.object_pose.goal_pose_visualizer_cfg = self.goal_marker_cfg
         self.sim.render_interval = self.decimation
-        self.sim.default_visualizer_cfg = VISUALIZER_CFG
+
+    def play_mode(self) -> None:
+        """Frame one hand after applying the shared play-mode scene size."""
+        super().play_mode()
+        self.sim.default_visualizer_cfg = clone(VISUALIZER_CFG)

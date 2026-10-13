@@ -19,7 +19,6 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg 
     ShadowHandEnvCfg,
     ShadowHandSceneCfg,
 )
-from isaaclab_tasks.core.reorient.utils import VISUALIZER_CFG
 
 
 @configclass
@@ -40,7 +39,6 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
         render_interval=decimation,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
-        default_visualizer_cfg=VISUALIZER_CFG,
     )
     # reset
     reset_position_noise = 0.01  # range of position at reset
