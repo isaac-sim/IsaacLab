@@ -312,6 +312,7 @@
         select.replaceChildren(...choices.map((value) => new Option(value || "default", value)));
         select.value = preferredValue(values, preferred);
         select.disabled = values.length === 0;
+        select.preferred = preferred;
     };
 
     const selectedTask = () => tasks.find((task) => task.task === state.task) || tasks[0];
@@ -429,12 +430,19 @@
         const task = selectedTask();
         const current = selectorValues();
         if (!isLaunchable(task, current)) {
-            const choices = (selector) => (selector === kept
-                ? [current[selector]]
-                : [current[selector], ...[...fields[selector].options].map((option) => option.value)]);
-            const [physics, renderer, presets] = selectors.map(choices);
-            const settled = physics.flatMap((p) => renderer.flatMap((r) => presets.map((d) => ({physics: p, renderer: r, presets: d}))))
-                .find((values) => isLaunchable(task, values));
+            // Current value first, then the preferred options, then the rest of the options.
+            const choices = (selector) => {
+                if (selector === kept) {
+                    return [current[selector]];
+                }
+                const options = [...fields[selector].options].map((option) => option.value);
+                const preferred = (fields[selector].preferred || []).filter((value) => options.includes(value));
+                return [...new Set([current[selector], ...preferred, ...options])];
+            };
+            const [physicsChoices, rendererChoices, presetChoices] = selectors.map(choices);
+            const settled = physicsChoices.flatMap((physics) => rendererChoices.flatMap((renderer) => (
+                presetChoices.map((presets) => ({physics, renderer, presets}))
+            ))).find((values) => isLaunchable(task, values));
             if (settled) {
                 selectors.forEach((selector) => { fields[selector].value = settled[selector]; });
             }
