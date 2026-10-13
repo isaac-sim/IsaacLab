@@ -12,7 +12,6 @@ from isaaclab_newton.physics import NewtonManager, VBDSolverCfg
 from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import BodyFlags, CollisionPipeline, Contacts, Control, Model, State, StateFlags
 from newton.solvers import SolverVBD
-from newton.solvers.experimental.coupled import CouplingInterface
 
 from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
@@ -97,15 +96,6 @@ class _EndpointVBD(SolverVBD):
                 device=self.device,
             )
         super().coupling_notify_input_state_update(state, flags, iteration_restart=iteration_restart, dt=dt)
-
-    def coupling_prepare_proxy_contacts(
-        self, state: State, contacts: Contacts | None, *, contacts_freshly_detected: bool = False
-    ) -> Contacts | None:
-        """Leave rigid-only contacts to MJWarp while preserving cable contact."""
-        self.set_rigid_history_update(bool(contacts_freshly_detected))
-        return CouplingInterface.coupling_prepare_proxy_contacts(
-            self, state, contacts, contacts_freshly_detected=contacts_freshly_detected
-        )
 
     def coupling_harvest_proxy_wrenches(
         self,
