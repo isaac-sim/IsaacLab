@@ -11,6 +11,8 @@ import numpy as np
 import pytest
 import torch
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
+from newton_test_utils import local_usd, spawn_assets
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
@@ -131,6 +133,19 @@ def _spawn_pendulums(sim, pendulum_usd: str, cfgs: dict[str, BamActuatorCfg]) ->
     return robots
 
 
+def _spawn_branching(sim, actuators: dict[str, BamActuatorCfg]) -> Articulation:
+    """Spawn the four-joint branching fixture in PhysX joint order, which interleaves its arms' backend joints."""
+    cfg = ArticulationCfg(
+        prim_path="/World/Env_.*/Robot",
+        spawn=local_usd("articulation_ordering_branching.usda"),
+        joint_ordering="physx",
+        actuators=actuators,
+    )
+    robot = spawn_assets({"robot": cfg})["robot"]
+    sim.reset()
+    return robot
+
+
 @pytest.mark.parametrize(
     "device,decimation",
     [
@@ -240,6 +255,34 @@ def test_each_articulation_configures_only_its_own_actuator(native_sim, device, 
     for robot, expected in ((robot_a, VIN), (robot_b, 6.5)):
         voltage = read_group_parameter(robot.actuators, "servo", "drive", "vin")
         torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_each_group_configures_only_its_own_actuator(native_sim, device):
+    """BAM groups of one robot in separate Newton actuators each get their own start-up configuration."""
+    elbows = _make_cfg(joint_names_expr=[".*_elbow"], max_delay=2, vin_range=(6.5, 6.5), stiff_frictionloss=False)
+    robot = _spawn_branching(native_sim, {"shoulders": _make_cfg(joint_names_expr=[".*_shoulder"]), "elbows": elbows})
+    assert robot.actuators["shoulders"] is not robot.actuators["elbows"], "differing max_delay must not merge"
+
+    # The shoulders keep the nominal supply and the stiff friction constraint; the elbows use their own settings.
+    for name, expected in (("shoulders", VIN), ("elbows", 6.5)):
+        voltage = read_group_parameter(robot.actuators, name, "drive", "vin")
+        torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
+    solref = NewtonManager.backend.model.mujoco.solreffriction.numpy()
+    stiff = np.asarray(MjWarpActuatorBridge.STIFF_SOLREF_FRICTION)
+    assert np.allclose(solref[robot.actuators["shoulders"].indices.numpy()], stiff)
+    assert not np.isclose(solref[robot.actuators["elbows"].indices.numpy()], stiff).all(axis=1).any()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_groups_sharing_one_actuator_reject_conflicting_settings(native_sim, device):
+    """Groups Newton merges into one drive cannot carry different start-up ranges."""
+    cfgs = {
+        "shoulders": _make_cfg(joint_names_expr=[".*_shoulder"]),
+        "elbows": _make_cfg(joint_names_expr=[".*_elbow"], vin_range=(6.5, 6.5)),
+    }
+    with pytest.raises(ValueError, match="share a Newton actuator"):
+        _spawn_branching(native_sim, cfgs)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

@@ -427,11 +427,11 @@ episode, add a reset event:
 Known constraints
 ^^^^^^^^^^^^^^^^^
 
-* **Supply and delay are per drive, not per robot.** Newton builds one drive per set of structurally
-  identical BAM joints. Groups with different motor fits get separate drives, so each sags and delays
-  independently even on one robot. Robots that merge into one drive share its supply and delay within
-  an environment, and must use the same start-up ranges, ``stiff_frictionloss``, and
-  ``backlash_joint_template``. Every BAM group on one articulation must agree on these as well.
+* **Supply and delay are per drive, not per robot.** Newton builds one drive per set of BAM joints
+  with the same friction ``model``, backlash on or off, ``vin_min``, and delay settings; the other
+  coefficients are per joint. Separate drives sag and delay independently even on one robot. Groups
+  and robots that merge into one drive share its supply and delay within an environment, and must use
+  the same start-up ranges, ``stiff_frictionloss``, and ``backlash_joint_template``.
 * **Friction feedback ignores extra clipping.** If a tighter solver joint limit clips the drive
   output, the load-dependent friction does not see it.
 
