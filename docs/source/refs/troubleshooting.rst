@@ -285,6 +285,10 @@ from all cameras before training. Reducing the camera count may leave the atlas
 dimensions unchanged because of tile padding. Path-tracing SPP is distinct from
 the direct-lighting ``samples_per_pixel`` setting.
 
+The limit comes from the RTX renderers, not the physics backend. If RTX image quality
+is not required, the Newton Warp renderer (``renderer=newton_renderer``) does not
+render through Vulkan and is not subject to this limit.
+
 See `issue #8412 <https://github.com/isaac-sim/IsaacLab/issues/8412>`__ for affected
 configurations, reproduction steps, and fix status.
 
