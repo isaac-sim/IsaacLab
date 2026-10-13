@@ -61,10 +61,10 @@ VS Code uses Pylance. Cursor users should install basedpyright instead. See
 .. raw:: html
 
    <figure class="align-center">
-     <video autoplay loop muted playsinline controls preload="metadata" width="2880" height="720"
+     <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="Cartpole, G1 locomotion, and Kuka Allegro manipulation tasks running side by side">
-       <source src="../../_static/quickstart/task-sampler.webm" type="video/webm">
+       <source src="../../_static/quickstart/task-sampler.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>The same train and play workflow applies across classic control, locomotion,
@@ -167,11 +167,11 @@ complete training and playback reference.
 .. raw:: html
 
    <figure class="align-center">
-     <video autoplay loop muted playsinline controls preload="metadata" width="2880" height="720"
+     <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="A Franka drawer-opening task controlled by the zero agent, random agent, and a trained policy side by side">
-       <source src="../../_static/quickstart/agent-comparison.webm" type="video/webm">
-       <a href="../../_static/quickstart/agent-comparison.webm">Download the agent comparison video.</a>
+       <source src="../../_static/quickstart/agent-comparison.mp4" type="video/mp4">
+       <a href="../../_static/quickstart/agent-comparison.mp4">Download the agent comparison video.</a>
      </video>
      <figcaption>
        <p>On the same Franka drawer-opening task, <code class="docutils literal notranslate">zero_agent</code>

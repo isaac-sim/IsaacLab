@@ -169,13 +169,13 @@ def _configure_resolved_sim(
     lookat: tuple[float, float, float],
     focal_length: float,
 ):
-    """Attach a headless 960 by 720 OVRTX visualizer with task-specific framing."""
+    """Attach a headless 1280 by 720 OVRTX visualizer with task-specific framing."""
     sim_cfg.visualizer_cfgs = [
         NewtonRTXVisualizerCfg(
             eye=eye,
             lookat=lookat,
             focal_length=focal_length,
-            window=WindowCfg(size=(960, 720)),
+            window=WindowCfg(size=(1280, 720)),
             headless=True,
             render_settings={"omni:rtx:quality": ("Int", 100)},
         )

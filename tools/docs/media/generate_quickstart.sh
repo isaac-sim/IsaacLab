@@ -75,24 +75,24 @@ ffmpeg -y -v error \
     -i "${WORK_DIR}/random/random_0000.mp4" \
     -i "${WORK_DIR}/play/play_0000.mp4" \
     -filter_complex \
-    "[0:v]fps=12,scale=960:720:flags=lanczos,drawbox=x=24:y=24:w=336:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='zero_agent':fontcolor=white:fontsize=48:x=48:y=39[zero];
-     [1:v]fps=12,scale=960:720:flags=lanczos,drawbox=x=24:y=24:w=402:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='random_agent':fontcolor=white:fontsize=48:x=48:y=39[random];
-     [2:v]fps=12,scale=960:720:flags=lanczos,drawbox=x=24:y=24:w=174:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='play':fontcolor=white:fontsize=48:x=48:y=39[play];
+    "[0:v]fps=12,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=336:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='zero_agent':fontcolor=white:fontsize=48:x=48:y=39[zero];
+     [1:v]fps=12,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=402:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='random_agent':fontcolor=white:fontsize=48:x=48:y=39[random];
+     [2:v]fps=12,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=174:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='play':fontcolor=white:fontsize=48:x=48:y=39[play];
      [zero][random][play]hstack=inputs=3" \
-    -c:v libvpx-vp9 -pix_fmt yuv420p -crf 18 -b:v 0 -deadline good -cpu-used 2 \
-    -row-mt 1 -threads 8 -g 60 -an "${OUTPUT_DIR}/agent-comparison.webm"
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow -movflags +faststart \
+    -threads 8 -g 60 -an "${OUTPUT_DIR}/agent-comparison.mp4"
 
 ffmpeg -y -v error \
     -i "${WORK_DIR}/cartpole/cartpole_0000.mp4" \
     -i "${WORK_DIR}/g1/g1_0000.mp4" \
     -i "${WORK_DIR}/kuka_allegro/kuka_allegro_0000.mp4" \
     -filter_complex \
-    "[0:v]fps=12,scale=960:720:flags=lanczos,drawbox=x=24:y=24:w=246:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Cartpole':fontcolor=white:fontsize=48:x=48:y=39[cartpole];
-     [1:v]fps=12,scale=960:720:flags=lanczos,drawbox=x=24:y=24:w=384:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='G1 locomotion':fontcolor=white:fontsize=48:x=48:y=39[g1];
-     [2:v]fps=12,scale=960:720:flags=lanczos,drawbox=x=24:y=24:w=348:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Kuka Allegro':fontcolor=white:fontsize=48:x=48:y=39[kuka];
+    "[0:v]fps=12,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=246:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Cartpole':fontcolor=white:fontsize=48:x=48:y=39[cartpole];
+     [1:v]fps=12,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=384:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='G1 locomotion':fontcolor=white:fontsize=48:x=48:y=39[g1];
+     [2:v]fps=12,scale=1280:720:flags=lanczos,drawbox=x=24:y=24:w=348:h=84:color=black@0.65:t=fill,drawtext=font='DejaVu Sans':text='Kuka Allegro':fontcolor=white:fontsize=48:x=48:y=39[kuka];
      [cartpole][g1][kuka]hstack=inputs=3" \
-    -c:v libvpx-vp9 -pix_fmt yuv420p -crf 18 -b:v 0 -deadline good -cpu-used 2 \
-    -row-mt 1 -threads 8 -g 60 -an "${OUTPUT_DIR}/task-sampler.webm"
+    -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow -movflags +faststart \
+    -threads 8 -g 60 -an "${OUTPUT_DIR}/task-sampler.mp4"
 
 uv run --frozen --extra "${UV_EXTRAS}" python - "${OUTPUT_DIR}" <<'PY'
 import json
@@ -100,7 +100,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-for name in ("agent-comparison.webm", "task-sampler.webm"):
+for name in ("agent-comparison.mp4", "task-sampler.mp4"):
     path = Path(sys.argv[1]) / name
     probe = json.loads(
         subprocess.check_output(
@@ -114,8 +114,8 @@ for name in ("agent-comparison.webm", "task-sampler.webm"):
     )
     stream = probe["streams"][0]
     if (
-        stream["codec_name"] != "vp9"
-        or (stream["width"], stream["height"]) != (2880, 720)
+        stream["codec_name"] != "h264"
+        or (stream["width"], stream["height"]) != (3840, 720)
         or int(stream["nb_read_frames"]) != 60
         or stream["r_frame_rate"] != "12/1"
     ):
