@@ -49,13 +49,6 @@ def _external_specification(
     }
 
 
-def _installed_distribution() -> mock.Mock:
-    """Return aggregate-wheel metadata used by installed-project generation tests."""
-    distribution = mock.Mock()
-    distribution.requires = ["torch==2.11.0", "torchvision==0.26.0"]
-    return distribution
-
-
 def test_main_collects_canonical_external_project_choices():
     """The prompts must collect project layers and list flagship choices first."""
     initial_content = "stubbed"
@@ -226,10 +219,7 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
     """A generated project must use one uv project with a src package and tests."""
     specification = _external_specification(tmp_path)
 
-    with (
-        mock.patch.object(_GENERATOR, "_setup_git_repo"),
-        mock.patch.object(_GENERATOR.importlib.metadata, "distribution", return_value=_installed_distribution()),
-    ):
+    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
         _GENERATOR.generate(specification)
 
     project_dir = tmp_path / "test_project"
@@ -240,11 +230,7 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "requires": ["uv_build>=0.12.6,<0.13"],
         "build-backend": "uv_build",
     }
-    assert project_config["project"]["dependencies"] == [
-        "isaaclab[rsl-rl]==3.0.0",
-        "torch==2.11.0",
-        "torchvision==0.26.0",
-    ]
+    assert project_config["project"]["dependencies"] == ["isaaclab[rsl-rl]==3.0.0"]
     assert project_config["project"]["authors"] == [
         {"name": "Test Author"},
         {"name": "Example Organization"},
@@ -260,16 +246,6 @@ def test_generated_project_matches_canonical_uv_layout(tmp_path):
         "pytest>=8.3",
         "ruff>=0.11",
     ]
-    assert project_config["tool"]["uv"]["sources"]["torch"] == {"index": "pytorch-cu130"}
-    assert project_config["tool"]["uv"]["sources"]["torchvision"] == {"index": "pytorch-cu130"}
-    assert {index.get("name", index["url"]): index for index in project_config["tool"]["uv"]["index"]} == {
-        "https://pypi.nvidia.com": {"url": "https://pypi.nvidia.com", "explicit": False},
-        "pytorch-cu130": {
-            "name": "pytorch-cu130",
-            "url": "https://download.pytorch.org/whl/cu130",
-            "explicit": True,
-        },
-    }
     assert project_config["tool"]["uv"]["build-backend"]["module-name"] == "test_project"
     assert project_config["tool"]["pytest"]["ini_options"]["testpaths"] == ["tests"]
     assert project_config["tool"]["pytest"]["ini_options"]["markers"] == [
@@ -316,11 +292,7 @@ def test_generated_project_uses_active_source_checkout(tmp_path):
     with (project_dir / "pyproject.toml").open("rb") as file:
         project_config = tomllib.load(file)
 
-    assert project_config["project"]["dependencies"] == [
-        "isaaclab-dev[rsl-rl]",
-        "torch==2.11.0",
-        "torchvision==0.26.0",
-    ]
+    assert project_config["project"]["dependencies"] == ["isaaclab-dev[rsl-rl]"]
     expected_root = Path(_MODULE.ROOT_DIR)
     with (expected_root / "pyproject.toml").open("rb") as file:
         source_config = tomllib.load(file)
@@ -343,7 +315,6 @@ def test_installed_project_discovers_all_distribution_extras(tmp_path):
     specification = _external_specification(tmp_path)
     specification.pop("isaaclab_optional_extras")
     distribution = mock.Mock()
-    distribution.requires = ["torch==2.11.0", "torchvision==0.26.0"]
     distribution.metadata.get_all.return_value = ["viser", "all", "rerun", "rerun"]
 
     with mock.patch.object(_GENERATOR.importlib.metadata, "distribution", return_value=distribution) as lookup:
@@ -357,10 +328,7 @@ def test_generated_blank_project_contains_no_example_task(tmp_path):
     """A blank project must include packaging infrastructure without cart-pole task files."""
     specification = _external_specification(tmp_path, initial_content="blank")
 
-    with (
-        mock.patch.object(_GENERATOR, "_setup_git_repo"),
-        mock.patch.object(_GENERATOR.importlib.metadata, "distribution", return_value=_installed_distribution()),
-    ):
+    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
         _GENERATOR.generate(specification)
 
     project_dir = tmp_path / "test_project"
@@ -373,11 +341,7 @@ def test_generated_blank_project_contains_no_example_task(tmp_path):
     compile((project_dir / "tests" / "test_registration.py").read_text(), "test_registration.py", "exec")
     with (project_dir / "pyproject.toml").open("rb") as file:
         project_config = tomllib.load(file)
-    assert project_config["project"]["dependencies"] == [
-        "isaaclab==3.0.0",
-        "torch==2.11.0",
-        "torchvision==0.26.0",
-    ]
+    assert project_config["project"]["dependencies"] == ["isaaclab==3.0.0"]
 
 
 def test_source_path_falls_back_to_absolute_path_across_windows_drives(monkeypatch):
@@ -394,10 +358,7 @@ def test_generated_project_can_opt_into_ui_extension(tmp_path):
     specification["authors"] = ['Test "Quoted" Author']
     specification["workflows"] = [{"name": "direct", "type": "single-agent"}]
 
-    with (
-        mock.patch.object(_GENERATOR, "_setup_git_repo"),
-        mock.patch.object(_GENERATOR.importlib.metadata, "distribution", return_value=_installed_distribution()),
-    ):
+    with mock.patch.object(_GENERATOR, "_setup_git_repo"):
         _GENERATOR.generate(specification)
 
     project_dir = tmp_path / "test_project"

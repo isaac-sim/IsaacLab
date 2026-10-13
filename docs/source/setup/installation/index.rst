@@ -619,18 +619,6 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
       This resolves the published wheel from the package index into an isolated environment. It does
       not require a source checkout, wheel download, or project file.
 
-   .. tab-item:: Generated uv project
-
-      .. code-block:: bash
-
-         uvx --index https://pypi.nvidia.com \
-            --torch-backend cu130 \
-            --from "isaaclab==3.0.0rc1" \
-            isaaclab --new
-
-      The generator records the published Isaac Lab version and CUDA PyTorch source in the generated
-      project. No manual ``pyproject.toml`` changes are required.
-
    .. tab-item:: Standalone uv environment
 
       .. tab-set::
@@ -669,8 +657,8 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
-Use ``uvx`` for one-off commands, the generator for an application you maintain, or a standalone
-environment for exploratory work that needs an activated Python environment.
+Use ``uvx`` for one-off commands or a standalone environment for exploratory work that needs an
+activated Python environment.
 
 .. _installation-optional-extras:
 

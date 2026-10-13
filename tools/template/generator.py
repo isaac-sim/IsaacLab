@@ -15,7 +15,6 @@ from typing import Any
 import jinja2
 import tomllib
 from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
-from packaging.requirements import Requirement
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
@@ -241,22 +240,14 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
     specification = specification.copy()
     source_path = specification.get("isaaclab_source_path")
     if not source_path:
-        distribution = importlib.metadata.distribution("isaaclab")
         specification["isaaclab_dependency"] = "isaaclab"
         specification["isaaclab_environments"] = []
-        specification["isaaclab_indexes"] = [
-            {"url": "https://pypi.nvidia.com", "explicit": False},
-            {"name": "pytorch-cu130", "url": "https://download.pytorch.org/whl/cu130", "explicit": True},
-        ]
+        specification["isaaclab_indexes"] = []
         specification["isaaclab_overrides"] = []
-        specification["isaaclab_sources"] = [
-            {"name": package, "value": _format_toml_value({"index": "pytorch-cu130"})}
-            for package in ("torch", "torchvision")
-        ]
-        specification["isaaclab_torch_dependencies"] = _torch_dependencies(distribution.requires or [])
+        specification["isaaclab_sources"] = []
         optional_extras = specification.get("isaaclab_optional_extras")
         if optional_extras is None:
-            optional_extras = distribution.metadata.get_all("Provides-Extra") or []
+            optional_extras = importlib.metadata.distribution("isaaclab").metadata.get_all("Provides-Extra") or []
         specification["isaaclab_optional_extras"] = sorted(set(optional_extras))
         return specification
 
@@ -284,26 +275,12 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
         }
     )
     specification["isaaclab_dependency"] = source_config["project"]["name"]
-    specification["isaaclab_torch_dependencies"] = _torch_dependencies(source_config["project"]["dependencies"])
     specification["isaaclab_optional_extras"] = sorted(source_config["project"].get("optional-dependencies", {}).keys())
     specification["isaaclab_environments"] = uv_config.get("environments", [])
     specification["isaaclab_indexes"] = uv_config.get("index", [])
     specification["isaaclab_overrides"] = uv_config.get("override-dependencies", [])
     specification["isaaclab_sources"] = sorted(sources, key=lambda source: source["name"])
     return specification
-
-
-def _torch_dependencies(requirements: list[str]) -> list[str]:
-    """Return the pinned Torch requirements needed for a generated project."""
-    requirements_by_name = {}
-    for value in requirements:
-        requirement = Requirement(value)
-        if requirement.name in {"torch", "torchvision"} and requirement.marker is None:
-            requirements_by_name[requirement.name] = requirement
-    missing = {"torch", "torchvision"} - requirements_by_name.keys()
-    if missing:
-        raise RuntimeError(f"Isaac Lab metadata is missing required dependencies: {', '.join(sorted(missing))}")
-    return [str(requirements_by_name[name]) for name in ("torch", "torchvision")]
 
 
 def _project_source_path(source_path: str, project_dir: str) -> str:
