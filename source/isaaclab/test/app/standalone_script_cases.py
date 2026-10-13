@@ -210,6 +210,8 @@ OVERRIDES = {
         visualizers=("newton_gl",),
         required_modules=("isaaclab_contrib",),
     ),
+    # Cold MJWarp compilation can exceed the default five-minute limit.
+    "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
     "examples/demos/snowball_smash.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
     "examples/demos/teapot_fill.py": ScriptOverride(fixed_physics_backend="newton_mpm"),
     "examples/multi_asset.py": ScriptOverride(args=("--num_envs", "4")),
