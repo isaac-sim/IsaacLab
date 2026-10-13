@@ -5,9 +5,12 @@
 
 """Per-step MuJoCo Warp DOF channel for Newton actuator drives.
 
-Newton has no per-step override of ``dof_frictionloss`` and does not expose the generalized
-load on a DOF, so drives that need either go through :class:`MjWarpActuatorBridge`, which reads
-and writes :attr:`~newton.solvers.SolverMuJoCo.mjw_model` and ``mjw_data`` directly.
+Drives that publish a per-step dry-friction budget or read the generalized load on a DOF go
+through :class:`MjWarpActuatorBridge`, which reads and writes
+:attr:`~newton.solvers.SolverMuJoCo.mjw_model` and ``mjw_data`` directly. The pinned Newton can
+publish per-step joint friction through ``ModelFlags.JOINT_DOF_FORCE_PROPERTIES``; moving the
+friction publication onto it is a follow-up. Newton has no API for the generalized load on a
+DOF, so that readback stays on ``mjw_data``.
 
 The published friction is written into the MuJoCo Warp model after any joint-property resync,
 so :attr:`~isaaclab.assets.Articulation.data` joint friction shows the authored seed value, not
