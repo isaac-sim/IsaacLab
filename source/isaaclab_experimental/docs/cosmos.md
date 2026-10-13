@@ -148,7 +148,7 @@ For fewer Cosmos requests, capture less often, for example `env.scene.tiled_came
 101 frames); generated images then change less often.
 The preset requires `scene.lazy_sensor_update=True` and synchronous rendering so
 each image remains aligned with its simulation state. With OVRTX, set
-`scene.tiled_camera.renderer_cfg.async_rendering=False`.
+`env.scene.tiled_camera.renderer_cfg.async_rendering=False` on the command line.
 
 The Cosmos preset trains its feature extractor from generated RGB. While an image
 is held, its supervised cube-pose target is held too: each environment's target is
