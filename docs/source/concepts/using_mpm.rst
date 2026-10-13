@@ -211,6 +211,10 @@ independent MPM worlds (``separate_worlds=True``) and call
 writing their complete state. In a coupled run, this also resets the coupled
 solver's history.
 
+Try the :ref:`interactive MPM demo <interactive-demo-mpm>` to compare material
+references and adjust stiffness, cohesion, friction, and hardening on a
+repeatable particle drop.
+
 
 Rendering a particle surface
 ----------------------------
