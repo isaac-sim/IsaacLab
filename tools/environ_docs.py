@@ -23,8 +23,7 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
+from isaaclab_tasks.utils.hydra import _LEGACY_PRESET_ALIASES, PresetTarget, enumerate_task_presets
 
 if TYPE_CHECKING:
     from gymnasium.envs.registration import EnvSpec
@@ -43,8 +42,8 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "ovrtx",
         "physx",
         "rtx",
-        *PresetTarget.all_legacy_aliases().keys(),
-        *PresetTarget.all_legacy_aliases().values(),
+        *_LEGACY_PRESET_ALIASES,
+        *_LEGACY_PRESET_ALIASES.values(),
     }
 )
 

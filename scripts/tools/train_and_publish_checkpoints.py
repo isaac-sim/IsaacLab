@@ -100,9 +100,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
-from isaaclab_tasks.utils.hydra import resolve_task_config
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
+from isaaclab_tasks.utils.hydra import PresetTarget, enumerate_task_presets, resolve_task_config
 
 _TRAINING_COMPLETE_FILENAME = ".pretrained_checkpoint_training_complete"
 _CORE_WORKFLOWS = ("rl_games", "rsl_rl", "skrl")

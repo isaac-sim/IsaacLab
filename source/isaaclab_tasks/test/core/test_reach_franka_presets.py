@@ -19,10 +19,8 @@ from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
+from isaaclab_tasks.utils.hydra import PresetCfg, PresetTarget, enumerate_task_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from isaaclab_assets import FRANKA_PANDA_CFG
 

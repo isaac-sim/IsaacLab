@@ -64,7 +64,7 @@ def command_list_envs(args: list[str] | None = None) -> None:
         table.align[column] = "l"
 
     if parsed_args.show_presets:
-        from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
+        from isaaclab_tasks.utils.hydra import enumerate_task_presets
 
     for index, spec in enumerate(task_specs, start=1):
         libraries = [
@@ -110,7 +110,7 @@ def _format_presets(preset_map: dict | None) -> str:
     if preset_map is None:
         return "(unavailable)"
 
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+    from isaaclab_tasks.utils.hydra import PresetTarget
 
     labels = {
         PresetTarget.PHYSICS: "physics",
