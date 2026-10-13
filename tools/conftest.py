@@ -1573,9 +1573,17 @@ def _resolve_startup_deadline(file_name: str, timeout: int, is_cold_cache_test: 
 
 
 def _has_module_marker(test_file: str, marker: str) -> bool:
-    """Return whether the file's module-level ``pytestmark`` applies ``pytest.mark.<marker>`` to every test."""
+    """Return whether the file's module-level ``pytestmark`` applies ``pytest.mark.<marker>`` to every test.
+
+    A file that does not parse reports no marker, so it still runs and fails on its own instead of
+    aborting the whole session here.
+    """
     with open(test_file) as f:
-        tree = ast.parse(f.read(), filename=test_file)
+        source = f.read()
+    try:
+        tree = ast.parse(source, filename=test_file)
+    except SyntaxError:
+        return False
     for node in tree.body:
         if not isinstance(node, ast.Assign):
             continue

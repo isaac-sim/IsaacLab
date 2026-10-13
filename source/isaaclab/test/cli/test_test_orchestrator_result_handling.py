@@ -734,3 +734,12 @@ def test_runtime_follows_the_module_level_kitless_marker(tmp_path: Path) -> None
     assert orchestrator._test_runtime(str(module_marked)) == "kitless"
     assert orchestrator._test_runtime(str(param_marked)) == "kit"
     assert not orchestrator._has_module_marker(str(module_marked), "isaacsim_ci")
+
+
+def test_unparseable_file_runs_in_the_kit_image(tmp_path: Path) -> None:
+    """A syntax error leaves the file to fail on its own run instead of aborting file selection."""
+    orchestrator = _load_orchestrator_module()
+    broken = tmp_path / "test_broken.py"
+    broken.write_text("import pytest\npytestmark = pytest.mark.kitless\ndef broken(:\n")
+
+    assert orchestrator._test_runtime(str(broken)) == "kit"
