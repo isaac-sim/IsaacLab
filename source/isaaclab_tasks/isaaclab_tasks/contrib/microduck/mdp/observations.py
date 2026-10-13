@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck flat-walking observations."""
+"""MicroDuck walking observations."""
 
 from __future__ import annotations
 
@@ -24,6 +24,11 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import ContactSensor
+
+
+"""
+Sensor-model observations.
+"""
 
 
 def joint_pos_rel_biased(
@@ -138,6 +143,11 @@ class delayed_observation(ManagerTermBase):
         self._step_count += 1
         self._output = self._buffer[self._lags]
         return self._output
+
+
+"""
+Privileged foot observations.
+"""
 
 
 def _finite(value: torch.Tensor) -> torch.Tensor:

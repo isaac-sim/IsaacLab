@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck flat-walking events."""
+"""MicroDuck walking events."""
 
 from __future__ import annotations
 

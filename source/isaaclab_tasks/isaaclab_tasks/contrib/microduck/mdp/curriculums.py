@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck flat-walking curriculums."""
+"""MicroDuck walking curriculums."""
 
 from __future__ import annotations
 

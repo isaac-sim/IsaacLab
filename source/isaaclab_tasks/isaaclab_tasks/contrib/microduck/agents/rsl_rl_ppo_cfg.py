@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck flat-walking rsl_rl_ppo_cfg."""
+"""MicroDuck walking rsl_rl_ppo_cfg."""
 
 from isaaclab.utils.configclass import configclass
 

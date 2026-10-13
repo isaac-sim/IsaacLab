@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""MicroDuck flat-walking rewards.
+"""MicroDuck walking rewards.
 
 Rewards run before resets, so a state that ``robot_state_is_nan`` terminates still reaches them once;
 terms that read the robot state return zero, or ``upright`` its minimum, instead of a non-finite value.
@@ -36,6 +36,11 @@ def _command_magnitude(env: ManagerBasedRLEnv, command_name: str) -> torch.Tenso
     return torch.norm(command[:, :2], dim=1) + torch.abs(command[:, 2])
 
 
+"""
+Velocity-tracking rewards.
+"""
+
+
 def track_linear_velocity(
     env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -58,6 +63,11 @@ def track_angular_velocity(
     z_error = torch.square(command[:, 2] - actual[:, 2])
     xy_error = torch.sum(torch.square(actual[:, :2]), dim=1)
     return _finite(torch.exp(-(z_error + xy_error) / std**2))
+
+
+"""
+Posture rewards.
+"""
 
 
 def upright(env: ManagerBasedRLEnv, std: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -104,6 +114,11 @@ class joint_deviation_exp(ManagerTermBase):
         return _finite(torch.exp(-torch.mean(error_squared / std**2, dim=1)))
 
 
+"""
+Head-pose rewards.
+"""
+
+
 def head_pose_tracking(
     env: ManagerBasedRLEnv,
     command_name: str,
@@ -146,6 +161,11 @@ class head_pose_bias_penalty(ManagerTermBase):
         alpha = min(1.0, env.step_dt / tau_s)
         self._error_ema = (1.0 - alpha) * self._error_ema + alpha * error
         return _finite(self._error_ema.abs().mean(dim=-1))
+
+
+"""
+Gait and foot rewards.
+"""
 
 
 def feet_air_time_windowed(
@@ -236,6 +256,11 @@ def foot_slip(
     return _finite(cost * (_command_magnitude(env, command_name) > command_threshold).float())
 
 
+"""
+Regularization penalties.
+"""
+
+
 def body_ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Penalize the roll and pitch rate of selected bodies, in the world frame."""
     asset: Articulation = env.scene[asset_cfg.name]
@@ -268,6 +293,11 @@ def joint_pos_limits_finite(
 ) -> torch.Tensor:
     """:func:`~isaaclab.envs.mdp.joint_pos_limits`, zero for environments whose state is not finite."""
     return _finite(_joint_pos_limits(env, asset_cfg))
+
+
+"""
+Contact penalties.
+"""
 
 
 def self_collision_cost(
