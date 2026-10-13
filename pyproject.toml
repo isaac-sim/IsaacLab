@@ -81,7 +81,7 @@ dependencies = [
     "rich",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.5.1",  # default RL framework
-    "gitpython>=3.1.59",  # used by RL training and experiment logging
+    "gitpython>=3.1.60",  # used by RL training and experiment logging
     # ----- newton (default physics engine) -----
     # Pin borrowed-stage ViewerRTX until it is included in a Newton release.
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@5ea82eef6f7911388025a8df6ccdb172e2fed286",
@@ -418,6 +418,8 @@ override-dependencies = [
     "usd-optimize~=1.3.1",
     "torch==2.11.0",
     "torchvision==0.26.0",
+    # isaacsim-core 6.2 pins fsspec 2026.2.0, while torch 2.11 requires 2026.6.0.
+    "fsspec>=2026.6.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
     # stricter than the code needs, so widening lets them resolve together at 26.0.
     "packaging>=20,<27",

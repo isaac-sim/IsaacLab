@@ -197,13 +197,15 @@ def test_uv_run_declares_no_extra_conflicts(source_checkout_root: Path):
     """No extra is forked: every combination resolves into a single environment.
 
     ``[tool.uv].conflicts`` used to fork ``isaacsim`` / ``teleop`` away from the OV runtimes,
-    and briefly away from the standalone importers. The remaining ``packaging`` override reconciles
-    ovphysx. The importers install beside Isaac Sim without displacing it: the two distributions share
-    no files, and Kit serves ``isaacsim.asset`` from its extension roots either way.
+    and briefly away from the standalone importers. The remaining dependency overrides reconcile
+    packages whose Isaac Sim pins lag the standalone stack. The importers install beside Isaac Sim
+    without displacing it: the two distributions share no files, and Kit serves ``isaacsim.asset``
+    from its extension roots either way.
     """
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert "conflicts" not in tool_uv
+    assert "fsspec>=2026.6.0" in tool_uv["override-dependencies"]
     assert "packaging>=20,<27" in tool_uv["override-dependencies"]
     assert "urllib3>=2.8.0" in tool_uv["override-dependencies"]
 

@@ -17,6 +17,7 @@ prerelease-mode = "allow"
 
 [manifest]
 overrides = [
+    { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "mujoco", specifier = "~=3.14.0" },
     { name = "mujoco-warp", specifier = "~=3.14.0" },
     { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=5ea82eef6f7911388025a8df6ccdb172e2fed286" },
@@ -1295,11 +1296,11 @@ wheels = [
 
 [[package]]
 name = "fsspec"
-version = "2026.2.0"
+version = "2026.6.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/51/7c/f60c259dcbf4f0c47cc4ddb8f7720d2dcdc8888c8e5ad84c73ea4531cc5b/fsspec-2026.2.0.tar.gz", hash = "sha256:6544e34b16869f5aacd5b90bdf1a71acb37792ea3ddf6125ee69a22a53fb8bff", size = 313441, upload-time = "2026-02-05T21:50:53.743Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/10/a1/ae4e3e5003468d6391d2c77b6fa1cd73bd5d13511d81c642d7b28ac90ed4/fsspec-2026.6.0.tar.gz", hash = "sha256:f5bac145310fe30e16e1471bd6840b2d990d609e872251d7e674241822abf01a", size = 313646, upload-time = "2026-06-16T01:57:28.105Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e6/ab/fb21f4c939bb440104cc2b396d3be1d9b7a9fd3c6c2a53d98c45b3d7c954/fsspec-2026.2.0-py3-none-any.whl", hash = "sha256:98de475b5cb3bd66bedd5c4679e87b4fdfe1a3bf4d707b151b3c07e58c9a2437", size = 202505, upload-time = "2026-02-05T21:50:51.819Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/22/4222d7ddf3da30f363edaa98e329c2bce6c65497c9cb2810931c8b2c0fbc/fsspec-2026.6.0-py3-none-any.whl", hash = "sha256:02e0b71817df9b2169dc30a16832045764def1191b43dcff5bb85bdee212d2a1", size = 203949, upload-time = "2026-06-16T01:57:26.358Z" },
 ]
 
 [[package]]
@@ -1316,14 +1317,14 @@ wheels = [
 
 [[package]]
 name = "gitpython"
-version = "3.1.59"
+version = "3.1.60"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitdb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/dc/126b28e76b24a9268ba931ad3e012f71ebdadf62fd9f17758f7074bb0b20/gitpython-3.1.59.tar.gz", hash = "sha256:0a1475cfdc38a5bfba1a3e9a4a9da52a39749ecec322b772915c019f94e5b7e4", size = 230445, upload-time = "2026-08-10T12:03:20.271Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/14/e6b1a48d831755a53c2029351fcef82e70db4a08f338daefe29d8d0cf31c/gitpython-3.1.60.tar.gz", hash = "sha256:e936431879fa85581b4311fa63492ea52251909e2d655b6529c704c904ddcc24", size = 230793, upload-time = "2026-08-25T18:33:46.102Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/ed/ae57eb7d344f43f87b74b3a281ead6ec7d6394eef72a7b1dcb28dd089550/gitpython-3.1.59-py3-none-any.whl", hash = "sha256:67a82f537384578643624c8b2c531938a9b82be431663e575dcf638526631d4c", size = 220996, upload-time = "2026-08-10T12:03:18.804Z" },
+    { url = "https://files.pythonhosted.org/packages/71/63/ba28697918b7c190af9f3f21940d03e8814e25dd4ddd39d6929f3a553995/gitpython-3.1.60-py3-none-any.whl", hash = "sha256:39548bffb8fa0f3a548133348868bb4838e79d73283052207dc97781a569b6b4", size = 221893, upload-time = "2026-08-25T18:33:44.75Z" },
 ]
 
 [[package]]
@@ -1577,14 +1578,14 @@ wheels = [
 
 [[package]]
 name = "hydra-core"
-version = "1.4.0.dev6"
+version = "1.4.0.dev10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "omegaconf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4c/b8/7c31a9139b9db9b544807ecb31c1f8506de52c18886273a5ac16044e1bc5/hydra_core-1.4.0.dev6.tar.gz", hash = "sha256:0b9222983c92f2f928ae528bfb2ee35c2c1a7ee7baf52f594c8f4fb9a23ec0d6", size = 3303085, upload-time = "2026-07-19T07:33:03.673Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/4b/0a603db5d1e18585d3c926d1978134b8aaab88bf5ad704056f8bf098a49b/hydra_core-1.4.0.dev10.tar.gz", hash = "sha256:433345fc2d9ecea6e60bed9b5587e9799614a3711993dc41476f21efc7f4ee2d", size = 3329053, upload-time = "2026-09-14T17:32:46.492Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/02/7b/b6f3d02b87ff938a06a8e9532da4862e8214f5fea619e76a9f9ac3f1011c/hydra_core-1.4.0.dev6-py3-none-any.whl", hash = "sha256:39726f816c81dfee6b3a307170a501746d67156549b3b1a48fe642eb2b14c844", size = 163125, upload-time = "2026-07-19T07:32:55.504Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/16/ff50de2771bdadf565dbbd5b985ed57417664c67e3ed1d02907db7d1e497/hydra_core-1.4.0.dev10-py3-none-any.whl", hash = "sha256:f129bd90459043f7f188ad5b4ea950a93c3bac4ef46280a71c6b412545bae8d7", size = 182113, upload-time = "2026-09-14T17:32:36.412Z" },
 ]
 
 [[package]]
@@ -2003,7 +2004,7 @@ requires-dist = [
     { name = "fast-simplification", specifier = ">=0.1.11" },
     { name = "filelock" },
     { name = "flaky", marker = "extra == 'test'" },
-    { name = "gitpython", specifier = ">=3.1.59" },
+    { name = "gitpython", specifier = ">=3.1.60" },
     { name = "gym", marker = "extra == 'rl-games'" },
     { name = "gymnasium", specifier = ">=1.2.0" },
     { name = "h5py", specifier = ">=3.15.0" },
@@ -3728,14 +3729,14 @@ wheels = [
 
 [[package]]
 name = "omegaconf"
-version = "2.4.0.dev13"
+version = "2.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/15/74f85f44f696ae0ba5b0e443d6740711e581a233423df3cc836070c499bf/omegaconf-2.4.0.dev13.tar.gz", hash = "sha256:11641b52e3df4194e560c158fbae277550084512d7a3f73955e0f51781625432", size = 3478118, upload-time = "2026-07-18T20:23:54.106Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cc/10/1cabf3188a4d9684a06568c7fd76f9536eede625733c8399cf1f5337b83e/omegaconf-2.4.0.tar.gz", hash = "sha256:7e219a70bea371da250285b9c01c7db027bc421722799c2cc4ff14bc4a2a753b", size = 3544508, upload-time = "2026-10-09T12:44:02.326Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7a/ff/bb1e91f6ccf8fd529125745d570e869bfa9e9b925f83dc75c93406561056/omegaconf-2.4.0.dev13-py3-none-any.whl", hash = "sha256:a9725a3b578e9ab4b95bd7413751133287740ee4eeb7644c233821380889fd3d", size = 240075, upload-time = "2026-07-18T20:23:50.911Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/bd/0d9f8247b0819385213d09564eda5c52d3673313c2414d51f72883ec24cd/omegaconf-2.4.0-py3-none-any.whl", hash = "sha256:f141a664c777582405e3cc6e0545ecc79429e79f844995b1a6e71c35946a025c", size = 254152, upload-time = "2026-10-09T12:43:59.764Z" },
 ]
 
 [[package]]
