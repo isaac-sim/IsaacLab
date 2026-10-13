@@ -47,6 +47,11 @@ _COVERED_TASKS = [
 
 def _skip_reason(task_name: str) -> str | None:
     """Return the documented reason for skipping a contributed environment."""
+    if task_name == "IsaacContrib-Rizon-Sharpa-GB300-Cable-Install":
+        from isaaclab_tasks.contrib.gb300_sharpa_insertion.assets import configured_rizon_sharpa_usd
+
+        if configured_rizon_sharpa_usd(required=False) is None:
+            return "Requires the access-controlled Fabrics-Sim Rizon/Sharpa robot bundle."
     if task_name == "IsaacContrib-Shoelace-DualFranka":
         from isaaclab_tasks.contrib.shoelace.shoelace_constants import SHOELACE_ASSETS
 

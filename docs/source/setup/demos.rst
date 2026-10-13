@@ -17,6 +17,9 @@ focused programs for learning an API or tuning a feature in directories such as 
 ``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
 ``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
 
+Run ``uv run isaaclab demo rizon-sharpa-rj45`` from a checkout for the continuous cable insertion
+and extraction example. The original ``isaaclab example gb300-sharpa-insertion`` command remains available.
+
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
 

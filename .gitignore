@@ -38,6 +38,7 @@ docker/.container.cfg
 !.vscode
 
 # Outputs
+/local/gb300_sharpa/
 **/output/*
 **/outputs/*
 **/videos/*

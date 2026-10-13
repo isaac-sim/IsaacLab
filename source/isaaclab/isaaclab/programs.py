@@ -101,6 +101,11 @@ DEMOS = (
         "Smash rigid crates with MPM snowballs.",
     ),
     ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec(
+        "rizon-sharpa-rj45",
+        "examples/gb300_sharpa_insertion.py",
+        "Insert and extract an Ethernet cable with hydroelastic hand contact.",
+    ),
 )
 
 
@@ -112,6 +117,11 @@ EXAMPLES = (
         **_ISAACSIM,
     ),
     ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
+    ProgramSpec(
+        "gb300-sharpa-insertion",
+        "examples/gb300_sharpa_insertion.py",
+        "Insert and extract an Ethernet cable with hydroelastic hand contact.",
+    ),
     ProgramSpec(
         "deformables",
         "examples/deformables.py",
