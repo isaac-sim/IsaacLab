@@ -13,7 +13,7 @@ import numpy as np
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 COFFEE_ASSET_DIR = os.environ.get(
-    "ISAACLAB_COFFEE_ASSET_ROOT", f"{ISAACLAB_NUCLEUS_DIR}/Objects/CoffeeScooping/v1"
+    "ISAACLAB_COFFEE_ASSET_ROOT", f"{ISAACLAB_NUCLEUS_DIR}/Demos/GTC2026/RizonSharpaCoffee"
 ).rstrip("/")
 """USD bundle root; override to use an internal development release or local bundle."""
 

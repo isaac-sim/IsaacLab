@@ -21,46 +21,42 @@ Use Isaac Lab's uv environment, Newton and a CUDA-capable NVIDIA GPU. Standalone
 RTX needs the `ovrtx` extra; Kit needs an Isaac Sim runtime. Assets are loaded
 through the existing USD spawner and asset resolver.
 
-The fixed bowl, cup, spoon and table are supplied as a companion USD bundle at
-`{ISAACLAB_NUCLEUS_DIR}/Objects/CoffeeScooping/v1`. The bundle includes
-`walnut.png`, `CoffeeWater.mdl`, a render-only `kitchen.usda` opinion layer,
-its license and a checksum manifest. The props
-are authored in metres with Z up; their default prim is `/Asset`. The exact
-concave spoon triangles and material groups are required for MPM contact.
-Props and the prepared robot are loaded without runtime asset generation.
+The fixed bowl, cup, spoon, table and prepared kitchen are supplied at
+`{ISAACLAB_NUCLEUS_DIR}/Demos/GTC2026/RizonSharpaCoffee`. The bundle includes
+`walnut.png`, `CoffeeWater.mdl`, `kitchen.usda`, the collected kitchen geometry,
+materials and textures in `Kitchen/`, the prepared robot in `Robot/`, licenses
+and checksum manifests. Props are authored in metres with Z up; their default
+prim is `/Asset`. The exact concave spoon triangles and material groups are
+required for MPM contact. Assets load without runtime generation.
 
-The public bundle has not been released. Provide an approved copy with:
+The development bundle is available on isaac-dev. Until its production asset
+release is available, select it with:
 
 ```bash
-export ISAACLAB_COFFEE_ASSET_ROOT=/path/to/CoffeeScooping/v1
+export ISAACLAB_COFFEE_ASSET_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Demos/GTC2026/RizonSharpaCoffee
 ```
 
-The variable accepts a local folder or an approved asset-library URL. Preserve
-relative texture paths when copying it. A missing or inaccessible bundle fails
-through the standard asset loader; the demo does not generate replacements.
+The variable also accepts a local copy of the complete bundle. Preserve relative
+paths when copying it. A missing or inaccessible bundle fails through the
+standard asset loader; the demo does not generate replacements.
 
 The prepared Rizon/Sharpa robot reuses the licensed Fabrics-Sim USD and textures
-from the RJ45 insertion scene, with the two malformed visual normals arrays
-blocked in a separate USD layer. It is hosted separately for internal development:
+from the RJ45 insertion scene, with two malformed visual normals arrays blocked
+in a separate USD layer. It loads from `Robot/` under the selected bundle root.
+`ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` can select a separate robot folder.
+That folder must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
+The source revision is `d0dbd1ddaefc4996db546949a7dfb37e39afcbeb`; its manifest
+records the source fingerprint and file checksums. The robot retains its original
+licensing and access restrictions and is not part of the BSD-licensed coffee
+props. Internal hosting does not imply public redistribution approval.
 
-```bash
-export ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Contrib/RizonSharpaCoffee/Robot/v1
-```
-
-A local copy must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
-The source revision is `d0dbd1ddaefc4996db546949a7dfb37e39afcbeb`; the hosted
-manifest records source fingerprint and file checksums. The native spawner
-loads the prepared asset without runtime USD authoring. This robot retains its
-original licensing and access restrictions; it is not part of the BSD-licensed
-coffee props. Public redistribution requires asset-owner approval. The public
-Rizon arm asset does not include the Sharpa hand.
-
-The optional kitchen loads the prepared placement, lighting, material and
-physics overrides, then references NVIDIA's public
-`Isaac/Environments/replicator_kitchen/kitchen_l_island.usda` using the configured
-asset root. This happens after physics construction. The sample island, apple
-and decorative coffee cups are hidden, and collisions are disabled. The backdrop
-adds rendering memory but no solver bodies, contacts or particles. The demo does
+The optional kitchen is prepared from NVIDIA's public
+`Isaac/Environments/replicator_kitchen/kitchen_l_island.usda`. Its placement,
+lighting, materials and exclusions are baked into the companion USD, with
+textures and MDL dependencies collected by Kit's native asset collector.
+It loads after physics construction. The sample island, apple and decorative
+coffee cups remain hidden, and collisions are disabled. The backdrop adds
+rendering memory but no solver bodies, contacts or particles. The demo does
 not generate or modify the kitchen asset at runtime.
 
 ## Control and recording

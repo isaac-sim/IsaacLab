@@ -15,7 +15,7 @@ import math
 import os
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from .assets import COFFEE_ASSET_DIR
 
 if TYPE_CHECKING:
     from isaaclab.assets import ArticulationCfg
@@ -23,9 +23,7 @@ if TYPE_CHECKING:
 ASSET_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 ASSET_USD_NAME = "rizon4s_sharpa.usda"
 ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
-ROBOT_ASSET_DIR = os.environ.get(ASSET_ROOT_ENV, f"{ISAACLAB_NUCLEUS_DIR}/Contrib/RizonSharpaCoffee/Robot/v1").rstrip(
-    "/"
-)
+ROBOT_ASSET_DIR = os.environ.get(ASSET_ROOT_ENV, f"{COFFEE_ASSET_DIR}/Robot").rstrip("/")
 PALM_BODY_NAME = "r_palm_ctrl"
 """Canonical palm: +X toward the knuckles, +Z out of the palm."""
 
