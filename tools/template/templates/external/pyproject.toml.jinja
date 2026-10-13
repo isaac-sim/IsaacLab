@@ -21,6 +21,9 @@ authors = [
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "{{ isaaclab_dependency }}{% if rl_libraries %}[{% for rl_library in rl_libraries %}{% if not loop.first %},{% endif %}{{ rl_library.name | replace('_', '-') }}{% endfor %}]{% endif %}{% if isaaclab_dependency == 'isaaclab' and isaaclab_version %}=={{ isaaclab_version }}{% endif %}",
+{% for dependency in isaaclab_torch_dependencies %}
+    "{{ dependency }}",
+{% endfor %}
 ]
 
 [project.entry-points."isaaclab.tasks"]
