@@ -156,10 +156,12 @@ class SuccessTracker:
             env_mask: Boolean mask of those environments, counted without a device synchronization.
 
         Raises:
-            ValueError: If not exactly one of ``env_ids`` and ``env_mask`` is given.
+            ValueError: If both or neither of ``env_ids`` and ``env_mask`` are given.
         """
-        if (env_ids is None) == (env_mask is None):
-            raise ValueError("Pass exactly one of env_ids and env_mask.")
+        if env_ids is not None and env_mask is not None:
+            raise ValueError("Pass only one of env_ids and env_mask.")
+        if env_ids is None and env_mask is None:
+            raise ValueError("Pass env_ids or env_mask.")
         if env_mask is not None:
             self._goals_reached += env_mask
         else:
