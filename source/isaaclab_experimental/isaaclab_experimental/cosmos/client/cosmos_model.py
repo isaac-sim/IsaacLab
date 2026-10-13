@@ -24,6 +24,8 @@ from .._protocol import (
     send_message,
 )
 
+_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+
 if TYPE_CHECKING:
     import numpy as np
     import torch
@@ -53,7 +55,12 @@ class CosmosModel:
         if cfg.modality not in ("edge", "blur", "depth", "seg"):
             raise ValueError("Cosmos modality must be edge, blur, depth, or seg.")
         if type(cfg.max_episode_frames) is not int or cfg.max_episode_frames < 1 or (cfg.max_episode_frames - 1) % 4:
-            raise ValueError("Set CosmosModelCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k).")
+            raise ValueError(
+                "Set CosmosModelCfg.max_episode_frames to the episode's camera-frame budget (1 + 4*k), "
+                "or use apply_cosmos to derive it from the task."
+            )
+        if cfg.transport not in ("auto", "cuda_ipc", "socket"):
+            raise ValueError("Cosmos transport must be auto, cuda_ipc, or socket.")
         self._cfg = cfg
         self._lock = threading.Lock()
         self._streams: set[_CosmosStream] = set()
@@ -115,6 +122,9 @@ class _CosmosStream:
         self._closed = False
         self._episode = 0
         self._episode_frames = 0
+        self._channel = None
+        self._service_device: torch.device | None = None
+        self.transport: str | None = None
 
     def step(
         self, controls: list[torch.Tensor], reset_rows: tuple[int, ...], seeds: tuple[int, ...]
@@ -172,9 +182,22 @@ class _CosmosStream:
                         "width": image_shape[1],
                         "max_episode_frames": self._cfg.max_episode_frames,
                     }
-                    _, arrays = self._exchange(request)
+                    self.transport = self._select_transport(control.device)
+                    if self.transport == "cuda_ipc":
+                        from .. import _cuda_ipc
+
+                        self._channel = _cuda_ipc.SharedChannel(
+                            control.device, (num_views, MAX_CHUNK_FRAMES, *image_shape), writes="control"
+                        )
+                        # The service opens the controls on this GPU, which it finds by its PCI bus ID.
+                        ipc = {**self._channel.handles, "pci_bus_id": _cuda_ipc.pci_bus_id(control.device.index or 0)}
+                        request.update(transport="cuda_ipc", ipc=ipc)
+                    reply, arrays = self._exchange(request)
                     if arrays:
                         raise ProtocolError("Cosmos open reply must not contain image arrays.")
+                    if self._channel is not None:
+                        # The service writes generated images into a buffer on its own GPU.
+                        self._channel.open(self._service_device, reply.get("ipc"))
                     self._shape = image_shape
                 frames = [view.shape[0] for view in controls]
                 if max(frames) > MAX_CHUNK_FRAMES:
@@ -186,13 +209,29 @@ class _CosmosStream:
                     # first frame, such as the capture taken before the environment's initial reset.
                     episode += 1 if self._episode_frames > 1 else 0
                     request["prompt"] = self._episode_prompt(episode)
-                # Images cross the process boundary through host memory and the socket.
-                _, generated = self._exchange(request, [chunk.detach().cpu().numpy() for chunk in controls])
-                if len(generated) != num_views or any(
-                    images.shape != tuple(chunk.shape) for images, chunk in zip(generated, controls)
-                ):
-                    raise ProtocolError("Cosmos returned images that do not match the control chunks.")
-                images = [torch.from_numpy(view).to(device=control.device) for view in generated]
+                if self._channel is not None:
+                    # Controls and images stay on the GPU, one buffer row per view; events order the processes.
+                    for view, (chunk, count) in enumerate(zip(controls, frames)):
+                        self._channel.control.tensor[view, :count].copy_(chunk)
+                    self._channel.control_ready.record()
+                    request["frames"] = frames
+                    _, generated = self._exchange(request)
+                    if generated:
+                        raise ProtocolError("Cosmos returned images through the socket in a CUDA IPC session.")
+                    self._channel.output_ready.wait()
+                    # From the service's GPU, the images copy directly to this one.
+                    images = [
+                        self._channel.output.tensor[view, :count].to(control.device, copy=True)
+                        for view, count in enumerate(frames)
+                    ]
+                else:
+                    # Images cross the process boundary through host memory and the socket.
+                    _, generated = self._exchange(request, [chunk.detach().cpu().numpy() for chunk in controls])
+                    if len(generated) != num_views or any(
+                        images.shape != tuple(chunk.shape) for images, chunk in zip(generated, controls)
+                    ):
+                        raise ProtocolError("Cosmos returned images that do not match the control chunks.")
+                    images = [torch.from_numpy(view).to(device=control.device) for view in generated]
                 if num_views == 1:
                     if reset_rows:
                         self._episode, self._episode_frames = episode, 0
@@ -218,6 +257,49 @@ class _CosmosStream:
         prompt = self._cfg.prompt
         return prompt[episode % len(prompt)] if isinstance(prompt, (list, tuple)) else prompt
 
+    def _select_transport(self, device: torch.device) -> str:
+        """Choose CUDA IPC or the socket, per the configuration.
+
+        CUDA IPC needs the service on this machine, on this GPU or on another one this process can see and that
+        can access this GPU's memory directly. Choosing it records this process's index of the service's GPU.
+        """
+        import torch
+
+        if self._cfg.transport == "socket":
+            return "socket"
+        reason = None
+        family, address = parse_endpoint(self._cfg.endpoint)
+        if device.type != "cuda":
+            reason = "the camera images are not on a CUDA device"
+        elif family == socket.AF_INET and address[0] not in _LOOPBACK_HOSTS:
+            reason = f"the service at {address[0]} is not on this machine"
+        else:
+            from .. import _cuda_ipc
+
+            capabilities = self._exchange({"op": "status"})[0].get("capabilities", {})
+            if not _cuda_ipc.available():
+                reason = "CUDA IPC is not available on this platform"
+            elif "cuda_ipc" not in capabilities.get("transports", ()):
+                reason = "the service does not offer CUDA IPC"
+            elif capabilities.get("host_id") is None or capabilities["host_id"] != _cuda_ipc.host_id():
+                # A local endpoint can be a tunnel; the other machine's GPU can have a PCI bus ID this one uses.
+                reason = "the service runs on another machine"
+            else:
+                service_gpu = _cuda_ipc.device_by_bus_id(capabilities.get("pci_bus_id"))
+                if service_gpu is None:
+                    reason = "this process cannot see the service's GPU"
+                elif not _cuda_ipc.can_access_peer(device.index or 0, service_gpu):
+                    reason = "this GPU and the service's GPU cannot access each other's memory directly"
+                else:
+                    self._service_device = torch.device("cuda", service_gpu)
+        if reason is None:
+            _LOGGER.info("Cosmos keeps images on the GPU with CUDA IPC; the service uses %s.", self._service_device)
+            return "cuda_ipc"
+        if self._cfg.transport == "cuda_ipc":
+            raise RuntimeError(f"Cosmos transport cuda_ipc is unavailable: {reason}.")
+        _LOGGER.info("Cosmos sends images through the socket because %s.", reason)
+        return "socket"
+
     def _exchange(self, metadata: dict, arrays: Sequence[np.ndarray] = ()) -> tuple[dict, list[np.ndarray]]:
         if self._socket is None:
             raise RuntimeError("Cosmos stream has no service connection.")
@@ -230,15 +312,26 @@ class _CosmosStream:
         if self._closed:
             return
         self._closed = True
+        released = False
         try:
             if self._socket is not None:
                 try:
+                    if self._channel is not None:
+                        # Release the service's output buffer before the service frees it when the session closes.
+                        self._channel.close_opened()
                     if notify:
                         self._exchange({"op": "close"})
+                        # The service releases the control buffer before it confirms the close.
+                        released = True
                 except (OSError, ValueError, RuntimeError):
                     _LOGGER.debug("Cosmos session was already unavailable during close.", exc_info=True)
                 finally:
                     self._socket.close()
                     self._socket = None
         finally:
+            if self._channel is not None:
+                # Without that confirmation the service may still read the control buffer, which then stays
+                # allocated until this process exits.
+                self._channel.close(peer_released=released)
+                self._channel = None
             self._model._discard_stream(self)

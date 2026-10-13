@@ -8,10 +8,11 @@ __all__ = [
     "ImageTransferModifier",
     "ImageTransferModifierCfg",
     "ImageTransferStream",
+    "center_crop_resize",
     "depth_to_control",
     "srgb_to_linear",
 ]
 
 from .backend import ImageTransferModel, ImageTransferStream
-from .modifier import ImageTransferModifier, depth_to_control, srgb_to_linear
+from .modifier import ImageTransferModifier, center_crop_resize, depth_to_control, srgb_to_linear
 from .modifier_cfg import ImageTransferModifierCfg
