@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.3 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Applied explicit camera background colors to HDR output in linear space before ISP processing, without replacing black geometry.
+* Warned when camera lens distortion was authored only in USD and ignored by Newton Warp, while accepting configured OpenCV models.
+
+
 9.1.2 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 
