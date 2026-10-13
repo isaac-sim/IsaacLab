@@ -135,8 +135,8 @@ def _step(env: ManagerBasedEnv, num_steps: int = 1) -> dict:
 
 
 def _silhouette(depth: torch.Tensor) -> torch.Tensor:
-    """Return the pixels hit inside the camera clipping range."""
-    return torch.isfinite(depth) & (depth > 0.0) & (depth < DEPTH_FAR)
+    """Return the pixels whose ray hits geometry. RTX writes ``+inf`` where the ray hits nothing."""
+    return torch.isfinite(depth)
 
 
 def _silhouette_iou(mask: torch.Tensor, reference_mask: torch.Tensor) -> float:
@@ -145,7 +145,7 @@ def _silhouette_iou(mask: torch.Tensor, reference_mask: torch.Tensor) -> float:
 
 
 def _fabric_world_transforms(prim_paths: list[str]) -> tuple[torch.Tensor, torch.Tensor]:
-    """Return the Fabric world positions [m] and rotation matrices of prims.
+    """Return the Fabric world positions [m] and orientation matrices of prims.
 
     The read is passive. Fabric frame views are not used, because they seed Fabric from USD.
     """
@@ -158,15 +158,16 @@ def _fabric_world_transforms(prim_paths: list[str]) -> tuple[torch.Tensor, torch
         dtype=torch.float32,
     )
     # USD matrices use row vectors: the rows of the upper 3x3 block are the scaled axes of the prim frame.
-    rotations = torch.nn.functional.normalize(matrices[:, :3, :3], dim=-1).transpose(1, 2)
-    return matrices[:, 3, :3], rotations
+    orientation_matrices = torch.nn.functional.normalize(matrices[:, :3, :3], dim=-1).transpose(1, 2)
+    positions = matrices[:, 3, :3]
+    return positions, orientation_matrices
 
 
 def _assert_transforms_match(transforms: tuple[torch.Tensor, torch.Tensor], poses: torch.Tensor) -> None:
     """Assert that world transforms equal poses given as position [m] and quaternion (x, y, z, w)."""
-    positions, rotations = transforms
+    positions, orientation_matrices = transforms
     torch.testing.assert_close(positions, poses[:, :3].cpu())
-    torch.testing.assert_close(rotations, matrix_from_quat(poses[:, 3:]).cpu())
+    torch.testing.assert_close(orientation_matrices, matrix_from_quat(poses[:, 3:]).cpu())
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
