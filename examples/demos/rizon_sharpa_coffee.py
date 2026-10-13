@@ -59,7 +59,7 @@ def main() -> None:
         )
         step = 0
         with torch.inference_mode():
-            while step < args.max_steps:
+            while args.keep_open or step < args.max_steps:
                 if not env.sim.is_running():
                     break
                 if env.sim.consume_reset_request():
@@ -68,7 +68,7 @@ def main() -> None:
                     step = 0
                     if camera is not None:
                         camera.reset()
-                if controller.finished:
+                if controller.finished or step >= args.max_steps:
                     env.sim.render()
                     continue
                 action = controller.compute()
@@ -88,9 +88,6 @@ def main() -> None:
                         break
                     print("Scoop sequence complete. Use the viewer Reset control to run it again.", flush=True)
                 step += 1
-        if args.keep_open:
-            while env.sim.is_running():
-                env.sim.render()
 
 
 def _parse_args():
