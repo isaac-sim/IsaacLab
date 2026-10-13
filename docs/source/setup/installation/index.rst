@@ -3,9 +3,9 @@
 Installation
 ============
 
-.. image:: https://img.shields.io/badge/IsaacSim-6.1.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-6.2.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: Isaac Sim 6.1.0
+   :alt: Isaac Sim 6.2.0
 
 .. image:: https://img.shields.io/badge/python-3.12-blue.svg
    :target: https://www.python.org/downloads/release/python-3120/
@@ -34,7 +34,7 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 `Omniverse technical requirements
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
 
-Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
+Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.2 with Python 3.12.
 The Isaac Sim wheels require GLIBC 2.35 or newer on Linux.
 
 The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
@@ -388,7 +388,7 @@ Install this extra to convert URDF and MJCF files without Isaac Sim.
 Installing the ``isaacsim`` extra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Sim 6.1 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
+Isaac Sim 6.2 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
 the tested overrides:
 
 .. isaaclab-uv-isaacsim-wheel-install::

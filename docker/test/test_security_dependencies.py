@@ -22,6 +22,7 @@ class TestSecurityDependencies(unittest.TestCase):
             project = tomllib.load(file)["project"]
         self.assertIn("gitpython>=3.1.59", project["dependencies"])
         self.assertIn("pillow>=12.3.0", project["dependencies"])
+        self.assertIn("urllib3>=2.8.0", project["dependencies"])
         self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["rerun"])
 
     def test_wheel_metadata_preserves_dependency_updates(self):
@@ -43,15 +44,18 @@ class TestSecurityDependencies(unittest.TestCase):
                 project = tomllib.load(file)["project"]
             self.assertIn("gitpython>=3.1.59", project["dependencies"])
             self.assertIn("pillow>=12.3.0", project["dependencies"])
+            self.assertIn("urllib3>=2.8.0", project["dependencies"])
             self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["all"])
 
     def test_lock_contains_security_updates(self):
         with (REPO_ROOT / "uv.lock").open("rb") as file:
             packages = {p["name"]: p["version"] for p in tomllib.load(file)["package"]}
         for name, version in {
+            "aiohttp": "3.14.3",
             "gitpython": "3.1.59",
             "pillow": "12.3.0",
             "pyarrow": "23.0.1",
+            "urllib3": "2.8.0",
         }.items():
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
