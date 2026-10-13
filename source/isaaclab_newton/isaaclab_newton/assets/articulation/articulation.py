@@ -46,6 +46,28 @@ if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 
+def _make_unique_names(names: Sequence[str]) -> list[str]:
+    """Preserve input order while disambiguating duplicate names."""
+    authored_names = set(names)
+    used_names: set[str] = set()
+    seen_names: set[str] = set()
+    unique_names: list[str] = []
+    for name in names:
+        if name not in seen_names:
+            unique_name = name
+            seen_names.add(name)
+        else:
+            suffix = 0
+            while True:
+                unique_name = f"{name}_{suffix}"
+                suffix += 1
+                if unique_name not in authored_names and unique_name not in used_names:
+                    break
+        unique_names.append(unique_name)
+        used_names.add(unique_name)
+    return unique_names
+
+
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -196,8 +218,8 @@ class Articulation(BaseArticulation):
 
     @property
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        return self.root_view.link_names
+        """Ordered, unique body names; later duplicates receive ``_0``, ``_1``, etc. suffixes."""
+        return _make_unique_names(self.root_view.link_names)
 
     @property
     def root_view(self) -> ArticulationView:

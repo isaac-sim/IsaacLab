@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import sys
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -482,6 +483,49 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+def test_duplicate_body_names_match_physx_naming():
+    link_names = [
+        "base_link",
+        "shoulder_link",
+        "upper_arm_link",
+        "forearm_link",
+        "wrist_1_link",
+        "wrist_2_link",
+        "wrist_3_link",
+        "base_link",
+    ]
+    articulation = Articulation.__new__(Articulation)
+    articulation._root_view = SimpleNamespace(link_names=link_names)
+    articulation._initialize_handle = None
+    articulation._invalidate_initialize_handle = None
+    articulation._prim_deletion_handle = None
+
+    assert articulation.body_names == [
+        "base_link",
+        "shoulder_link",
+        "upper_arm_link",
+        "forearm_link",
+        "wrist_1_link",
+        "wrist_2_link",
+        "wrist_3_link",
+        "base_link_0",
+    ]
+    assert articulation.find_bodies("base_link") == ([0], ["base_link"])
+    assert articulation.find_bodies("base_link_0") == ([7], ["base_link_0"])
+    assert articulation.root_view.link_names == link_names
+
+
+def test_duplicate_body_names_avoid_colliding_with_existing_names():
+    link_names = ["base_link", "base_link", "base_link_0"]
+    articulation = Articulation.__new__(Articulation)
+    articulation._root_view = SimpleNamespace(link_names=link_names)
+    articulation._initialize_handle = None
+    articulation._invalidate_initialize_handle = None
+    articulation._prim_deletion_handle = None
+
+    assert articulation.body_names == ["base_link", "base_link_1", "base_link_0"]
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
