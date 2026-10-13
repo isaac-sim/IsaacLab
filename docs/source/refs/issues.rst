@@ -214,22 +214,8 @@ reproduction steps, and fix status.
 
 As a workaround, reduce the camera resolution, camera count, or path-tracing SPP, and inspect
 images from all cameras before training. Reducing the camera count may leave the atlas dimensions
-unchanged because of tile padding.
-
-Path-tracing SPP is the ``/rtx/rtpt/spp`` RTX setting, and Isaac Lab leaves it at the renderer
-default. It is not the direct-lighting ``samples_per_pixel`` field. For Isaac RTX, set it through
-``carb_settings`` on :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`:
-
-.. code-block:: python
-
-    from isaaclab_physx.renderers import IsaacRtxRendererCfg, IsaacRtxRendererGlobalSettingsCfg
-
-    renderer_cfg = IsaacRtxRendererCfg(
-        global_settings=IsaacRtxRendererGlobalSettingsCfg(carb_settings={"/rtx/rtpt/spp": 1}),
-    )
-
-:class:`~isaaclab_ov.renderers.OVRTXRendererCfg` does not expose this setting, so on OVRTX, reduce
-the camera resolution or count instead.
+unchanged because of tile padding. Path-tracing SPP is distinct from the direct-lighting
+``samples_per_pixel`` setting.
 
 If RTX image quality is not required, the Newton Warp renderer (``renderer=newton_renderer``) does
 not render through Vulkan and is not subject to this limit.
