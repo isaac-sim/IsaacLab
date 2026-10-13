@@ -101,11 +101,6 @@ DEMOS = (
         "Smash rigid crates with MPM snowballs.",
     ),
     ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
-    ProgramSpec(
-        "rizon-sharpa-rj45",
-        "examples/gb300_sharpa_insertion.py",
-        "Insert and extract an Ethernet cable with hydroelastic hand contact.",
-    ),
 )
 
 
@@ -145,6 +140,11 @@ EXAMPLES = (
         **_ISAACSIM,
     ),
     ProgramSpec(
+        "tablecloth",
+        "examples/tablecloth.py",
+        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+    ),
+    ProgramSpec(
         "visual-color-randomization",
         "examples/visual_color_randomization.py",
         "Randomize visual materials on cloned assets.",
@@ -158,6 +158,13 @@ EXAMPLES = (
         "mpm-two-way-coupling",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "Couple MPM sand with rigid bodies.",
+    ),
+    ProgramSpec(
+        "mpm-g1-coupling",
+        "examples/mpm/g1_coupling.py",
+        "Compare one-way and two-way G1 coupling across particle materials.",
+        extras=("isaacsim", "rsl-rl"),
+        required_modules=("rsl_rl",),
     ),
     ProgramSpec(
         "camera",

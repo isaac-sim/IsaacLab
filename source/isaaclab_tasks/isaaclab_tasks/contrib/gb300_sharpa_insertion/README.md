@@ -8,8 +8,8 @@ The checked-in scene is the minimal physical workcell. The full GB300 facility
 and cinematic overlays remain separate local presentation tooling.
 
 ```bash
-uv run isaaclab demo rizon-sharpa-rj45
-uv run --extra isaacsim --extra video isaaclab demo rizon-sharpa-rj45 --viz kit --video
+uv run isaaclab example gb300-sharpa-insertion
+uv run --extra isaacsim --extra video isaaclab example gb300-sharpa-insertion --viz kit --video
 ```
 
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
