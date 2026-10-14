@@ -207,7 +207,8 @@ server and pass the display into the container:
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
      nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
-Run ``xhost -local:`` on the host to revoke the access when you are done.
+``xhost +local:`` lets every local client use your display, not only the container; run
+``xhost -local:`` on the host to revoke it when you are done.
 ``MUJOCO_GL=disable`` is needed by the Newton viewers in images released before it was set in the
 image: those inherit ``MUJOCO_GL=egl``, which fails the windowed viewer with
 ``Attempt to retrieve context when no valid context``. The Compose workflow sets up X11 forwarding
