@@ -3,6 +3,22 @@ Changelog
 
 .. towncrier release notes start
 
+3.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a reusable Newton particle-surface renderer for GL and RTX viewers,
+  shared by the teapot demo and MPM surface-reconstruction tutorial.
+
+Fixed
+^^^^^
+
+* Fixed dynamic MPM surface mesh submission in Newton RTX and shared staged
+  mesh updates between the Newton GL and RTX frame lifecycles.
+
+
 3.1.1 (2026-10-13)
 ~~~~~~~~~~~~~~~~~~
 

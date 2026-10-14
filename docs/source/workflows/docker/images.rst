@@ -83,8 +83,9 @@ Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL framework
 Stable-Baselines3, and SKRL. The ``newton_gl``, ``newton_rtx``, ``viser``, and ``rerun`` visualizers are
 included. Use ``--viz newton_gl`` for local visualization with a display available in the container.
 ``--viz newton_gl`` selects the OpenGL rasterizer; ``--viz newton_rtx`` selects the OVRTX
-path tracer. Both can render offscreen without Isaac Sim. Windowed use additionally needs
-a display server accessible inside the container. The deprecated ``--viz newton`` alias
+path tracer. Both can render offscreen without Isaac Sim. To open their windows from a direct
+``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. The deprecated ``--viz newton`` alias
 selects GL; it does not choose between GL and RTX automatically.
 
 Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
@@ -183,13 +184,35 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
      nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
-For windowed use, follow the X11 setup in :ref:`deployment-docker`; the container needs
-access to the host display and matching authorization. For direct ``docker run`` use, add
-``-e DISPLAY -e XAUTHORITY=/tmp/isaaclab.xauth`` and the mounts
-``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` and
-``-v "${XAUTHORITY:-$HOME/.Xauthority}":/tmp/isaaclab.xauth:ro`` to the command above.
-The host authority file must exist and be readable by the container user. Offscreen Newton rendering does
-not require X11. Follow the graphics-driver requirements above for GL or RTX.
+The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
+``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
+and need no display. To enable rendering through X11 forwarding, let local clients use the host X
+server and pass the display into the container:
+
+.. code:: bash
+
+  xhost +local:
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -e DISPLAY \
+     -e MUJOCO_GL=disable \
+     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+
+``xhost +local:`` lets every local client use your display, not only the container; run
+``xhost -local:`` on the host to revoke it when you are done.
+``MUJOCO_GL=disable`` is needed by the Newton viewers in images released before it was set in the
+image: those inherit ``MUJOCO_GL=egl``, which fails the windowed viewer with
+``Attempt to retrieve context when no valid context``. The Compose workflow sets up X11 forwarding
+for you; see :ref:`deployment-docker`. Follow the graphics-driver requirements above for GL or RTX.
 
 Runtime user
 ------------
