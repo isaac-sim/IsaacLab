@@ -50,6 +50,7 @@ from isaaclab.utils import (
     replace_strings_with_slices,
     to_dict,
     update_from_dict,
+    validate,
 )
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
@@ -779,9 +780,9 @@ def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[s
 def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str | None]] | None:
     """Return the preset combinations of *task_name* that can launch, one per distinct config.
 
-    Every declared physics and renderer preset is crossed with each domain preset in turn, and
-    each combination is resolved, validated with the env config's own checks, and checked with
-    :func:`~isaaclab.app.validate_launch` for a headless launch without livestreaming. Combinations
+    Each physics and renderer preset, or leaving that axis to the config, is crossed with each domain
+    preset in turn. Every combination is resolved, validated with the env config's own checks, and
+    checked with :func:`~isaaclab.app.validate_launch` for a headless launch without livestreaming. Combinations
     that resolve to the same config, such as ``physics=physx`` and the backend it selects, are
     reported once, by their most explicit spelling.
 
@@ -802,22 +803,19 @@ def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str 
         return None
     typed = {*preset_map[PresetTarget.PHYSICS], *preset_map[PresetTarget.RENDERER]}
     domains = [name for name in preset_map[PresetTarget.DOMAIN] if name not in typed]
-    candidates = dict.fromkeys(
-        [(None, None, None)]
-        + [
-            (physics, renderer, domain)
-            for physics in preset_map[PresetTarget.PHYSICS] or [None]
-            for renderer in preset_map[PresetTarget.RENDERER] or [None]
-            for domain in [None, *domains]
-        ]
-    )
+    candidates = [
+        (physics, renderer, domain)
+        for physics in [None, *preset_map[PresetTarget.PHYSICS]]
+        for renderer in [None, *preset_map[PresetTarget.RENDERER]]
+        for domain in [None, *domains]
+    ]
 
     runs: dict[str, tuple[str | None, str | None, str | None]] = {}
     default_key = None
     for run in candidates:
         try:
             env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
-            env_cfg.validate()
+            validate(env_cfg)
             validate_launch(env_cfg, {"livestream": 0})
         except ValueError:
             continue
