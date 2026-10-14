@@ -362,14 +362,75 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
         super()._init_window()
         self._patch_viewer_panel()
 
+    def _accept_render(self, products) -> None:
+        """Present generated intermediate images and retain the latest RTX image.
+
+        Newton's single-image acceptance path returns after the first frame, dropping
+        the remaining DLSS frame-generation output. The final image is presented by
+        the native end-of-frame path; only intermediate images are presented here.
+        """
+        from ovrtx import Device
+
+        self._render_products = products
+        if not self._headless and (self._window is None or self._window.context is None):
+            return
+        render_vars = [
+            render_var
+            for product in products.values()
+            for frame in product.frames
+            if (render_var := self._get_ldr_color_render_var(frame)) is not None
+        ]
+        present_intermediate = not self._headless and self._image_logger._fullscreen_name is None
+        for index, render_var in enumerate(render_vars):
+            intermediate = index < len(render_vars) - 1
+            if intermediate and not present_intermediate:
+                continue
+            with render_var.map(device=Device.CUDA) as mapping:
+                pixels = wp.from_dlpack(mapping, dtype=wp.vec4ub)
+                if self._headless:
+                    if self._displayed_pixels is None or self._displayed_pixels.shape != pixels.shape:
+                        self._displayed_pixels = wp.empty_like(pixels)
+                    wp.copy(self._displayed_pixels, pixels)
+                else:
+                    self._blit_to_window(pixels)
+                mapping.unmap(stream=pixels.device.stream.cuda_stream)
+            if intermediate:
+                frame = self._displayed_frame
+                prepared = self.gui is not None and self.gui._frame_prepared
+                self._present(frame.texture or None, frame.width, frame.height)
+                if self.gui is not None:
+                    # Reuse the prepared UI without processing buttons again. The native
+                    # prepare_frame counts the final presentation; count this extra one.
+                    self.gui._frame_prepared = prepared
+                    self.gui._update_fps()
+
     def end_frame(self) -> None:
         super().end_frame()
         if self._close_requested:
             self.close()
 
     def get_frame(self, target_image: wp.array | None = None) -> wp.array:
-        """Capture the latest completed frame through Newton's native API."""
-        return super().get_frame(output=target_image)
+        """Copy the completed RTX image into owned device storage before releasing its mapping."""
+        from ovrtx import Device
+
+        products = self._render_products
+        if products is None and self._render_result is not None:
+            products = self._render_result.wait().fetch()
+        if products is None:
+            raise RuntimeError("Perspective capture requires a completed Newton RTX frame.")
+        for product in products.values():
+            for frame in reversed(product.frames):
+                render_var = self._get_ldr_color_render_var(frame)
+                if render_var is None:
+                    continue
+                with render_var.map(device=Device.CUDA) as mapping:
+                    rgba = wp.from_dlpack(mapping)
+                    if target_image is None or target_image.shape != rgba.shape or target_image.device != rgba.device:
+                        target_image = wp.empty_like(rgba)
+                    wp.copy(target_image, rgba)
+                    mapping.unmap(stream=target_image.device.stream.cuda_stream)
+                return target_image
+        raise RuntimeError("Newton RTX did not publish an LdrColor render output.")
 
 
 class NewtonViewerGL(NewtonViewerUI, ViewerGL):
