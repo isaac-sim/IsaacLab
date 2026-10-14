@@ -156,8 +156,22 @@ jobs:
         uses: ./.github/actions/install-ci-collect
         with:
           test-filter: ${{ inputs.test_filter }}
+      # GB10 shares one memory pool between host and GPU; trace it to diagnose CUDA OOMs.
+      - name: Start host memory trace
+        run: |
+          free -m; nvidia-smi || true; docker ps || true
+          nohup bash -c 'while :; do echo "$(date +%T) $(free -m | awk "/^Mem:/{print \$4, \$6, \$7}")"; sleep 1; done' \
+            > "$RUNNER_TEMP/memtrace.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/memtrace.pid"
       - name: Run Tests
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
+      - name: Show host memory trace
+        if: always()
+        run: |
+          kill "$(cat "$RUNNER_TEMP/memtrace.pid")" || true
+          echo "time free_MiB buff_cache_MiB available_MiB"
+          cat "$RUNNER_TEMP/memtrace.log"
+          echo "Lowest free:"; sort -k2 -n "$RUNNER_TEMP/memtrace.log" | head -5
