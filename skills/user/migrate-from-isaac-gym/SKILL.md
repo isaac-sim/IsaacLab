@@ -60,7 +60,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with the Isaac Gym section in `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `docs/source/concepts/task_workflows.rst`, `docs/source/concepts/backend_architecture.rst`, `docs/source/concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with the Isaac Gym section in `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `docs/source/concepts/task_workflows.rst`, `docs/source/concepts/backends_and_presets.rst`, `docs/source/concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 
@@ -72,7 +72,7 @@ Keep this skill synchronized with the Isaac Gym section in `docs/source/migratio
 - [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
 - [Migration guide: Isaac Gym section](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst#migration-from-isaac-gym-and-isaacgymenvs)
 - [Task workflows](../../../docs/source/concepts/task_workflows.rst)
-- [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)
+- [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Schema cfgs](../../../docs/source/concepts/schema_cfgs.rst)
 - [Environment browser](../../../docs/source/setup/environments.rst)
 - [Create direct workflow environment tutorial](../../../docs/source/how-to/create_direct_rl_env.rst)
