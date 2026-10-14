@@ -9,9 +9,8 @@ The following configurations are available:
 
 * :data:`MICRODUCK_CFG`: the 14-joint walking robot with its standing pose.
 * :data:`MICRODUCK_ALLCOLLISIONS_CFG`: the robot with additional body and head collisions.
-* :data:`MICRODUCK_ROLLERS_CFG`: the robot with four passive wheels in place of its soles.
-* :data:`MICRODUCK_BACKLASH_CFG`, :data:`MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG`, and
-  :data:`MICRODUCK_ROLLERS_BACKLASH_CFG`: the corresponding variants with gearbox play.
+* :data:`MICRODUCK_BACKLASH_CFG` and :data:`MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG`: the corresponding variants
+  with gearbox play.
 
 Reference: https://github.com/pollen-robotics/microduck_rl
 """
@@ -123,15 +122,6 @@ MICRODUCK_ALLCOLLISIONS_CFG.spawn.usd_path = (
 )
 """MicroDuck with additional trunk, hip, and head collision geometry for whole-body contact."""
 
-MICRODUCK_ROLLERS_CFG = clone(MICRODUCK_CFG)
-MICRODUCK_ROLLERS_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/PollenRobotics/MicroDuck/microduck_rollers.usd"
-MICRODUCK_ROLLERS_CFG.init_state.pos = (0.0, 0.0, 0.145)
-MICRODUCK_ROLLERS_CFG.init_state.joint_pos["passive_.*"] = 0.0
-"""MicroDuck with 14 BAM servos and four passive wheel joints.
-
-The initial root height [m] provides clearance for the wheels, which extend below the walking soles.
-"""
-
 
 def _with_backlash(cfg: ArticulationCfg, usd_name: str) -> ArticulationCfg:
     """Use the USD with a passive gearbox-play hinge in series with each servo."""
@@ -149,6 +139,3 @@ MICRODUCK_ALLCOLLISIONS_BACKLASH_CFG = _with_backlash(
     MICRODUCK_ALLCOLLISIONS_CFG, "microduck_allcollisions_backlash.usd"
 )
 """MicroDuck with additional body collisions and passive gearbox-play hinges."""
-
-MICRODUCK_ROLLERS_BACKLASH_CFG = _with_backlash(MICRODUCK_ROLLERS_CFG, "microduck_rollers_backlash.usd")
-"""MicroDuck with 14 servos, 14 passive gearbox-play hinges, and four passive wheels."""
