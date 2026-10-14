@@ -246,7 +246,9 @@ jobs:
             --target "$TARGET_SHA" \
             --cherry_pick_head "$CHERRY_PICK_HEAD_SHA" \
             --model "$primary_model" \
-            --model "$fallback_model"
+            --model "$fallback_model" \
+            --report "$RUNNER_TEMP/backport-resolution.json" \
+            --summary "$RUNNER_TEMP/backport-resolution.md"
 
       - name: Set up Python for inferred-resolution checks
         if: steps.cherry_pick.outputs.conflict == 'true'
@@ -274,11 +276,15 @@ jobs:
           if [ "$pre_commit_status" -ne 0 ]; then
             while IFS= read -r -d '' path; do
               git add --all -- "$path"
-            done < <(git diff --no-renames --name-only -z "$SOURCE_PARENT" "$SOURCE_SHA" --)
+            done < <(
+              git diff --no-renames --name-only -z "$SOURCE_PARENT" "$SOURCE_SHA" --
+              jq -j '.extra_paths[] | . + "\u0000"' "$RUNNER_TEMP/backport-resolution.json"
+            )
             python3 ../automation/.github/scripts/backport.py validate-candidate \
               --source_parent "$SOURCE_PARENT" \
               --source "$SOURCE_SHA" \
-              --target "$TARGET_SHA"
+              --target "$TARGET_SHA" \
+              --resolution_report "$RUNNER_TEMP/backport-resolution.json"
             pre-commit run --show-diff-on-failure --color=always --all-files
           fi
 
@@ -299,7 +305,8 @@ jobs:
           python3 ../automation/.github/scripts/backport.py validate-candidate \
             --source_parent "$SOURCE_PARENT" \
             --source "$SOURCE_SHA" \
-            --target "$TARGET_SHA"
+            --target "$TARGET_SHA" \
+            --resolution_report "$RUNNER_TEMP/backport-resolution.json"
           GIT_EDITOR=true git \
             -c core.hooksPath=/dev/null \
             -c user.name="isaaclab-bot[bot]" \
@@ -309,7 +316,8 @@ jobs:
             --source_parent "$SOURCE_PARENT" \
             --source "$SOURCE_SHA" \
             --target "$TARGET_SHA" \
-            --candidate HEAD
+            --candidate HEAD \
+            --resolution_report "$RUNNER_TEMP/backport-resolution.json"
           git diff --check "$TARGET_SHA" HEAD
 
       - name: Create repository write token
@@ -371,7 +379,9 @@ jobs:
           {
             echo "Backports #$PR_NUMBER to \`$TARGET_BRANCH\`."
             echo
-            echo "The original cherry-pick conflicted. An NVIDIA inference model proposed this resolution, and deterministic validation confirmed that it changes no paths outside the original PR. Because conflict resolution cannot be certified as an exact patch replay, this PR is intentionally a draft and requires release-maintainer review."
+            echo "The original cherry-pick conflicted. An NVIDIA inference model proposed this resolution. Deterministic validation checked only that it changes no paths outside the original PR other than the extra edits listed below, and that kept paths match the release branch; it does not check correctness. This PR is intentionally a draft and requires release-maintainer review."
+            echo
+            cat "$RUNNER_TEMP/backport-resolution.md"
             echo
             echo "| Field | Commit |"
             echo "|---|---|"

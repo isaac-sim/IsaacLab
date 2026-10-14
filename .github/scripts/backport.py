@@ -74,24 +74,35 @@ def validate_candidate(
     candidate: str | None,
     *,
     require_exact_patch: bool,
+    resolution_report: Path | None = None,
 ) -> dict[str, object]:
-    """Validate a committed candidate or the currently staged conflict resolution."""
+    """Validate a committed candidate or the currently staged conflict resolution.
+
+    A conflict-resolution report may declare paths kept at the release version and extra paths edited to carry the
+    source intent into release's layout; both are listed for review in the draft backport PR.
+    """
     source_paths = changed_paths(source_parent, source)
+    kept_paths, extra_paths = _resolution_exceptions(resolution_report)
     if candidate is None:
         _validate_staged_worktree()
         candidate_paths = changed_paths(target, cached=True)
     else:
         candidate_paths = changed_paths(target, candidate)
 
-    unexpected_paths = candidate_paths - source_paths
+    unexpected_paths = candidate_paths - source_paths - extra_paths
     if unexpected_paths:
         raise BackportValidationError(
             "the candidate changes files outside the original PR: " + _format_paths(unexpected_paths)
         )
 
     missing_paths = source_paths - candidate_paths
+    changed_kept_paths = {path for path in kept_paths if _tree_entry(target, path) != _candidate_entry(candidate, path)}
+    if changed_kept_paths:
+        raise BackportValidationError(
+            "the candidate changes paths declared as kept at the release version: " + _format_paths(changed_kept_paths)
+        )
     nonmatching_missing_paths = {
-        path for path in missing_paths if _tree_entry(source, path) != _candidate_entry(candidate, path)
+        path for path in missing_paths - kept_paths if _tree_entry(source, path) != _candidate_entry(candidate, path)
     }
     if nonmatching_missing_paths:
         raise BackportValidationError(
@@ -110,7 +121,9 @@ def validate_candidate(
     return {
         "candidate_paths": sorted(candidate_paths),
         "exact_patch": require_exact_patch,
-        "missing_paths_already_present": sorted(missing_paths),
+        "extra_paths": sorted(extra_paths),
+        "kept_paths": sorted(kept_paths),
+        "missing_paths_already_present": sorted(missing_paths - kept_paths),
         "source_paths": sorted(source_paths),
     }
 
@@ -131,6 +144,14 @@ def _expected_pr_paths(path: Path) -> set[str]:
             if item.get("status") == "renamed" and item.get("previous_filename"):
                 paths.add(item["previous_filename"])
     return paths
+
+
+def _resolution_exceptions(path: Path | None) -> tuple[set[str], set[str]]:
+    """Read the kept and extra paths declared by the conflict resolver."""
+    if path is None:
+        return set(), set()
+    report = json.loads(path.read_text(encoding="utf-8"))
+    return set(report["kept_paths"]), set(report["extra_paths"])
 
 
 def _validate_staged_worktree():
@@ -242,6 +263,7 @@ def _create_parser() -> argparse.ArgumentParser:
     candidate.add_argument("--target", required=True)
     candidate.add_argument("--candidate")
     candidate.add_argument("--exact_patch", action="store_true")
+    candidate.add_argument("--resolution_report", type=Path, help="Paths report written by the conflict resolver.")
     return parser
 
 
@@ -264,6 +286,7 @@ def main() -> int:
                 args.target,
                 args.candidate,
                 require_exact_patch=args.exact_patch,
+                resolution_report=args.resolution_report,
             )
             print(json.dumps(result, sort_keys=True))
     except (BackportValidationError, subprocess.CalledProcessError, ValueError) as error:
