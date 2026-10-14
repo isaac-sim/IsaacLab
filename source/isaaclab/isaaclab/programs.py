@@ -138,7 +138,7 @@ EXAMPLES = (
     ProgramSpec(
         "tablecloth",
         "examples/tablecloth.py",
-        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+        "Compare contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
     ),
     ProgramSpec(
         "visual-color-randomization",
