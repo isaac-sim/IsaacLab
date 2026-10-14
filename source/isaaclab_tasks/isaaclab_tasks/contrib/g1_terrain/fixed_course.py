@@ -10,25 +10,29 @@ from __future__ import annotations
 import itertools
 import math
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
 import numpy as np
 import trimesh
 from PIL import Image, ImageDraw, ImageFilter
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
-
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.materials import spawn_physics_material
+from isaaclab.terrains import TerrainImporter
 from isaaclab.terrains.height_field.utils import convert_height_field_to_mesh
-from isaaclab.utils.mesh import convert_faces_to_triangles
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.terrains import TerrainImporterCfg
+
     from .fixed_course_env_cfg import FixedCourseCfg
 
 
 def _apply_texture(stage: Usd.Stage, material_path: str, texture: Path) -> None:
     """Connect a repeating texture to a configured preview surface."""
+    from pxr import Sdf, UsdShade
+
     uv = UsdShade.Shader.Define(stage, f"{material_path}/UV")
     uv.CreateIdAttr("UsdPrimvarReader_float2")
     uv.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
@@ -45,13 +49,14 @@ def _apply_texture(stage: Usd.Stage, material_path: str, texture: Path) -> None:
     shader.GetInput("diffuseColor").ConnectToSource(tex.ConnectableAPI(), "rgb")
 
 
-def _mesh(name, vertices, faces, cfg: FixedCourseCfg, material=None, physics=None, uv_scale=1.0):
+def _mesh(path, vertices, faces, cfg: FixedCourseCfg, material=None, physics=None, uv_scale=1.0):
+    from pxr import Sdf, UsdGeom, Vt
+
     mesh_cfg = sim_utils.MeshFileCfg(
         mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(vertices=vertices, faces=faces),
         collision_props=cfg.collision_props if physics else [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
         mesh_collision_props=cfg.mesh_collision_props if physics else None,
     )
-    path = f"/Course/{name}"
     mesh_cfg.func(path, mesh_cfg)
     stage = sim_utils.get_current_stage()
     mesh = UsdGeom.Mesh(stage.GetPrimAtPath(f"{path}/mesh"))
@@ -104,24 +109,17 @@ def _textures(directory):
     wood.save(directory / "wood.png")
 
 
-def _platforms_and_ramps(stage, directory, cfg: FixedCourseCfg, extended_exit):
-    materials = {}
-    for name in ("white", "steel", "black", "wood", "wall", "floor", "gravel"):
-        path = f"/Course/Looks/{name}"
-        material_cfg = cfg.visual_materials[name]
-        material_cfg.func(path, material_cfg)
-        if name in cfg.textures:
-            _apply_texture(stage, path, directory / cfg.textures[name])
-        materials[name] = path
-    physics = "/Course/Physics"
-    spawn_physics_material(physics, cfg.physics_material)
+def _platforms_and_ramps(cfg: FixedCourseCfg):
+    from isaaclab.utils.mesh import convert_faces_to_triangles  # noqa: PLC0415
+
+    parts = []
 
     def box(name, center, size, material):
         mesh = trimesh.creation.box(size)
         mesh.apply_translation(center)
-        _mesh(name, mesh.vertices, mesh.faces, cfg, materials[material], physics, 0.6)
+        parts.append((name, material, mesh))
 
-    xmin = -2.9 if extended_exit else -1.4
+    xmin = -2.9 if cfg.layout == "platforms" else -1.4
     box("floor", (1.8, 1, -0.05), (18, 14, 0.1), "floor")
     box("wall", (xmin - 0.05, 1.5, 2.3), (0.10, 16, 4.6), "wall")
     box("wood_base", (1.8, 0, 0.42), (3.6, 1.6, 0.06), "black")
@@ -141,7 +139,7 @@ def _platforms_and_ramps(stage, directory, cfg: FixedCourseCfg, extended_exit):
             top[:, 2] = 0.45 + sx * (top[:, 0] - (x0 + x1) / 2) + sy * (top[:, 1] - (y0 + y1) / 2) + 0.053
             vertices = np.vstack([top, top.copy()])
             vertices[4:, 2] = 0.42
-            _mesh(f"wood_{i}_{j}", vertices, ramp_triangles, cfg, materials["wood"], physics, 0.6)
+            parts.append((f"wood_{i}_{j}", "wood", trimesh.Trimesh(vertices, ramp_triangles, process=False)))
     for i, row in enumerate(cfg.platform_heights):
         for j, height in enumerate(row):
             x, y = (i + 0.5) * 0.6, 1.05 + (j + 0.5) * 0.5
@@ -159,10 +157,13 @@ def _platforms_and_ramps(stage, directory, cfg: FixedCourseCfg, extended_exit):
             (0.85, 0.3, (i + 1) * 0.075),
             "black",
         )
+    return parts
 
 
 def separate_ramp_base(stage: Usd.Stage) -> None:
     """Inset the visible ramp base by 1 mm after collision and depth geometry are imported."""
+    from pxr import Sdf, UsdGeom, UsdShade, Vt
+
     base = next(prim for prim in stage.Traverse() if prim.GetName() == "wood_base")
     wood = next(prim for prim in stage.Traverse() if prim.GetName() == "wood_0_0")
     base = base.GetChild("mesh")
@@ -214,45 +215,78 @@ def _container_mesh(top: float):
     return vertices.astype(np.float32), mesh.faces
 
 
-def _granular(stage, directory, cfg: FixedCourseCfg, is_physx):
+def _granular(cfg: FixedCourseCfg):
+    parts = []
     for name, start, end in (("approach", -1.5, 5.5), ("end", 11.5, 16.5)):
         x = np.round(np.arange(start, end + 0.025, 0.05), 6)
         y = np.round(np.arange(-4.0, 4.025, 0.05), 6)
         heights = np.broadcast_to((np.clip((x - 1.0) / 2.5, 0, 1) * cfg.granular_top)[:, None], (len(x), len(y)))
         vertices, faces = convert_height_field_to_mesh(heights, horizontal_scale=0.05, vertical_scale=1.0)
         vertices[:, :2] = np.round(vertices[:, :2] + (start, -4.0), 6)
-        material = f"/Course/Looks/{name}"
-        material_cfg = cfg.visual_materials[name]
-        material_cfg.func(material, material_cfg)
-        if name in cfg.textures:
-            _apply_texture(stage, material, directory / cfg.textures[name])
-        physics = f"/Course/{name}_material"
-        spawn_physics_material(physics, cfg.physics_material)
-        mesh = _mesh(name, vertices, faces, cfg, material, physics)
-        mesh.CreateDisplayColorAttr([(0.22, 0.23, 0.25)])
+        parts.append((name, name, trimesh.Trimesh(vertices, faces, process=False)))
     vertices, faces = _container_mesh(cfg.granular_top)
-    tray = _mesh("granular_container", vertices, faces, cfg)
-    tray.CreateDisplayColorAttr([(0.18, 0.19, 0.20)])
-    if is_physx:
-        from .granular import create_pbd_beds  # noqa: PLC0415
-
-        tray.GetPrim().RemoveAPI(UsdPhysics.CollisionAPI)
-        create_pbd_beds(stage, cfg)
+    parts.append(("granular_container", None, trimesh.Trimesh(vertices, faces, process=False)))
+    return parts
 
 
-def create_fixed_course(directory: Path, terrain_name: str, cfg: FixedCourseCfg, is_physx: bool = False) -> Path:
-    """Write a course and its procedural textures into the run's asset directory."""
-    directory.mkdir(parents=True, exist_ok=True)
-    _textures(directory)
-    path = directory / "course.usdc"
-    stage = Usd.Stage.CreateNew(str(path))
-    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-    stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Course").GetPrim())
-    with sim_utils.use_stage(stage):
-        if terrain_name == "granular":
-            _granular(stage, directory, cfg, is_physx)
-        else:
-            _platforms_and_ramps(stage, directory, cfg, extended_exit=terrain_name == "platforms")
-    stage.GetRootLayer().Save()
-    return path
+def fixed_course_terrain(difficulty: float, cfg: FixedCourseCfg) -> tuple[list[trimesh.Trimesh], np.ndarray]:
+    """Generate one fixed course tile; its measured layout is independent of difficulty."""
+    parts = _granular(cfg) if cfg.layout == "granular" else _platforms_and_ramps(cfg)
+    mesh = trimesh.util.concatenate([part for _, _, part in parts])
+    # Preserve part ranges through generation for separate materials and colliders at import.
+    mesh.metadata["course_parts"] = [
+        (name, material, len(part.vertices), len(part.faces)) for name, material, part in parts
+    ]
+    origin = np.array([cfg.size[0] / 2, cfg.size[1] / 2, 0.0])
+    mesh.apply_translation(origin)
+    return [mesh], origin
+
+
+class FixedCourseImporter(TerrainImporter):
+    """Import a generated course while retaining its part materials and collision settings."""
+
+    def __init__(self, cfg: TerrainImporterCfg):
+        generator = cfg.terrain_generator
+        if generator.num_rows != 1 or generator.num_cols != 1 or generator.use_cache or generator.border_width:
+            raise ValueError("Fixed courses require one uncached terrain tile without a border.")
+        self._texture_directory = TemporaryDirectory(prefix="g1-course-textures-")
+        super().__init__(cfg)
+
+    def import_mesh(self, name: str, mesh: trimesh.Trimesh):
+        from isaaclab.sim.spawners.materials import spawn_physics_material  # noqa: PLC0415
+
+        cfg = self.cfg.terrain_generator.sub_terrains["course"]
+        directory = Path(self._texture_directory.name)
+        _textures(directory)
+        stage = sim_utils.get_current_stage()
+        root = f"{self.cfg.prim_path}/{name}"
+        materials = {}
+        for _, material, _, _ in mesh.metadata["course_parts"]:
+            if material is None or material in materials:
+                continue
+            path = f"{root}/Looks/{material}"
+            material_cfg = cfg.visual_materials[material]
+            material_cfg.func(path, material_cfg)
+            if material in cfg.textures:
+                _apply_texture(stage, path, directory / cfg.textures[material])
+            materials[material] = path
+        physics = f"{root}/Physics"
+        spawn_physics_material(physics, cfg.physics_material)
+        vertex_start, face_start = 0, 0
+        for part, material, vertex_count, face_count in mesh.metadata["course_parts"]:
+            vertices = mesh.vertices[vertex_start : vertex_start + vertex_count]
+            faces = mesh.faces[face_start : face_start + face_count] - vertex_start
+            imported = _mesh(
+                f"{root}/{part}",
+                vertices,
+                faces,
+                cfg,
+                material=materials.get(material),
+                physics=physics if material is not None else None,
+                uv_scale=1.0 if cfg.layout == "granular" else 0.6,
+            )
+            if cfg.layout == "granular":
+                imported.CreateDisplayColorAttr([(0.22, 0.23, 0.25) if material else (0.18, 0.19, 0.20)])
+            vertex_start += vertex_count
+            face_start += face_count
+        self.terrain_prim_paths.append(root)

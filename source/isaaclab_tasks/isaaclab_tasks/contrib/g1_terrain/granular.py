@@ -19,24 +19,29 @@ from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.spawners.materials import spawn_physics_material
-from isaaclab.terrains import TerrainImporter
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
+from .fixed_course import FixedCourseImporter
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
 if TYPE_CHECKING:
+    import trimesh
+
     from .fixed_course_env_cfg import FixedCourseCfg
 
 
-class ParticleTerrainImporter(TerrainImporter):
+class ParticleTerrainImporter(FixedCourseImporter):
     """Enable GPU particles with host state buffers for USD readback."""
 
-    def import_usd(self, name: str, usd_path: str):
-        from pxr import PhysxSchema  # noqa: PLC0415
+    def import_mesh(self, name: str, mesh: trimesh.Trimesh):
+        from pxr import PhysxSchema, UsdPhysics  # noqa: PLC0415
 
-        super().import_usd(name, usd_path)
+        super().import_mesh(name, mesh)
         sim = SimulationContext.instance()
+        root = f"{self.cfg.prim_path}/{name}"
+        sim.stage.GetPrimAtPath(f"{root}/granular_container/mesh").RemoveAPI(UsdPhysics.CollisionAPI)
+        create_pbd_beds(sim.stage, self.cfg.terrain_generator.sub_terrains["course"], root)
         sim.set_setting("/physics/cudaDevice", torch.cuda.current_device())
         sim.set_setting("/physics/suppressReadback", False)
         scene = PhysxSchema.PhysxSceneAPI(sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path))
@@ -99,7 +104,7 @@ def configure_granular(cfg, is_physx: bool):
     cfg.sim.physics.solver_cfg = coupled
     cfg.sim.physics.class_type = coupled.class_type
     cfg.sim.physics.collision_cfg.soft_contact_max = 0
-    top = cfg.course.granular_top
+    top = cfg.scene.terrain.terrain_generator.sub_terrains["course"].granular_top
     cfg.scene.sand = MPMObjectCfg(
         prim_path="{ENV_REGEX_NS}/Sand",
         spawn=MPMGridCfg(
@@ -128,13 +133,13 @@ def configure_granular(cfg, is_physx: bool):
     )
 
 
-def create_pbd_beds(stage, cfg: FixedCourseCfg):
+def create_pbd_beds(stage, cfg: FixedCourseCfg, prim_path: str):
     """Author rigid tray contacts and two native PhysX solid-particle layers."""
     from omni.physx.scripts import particleUtils, physicsUtils  # noqa: PLC0415
     from pxr import Sdf, UsdGeom, UsdShade, Vt
 
     bottom = cfg.granular_top - 0.03
-    material = "/Course/RigidMaterials/granular_container"
+    material = f"{prim_path}/RigidMaterials/granular_container"
     spawn_physics_material(material, cfg.tray_material)
     boxes = {
         "floor": ((8.5, 0.0, bottom - 0.05), (6.2, 1.4, 0.1)),
@@ -151,12 +156,12 @@ def create_pbd_beds(stage, cfg: FixedCourseCfg):
             collision_props=cfg.tray_collision_props,
             visual_material=cfg.visual_materials[name] if name == "gravel_floor_riser" else None,
         )
-        path = f"/Course/{name}"
+        path = f"{prim_path}/{name}"
         cube_cfg.func(path, cube_cfg, translation=center)
         sim_utils.bind_physics_material(path, material)
 
     particleUtils.add_pbd_particle_material(
-        stage, "/Course/PBDMaterial", friction=0.8, particle_friction_scale=1.0, damping=0.1, cohesion=0.0
+        stage, f"{prim_path}/PBDMaterial", friction=0.8, particle_friction_scale=1.0, damping=0.1, cohesion=0.0
     )
     rng = np.random.default_rng(42)
     visual_rng = np.random.default_rng(17)
@@ -165,7 +170,7 @@ def create_pbd_beds(stage, cfg: FixedCourseCfg):
         ("sand", 8.25, 11.5, 0.03, 0.005, 1600.0),
     ):
         radius = diameter / 2
-        system_path = f"/Course/{name}_ParticleSystem"
+        system_path = f"{prim_path}/{name}_ParticleSystem"
         system = particleUtils.add_physx_particle_system(
             stage,
             system_path,
@@ -180,7 +185,7 @@ def create_pbd_beds(stage, cfg: FixedCourseCfg):
             global_self_collision_enabled=True,
             non_particle_collision_enabled=True,
         )
-        physicsUtils.add_physics_material_to_prim(stage, system.GetPrim(), "/Course/PBDMaterial")
+        physicsUtils.add_physics_material_to_prim(stage, system.GetPrim(), f"{prim_path}/PBDMaterial")
         lower = np.array([x0, -0.6, cfg.granular_top - depth])
         upper = np.array([x1, 0.6, cfg.granular_top])
         count = np.floor((upper - lower) / diameter + 1e-6).astype(int)
@@ -193,7 +198,7 @@ def create_pbd_beds(stage, cfg: FixedCourseCfg):
         positions = positions[
             np.all((positions >= lower + radius - 1e-8) & (positions <= upper - radius + 1e-8), axis=1)
         ].astype(np.float32)
-        points = UsdGeom.Points.Define(stage, f"/Course/{name}_particles")
+        points = UsdGeom.Points.Define(stage, f"{prim_path}/{name}_particles")
         points.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(positions))
         points.CreateVelocitiesAttr(Vt.Vec3fArray.FromNumpy(np.zeros_like(positions)))
         width_range = (1.0, 1.0) if name == "gravel" else (1.1, 1.3)
@@ -203,7 +208,7 @@ def create_pbd_beds(stage, cfg: FixedCourseCfg):
         colors = np.asarray(material_cfg.diffuse_color) * visual_rng.uniform(0.65, 1.15, (len(positions), 1))
         points.CreateDisplayColorAttr(Vt.Vec3fArray.FromNumpy(colors.astype(np.float32)))
         points.GetDisplayColorPrimvar().SetInterpolation("vertex")
-        visual = f"/Course/Looks/{name}_particles"
+        visual = f"{prim_path}/Looks/{name}_particles"
         material_cfg.func(visual, material_cfg)
         reader = UsdShade.Shader.Define(stage, f"{visual}/GrainColor")
         reader.CreateIdAttr("UsdPrimvarReader_float3")

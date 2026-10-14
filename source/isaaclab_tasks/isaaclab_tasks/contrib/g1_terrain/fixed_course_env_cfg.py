@@ -6,6 +6,7 @@
 """Single-robot demonstrations on platforms, ramps, and granular terrain."""
 
 import math
+from typing import Literal
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
@@ -22,11 +23,13 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.terrains import SubTerrainBaseCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
+
+from .fixed_course import FixedCourseImporter, fixed_course_terrain
 
 
 @configclass
@@ -114,9 +117,11 @@ class TerrainPhysicsCfg(PresetCfg):
 
 
 @configclass
-class FixedCourseCfg:
-    """Surface appearance and static collision properties of the terrain courses."""
+class FixedCourseCfg(SubTerrainBaseCfg):
+    """Geometry, materials, and contacts for one reconstructed course tile."""
 
+    function = fixed_course_terrain
+    layout: Literal["platforms", "ramps", "granular"] = "platforms"
     ramp_angle_deg: float = 10.0
     granular_top: float = 2.5 * math.tan(math.radians(10.0))
     platform_heights = (
@@ -157,9 +162,15 @@ class TerrainSceneCfg(InteractiveSceneCfg):
     """G1 with plate sole colliders and the deployment depth camera."""
 
     terrain = TerrainImporterCfg(
+        class_type=FixedCourseImporter,
         prim_path="/World/ground",
-        terrain_type="usd",
-        usd_path="",
+        terrain_type="generator",
+        terrain_generator=TerrainGeneratorCfg(
+            size=(40.0, 20.0),
+            seed=42,
+            sub_terrains={"course": FixedCourseCfg()},
+        ),
+        use_terrain_origins=False,
         visual_material=None,
         collision_group=-1,
         physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
@@ -286,7 +297,6 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
 
     class_type = "{DIR}.fixed_course_env:G1FixedCourseEnv"
     policy: DepthPolicyCfg = DepthPolicyCfg()
-    course: FixedCourseCfg = FixedCourseCfg()
     robot_visual_materials = {
         "light": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.7, 0.7, 0.7), roughness=0.5),
         "dark": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.2), roughness=0.5),
@@ -341,6 +351,7 @@ class G1RampsEnvCfg(G1PlatformsEnvCfg):
     def __post_init__(self):
         self.scene.robot.init_state.pos = (0.22, -0.3, 1.308342456817627)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        self.scene.terrain.terrain_generator.sub_terrains["course"].layout = "ramps"
 
 
 @configclass
@@ -361,6 +372,7 @@ class G1GranularEnvCfg(G1PlatformsEnvCfg):
     def __post_init__(self):
         self.scene.robot.init_state.pos = (5.1, 0.0, 1.2338175773620605)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        self.scene.terrain.terrain_generator.sub_terrains["course"].layout = "granular"
         self.scene.depth_camera = None
         self.scene.light.spawn.intensity = 750.0
         self.scene.light.spawn.texture_file = (
