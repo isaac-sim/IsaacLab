@@ -78,8 +78,8 @@ Command Builder
        </aside>
        <aside class="admonition note demo-command-note" data-demo-note="rizon-sharpa-coffee" hidden>
          <p class="admonition-title">Coffee assets</p>
-         <p>This demo requires externally provisioned coffee props and a licensed Rizon/Sharpa robot bundle.
-           See the demo README for setup. Public asset publication is pending.</p>
+         <p>Coffee props and the licensed Rizon/Sharpa robot bundle load from the Isaac Lab asset library.
+           See the demo README for asset-root overrides.</p>
        </aside>
      </section>
 

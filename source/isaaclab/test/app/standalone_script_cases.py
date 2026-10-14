@@ -224,7 +224,6 @@ OVERRIDES = {
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
         fixed_physics_backend="newton_coupler",
         visualizers=(None, "newton_gl", "newton_rtx", "kit"),
-        skip_reason="requires approved coffee props and licensed Rizon/Sharpa robot bundles",
     ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
