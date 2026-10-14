@@ -50,12 +50,25 @@ jobs:
         echo "$CHANGED"
 
         # Check against doc file types and doc paths
-        if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|\.github/workflows/check-links\.yml'; then
+        if echo "$CHANGED" | grep -qE '\.md$|\.rst$|^docs/|^tools/docs/(check_media|test_check_media)\.py$|\.github/workflows/check-links\.yml'; then
           echo "Documentation or workflow files changed. Proceeding..."
           echo "run_job=true" >> "$GITHUB_OUTPUT"
         else
           echo "No documentation files changed in this specific commit. Skipping."
           echo "run_job=false" >> "$GITHUB_OUTPUT"
+        fi
+
+    # PR/push checks allow time for external uploads; weekly/manual runs recheck all images strictly.
+    - name: Check remote documentation images
+      if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+      timeout-minutes: 10
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+      run: |
+        if [[ "$EVENT_NAME" == "pull_request" || "$EVENT_NAME" == "push" ]]; then
+          python3 tools/docs/check_media.py --base-ref HEAD^1 --warn-only
+        else
+          python3 tools/docs/check_media.py
         fi
 
     - name: Restore lychee cache

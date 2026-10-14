@@ -49,3 +49,17 @@ simple-shading stills are too large to keep in the repository. Upload them to
 `https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/` after
 regenerating; the renderer concept pages reference them by URL and do not track
 them under `_static`.
+
+## Checking published images
+
+After uploading or syncing external images, run:
+
+```bash
+uv run python tools/docs/check_media.py docs/source/policy_deployment/05_leapp/exporting_policies_with_leapp.rst
+```
+
+The check performs GET requests and verifies image content types and GIF, PNG, JPEG, WebP or SVG
+signatures without downloading the full assets. It makes up to three attempts, including 404
+responses during upload/sync. Documentation CI warns for changed RST files on PRs and pushes;
+the existing weekly and manual runs recheck all remote RST images and fail on persistent problems.
+Use `--warn-only` for reminders locally, or omit paths to check all documentation images.
