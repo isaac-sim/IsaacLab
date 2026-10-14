@@ -18,6 +18,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
+from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
@@ -100,6 +101,7 @@ class TerrainPhysicsCfg(PresetCfg):
     """Rigid-body backends at a 2.5 ms solver cadence."""
 
     isaacsim_physx = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
+    physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
     newton_mjwarp = NewtonCfg(
         num_substeps=2,
         solver_cfg=MJWarpSolverCfg(
