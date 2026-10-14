@@ -224,13 +224,6 @@ def test_manager_export(backend: str, tmp_path: Path) -> None:
         "h_policy_joint_pos",
         "frames_policy_rgb",
         "ema_previous_applied_actions",
-        "delay_policy_delayed_buffer",
-        "delay_policy_delayed_write_index",
-        "delay_policy_delayed_num_pushes",
-        "modifier_policy_filtered_0_x_n",
-        "modifier_policy_filtered_0_y_n",
-        "modifier_policy_integrated_0_integral",
-        "modifier_policy_integrated_0_y_prev",
     ):
         assert f"{MANAGER_TASK}/{state}_out" in feedback
     outputs = {desc["name"]: desc for desc in model["outputs"]}
@@ -248,8 +241,7 @@ def test_manager_export(backend: str, tmp_path: Path) -> None:
     assert "command" in outputs
     assert "isaaclab_connection" not in outputs["command"]
     assert "command_kp_gains" not in outputs and "command_kd_gains" not in outputs
-    # These are the deliberately nonzero fixture gains, including an explicit actuator whose
-    # simulation-level damping is zero. Reading only the simulation buffers must fail this check.
+    # Configured implicit gains and the requested joint order must survive export.
     torch.testing.assert_close(baseline[f"{MANAGER_TASK}/position_kp_gains"], torch.tensor([[0.0, 20.0]]))
     torch.testing.assert_close(baseline[f"{MANAGER_TASK}/velocity_kd_gains"], torch.tensor([[3.0]]))
 

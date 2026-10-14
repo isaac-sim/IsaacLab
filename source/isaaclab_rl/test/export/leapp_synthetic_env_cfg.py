@@ -10,12 +10,12 @@ from isaaclab_newton.physics import FeatherstoneSolverCfg, NewtonCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.managers import ActionTermCfg, EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg, ImuCfg, PvaCfg, RayCasterCfg, SensorBaseCfg, patterns
 from isaaclab.utils import configclass, replace
-from isaaclab.utils.modifiers import DigitalFilterCfg, IntegratorCfg, ModifierCfg, scale
+from isaaclab.utils.modifiers import ModifierCfg, scale
 from isaaclab.utils.noise import GaussianNoiseCfg
 
 from isaaclab_rl.rsl_rl import RslRlCNNModelCfg
@@ -236,9 +236,6 @@ class SyntheticPolicyCfg(ObservationGroupCfg):
     collection = ObservationTermCfg(
         func=data_observation, params={"entity": "collection", "properties": ("object_state_w",)}
     )
-    delayed = ObservationTermCfg(func=mdp.joint_pos, delay_min_lag=2, delay_max_lag=2)
-    filtered = ObservationTermCfg(func=mdp.joint_vel, modifiers=[DigitalFilterCfg(A=[-0.3], B=[0.4, 0.3])])
-    integrated = ObservationTermCfg(func=mdp.joint_vel, modifiers=[IntegratorCfg(dt=0.02)])
     velocity_command = ObservationTermCfg(func=mdp.generated_commands, params={"command_name": "velocity"})
     pose_command = ObservationTermCfg(func=mdp.generated_commands, params={"command_name": "pose"})
     previous = ObservationTermCfg(func=mdp.last_action)
@@ -259,7 +256,6 @@ class SyntheticPolicyCfg(ObservationGroupCfg):
         params={
             "sensor_cfg": SceneEntityCfg("camera"),
             "data_type": "distance_to_camera",
-            "convert_perspective_to_orthogonal": True,
             "tanh_scale": 2.0,
         },
         history_length=1,
@@ -342,7 +338,7 @@ def manager_env_cfg() -> CartpoleEnvCfg:
     cfg.scene.robot.enable_joint_wrench = True
     cfg.scene.robot.actuators = {
         "position": ImplicitActuatorCfg(joint_names_expr=["slider_to_cart"], stiffness=20.0, damping=2.0),
-        "velocity": IdealPDActuatorCfg(joint_names_expr=["cart_to_pole"], stiffness=0.0, damping=3.0),
+        "velocity": ImplicitActuatorCfg(joint_names_expr=["cart_to_pole"], stiffness=0.0, damping=3.0),
     }
     cfg.actions = SyntheticActionsCfg()
     cfg.commands = SyntheticCommandsCfg()

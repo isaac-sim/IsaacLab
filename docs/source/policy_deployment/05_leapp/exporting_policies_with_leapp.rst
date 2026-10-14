@@ -269,13 +269,6 @@ frame transforms, and joint wrenches. These values remain external inputs to the
 pipeline; the deployment application must supply the inputs listed in its YAML metadata.
 Exporting sensor data does not export the simulator or renderer that produces it.
 
-Observation histories, camera frame stacks, observation delays, digital filters, and integrators
-carry their state through LEAPP feedback connections. Fixed observation delays retain their
-configured lag. Variable delays expose an additional ``delay_<group>_<term>_lag`` integer input
-per environment; the deployment caller supplies the desired lag in control steps. The exported
-pipeline bounds it to the configured history capacity rather than sampling training-time
-random delays. Observation noise is disabled during export.
-
 Custom observation terms still need traceable operations and annotated data reads. Arbitrary
 Python callbacks, custom modifier state, and unannotated tensor properties are not automatically
 made portable by adding them to an observation manager.
