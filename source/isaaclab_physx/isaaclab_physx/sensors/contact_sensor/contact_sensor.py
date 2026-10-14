@@ -81,6 +81,8 @@ class ContactSensor(BaseContactSensor):
     __backend_name__: str = "physx"
     """The name of the backend for the contact sensor."""
 
+    _skips_unstepped_envs = True
+
     def __init__(self, cfg: ContactSensorCfg):
         """Initializes the contact sensor object.
 

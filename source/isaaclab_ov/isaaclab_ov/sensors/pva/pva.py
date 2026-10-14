@@ -58,6 +58,8 @@ class Pva(BasePva):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the PVA sensor."""
 
+    _skips_unstepped_envs = True
+
     def __init__(self, cfg: PvaCfg):
         """Initializes the PVA sensor.
 

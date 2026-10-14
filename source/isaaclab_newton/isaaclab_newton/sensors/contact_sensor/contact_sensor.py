@@ -59,6 +59,8 @@ class ContactSensor(BaseContactSensor):
     cfg: ContactSensorCfg
     """The configuration parameters."""
 
+    _skips_unstepped_envs = True
+
     def __init__(self, cfg: BaseContactSensorCfg | ContactSensorCfg):
         """Initializes the contact sensor object.
 

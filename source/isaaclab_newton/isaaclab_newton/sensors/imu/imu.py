@@ -40,6 +40,8 @@ class Imu(BaseImu):
     __backend_name__: str = "newton"
     """The name of the backend for the IMU sensor."""
 
+    _skips_unstepped_envs = True
+
     def __init__(self, cfg: ImuCfg):
         """Initializes the Newton IMU sensor.
 

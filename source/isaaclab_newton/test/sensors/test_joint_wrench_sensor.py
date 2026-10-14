@@ -281,9 +281,13 @@ def test_no_stale_data_after_scene_reset(sim):
     Mirrors the PhysX equivalent. The joint-wrench sensor's lazy ``data`` accessor must not
     refetch from the Newton articulation view here (the wrench buffer reflects the previous step).
     A partial reset leaves the other envs untouched and a full sensor reset zeroes every env.
+    Such a read captures nothing, so with an update period longer than a step the next physics
+    step's read must still return fresh data.
     """
     num_envs = 4
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=num_envs))
+    scene_cfg = _SingleJointSceneCfg(num_envs=num_envs)
+    scene_cfg.wrench.update_period = 2 * sim.get_physics_dt()
+    scene = InteractiveScene(scene_cfg)
     sim.reset()
 
     sensor: JointWrenchSensor = scene["wrench"]
@@ -313,6 +317,11 @@ def test_no_stale_data_after_scene_reset(sim):
     post_reset_torque = sensor.data.torque.torch
     torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
     torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+
+    sim.step()
+    scene.update(sim.get_physics_dt())
+    post_step_force = sensor.data.force.torch
+    assert torch.all(torch.any(post_step_force != 0, dim=(1, 2))), "Expected a fresh wrench in every env"
 
 
 @pytest.mark.parametrize("root_type", [newton.JointType.FREE, newton.JointType.FIXED, newton.JointType.REVOLUTE])

@@ -56,6 +56,8 @@ class Imu(BaseImu):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the IMU sensor."""
 
+    _skips_unstepped_envs = True
+
     def __init__(self, cfg: ImuCfg):
         """Initializes the IMU sensor.
 

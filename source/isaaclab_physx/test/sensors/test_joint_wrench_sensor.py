@@ -206,9 +206,12 @@ def test_no_stale_data_after_scene_reset(sim):
     Reproduces the manager-based RL flow where an environment terminates,
     ``_reset_idx`` runs, and the next observation read happens before any further physics
     step. The joint-wrench sensor's lazy refetch via :attr:`data` must not return PhysX's
-    stale post-step buffer for the reset env.
+    stale post-step buffer for the reset env. That read captures nothing, so with an update
+    period longer than a step the next physics step's read must still return fresh data.
     """
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
+    scene_cfg = _SingleJointSceneCfg(num_envs=1)
+    scene_cfg.wrench.update_period = 2 * sim.get_physics_dt()
+    scene = InteractiveScene(scene_cfg)
     sim.reset()
 
     sensor: JointWrenchSensor = scene["wrench"]
@@ -229,6 +232,10 @@ def test_no_stale_data_after_scene_reset(sim):
     post_reset_torque = sensor.data.torque.torch
     torch.testing.assert_close(post_reset_force, torch.zeros_like(post_reset_force))
     torch.testing.assert_close(post_reset_torque, torch.zeros_like(post_reset_torque))
+
+    sim.step()
+    scene.update(sim.get_physics_dt())
+    assert torch.any(sensor.data.force.torch != 0), "Expected a fresh wrench after the next physics step"
 
 
 class _FakeArticulationView:

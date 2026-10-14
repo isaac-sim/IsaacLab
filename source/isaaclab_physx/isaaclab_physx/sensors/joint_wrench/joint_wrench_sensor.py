@@ -50,6 +50,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     __backend_name__: str = "physx"
     """The name of the backend for the joint wrench sensor."""
 
+    _skips_unstepped_envs = True
+
     def __init__(self, cfg: JointWrenchSensorCfg):
         """Initialize the PhysX joint-wrench sensor.
 
