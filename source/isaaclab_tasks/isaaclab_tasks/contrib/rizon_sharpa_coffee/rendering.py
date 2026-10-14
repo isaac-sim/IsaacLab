@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 import weakref
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 import warp as wp
@@ -20,11 +20,15 @@ from newton.geometry import ParticleSurface
 from newton.viewer import ViewerRTX
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.simulation_cfg import BackendCfg
+from isaaclab.utils import configclass
 
 from .physics import CoffeeMPMSolver
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
+
+    from .demo_env_cfg import CoffeeRTXVisualizerCfg
 
 COFFEE_COLOR = (0.095, 0.032, 0.012)
 WATER_COLOR = (0.66, 0.83, 0.88)
@@ -100,19 +104,14 @@ class CoffeeRTXViewer(NewtonViewerRTX):
 class CoffeeRTXVisualizer(NewtonRTXVisualizer):
     """Borrow the task scene and extend native geometry publication."""
 
+    cfg: CoffeeRTXVisualizerCfg
     _viewer_class = CoffeeRTXViewer
     rendering: CoffeeRendering | None = None
 
     def initialize(self, sim, *, cameras):
         if self._is_initialized:
             return
-        self._light_backup = {}
-        for name in ("/World/DomeLight", "/World/KeyLight"):
-            intensity = sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity")
-            if intensity:
-                self._light_backup[name] = intensity.Get()
-                intensity.Set(0.0)
-        _add_coffee_studio_lights(sim.stage, "/World/CoffeeRTXLights")
+        sim.get_or_create_backend(_CoffeePresentationCfg(backdrop=self.cfg.backdrop), stage=sim.stage)
         super().initialize(sim, cameras=cameras)
 
     def _update_state(self):
@@ -121,15 +120,6 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
         if self.rendering is not None:
             self.rendering.draw(self._viewer)
         return state
-
-    def close(self):
-        if self._is_closed:
-            return
-        if self._is_initialized:
-            for name, intensity in self._light_backup.items():
-                self._sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity").Set(intensity)
-            self._sim.stage.RemovePrim("/World/CoffeeRTXLights")
-        super().close()
 
 
 class CoffeeRendering:
@@ -149,7 +139,6 @@ class CoffeeRendering:
         color_mass_scale: Uniformly mixed tracer mass [kg] producing 63% of the final tint.
             This is an adjustable display normalization, not a physical calibration.
         diffusion_rate: Phenomenological colour mixing rate [1/s].
-        surface_smoothing_time: Render-field filter time constant [s]; zero disables filtering.
     """
 
     def __init__(
@@ -159,7 +148,6 @@ class CoffeeRendering:
         voxel_size: float = 0.0025,
         color_mass_scale: float = 0.0015,
         diffusion_rate: float = 18.0,
-        surface_smoothing_time: float = 0.06,
     ):
         if env.num_envs != 1:
             raise ValueError("CoffeeRendering supports one demo scene; disable presentation for batched RL.")
@@ -202,7 +190,6 @@ class CoffeeRendering:
         self._liquid_points = None
         self._liquid_radii = None
         self._surface = None
-        self._surface_history = _SurfaceHistory(surface_smoothing_time)
         self._clear_surface_cache()
         self._hash_grid = None
         self._mixing_radius = 2.0 * voxel_size
@@ -234,13 +221,13 @@ class CoffeeRendering:
             self._diffusion_support = wp.empty_like(self._dye_mass)
             self._hash_grid = wp.HashGrid(64, 64, 64, device=device)
             self._hash_grid.reserve(self._liquid_ids.size)
+            # Coarser physics should not coarsen the visible liquid mesh.
+            surface_voxel_size = min(0.3 * voxel_size, 0.0015)
             self._surface = ParticleSurface(
-                # Coarser physics should not coarsen the visible liquid mesh.
-                voxel_size=min(0.3 * voxel_size, 0.0015),
-                # USD transfer already synchronizes. Exact render allocation
-                # handles dispersed droplets without padding a captured buffer.
-                # Physics retains its separately bounded, captured sparse grid.
-                max_grid_cells=None,
+                voxel_size=surface_voxel_size,
+                # Reuse native storage alongside captured physics. Increase
+                # capacity for render grids finer than the 4 mm demo profile.
+                max_grid_cells=math.ceil(1048576 * max(1.0, (0.0012 / surface_voxel_size) ** 3)),
                 kernel_radius=2.0 * voxel_size,
                 threshold=0.4,
                 smooth_lambda=0.4,
@@ -411,15 +398,10 @@ class CoffeeRendering:
         """Reconstruct once per physics state and interpolate tint on shared vertices."""
         step = self._env.sim.get_physics_step_count()
         if step != self._surface_step:
-            now = self._env.sim.physics_manager.get_simulation_time()
-            dt = 0.0 if self._surface_time is None else max(now - self._surface_time, 0.0)
             # Native ACTIVE flags exclude dry coffee without a host-side compaction.
-            field = self._surface.update_field(
-                self._liquid_points, self._liquid_radii, particle_flags=self._liquid_flags
-            )
-            self._surface_history.apply(field, dt)
+            self._surface.update_field(self._liquid_points, self._liquid_radii, particle_flags=self._liquid_flags)
             self._surface_mesh = self._surface.resurface().to_arrays()
-            self._surface_step, self._surface_time = step, now
+            self._surface_step = step
             self._surface_cache = None
         if self._surface_cache is not None:
             return self._surface_cache
@@ -454,10 +436,8 @@ class CoffeeRendering:
         return self._surface_cache
 
     def _clear_surface_cache(self) -> None:
-        """Invalidate geometry and temporal history together at lifecycle boundaries."""
-        self._surface_history.reset()
+        """Invalidate reconstructed geometry at lifecycle boundaries."""
         self._surface_step = -1
-        self._surface_time = None
         self._surface_mesh = None
         self._surface_cache = None
 
@@ -484,55 +464,68 @@ class CoffeeRendering:
         self._clear_surface_cache()
 
 
-class _SurfaceHistory:
-    """Filter density at fixed spatial coordinates before marching cubes.
+@configclass
+class _CoffeePresentationCfg(BackendCfg):
+    """Identity for the render-only scene shared by Kit and Newton RTX."""
 
-    Mesh vertex indices change on each extraction, so averaging vertices would
-    connect unrelated locations. Instead, match the current and previous native
-    sparse fields by voxel coordinates. Newly occupied voxels use their current
-    values. Only the render field changes; physical particles remain untouched.
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:_CoffeePresentation"
+    backdrop: Literal["kitchen", "studio"] = "kitchen"
 
-    The single-world presentation uses exact allocations, keeping the previous
-    field's volume and values alive until the next update. Rebuildable volumes
-    cannot retain history this way because their topology changes in place.
 
-    Args:
-        time_constant: Exponential filter time constant [s]; zero disables filtering.
-    """
+class _CoffeePresentation:
+    """Keep one backdrop alive until the simulation has closed every viewer."""
 
-    def __init__(self, time_constant: float = 0.06):
-        if not math.isfinite(time_constant) or time_constant < 0.0:
-            raise ValueError("Surface smoothing time must be finite and nonnegative.")
-        self._time_constant = time_constant
-        self._previous: ParticleSurface.SparseField | None = None
-        self._coordinates: wp.array | None = None
+    def __init__(self, cfg: _CoffeePresentationCfg, *, stage):
+        from pxr import UsdGeom
 
-    def apply(self, field: ParticleSurface.SparseField | None, dt: float) -> None:
-        """Filter a newly allocated native field after ``dt`` simulated seconds."""
-        previous = self._previous
-        if field is not None and previous is not None and self._time_constant > 0.0 and dt > 0.0:
-            count = field.volume.get_voxel_count()
-            if self._coordinates is None or self._coordinates.size < count:
-                self._coordinates = wp.empty(count, dtype=wp.vec3i, device=field.voxel_data.device)
-            field.volume.get_voxels(self._coordinates)
-            wp.launch(
-                _filter_density,
-                dim=count,
-                inputs=[
-                    self._coordinates,
-                    field.volume.id,
-                    field.voxel_data,
-                    previous.volume.id,
-                    previous.voxel_data,
-                    1.0 - math.exp(-dt / self._time_constant),
-                ],
-                device=field.voxel_data.device,
-            )
-        self._previous = field if self._time_constant > 0.0 else None
+        from .assets import COFFEE_ASSET_DIR
 
-    def reset(self) -> None:
-        """Discard history so an episode reset cannot leave a ghost surface."""
-        self._previous = None
+        self._root_path = "/World/CoffeePresentation"
+        if cfg.backdrop not in ("kitchen", "studio"):
+            raise ValueError("Coffee backdrop must be 'kitchen' or 'studio'.")
+        if stage.GetPrimAtPath(self._root_path):
+            raise ValueError("Coffee renderers sharing a stage must use the same backdrop.")
+        self._stage = stage
+        self._light_backup, self._visibility_backup = {}, {}
+        try:
+            UsdGeom.Xform.Define(stage, self._root_path)
+            for path in ("/World/DomeLight", "/World/KeyLight"):
+                intensity = stage.GetPrimAtPath(path).GetAttribute("inputs:intensity")
+                if intensity:
+                    self._light_backup[path] = intensity.Get()
+                    intensity.Set(0.0)
+            _add_coffee_studio_lights(stage, f"{self._root_path}/Lights")
+            if cfg.backdrop == "kitchen":
+                kitchen_path = f"{self._root_path}/Kitchen"
+                kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
+                with sim_utils.use_stage(stage):
+                    kitchen_cfg.func(kitchen_path, kitchen_cfg)
+                if not stage.GetPrimAtPath(f"{kitchen_path}/KitchenRoom/Floor"):
+                    raise RuntimeError("The prepared kitchen assets did not resolve.")
+                for prim in stage.Traverse():
+                    if (
+                        prim.GetPath().HasPrefix("/World/envs")
+                        and prim.GetName() == "StudioFloor"
+                        and prim.IsA(UsdGeom.Imageable)
+                    ):
+                        imageable = UsdGeom.Imageable(prim)
+                        self._visibility_backup[str(prim.GetPath())] = imageable.GetVisibilityAttr().Get()
+                        imageable.MakeInvisible()
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        from pxr import UsdGeom
+
+        if self._stage is None:
+            return
+        for path, visibility in self._visibility_backup.items():
+            UsdGeom.Imageable(self._stage.GetPrimAtPath(path)).GetVisibilityAttr().Set(visibility)
+        for path, intensity in self._light_backup.items():
+            self._stage.GetPrimAtPath(path).GetAttribute("inputs:intensity").Set(intensity)
+        self._stage.RemovePrim(self._root_path)
+        self._stage = None
 
 
 def _add_coffee_studio_lights(stage, parent: str) -> None:
@@ -719,19 +712,3 @@ def _gather_grains(
         result_radii[index] = 0.0
     rng = wp.rand_init(index)
     colors[index] = color * (0.75 + 0.5 * wp.randf(rng))
-
-
-@wp.kernel
-def _filter_density(
-    coordinates: wp.array[wp.vec3i],
-    grid: wp.uint64,
-    density: wp.array[float],
-    previous_grid: wp.uint64,
-    previous_density: wp.array[float],
-    fraction: float,
-):
-    coordinate = coordinates[wp.tid()]
-    current = wp.volume_lookup_index(grid, coordinate[0], coordinate[1], coordinate[2])
-    previous = wp.volume_lookup_index(previous_grid, coordinate[0], coordinate[1], coordinate[2])
-    if current >= 0 and previous >= 0:
-        density[current] = wp.lerp(previous_density[previous], density[current], fraction)

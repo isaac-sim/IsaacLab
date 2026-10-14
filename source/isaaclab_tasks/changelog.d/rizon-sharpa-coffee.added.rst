@@ -10,3 +10,6 @@
   including the prepared robot, contact reset and self-contained kitchen presentation.
 * Kept converted-mass reporting on the device and native RTX appearance state
   with its viewer, and reused shared MPM solver preparation.
+* Shared the full render-only kitchen and lighting between Kit and Newton RTX,
+  retaining Newton GL's tabletop scene. Reused native bounded liquid-surface
+  buffers and spatial smoothing alongside captured physics.

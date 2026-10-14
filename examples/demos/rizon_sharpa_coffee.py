@@ -109,7 +109,9 @@ def _parse_args():
     parser.add_argument("--render_samples", type=int, default=4)
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
-    parser.add_argument("--backdrop", choices=("kitchen", "studio"), default="kitchen", help="Kit render backdrop.")
+    parser.add_argument(
+        "--backdrop", choices=("kitchen", "studio"), default="kitchen", help="Kit and RTX render backdrop."
+    )
     parser.add_argument("--video", action="store_true", help="Record an MP4 at 1x simulation speed.")
     parser.add_argument("--video_fps", type=int, choices=(25, 30, 50, 60, 100), default=None)
     parser.add_argument("--output_dir", type=Path, default=None)
@@ -188,11 +190,11 @@ def _make_env_cfg(args, video_stride):
 
 def _make_visualizers(args):
     from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     from isaaclab.visualizers import WindowCfg
 
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeKitVisualizerCfg
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg
 
     camera_cfg = dict(
         headless=args.headless,
@@ -202,9 +204,9 @@ def _make_visualizers(args):
         focal_length=24.0,
         background_color=(0.008, 0.014, 0.022),
     )
-    kit_camera = camera_cfg.copy()
+    rtx_camera = camera_cfg.copy()
     if args.backdrop == "kitchen":
-        kit_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
+        rtx_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
     visualizers = [
         NewtonGLVisualizerCfg(
             class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
@@ -214,8 +216,8 @@ def _make_visualizers(args):
             enable_sky=False,
             **camera_cfg,
         ),
-        NewtonRTXVisualizerCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer",
+        CoffeeRTXVisualizerCfg(
+            backdrop=args.backdrop,
             render_settings={
                 "omni:rtx:rtpt:spp": ("Int", args.render_samples),
                 "omni:rtx:rtpt:maxBounces": ("UInt", 8),
@@ -224,7 +226,7 @@ def _make_visualizers(args):
                 "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
                 "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
             },
-            **camera_cfg,
+            **rtx_camera,
         ),
         CoffeeKitVisualizerCfg(
             backdrop=args.backdrop,
@@ -239,7 +241,7 @@ def _make_visualizers(args):
             ),
             enable_markers=False,
             enable_live_plots=False,
-            **kit_camera,
+            **rtx_camera,
         ),
     ]
     # The native recorder's bare "viz" source uses the first selected producer.

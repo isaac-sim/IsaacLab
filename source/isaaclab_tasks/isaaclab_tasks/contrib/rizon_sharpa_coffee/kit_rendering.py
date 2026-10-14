@@ -20,7 +20,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import retrieve_file_path
 
 from .assets import COFFEE_ASSET_DIR
-from .rendering import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights, _vertex_color_material
+from .rendering import COFFEE_COLOR, WATER_COLOR, _CoffeePresentationCfg, _vertex_color_material
 
 if TYPE_CHECKING:
     from .demo_env_cfg import CoffeeKitVisualizerCfg
@@ -37,37 +37,12 @@ class CoffeeKitVisualizer(KitVisualizer):
     def initialize(self, sim, *, cameras) -> None:
         if self._is_initialized:
             return
-        if self.cfg.backdrop not in ("kitchen", "studio"):
-            raise ValueError("Coffee backdrop must be 'kitchen' or 'studio'.")
         apply_isaac_rtx_global_settings(self.cfg.render_settings)
+        sim.get_or_create_backend(_CoffeePresentationCfg(backdrop=self.cfg.backdrop), stage=sim.stage)
         super().initialize(sim, cameras=cameras)
-        self._stage = self._sim.stage
-        self._root_path = "/World/CoffeePresentation"
+        self._stage = sim.stage
+        self._root_path = "/World/CoffeePresentation/Kit"
         UsdGeom.Xform.Define(self._stage, self._root_path)
-        self._visibility_backup = {}
-        self._light_backup = {}
-        for path in ("/World/DomeLight", "/World/KeyLight"):
-            intensity = self._stage.GetPrimAtPath(path).GetAttribute("inputs:intensity")
-            if intensity:
-                self._light_backup[path] = intensity.Get()
-                intensity.Set(0.0)
-        _add_coffee_studio_lights(self._stage, f"{self._root_path}/Lights")
-        if self.cfg.backdrop == "kitchen":
-            kitchen_path = f"{self._root_path}/Kitchen"
-            kitchen_cfg = sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/kitchen.usda")
-            with sim_utils.use_stage(self._stage):
-                kitchen_cfg.func(kitchen_path, kitchen_cfg)
-            if not self._stage.GetPrimAtPath(f"{kitchen_path}/KitchenRoom/Floor"):
-                raise RuntimeError("The prepared kitchen assets did not resolve.")
-            for prim in self._stage.Traverse():
-                if (
-                    prim.GetPath().HasPrefix("/World/envs")
-                    and prim.GetName() == "StudioFloor"
-                    and prim.IsA(UsdGeom.Imageable)
-                ):
-                    imageable = UsdGeom.Imageable(prim)
-                    self._visibility_backup[str(prim.GetPath())] = imageable.GetVisibilityAttr().Get()
-                    imageable.MakeInvisible()
         self._coffee = UsdGeom.Points.Define(self._stage, f"{self._root_path}/Coffee")
         self._coffee.CreateWidthsAttr()
         self._coffee.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
@@ -149,13 +124,12 @@ class CoffeeKitVisualizer(KitVisualizer):
             self._update_subscription.unsubscribe()
             self._update_subscription = None
         self.rendering = None
-        if self._is_initialized:
-            for path, visibility in self._visibility_backup.items():
-                UsdGeom.Imageable(self._stage.GetPrimAtPath(path)).GetVisibilityAttr().Set(visibility)
-            for path, intensity in self._light_backup.items():
-                self._stage.GetPrimAtPath(path).GetAttribute("inputs:intensity").Set(intensity)
-            self._stage.RemovePrim(self._root_path)
-        super().close()
+        initialized = self._is_initialized
+        try:
+            super().close()
+        finally:
+            if initialized:
+                self._stage.RemovePrim(self._root_path)
 
     def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
         """Publish this demo's camera above Kit's session-layer defaults."""

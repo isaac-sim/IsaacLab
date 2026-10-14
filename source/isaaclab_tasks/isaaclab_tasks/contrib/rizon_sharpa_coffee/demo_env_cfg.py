@@ -17,6 +17,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, Ne
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -143,6 +144,15 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
         num_substeps=1,
         use_cuda_graph=True,
     )
+
+
+@configclass
+class CoffeeRTXVisualizerCfg(NewtonRTXVisualizerCfg):
+    """Coffee presentation with an optional render-only public kitchen."""
+
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer"
+    backdrop: Literal["kitchen", "studio"] = "kitchen"
+    """Presentation backdrop: ``kitchen`` or the original ``studio``."""
 
 
 @configclass

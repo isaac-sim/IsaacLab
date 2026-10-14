@@ -9,9 +9,11 @@ uv run isaaclab demo rizon-sharpa-coffee
 
 The default is a dry Newton GL scene with a 4 mm grid and five visual grains
 per physical particle. Add `--water` for a filled cup, physical coffee-to-liquid
-conversion, conservative colour diffusion and stirring. For the kitchen
-presentation, use `--water --visualizer kit`; `--backdrop studio` selects the
-plain studio. `--visualizer none --headless` runs physics without presentation.
+conversion, conservative colour diffusion and stirring. Kit and Newton RTX
+load the same full kitchen presentation; use `--water --visualizer kit` or
+`--water --visualizer newton_rtx`. Both support `--backdrop studio` for the
+plain studio. Newton GL keeps its tabletop scene. `--visualizer none --headless`
+runs physics without presentation.
 Use `--help` for voxel, solver-rate and rendering options. Material properties,
 tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
 
@@ -27,11 +29,11 @@ policy registration.
 | `assets.py`, `robot.py` | Asset dimensions, robot joint contract and authored grasp resets |
 | `physics.py`, `dissolution.py`, `attachment.py` | Coupled physics, soluble coffee and tool mounting |
 | `scripted.py` | Scoop, pour and stir state machine |
-| `rendering.py` | Shared grain, colour and filtered liquid-surface state for Newton viewers |
+| `rendering.py` | Shared grain, colour and native liquid-surface state for Newton viewers |
 | `kit_rendering.py` | Optional Kit USD publication, loaded after app startup |
 
-Native Newton reconstructs the surface. The rendering code adds the local
-coffee colour and temporal filtering used by this scene. Kit stays separate
+Native Newton reconstructs and smooths the surface using bounded reusable
+storage. The rendering code adds the local coffee colour. Kit stays separate
 because its runtime cannot be imported during configuration. Its camera
 session-layer handling is local to this demo. The shared Newton visualizer only
 provides a viewer-subclass hook for publishing liquid colours during the native
@@ -41,6 +43,8 @@ The custom MPM solver retains its manager's USD configuration preparation and
 only specializes solver construction. Native RTX material paths and updates
 belong to the coffee viewer; its adapter still depends on the pinned Newton
 runtime API.
+Kit and RTX reuse one render-only backdrop through the simulation's existing
+resource registry. It remains alive until the viewers close.
 
 ## Assets and runtime
 
@@ -57,8 +61,7 @@ Props are authored in metres with Z up; their default
 prim is `/Asset`. The exact concave spoon triangles and material groups are
 required for MPM contact. Assets load without runtime generation.
 
-The development bundle is available on isaac-dev. Until its production asset
-release is available, select it with:
+For the internal development bundle, override the asset root with:
 
 ```bash
 export ISAACLAB_COFFEE_ASSET_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Environments/RizonSharpaCoffee
@@ -120,8 +123,8 @@ changes appearance without changing particle mass. Liquid-level fidelity still
 depends on grid resolution and pressure convergence.
 
 Newton's `ParticleSurface` owns reconstruction, anisotropy and spatial smoothing.
-Its native active-particle mask excludes dry coffee. The demo adds temporal field
-filtering, coffee colour transport and renderer publication of those colours.
+Its native active-particle mask excludes dry coffee. The demo adds coffee colour
+transport and renderer publication of those colours.
 Materials and recording use Isaac Lab's existing spawners and recorder.
 
 To create an RL task, copy `demo_env.py` and `demo_env_cfg.py` and change their
