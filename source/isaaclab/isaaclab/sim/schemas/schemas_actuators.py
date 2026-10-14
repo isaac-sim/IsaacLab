@@ -255,11 +255,12 @@ def author_actuator_prims(
             # The model becomes drive flags; viscous friction is applied as passive joint damping.
             del motor["model"], motor["friction_viscous"]
             bam_attrs = {
-                **motor,
-                "kp_fw": cfg.kp_fw,
-                "vin": cfg.vin,
-                "vin_min": cfg.vin_min,
-                "delay_hold_prob": cfg.delay_hold_prob,
+                # Float-typed in USD: an int-typed attribute on a weaker layer would truncate the override.
+                **{name: float(value) for name, value in motor.items()},
+                "kp_fw": float(cfg.kp_fw),
+                "vin": float(cfg.vin),
+                "vin_min": float(cfg.vin_min),
+                "delay_hold_prob": float(cfg.delay_hold_prob),
                 **BAM_MODEL_FLAGS[cfg.motor.model],
                 "has_backlash": int(cfg.backlash_joint_template is not None),
                 "min_delay": cfg.min_delay,

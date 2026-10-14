@@ -218,10 +218,14 @@ def test_authored_prim_resolves_to_the_bam_drive(goldens, servo_usd, model, flag
 
 def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd):
     """A serialized asset's fit and joint friction seed are replaced, including runtime parameter values."""
-    cfg = make_cfg(goldens)
+    # An int literal must not leave an int-typed attribute that truncates the replacement value.
+    cfg = make_cfg(goldens, kp_fw=200)
     # Constraint allocation needs a positive seed even for a fit with zero Coulomb friction.
     cfg.motor.friction_base = 0.0
-    stage = make_stage(servo_usd, cfg)
+    stage = make_stage(servo_usd)
+    for name in JOINT_NAMES:
+        stage.RemovePrim(f"/Robot/servo_{name}_actuator")
+    author_actuator_prims(stage, "/Robot", {"servo": cfg})
     seeds = []
     for index, name in enumerate(JOINT_NAMES):
         prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
@@ -235,7 +239,7 @@ def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd
     stage.Export(str(path))
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().subLayerPaths.append(str(path))
-    cfg.kp_fw = 123.0
+    cfg.kp_fw = 123.5
     cfg.motor.friction_base = 0.012
     author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
@@ -244,7 +248,7 @@ def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd
     for entry in parsed:
         resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
         assert resolved["kt"] == pytest.approx(goldens["attr_kt"].item())
-        assert resolved["kp_fw"] == pytest.approx(123.0)
+        assert resolved["kp_fw"] == pytest.approx(123.5)
         assert resolved["friction_base"] == pytest.approx(0.012)
         assert resolved["friction_scale"] == 1.0
     for name, seed in zip(JOINT_NAMES, seeds, strict=True):
