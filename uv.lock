@@ -2264,14 +2264,10 @@ version = "3.2.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
-    { name = "isaaclab-ov" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "isaaclab", editable = "source/isaaclab" },
-    { name = "isaaclab-ov", editable = "source/isaaclab_ov" },
-]
+requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaacsim"
