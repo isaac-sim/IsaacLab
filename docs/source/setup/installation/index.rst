@@ -280,6 +280,21 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
       This resolves the published wheel from the package index into an isolated environment. It does
       not require a source checkout, wheel download, or project file.
 
+   .. tab-item:: uv project dependency
+
+      .. code-block:: bash
+
+         uv init --python 3.12 my_isaaclab_project
+         cd my_isaaclab_project
+         uv add \
+            --index-strategy unsafe-best-match \
+            --index pytorch-cu130=https://download.pytorch.org/whl/cu130 \
+            torch==2.11.0 torchvision==0.26.0
+         uv add \
+            --index-strategy unsafe-best-match \
+            --index nvidia=https://pypi.nvidia.com \
+            isaaclab==3.0.0rc1
+
    .. tab-item:: Standalone uv environment
 
       .. tab-set::
@@ -318,8 +333,10 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
-Use ``uvx`` for one-off commands or a standalone environment for exploratory work that needs an
-activated Python environment.
+The project workflow records the dependencies, package indexes, and lockfile for an application you
+maintain; the commands make those project-file changes, so no manual editing is required. Use ``uvx``
+for one-off commands or a standalone environment for exploratory work that needs an activated Python
+environment. Pass the same index strategy when adding or upgrading dependencies in the project.
 
 .. _installation-optional-extras:
 
