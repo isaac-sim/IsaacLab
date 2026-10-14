@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import math
 import os
 import shutil
 import tempfile
@@ -87,6 +88,7 @@ class BaseUsdExporter(ABC):
         self._select_environment(stage)
         for edit in self.compute_diff(stage):
             _write(stage, edit)
+        _write_pd_actuators_as_drives(stage)
         # Cached copies of remote assets exist only on this machine; reference their source instead.
         UsdUtils.ModifyAssetPaths(layer, lambda asset: unmirror_file_path(asset) or asset)
         UsdUtils.ModifyAssetPaths(layer, functools.partial(_keep_temporary_file, export_path=path))
@@ -120,6 +122,46 @@ class BaseUsdExporter(ABC):
         for index, env_path in enumerate(self.scene.env_prim_paths):
             if index != self.env_id:
                 stage.RemovePrim(env_path)
+
+
+_PD_ACTUATOR_SCHEMAS = {"NewtonPDControlAPI", "NewtonMaxEffortClampingAPI"}
+"""API schemas of a Newton actuator that a USD joint drive expresses exactly: a PD law with an effort clamp."""
+
+
+def _write_pd_actuators_as_drives(stage: Usd.Stage):
+    """Move explicit PD actuators into their joints' USD drives, the form every physics importer reads.
+
+    An explicit actuator runs outside the engine, which holds zero drive gains for its joint; its gains
+    live only on a ``NewtonActuator`` prim. The drive replaces the prim, which is deactivated so that
+    importers reading both do not apply the PD twice. Actuators with motor saturation, delay,
+    position-dependent limits or a network stay prims.
+    """
+    kept = []
+    for prim in [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]:
+        # The type info also lists schemas whose plugin is not registered, unlike GetAppliedSchemas.
+        schemas = set(prim.GetPrimTypeInfo().GetAppliedAPISchemas())
+        targets = prim.GetRelationship("newton:targets").GetTargets()
+        joint = stage.GetPrimAtPath(targets[0]) if len(targets) == 1 else None
+        axis = "angular" if joint and joint.IsA(UsdPhysics.RevoluteJoint) else "linear"
+        if "NewtonPDControlAPI" not in schemas or not schemas <= _PD_ACTUATOR_SCHEMAS or not joint:
+            kept.append(str(prim.GetPath()))
+            continue
+        scale = math.pi / 180.0 if axis == "angular" else 1.0
+        kp, kd = (float(prim.GetAttribute(name).Get() or 0.0) * scale for name in ("newton:kp", "newton:kd"))
+        drive, schema, path = f"drive:{axis}:physics:", f"PhysicsDriveAPI:{axis}", str(joint.GetPath())
+        edits = [
+            UsdEdit(path, drive + "stiffness", kp, schema=schema),
+            UsdEdit(path, drive + "damping", kd, schema=schema),
+        ]
+        # The engine clamps at the joint effort limit; the actuator clamps its output as well.
+        max_effort, max_force = prim.GetAttribute("newton:maxEffort").Get(), stated(joint, drive + "maxForce")
+        if max_effort is not None and (max_force is None or max_effort < max_force):
+            edits.append(UsdEdit(path, drive + "maxForce", float(max_effort), schema=schema))
+        for edit in edits:
+            _write(stage, edit)
+        prim.SetActive(False)
+    if kept:
+        logger.warning(f"Actuators without a USD drive equivalent stay Newton actuator prims: {kept}.")
 
 
 def _keep_temporary_file(asset: str, export_path: str) -> str:

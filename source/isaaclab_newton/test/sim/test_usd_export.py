@@ -11,10 +11,10 @@ import pytest
 import warp as wp
 from newton.usd import PrimType, SchemaResolverNewton
 
-from pxr import Sdf
+from pxr import Sdf, Usd, UsdPhysics
 
 
-def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0):
+def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None):
     """Initialize the fixture scene, export it, and capture the live model for comparison."""
     from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
@@ -23,6 +23,8 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0):
     from isaaclab.test.utils.usd_export import make_export_scene_cfg
 
     cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs)
+    if hinge_actuator is not None:
+        cfg.robot.actuators = {"hinge": hinge_actuator}
     sim_cfg = SimulationCfg(
         device=device, dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=NewtonCfg(solver_cfg=solver_cfg)
     )
@@ -143,6 +145,29 @@ def test_export_references_assets_and_keeps_one_environment(tmp_path):
     # The robot's own prims come from the reference; only edits are authored over them.
     link = layer.GetPrimAtPath("/World/envs/env_0/Robot/Link")
     assert not link or link.specifier == Sdf.SpecifierOver
+
+
+def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
+    """An explicit PD actuator, whose gains the engine does not hold, becomes the joint's USD drive."""
+    from isaaclab_newton.physics import XPBDSolverCfg
+    from isaaclab_newton.sim.usd_export import load_usd
+
+    from isaaclab.actuators import IdealPDActuatorCfg
+
+    actuator = IdealPDActuatorCfg(joint_names_expr=["Hinge"], stiffness=83.0, damping=4.5, actuator_effort_limit=12.0)
+    output, _, _ = _export(tmp_path, XPBDSolverCfg(), "cpu", hinge_actuator=actuator)
+
+    stage = Usd.Stage.Open(output)
+    hinge = UsdPhysics.DriveAPI(stage.GetPrimAtPath("/World/envs/env_0/Robot/Hinge"), "angular")
+    assert hinge.GetStiffnessAttr().Get() == pytest.approx(np.deg2rad(83.0))
+    assert hinge.GetDampingAttr().Get() == pytest.approx(np.deg2rad(4.5))
+    assert hinge.GetMaxForceAttr().Get() == pytest.approx(12.0)
+    # the drive replaces the actuator prim, so importers reading both apply the PD once
+    assert not [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]
+    model, _, _ = load_usd(output)
+    hinge_dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
+    assert model.joint_target_ke.numpy()[hinge_dof] == pytest.approx(83.0, rel=1e-5)
+    assert model.joint_target_kd.numpy()[hinge_dof] == pytest.approx(4.5, rel=1e-5)
 
 
 def test_attribute_tables_cover_newton_importer():
