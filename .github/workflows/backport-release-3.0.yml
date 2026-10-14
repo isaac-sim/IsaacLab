@@ -238,8 +238,8 @@ jobs:
           CHERRY_PICK_HEAD_SHA: ${{ steps.cherry_pick.outputs.cherry_pick_head }}
         run: |
           set -euo pipefail
-          primary_model=${NVIDIA_BACKPORT_MODEL:-azure/openai/gpt-5.6-sol}
-          fallback_model=${NVIDIA_BACKPORT_FALLBACK_MODEL:-azure/anthropic/claude-opus-5}
+          primary_model=${NVIDIA_BACKPORT_MODEL:-azure/openai/gpt-6.1-sol}
+          fallback_model=${NVIDIA_BACKPORT_FALLBACK_MODEL:-azure/anthropic/claude-opus-5-5}
           python3 ../automation/.github/scripts/resolve_backport_conflicts.py \
             --source_parent "$SOURCE_PARENT" \
             --source "$SOURCE_SHA" \

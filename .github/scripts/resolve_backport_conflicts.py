@@ -21,7 +21,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 _NVIDIA_CHAT_COMPLETIONS_URL = "https://inference-api.nvidia.com/v1/chat/completions"
-_DEFAULT_MODELS = ("azure/openai/gpt-5.6-sol", "azure/anthropic/claude-opus-5")
+_DEFAULT_MODELS = ("azure/openai/gpt-6.1-sol", "azure/anthropic/claude-opus-5-5")
 _MAX_CONTEXT_CHARS = 1_500_000
 _MAX_FILE_CHARS = 750_000
 _MAX_MODEL_OUTPUT_TOKENS = 65_536
