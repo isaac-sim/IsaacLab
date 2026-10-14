@@ -34,7 +34,9 @@ class G1TerrainEnv(ManagerBasedRLEnv):
 
             configure_granular(cfg, is_physx)
         self._terrain_directory = TemporaryDirectory(prefix="g1-terrain-")
-        cfg.scene.terrain.usd_path = str(create_terrain(Path(self._terrain_directory.name), cfg.terrain_name, is_physx))
+        cfg.scene.terrain.usd_path = str(
+            create_terrain(Path(self._terrain_directory.name), cfg.terrain_name, cfg.course, is_physx)
+        )
         super().__init__(cfg, **kwargs)
         if cfg.terrain_name == "granular" and is_physx:
             self.sim.set_setting("/physics/updateParticlesToUsd", True)

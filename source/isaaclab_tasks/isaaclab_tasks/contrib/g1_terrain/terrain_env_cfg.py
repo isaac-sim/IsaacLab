@@ -9,8 +9,9 @@ import math
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_newton.sim.schemas import MujocoCollisionCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -19,13 +20,79 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from .depth_parameters import DEFAULT_JOINT_POS, DEPTH_SHAPE
+
+@configclass
+class DepthPolicyCfg:
+    """Input and action contract of the pretrained depth policy."""
+
+    checkpoint: str = (
+        f"{ISAAC_NUCLEUS_DIR}/IsaacLab/PretrainedCheckpoints/rsl_rl/"
+        "IsaacContrib-Velocity-Rough-G1_Terrain_newtonmjwarp_none_rsl_rl.pt"
+    )
+    joint_names = (
+        [
+            f"{side}_{joint}_joint"
+            for side in ("left", "right")
+            for joint in ("hip_pitch", "hip_roll", "hip_yaw", "knee", "ankle_pitch", "ankle_roll")
+        ]
+        + [f"waist_{axis}_joint" for axis in ("yaw", "roll", "pitch")]
+        + [
+            f"{side}_{joint}_joint"
+            for side in ("left", "right")
+            for joint in (
+                "shoulder_pitch",
+                "shoulder_roll",
+                "shoulder_yaw",
+                "elbow",
+                "wrist_roll",
+                "wrist_pitch",
+                "wrist_yaw",
+                "hand_index_0",
+                "hand_index_1",
+                "hand_middle_0",
+                "hand_middle_1",
+                "hand_thumb_0",
+                "hand_thumb_1",
+                "hand_thumb_2",
+            )
+        ]
+    )
+    default_joint_pos = {
+        ".*_hip_pitch_joint": -0.2,
+        ".*_knee_joint": 0.42,
+        ".*_ankle_pitch_joint": -0.23,
+        ".*_elbow_joint": 0.87,
+        ".*_shoulder_pitch_joint": 0.35,
+        "left_shoulder_roll_joint": 0.16,
+        "right_shoulder_roll_joint": -0.16,
+    }
+    action_scale = {
+        ".*_hip_yaw_joint": 0.1467,
+        ".*_hip_roll_joint": 0.1467,
+        ".*_hip_pitch_joint": 0.11,
+        ".*_knee_joint": 0.1738,
+        "waist_yaw_joint": 0.11,
+        "waist_roll_joint": 0.0625,
+        "waist_pitch_joint": 0.0625,
+        ".*_ankle_pitch_joint": 0.625,
+        ".*_ankle_roll_joint": 0.625,
+        ".*_shoulder_.*_joint": 0.1563,
+        ".*_elbow_joint": 0.1563,
+        ".*_wrist_roll_joint": 0.1563,
+        ".*_wrist_pitch_joint": 0.0313,
+        ".*_wrist_yaw_joint": 0.0313,
+        ".*_hand_.*_joint": 0.0153,
+    }
+    history_length = 5
+    depth_shape = (3, 38, 64)
+    depth_max_range = 3.0
 
 
 @configclass
@@ -42,6 +109,45 @@ class TerrainPhysicsCfg(PresetCfg):
         default_shape_cfg=NewtonShapeCfg(margin=0.0, ke=160000.0, kd=1100.0),
     )
     default = newton_mjwarp
+
+
+@configclass
+class CourseCfg:
+    """Surface appearance and static collision properties of the terrain courses."""
+
+    ramp_angle_deg: float = 10.0
+    granular_top: float = 2.5 * math.tan(math.radians(10.0))
+    platform_heights = (
+        (0.51, 0.56, 0.50),
+        (0.56, 0.51, 0.58),
+        (0.50, 0.56, 0.53),
+        (0.55, 0.50, 0.58),
+        (0.50, 0.57, 0.51),
+        (0.54, 0.51, 0.56),
+    )
+    visual_materials = {
+        "white": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.73, 0.75, 0.75), roughness=0.9),
+        "steel": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.26, 0.28, 0.29), roughness=0.9),
+        "black": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.055, 0.06, 0.065), roughness=0.9),
+        "wood": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.62, 0.43, 0.20), roughness=0.9),
+        "wall": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.68, 0.67, 0.64), roughness=0.9),
+        "floor": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.39, 0.39, 0.37), roughness=0.9),
+        "gravel": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.32, 0.32, 0.30), roughness=0.9),
+        "approach": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.055, 0.065, 0.08), roughness=0.96),
+        "end": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.055, 0.065, 0.08), roughness=0.96),
+        "gravel_floor_riser": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.18, 0.19, 0.20), roughness=0.96),
+        "gravel_particles": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.38, 0.37, 0.34), roughness=0.96),
+        "sand_particles": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.70, 0.55, 0.32), roughness=0.96),
+    }
+    textures = {"wood": "wood.png", "gravel": "gravel.png", "approach": "asphalt.png", "end": "asphalt.png"}
+    physics_material = UsdPhysicsRigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0, restitution=0.0)
+    tray_material = UsdPhysicsRigidBodyMaterialCfg(static_friction=0.6, dynamic_friction=0.6, restitution=0.0)
+    collision_props = [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True), MujocoCollisionCfg(priority=1)]
+    mesh_collision_props = sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="none")
+    tray_collision_props = [
+        sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+        PhysxCollisionCfg(contact_offset=0.001, rest_offset=0.0),
+    ]
 
 
 @configclass
@@ -78,7 +184,7 @@ class TerrainSceneCfg(InteractiveSceneCfg):
             ),
         ),
         init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos=DEFAULT_JOINT_POS,
+            joint_pos=DepthPolicyCfg().default_joint_pos,
             joint_vel={".*": 0.0},
         ),
         soft_joint_pos_limit_factor=0.9,
@@ -130,8 +236,8 @@ class TerrainSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.PinholeCameraCfg(
             focal_length=1.93, horizontal_aperture=3.663003227519435, clipping_range=(0.05, 10.0)
         ),
-        width=DEPTH_SHAPE[2],
-        height=DEPTH_SHAPE[1],
+        width=DepthPolicyCfg().depth_shape[2],
+        height=DepthPolicyCfg().depth_shape[1],
         data_types=["distance_to_image_plane"],
         update_latest_camera_pose=True,
         renderer_cfg=NewtonWarpRendererCfg(),
@@ -177,10 +283,12 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
     """Depth-based locomotion over uneven white platforms."""
 
     class_type = "{DIR}.terrain_env:G1TerrainEnv"
-    policy_path: str = (
-        f"{ISAAC_NUCLEUS_DIR}/IsaacLab/PretrainedCheckpoints/rsl_rl/"
-        "IsaacContrib-Velocity-Rough-G1_Terrain_newtonmjwarp_none_rsl_rl.pt"
-    )
+    policy: DepthPolicyCfg = DepthPolicyCfg()
+    course: CourseCfg = CourseCfg()
+    robot_visual_materials = {
+        "light": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.7, 0.7, 0.7), roughness=0.5),
+        "dark": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.2), roughness=0.5),
+    }
     warmup_height: float | None = 1.38
     terrain_name: str = "platforms"
     duration: float = 7.76
@@ -267,3 +375,13 @@ class G1GranularEnvCfg(G1PlatformsEnvCfg):
                 "num_buckets": 64,
             },
         )
+
+
+@configclass
+class G1TerrainPresetsCfg(PresetCfg):
+    """Fixed courses for the pretrained depth and SONIC controllers."""
+
+    platforms = G1PlatformsEnvCfg()
+    ramps = G1RampsEnvCfg()
+    granular = G1GranularEnvCfg()
+    default = platforms

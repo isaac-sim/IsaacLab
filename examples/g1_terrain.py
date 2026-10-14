@@ -36,19 +36,19 @@ if TYPE_CHECKING:
 def _prepare_view(env: G1TerrainEnv, visualizer: KitVisualizer) -> None:
     """Configure the spectator camera after initializing physics and depth geometry."""
     import omni.kit.app  # noqa: PLC0415
-    from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdShade  # noqa: PLC0415
+    from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
 
-    from isaaclab.sim import get_current_stage  # noqa: PLC0415
+    from isaaclab.sim import bind_visual_material, get_current_stage  # noqa: PLC0415
 
-    from isaaclab_tasks.contrib.g1_terrain.terrain import separate_ramp_base, visual_material  # noqa: PLC0415
+    from isaaclab_tasks.contrib.g1_terrain.terrain import separate_ramp_base  # noqa: PLC0415
 
     omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
     import omni.replicator.core as rep  # noqa: PLC0415
 
     rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
     stage = get_current_stage()
-    light = visual_material(stage, "/World/G1Looks/light", (0.7, 0.7, 0.7), roughness=0.5)
-    dark = visual_material(stage, "/World/G1Looks/dark", (0.2, 0.2, 0.2), roughness=0.5)
+    for name, material_cfg in env.cfg.robot_visual_materials.items():
+        material_cfg.func(f"/World/G1Looks/{name}", material_cfg)
     dark_parts = {
         "head_link",
         "pelvis",
@@ -66,8 +66,8 @@ def _prepare_view(env: G1TerrainEnv, visualizer: KitVisualizer) -> None:
                 if part.GetName() == "logo_link":
                     UsdGeom.Imageable(part).MakeInvisible()
                 else:
-                    material = dark if part.GetName() in dark_parts else light
-                    UsdShade.MaterialBindingAPI.Apply(part).Bind(material, UsdShade.Tokens.strongerThanDescendants)
+                    material = "/World/G1Looks/" + ("dark" if part.GetName() in dark_parts else "light")
+                    bind_visual_material(part.GetPath(), material)
     # Kit's viewport camera opinions in the session layer override the scene layer.
     with Usd.EditContext(stage, stage.GetSessionLayer()):
         camera_path = "/OmniverseKit_Persp"
@@ -111,10 +111,11 @@ def main() -> None:
         parser.error("--seconds must be finite and positive")
     if min(args.width, args.height) < 2 or args.width % 2 or args.height % 2:
         parser.error("Capture dimensions must be positive even integers")
-    task = f"IsaacContrib-G1-Terrain-{args.task.title()}"
+    task = "IsaacContrib-G1-Terrain"
+    overrides.insert(0, f"presets={args.task}")
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     if args.checkpoint is not None:
-        cfg.policy_path = args.checkpoint
+        cfg.policy.checkpoint = args.checkpoint
     cfg.sim.visualizer_cfgs = [
         KitVisualizerCfg(
             headless=False,
@@ -135,9 +136,9 @@ def main() -> None:
             robot = env.scene["robot"]
             visualizer = env.sim.visualizers[0]
             _prepare_view(env, visualizer)
-            from isaaclab_tasks.contrib.g1_terrain.depth_policy import DepthStudentPolicy  # noqa: PLC0415
+            from isaaclab_tasks.contrib.g1_terrain.agents.depth_policy import DepthStudentPolicy  # noqa: PLC0415
 
-            policy = DepthStudentPolicy(cfg.policy_path)
+            policy = DepthStudentPolicy(cfg.policy)
             policy_ids = [robot.joint_names.index(name) for name in policy.joint_names]
             action = robot.data.default_joint_pos.torch.clone()
             if args.video:

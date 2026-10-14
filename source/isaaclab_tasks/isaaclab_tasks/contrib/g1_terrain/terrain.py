@@ -5,79 +5,63 @@
 
 """Procedural geometry and materials for the G1 terrain courses."""
 
+from __future__ import annotations
+
 import itertools
 import math
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import trimesh
 from PIL import Image, ImageDraw, ImageFilter
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
-GRANULAR_TOP = 2.5 * math.tan(math.radians(10.0))
-PLATFORM_HEIGHTS = (
-    (0.51, 0.56, 0.50),
-    (0.56, 0.51, 0.58),
-    (0.50, 0.56, 0.53),
-    (0.55, 0.50, 0.58),
-    (0.50, 0.57, 0.51),
-    (0.54, 0.51, 0.56),
-)
+import isaaclab.sim as sim_utils
+from isaaclab.sim.spawners.materials import spawn_physics_material
+
+if TYPE_CHECKING:
+    from .terrain_env_cfg import CourseCfg
 
 
-def visual_material(stage, path, color, roughness=0.9, texture=None):
-    """Create a matte material, optionally with a repeating texture."""
-    material = UsdShade.Material.Define(stage, path)
-    shader = UsdShade.Shader.Define(stage, f"{path}/Shader")
-    shader.CreateIdAttr("UsdPreviewSurface")
-    shader.CreateInput("diffuseColor", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*color))
-    shader.CreateInput("roughness", Sdf.ValueTypeNames.Float).Set(roughness)
-    shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
-    material.CreateSurfaceOutput().ConnectToSource(shader.CreateOutput("surface", Sdf.ValueTypeNames.Token))
-    if texture is not None:
-        uv = UsdShade.Shader.Define(stage, f"{path}/UV")
-        uv.CreateIdAttr("UsdPrimvarReader_float2")
-        uv.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
-        uv.CreateOutput("result", Sdf.ValueTypeNames.Float2)
-        tex = UsdShade.Shader.Define(stage, f"{path}/Texture")
-        tex.CreateIdAttr("UsdUVTexture")
-        tex.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(str(texture))
-        tex.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set("sRGB")
-        for axis in ("S", "T"):
-            tex.CreateInput(f"wrap{axis}", Sdf.ValueTypeNames.Token).Set("repeat")
-        tex.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(uv.ConnectableAPI(), "result")
-        tex.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
-        shader.GetInput("diffuseColor").ConnectToSource(tex.ConnectableAPI(), "rgb")
-    return material
+def _apply_texture(stage: Usd.Stage, material_path: str, texture: Path) -> None:
+    """Connect a repeating texture to a configured preview surface."""
+    uv = UsdShade.Shader.Define(stage, f"{material_path}/UV")
+    uv.CreateIdAttr("UsdPrimvarReader_float2")
+    uv.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+    uv.CreateOutput("result", Sdf.ValueTypeNames.Float2)
+    tex = UsdShade.Shader.Define(stage, f"{material_path}/Texture")
+    tex.CreateIdAttr("UsdUVTexture")
+    tex.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(str(texture))
+    tex.CreateInput("sourceColorSpace", Sdf.ValueTypeNames.Token).Set("sRGB")
+    for axis in ("S", "T"):
+        tex.CreateInput(f"wrap{axis}", Sdf.ValueTypeNames.Token).Set("repeat")
+    tex.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(uv.ConnectableAPI(), "result")
+    tex.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+    shader = UsdShade.Shader(stage.GetPrimAtPath(f"{material_path}/Shader"))
+    shader.GetInput("diffuseColor").ConnectToSource(tex.ConnectableAPI(), "rgb")
 
 
-def _physics_material(stage, path, friction):
-    material = UsdShade.Material.Define(stage, path)
-    api = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
-    api.CreateStaticFrictionAttr(friction)
-    api.CreateDynamicFrictionAttr(friction)
-    api.CreateRestitutionAttr(0.0)
-    return material
-
-
-def _mesh(stage, name, vertices, faces, material=None, physics=None, uv_scale=1.0):
-    mesh = UsdGeom.Mesh.Define(stage, f"/Course/{name}")
-    vertices = np.asarray(vertices, dtype=np.float32)
-    mesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(vertices))
-    mesh.CreateFaceVertexCountsAttr([3] * len(faces))
-    mesh.CreateFaceVertexIndicesAttr(np.asarray(faces).ravel().tolist())
+def _mesh(name, vertices, faces, cfg: CourseCfg, material=None, physics=None, uv_scale=1.0):
+    mesh_cfg = sim_utils.MeshFileCfg(
+        mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(vertices=vertices, faces=faces),
+        collision_props=cfg.collision_props if physics else [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+        mesh_collision_props=cfg.mesh_collision_props if physics else None,
+    )
+    path = f"/Course/{name}"
+    mesh_cfg.func(path, mesh_cfg)
+    stage = sim_utils.get_current_stage()
+    mesh = UsdGeom.Mesh(stage.GetPrimAtPath(f"{path}/mesh"))
     mesh.CreateSubdivisionSchemeAttr("none")
-    UsdPhysics.CollisionAPI.Apply(mesh.GetPrim()).CreateCollisionEnabledAttr(True)
     if material is not None:
-        UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
+        sim_utils.bind_visual_material(mesh.GetPath(), material)
+        vertices = np.asarray(vertices, dtype=np.float32)
         UsdGeom.PrimvarsAPI(mesh).CreatePrimvar("st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex).Set(
             Vt.Vec2fArray.FromNumpy(vertices[:, :2] / uv_scale)
         )
     if physics is not None:
-        UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("none")
-        UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(physics, materialPurpose="physics")
-        mesh.GetPrim().CreateAttribute("mjc:priority", Sdf.ValueTypeNames.Int).Set(1)
+        sim_utils.bind_physics_material(mesh.GetPath(), physics)
     return mesh
 
 
@@ -118,31 +102,22 @@ def _textures(directory):
     wood.save(directory / "wood.png")
 
 
-def _platforms_and_ramps(stage, directory, extended_exit):
-    colors = {
-        "white": (0.73, 0.75, 0.75),
-        "steel": (0.26, 0.28, 0.29),
-        "black": (0.055, 0.06, 0.065),
-        "wood": (0.62, 0.43, 0.20),
-        "wall": (0.68, 0.67, 0.64),
-        "floor": (0.39, 0.39, 0.37),
-        "gravel": (0.32, 0.32, 0.30),
-    }
-    materials = {
-        name: visual_material(
-            stage,
-            f"/Course/Looks/{name}",
-            color,
-            texture=directory / f"{name}.png" if name in ("wood", "gravel") else None,
-        )
-        for name, color in colors.items()
-    }
-    physics = _physics_material(stage, "/Course/Physics", 1.0)
+def _platforms_and_ramps(stage, directory, cfg: CourseCfg, extended_exit):
+    materials = {}
+    for name in ("white", "steel", "black", "wood", "wall", "floor", "gravel"):
+        path = f"/Course/Looks/{name}"
+        material_cfg = cfg.visual_materials[name]
+        material_cfg.func(path, material_cfg)
+        if name in cfg.textures:
+            _apply_texture(stage, path, directory / cfg.textures[name])
+        materials[name] = path
+    physics = "/Course/Physics"
+    spawn_physics_material(physics, cfg.physics_material)
 
     def box(name, center, size, material):
         mesh = trimesh.creation.box(size)
         mesh.apply_translation(center)
-        _mesh(stage, name, mesh.vertices, mesh.faces, materials[material], physics, 0.6)
+        _mesh(name, mesh.vertices, mesh.faces, cfg, materials[material], physics, 0.6)
 
     xmin = -2.9 if extended_exit else -1.4
     box("floor", (1.8, 1, -0.05), (18, 14, 0.1), "floor")
@@ -152,8 +127,8 @@ def _platforms_and_ramps(stage, directory, extended_exit):
         for j in range(2):
             x0, y0 = i * 0.6, -0.8 + j * 0.8
             x1, y1 = x0 + 0.6, y0 + 0.8
-            sx = math.tan(math.radians(10)) * (1 if (i + j) % 3 else -1)
-            sy = math.tan(math.radians(10)) * (1 if j else -1) * (0.35 if i in (2, 3) else 0.0)
+            sx = math.tan(math.radians(cfg.ramp_angle_deg)) * (1 if (i + j) % 3 else -1)
+            sy = math.tan(math.radians(cfg.ramp_angle_deg)) * (1 if j else -1) * (0.35 if i in (2, 3) else 0.0)
             top = np.array([[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]], dtype=float)
             top[:, 2] = 0.45 + sx * (top[:, 0] - (x0 + x1) / 2) + sy * (top[:, 1] - (y0 + y1) / 2) + 0.053
             vertices = np.vstack([top, top.copy()])
@@ -174,8 +149,8 @@ def _platforms_and_ramps(stage, directory, extended_exit):
                     [3, 4, 0],
                 ]
             )
-            _mesh(stage, f"wood_{i}_{j}", vertices, faces, materials["wood"], physics, 0.6)
-    for i, row in enumerate(PLATFORM_HEIGHTS):
+            _mesh(f"wood_{i}_{j}", vertices, faces, cfg, materials["wood"], physics, 0.6)
+    for i, row in enumerate(cfg.platform_heights):
         for j, height in enumerate(row):
             x, y = (i + 0.5) * 0.6, 1.05 + (j + 0.5) * 0.5
             box(f"white_{i}_{j}", (x, y, height - 0.015), (0.59, 0.49, 0.03), "white")
@@ -198,6 +173,8 @@ def separate_ramp_base(stage: Usd.Stage) -> None:
     """Inset the visible ramp base by 1 mm after collision and depth geometry are imported."""
     base = next(prim for prim in stage.Traverse() if prim.GetName() == "wood_base")
     wood = next(prim for prim in stage.Traverse() if prim.GetName() == "wood_0_0")
+    base = base.GetChild("mesh")
+    wood = wood.GetChild("mesh")
     source = UsdGeom.Mesh(base)
     points = np.asarray(source.GetPointsAttr().Get(), dtype=np.float32).copy()
     lower, upper = points.min(axis=0), points.max(axis=0)
@@ -225,13 +202,13 @@ def separate_ramp_base(stage: Usd.Stage) -> None:
     UsdGeom.Imageable(base).MakeInvisible()
 
 
-def _container_mesh():
+def _container_mesh(top: float):
     """Triangulate a closed tray without overlapping internal contact surfaces."""
-    bottom = GRANULAR_TOP - 0.03
+    bottom = top - 0.03
     axes = (
         np.array([5.4, 5.5, 11.5, 11.6]),
         np.array([-0.7, -0.6, 0.6, 0.7]),
-        np.array([bottom - 0.1, bottom, GRANULAR_TOP]),
+        np.array([bottom - 0.1, bottom, top]),
     )
     filled = {(i, j, k) for i, j, k in itertools.product(range(3), range(3), range(2)) if k == 0 or i != 1 or j != 1}
     vertices, faces, ids = [], [], {}
@@ -260,34 +237,37 @@ def _container_mesh():
     return np.asarray(vertices, dtype=np.float32), np.asarray(faces, dtype=np.int32)
 
 
-def _granular(stage, directory, is_physx):
+def _granular(stage, directory, cfg: CourseCfg, is_physx):
     for name, start, end in (("approach", -1.5, 5.5), ("end", 11.5, 16.5)):
         x = np.round(np.arange(start, end + 0.025, 0.05), 6)
         y = np.round(np.arange(-4.0, 4.025, 0.05), 6)
         xx, yy = np.meshgrid(x, y, indexing="ij")
-        zz = np.clip((xx - 1.0) / 2.5, 0, 1) * GRANULAR_TOP
+        zz = np.clip((xx - 1.0) / 2.5, 0, 1) * cfg.granular_top
         vertices = np.stack((xx, yy, zz), -1).reshape(-1, 3)
         i, j = np.meshgrid(np.arange(len(x) - 1), np.arange(len(y) - 1), indexing="ij")
         a = (i * len(y) + j).ravel()
         b, c, d = a + len(y), a + len(y) + 1, a + 1
         faces = np.concatenate((np.stack((a, b, c), -1), np.stack((a, c, d), -1)))
-        material = visual_material(
-            stage, f"/Course/Looks/{name}", (0.055, 0.065, 0.08), 0.96, directory / "asphalt.png"
-        )
-        physics = _physics_material(stage, f"/Course/{name}_material", 1.0)
-        mesh = _mesh(stage, name, vertices, faces, material, physics)
+        material = f"/Course/Looks/{name}"
+        material_cfg = cfg.visual_materials[name]
+        material_cfg.func(material, material_cfg)
+        if name in cfg.textures:
+            _apply_texture(stage, material, directory / cfg.textures[name])
+        physics = f"/Course/{name}_material"
+        spawn_physics_material(physics, cfg.physics_material)
+        mesh = _mesh(name, vertices, faces, cfg, material, physics)
         mesh.CreateDisplayColorAttr([(0.22, 0.23, 0.25)])
-    vertices, faces = _container_mesh()
-    tray = _mesh(stage, "granular_container", vertices, faces)
+    vertices, faces = _container_mesh(cfg.granular_top)
+    tray = _mesh("granular_container", vertices, faces, cfg)
     tray.CreateDisplayColorAttr([(0.18, 0.19, 0.20)])
     if is_physx:
         from .granular import create_pbd_beds  # noqa: PLC0415
 
         tray.GetPrim().RemoveAPI(UsdPhysics.CollisionAPI)
-        create_pbd_beds(stage)
+        create_pbd_beds(stage, cfg)
 
 
-def create_terrain(directory: Path, terrain_name: str, is_physx: bool = False) -> Path:
+def create_terrain(directory: Path, terrain_name: str, cfg: CourseCfg, is_physx: bool = False) -> Path:
     """Write a course and its procedural textures into the run's asset directory."""
     directory.mkdir(parents=True, exist_ok=True)
     _textures(directory)
@@ -296,9 +276,10 @@ def create_terrain(directory: Path, terrain_name: str, is_physx: bool = False) -
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Course").GetPrim())
-    if terrain_name == "granular":
-        _granular(stage, directory, is_physx)
-    else:
-        _platforms_and_ramps(stage, directory, extended_exit=terrain_name == "platforms")
+    with sim_utils.use_stage(stage):
+        if terrain_name == "granular":
+            _granular(stage, directory, cfg, is_physx)
+        else:
+            _platforms_and_ramps(stage, directory, cfg, extended_exit=terrain_name == "platforms")
     stage.GetRootLayer().Save()
     return path

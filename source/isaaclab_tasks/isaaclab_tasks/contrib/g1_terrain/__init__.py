@@ -7,14 +7,9 @@
 
 import gymnasium as gym
 
-for terrain, config in (
-    ("Platforms", "G1PlatformsEnvCfg"),
-    ("Ramps", "G1RampsEnvCfg"),
-    ("Granular", "G1GranularEnvCfg"),
-):
-    gym.register(
-        id=f"IsaacContrib-G1-Terrain-{terrain}",
-        entry_point=f"{__name__}.terrain_env:G1TerrainEnv",
-        disable_env_checker=True,
-        kwargs={"env_cfg_entry_point": f"{__name__}.terrain_env_cfg:{config}"},
-    )
+gym.register(
+    id="IsaacContrib-G1-Terrain",
+    entry_point=f"{__name__}.terrain_env:G1TerrainEnv",
+    disable_env_checker=True,
+    kwargs={"env_cfg_entry_point": f"{__name__}.terrain_env_cfg:G1TerrainPresetsCfg"},
+)

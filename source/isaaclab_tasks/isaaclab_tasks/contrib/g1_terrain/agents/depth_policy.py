@@ -5,36 +5,44 @@
 
 """Deployment observations for the G1 depth-based locomotion policy."""
 
+from __future__ import annotations
+
 import re
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 
 from isaaclab.utils.assets import retrieve_file_path
 
-from .depth_parameters import ACTION_SCALE, DEFAULT_JOINT_POS, DEPTH_MAX_RANGE, DEPTH_SHAPE, HISTORY_LENGTH, JOINT_NAMES
+if TYPE_CHECKING:
+    from ..terrain_env_cfg import DepthPolicyCfg
 
 
 class DepthStudentPolicy:
     """Run the exported student with term-major history and three depth frames."""
 
-    def __init__(self, checkpoint: str):
-        self.model = torch.jit.load(retrieve_file_path(checkpoint), map_location="cpu").eval()
-        self.joint_names = JOINT_NAMES
+    def __init__(self, cfg: DepthPolicyCfg):
+        self.cfg = cfg
+        self.model = torch.jit.load(retrieve_file_path(cfg.checkpoint), map_location="cpu").eval()
+        self.joint_names = cfg.joint_names
         self.default = np.array(
-            [next((v for p, v in DEFAULT_JOINT_POS.items() if re.fullmatch(p, name)), 0.0) for name in JOINT_NAMES],
+            [
+                next((v for p, v in cfg.default_joint_pos.items() if re.fullmatch(p, name)), 0.0)
+                for name in cfg.joint_names
+            ],
             dtype=np.float32,
         )
         self.body = np.array(["_hand_" not in name for name in self.joint_names])
         self.scale = np.array(
             [
-                next(value for pattern, value in ACTION_SCALE.items() if re.fullmatch(pattern, name))
+                next(value for pattern, value in cfg.action_scale.items() if re.fullmatch(pattern, name))
                 for name in self.joint_names
             ],
             dtype=np.float32,
         )
-        self.history_length = HISTORY_LENGTH
-        self.depth_range = DEPTH_MAX_RANGE
+        self.history_length = cfg.history_length
+        self.depth_range = cfg.depth_max_range
         self.reset()
 
     def reset(self):
@@ -65,7 +73,7 @@ class DepthStudentPolicy:
         depth = np.where(np.isfinite(depth) & (depth > 0), depth, self.depth_range)
         depth = np.clip(depth, 0.0, self.depth_range).astype(np.float32) / self.depth_range
         if self.depth_history is None:
-            self.depth_history = np.repeat(depth[None], DEPTH_SHAPE[0], axis=0)
+            self.depth_history = np.repeat(depth[None], self.cfg.depth_shape[0], axis=0)
         else:
             self.depth_history[:-1] = self.depth_history[1:]
             self.depth_history[-1] = depth

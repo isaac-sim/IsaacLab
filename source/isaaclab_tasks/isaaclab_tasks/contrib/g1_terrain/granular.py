@@ -5,20 +5,27 @@
 
 """Material layers and whole-body-controller gains for the granular course."""
 
+from __future__ import annotations
+
 import re
+from typing import TYPE_CHECKING
 
 import numpy as np
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 
+import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationContext
+from isaaclab.sim.spawners.materials import spawn_physics_material
 from isaaclab.terrains import TerrainImporter
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
-from .terrain import GRANULAR_TOP, visual_material
+
+if TYPE_CHECKING:
+    from .terrain_env_cfg import CourseCfg
 
 
 class ParticleTerrainImporter(TerrainImporter):
@@ -90,7 +97,7 @@ def configure_granular(cfg, is_physx: bool):
     cfg.sim.physics.solver_cfg = coupled
     cfg.sim.physics.class_type = coupled.class_type
     cfg.sim.physics.collision_cfg.soft_contact_max = 0
-    top = GRANULAR_TOP
+    top = cfg.course.granular_top
     cfg.scene.sand = MPMObjectCfg(
         prim_path="{ENV_REGEX_NS}/Sand",
         spawn=MPMGridCfg(
@@ -119,20 +126,14 @@ def configure_granular(cfg, is_physx: bool):
     )
 
 
-def create_pbd_beds(stage):
+def create_pbd_beds(stage, cfg: CourseCfg):
     """Author rigid tray contacts and two native PhysX solid-particle layers."""
     from omni.physx.scripts import particleUtils, physicsUtils  # noqa: PLC0415
-    from pxr import Gf, PhysxSchema, Sdf, UsdGeom, UsdPhysics, UsdShade, Vt  # noqa: PLC0415
+    from pxr import Sdf, UsdGeom, UsdShade, Vt
 
-    bottom = GRANULAR_TOP - 0.03
-    material = UsdShade.Material.Define(stage, "/Course/RigidMaterials/granular_container")
-    api = UsdPhysics.MaterialAPI.Apply(material.GetPrim())
-    api.CreateStaticFrictionAttr(0.6)
-    api.CreateDynamicFrictionAttr(0.6)
-    api.CreateRestitutionAttr(0.0)
-    UsdShade.MaterialBindingAPI.Apply(stage.GetPrimAtPath("/Course/granular_container")).Bind(
-        material, materialPurpose="physics"
-    )
+    bottom = cfg.granular_top - 0.03
+    material = "/Course/RigidMaterials/granular_container"
+    spawn_physics_material(material, cfg.tray_material)
     boxes = {
         "floor": ((8.5, 0.0, bottom - 0.05), (6.2, 1.4, 0.1)),
         "left_wall": ((8.5, -0.65, bottom + 0.015), (6.2, 0.1, 0.03)),
@@ -142,30 +143,24 @@ def create_pbd_beds(stage):
         "gravel_floor_riser": ((6.825, 0.0, bottom + 0.005), (2.85, 1.4, 0.01)),
     }
     for name, (center, size) in boxes.items():
-        cube = UsdGeom.Cube.Define(stage, f"/Course/{name}")
-        cube.CreateSizeAttr(1.0)
-        cube.AddTranslateOp().Set(Gf.Vec3d(*center))
-        cube.AddScaleOp().Set(Gf.Vec3d(*size))
-        if name == "gravel_floor_riser":
-            cube.CreateDisplayColorAttr([Gf.Vec3f(0.18, 0.19, 0.20)])
-            visual = visual_material(stage, f"/Course/Looks/{name}", (0.18, 0.19, 0.20), 0.96)
-            UsdShade.MaterialBindingAPI.Apply(cube.GetPrim()).Bind(visual)
-        else:
-            cube.CreateVisibilityAttr("invisible")
-        UsdPhysics.CollisionAPI.Apply(cube.GetPrim()).CreateCollisionEnabledAttr(True)
-        UsdShade.MaterialBindingAPI.Apply(cube.GetPrim()).Bind(material, materialPurpose="physics")
-        collision = PhysxSchema.PhysxCollisionAPI.Apply(cube.GetPrim())
-        collision.CreateContactOffsetAttr(0.001)
-        collision.CreateRestOffsetAttr(0.0)
+        cube_cfg = sim_utils.CuboidCfg(
+            size=size,
+            visible=name == "gravel_floor_riser",
+            collision_props=cfg.tray_collision_props,
+            visual_material=cfg.visual_materials[name] if name == "gravel_floor_riser" else None,
+        )
+        path = f"/Course/{name}"
+        cube_cfg.func(path, cube_cfg, translation=center)
+        sim_utils.bind_physics_material(path, material)
 
     particleUtils.add_pbd_particle_material(
         stage, "/Course/PBDMaterial", friction=0.8, particle_friction_scale=1.0, damping=0.1, cohesion=0.0
     )
     rng = np.random.default_rng(42)
     visual_rng = np.random.default_rng(17)
-    for name, x0, x1, depth, diameter, density, color in (
-        ("gravel", 5.5, 8.25, 0.02, 0.0075, 1800.0, (0.38, 0.37, 0.34)),
-        ("sand", 8.25, 11.5, 0.03, 0.005, 1600.0, (0.70, 0.55, 0.32)),
+    for name, x0, x1, depth, diameter, density in (
+        ("gravel", 5.5, 8.25, 0.02, 0.0075, 1800.0),
+        ("sand", 8.25, 11.5, 0.03, 0.005, 1600.0),
     ):
         radius = diameter / 2
         system_path = f"/Course/{name}_ParticleSystem"
@@ -184,8 +179,8 @@ def create_pbd_beds(stage):
             non_particle_collision_enabled=True,
         )
         physicsUtils.add_physics_material_to_prim(stage, system.GetPrim(), "/Course/PBDMaterial")
-        lower = np.array([x0, -0.6, GRANULAR_TOP - depth])
-        upper = np.array([x1, 0.6, GRANULAR_TOP])
+        lower = np.array([x0, -0.6, cfg.granular_top - depth])
+        upper = np.array([x1, 0.6, cfg.granular_top])
         count = np.floor((upper - lower) / diameter + 1e-6).astype(int)
         axes = [lower[i] + radius + diameter * np.arange(count[i]) for i in range(3)]
         positions = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1)
@@ -202,17 +197,19 @@ def create_pbd_beds(stage):
         width_range = (1.0, 1.0) if name == "gravel" else (1.1, 1.3)
         widths = diameter * visual_rng.uniform(*width_range, len(positions)).astype(np.float32)
         points.CreateWidthsAttr(Vt.FloatArray.FromNumpy(widths))
-        colors = np.asarray(color) * visual_rng.uniform(0.65, 1.15, (len(positions), 1))
+        material_cfg = cfg.visual_materials[f"{name}_particles"]
+        colors = np.asarray(material_cfg.diffuse_color) * visual_rng.uniform(0.65, 1.15, (len(positions), 1))
         points.CreateDisplayColorAttr(Vt.Vec3fArray.FromNumpy(colors.astype(np.float32)))
         points.GetDisplayColorPrimvar().SetInterpolation("vertex")
-        visual = visual_material(stage, f"/Course/Looks/{name}_particles", color, 0.96)
-        reader = UsdShade.Shader.Define(stage, f"{visual.GetPath()}/GrainColor")
+        visual = f"/Course/Looks/{name}_particles"
+        material_cfg.func(visual, material_cfg)
+        reader = UsdShade.Shader.Define(stage, f"{visual}/GrainColor")
         reader.CreateIdAttr("UsdPrimvarReader_float3")
         reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("displayColor")
         reader.CreateOutput("result", Sdf.ValueTypeNames.Float3)
-        surface = UsdShade.Shader(stage.GetPrimAtPath(f"{visual.GetPath()}/Shader"))
+        surface = UsdShade.Shader(stage.GetPrimAtPath(f"{visual}/Shader"))
         surface.GetInput("diffuseColor").ConnectToSource(reader.ConnectableAPI(), "result")
-        UsdShade.MaterialBindingAPI.Apply(points.GetPrim()).Bind(visual)
+        sim_utils.bind_visual_material(points.GetPath(), visual)
         particleUtils.configure_particle_set(
             points.GetPrim(),
             system_path,
