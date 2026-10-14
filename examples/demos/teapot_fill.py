@@ -634,7 +634,9 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
                 scale=(BOWL_SCALE,) * 3,
                 variants={"Newton": "Enabled", "PhysX": "Disabled", "MuJoCo": "Disabled"},
                 make_uninstanceable=True,
-                rigid_props=disable_asset_rigid_bodies,
+                rigid_props={
+                    "(/.*)?": [sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=False, kinematic_enabled=True)]
+                },
                 collision_props=[
                     sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                     NewtonCollisionCfg(contact_margin=COLLIDER_MARGIN),

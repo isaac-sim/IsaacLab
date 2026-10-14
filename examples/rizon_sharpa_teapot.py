@@ -1071,6 +1071,8 @@ def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
             CouplerEntryCfg(
                 name="fluid",
                 solver_cfg=mpm_cfg,
+                # The authored bowl has a fixed body, rather than a body-free static shape.
+                bodies=[r"/World/envs/env_.*/CatchBowl"],
                 all_particles=True,
                 include_static_shapes=True,
                 in_place=True,
