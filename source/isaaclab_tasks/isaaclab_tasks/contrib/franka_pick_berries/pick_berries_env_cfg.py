@@ -127,15 +127,14 @@ class BerryPickEnvCfg(ManagerBasedRLEnvCfg):
     num_berries: int = 1
     """Number of raspberries in the punnet, 1 to 3."""
     randomize_layout: bool = True
-    """Scatter several berries in the punnet with random orientations, instead of the fixed layout."""
+    """Scatter several berries in the punnet at random, instead of in the fixed layout
+    (:data:`.physics.tissue.FIXED_LAYOUT`), which the scripted demo uses."""
     layout_seed: int = 0
     """Seed of the random layout; reset replays the same layout."""
     tissue_resolution: str = "full"
     """Tissue particles: ``full``, or ``half`` of them for speed; the Gaussians are unchanged."""
     berry_asset: str = raspberry_asset_path()
     """Raspberry USDZ package: a Nucleus URL or a local path."""
-    punnet: str = "pet"
-    """Punnet: clear plastic (``pet``) or molded fiber (``fiber``); see :data:`.scene.tableware.PUNNETS`."""
     berry_position: tuple[float, float, float] = (*PUNNET_CENTER, PUNNET_FLOOR)
     """Center [m] of the berries' layout, on the punnet floor."""
 

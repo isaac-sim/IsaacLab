@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Source locations for the berry task assets: a Nucleus URL or a local override.
+"""Source locations for the berry task assets: Isaac Lab's Nucleus asset root or a local override.
 
 :func:`isaaclab.utils.assets.retrieve_file_path` resolves and locally caches whichever
 of these is returned, refreshing the cache when the server reports a newer revision;
@@ -12,41 +12,29 @@ no separate download step is required.
 
 import os
 
-# Temporary: a personal Nucleus folder, shared with other demos. To be replaced by the public asset repository
-# (see "Known limitations" in the README).
-_SHARED_BUNDLE_ROOT = "omniverse://content.ov.nvidia.com/Users/nicolasm@nvidia.com/isaaclab_assets/tasks"
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 
-def _berry_root() -> str:
-    """The berry assets' root: ``ISAACLAB_BERRY_ASSET_ROOT`` if set, else the shared bundle's ``berry/`` subtree."""
+def _asset_root() -> str:
+    """The assets' root: ``ISAACLAB_BERRY_ASSET_ROOT`` if set, else :data:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`.
+
+    The override (another server, or a local directory for testing) mirrors the Nucleus layout.
+    """
     override = os.environ.get("ISAACLAB_BERRY_ASSET_ROOT")
-    return override.rstrip("/") if override else f"{_SHARED_BUNDLE_ROOT}/berry"
+    return override.rstrip("/") if override else ISAACLAB_NUCLEUS_DIR
 
 
 def raspberry_asset_path() -> str:
     """Source of the raspberry USDZ package: Gaussians, tissue particles, tetrahedral mesh, simulation metadata and
-    shader.
-
-    ``ISAACLAB_BERRY_ASSET_ROOT`` overrides the root with a berry-only one (a future clean republish, or a local
-    directory for testing), holding ``raspberry/raspberry_v4.usdz``. The default is the shared bundle's ``berry/``
-    subtree.
-    """
-    return f"{_berry_root()}/raspberry/raspberry_v4.usdz"
+    shader."""
+    return f"{_asset_root()}/Objects/Berries/raspberry.usdz"
 
 
 def punnet_asset_path(name: str) -> str:
-    """Source of a punnet's visual USDZ package, ``name``: ``containers/<name>`` under the raspberry's root."""
-    return f"{_berry_root()}/containers/{name}"
+    """Source of a punnet's visual USDZ package, ``name``, next to the raspberry's."""
+    return f"{_asset_root()}/Objects/Berries/{name}"
 
 
-def room_scan_root() -> str:
-    """Source root of the room scan: ``<root>/aligned.usda`` + ``point_cloud.usd``.
-
-    Reuses the ``ISAACLAB_BERRY_ASSET_ROOT`` override, expected to contain a
-    ``background/ebc`` subtree there. The default falls back to the shared bundle's
-    ``gaussian_twin/background/ebc`` subtree, where the room scan currently lives.
-    """
-    override = os.environ.get("ISAACLAB_BERRY_ASSET_ROOT")
-    if override:
-        return f"{override.rstrip('/')}/background/ebc"
-    return f"{_SHARED_BUNDLE_ROOT}/gaussian_twin/background/ebc"
+def room_scan_path() -> str:
+    """Source of the aligned room scan package."""
+    return f"{_asset_root()}/Environments/NuRec/hand_hold-endeavor-livingroom_aligned.usdz"

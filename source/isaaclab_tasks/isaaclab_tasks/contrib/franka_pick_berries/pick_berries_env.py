@@ -16,13 +16,13 @@ from .physics.coupling import (
 )
 from .physics.tissue import (
     BerryTissue,
-    fixed_layout,
+    fixed_punnet_poses,
     load_tissue,
     random_punnet_poses,
     tissue_object_cfg,
     transform_tissue,
 )
-from .scene.tableware import PUNNETS
+from .scene.tableware import PUNNET
 
 
 class BerryPickEnv(ManagerBasedRLEnv):
@@ -32,12 +32,15 @@ class BerryPickEnv(ManagerBasedRLEnv):
         # Read by _reset_idx, which can run during super().__init__.
         self.berries = {}
         self.handled_berry = None
-        punnet = PUNNETS[cfg.punnet]
-        cfg.scene.tableware.spawn.punnet = cfg.punnet
-        specs = [load_tissue(cfg, *berry) for berry in fixed_layout(cfg)]
-        if cfg.num_berries > 1 and cfg.randomize_layout:
-            # Scatter the berries in the punnet with random orientations; every berry shares the punnet frame.
-            rotations, shifts = random_punnet_poses(specs[0].particles, len(specs), cfg.layout_seed, punnet)
+        punnet = PUNNET
+        specs = [load_tissue(cfg, f"raspberry_{i}", cfg.berry_position) for i in range(1, cfg.num_berries + 1)]
+        if cfg.num_berries > 1:
+            # Scatter the berries in the punnet, turned; every berry shares the punnet frame.
+            shape, tissue = specs[0].gaussians["xyz"], specs[0].particles["xyz"]
+            if cfg.randomize_layout:
+                rotations, shifts = random_punnet_poses(shape, tissue, len(specs), cfg.layout_seed, punnet)
+            else:
+                rotations, shifts = fixed_punnet_poses(shape, tissue, len(specs))
             specs = [
                 transform_tissue(spec, rotation, shift, cfg.berry_position)
                 for spec, rotation, shift in zip(specs, rotations, shifts)

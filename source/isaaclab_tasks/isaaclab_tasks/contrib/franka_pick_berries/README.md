@@ -67,6 +67,10 @@ Each frame is 1/30 s of simulated time, so the video plays at **30 frames/s** (a
 64 samples per pixel runs at about **0.4 frames/s**, about an hour. Without `--save_frames`, the same sequence plays
 live in a window.
 
+`--demo_length medium` or `short` (in place of `--arm_speed 6`) films a video of about 30 s or 15 s: the robot crushes
+the first berry and sets the second down in the bowl, leaving the third in the punnet. Both are still simulated
+throughout: an arm command that leads the arm's lag keeps it from waiting, and the short film also grasps quicker.
+
 ## Reference
 
 ### Options of `scripts/pick_berries.py`
@@ -75,16 +79,17 @@ live in a window.
 |---|---|---|
 | `--mode {teleop_gamepad,teleop_keyboard,scripted_demo}` | `teleop_keyboard` | Teleoperate the robot, or watch the scripted demo |
 | `--num_berries {1,2,3}` | 1 (scripted_demo: 3) | Raspberries in the punnet |
-| `--layout_seed N`, `--fixed_layout` | 0 | Random punnet layout (reset replays it), or side by side |
+| `--layout_seed N`, `--fixed_layout` | 0 | Random punnet layout (reset replays it), or the scripted demo's fixed one |
 | `--tissue_resolution {full,half}` | `full` | Half the tissue particles, for speed; the Gaussians are unchanged (MPM only) |
 | `--tissue_solver {explicit,implicit,vbd}` | `explicit` | Tissue solver (see below) |
-| `--arm_speed X` | 2 | Arm speed multiplier; the gripper keeps its gentle closing pace |
+| `--arm_speed X` | 2 (scripted demo: medium 6, short 12) | Arm speed multiplier; the gripper keeps its gentle closing pace |
+| `--demo_length {full,medium,short}` | `full` | Scripted demo: handle the three berries, or only the first two, faster |
 | `--camera {punnet_and_bowl,berry_closeup,room,scripted_camera}` | `punnet_and_bowl` | Fixed views, a close-up following the handled berry, or a shot-by-shot film (scripted demo) |
-| `--punnet {pet,fiber}` | `pet` | Punnet: clear plastic, or molded fiber |
 | `--bowl_material {glass,porcelain}` | `porcelain` | Material of the receiving bowl |
 | `--repeat` | | Scripted demo: start again when it ends |
 | `--save_frames DIR` | | Scripted demo: render offscreen, save one PNG per 1/30 s, then exit |
 | `--width`, `--height`, `--samples_per_pixel`, `--f_stop` | 1280 × 720 | Image size, path-tracing samples, depth of field (film) |
+| `--gamepad_device PATH` | first `/dev/input/js*` | Linux joystick to teleoperate with (`teleop_gamepad`) |
 
 Frame rates while grasping, at 1280 × 720 on an RTX 6000 Ada: about 17 frames/s with one berry, 9 with three
 (`--num_berries 3`). Rendering the berries' Gaussians dominates, so `--tissue_resolution half` hardly changes them.
@@ -94,7 +99,7 @@ Frame rates while grasping, at 1280 × 720 on an RTX 6000 Ada: about 17 frames/s
 | Path | |
 |---|---|
 | `pick_berries_env_cfg.py`, `pick_berries_env.py` | The scene (robot, table, tableware, berries) and the environment |
-| `physics/` | **Tissue.** `tissue.py` turns the asset into Newton MPM particles, or a tetrahedral mesh for VBD; `grasp_explicit_mpm.py` simulates the particles; `coupling.py` couples the tissue to the arm |
+| `physics/` | **Tissue.** `tissue.py` turns the asset into Newton MPM particles, or a tetrahedral mesh for VBD, and lays the berries out in the punnet; `grasp_explicit_mpm.py` simulates the particles; `coupling.py` couples the tissue to the arm |
 | `gaussian_splats/` | **Gaussian appearance.** `mpm_binding.py` makes the Gaussians follow the particles, `vbd_binding.py` the VBD mesh; `render_delegate.py` publishes them to the renderer |
 | `mdp/actions.py` | Arm and gripper actions |
 | `control/` | `teleop_devices.py` (keyboard and gamepad) and `scripted_demo.py` |
@@ -120,15 +125,15 @@ measured fruit properties.
 ### Assets
 
 The raspberry is one USDZ package: its Gaussians with degree-three spherical harmonics, its tissue particles, its
-tetrahedral mesh with the Gaussians' binding to it, simulation metadata and MDL shader. Each punnet is a visual USDZ
+tetrahedral mesh with the Gaussians' binding to it, simulation metadata and MDL shader. The punnet is a visual USDZ
 package; simple collision walls follow its tapered cavity (`scene/tableware.py`). The room is a Gaussian scan. All are
-fetched from Nucleus on first use and cached (`assets/asset_paths.py`); `ISAACLAB_BERRY_ASSET_ROOT` points to another
-root, holding `raspberry/raspberry_v4.usdz`, `containers/clear_pet.usdz`, `containers/molded_fiber.usdz` and
-`background/ebc/`.
+fetched from Isaac Lab's Nucleus asset root on first use and cached (`assets/asset_paths.py`);
+`ISAACLAB_BERRY_ASSET_ROOT` replaces that root with another one of the same layout, holding
+`Objects/Berries/raspberry.usdz`, `Objects/Berries/clear_pet_container.usdz` and
+`Environments/NuRec/hand_hold-endeavor-livingroom_aligned.usdz`.
 
 ### Known limitations
 
-- The assets still live in a personal Nucleus folder; they should move to the public asset repository.
 - OVRTX 0.6, which live Gaussian deformation needs (0.5 can lose the updates), is not yet on PyPI: Isaac Lab pins an
   internal build.
 - The Gaussians are stochastically composited, so the berries show slight sampling noise between frames.

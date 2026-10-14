@@ -52,7 +52,7 @@ class TissueSpec:
     """One berry's asset, tissue particles and world placement, resolved from the task configuration."""
 
     name: str
-    """Instance name, numbered when there are several berries (``raspberry_1``)."""
+    """Instance name, numbered (``raspberry_1``)."""
     stage: object
     """The berry's USD asset, opened."""
     gaussians: dict
@@ -130,37 +130,38 @@ def _half_resolution(particles: dict) -> dict:
     }
 
 
-# Offsets [m] of the fixed layout about the punnet center, by number of berries.
-_FIXED_LAYOUT = {
-    1: ((0.0, 0.0),),
-    2: ((-0.022, 0.0), (0.022, 0.0)),
-    3: ((0.0, -0.018), (-0.024, 0.018), (0.024, 0.018)),
-}
+FIXED_LAYOUT = (
+    ((0.186517, -0.195973, 0.950047, 0.155616), (-0.02376, -0.02324)),
+    ((-0.308495, 0.208245, 0.750981, 0.545429), (0.02265, -0.01804)),
+    ((0.446269, 0.802458, 0.395245, -0.026207), (0.00001, 0.01965)),
+)
+"""The fixed layout of several berries, which the scripted demo's camera work is framed for: each berry's orientation
+(quaternion x, y, z, w) and the center (x, y) [m] of its Gaussians' bounds about the punnet center. Fewer berries take
+the first ones. The berries are scattered and turned, yet each grasp's fingers clear the punnet's wall and the berries
+still in it."""
 
 
-def fixed_layout(cfg: BerryPickEnvCfg) -> list[tuple[str, tuple[float, float, float]]]:
-    """Return each berry's instance name and world offset [m] in the fixed layout."""
-    if cfg.num_berries not in _FIXED_LAYOUT:
-        raise ValueError(f"num_berries must be 1, 2 or 3, not {cfg.num_berries}")
-    x, y, z = cfg.berry_position
-    if cfg.num_berries == 1:
-        return [("raspberry", (x, y, z))]
-    return [(f"raspberry_{i}", (x + dx, y + dy, z)) for i, (dx, dy) in enumerate(_FIXED_LAYOUT[cfg.num_berries], 1)]
+def fixed_punnet_poses(shape: np.ndarray, tissue: np.ndarray, count: int) -> tuple[np.ndarray, np.ndarray]:
+    """Return the :data:`FIXED_LAYOUT` poses of ``count`` copies of a berry, as :func:`punnet_poses` does."""
+    if count > len(FIXED_LAYOUT):
+        raise ValueError(f"The fixed layout holds up to {len(FIXED_LAYOUT)} berries, not {count}")
+    orientations, centers = zip(*FIXED_LAYOUT[:count])
+    return punnet_poses(shape, tissue, Rotation.from_quat(orientations).as_matrix(), np.asarray(centers))
 
 
-def random_punnet_poses(particles: dict, count: int, seed: int, punnet: PunnetSpec) -> tuple[np.ndarray, np.ndarray]:
-    """Sample separated centers and full 3D orientations for ``count`` copies of a tissue inside ``punnet``.
+def random_punnet_poses(
+    shape: np.ndarray, tissue: np.ndarray, count: int, seed: int, punnet: PunnetSpec
+) -> tuple[np.ndarray, np.ndarray]:
+    """Sample separated centers and full 3D orientations for ``count`` copies of a berry inside ``punnet``, and return
+    their poses as :func:`punnet_poses` does.
 
-    Returns each copy's rotation matrix and its translation [m] in the berry frame, about the punnet center, that
-    keeps the rotated tissue's bottom at the height of the unrotated tissue's, on the punnet floor. Extra wall and
-    berry clearance leaves room for a vertical gripper approach, whose fingers close along y: along x, the berries
-    are wider than the fingers, and keep clear of the walls only.
+    Extra wall and berry clearance leaves room for a vertical gripper approach, whose fingers close along y: along x,
+    the berries are wider than the fingers, and keep clear of the walls only.
     """
     rng = np.random.default_rng(seed)
     rotations = Rotation.random(count, random_state=rng).as_matrix()
-    center = (particles["xyz"].min(0) + particles["xyz"].max(0)) / 2
-    rotated = [(particles["xyz"] - center) @ r.T for r in rotations]
-    radius = max(float(np.linalg.norm(p[:, :2], axis=1).max()) for p in rotated)
+    center = (shape.min(0) + shape.max(0)) / 2
+    radius = max(float(np.linalg.norm(((shape - center) @ r.T)[:, :2], axis=1).max()) for r in rotations)
     bounds = np.array(punnet.floor_outline[:2]) - radius - np.array([0.004, 0.016])
     if np.any(bounds <= 0):
         raise ValueError("The berries must fit inside the punnet with gripper clearance")
@@ -176,9 +177,27 @@ def random_punnet_poses(particles: dict, count: int, seed: int, punnet: PunnetSp
             break
     else:
         raise ValueError("Unable to fit separated berries with gripper clearance in the punnet")
-    centers = np.asarray(sorted(centers, key=lambda c: c[1]))
-    floor = float(particles["xyz"][:, 2].min())
-    shifts = [np.array([*xy, floor - p[:, 2].min()]) - r @ center for r, p, xy in zip(rotations, rotated, centers)]
+    return punnet_poses(shape, tissue, rotations, np.asarray(sorted(centers, key=lambda c: c[1])))
+
+
+def punnet_poses(
+    shape: np.ndarray, tissue: np.ndarray, rotations: np.ndarray, centers: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return each copy of a berry's rotation matrix and its translation [m] in the berry frame, about the punnet
+    center, that puts its rotated shape's center at ``centers`` and keeps the rotated tissue's bottom at the height
+    of the unrotated tissue's, on the punnet floor.
+
+    Args:
+        shape: Points [m] that lay the berries out: the Gaussians' centers, so that every tissue solver gets the same
+            layout.
+        tissue: The tissue's particles or mesh nodes [m], which rest on the floor.
+        rotations: Each copy's rotation matrix.
+        centers: Each copy's horizontal center [m] about the punnet center.
+    """
+    center = (shape.min(0) + shape.max(0)) / 2
+    floor = float(tissue[:, 2].min())
+    bottoms = [float(((tissue - center) @ r.T)[:, 2].min()) for r in rotations]
+    shifts = [np.array([*xy, floor - bottom]) - r @ center for r, bottom, xy in zip(rotations, bottoms, centers)]
     return rotations, np.asarray(shifts, np.float32)
 
 

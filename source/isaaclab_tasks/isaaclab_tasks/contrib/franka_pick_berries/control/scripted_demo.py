@@ -13,7 +13,7 @@ lags.
 Each berry follows the same pick-and-place timeline, written at the original pace in script time [s]: approach
 (1-4 s), close (4-8 s), lift (9-12 s), carry (13-19 s), lower (20-23 s), open (24-26 s) and retreat (26-29 s), with
 pauses between them, up to 32 s. An arm speed multiplier shortens arm travel and, above 2, the pauses, while the
-gripper keeps closing gently.
+gripper keeps closing gently. A short demo handles only the first two berries, at a faster pace.
 """
 
 import numpy as np
@@ -104,6 +104,9 @@ class ScriptedDemo:
         arm_speed: float,
         start_delay: float = 0.0,
         slow_closing: tuple[int, ...] = (),
+        closing_speedup: float = 2.0,
+        tracking_gain: float = 0.6,
+        handled_berries: int = 3,
     ):
         """Configure the sequence.
 
@@ -113,12 +116,22 @@ class ScriptedDemo:
                 an establishing shot.
             slow_closing: Indices of the berries whose grasps keep the gripper's original closing pace, which shows
                 their deformation longer.
+            closing_speedup: Largest speed-up of the other grasps' closing, which the pauses' speed-up also bounds;
+                above the default 2, grasps are quicker but less gentle.
+            tracking_gain: Fraction of the gripper's distance to its target commanded each step. Above 1, the command
+                leads the arm's lag, which shortens its waits at the checkpoints of a fast sequence.
+            handled_berries: How many berries the sequence handles, from the first: with 2, it crushes the first,
+                places the second and leaves the third in the punnet.
         """
         self.arm_speed = arm_speed
         self.pauses = _pause_speedup(arm_speed)
         self.start_delay = start_delay
+        self.tracking_gain = tracking_gain
         # Each berry follows the place script.
-        self.closing = [1.0 if index in slow_closing else None for index in range(3)]
+        self.handled_berries = handled_berries
+        self.closing = [
+            1.0 if index in slow_closing else min(self.pauses, closing_speedup) for index in range(handled_berries)
+        ]
         self.cycle_ends = np.cumsum([_elapsed_time(32.0, arm_speed, self.pauses, closing) for closing in self.closing])
         self.reset()
 
@@ -152,7 +165,7 @@ class ScriptedDemo:
         # Turn the hand back to pointing straight down.
         turn = (Rotation.from_euler("x", np.pi) * Rotation.from_quat(orientation).inv()).as_rotvec()
         action = torch.zeros((1, 7))
-        action[0, :3] = torch.from_numpy(np.clip((target - position) * 0.6, -step_limit, step_limit))
+        action[0, :3] = torch.from_numpy(np.clip((target - position) * self.tracking_gain, -step_limit, step_limit))
         action[0, 3:6] = torch.from_numpy(np.clip(turn * 0.2, -turn_limit, turn_limit))
         action[0, 6] = aperture / 0.04 - 1
         return action
@@ -168,7 +181,7 @@ class ScriptedDemo:
         dt = max(0.0, elapsed - self.last_elapsed)
         self.last_elapsed = elapsed
         sequence_time = max(0.0, elapsed - self.start_delay - self.delay)
-        index = min(int(np.searchsorted(self.cycle_ends, sequence_time, side="right")), 2)
+        index = min(int(np.searchsorted(self.cycle_ends, sequence_time, side="right")), self.handled_berries - 1)
         cycle_start = self.cycle_ends[index - 1] if index else 0.0
         t = _script_time(sequence_time - cycle_start, self.arm_speed, self.pauses, self.closing[index])
         berry = list(berries.values())[index]
@@ -183,7 +196,7 @@ class ScriptedDemo:
             self.center = (tissue.min(0) + tissue.max(0)) / 2 + berry.offset
             width = float(np.ptp(tissue[:, 1]))
             self.opening = float(np.clip(width + 0.008, 0.02, 0.08))
-            self.gap = 0.001 if index == 0 else float(np.clip(width * 0.7, 0.001, 0.08))
+            self.gap = 0.002 if index == 0 else float(np.clip(width * 0.7, 0.001, 0.08))
         destination = np.array(REJECT_DISH_CENTER if index == 0 else BOWL_SPOTS[index - 1])
         # With the hand facing down, pad centers sit 3.6 mm above the TCP.
         grasp_z = max(0.009, self.center[2] - 0.0036)
@@ -248,11 +261,11 @@ class ScriptedDemo:
             phase = "Carry to reject dish" if index == 0 else "Carry to bowl"
         if t >= 24:
             phase = "Release and retreat"
-        self.phase = f"Berry {index + 1}/3: {phase}"
+        self.phase = f"Berry {index + 1}/{self.handled_berries}: {phase}"
         if self.holding:
             self.phase += " (waiting for arm / grip)"
         if self.failed:
-            self.phase = f"Berry {index + 1}/3: grasp lost; press R to retry"
+            self.phase = f"Berry {index + 1}/{self.handled_berries}: grasp lost; press R to retry"
         if elapsed < self.start_delay:
             self.phase = "Opening"
         self.complete = sequence_time >= self.cycle_ends[-1]
@@ -270,15 +283,19 @@ def _fraction_inside(world: np.ndarray, vessel: tuple, margin: float = 0.0) -> f
     return float(inside.mean())
 
 
-def evaluate_demo(berries: dict) -> dict:
-    """Measure where each berry ended and how damaged it is, without changing any state.
+def evaluate_demo(berries: dict, handled_berries: int = 3) -> dict:
+    """Measure where each handled berry ended and how damaged it is, without changing any state.
+
+    Args:
+        berries: The berries, in the order the demo handles them.
+        handled_berries: How many of them the demo handled, from the first.
 
     Returns:
         For the crushed berry, then each picked one: ``fraction_in_reject_dish`` or ``fraction_in_bowl``, and
         ``mean_damage`` from 0 (intact) to 1.
     """
     results = []
-    for index, berry in enumerate(berries.values()):
+    for index, berry in enumerate(list(berries.values())[:handled_berries]):
         world = berry.positions() + berry.offset
         # Up to 3 cm above the bowl's low rim, so that a large berry resting on its floor counts as in it.
         place = (
@@ -295,8 +312,9 @@ def demo_summary(result: dict) -> str:
     crushed, picked = result["crushed"], result["picked"]
     in_bowl = " and ".join(f"{berry['fraction_in_bowl']:.0%}" for berry in picked)
     damage = " and ".join(f"{berry['mean_damage']:.1%}" for berry in picked)
+    picked_berries = "the two picked berries are" if len(picked) == 2 else "the picked berry is"
     return (
         f"Demo done: the crushed berry ({crushed['mean_damage']:.1%} damaged) is "
-        f"{crushed['fraction_in_reject_dish']:.0%} in the reject dish; the two picked berries are {in_bowl} in the "
+        f"{crushed['fraction_in_reject_dish']:.0%} in the reject dish; {picked_berries} {in_bowl} in the "
         f"bowl, {damage} damaged."
     )

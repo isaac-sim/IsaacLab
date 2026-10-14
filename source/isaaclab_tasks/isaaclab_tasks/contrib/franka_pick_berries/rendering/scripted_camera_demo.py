@@ -24,8 +24,11 @@ ROOM_AZIMUTH = -47.0
 CLOSE_SHOTS = ("macro", "grasp", "release")
 """Shots that use the viewer's depth of field, if any."""
 
+ESTABLISHING_DURATION = 3.0
+"""Default duration [s] of the establishing push-in: the demo's wait before its sequence starts."""
+
 FINALE_DURATION = 6.5
-"""Duration [s] of the final orbit and pull-back, after which the film is over."""
+"""Default duration [s] of the final orbit and pull-back, after which the film is over."""
 
 
 def _smooth(u: float) -> float:
@@ -42,9 +45,20 @@ def _around(subject: np.ndarray, distance: float, azimuth: float, elevation: flo
 class ScriptedCameraDemo:
     """Choose and move the camera for each phase of the scripted demo."""
 
-    def __init__(self, transition: float = 1.2):
-        """Configure the blend duration [s] between consecutive shots."""
+    def __init__(
+        self, transition: float = 1.2, establishing: float = ESTABLISHING_DURATION, finale: float = FINALE_DURATION
+    ):
+        """Configure the shots' timing.
+
+        Args:
+            transition: Blend duration [s] between consecutive shots.
+            establishing: Duration [s] of the establishing shot, the demo's start delay.
+            finale: Duration [s] of the final shot.
+        """
         self.transition = transition
+        # The establishing and final shots make the same moves whatever their duration.
+        self.pace = {"establishing": ESTABLISHING_DURATION / establishing, "finale": FINALE_DURATION / finale}
+        self.finale = finale
         self.reset()
 
     def reset(self) -> None:
@@ -57,7 +71,7 @@ class ScriptedCameraDemo:
     @property
     def finished(self) -> bool:
         """Whether the final shot is over."""
-        return self.shot == "finale" and self.shot_time >= FINALE_DURATION
+        return self.shot == "finale" and self.shot_time >= self.finale
 
     def update(self, viewer, sequence, berries: dict, tcp: np.ndarray, dt: float) -> None:
         """Move ``viewer``'s camera for the current phase of ``sequence``.
@@ -78,7 +92,8 @@ class ScriptedCameraDemo:
         else:
             self.shot_time += dt
         center = berry.positions().mean(0) + berry.offset
-        eye, target, fov = getattr(self, f"_{shot}")(index, center, np.asarray(tcp, float), self.shot_time)
+        time = self.shot_time * self.pace.get(shot, 1.0)
+        eye, target, fov = getattr(self, f"_{shot}")(index, center, np.asarray(tcp, float), time)
         if self.start_pose is not None:
             # Blend from where the previous shot left the camera.
             blend = _smooth(self.shot_time / self.transition)
@@ -108,7 +123,8 @@ class ScriptedCameraDemo:
             return "release"
         return "approach"
 
-    # Each shot returns the camera position and target [m] and the vertical field of view [deg].
+    # Each shot returns the camera position and target [m] and the vertical field of view [deg]. The establishing and
+    # final shots' time runs at their default durations' pace.
 
     @staticmethod
     def _establishing(index, center, tcp, time):
@@ -153,7 +169,7 @@ class ScriptedCameraDemo:
 
     @staticmethod
     def _finale(index, center, tcp, time):
-        """Orbit the receiving bowl and its two berries, then pull back to the room."""
+        """Orbit the receiving bowl and its berries, then pull back to the room."""
         subject = np.array([BOWL[0], BOWL[1], 0.015])
         out = _smooth((time - 3.5) / 2.5)
         distance = 0.2 + 0.7 * out

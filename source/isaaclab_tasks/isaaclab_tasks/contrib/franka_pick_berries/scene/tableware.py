@@ -36,7 +36,7 @@ class PunnetSpec:
     """A punnet's visual asset and the simple collision geometry that follows its cavity.
 
     The inner wall is a rounded rectangle that tapers toward the floor: its half extents and corner radius grow by
-    :attr:`flare` per unit height above the floor. Its fine relief (ribs, fibers, slots) is visual only.
+    :attr:`flare` per unit height above the floor. Its fine relief (ribs, slots) is visual only.
     """
 
     asset: str
@@ -56,12 +56,9 @@ class PunnetSpec:
         return tuple(value + grow for value in self.floor_outline)
 
 
-PUNNETS = {
-    # Thermoformed clear PET sheet, 0.35 mm thick: its collision wall is thicker so that thin contact stays robust.
-    "pet": PunnetSpec("clear_pet.usdz", (0.0431, 0.0556, 0.0086), 0.0035 / 0.021, 0.001, 0.027),
-    "fiber": PunnetSpec("molded_fiber.usdz", (0.0409, 0.0534, 0.0073), 0.0040 / 0.0223, 0.0018, 0.027),
-}
-"""Punnets: clear plastic (``pet``) or blue-green molded fiber (``fiber``)."""
+# Thermoformed clear PET sheet, 0.35 mm thick: its collision wall is thicker so that thin contact stays robust.
+PUNNET = PunnetSpec("clear_pet_container.usdz", (0.0431, 0.0556, 0.0086), 0.0035 / 0.021, 0.001, 0.027)
+"""The clear plastic punnet."""
 # The spawner replaces (rather than composes with) the asset root pose. Retain
 # its authored 55 cm translation and quarter turn. The table's visible top lies
 # 1.42 mm above its collision box, whose authored top is at -3 mm: place the
@@ -141,7 +138,7 @@ def spawn_tableware(prim_path: str, cfg: TablewareCfg, translation=None, orienta
             UsdPhysics.CollisionAPI.Apply(wall.GetPrim())
             wall.CreateVisibilityAttr("invisible")
     # A floor slab and thin box wall segments, tilted outward, follow the punnet's tapered cavity.
-    punnet = PUNNETS[cfg.punnet]
+    punnet = PUNNET
     x, y = PUNNET_CENTER
     hx, hy, corner = punnet.floor_outline
     floor = UsdGeom.Cube.Define(stage, f"{prim_path}/PunnetFloor")
@@ -177,9 +174,6 @@ class TablewareCfg(sim_utils.SpawnerCfg):
     """Configuration of the tableware's static collision proxies."""
 
     func: callable = spawn_tableware
-
-    punnet: str = "pet"
-    """Punnet, one of :data:`PUNNETS`."""
 
 
 def _rounded_outline(hx: float, hy: float, radius: float) -> np.ndarray:
@@ -300,20 +294,19 @@ def _porcelain_material(stage: Usd.Stage, path: str) -> UsdShade.Material:
     return material
 
 
-def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "porcelain", punnet: str = "pet") -> None:
+def add_tableware_visuals(stage: Usd.Stage, bowl_material: str = "porcelain") -> None:
     """Reference the punnet's visual asset and author the bowl's and reject dish's open render meshes.
 
     Args:
         stage: Stage to author the meshes in.
         bowl_material: Material of the receiving bowl, one of :data:`BOWL_MATERIALS`.
-        punnet: Punnet, one of :data:`PUNNETS`.
     """
     if bowl_material not in BOWL_MATERIALS:
         raise ValueError(f"Unknown bowl material {bowl_material!r}; expected one of {BOWL_MATERIALS}")
     UsdGeom.Xform.Define(stage, "/World/Tableware")
     # The package is centered on the tabletop, with its floor's support height in its geometry.
     package = UsdGeom.Xform.Define(stage, "/World/Tableware/Punnet")
-    package.GetPrim().GetReferences().AddReference(retrieve_file_path(punnet_asset_path(PUNNETS[punnet].asset)))
+    package.GetPrim().GetReferences().AddReference(retrieve_file_path(punnet_asset_path(PUNNET.asset)))
     package.AddTranslateOp().Set(Gf.Vec3d(*PUNNET_CENTER, 0.0))
     for name, spec in (("Reject", REJECT_DISH), ("Bowl", BOWL)):
         x, y, outer, inner, base, height = spec
