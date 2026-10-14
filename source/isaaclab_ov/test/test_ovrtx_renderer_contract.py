@@ -270,6 +270,8 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
 )
 def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
+    from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
+
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.cloner import make_clone_plan
@@ -331,7 +333,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
     )
     renderer._sdp = SceneDataProvider(publication)
-    renderer._exported_usd_string = stage.ExportToString()
+    renderer._exported_usd_string = export_stage_to_string(stage, 2, source_paths=("/World/envs/env_0",))
     renderer._clone_plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
@@ -391,6 +393,33 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 torch.testing.assert_close(
                     torch.linalg.vector_norm(normals, dim=-1), torch.ones(2, device="cuda:0"), atol=0.02, rtol=0
                 )
+
+        if geometry == "rigid":
+            # A perspective product owns its pixels without requiring a window or sensor pose buffers.
+            cfg = _make_camera_cfg(["rgb", "distance_to_image_plane"])
+            cfg.height, cfg.width = 64, 96
+            perspective = renderer.create_render_data(CameraRenderSpec(cfg, "cuda:0", 1, (), 1))
+            view = np.eye(4, dtype=np.float64)
+            view[2, 3] = -5.0
+            image = renderer.render_perspective(perspective, view, 60.0)
+            assert image.shape == (64, 96, 4) and image.device.is_cuda
+            output_ptr = image.ptr
+            widths = []
+            for fov in (60.0, 30.0):
+                image = renderer.render_perspective(perspective, view, fov)
+                depth = wp.to_torch(perspective.warp_buffers["distance_to_image_plane"])[0, 32, :, 0]
+                torch.testing.assert_close(depth[48], torch.tensor(4.5, device=depth.device), atol=0.02, rtol=0)
+                widths.append(((depth > 4.4) & (depth < 4.6)).sum().item())
+                assert image.ptr == output_ptr
+            assert widths[1] > 1.8 * widths[0], "Narrowing FOV must enlarge the object without reallocating pixels."
+            view[:3, 3] = (-2.0, 0.0, -7.0)
+            renderer.render_perspective(perspective, view, 30.0)
+            depth = wp.to_torch(perspective.warp_buffers["distance_to_image_plane"])[0, 32, 48, 0]
+            torch.testing.assert_close(depth, torch.tensor(5.5, device=depth.device), atol=0.02, rtol=0)
+            for index, (rd, data) in enumerate(cameras):
+                check_depth(rd, data, 4.5 - index)
+            renderer.cleanup(perspective)
+            assert not camera_scope_exists(perspective)
 
         # Move only cam1 farther away. cam0 must retain its original depth.
         positions = ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0"))

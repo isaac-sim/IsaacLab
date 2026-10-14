@@ -81,6 +81,7 @@ from isaaclab.cloner import path as cloner_path
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
+from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
@@ -125,7 +126,6 @@ if TYPE_CHECKING:
     from ovrtx import AttributeBinding, Operation, PendingFetch, RenderProductSetOutputs
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
-    from isaaclab.sensors.camera.camera_data import CameraData
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
@@ -340,6 +340,10 @@ class OVRTXCameraRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        self.view_matrix: np.ndarray | None = None
+        self.vertical_fov: float | None = None
+        self.meshes: dict[str, OVRTXMesh] = {}
+        self.markers: dict[Any, OVRTXMarkers] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
@@ -376,6 +380,9 @@ class OVRTXCameraRenderData:
             self.camera_xform_query = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
+            self.view_matrix = self.vertical_fov = None
+            self.meshes.clear()
+            self.markers.clear()
             self.renderer_info.clear()
             self.ppisp_pipeline = None
 
@@ -784,6 +791,11 @@ class OVRTXRenderer(BaseRenderer):
                     )
                     render_data.resources.callback(binding.unbind)
                     render_data.intrinsic_bindings.append(binding)
+            if not spec.camera_prim_paths:
+                data = CameraData.allocate(
+                    spec.cfg.data_types, spec.cfg.height, spec.cfg.width, 1, self._device, self.supported_output_types()
+                )
+                self.set_outputs(render_data, data.output)
         except Exception:
             render_data.cleanup()
             raise
@@ -966,10 +978,9 @@ class OVRTXRenderer(BaseRenderer):
     def read_output(
         self,
         render_data: OVRTXCameraRenderData,
-        camera_data: CameraData,
+        camera_data: CameraData | None = None,
     ) -> None:
-        """Publish only this camera's image and its matching metadata."""
-        assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+        """Publish this product's pixels, and copy matching metadata when a sensor requests it."""
         if self.cfg.async_rendering and not self._use_ovstage and render_data.ready is None:
             return
         capture = {}
@@ -983,9 +994,11 @@ class OVRTXRenderer(BaseRenderer):
                 # Retain the native operation, but do not publish this priming image twice.
                 render_data.pending = (operation, None)
             render_data.ready = None
-        for output_name in camera_data.info:
-            info = render_data.renderer_info.get(output_name)
-            camera_data.info[output_name] = {**(info or {}), "capture": capture} if capture else info
+        if camera_data is not None:
+            assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+            for output_name in camera_data.info:
+                info = render_data.renderer_info.get(output_name)
+                camera_data.info[output_name] = {**(info or {}), "capture": capture} if capture else info
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
         """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.
@@ -1414,6 +1427,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
         render_data.capture = {}
+        render_data.view_matrix = render_data.vertical_fov = None
         if errors:
             raise ExceptionGroup("OVRTX renders failed during camera reset", errors)
 
@@ -1580,6 +1594,83 @@ class OVRTXRenderer(BaseRenderer):
     def render(self, render_data: OVRTXCameraRenderData) -> None:
         """Submit one camera capture; :meth:`read_output` publishes the available image."""
         self.render_batch((render_data,))
+
+    def render_perspective(
+        self, render_data: OVRTXCameraRenderData, view_matrix: np.ndarray, vertical_fov: float
+    ) -> wp.array:
+        """Render from a world-to-camera OpenGL matrix and vertical field of view [deg] into stable RGBA storage.
+
+        The product owns its image and calibration state. Host navigation updates are copied only
+        when changed; scene synchronization, rendering, and image extraction use the shared GPU path.
+
+        Args:
+            render_data: Perspective product returned by :meth:`create_render_data`.
+            view_matrix: World-to-camera transform, shape (4, 4), with translation in its last column [m].
+            vertical_fov: Vertical field of view [deg].
+
+        Returns:
+            Product-owned uint8 RGBA image, shape (H, W, 4), on the rendering device.
+        """
+        pose_changed = render_data.view_matrix is None or not np.array_equal(view_matrix, render_data.view_matrix)
+        projection_changed = vertical_fov != render_data.vertical_fov
+        if pose_changed or projection_changed:
+            errors = self.drain_pending_renders((render_data,))
+            if errors:
+                raise ExceptionGroup("OVRTX renders failed before perspective camera update", errors)
+        if pose_changed:
+            transform = np.ascontiguousarray(np.linalg.inv(view_matrix).T[None], dtype=np.float64)
+            if self._use_ovstage:
+                self.backend.stage.write_attribute(
+                    render_data.camera_xform_query, "omni:xform", tensors=xform_tensor_from_numpy(transform),
+                    ordinal=self._current_ordinal, is_array=False, semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()  # fmt: skip
+            else:
+                render_data.camera_xform_binding.write(transform)
+            render_data.view_matrix = view_matrix.copy()
+        if projection_changed:
+            vertical = 48.0 * math.tan(math.radians(vertical_fov) / 2)
+            apertures = np.array([[vertical * render_data.width / render_data.height], [vertical]], np.float32)
+            if self._use_ovstage:
+                self.backend.stage.write_attributes(
+                    render_data.camera_xform_query,
+                    [
+                        ovstage.WriteDesc(attribute=name, tensors=value, is_array=False)
+                        for name, value in zip(_CAMERA_INTRINSIC_ATTRIBUTES[1:3], apertures, strict=True)
+                    ],
+                    ordinal=self._current_ordinal,
+                ).wait()
+            else:
+                for binding, value in zip(render_data.intrinsic_bindings[1:3], apertures, strict=True):
+                    binding.write(value)
+            render_data.vertical_fov = vertical_fov
+        self.update_transforms()
+        self.update_geometries()
+        self.render(render_data)
+        self.read_output(render_data)
+        return render_data.warp_buffers["rgba"][0]
+
+    def update_debug_geometry(
+        self, render_data: OVRTXCameraRenderData, meshes: dict[str, dict[str, Any]], markers: Iterable,
+        *, env_ids: list[int] | None,
+    ) -> None:  # fmt: skip
+        """Update view-owned meshes and marker projections; product cleanup releases their native references."""
+        for name, arguments in meshes.items():
+            if name not in render_data.meshes:
+                mesh = OVRTXMesh(self, f"/{render_data.render_scope_name}/Meshes/{name.lstrip('/')}")
+                render_data.meshes[name] = mesh
+                render_data.resources.callback(mesh.close)
+            render_data.meshes[name].update(**arguments)
+        for marker in markers:
+            if marker.translations is None:
+                continue
+            if marker not in render_data.markers:
+                geometry = OVRTXMarkers(self, marker.cfg, env_ids=env_ids, num_envs=self._sdp.num_envs)
+                render_data.markers[marker] = geometry
+                render_data.resources.callback(geometry.close)
+            render_data.markers[marker].update(
+                marker.translations, marker.orientations, marker.scales, marker.marker_indices,
+                visible=marker.is_visible(),
+            )  # fmt: skip
 
     def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render all requested camera products in one native submission.

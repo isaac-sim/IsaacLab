@@ -40,15 +40,12 @@ from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
-from pxr import Gf
-
 from isaaclab.renderers import CameraRenderSpec
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sensors.camera import Camera, CameraCfg, CameraData
+from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
@@ -1112,10 +1109,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
     def __init__(self, cfg):
         super().__init__(cfg)
         self._renderer = self._render_data = None
-        self._camera_data = None
-        self._projection = self._view_matrix = None
-        self._markers = {}
-        self._meshes = {}
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Create one private camera product on the simulation's shared renderer."""
@@ -1160,90 +1153,24 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 render_settings={"omni:rtx:quality": ("Int", 0), **self.cfg.render_settings},
             )  # fmt: skip
             self._render_data = self._renderer.create_render_data(spec)
-            self._camera_data = CameraData.allocate(
-                ["rgba"], height, width, 1, sim.device, self._renderer.supported_output_types()
-            )
-            self._camera_data.create_buffers(1, sim.device)
-            self._renderer.set_outputs(self._render_data, self._camera_data.output)
-            self._intrinsic_parameters = wp.empty((5, 1), dtype=wp.float32, device=sim.device)
         self._is_initialized = True
 
     def _capture_perspective(self, output: wp.array | None) -> wp.array:
-        """Update host camera controls, then render into stable device storage."""
+        """Apply window navigation and capture the renderer-owned perspective product."""
         if self._viewer.is_paused() and output is not None:
             return output
         if not self._sim.is_rendering:
             self._sim.forward()
             if self.supports_markers():
                 self._sim.vis_marker_registry.dispatch_callbacks()
-        height, width = self._camera_data.image_shape
-        projection = self._viewer.camera.fov
-        if projection != self._projection:
-            vertical = 48.0 * math.tan(math.radians(projection) / 2)
-            focal_px = height * 24.0 / vertical
-            self._intrinsic_parameters.assign(
-                np.array([[24.0], [vertical * width / height], [vertical], [0], [0]], np.float32)
-            )
-            self._camera_data.intrinsic_matrices.warp.assign(
-                np.array([[[focal_px, 0, width / 2], [0, focal_px, height / 2], [0, 0, 1]]], np.float32)
-            )
-            self._renderer.update_camera_intrinsics(
-                self._render_data, self._camera_data.intrinsic_matrices.warp, self._intrinsic_parameters
-            )
-            self._projection = projection
-        view = self._viewer.camera.get_view_matrix().reshape(4, 4).T
-        if self._view_matrix is None or not np.array_equal(view, self._view_matrix):
-            world = np.linalg.inv(view)
-            quaternion = Gf.Matrix3d(world[:3, :3].T.tolist()).ExtractRotation().GetQuat()
-            self._camera_data.pos_w.warp.assign(np.asarray(world[:3, 3], dtype=np.float32).reshape(1, 3))
-            self._camera_data.quat_w_world.warp.assign(
-                np.array([[*quaternion.GetImaginary(), quaternion.GetReal()]], np.float32)
-            )
-            convert_camera_frame_orientation_convention_wp(
-                self._camera_data.quat_w_world.warp,
-                self._camera_data.quat_w_world.warp,
-                "opengl",
-                "world",
-                device=self._sim.device,
-            )
-            self._renderer.update_camera(
-                self._render_data,
-                self._camera_data.pos_w,
-                self._camera_data.quat_w_world,
-                self._camera_data.intrinsic_matrices,
-            )
-            self._view_matrix = view.copy()
-        from isaaclab_ov.renderers.ovrtx_renderer import OVRTXMesh
-
-        for name, arguments in self._pending_mesh_submissions.items():
-            if name not in self._meshes:
-                self._meshes[name] = OVRTXMesh(self._renderer, f"/Viewer_{id(self)}/{name.lstrip('/')}")
-            self._meshes[name].update(**arguments)
+        self._renderer.update_debug_geometry(
+            self._render_data, self._pending_mesh_submissions,
+            self._viewer.marker_groups if self.cfg.enable_markers else (), env_ids=self._env_ids,
+        )  # fmt: skip
         self._pending_mesh_submissions.clear()
-        if self.cfg.enable_markers:
-            from isaaclab_ov.renderers.ovrtx_renderer import OVRTXMarkers
-
-            for marker in self._viewer.marker_groups:
-                if marker.translations is None:
-                    continue
-                if marker not in self._markers:
-                    self._markers[marker] = OVRTXMarkers(
-                        self._renderer,
-                        marker.cfg,
-                        env_ids=self._env_ids,
-                        num_envs=self._sim.get_scene_data_provider().num_envs,
-                    )
-                self._markers[marker].update(
-                    marker.translations,
-                    marker.orientations,
-                    marker.scales,
-                    marker.marker_indices,
-                    visible=marker.is_visible(),
-                )
-        self._sim.render_context.render_into_camera(
-            self._renderer, self._render_data, self._camera_data, self._sim.get_physics_step_count()
+        return self._renderer.render_perspective(
+            self._render_data, self._viewer.camera.get_view_matrix().reshape(4, 4).T, self._viewer.camera.fov
         )
-        return self._camera_data.output["rgba"].warp[0]
 
     def _render_frame(self) -> None:
         """Present the selected GPU image; the window owns no RTX resources."""
@@ -1262,7 +1189,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         super().reset(soft)
         if self._render_data is not None:
             self._renderer.reset(self._render_data)
-        self._projection = self._view_matrix = None
 
     def close(self) -> None:
         """Release only this view's product and window; sensors retain the renderer."""
@@ -1274,10 +1200,6 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                     resources.callback(self._viewer.close)
                 if self._render_data is not None:
                     resources.callback(self._renderer.cleanup, self._render_data)
-                for geometry in (*self._meshes.values(), *self._markers.values()):
-                    resources.callback(geometry.close)
         finally:
-            self._meshes.clear()
-            self._markers.clear()
-            self._viewer = self._renderer = self._render_data = self._camera_data = None
+            self._viewer = self._renderer = self._render_data = None
             super().close()

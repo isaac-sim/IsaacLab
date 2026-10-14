@@ -167,6 +167,10 @@ as your camera sensors when customizing renderer settings. If there are no OVRTX
 simulation creates the renderer for the perspective view. Newton's ``ViewerRTX`` and its
 borrowed-stage interface are not used.
 
+``PerspectiveCameraCfg`` supplies initial navigation settings. The window sends its current view
+matrix and field of view to the renderer. The render product owns calibration state and image buffers;
+the renderer updates the scene and captures the image. A perspective view does not create a scene camera sensor.
+
 No default lights are added: scenes without authored lights remain unlit. Scene-camera selections
 use their sensor's renderer, including Newton Warp, and skip perspective rendering. Closing the
 window removes its private product and debug geometry, leaving the shared renderer and sensors
