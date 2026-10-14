@@ -306,9 +306,16 @@ def test_interleaved_clone_prototypes_preserve_frame_order(device: str) -> None:
                 torch.ones((1, 3), device=device),
             )
         )
+        expected_paths = [f"{env_template.format(i)}/Prop/Mount" for i in range(num_envs)]
+        expected_paths.extend(
+            f"{env_template.format(i)}/Cube/{mount}" for i in range(num_envs) for mount in ("MountZ", "MountA")
+        )
+        expected_paths.append("/World/Marker")
         for view in (deferred, finalized):
             torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
             torch.testing.assert_close(view.get_local_scales().torch, expected_scales, atol=0, rtol=0)
+            # No public API exposes the destination paths used to mirror these poses to the renderer.
+            assert view._site_prim_paths == expected_paths
 
             # These slots select different prototypes and different child frames. A world write must
             # use the selected environment's parent pose when computing the new local transform.
