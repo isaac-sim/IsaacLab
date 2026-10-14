@@ -198,10 +198,11 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_st
         "frame_stack": frame_stack,
     }
     cfg = ObservationTermCfg(func=mdp.image_rgb, params=params)
-    term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None)
+    term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None, modifiers=None)
     obs_manager = SimpleNamespace(
         _group_obs_term_cfgs={"policy": [term_cfg]},
         _group_obs_term_names={"policy": ["image"]},
+        _group_obs_term_delay_buffer={},
         compute=lambda *args, **kwargs: None,
     )
     cache = {}
@@ -253,9 +254,10 @@ def test_observation_history_export_preserves_buffer_behavior(tmp_path: Path, st
     patcher = ExportPatcher(export_method="onnx-dynamo", required_obs_groups={"policy"})
     patcher.task_name = "history"
     obs_manager = SimpleNamespace(
-        _group_obs_term_cfgs={"policy": [SimpleNamespace(func=lambda env: None, history_length=3)]},
+        _group_obs_term_cfgs={"policy": [SimpleNamespace(func=lambda env: None, history_length=3, modifiers=None)]},
         _group_obs_term_names={"policy": ["positions"]},
         _group_obs_term_history_buffer={"policy": {"positions": buffer}},
+        _group_obs_term_delay_buffer={},
     )
     patcher._patch_history_buffers(obs_manager)
     frames = [torch.arange(6, dtype=torch.float32).reshape(2, 3) + value for value in (0, 10, 30)]
@@ -371,3 +373,62 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert semantics.kind == InputKindEnum.BODY_POSITION
     assert semantics.element_names == [["x", "y", "z"]]
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
+
+
+@pytest.mark.parametrize("operation", ["delay", "variable_delay", "filter", "integrator"])
+def test_observation_state_export_matches_runtime(tmp_path: Path, operation: str):
+    """Compiled stateful preprocessing matches Isaac Lab across samples and reset."""
+    from leapp import InferenceManager, annotate
+
+    from isaaclab.utils.buffers import DelayBuffer
+    from isaaclab.utils.leapp.export_annotator import _leapp_delay_compute, _leapp_stateful_call
+    from isaaclab.utils.modifiers import DigitalFilter, DigitalFilterCfg, Integrator, IntegratorCfg
+
+    is_delay = operation in ("delay", "variable_delay")
+    if is_delay:
+        min_lag = 0 if operation == "variable_delay" else 2
+        actual = DelayBuffer(2, 2, "cpu", min_lag=min_lag, hold_prob=1.0)
+        reference = DelayBuffer(2, 2, "cpu", min_lag=min_lag, hold_prob=1.0)
+        actual.compute(torch.zeros(2, 3))
+        reference.compute(torch.zeros(2, 3))
+        actual.reset()
+        reference.reset()
+        fields = ("_buffer", "_write_index", "_num_pushes")
+        call = actual.compute
+        reference_call = reference.compute
+    else:
+        cfg = DigitalFilterCfg(A=[-0.3], B=[0.4, 0.3]) if operation == "filter" else IntegratorCfg(dt=0.02)
+        cls = DigitalFilter if operation == "filter" else Integrator
+        actual = cls(cfg, (2, 3), "cpu")
+        reference = cls(cfg, (2, 3), "cpu")
+        fields = ("x_n", "y_n") if operation == "filter" else ("integral", "y_prev")
+        call, reference_call = actual, reference
+    call = (
+        _leapp_delay_compute(actual, operation, "observation")
+        if is_delay
+        else _leapp_stateful_call(actual, call, fields, operation, "observation")
+    )
+    samples = [torch.arange(6, dtype=torch.float32).reshape(2, 3) + offset for offset in (2, -3, 8, 1, -5)]
+    leapp.start(operation, save_path=str(tmp_path))
+    try:
+        for index, sample in enumerate(samples):
+            if operation == "variable_delay":
+                actual.set_time_lag(torch.tensor([index % 3, (index + 1) % 3]))
+            value = annotate.input_tensors(operation, {"sample": sample})
+            annotate.output_tensors(operation, {"value": call(value)}, export_with="onnx-dynamo")
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True)
+    manager = InferenceManager(str(tmp_path / operation / f"{operation}.yaml"))
+    for _ in range(2):
+        manager.reset()
+        reference.reset()
+        for index, sample in enumerate(samples[::-1]):
+            inputs = {f"{operation}/sample": sample.clone()}
+            if operation == "variable_delay":
+                lags = torch.tensor([(index + 2) % 3, index % 3], dtype=reference.time_lags.dtype)
+                reference.set_time_lag(lags)
+                inputs[f"{operation}/observation_lag"] = lags.clone()
+            expected = reference_call(sample).clone()
+            outputs = manager.run_policy(inputs)
+            torch.testing.assert_close(outputs[f"{operation}/value"], expected)

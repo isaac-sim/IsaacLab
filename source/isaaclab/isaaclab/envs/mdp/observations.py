@@ -382,7 +382,7 @@ def _read_camera_output(
     sensor: Camera | RayCasterCamera = env.scene.sensors[sensor_cfg.name]
     images = sensor.data.output[data_type].torch
     if data_type == "distance_to_camera" and convert_perspective_to_orthogonal:
-        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
+        images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices.torch)
     return images
 
 

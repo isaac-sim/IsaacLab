@@ -177,16 +177,14 @@ class DigitalFilter(ModifierBase):
             Filtered data. Shape is the same as data.
         """
         # move history window for input
-        self.x_n = torch.roll(self.x_n, shifts=1, dims=-1)
-        self.x_n[..., 0] = data
+        self.x_n = torch.cat((data.unsqueeze(-1), self.x_n[..., :-1]), dim=-1)
 
         # calculate current filter value: y[i] = Y*A - X*B
         y_i = torch.matmul(self.x_n, self.B) - torch.matmul(self.y_n, self.A)
-        y_i.squeeze_(-1)
+        y_i = y_i.squeeze(-1)
 
         # move history window for output and add current filter value to history
-        self.y_n = torch.roll(self.y_n, shifts=1, dims=-1)
-        self.y_n[..., 0] = y_i
+        self.y_n = torch.cat((y_i.unsqueeze(-1), self.y_n[..., :-1]), dim=-1)
 
         return y_i
 
