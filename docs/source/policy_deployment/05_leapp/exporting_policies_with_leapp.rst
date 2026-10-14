@@ -259,20 +259,6 @@ The export command performs the following steps:
 The patching is transparent to the policy; no changes to your training code or environment
 configuration are needed.
 
-Manager observation inputs
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Observation terms may combine annotated articulation, rigid-object, rigid-object collection,
-deformable, and cable data with sensor observations. Supported sensor data includes cameras
-(image buffers, pose, and intrinsics), ray hits, contact forces and timing, IMU, PVA,
-frame transforms, and joint wrenches. These values remain external inputs to the exported
-pipeline; the deployment application must supply the inputs listed in its YAML metadata.
-Exporting sensor data does not export the simulator or renderer that produces it.
-
-Custom observation terms still need traceable operations and annotated data reads. Arbitrary
-Python callbacks, custom modifier state, and unannotated tensor properties are not automatically
-made portable by adding them to an observation manager.
-
 .. warning::
 
    LEAPP is designed to support a broad range of model architectures, but the current
