@@ -134,9 +134,16 @@ def create_zero_action_policy(env: gym.Env) -> Callable[[], Any]:
     return lambda: actions
 
 
-def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor]:
-    """Create a policy that samples uniform random actions in ``[-1, 1]``."""
-    device = env.unwrapped.device
+def create_random_action_policy(env: gym.Env) -> Callable[[], torch.Tensor | dict[str, torch.Tensor]]:
+    """Create a policy that samples uniform random actions in ``[-1, 1]`` for each environment and agent."""
+    unwrapped = env.unwrapped
+    device = unwrapped.device
+    if hasattr(unwrapped, "action_spaces"):
+        return lambda: {
+            agent: 2 * torch.rand((unwrapped.num_envs, *space.shape), device=device) - 1
+            for agent, space in unwrapped.action_spaces.items()
+        }
+
     return lambda: 2 * torch.rand(env.action_space.shape, device=device) - 1
 
 
