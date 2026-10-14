@@ -194,8 +194,9 @@ OVERRIDES = {
     ),
     "examples/sharpa_rj45.py": ScriptOverride(
         args=("--max_steps", "1800"),
-        skip_reason="requires the external Rizon/SHARPA robot bundle",
+        startup_timeout=600.0,
         fixed_physics_backend="newton_coupler",
+        visualizers=("newton_gl", "newton_rtx", "kit"),
         required_modules=("isaaclab_contrib",),
     ),
     "examples/haply_teleoperation.py": ScriptOverride(
