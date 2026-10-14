@@ -131,7 +131,6 @@ Table of Contents
    :maxdepth: 2
    :caption: Features
 
-   source/features/imitation-learning/index
    source/features/isaac_teleop
    source/features/hydra
    source/features/multi_gpu
@@ -158,6 +157,7 @@ Table of Contents
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
+   source/features/imitation-learning/index
 
 .. toctree::
    :maxdepth: 1
