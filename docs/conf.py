@@ -16,6 +16,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import subprocess
 import sys
 
 import tomllib
@@ -533,5 +534,12 @@ def skip_member(app, what, name, obj, skip, options):
     return None
 
 
+def update_environment_browser(app):
+    """Regenerate the environment browser's task rows from the task registry, so they cannot go stale."""
+    tool = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tools", "update_environments_rst.py")
+    subprocess.run([sys.executable, tool], check=True)
+
+
 def setup(app):
     app.connect("autodoc-skip-member", skip_member)
+    app.connect("builder-inited", update_environment_browser)
