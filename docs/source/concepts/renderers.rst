@@ -121,6 +121,8 @@ training, photo-real rendering for full RTX image quality, and advanced outputs 
 motion, and labels. The commands use the suffixless ``Isaac-Cartpole-Camera`` task so each mode can
 be tried without editing Python.
 
+.. _renderer-simplified-rendering:
+
 Simplified rendering
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -294,34 +296,12 @@ motion vectors, while Newton Warp does not. The :ref:`renderer visual comparison
 Performance
 -----------
 
-Relative to Newton Warp on the same camera task and physics backend. Both RTX renderers use
-photo-real (RTPT) rendering; Newton Warp's direct-lighting RGB is closest to RTX Minimal with
-diffuse MDL shading (``simple_shading_diffuse_mdl``), which costs less than RTPT.
-
-.. list-table::
-   :header-rows: 1
-   :stub-columns: 1
-   :widths: 31 23 23 23
-
-   * - Metric
-     - Newton Warp
-     - OVRTX (RTPT)
-     - Isaac RTX (RTPT)
-   * - Throughput (FPS)
-     - 1×
-     - 0.5×
-     - 0.2×
-   * - GPU memory (VRAM)
-     - 1×
-     - 4.3×
-     - 5.4×
-   * - Host memory (RAM)
-     - 1×
-     - 2.8×
-     - 4.0×
-
-OVRTX runs about 2.5× faster than Isaac RTX and uses less GPU and host memory. Ratios vary with the
-task, resolution, and outputs.
+The :ref:`environment benchmarks <environment-browser>` report throughput for each physics and
+renderer pair. Select a camera task, such as ``Isaac-Cartpole-Camera``, then open the **Release** tab
+under **Benchmarks**. These camera benchmarks compare Newton Warp ``rgb`` with OVRTX and Isaac RTX in
+:ref:`RTX Minimal <renderer-simplified-rendering>` mode (``simple_shading_full_mdl``), the RTX mode
+closest to Newton Warp's direct-lighting RGB. In the release benchmarks, Newton Warp has the highest
+throughput, and OVRTX outperforms Isaac RTX.
 
 Per-environment Isaac RTX scene partitioning
 ---------------------------------------------
