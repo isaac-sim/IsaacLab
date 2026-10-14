@@ -347,6 +347,7 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
     viewer.camera = Camera(width=64, height=64, up_axis="Z")
     viewer._camera_speed = 1.0
+    viewer._paused = False
     viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
 
     gui = ViewerGui.__new__(ViewerGui)
