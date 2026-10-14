@@ -31,10 +31,11 @@ class ProgramSpec:
 
     def uvx_command(self, command: str) -> str:
         """Return the command for running the program from a released package."""
+        uvx = "uvx --torch-backend cu130"
         if not self.extras:
-            return f"uvx isaaclab {command} {self.name}"
+            return f"{uvx} isaaclab {command} {self.name}"
         extras = ",".join(self.extras)
-        return f"uvx --from 'isaaclab[{extras}]' isaaclab {command} {self.name}"
+        return f"{uvx} --from 'isaaclab[{extras}]' isaaclab {command} {self.name}"
 
     def missing_modules(self) -> tuple[str, ...]:
         """Return required Python modules that are unavailable."""
