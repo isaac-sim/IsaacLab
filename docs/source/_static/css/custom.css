@@ -174,13 +174,7 @@ figure.nurec-gif-contain img {
     white-space: nowrap;
 }
 
-/* Renderer comparison tables: wrap long literals inside their column without changing their
-   copied text, and center image-matrix row labels on their images. */
-.renderer-table span.pre {
-    overflow-wrap: anywhere;
-    white-space: normal;
-}
-
+/* Center renderer output-matrix row labels on their images. */
 .renderer-matrix th,
 .renderer-matrix td {
     vertical-align: middle;

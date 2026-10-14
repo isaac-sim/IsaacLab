@@ -5,10 +5,14 @@ Renderers
 =========
 
 Renderers produce camera-sensor buffers for policy observations and synthetic-data workflows.
-They are distinct from :doc:`visualizers <visualization>`, which provide human-facing, interactive
-views for inspection, debugging, and recording. Every renderer implements
-:class:`~isaaclab.renderers.BaseRenderer`, and each camera selects one through
-:attr:`~isaaclab.sensors.CameraCfg.renderer_cfg`.
+They are distinct from :doc:`visualizers <visualization>`, which provide
+human-facing, interactive views for inspection, debugging, and recording. Isaac Lab uses a
+pluggable renderer architecture. All implementations follow the interface defined by
+:class:`~isaaclab.renderers.BaseRenderer`.
+
+Isaac Lab supports three rendering backends. See :ref:`renderer-details` for their execution models,
+output coverage, and limitations, and :ref:`camera-supported-annotators` for the output-by-backend
+support matrix.
 
 .. important::
 
@@ -17,10 +21,8 @@ views for inspection, debugging, and recording. Every renderer implements
 
 .. _renderer-selection:
 
-Choosing a renderer
--------------------
-
-Each animation shows the same scene and camera in the renderer's ``rgb`` output.
+Choosing a renderer backend
+----------------------------
 
 .. grid:: 1 1 3 3
    :gutter: 2
@@ -58,86 +60,216 @@ Each animation shows the same scene and camera in the renderer's ``rgb`` output.
 
       ``renderer=isaacsim_rtx``
 
+.. _renderer-visual-comparison:
+
+Renderer outputs at a glance
+----------------------------
+
+Each renderer draws the same scene, camera, lights, and materials: six spheres with mirror-like,
+transparent, semi-transparent, matte, glossy, and emissive materials. RGB is animated; the other
+outputs are stills from the same run. Newton Warp and OVRTX use Newton physics while Isaac RTX uses
+PhysX, so sphere poses can differ.
+
+Minimal rows are the ``simple_shading_*`` outputs. Scalar, vector, and label outputs are color-mapped
+for display: depth runs from near (purple) to far (red), normals map X, Y, and Z to red, green, and
+blue, and motion-vector arrows show sampled image-space motion. Cameras return the raw tensors
+described in :ref:`camera-output-types`.
+
+.. include:: _renderer_gallery.rst
+
 .. _renderer-details:
 
-Technical specifications
-------------------------
+Renderer details
+----------------
 
-The :ref:`camera renderer support matrix <camera-supported-annotators>` is the authoritative
-output-by-renderer reference.
+Open a renderer below for its runtime, physics pairing, output coverage, configuration, and typical
+use case.
+
+.. dropdown:: Newton Warp renderer
+
+   - **Runtime and physics:** A lightweight, kit-less Warp ray tracer included in the base install.
+     Pairs with Newton, OvPhysX, or Isaac Sim PhysX.
+   - **Output coverage:** Produces RGB, albedo, depth, normals, semantic segmentation, and instance
+     segmentation with direct lighting. It does not produce motion vectors or RTX material transport.
+   - **Configuration:** :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`
+   - **Best for:** Training workflows where throughput matters more than full RTX fidelity.
+
+.. dropdown:: OVRTX renderer
+
+   - **Runtime and physics:** Provides kit-less RTX rendering through the ``isaaclab_ov`` extension
+     and the ``ovrtx`` |ovrtx_docs_ref| runtime. Pairs with Newton or OvPhysX; it cannot share a
+     process with Kit.
+   - **Output coverage:** Provides RTX Minimal and photo-real rendering with geometry, motion, and
+     label outputs, plus :ref:`asynchronous rendering <renderers-async-data-flow>`.
+   - **Configuration:** :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
+   - **Best for:** RTX image quality without running Isaac Sim.
+
+.. dropdown:: Isaac RTX renderer (legacy)
+
+   - **Runtime and physics:** Runs NVIDIA's Omniverse RTX rendering pipeline inside Isaac Sim and
+     pairs with Isaac Sim PhysX or Newton.
+   - **Output coverage:** Provides RTX Minimal (Isaac Sim 6.0 or later) and photo-real rendering, plus
+     the broadest camera-output coverage.
+   - **Configuration:** :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+   - **Best for:** Workflows that must run inside Isaac Sim or Kit.
+
+.. _renderer-performance:
+
+Performance
+-----------
+
+Relative to Newton Warp on the same camera task and physics backend:
 
 .. list-table::
    :header-rows: 1
    :stub-columns: 1
-   :width: 100%
-   :widths: 16 28 28 28
-   :class: renderer-table
+   :widths: 31 23 23 23
 
-   * -
+   * - Metric
      - Newton Warp
      - OVRTX
-     - Isaac RTX (legacy)
-   * - Status
-     - Lightweight renderer
-     - Recommended RTX renderer
-     - Legacy; maintained for workflows that run inside Isaac Sim
-   * - Image formation
-     - Warp ray tracing with direct lighting, ambient light, and optional directional-light shadows.
-       Shades diffuse color and textures; no indirect lighting, reflections, or refraction.
-     - RTX :ref:`Real-Time Path Tracing (RTPT) <renderer-render-modes>` by default; RTX Minimal for
-       ``simple_shading_*`` outputs. Full MDL materials.
-     - The same RTX modes, rendered through Kit and Replicator. RTX Minimal requires Isaac Sim 6.0
-       or later.
-   * - Runtime
-     - Kit-less; included in the base install
-     - Kit-less; ``ovrtx`` or ``ov`` extra (``ovrtx`` |ovrtx_docs_ref|)
-     - Isaac Sim and Kit; ``isaacsim`` extra
-   * - Physics backends
-     - Newton, OvPhysX, Isaac Sim PhysX
-     - Newton, OvPhysX
-     - Isaac Sim PhysX, Newton
-   * - ``renderer=`` selector
-     - ``newton_renderer``
-     - ``ovrtx``
-     - ``isaacsim_rtx``
-   * - Configuration
-     - :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`
-     - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
-     - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
-   * - Outputs
-     - ``rgb``, ``rgba``, ``rgb_hdr``, ``albedo``, depth and distances, ``normals``, semantic and
-       instance segmentation
-     - Newton Warp outputs, plus ``motion_vectors`` and ``simple_shading_*``
-     - OVRTX outputs, plus ``instance_id_segmentation_fast``. ``albedo`` and ``simple_shading_*``
-       require Isaac Sim 6.0 or later.
-   * - Prior-frame history
-     - None; each image is independent
-     - RTPT denoising reuses prior frames
-     - RTPT anti-aliasing and denoising reuse prior frames; DLSS by default
-   * - Environment isolation
-     - Each environment renders its own Newton world plus shared global geometry
-     - Scene partitioning, always on; up to 15625 partitions
-     - Scene partitioning, on by default; up to 15625 partitions
-   * - Asynchronous rendering
-     - No
-     - Opt-in through :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering`
-     - No
+     - Isaac RTX
+   * - Throughput (FPS)
+     - 1×
+     - 0.5×
+     - 0.2×
+   * - GPU memory (VRAM)
+     - 1×
+     - 4.3×
+     - 5.4×
+   * - Host memory (RAM)
+     - 1×
+     - 2.8×
+     - 4.0×
 
-``renderer=rtx`` selects OVRTX for kit-less runs and Isaac RTX when the run needs Kit, for example
-for Isaac Sim PhysX, the Kit visualizer, or livestreaming. OVRTX cannot share a process with Kit.
-Tasks that need velocity-like visual cues should add explicit temporal observations, such as
-task-local frame stacking, rather than rely on renderer-specific prior-frame history.
+OVRTX runs about 2.5× faster than Isaac RTX and uses less GPU and host memory. Ratios vary with the
+task, resolution, and outputs.
 
-Select a renderer at launch together with a compatible physics backend:
+Choosing a rendering capability
+--------------------------------
+
+The sections below group rendering by purpose: simplified rendering for throughput-oriented
+training, photo-real rendering for full RTX image quality, and advanced outputs for geometry,
+motion, and labels. The commands use the suffixless ``Isaac-Cartpole-Camera`` task so each mode can
+be tried without editing Python.
+
+Simplified rendering
+~~~~~~~~~~~~~~~~~~~~
+
+Simplified rendering prioritizes throughput and predictable image formation over full light
+transport. Newton Warp provides a lightweight ray-traced RGB path. OVRTX and Isaac RTX provide RTX
+Minimal mode, which disables indirect lighting and offers three levels of material evaluation:
+
+- **Constant diffuse** uses one constant surface color.
+- **Diffuse MDL** is Isaac Lab's stable name for textured diffuse shading.
+- **Full MDL** is Isaac Lab's stable name for diffuse, glossy, and emissive material evaluation.
+
+Requesting a ``simple_shading_*`` output switches that camera to RTX Minimal, so request regular color
+from a separate camera. RTX Minimal uses the first distant light in the scene and hard shadows. See
+the :ovrtx-docs:`OVRTX Minimal mode <sensors/cameras/render_modes/minimal.rst>` and
+`RTX Minimal renderer <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_minimal.html>`_
+documentation for the renderer-level settings and limitations.
 
 .. tab-set::
 
-   .. tab-item:: Newton Warp
+   .. tab-item:: Newton Warp RGB
+
+      .. grid:: 1 2 2 2
+         :gutter: 2
+
+         .. grid-item::
+
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-disabled.png
+               :width: 100%
+               :alt: Newton Warp RGB output with directional-light shadows disabled.
+
+               Without shadows (default)
+
+         .. grid-item::
+
+            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-shadows-enabled.png
+               :width: 100%
+               :alt: Newton Warp RGB output with directional-light shadows enabled.
+
+               With shadows
+
+      Newton Warp is the kit-less choice when a lightweight RGB observation is sufficient.
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+      Enable directional-light shadows explicitly:
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl \
+            --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=newton_renderer presets=rgb \
+            env.scene.tiled_camera.renderer_cfg.enable_shadows=true
+
+   .. tab-item:: OVRTX Minimal
+
+      **Constant diffuse**
 
       .. code-block:: bash
 
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=newton_renderer presets=rgb
+            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_constant_diffuse
+
+      **Textured diffuse**
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_diffuse_mdl
+
+      **Diffuse, glossy, and emissive material evaluation**
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl
+
+   .. tab-item:: Isaac RTX Minimal
+
+      **Constant diffuse**
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_constant_diffuse
+
+      **Textured diffuse**
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_diffuse_mdl
+
+      **Diffuse, glossy, and emissive material evaluation**
+
+      .. code-block:: bash
+
+         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
+            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_full_mdl
+
+Photo-real rendering
+~~~~~~~~~~~~~~~~~~~~
+
+Here, **photo-real rendering** means the regular RGB path from the full RTX Real-Time Path-Tracing
+(RTPT) mode; it is a capability grouping, not an Isaac Lab preset name. Choose it when material
+appearance, reflections, transparency, lighting, or the accompanying RTX AOVs matter more than the
+lowest possible render latency. OVRTX provides this path without Kit, while Isaac RTX provides it
+inside Isaac Sim. See the
+:ovrtx-docs:`OVRTX Real-Time Path-Tracing <sensors/cameras/render_modes/real_time_path_tracing.rst>`
+and `Isaac Sim rendering modes
+<https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/rendering_modes.html>`_
+documentation.
+
+.. tab-set::
 
    .. tab-item:: OVRTX
 
@@ -146,186 +278,48 @@ Select a renderer at launch together with a compatible physics backend:
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=newton_mjwarp renderer=ovrtx presets=rgb
 
-   .. tab-item:: Isaac RTX (legacy)
+   .. tab-item:: Isaac RTX
 
       .. code-block:: bash
 
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
             physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb
 
-.. _renderer-performance:
+Advanced rendering outputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Performance
------------
+Beyond RGB, renderer-produced buffers expose material, geometry, motion, and labeling information:
 
-Values are relative to Newton Warp. Higher is better for throughput; lower is better for memory.
+- **Albedo** isolates the material base color from lighting.
+- **Depth** measures optical-axis distance for geometric perception and reconstruction.
+- **Normals** encode local surface orientation.
+- **Semantic segmentation** groups pixels by class, while **instance segmentation** separates
+  individual objects.
+- **Motion vectors** encode image-space motion per pixel and require prior-frame history.
 
-.. list-table::
-   :header-rows: 1
-   :stub-columns: 1
-   :width: 100%
-   :widths: 28 24 24 24
+Request one or more buffers through :attr:`~isaaclab.sensors.CameraCfg.data_types`. See
+:ref:`camera-configuration` for a configuration example and :ref:`camera-output-types` for the
+available names, tensor shapes, data types, and meanings. Environment-level ``presets=...``
+selectors are task-defined convenience shortcuts, not an exhaustive list of camera outputs.
 
-   * - Metric
-     - Newton Warp
-     - OVRTX
-     - Isaac RTX (legacy)
-   * - Environment-step throughput
-     - 100%
-     - 50%
-     - 20%
-   * - GPU memory (VRAM)
-     - 100%
-     - 427%
-     - 543%
-   * - Host memory (RSS)
-     - 100%
-     - 280%
-     - 396%
-
-On the same physics backend, OVRTX delivers about 2.5 times the throughput of Isaac RTX with about
-20% less GPU memory and 30% less host memory.
-
-The measurement uses ``Isaac-Reorient-KukaAllegro-Camera`` with 8192 environments,
-``physics=newton_mjwarp``, and ``presets=cube,single_camera,rgb64``: one 64 × 64 ``rgb`` camera per
-environment, which both RTX renderers render in :ref:`RTPT <renderer-render-modes>`. Each renderer
-was measured once on an NVIDIA L40 GPU at Isaac Lab commit ``32fea6be``. Throughput is
-``runtime.environment_step_timing.environment_step_fps``, which times ``env.step()`` only. Memory is
-the run mean of GPU memory used and of host process RSS. Ratios change with the task, resolution,
-outputs, and GPU; see :ref:`developer_tools_benchmarking_run` to measure a specific configuration.
-
-.. _renderer-render-modes:
-
-RTX render modes
-----------------
-
-OVRTX and Isaac RTX set the render mode for each camera from its requested outputs. A
-``simple_shading_*`` output selects RTX Minimal at the shading level that the output names; other
-cameras use Real-Time Path Tracing (RTPT), which is also the default Kit render mode for Isaac RTX.
-The mode applies per camera render product, so cameras in one scene can use different modes. Isaac
-Lab does not select the progressive Path Tracing mode that OVRTX also documents.
-
-.. list-table::
-   :header-rows: 1
-   :stub-columns: 1
-   :width: 100%
-   :widths: 18 41 41
-
-   * -
-     - Real-Time Path Tracing (RTPT)
-     - RTX Minimal
-   * - Selected by
-     - Default for every output except ``simple_shading_*``
-     - One ``simple_shading_*`` output
-   * - Light transport
-     - Path tracing with real-time denoising: global illumination, reflections, and shadows from all
-       scene lights
-     - Direct lighting from the first ``DistantLight`` only; no indirect lighting, and dome lights
-       are ignored. Ambient light is optional.
-   * - Materials
-     - Full MDL evaluation
-     - Set by the output: ``simple_shading_constant_diffuse`` uses one constant color,
-       ``simple_shading_diffuse_mdl`` uses textured diffuse color, and ``simple_shading_full_mdl``
-       evaluates diffuse, glossy, and emissive terms
-   * - Shadows
-     - Always traced
-     - Hard shadows from the first ``DistantLight``; OVRTX disables them by default
-       (:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.enable_shadows`)
-   * - Use for
-     - Material appearance, reflections, transparency, and lighting
-     - Throughput when simplified color is sufficient
-   * - OVRTX reference
-     - :ovrtx-docs:`Real-Time Path-Tracing <sensors/cameras/render_modes/real_time_path_tracing.rst>`
-     - :ovrtx-docs:`Minimal <sensors/cameras/render_modes/minimal.rst>`
-   * - Isaac RTX reference
-     - `RTX Real-Time 2.0 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_rt.html>`__
-     - `RTX Minimal <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer_minimal.html>`__
-
-The OVRTX links open the documentation for ``ovrtx`` |ovrtx_docs_ref|, the version Isaac Lab
-installs. The renderers differ when one camera requests RTX Minimal together with regular color:
-
-- OVRTX rejects ``rgb`` or ``rgba`` together with a ``simple_shading_*`` output on one camera, and
-  more than one ``simple_shading_*`` output per camera. Request them from separate cameras.
-- Isaac RTX keeps such a camera in RTPT. Its ``simple_shading_*`` output is still produced, without
-  the RTX Minimal speedup.
-
-For example, select full-MDL RTX Minimal shading on ``Isaac-Cartpole-Camera``:
-
-.. tab-set::
-
-   .. tab-item:: OVRTX
-
-      .. code-block:: bash
-
-         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
-            physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl
-
-   .. tab-item:: Isaac RTX (legacy)
-
-      .. code-block:: bash
-
-         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera \
-            physics=isaacsim_physx renderer=isaacsim_rtx presets=simple_shading_full_mdl
-
-Use ``presets=simple_shading_constant_diffuse`` or ``presets=simple_shading_diffuse_mdl`` for the
-other shading levels, and ``presets=rgb`` for RTPT. The :ref:`output comparison
-<renderer-visual-comparison>` shows each shading level next to RTPT ``rgb``.
-
-.. _renderer-visual-comparison:
-
-Output comparison
------------------
-
-Every image uses the same scene, camera, lights, and materials: six spheres with mirror-like,
-transparent, semi-transparent, matte, glossy, and emissive materials. ``rgb`` is animated; the other
-outputs are stills from the sixth frame, so motion vectors show motion. Newton Warp and OVRTX use
-Newton physics while Isaac RTX uses PhysX, so sphere poses can differ slightly. Scalar, vector, and
-label outputs are color-mapped for display; cameras return the raw tensors described in
-:ref:`camera-output-types`.
-
-.. include:: _renderer_gallery.rst
-
-Minimal rows are the ``simple_shading_*`` outputs. Depth uses the turbo color map from near (purple)
-to far (red), normals map X, Y, and Z to red, green, and blue, and segmentation assigns one color per
-class or object. Motion-vector color encodes direction and relative magnitude; arrows show sampled
-image-space motion.
-
-Request outputs through :attr:`~isaaclab.sensors.CameraCfg.data_types`; see
-:ref:`camera-configuration` for an example. Requesting an output that the renderer does not support
-fails during camera initialization. Environment-level ``presets=...`` selectors are task-defined
-shortcuts, not an exhaustive list of camera outputs.
+Output availability differs by backend. Check the :ref:`camera renderer support matrix
+<camera-supported-annotators>` before choosing a renderer; for example, OVRTX and Isaac RTX produce
+motion vectors, while Newton Warp does not. The :ref:`renderer visual comparison
+<renderer-visual-comparison>` above shows these outputs on the same scene.
 
 .. note::
 
-   Visualization markers are debug overlays drawn by visualizers, not camera outputs, so their
-   support does not depend on the camera renderer. See :doc:`/source/concepts/visualization` for the
-   visualizer support matrix.
-
-Installing the OVRTX renderer
-------------------------------
-
-The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
-source package ships with the core install, but the renderer's ``ovrtx`` runtime
-wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, published
-on public PyPI) is **not** installed by default. You must request it
-explicitly — OVRTX does **not** require Isaac Sim.
-
-Add the ``ovrtx`` extra to the uv environment:
-
-.. code-block:: bash
-
-   # Install the ovrtx runtime wheel on top of an existing install
-   uv sync --inexact --extra ovrtx
+   Visualization markers are debug overlays provided by visualizers, not camera outputs. Their
+   support is independent of the camera renderer: the Kit, Newton GL, Rerun, and Viser visualizers
+   support markers, while the experimental Newton RTX visualizer does not. See
+   :doc:`/source/concepts/visualization` for the visualizer support matrix.
 
 .. note::
-
-   The ``ov`` extra installs both the OV PhysX and OVRTX runtimes. Use the
-   ``ovrtx`` extra to install only the OVRTX runtime. ``--inexact`` preserves
-   packages already installed through other extras.
-
-Or install the public ``ovrtx`` package directly from PyPI:
-
-.. isaaclab-ovrtx-install::
+   **Temporal information for camera-based RL.** Unlike RTX modes with temporal
+   anti-aliasing (DLSS, DLAA, TAA), the Newton Warp renderer does not inject
+   prior-frame information into the current image. Camera-control tasks that depend
+   on velocity-like visual cues should add explicit temporal observations
+   (e.g. task-local frame stacking) rather than relying on renderer-specific artifacts.
 
 Per-environment Isaac RTX scene partitioning
 ---------------------------------------------
@@ -398,7 +392,7 @@ The renderer system consists of:
    renderer: BaseRenderer = sim_ctx.get_or_create_backend(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
 
-For the legacy Isaac RTX renderer (requires Isaac Sim):
+For the RTX renderer (requires Isaac Sim):
 
 .. code-block:: python
 
@@ -466,6 +460,32 @@ Core concepts
      # Lazily loads ovrtx when instantiated; may fail if isaaclab_ov / ovrtx is not installed
      sim_ctx = sim_utils.SimulationContext.instance()
      renderer: BaseRenderer = sim_ctx.get_or_create_backend(OVRTXRendererCfg())
+
+Installing the OVRTX renderer
+------------------------------
+
+The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
+source package ships with the core install, but the renderer's ``ovrtx`` runtime
+wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, published
+on public PyPI) is **not** installed by default. You must request it
+explicitly — OVRTX does **not** require Isaac Sim.
+
+Add the ``ovrtx`` extra to the uv environment:
+
+.. code-block:: bash
+
+   # Install the ovrtx runtime wheel on top of an existing install
+   uv sync --inexact --extra ovrtx
+
+.. note::
+
+   The ``ov`` extra installs both the OV PhysX and OVRTX runtimes. Use the
+   ``ovrtx`` extra to install only the OVRTX runtime. ``--inexact`` preserves
+   packages already installed through other extras.
+
+Or install the public ``ovrtx`` package directly from PyPI:
+
+.. isaaclab-ovrtx-install::
 
 - **Opaque render data**: The render data object returned by :meth:`~isaaclab.renderers.BaseRenderer.create_render_data` is passed to
   subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it

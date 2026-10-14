@@ -3,7 +3,7 @@
    :stub-columns: 1
    :width: 100%
    :widths: 16 28 28 28
-   :class: renderer-table renderer-matrix
+   :class: renderer-matrix
 
    * - Output
      - Newton Warp
