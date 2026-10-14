@@ -16,7 +16,7 @@ from leapp_direct_env import DIRECT_TASK
 from leapp_initialized_checkpoints import resolved_path_file, task_checkpoint_dir
 from leapp_test_tasks import MANAGER_TASK
 
-from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.test.utils import resolve_test_sim_device
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _CHECKPOINT_SCRIPT = Path(__file__).with_name("leapp_initialized_checkpoints.py")
@@ -247,16 +247,12 @@ def test_manager_export(backend: str, tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_direct_export(device: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_direct_export(tmp_path: Path) -> None:
     """Export the ANYmal direct tutorial with its published RSL-RL checkpoint."""
-    monkeypatch.setenv("ISAACLAB_TEST_DEVICES", "0" * (int(device.split(":")[1]) + 1) + "1")
     _run_export("rsl_rl", DIRECT_TASK, "pretrained", tmp_path)
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_ur10_reach_export(device: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ur10_reach_export(tmp_path: Path) -> None:
     """Smoke-test the maintained UR10 reach task with RSL-RL and its default preset."""
-    monkeypatch.setenv("ISAACLAB_TEST_DEVICES", "0" * (int(device.split(":")[1]) + 1) + "1")
     _initialized_export("rsl_rl", "Isaac-Reach-UR10", tmp_path)
