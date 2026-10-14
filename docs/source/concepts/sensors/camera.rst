@@ -202,9 +202,15 @@ produce additional output names; its operation factories declare their output co
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
 
-Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. ``rgb_radiance`` is
-the input for image processing that applies its own exposure and camera response, such as PPISP.
-If both are requested, they share one buffer.
+``rgb_hdr`` does not request exposure neutralization. ``rgb_radiance`` is the input for image
+processing that applies its own exposure and camera response, such as PPISP.
+A PPISP pipeline requests ``rgb_radiance`` as a private input automatically; add it to
+``CameraCfg.data_types`` only when it should also be published in ``camera.data.output``.
+
+If both ``rgb_hdr`` and ``rgb_radiance`` are requested, they share the same scene-linear buffer.
+On Isaac RTX and OVRTX, requesting radiance neutralizes exposure for the entire camera prim, so
+``rgb_hdr`` also contains neutralized color. Use separate camera prims to obtain radiance and color
+with the authored exposure; see the limitation in :ref:`camera-supported-annotators`.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center

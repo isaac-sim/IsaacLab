@@ -294,6 +294,8 @@ class _CpuCamera(Camera):
         self._data = CameraData()
         self._data.create_buffers(2, "cpu")
         self._data.info = {}
+        self._render_camera_data = self._data
+        self._buffer_pipe = None
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")

@@ -263,6 +263,15 @@ class SimulationContext:
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
+        # Prepare every camera before SensorBase initializes any sensor at order 10. Renderers
+        # that export the stage during the first camera's initialization then see every override.
+        self.physics_manager.register_callback(
+            lambda _payload: PhysicsManager.safe_callback_invoke(
+                self._render_context.prepare_cameras, physics_manager=self.physics_manager
+            ),
+            PhysicsEvent.PHYSICS_READY,
+            order=9,
+        )
         self.physics_manager.register_callback(
             lambda _payload: self._render_context.close(), PhysicsEvent.STOP, order=100
         )

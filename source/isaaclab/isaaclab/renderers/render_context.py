@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import logging
 import warnings
+import weakref
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -18,6 +19,9 @@ import warp as wp
 from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
+
+if TYPE_CHECKING:
+    from ..sensors.camera.camera import Camera
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +69,7 @@ class RenderContext:
     __slots__ = (
         "clone_contexts",
         "_backend_registry",
+        "_cameras",
         "_physics_initialized",
         "_prepared_renderer_ids",
         "_prepared_num_envs",
@@ -82,6 +87,7 @@ class RenderContext:
         self.clone_contexts: set[type | str] = set()
         """Scene representations declared by camera renderers and visualizers before cloning."""
         self._backend_registry = backend_registry
+        self._cameras: weakref.WeakValueDictionary[int, Camera] = weakref.WeakValueDictionary()
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
         self._prepared_renderer_ids: set[int] = set()
         self._prepared_num_envs: int | None = None
@@ -132,6 +138,19 @@ class RenderContext:
         self._physics_initialized = True
         for _cfg, renderer in self._renderer_entries:
             renderer.initialize()
+
+    def register_camera(self, camera: Camera) -> None:
+        """Include a camera in stage preparation without extending its lifetime."""
+        self._cameras[id(camera)] = camera
+
+    def unregister_camera(self, camera: Camera) -> None:
+        """Stop preparing a camera whose sensor callbacks have been cleared."""
+        self._cameras.pop(id(camera), None)
+
+    def prepare_cameras(self) -> None:
+        """Prepare every live camera before any sensor can export the shared renderer stage."""
+        for camera in tuple(self._cameras.values()):
+            camera._prepare_renderer()
 
     def register_visual_material(self, material: Any) -> None:
         """Register one initialized material asset for flat channel composition."""
@@ -369,6 +388,8 @@ class RenderContext:
 
     def close(self) -> None:
         """Release material writers and lifecycle bookkeeping, not registry-owned renderers.
+
+        Live camera registrations survive a stop so their stage preparation runs again on reset.
 
         Raises:
             RuntimeError: If a material writer failed to close.

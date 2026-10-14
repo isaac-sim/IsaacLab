@@ -323,54 +323,50 @@ def test_camera_data_allocate_raises_on_unknown_name():
 
 
 def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
-    """A renderer that snapshots the stage at the first camera's initialization sees every camera's overrides."""
-    import numpy as np
+    """Every live camera prepares before stage export, including after stop and with callback error forwarding."""
+    import weakref
 
-    from pxr import Sdf, Usd, UsdGeom
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton.physics import NewtonCfg, NewtonManager
 
-    from isaaclab.physics import PhysicsEvent, PhysicsManager
+    from pxr import Sdf, UsdGeom
+
+    from isaaclab.physics import PhysicsEvent
+    from isaaclab.renderers import RendererCfg
     from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
     from isaaclab.sensors.camera import Camera
     from isaaclab.sensors.camera import camera as camera_module
     from isaaclab.sensors.sensor_base import SensorBase
-    from isaaclab.sim import SimulationContext
 
-    class CameraPhysicsManager(PhysicsManager):
-        _callbacks = {}
-
-    stage = Usd.Stage.CreateInMemory()
-    prims = [UsdGeom.Camera.Define(stage, path).GetPrim() for path in ("/World/First", "/World/Second")]
-    prims[1].CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
     specs = {
         RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
         RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
         RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
     }
     exported_iso = []
+    prepare_error = None
 
     def prepare_cameras(stage, spec):
+        if prepare_error is not None:
+            raise prepare_error
         if "rgb_radiance" in spec.cfg.data_types:
             _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def export_stage(stage, num_envs):
-        if not exported_iso:
-            exported_iso.append(prims[1].GetAttribute("exposure:iso").Get())
+        exported_iso.append(prims[1].GetAttribute("exposure:iso").Get())
 
     renderer = SimpleNamespace(
+        initialize=lambda: None,
         supported_output_types=lambda: specs,
         prepare_cameras=prepare_cameras,
+        prepare_stage=export_stage,
         create_render_data=lambda spec: SimpleNamespace(spec=spec),
         set_outputs=lambda data, outputs: None,
         cleanup=lambda data: None,
+        close=lambda: None,
     )
-    sim = SimpleNamespace(
-        device="cpu",
-        physics_manager=CameraPhysicsManager,
-        get_clone_plan=lambda: SimpleNamespace(topology=SimpleNamespace(world_prototype_layout=np.zeros(2))),
-        render_context=SimpleNamespace(ensure_prepare_stage=export_stage),
-        vis_marker_registry=SimpleNamespace(clear_debug_vis_callback=lambda sensor: None),
-    )
-    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
+    renderer_cfg = RendererCfg(class_type=lambda cfg: renderer, renderer_type="contract")
     monkeypatch.setattr(SensorBase, "_initialize_impl", lambda self: None)
     monkeypatch.setattr(Camera, "_initialize_intrinsics", lambda self: None)
     monkeypatch.setattr(Camera, "_update_poses", lambda self: None)
@@ -379,7 +375,6 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
         "FrameView",
         lambda path, **kwargs: SimpleNamespace(count=2, prims=[stage.GetPrimAtPath(path)] * 2, close=lambda: None),
     )
-    cameras = []
 
     def prepare_identity(input_specs):
         return PreparedBufferOperation(
@@ -387,7 +382,7 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
             lambda inputs, outputs: wp.copy(outputs["image"].warp, inputs["image"].warp),
         )
 
-    for prim, data_types in zip(prims, (["rgb"], ["processed_radiance"])):
+    def make_camera(prim, data_types):
         camera = Camera.__new__(Camera)
         pipeline = (
             [RenderBufferStepCfg(prepare_identity, {"image": "rgb_radiance"}, {"image": "processed_radiance"})]
@@ -395,7 +390,13 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
             else []
         )
         camera.cfg = CameraCfg(
-            prim_path=str(prim.GetPath()), data_types=data_types, height=2, width=3, spawn=None, pipeline=pipeline
+            prim_path=str(prim.GetPath()),
+            data_types=data_types,
+            height=2,
+            width=3,
+            spawn=None,
+            pipeline=pipeline,
+            renderer_cfg=renderer_cfg,
         )
         camera._render_cfg = replace(camera.cfg, data_types=camera.cfg.render_data_types(), pipeline=[])
         camera.stage = stage
@@ -407,17 +408,41 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
         camera._render_data = None
         camera._view = None
         camera._register_callbacks()
-        cameras.append(camera)
+        return camera
 
-    try:
-        CameraPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+    sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        stage = sim.stage
+        prims = [UsdGeom.Camera.Define(stage, path).GetPrim() for path in ("/World/First", "/World/Second")]
+        iso = prims[1].CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float)
+        monkeypatch.setattr(
+            sim, "get_clone_plan", lambda: SimpleNamespace(topology=SimpleNamespace(world_prototype_layout=np.zeros(2)))
+        )
+        sim.get_or_create_backend(renderer_cfg)
+        cameras = [make_camera(prim, names) for prim, names in zip(prims, (["rgb"], ["processed_radiance"]))]
+        discarded = make_camera(prims[0], ["rgb"])
+        discarded_ref = weakref.ref(discarded)
+        del discarded
+        assert discarded_ref() is None
 
-        assert all(camera.is_initialized for camera in cameras)
-        assert exported_iso == [0.0]
-    finally:
-        for camera in cameras:
-            camera.__del__()
-    assert not CameraPhysicsManager._callbacks
+        try:
+            for _ in range(2):
+                iso.Set(100.0)
+                sim.physics_manager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+                assert all(camera.is_initialized for camera in cameras)
+                sim.physics_manager.dispatch_event(PhysicsEvent.STOP)
+            assert exported_iso == [0.0, 0.0]
+
+            # External event buses store callback failures instead of propagating them directly.
+            errors = []
+            monkeypatch.setattr(NewtonManager, "store_callback_exception", errors.append, raising=False)
+            prepare_error = ValueError("camera preparation failed")
+            sim.physics_manager.dispatch_event(PhysicsEvent.PHYSICS_READY)
+            assert errors and errors[0] is prepare_error
+            assert exported_iso == [0.0, 0.0]
+        finally:
+            for camera in cameras:
+                camera.__del__()
 
 
 def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkeypatch):

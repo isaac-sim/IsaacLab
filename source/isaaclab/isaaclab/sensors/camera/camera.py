@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import sys
-import weakref
 from collections.abc import Mapping, Sequence
 from copy import copy
 from dataclasses import replace
@@ -22,7 +21,6 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
-from ...physics import PhysicsEvent, PhysicsManager
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
 from ...utils.images import ImageBufferSpec, RenderBufferPipe
@@ -36,6 +34,7 @@ from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
+    from ...renderers.render_context import RenderContext
     from .camera_cfg import CameraCfg
 
 logger = logging.getLogger(__name__)
@@ -212,7 +211,7 @@ class Camera(SensorBase):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera or active renderer.
         """
-        self._prepare_renderer_handle = None
+        self._render_context: RenderContext | None = None
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class
@@ -264,7 +263,7 @@ class Camera(SensorBase):
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
-        # ``sim.reset()``; sensor initialization only runs on ``PhysicsEvent.PHYSICS_READY``, which is
+        # ``sim.reset()``; sensor initialization only runs once physics is ready, which is
         # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
         self._renderer: BaseRenderer | None = None
         if sim_ctx is not None:
@@ -700,8 +699,8 @@ class Camera(SensorBase):
 
         # Per-camera USD setup must run **before** ``ensure_prepare_stage`` so renderers that snapshot
         # the stage (ovrtx's ``stage.Export``) capture the overrides in their exported USD. Every camera
-        # already did this in :meth:`_prepare_renderer_callback`; repeating it is harmless and covers
-        # cameras initialized without that callback.
+        # already did this in :meth:`_prepare_renderer`; repeating it is harmless and covers
+        # cameras initialized outside that preparation pass.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         render_spec = CameraRenderSpec(
             cfg=self._render_cfg,
@@ -1182,30 +1181,19 @@ class Camera(SensorBase):
     """
 
     def _register_callbacks(self):
-        """Register camera stage preparation before the ordinary sensor initialization callbacks."""
+        """Register the sensor lifecycle and shared renderer stage preparation."""
         super()._register_callbacks()
-        physics_mgr_cls = sim_utils.SimulationContext.instance().physics_manager
-        obj_ref = weakref.proxy(self)
-
-        def _prepare(event):
-            obj_ref._prepare_renderer_callback(event)
-
-        # All cameras must author their USD overrides before the first camera exports the shared stage.
-        # Sensor initialization runs at order 10. Preserve weak ownership and backend exception forwarding.
-        self._prepare_renderer_handle = physics_mgr_cls.register_callback(
-            lambda payload: PhysicsManager.safe_callback_invoke(_prepare, payload, physics_manager=physics_mgr_cls),
-            PhysicsEvent.PHYSICS_READY,
-            order=9,
-        )
+        self._render_context = sim_utils.SimulationContext.instance().render_context
+        self._render_context.register_camera(self)
 
     def _clear_callbacks(self) -> None:
-        """Release the camera preparation subscription along with the ordinary sensor subscriptions."""
-        if self._prepare_renderer_handle is not None:
-            self._prepare_renderer_handle.deregister()
-            self._prepare_renderer_handle = None
+        """Release stage preparation along with the ordinary sensor subscriptions."""
+        if self._render_context is not None:
+            self._render_context.unregister_camera(self)
+            self._render_context = None
         super()._clear_callbacks()
 
-    def _prepare_renderer_callback(self, event):
+    def _prepare_renderer(self):
         """Apply this camera's renderer USD overrides before any camera initializes.
 
         A renderer that exports the stage when the first camera initializes, such as OVRTX, then sees
