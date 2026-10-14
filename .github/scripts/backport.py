@@ -101,8 +101,11 @@ def validate_candidate(
         raise BackportValidationError(
             "the candidate changes paths declared as kept at the release version: " + _format_paths(changed_kept_paths)
         )
+    declared_paths = kept_paths | extra_paths
     nonmatching_missing_paths = {
-        path for path in missing_paths - kept_paths if _tree_entry(source, path) != _candidate_entry(candidate, path)
+        path
+        for path in missing_paths - declared_paths
+        if _tree_entry(source, path) != _candidate_entry(candidate, path)
     }
     if nonmatching_missing_paths:
         raise BackportValidationError(
@@ -123,7 +126,7 @@ def validate_candidate(
         "exact_patch": require_exact_patch,
         "extra_paths": sorted(extra_paths),
         "kept_paths": sorted(kept_paths),
-        "missing_paths_already_present": sorted(missing_paths - kept_paths),
+        "missing_paths_already_present": sorted(missing_paths - declared_paths),
         "source_paths": sorted(source_paths),
     }
 
