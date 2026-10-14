@@ -275,16 +275,21 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
             mass_scale=cfg.spoon_proxy_mass_scale,
         )
     configure_grasp_reset(cfg)
-    for name, position in (("table", (0.0, 0.0, 0.0)), ("bowl", BOWL_POSITION), ("cup", CUP_POSITION)):
-        setattr(
-            cfg.scene,
-            name,
-            AssetBaseCfg(
-                prim_path="{ENV_REGEX_NS}/" + name.title(),
-                spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/{name}.usda"),
-                init_state=AssetBaseCfg.InitialStateCfg(pos=position),
-            ),
-        )
+    cfg.scene.table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.0)),
+    )
+    cfg.scene.bowl = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Bowl",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_POSITION),
+    )
+    cfg.scene.cup = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Cup",
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup.usda"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=CUP_POSITION),
+    )
     cfg.scene.spoon = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Spoon",
         spawn=sim_utils.UsdFileCfg(
@@ -307,7 +312,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     # Resolve defaults after Hydra/CLI overrides, preserving explicitly tuned
     # pressure settings and the independently configured integration rates.
     if solver.solver is None:
-        solver.solver = "gs" if cfg.water_enabled else "auto"
+        solver.solver = "gauss-seidel" if cfg.water_enabled else "auto"
     if solver.max_iterations is None:
         # Tall liquid fills need converged pressure to retain their surface level.
         solver.max_iterations = 500 if cfg.water_enabled else 100

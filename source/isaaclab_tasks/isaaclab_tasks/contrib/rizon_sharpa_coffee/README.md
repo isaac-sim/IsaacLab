@@ -37,6 +37,11 @@ session-layer handling is local to this demo. The shared Newton visualizer only
 provides a viewer-subclass hook for publishing liquid colours during the native
 RTX update.
 
+The custom MPM solver retains its manager's USD configuration preparation and
+only specializes solver construction. Native RTX material paths and updates
+belong to the coffee viewer; its adapter still depends on the pinned Newton
+runtime API.
+
 ## Assets and runtime
 
 Use Isaac Lab's uv environment, Newton and a CUDA-capable NVIDIA GPU. Standalone
@@ -127,3 +132,6 @@ the RL base owns that dispatch. Add task-specific observations, rewards,
 terminations, horizon, registration and an agent configuration separately.
 Reuse the scene, physics, reset logic and measured pose/delivery queries.
 Presentation supports one demo world and should be disabled for batched learning.
+The demo uses argparse and builds robot and prop configurations from its dimensions.
+Nested scene asset overrides are rebuilt by `configure_scene`; preserve those
+overrides explicitly when adapting it into a Hydra-configured learning task.

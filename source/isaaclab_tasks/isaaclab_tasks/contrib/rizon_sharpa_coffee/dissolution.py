@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from newton._src.solvers.implicit_mpm.implicit_mpm_model import MaterialParameters
+from warp.utils import array_sum
 
 if TYPE_CHECKING:
     from newton import State
@@ -95,13 +96,22 @@ class CoffeeDissolution:
         self._dry_radius = wp.clone(wp.indexedarray(self._model.particle_radius, coffee_ids))
         self._dry_volume = wp.clone(wp.indexedarray(self._mpm.particle_volume, coffee_ids))
         self._dry_density = wp.clone(wp.indexedarray(self._mpm.particle_density, coffee_ids))
+        self._converted_masses = wp.empty(coffee_ids.size, dtype=wp.float64, device=self._model.device)
+        self._converted_mass = wp.empty(1, dtype=wp.float64, device=self._model.device)
 
     @property
     def converted_mass_kg(self) -> float:
-        """Mass of coffee-origin liquid [kg]; reading synchronizes to the host."""
-        flags = self.liquid_flags.numpy()[self.water_ids.size :] != 0
-        masses = self._model.particle_mass.numpy()[self.coffee_ids.numpy()]
-        return float(masses[flags].sum(dtype=np.float64))
+        """Mass of coffee-origin liquid [kg]; reading copies one scalar to the host."""
+        with wp.ScopedDevice(self._model.device):
+            wp.launch(
+                _gather_converted_mass,
+                dim=self.coffee_ids.size,
+                inputs=[self.coffee_ids, self.water_ids.size, self.liquid_flags, self._model.particle_mass],
+                outputs=[self._converted_masses],
+                device=self._model.device,
+            )
+            array_sum(self._converted_masses, out=self._converted_mass)
+        return float(self._converted_mass.numpy()[0])
 
     def step(self, state: State, dt: float) -> None:
         """Update wetting and convert individual particles before the MPM solve."""
@@ -170,6 +180,20 @@ class CoffeeDissolution:
             ],
             device=self._model.device,
         )
+
+
+@wp.kernel
+def _gather_converted_mass(
+    coffee_ids: wp.array[int],
+    water_count: int,
+    liquid_flags: wp.array[int],
+    particle_mass: wp.array[float],
+    converted_mass: wp.array[wp.float64],
+):
+    i = wp.tid()
+    converted_mass[i] = wp.float64(0.0)
+    if liquid_flags[water_count + i] != 0:
+        converted_mass[i] = wp.float64(particle_mass[coffee_ids[i]])
 
 
 @wp.func

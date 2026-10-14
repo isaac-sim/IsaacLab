@@ -15,7 +15,6 @@ import newton
 import numpy as np
 import warp as wp
 from isaaclab_newton.physics import NewtonMPMManager
-from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton import StateFlags
 from newton.solvers import SolverImplicitMPM
 from newton.solvers.experimental.coupled import SolverCoupled
@@ -36,12 +35,14 @@ class CoffeeMPMManager(NewtonMPMManager):
     """Construct the task's solver through the existing coupled-solver factory."""
 
     @classmethod
-    def _create_solver(cls, model: Model, solver_cfg: CoffeeMPMSolverCfg) -> SolverImplicitMPM:
+    def _instantiate_solver(
+        cls, model: Model, config: SolverImplicitMPM.Config, solver_cfg: CoffeeMPMSolverCfg
+    ) -> SolverImplicitMPM:
         if type(solver_cfg.grains_per_particle) is not int or solver_cfg.grains_per_particle < 0:
             raise ValueError("grains_per_particle must be a nonnegative integer.")
         return CoffeeMPMSolver(
             model,
-            _make_solver_config(solver_cfg),
+            config,
             grains_per_particle=solver_cfg.grains_per_particle,
         )
 

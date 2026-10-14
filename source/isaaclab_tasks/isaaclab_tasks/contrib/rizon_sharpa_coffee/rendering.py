@@ -47,13 +47,54 @@ class CoffeeRTXViewer(NewtonViewerRTX):
     """Publish liquid attributes after native RTX opens the next stage ordinal."""
 
     rendering: CoffeeRendering | None = None
+    _water_shader_path: str | None = None
+
+    def close(self) -> None:
+        """Detach borrowed rendering and discard paths with the native runtime scene."""
+        self.rendering = None
+        self._water_shader_path = None
+        super().close()
 
     def _update_ovrtx_mesh_points(self):
         super()._update_ovrtx_mesh_points()
         if self.rendering is not None and self.rendering._surface is not None:
             _, _, _, colors, fraction = self.rendering._water_surface_arrays()
             if colors is not None:
-                self.rendering._update_rtx_water_appearance(self, 0.42 + 0.40 * fraction, colors)
+                self._update_water_appearance(0.42 + 0.40 * fraction, colors)
+
+    def _update_water_appearance(self, opacity: float, colors: np.ndarray) -> None:
+        """Bind interpolated vertex colours and update the live RTX primvar and opacity."""
+        from pxr import Sdf, UsdGeom, UsdShade, Vt
+
+        name = self._qualify("/coffee_water_surface")
+        if self._water_shader_path is None:
+            # Native mesh maps point at runtime siblings, not the authoring stage.
+            mesh_path = self._get_path(name)
+            mesh = self.stage.GetPrimAtPath(mesh_path)
+            material, _ = _vertex_color_material(
+                self.stage,
+                f"{mesh_path}/CoffeeMaterial",
+                WATER_COLOR,
+                roughness=0.08,
+                opacity=self._preview_surface_opacity_value(opacity),
+            )
+            UsdShade.MaterialBindingAPI.Apply(mesh).Bind(material)
+            primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+                "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.vertex
+            )
+            primvar.Set(Vt.Vec3fArray.FromNumpy(colors))
+            # Keep the cache for this runtime scene, including episode resets.
+            # The owned material retains its relative path in the exported mesh.
+            runtime_path = self._replace_runtime_prim(mesh_path)
+            self._mesh_prim_paths[name] = runtime_path
+            self._water_shader_path = f"{runtime_path}/CoffeeMaterial/Shader"
+            self._apply_ovstage_population_changes()
+        self._write_runtime_array_attribute(self._mesh_prim_paths[name], "primvars:displayColor", colors)
+        self._write_runtime_attribute(
+            [self._water_shader_path],
+            "inputs:opacity",
+            np.asarray([self._preview_surface_opacity_value(opacity)], dtype=np.float32),
+        )
 
 
 class CoffeeRTXVisualizer(NewtonRTXVisualizer):
@@ -85,7 +126,6 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
         if self._is_closed:
             return
         if self._is_initialized:
-            self._viewer.rendering = None
             for name, intensity in self._light_backup.items():
                 self._sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity").Set(intensity)
             self._sim.stage.RemovePrim("/World/CoffeeRTXLights")
@@ -217,7 +257,6 @@ class CoffeeRendering:
                 mesh_smooth_lambda=0.5,
                 device=device,
             )
-        self._rtx_water_shaders: dict[int, str] = {}
         self._rtx_static_grain_views: weakref.WeakSet[ViewerRTX] = weakref.WeakSet()
         for visualizer in self._visualizers:
             visualizer.rendering = self
@@ -414,44 +453,6 @@ class CoffeeRendering:
         self._surface_cache = points, indices, normals, colors, fraction
         return self._surface_cache
 
-    def _update_rtx_water_appearance(self, viewer: ViewerRTX, opacity: float, colors: np.ndarray) -> None:
-        """Bind interpolated vertex colours and update the live RTX primvar and opacity."""
-        from pxr import Sdf, UsdGeom, UsdShade, Vt
-
-        key = id(viewer)
-        if key not in self._rtx_water_shaders:
-            name = viewer._qualify("/coffee_water_surface")
-            # Native mesh maps point at runtime siblings, not the authoring stage.
-            mesh_path = viewer._get_path(name)
-            mesh = viewer.stage.GetPrimAtPath(mesh_path)
-            material, shader = _vertex_color_material(
-                viewer.stage,
-                f"{mesh_path}/CoffeeMaterial",
-                WATER_COLOR,
-                roughness=0.08,
-                opacity=viewer._preview_surface_opacity_value(opacity),
-            )
-            UsdShade.MaterialBindingAPI.Apply(mesh).Bind(material)
-            primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
-                "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.vertex
-            )
-            primvar.Set(Vt.Vec3fArray.FromNumpy(colors))
-            # The owned material lives inside the exported mesh subtree, so its
-            # shader has the same relative path after native replacement.
-            runtime_path = viewer._replace_runtime_prim(mesh_path)
-            viewer._mesh_prim_paths[name] = runtime_path
-            self._rtx_water_shaders[key] = f"{runtime_path}/CoffeeMaterial/Shader"
-            viewer._apply_ovstage_population_changes()
-        shader_path = self._rtx_water_shaders[key]
-        viewer._write_runtime_array_attribute(
-            viewer._mesh_prim_paths[viewer._qualify("/coffee_water_surface")], "primvars:displayColor", colors
-        )
-        viewer._write_runtime_attribute(
-            [shader_path],
-            "inputs:opacity",
-            np.asarray([viewer._preview_surface_opacity_value(opacity)], dtype=np.float32),
-        )
-
     def _clear_surface_cache(self) -> None:
         """Invalidate geometry and temporal history together at lifecycle boundaries."""
         self._surface_history.reset()
@@ -479,7 +480,6 @@ class CoffeeRendering:
         for visualizer in self._visualizers:
             visualizer.rendering = None
         self._visualizers.clear()
-        self._rtx_water_shaders.clear()
         self._rtx_static_grain_views.clear()
         self._clear_surface_cache()
 

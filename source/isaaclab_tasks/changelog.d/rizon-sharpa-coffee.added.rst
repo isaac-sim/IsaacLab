@@ -6,5 +6,7 @@
 * Added optional GL, RTX and Kit presentation with native grains, conservative
   colour transport, a filtered liquid surface and a render-only kitchen.
   The runner uses Isaac Lab's existing video recorder and a 4 mm grid.
-* Loads the complete companion asset bundle from the Isaac Lab environment library,
+* Loaded the complete companion asset bundle from the Isaac Lab environment library,
   including the prepared robot, contact reset and self-contained kitchen presentation.
+* Kept converted-mass reporting on the device and native RTX appearance state
+  with its viewer, and reused shared MPM solver preparation.
