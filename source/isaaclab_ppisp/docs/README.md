@@ -1,7 +1,7 @@
 # Isaac Lab PPISP
 
 This extension provides PPISP (Physically Plausible Image Signal Processing) as
-an operation in the shared render-buffer pipeline used by cameras and observations.
+an operation in the shared buffer pipeline used by cameras and observations.
 
 `PpispStepCfg` reads scene-linear `rgb_radiance` from a float32 `ProxyArray` with
 shape `(N, H, W, 3)` and writes uint8 `rgb`. For camera processing, configure
@@ -17,8 +17,8 @@ ppisp_cfg = ppisp_cfg_from_usd_camera(source_camera_prim)
 step = PpispStepCfg(params={"cfg": ppisp_cfg})
 ```
 
-The same step can run in `isaaclab.utils.images.RenderBufferPipe` outside a camera:
-`RenderBufferPipe({"rgb_radiance": radiance_buffer}, [step])`, where `radiance_buffer`
+The same step can run in `isaaclab.utils.processing.ProcessingBufferPipe` outside a camera:
+`ProcessingBufferPipe({"rgb_radiance": radiance_buffer}, [step])`, where `radiance_buffer`
 is an allocated `ProxyArray`. Preparation validates its shape and dtype and allocates
 the persistent output once on the same device. Input/output bindings can be changed
 independently of PPISP math. For RGBA,

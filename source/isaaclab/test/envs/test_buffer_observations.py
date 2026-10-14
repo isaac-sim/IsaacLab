@@ -21,7 +21,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
 )
 from isaaclab.utils import configclass, modifiers
-from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
+from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferStepCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -83,8 +83,8 @@ def _prepare_gain(inputs, gain):
     return PreparedBufferOperation({"color": result}, apply)
 
 
-def _read_image(env):
-    return env.image
+def _read_ranges(env):
+    return env.ranges
 
 
 def _env(**kwargs):
@@ -107,45 +107,52 @@ class _NestedImage(ManagerTermBase):
 
 
 def test_pipe_modifier_uses_preceding_modifier_output():
-    """A pipe must consume the current observation, not re-read the source camera."""
-    image = torch.ones((2, 2, 4, 3))
+    """A pipe consumes the current non-image observation after preceding modifiers."""
+    ranges = torch.ones((2, 4))
     preparations = []
 
     def prepare(inputs, gain):
-        preparations.append(inputs["color"].shape)
-        return _prepare_gain(inputs, gain)
+        preparations.append(inputs["ranges"].shape)
+        result = ProxyArray(wp.empty_like(inputs["ranges"].warp))
+
+        def apply(inputs, outputs):
+            torch.mul(inputs["ranges"].torch, gain, out=outputs["ranges"].torch)
+
+        return PreparedBufferOperation({"ranges": result}, apply)
 
     @configclass
     class Policy(ObservationGroupCfg):
         concatenate_terms = False
-        image = ObservationTermCfg(
-            func=_read_image,
+        ranges = ObservationTermCfg(
+            func=_read_ranges,
             modifiers=[
                 modifiers.ModifierCfg(func=modifiers.bias, params={"value": 3.0}),
-                modifiers.RenderBufferPipeModifierCfg(
+                modifiers.ProcessingBufferPipeModifierCfg(
                     pipeline=[
-                        RenderBufferStepCfg(
+                        ProcessingBufferStepCfg(
                             prepare=prepare,
-                            inputs={"color": "rgb"},
-                            outputs={"color": "rgb"},
+                            inputs={"ranges": "ranges"},
+                            outputs={"ranges": "ranges"},
                             params={"gain": 2.0},
                         )
-                    ]
+                    ],
+                    input_name="ranges",
+                    output_name="ranges",
                 ),
             ],
         )
 
-    env = _env(image=image)
+    env = _env(ranges=ranges)
     manager = ObservationManager({"policy": Policy()}, env)
     manager.reset([1])
     assert preparations == []
-    first = manager.compute()["policy"]["image"]
-    torch.testing.assert_close(first, torch.full_like(image, 8.0))
-    torch.testing.assert_close(image, torch.ones_like(image))
-    env.image = torch.full_like(image, 2.0)
-    torch.testing.assert_close(manager.compute()["policy"]["image"], torch.full_like(image, 10.0))
-    torch.testing.assert_close(first, torch.full_like(image, 8.0))
-    assert preparations == [tuple(image.shape)]
+    first = manager.compute()["policy"]["ranges"]
+    torch.testing.assert_close(first, torch.full_like(ranges, 8.0))
+    torch.testing.assert_close(ranges, torch.ones_like(ranges))
+    env.ranges = torch.full_like(ranges, 2.0)
+    torch.testing.assert_close(manager.compute()["policy"]["ranges"], torch.full_like(ranges, 10.0))
+    torch.testing.assert_close(first, torch.full_like(ranges, 8.0))
+    assert preparations == [tuple(ranges.shape)]
     manager.close()
 
 
@@ -165,10 +172,10 @@ def test_pipe_modifier_retries_failed_preparation_and_stays_closed():
         )
         return PreparedBufferOperation({"color": output}, operation.apply, close=lambda: lifecycle.append("close"))
 
-    cfg = modifiers.RenderBufferPipeModifierCfg(
-        pipeline=[RenderBufferStepCfg(prepare=prepare, inputs={"color": "rgb"}, outputs={"color": "rgb"})]
+    cfg = modifiers.ProcessingBufferPipeModifierCfg(
+        pipeline=[ProcessingBufferStepCfg(prepare=prepare, inputs={"color": "rgb"}, outputs={"color": "rgb"})]
     )
-    modifier = modifiers.RenderBufferPipeModifier(cfg, tuple(image.shape), "cpu")
+    modifier = modifiers.ProcessingBufferPipeModifier(cfg, tuple(image.shape), "cpu")
     modifier.reset([1])
     with pytest.raises(ValueError, match="input shape"):
         modifier(image[:, :, ::2])
@@ -184,14 +191,14 @@ def test_pipe_modifier_retries_failed_preparation_and_stays_closed():
         modifier(image)
     assert lifecycle == ["prepare", "close", "prepare", "close"]
 
-    unused_modifier = modifiers.RenderBufferPipeModifier(cfg, tuple(image.shape), "cpu")
+    unused_modifier = modifiers.ProcessingBufferPipeModifier(cfg, tuple(image.shape), "cpu")
     unused_modifier.close()
     with pytest.raises(RuntimeError, match="closed"):
         unused_modifier(image)
     assert lifecycle == ["prepare", "close", "prepare", "close"]
 
 
-def test_processed_image_declares_private_inputs_and_reports_transformed_shape():
+def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape():
     """Preparation resolves private AOVs before binding; manager dimensions describe the processed output."""
     lifecycle = []
 
@@ -238,10 +245,10 @@ def test_processed_image_declares_private_inputs_and_reports_transformed_shape()
                 "terms": [
                     {
                         "image": ManagerTermBaseCfg(
-                            func="isaaclab.envs.mdp:processed_image",
+                            func="isaaclab.envs.mdp:processed_sensor",
                             params={
                                 "pipeline": [
-                                    RenderBufferStepCfg(
+                                    ProcessingBufferStepCfg(
                                         prepare=prepare,
                                         inputs={"color": "rgb_radiance", "depth": "depth"},
                                         outputs={"color": "rgb"},
@@ -270,7 +277,7 @@ def test_processed_image_declares_private_inputs_and_reports_transformed_shape()
     torch.testing.assert_close(manager.compute()["policy"]["image"], expected * 2)
     torch.testing.assert_close(result, expected)
     manager.reset([1])
-    with pytest.raises(ExceptionGroup, match="Failed to close render buffer operations") as error:
+    with pytest.raises(ExceptionGroup, match="Failed to close buffer operations") as error:
         manager.close()
     assert str(error.value.exceptions[0]) == "operation close failed"
     manager.close()

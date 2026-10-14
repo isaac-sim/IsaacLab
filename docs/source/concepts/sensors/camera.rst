@@ -337,11 +337,12 @@ Post-render image processing
 ----------------------------
 
 :attr:`~sensors.CameraCfg.pipeline` applies an ordered sequence of operations to named image buffers.
-Each :class:`~isaaclab.utils.images.RenderBufferStepCfg` maps operation input and output roles to buffer
+Each :class:`~isaaclab.utils.processing.ProcessingBufferStepCfg` maps operation input and output roles to buffer
 names. A step can read several channels, such as radiance and depth, and later steps read the preceding
-step's results. The same :class:`~isaaclab.utils.images.RenderBufferPipe` can run independently or serve
+step's results. The same :class:`~isaaclab.utils.processing.ProcessingBufferPipe` can run independently or serve
 an observation consumer; operations receive explicit buffers and resources without discovering a camera,
-environment, or simulation singleton.
+environment, or simulation singleton. The shared pipe accepts named ``ProxyArray`` buffers, including
+nonvisual sensor data; image layout and pixel meaning are requirements of individual operations.
 
 The camera resolves external inputs before renderer initialization, including inputs needed only by the
 pipeline. It publishes the names in ``data_types`` after processing. For example, this camera requests
@@ -365,7 +366,7 @@ step for RGBA output. A pipeline-produced RGBA buffer also supplies a zero-copy 
 is requested. A pipeline producing only RGB cannot satisfy an explicit RGBA request.
 
 For a custom operation, provide a factory ``prepare(inputs, **params)`` returning
-:class:`~isaaclab.utils.images.PreparedBufferOperation`. The factory receives actual
+:class:`~isaaclab.utils.processing.PreparedBufferOperation`. The factory receives actual
 :class:`~isaaclab.utils.warp.ProxyArray` inputs, inspects their shape, dtype, and device, and allocates
 its output buffers and workspace once. Return the output arrays in the prepared operation, then write
 each supplied destination in ``apply(inputs, outputs)``. Both mappings use operation role names; the
@@ -374,7 +375,7 @@ retain their addresses for execution: each ``apply`` call receives the current i
 Operations document their expected image layout and pixel meaning. PPISP requires NHWC float32
 scene-linear radiance and produces NHWC uint8 color; a float32 array alone does not establish radiance.
 Published camera outputs must keep the camera's batch size, height, width, and NHWC layout so pose
-and calibration metadata remain valid. Intermediate buffers may change shape. Use ``processed_image``
+and calibration metadata remain valid. Intermediate buffers may change shape. Use ``processed_sensor``
 below when the final observation should have a different image shape or layout.
 
 ``camera.render_outputs`` exposes borrowed raw renderer buffers, including private inputs. Their
@@ -394,11 +395,12 @@ observation-only pipeline, declare raw dependencies with ``camera.request_render
 simulation initialization. Additional requests after initialization fail because renderer setup is
 already complete. Observation consumers use their own pipe and snapshot results needed across captures.
 
-Processing observation images
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Processing sensor observations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use :class:`~isaaclab.envs.mdp.processed_image` for observation-only processing, including operations
-that combine several camera outputs or change image dimensions:
+Use :class:`~isaaclab.envs.mdp.processed_sensor` for observation-only processing, including operations
+that combine several camera outputs or change image dimensions. The term currently binds sensors
+through their ``request_render_inputs()`` and ``render_outputs`` interface:
 
 .. code-block:: python
 
@@ -407,7 +409,7 @@ that combine several camera outputs or change image dimensions:
    from isaaclab_ppisp import PpispStepCfg
 
    policy_image = ObservationTermCfg(
-       func=mdp.processed_image,
+       func=mdp.processed_sensor,
        params={
            "sensor_cfg": SceneEntityCfg("front_camera"),
            "pipeline": [PpispStepCfg()],
@@ -422,11 +424,13 @@ camera's published processed output, use an existing image term such as ``mdp.im
 The observation pipe executes on every term evaluation and returns a snapshot; its state belongs to
 that term rather than the camera's capture cadence.
 
-For a single incoming tensor, :class:`~isaaclab.utils.modifiers.RenderBufferPipeModifierCfg` uses the
-same operations while preserving preceding observation transformations. This form must preserve
-shape; use ``processed_image`` for multiple camera inputs or shape changes. The first incoming tensor
-prepares the operations; later calls reuse their output storage. Its values must meet the operation's
-documented input requirements, including any transformations from preceding modifiers:
+For a single incoming tensor, :class:`~isaaclab.utils.modifiers.ProcessingBufferPipeModifierCfg` uses the
+same operations while preserving preceding observation transformations. This includes nonvisual
+observation tensors from sensors without the render-input interface. This form must preserve shape;
+use ``processed_sensor`` for multiple render inputs or changes to render-output shapes, or construct
+a ``ProcessingBufferPipe`` directly for other named buffers. The first incoming tensor prepares the
+operations; later calls reuse their output storage. Its values must meet the operation's documented
+input requirements, including any transformations from preceding modifiers:
 
 .. code-block:: python
 
@@ -438,7 +442,7 @@ documented input requirements, including any transformations from preceding modi
        func=mdp.image_rgb,
        params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_radiance", "normalize": False},
        modifiers=[
-           modifiers.RenderBufferPipeModifierCfg(
+           modifiers.ProcessingBufferPipeModifierCfg(
                pipeline=[PpispStepCfg()],
                input_name="rgb_radiance",
                output_name="rgb",

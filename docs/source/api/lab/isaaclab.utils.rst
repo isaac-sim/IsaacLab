@@ -19,6 +19,7 @@
       mesh
       modifiers
       noise
+      processing
       seed
       sensors
       string
@@ -145,6 +146,25 @@ Noise operations
    :show-inheritance:
    :exclude-members: __init__, func
 
+Processing operations
+~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.processing
+
+``ProcessingBufferPipe`` processes named ``ProxyArray`` buffers, including camera outputs and nonvisual
+sensor data. Operations define their own input shape, dtype, and semantic requirements.
+
+.. autoclass:: isaaclab.utils.processing.PreparedBufferOperation
+   :members:
+
+.. autoclass:: isaaclab.utils.processing.ProcessingBufferStepCfg
+   :members:
+   :exclude-members: __init__
+
+.. autoclass:: isaaclab.utils.processing.ProcessingBufferPipe
+   :members:
+   :special-members: __call__
+
 Seed operations
 ~~~~~~~~~~~~~~~
 
@@ -170,17 +190,6 @@ Image operations
 ~~~~~~~~~~~~~~~~
 
 .. autofunction:: isaaclab.utils.images.compose_image
-
-.. autoclass:: isaaclab.utils.images.PreparedBufferOperation
-   :members:
-
-.. autoclass:: isaaclab.utils.images.RenderBufferStepCfg
-   :members:
-   :exclude-members: __init__
-
-.. autoclass:: isaaclab.utils.images.RenderBufferPipe
-   :members:
-   :special-members: __call__
 
 Timer operations
 ~~~~~~~~~~~~~~~~

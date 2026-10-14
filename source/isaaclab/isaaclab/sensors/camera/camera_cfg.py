@@ -15,7 +15,7 @@ from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
-    from ...utils.images import RenderBufferStepCfg
+    from ...utils.processing import ProcessingBufferStepCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
@@ -199,7 +199,7 @@ class CameraCfg(SensorBaseCfg):
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 
-    pipeline: list[RenderBufferStepCfg] = []
+    pipeline: list[ProcessingBufferStepCfg] = []
     """Ordered image operations applied after each newly published capture.
 
     Steps bind operation roles to named buffers and may consume several render outputs or preceding
@@ -223,13 +223,13 @@ class CameraCfg(SensorBaseCfg):
             )
         if not self.pipeline:
             return list(self.data_types)
-        from ...utils.images import RenderBufferPipe
+        from ...utils.processing import ProcessingBufferPipe
 
         produced = {name for step in self.pipeline for name in step.outputs.values()}
         if "rgb" in produced and "rgba" not in produced and "rgba" in self.data_types:
             raise ValueError("A pipeline producing rgb must also produce rgba when rgba is requested.")
         published = [name for name in self.data_types if not (name == "rgb" and "rgba" in produced)]
-        return sorted(RenderBufferPipe.required_source_names(self.pipeline, published))
+        return sorted(ProcessingBufferPipe.required_source_names(self.pipeline, published))
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.

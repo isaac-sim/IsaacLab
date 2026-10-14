@@ -89,7 +89,7 @@ __all__ = [
     "image_normals",
     "image_rgb",
     "image_segmentation",
-    "processed_image",
+    "processed_sensor",
     "imu_ang_vel",
     "imu_lin_acc",
     "pva_orientation",
@@ -271,7 +271,7 @@ from .observations import (
     root_pos_w,
     root_quat_w,
 )
-from .visual_observations import processed_image
+from .sensor_observations import processed_sensor
 from .recorders import (
     ActionStateRecorderManagerCfg,
     InitialStateRecorder,

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PPISP operation for camera and observation render-buffer pipes."""
+"""PPISP operation for camera and observation buffer pipes."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 import warp as wp
 
 from isaaclab.utils import configclass
-from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
+from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferStepCfg
 from isaaclab.utils.warp import ProxyArray
 
 from .cfg import PpispCfg
@@ -71,7 +71,7 @@ def prepare_ppisp(
 
 
 @configclass
-class PpispStepCfg(RenderBufferStepCfg):
+class PpispStepCfg(ProcessingBufferStepCfg):
     """Route scene-linear radiance through PPISP into a public RGB buffer.
 
     Supply concrete settings with ``params={"cfg": ppisp_cfg}``. To produce RGBA, set

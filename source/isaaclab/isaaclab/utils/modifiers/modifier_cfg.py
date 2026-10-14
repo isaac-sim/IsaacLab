@@ -14,10 +14,10 @@ import torch
 from .. import configclass
 
 if TYPE_CHECKING:
-    from ..images import RenderBufferStepCfg
+    from ..processing import ProcessingBufferStepCfg
     from .modifier import DigitalFilter, Integrator
     from .modifier_base import ModifierBase
-    from .render_buffer_pipe import RenderBufferPipeModifier
+    from .processing_buffer_pipe import ProcessingBufferPipeModifier
 
 
 @configclass
@@ -40,17 +40,17 @@ class ModifierCfg:
 
 
 @configclass
-class RenderBufferPipeModifierCfg(ModifierCfg):
-    """Bind an incoming observation tensor to a render buffer pipe.
+class ProcessingBufferPipeModifierCfg(ModifierCfg):
+    """Bind an incoming observation tensor to a buffer pipe.
 
     Operations are prepared from the first tensor received after preceding modifiers.
-    Their documented input requirements define the expected image layout and value semantics.
+    Their documented input requirements define the expected array layout and value semantics.
     """
 
-    func: type[RenderBufferPipeModifier] | str = "{DIR}.render_buffer_pipe:RenderBufferPipeModifier"
+    func: type[ProcessingBufferPipeModifier] | str = "{DIR}.processing_buffer_pipe:ProcessingBufferPipeModifier"
     """Modifier class consuming the incoming tensor."""
 
-    pipeline: list[RenderBufferStepCfg] = MISSING
+    pipeline: list[ProcessingBufferStepCfg] = MISSING
     """Ordered buffer processing operations."""
 
     input_name: str = "rgb"

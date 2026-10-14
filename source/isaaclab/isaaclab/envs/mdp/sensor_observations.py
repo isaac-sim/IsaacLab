@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Observation adapters for renderer-independent image processing."""
+"""Observation adapters for processing named sensor buffers."""
 
 from __future__ import annotations
 
@@ -14,14 +14,18 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.images import RenderBufferPipe, RenderBufferStepCfg
+from isaaclab.utils.processing import ProcessingBufferPipe, ProcessingBufferStepCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-class processed_image(ManagerTermBase):
-    """Process named raw camera outputs with the shared render buffer pipe.
+class processed_sensor(ManagerTermBase):
+    """Process named sensor render outputs with the shared buffer pipe.
+
+    The sensor must expose ``request_render_inputs`` and ``render_outputs``, as
+    :class:`~isaaclab.sensors.Camera` does. Operations define the supported buffer layouts and
+    value semantics; outputs need not be visual images.
 
     Dependencies are requested before simulation initialization through
     :meth:`~isaaclab.managers.ObservationManager.prepare_scene`. They remain private to the
@@ -29,8 +33,9 @@ class processed_image(ManagerTermBase):
     its own operation state and output storage. The pipe runs on every observation evaluation;
     returned tensors are snapshots, so later evaluations cannot overwrite retained history.
 
-    Use this term for multiple inputs or changed image dimensions. To process the result of
-    earlier observation modifiers instead, use :class:`~isaaclab.utils.modifiers.RenderBufferPipeModifier`.
+    Use this term for multiple render inputs or changed buffer dimensions. To process other
+    sensor data or the result of earlier observation modifiers, use
+    :class:`~isaaclab.utils.modifiers.ProcessingBufferPipeModifier` on an observation tensor.
     To read a camera's already processed public output, use the existing image observation terms.
     """
 
@@ -38,26 +43,26 @@ class processed_image(ManagerTermBase):
     def prepare_scene(cls, cfg: ObservationTermCfg, env: ManagerBasedEnv) -> None:
         sensor_cfg = cfg.params.get("sensor_cfg", SceneEntityCfg("camera"))
         output_name = cfg.params.get("output_name", "rgb")
-        requirements = RenderBufferPipe.required_source_names(cfg.params["pipeline"], [output_name])
+        requirements = ProcessingBufferPipe.required_source_names(cfg.params["pipeline"], [output_name])
         env.scene.sensors[sensor_cfg.name].request_render_inputs(requirements)
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        self._camera = env.scene.sensors[cfg.params["sensor_cfg"].name]
+        self._sensor = env.scene.sensors[cfg.params["sensor_cfg"].name]
         self._output_name = cfg.params["output_name"]
-        buffers = self._camera.render_outputs
+        buffers = self._sensor.render_outputs
         device = wp.get_device(self.device)
         stream = wp.stream_from_torch(torch.cuda.current_stream(str(device))) if device.is_cuda else None
         with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-            self._pipe = RenderBufferPipe(buffers, cfg.params["pipeline"])
+            self._pipe = ProcessingBufferPipe(buffers, cfg.params["pipeline"])
         if self._output_name not in self._pipe.outputs:
             self._pipe.close()
-            raise ValueError(f"Image processing does not provide output {self._output_name!r}.")
+            raise ValueError(f"Buffer processing does not provide output {self._output_name!r}.")
 
     def __call__(
         self,
         env: ManagerBasedEnv,
-        pipeline: Sequence[RenderBufferStepCfg],
+        pipeline: Sequence[ProcessingBufferStepCfg],
         sensor_cfg: SceneEntityCfg = SceneEntityCfg("camera"),
         output_name: str = "rgb",
         *,
@@ -68,7 +73,7 @@ class processed_image(ManagerTermBase):
         The observation manager supplies ``out`` to receive the snapshot without another clone.
         Direct callers may omit it to allocate a new snapshot.
         """
-        return self._pipe.as_tensor(self._camera.render_outputs, output_name=self._output_name, out=out)
+        return self._pipe.as_tensor(self._sensor.render_outputs, output_name=self._output_name, out=out)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         self._pipe.reset(env_ids)

@@ -9,7 +9,7 @@ Observations
 .. automodule:: isaaclab.envs.mdp.observations
     :members:
 
-.. automodule:: isaaclab.envs.mdp.visual_observations
+.. automodule:: isaaclab.envs.mdp.sensor_observations
     :members:
 
 Actions

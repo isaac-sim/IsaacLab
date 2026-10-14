@@ -5,8 +5,8 @@
 
 __all__ = [
     "ModifierCfg",
-    "RenderBufferPipeModifierCfg",
-    "RenderBufferPipeModifier",
+    "ProcessingBufferPipeModifierCfg",
+    "ProcessingBufferPipeModifier",
     "DigitalFilterCfg",
     "IntegratorCfg",
     "ModifierBase",
@@ -17,7 +17,7 @@ __all__ = [
     "scale",
 ]
 
-from .modifier_cfg import ModifierCfg, DigitalFilterCfg, IntegratorCfg, RenderBufferPipeModifierCfg
-from .render_buffer_pipe import RenderBufferPipeModifier
+from .modifier_cfg import ModifierCfg, DigitalFilterCfg, IntegratorCfg, ProcessingBufferPipeModifierCfg
+from .processing_buffer_pipe import ProcessingBufferPipeModifier
 from .modifier_base import ModifierBase
 from .modifier import DigitalFilter, Integrator, bias, clip, scale

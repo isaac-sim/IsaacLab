@@ -25,7 +25,7 @@ from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, Re
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, validate
-from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
+from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferStepCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -387,7 +387,7 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
     def make_camera(prim, data_types):
         camera = Camera.__new__(Camera)
         pipeline = (
-            [RenderBufferStepCfg(prepare_identity, {"image": "rgb_radiance"}, {"image": "processed_radiance"})]
+            [ProcessingBufferStepCfg(prepare_identity, {"image": "rgb_radiance"}, {"image": "processed_radiance"})]
             if data_types == ["processed_radiance"]
             else []
         )
@@ -486,7 +486,7 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
         width=1,
         data_types=["rgb", "depth"],
         pipeline=[
-            RenderBufferStepCfg(prepare_color, {"radiance": "rgb_radiance", "range": "depth"}, {"color": "rgba"})
+            ProcessingBufferStepCfg(prepare_color, {"radiance": "rgb_radiance", "range": "depth"}, {"color": "rgba"})
         ],
     )
     specs = {
@@ -565,7 +565,7 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     camera._renderer.cleanup = lambda data: events.append("renderer-close")
     camera._view.close = lambda: events.append("view-close")
     close_fails = True
-    with pytest.raises(ExceptionGroup, match="close render buffer operations"):
+    with pytest.raises(ExceptionGroup, match="close buffer operations"):
         camera._invalidate_initialize_callback(None)
     assert events[-3:] == ["close", "renderer-close", "view-close"]
     assert not camera.is_initialized

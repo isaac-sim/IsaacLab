@@ -41,7 +41,7 @@ from isaaclab_ppisp.kernels import (
 )
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.images import RenderBufferPipe
+from isaaclab.utils.processing import ProcessingBufferPipe
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -313,7 +313,7 @@ def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference():
         )
     )
 
-    pipe = RenderBufferPipe(
+    pipe = ProcessingBufferPipe(
         {"rgb_radiance": ProxyArray(hdr_color)},
         [PpispStepCfg(params={"cfg": cfg})],
     )
@@ -348,7 +348,7 @@ def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
     cfg = PpispCfg()
     shared_weights = PpispControllerWeights(weights)
     pipes = [
-        RenderBufferPipe(
+        ProcessingBufferPipe(
             {"rgb_radiance": ProxyArray(hdr)},
             [PpispStepCfg(params={"cfg": cfg, "channels": channels, "controller_weights": shared_weights})],
         )
@@ -379,13 +379,13 @@ def test_ppisp_pipe_rejects_incompatible_input_storage(shape, dtype, message):
     """Reject invalid image channels and scalar types before preparing numerical execution."""
     source = ProxyArray(wp.empty(shape, dtype=dtype, device="cpu"))
     with pytest.raises(ValueError, match=message):
-        RenderBufferPipe({"rgb_radiance": source}, [PpispStepCfg()])
+        ProcessingBufferPipe({"rgb_radiance": source}, [PpispStepCfg()])
 
 
 def test_ppisp_pipe_requires_resolved_configuration():
     """An image operation must not discover its settings from a camera during preparation."""
     source = ProxyArray(wp.empty((1, 2, 2, 3), dtype=wp.float32, device="cpu"))
     with pytest.raises(ValueError, match="resolve USD camera attributes"):
-        RenderBufferPipe(
+        ProcessingBufferPipe(
             {"rgb_radiance": source}, [PpispStepCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]
         )
