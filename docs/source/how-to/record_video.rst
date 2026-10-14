@@ -364,11 +364,6 @@ Clip control
 Limitations
 -----------
 
-* ``source="viz:kit"`` and ``source="viz:kit:streaming_view"`` require cubric
-  to propagate Newton Fabric scene transforms to the RTX renderer.  Without cubric, a warning
-  is logged and a black-frame warning is emitted at clip write time.  Use
-  ``source="viz:newton_gl"`` for guaranteed capture with Newton physics.
-
 * ``source="viz:newton_gl:streaming_view"`` and ``source="viz:kit:streaming_view"``
   require ``streaming_view=True`` on the corresponding visualizer cfg.  A
   :class:`~RuntimeError` is raised when the recorder is constructed if it is not set.
