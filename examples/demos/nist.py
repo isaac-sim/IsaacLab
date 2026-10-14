@@ -7,7 +7,7 @@
 
     uv run --extra ovrtx isaaclab demo nist
 
-The pretrained TorchScript policy is downloaded automatically; --policy accepts a local file or URL override.
+The pretrained TorchScript policy is downloaded automatically.
 The exported policy includes normalization and takes robot history [N, 195] and
 slot history [N, 5, 10, 40]. At startup, the seed selects ten distinct asset
 identities from the original 19-asset catalog. The selection stays fixed across
@@ -17,14 +17,13 @@ and the robot at home. There is no reset bank or grasp-state initialization.
 The default RTX view uses a physical ground plane without a backdrop.
 Use --num_envs to run independent boards in parallel, each resetting on completion or timeout.
 Physics remains at 100 Hz and control at 25 Hz.
-Use --visualizer none --episodes 1 for a headless smoke test.
+Use --visualizer none --max_steps 1 for a headless smoke test.
 """
 
 from __future__ import annotations
 
 import argparse
 import random
-import time
 from typing import NamedTuple
 
 import torch
@@ -569,31 +568,20 @@ class NistEnvCfg(ManagerBasedRLEnvCfg):
 def main() -> None:
     """Load the pretrained TorchScript actor and run complete ten-part assembly episodes."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument(
-        "--policy",
-        default=f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt",
-        help="Exported K10 TorchScript .pt path or URL; defaults to the published policy.",
-    )
-    parser.add_argument("--seed", type=int, default=1701)
     parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
-    parser.add_argument(
-        "--episodes",
-        type=int,
-        default=0,
-        help="Total completed episodes across boards before exit; zero runs until closed.",
-    )
-    parser.add_argument("--horizon", type=float, default=140.0, help="Episode limit [s].")
-    parser.add_argument("--real_time", action="store_true", help="Pace the visualizer at real time.")
     parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton_rtx"])
     args = parser.parse_args()
-    if args.num_envs < 1 or args.episodes < 0 or args.horizon <= 0:
-        parser.error("num_envs and horizon must be positive; episodes must be nonnegative.")
+    if args.num_envs < 1:
+        parser.error("num_envs must be positive.")
     if args.max_steps == 0 or args.max_steps < -1:
         parser.error("max_steps must be positive or -1.")
-    policy = torch.jit.load(retrieve_file_path(args.policy), map_location=args.device).eval()
-    cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs), seed=args.seed, episode_length_s=args.horizon)
+    policy = torch.jit.load(
+        retrieve_file_path(f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt"),
+        map_location=args.device,
+    ).eval()
+    cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs))
     cfg.sim.device = args.device
     print("Assets:", ", ".join(part.name for part in cfg.assemblies), flush=True)
     with launch_simulation(cfg=cfg, launcher_args=args) as physics:
@@ -613,7 +601,6 @@ def main() -> None:
             with torch.inference_mode():
                 step = 0
                 while env.sim.is_running() and (args.max_steps < 0 or step < args.max_steps):
-                    start = time.monotonic()
                     actions = policy(obs["policy"], obs["slots"])
                     if not torch.isfinite(actions).all():
                         raise RuntimeError("Exported actor returned nonfinite actions.")
@@ -629,10 +616,6 @@ def main() -> None:
                             f"complete-board successes {successes}/{completed}",
                             flush=True,
                         )
-                    if args.episodes and completed >= args.episodes:
-                        break
-                    if args.real_time:
-                        time.sleep(max(0.0, env.step_dt - (time.monotonic() - start)))
         finally:
             env.close()
 
