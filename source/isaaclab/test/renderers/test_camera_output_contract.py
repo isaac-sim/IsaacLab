@@ -456,6 +456,7 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     events = []
     output_shape = (2, 1, 1, 4)
     close_fails = False
+    reset_enabled = True
 
     def prepare_color(inputs):
         output = ProxyArray(wp.empty(output_shape, dtype=wp.uint8, device=inputs["radiance"].device))
@@ -472,7 +473,10 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
                 raise RuntimeError("processor close failed")
 
         return PreparedBufferOperation(
-            {"color": output}, apply, reset=lambda ids: events.append(tuple(ids)), close=close
+            {"color": output},
+            apply,
+            reset=(lambda ids: events.append(tuple(ids))) if reset_enabled else None,
+            close=close,
         )
 
     cfg = CameraCfg(
@@ -549,7 +553,14 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     assert camera._buffer_pipe is None
     assert events[-2:] == ["close", "close"]
     output_shape = (2, 1, 1, 4)
+    reset_enabled = False
     camera._create_buffers()
+    # Stateless operations must not materialize indices: CUDA nonzero would synchronize the host.
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            torch.Tensor, "nonzero", lambda self: pytest.fail("Stateless camera reset materialized mask indices")
+        )
+        camera.reset(env_mask=reset_mask)
     camera._render_data = object()
     camera._renderer.cleanup = lambda data: events.append("renderer-close")
     camera._view.close = lambda: events.append("view-close")

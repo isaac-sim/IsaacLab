@@ -145,6 +145,11 @@ class RenderBufferPipe:
         self.outputs = MappingProxyType(available)
         self.produced_outputs = frozenset(produced)
 
+    @property
+    def has_reset_callbacks(self) -> bool:
+        """Whether any operation needs selected batch entries reset."""
+        return any(operation.reset is not None for operation, *_ in self._operations)
+
     @staticmethod
     def _validate_buffer(name: str, value: ProxyArray, reference: ProxyArray) -> None:
         """Check replacement storage against the actual buffer used to prepare the pipe."""

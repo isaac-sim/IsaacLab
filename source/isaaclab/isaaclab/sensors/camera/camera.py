@@ -652,7 +652,7 @@ class Camera(SensorBase):
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
-        if self._buffer_pipe is not None:
+        if self._buffer_pipe is not None and self._buffer_pipe.has_reset_callbacks:
             pipeline_env_ids = wp.to_torch(env_mask).nonzero().squeeze(-1) if env_mask is not None else env_ids
             self._buffer_pipe.reset(pipeline_env_ids)
         # reset the data
