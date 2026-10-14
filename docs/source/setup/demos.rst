@@ -236,3 +236,27 @@ Focused examples
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
       and `wider-side grasp and pull
       <https://github.com/user-attachments/assets/27ac0365-e862-4d60-bd85-51f585a580d5>`__.
+
+   .. grid-item-card:: Sharpa RJ45
+
+      .. _sharpa-rj45-example:
+
+      .. figure:: ../_static/examples/sharpa_rj45.jpg
+         :width: 100%
+         :alt: A SHARPA hand holding a green RJ45 connector at a GB300 switch port.
+
+         Kit preview with optional GB300 rack visuals.
+
+      A scripted Rizon 4s and SHARPA hand insert, release, regrasp and extract an
+      RJ45 connector in one continuous simulation. The non-RL manager-based
+      example uses native hydroelastic hand contact, a spring clip and a VBD cable.
+
+      .. code-block:: bash
+
+         uvx isaaclab example sharpa-rj45
+
+      From a checkout, use ``uv run isaaclab example sharpa-rj45``.
+      NewtonGL displays one GB300 rack; ``--viz kit`` and ``--viz newton_rtx``
+      load the full render-only data center without adding physics geometry.
+      Requires the external Rizon/SHARPA robot asset bundle; see the
+      :download:`asset and recording setup <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/gb300_sharpa_insertion/README.md>`.

@@ -192,6 +192,13 @@ OVERRIDES = {
         fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton_gl", "newton_rtx"),
     ),
+    "examples/sharpa_rj45.py": ScriptOverride(
+        args=("--max_steps", "1800"),
+        startup_timeout=600.0,
+        fixed_physics_backend="newton_coupler",
+        visualizers=("newton_gl", "newton_rtx", "kit"),
+        required_modules=("isaaclab_contrib",),
+    ),
     "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),

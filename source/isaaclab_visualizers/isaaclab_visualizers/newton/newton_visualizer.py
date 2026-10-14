@@ -368,28 +368,8 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
             self.close()
 
     def get_frame(self, target_image: wp.array | None = None) -> wp.array:
-        """Copy the completed RTX image into owned device storage before releasing its mapping."""
-        from ovrtx import Device
-
-        products = self._render_products
-        if products is None and self._render_result is not None:
-            products = self._render_result.wait().fetch()
-        if products is None:
-            raise RuntimeError("Perspective capture requires a completed Newton RTX frame.")
-        for product in products.values():
-            for frame in product.frames:
-                render_var = self._get_ldr_color_render_var(frame)
-                if render_var is None:
-                    continue
-                with render_var.map(device=Device.CUDA) as mapping:
-                    rgba = wp.from_dlpack(mapping)
-                    if target_image is None or target_image.shape != rgba.shape or target_image.device != rgba.device:
-                        target_image = wp.empty_like(rgba)
-                    mapping.wait_on(target_image.device.stream.cuda_stream)
-                    wp.copy(target_image, rgba)
-                    mapping.unmap(stream=target_image.device.stream.cuda_stream)
-                return target_image
-        raise RuntimeError("Newton RTX did not publish an LdrColor render output.")
+        """Capture the latest completed frame through Newton's native API."""
+        return super().get_frame(output=target_image)
 
 
 class NewtonViewerGL(NewtonViewerUI, ViewerGL):
@@ -420,7 +400,7 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
         if target_image is not None and target_image.shape != shape:
             target_image = None
-        return super().get_frame(target_image, render_ui=render_ui)
+        return super().get_frame(output=target_image, render_ui=render_ui)
 
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""

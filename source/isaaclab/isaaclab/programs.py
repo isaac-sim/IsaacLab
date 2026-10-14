@@ -133,6 +133,11 @@ EXAMPLES = (
     ),
     ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
     ProgramSpec(
+        "sharpa-rj45",
+        "examples/sharpa_rj45.py",
+        "Insert and extract an RJ45 connector with a SHARPA hand and hydroelastic contact.",
+    ),
+    ProgramSpec(
         "deformables",
         "examples/deformables.py",
         "Compare deformable objects across backends.",
