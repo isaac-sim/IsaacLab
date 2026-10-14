@@ -26,9 +26,30 @@ export class RobotViewer {
     }));
     const viewer = new RobotViewer(canvas, simulation, assets);
     try {
-      if (viewer.demo.scene !== 'courtyard') {
+      if (!['courtyard', 'warehouse'].includes(viewer.demo.scene)) {
         viewer.disposeGround = await addIsaacLabGround(viewer.scene, simulation.manifest.isaacLabDemo.groundHeight || 0);
       }
+      const textures = new Map();
+      viewer.textures = [];
+      viewer.textureAbort = new AbortController();
+      await Promise.all(viewer.materials.filter((material) => material.userData.texture).map(async (material) => {
+        const url = new URL(material.userData.texture, simulation.url).href;
+        if (!textures.has(url)) textures.set(url, (async () => {
+          const response = await fetch(url, { signal: viewer.textureAbort.signal });
+          if (!response.ok) throw new Error(`Scene texture request failed (${response.status})`);
+          const bitmap = await createImageBitmap(await response.blob(), { imageOrientation: 'flipY' });
+          if (viewer.disposed) { bitmap.close(); throw new Error('Scene was disposed'); }
+          const texture = new THREE.Texture(bitmap);
+          viewer.textures.push(texture);
+          texture.needsUpdate = true;
+          return texture;
+        })());
+        const texture = await textures.get(url);
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        material.map = texture;
+        material.needsUpdate = true;
+      }));
       return viewer;
     } catch (error) {
       viewer.dispose();
@@ -45,7 +66,7 @@ export class RobotViewer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = this.demo.kind === 'microduck' ? 1.05 : 1.65;
+    this.renderer.toneMappingExposure = this.demo.scene === 'warehouse' ? 1.25 : this.demo.kind === 'microduck' ? 1.05 : 1.65;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();
@@ -78,6 +99,9 @@ export class RobotViewer {
     fill.position.set(-3, 2, -2);
     this.scene.add(fill);
 
+    this.environment = new THREE.Group();
+    this.environment.rotation.x = -Math.PI / 2;
+    this.scene.add(this.environment);
     this.robot = new THREE.Group();
     this.robot.rotation.x = -Math.PI / 2;
     this.scene.add(this.robot);
@@ -96,28 +120,36 @@ export class RobotViewer {
     this.geometries = [];
     for (const { description, data } of assets) for (const visual of description.meshes) {
       const vertices = new Float32Array(data, visual.vertexOffset, visual.vertexCount * 3);
-      const indices = new Uint16Array(data, visual.indexOffset, visual.indexCount);
+      const IndexArray = visual.indexType === 'uint32' ? Uint32Array : Uint16Array;
+      const indices = new IndexArray(data, visual.indexOffset, visual.indexCount);
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
       geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+      if (visual.uvOffset !== undefined) geometry.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(data, visual.uvOffset, visual.vertexCount * 2), 2));
       geometry.computeVertexNormals();
       let material = materials[visual.material];
       if (visual.color) {
-        const name = visual.color.join(',');
+        const name = JSON.stringify([visual.color, visual.texture, visual.roughness, visual.opacity, visual.flatShading]);
         if (!materials[name]) {
           materials[name] = new THREE.MeshStandardMaterial({
             color: new THREE.Color().setRGB(...visual.color),
-            roughness: microduck ? 0.5 : 0.6, metalness: microduck ? 0 : 0.05,
-            flatShading: microduck,
+            roughness: visual.roughness ?? (microduck ? 0.5 : 0.6), metalness: microduck ? 0 : 0.05,
+            flatShading: visual.flatShading ?? microduck,
+            opacity: visual.opacity ?? 1, transparent: (visual.opacity ?? 1) < 1,
+            side: visual.body < 0 ? THREE.DoubleSide : THREE.FrontSide,
           });
+          materials[name].userData.texture = visual.texture;
           this.materials.push(materials[name]);
         }
         material = materials[name];
       }
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.castShadow = !/_(zero|one|two|three|four|five|six)_link$/.test(visual.name);
+      const mesh = visual.instances
+        ? new THREE.InstancedMesh(geometry, material, visual.instances.length)
+        : new THREE.Mesh(geometry, material);
+      visual.instances?.forEach((matrix, index) => mesh.setMatrixAt(index, new THREE.Matrix4().fromArray(matrix)));
+      mesh.castShadow = (visual.opacity ?? 1) > 0.95 && !/_(zero|one|two|three|four|five|six)_link$/.test(visual.name);
       mesh.receiveShadow = true;
-      (visual.body < 0 ? this.robot : this.bodies[visual.body]).add(mesh);
+      (visual.body < 0 ? this.environment : this.bodies[visual.body]).add(mesh);
       this.geometries.push(geometry);
     }
     if (this.demo.commandRange) {
@@ -129,6 +161,7 @@ export class RobotViewer {
       this.materials.push(material);
     }
     if (this.demo.scene === 'courtyard') this.addCourtyard();
+    if (this.demo.scene === 'warehouse') this.scene.fog = new THREE.Fog('#f3f6f7', 14, 28);
     if (this.demo.pushMaxForce) this.addMousePush();
   }
 
@@ -289,11 +322,14 @@ export class RobotViewer {
   }
 
   dispose() {
+    this.disposed = true;
+    this.textureAbort?.abort();
     this.disposePush?.();
     this.disposeGround?.();
     this.orbit.dispose();
     this.geometries.forEach((geometry) => geometry.dispose());
     this.materials.forEach((material) => material.dispose());
+    this.textures?.forEach((texture) => { texture.dispose(); texture.image.close(); });
     this.renderer.dispose();
   }
 }

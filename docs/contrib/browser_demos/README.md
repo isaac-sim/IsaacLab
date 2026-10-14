@@ -365,8 +365,8 @@ MicroDuck uses the native robot and BAM servo implementation from
 [Isaac Lab #8270](https://github.com/isaac-sim/IsaacLab/pull/8270), with Pollen Robotics'
 published v5 `velstand.onnx` actor. Physics and policy inference run on the browser's CPU.
 The shared viewer provides travel and yaw sticks, arrow-key control, play/pause, and reset.
-MicroDuck starts standing. Hold the transparent viewport joysticks to move or turn,
-then release to stop. Drag the robot to apply a fixed 2 N horizontal push;
+MicroDuck starts standing. Hold the transparent viewport joysticks to move or turn. Drag to the edge to lock
+a command; pull back toward center or press Escape to stop. Arrow keys remain momentary. Drag the robot to apply a fixed 2 N horizontal push;
 releasing the pointer removes it. Drag the background to orbit the camera.
 
 The courtyard uses inexpensive procedural scenery over the task's flat ground.
@@ -424,3 +424,35 @@ archive using its `.sha256` file, extract it outside the checkout, and copy
 Keep that downloaded directory untracked. To view the complete released gallery,
 serve the archive's root and open `v2/`; retain its `v1/` directory because v2
 reuses the original demos and shared rendering dependencies.
+
+### Bounded warehouse (version 4)
+
+The v4 viewer uses the authored `MicroDuckWarehouse/microduck_warehouse_static.usdc`
+from the linked Isaac Lab asset server, pinned to SHA-256
+`4ac3e17232179a72086a3ff7c5af4d4546694f15a4931a0d21478a4a523da419`.
+The native velocity task trains on flat/rough terrain; this warehouse is a browser scene adaptation.
+
+`warehouse.py` resolves the scene's references, excludes its recorded robot and RTX cameras,
+and packs the Factory subset with instancing, base-color textures, and decorative mesh reduction.
+Textures are capped at 512 pixels. The native capture adds 25 static boxes for the perimeter,
+shelf rows, and clutter footprints. These proxies are intentionally simpler than the full scene's
+collision meshes. The collected stage's metadata is inherited from a centimeter/Y-up stage;
+its Factory world coordinates are the metre/Z-up layout used here.
+
+```bash
+uv run --no-sync python /path/to/docs/contrib/browser_demos/warehouse.py --output /tmp/microduck-warehouse
+uv run --no-sync python /path/to/docs/contrib/browser_demos/microduck.py \
+    --checkpoint /tmp/microduck-velstand.onnx \
+    --warehouse /tmp/microduck-warehouse/source/d23d5612652f8635.usdc \
+    --output /tmp/microduck-build --emxx /path/to/emsdk/upstream/emscripten/em++
+```
+
+The output includes the warehouse geometry/textures; retain the source asset's attribution and
+license notices when publishing. Server access is required only to rebuild. The deployed bundle
+has no runtime dependency on Nucleus. The release reuses v2 actor/CAD files after checking their
+body mapping, topology, geometry (within 0.1 micrometre), and actor bytes.
+
+Turning from rest adds a visible 0.25 m/s forward command; lower commands do not reliably engage
+this published checkpoint's gait. Pulling back clears a latched stick; Escape, reset, and window
+focus loss clear both. To preview the complete current scene, serve the release archive's root
+and open `v4/`. Retain its earlier version directories.

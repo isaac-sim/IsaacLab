@@ -189,7 +189,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
       this.demo = this.simulation.manifest.isaacLabDemo;
       if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal', 'franka_reach', 'franka_lift', 'franka_drawer', 'microduck'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
       this.isManipulation = this.demo.kind.startsWith('franka_');
-      this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`);
+      this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`, `browser-demo-scene-${this.demo.scene || "default"}`);
       const title = this.getAttribute('demo-title') || this.demo.title;
       this.querySelector('.browser-demo-head strong').textContent = title;
       this.canvas.setAttribute('aria-label', `${title} interactive simulation`);
@@ -570,17 +570,34 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.viewport.append(hint);
     const controls = document.createElement('div');
     controls.className = 'browser-demo-joysticks';
-    const linear = this.addStick(controls, 'Move', 'Forward / back · left / right', true,
+    const requested = new Float32Array(3);
+    let linear;
+    let travelReadout;
+    const updateCommand = () => {
+      const assist = this.demo.turnForwardSpeed && requested[2] && !requested[0] && !requested[1]
+        ? this.demo.turnForwardSpeed : 0;
+      this.command[0] = requested[0] || assist;
+      this.command[1] = requested[1];
+      this.command[2] = requested[2];
+      const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1'
+        ? [this.command[0] >= 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
+      linear?.show(-this.command[1] / scale[1], -this.command[0] / scale[0]);
+      if (travelReadout) travelReadout.value = assist ? `${assist.toFixed(2)} m/s · assist`
+        : requested[0] || requested[1] ? `${Math.hypot(requested[0], requested[1]).toFixed(2)} m/s` : 'Edge locks · pull back';
+    };
+    linear = this.addStick(controls, 'Move', 'Forward / back · left / right', true,
       (x, y, readout) => {
         const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1' ? [y < 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
-        this.command[0] = -y * scale[0];
-        this.command[1] = -x * scale[1];
-        readout.value = x || y ? `${Math.hypot(this.command[0], this.command[1]).toFixed(2)} m/s` : 'Hold to move';
+        requested[0] = -y * scale[0];
+        requested[1] = -x * scale[1];
+        travelReadout = readout;
+        updateCommand();
       });
     const yaw = this.addStick(controls, 'Turn', 'Yaw left / right', false,
       (x, _y, readout) => {
-        this.command[2] = -x * (this.demo.velocityScale?.[2] || 1);
-        readout.value = x ? `${Math.abs(this.command[2]).toFixed(2)} rad/s` : 'Hold to turn';
+        requested[2] = -x * (this.demo.velocityScale?.[2] || 1);
+        readout.value = x ? `${Math.abs(requested[2]).toFixed(2)} rad/s` : 'Edge locks · pull back';
+        updateCommand();
       });
     this.resetSticks = () => { linear.reset(); yaw.reset(); };
     this.setVelocityCommand = ([x, y, turn]) => {
@@ -590,6 +607,14 @@ class IsaacLabBrowserDemo extends HTMLElement {
     };
     this.viewport.append(controls);
     this.releaseControls = () => this.resetSticks();
+    this.canvas.tabIndex = 0;
+    this.viewport.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.resetSticks();
+        this.viewer.releasePush?.();
+      }
+    });
     window.addEventListener('blur', this.releaseControls);
   }
 
@@ -605,8 +630,8 @@ class IsaacLabBrowserDemo extends HTMLElement {
     pad.tabIndex = 0;
     pad.setAttribute('role', 'group');
     pad.setAttribute('aria-roledescription', 'joystick');
-    pad.title = `${label}: ${hint}. Use arrow keys or drag; release to stop.`;
-    pad.setAttribute('aria-label', `${label}: drag or use arrow keys; release to stop`);
+    pad.title = `${label}: ${hint}. Drag to the edge to lock; pull back or press Escape to stop. Arrow keys are momentary.`;
+    pad.setAttribute('aria-label', `${label}: drag to the edge to lock; pull back or press Escape to stop. Arrow keys are momentary.`);
     for (const [side, glyph] of linear
       ? [['top', '↑'], ['right', '→'], ['bottom', '↓'], ['left', '←']]
       : [['left', '↶'], ['right', '↷']]) {
@@ -620,40 +645,62 @@ class IsaacLabBrowserDemo extends HTMLElement {
     pad.append(knob);
     const description = document.createElement('small');
     description.textContent = hint;
-    section.append(heading, pad, description);
+    section.append(pad, heading, description);
     panel.append(section);
     let activePointer = null;
+    let latched = false;
+    let atEdge = false;
     const keys = new Set();
+    const show = (x, y) => {
+      knob.style.transform = `translate(${x * pad.clientWidth * 0.32}px, ${y * pad.clientWidth * 0.32}px)`;
+    };
     const move = (x, y) => {
       if (!linear) y = 0;
       const radius = Math.max(1, Math.hypot(x, y));
       x /= radius;
       y /= radius;
-      knob.style.transform = `translate(${x * pad.clientWidth * 0.32}px, ${y * pad.clientWidth * 0.32}px)`;
+      show(x, y);
       apply(x, y, readout);
     };
     const reset = () => {
+      const id = activePointer;
       activePointer = null;
+      if (id !== null && pad.hasPointerCapture(id)) pad.releasePointerCapture(id);
+      latched = atEdge = false;
       keys.clear();
-      pad.classList.remove('active');
+      pad.classList.remove('active', 'latched');
       move(0, 0);
     };
     const pointerMove = (event) => {
       const box = pad.getBoundingClientRect();
       const travel = box.width * 0.32;
-      move((event.clientX - box.left - box.width / 2) / travel,
-        (event.clientY - box.top - box.height / 2) / travel);
+      const x = (event.clientX - box.left - box.width / 2) / travel;
+      const y = linear ? (event.clientY - box.top - box.height / 2) / travel : 0;
+      const radius = Math.hypot(x, y);
+      if (latched && radius < 0.7) { reset(); return; }
+      atEdge = radius >= 0.98;
+      move(x, y);
     };
     pad.addEventListener('pointerdown', (event) => {
       if (activePointer !== null || event.button !== 0) return;
       event.preventDefault();
       activePointer = event.pointerId;
       pad.setPointerCapture(event.pointerId);
+      if (event.pointerType !== 'touch') pad.focus({ preventScroll: true });
       pad.classList.add('active');
       pointerMove(event);
     });
     pad.addEventListener('pointermove', (event) => { if (event.pointerId === activePointer) pointerMove(event); });
-    for (const name of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+    pad.addEventListener('pointerup', (event) => {
+      if (event.pointerId !== activePointer) return;
+      if (atEdge || latched) {
+        activePointer = null;
+        latched = true;
+        pad.classList.remove('active');
+        pad.classList.add('latched');
+      } else reset();
+    });
+    for (const name of ['pointercancel', 'lostpointercapture']) {
       pad.addEventListener(name, (event) => { if (event.pointerId === activePointer) reset(); });
     }
     const applyKeys = () => move(
@@ -663,6 +710,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
     pad.addEventListener('keydown', (event) => {
       if (!event.key.startsWith('Arrow')) return;
       event.preventDefault();
+      if (latched) reset();
       keys.add(event.key);
       pad.classList.add('active');
       applyKeys();
@@ -673,9 +721,9 @@ class IsaacLabBrowserDemo extends HTMLElement {
       keys.delete(event.key);
       keys.size ? applyKeys() : reset();
     });
-    pad.addEventListener('blur', reset);
+    pad.addEventListener('blur', () => { if (!latched) reset(); });
     reset();
-    return { reset, move };
+    return { reset, move, show };
   }
 
   applyPolicy() {

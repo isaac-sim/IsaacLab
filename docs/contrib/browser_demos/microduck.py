@@ -25,8 +25,13 @@ from bundle import write_binary_files
 from isaaclab_newton.physics import NewtonManager
 from manipulation import _joint_coordinates, _pack_visuals
 from newton_web import export_graph
+from warehouse import BOUNDS, SOURCE, SOURCE_SHA256, pack_warehouse, warehouse_colliders
 
+from pxr import Usd
+
+import isaaclab.sim as sim_utils
 from isaaclab.app import launch_simulation
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import get_current_stage
 from isaaclab.utils.assets import retrieve_file_path
@@ -124,7 +129,7 @@ def _write_actor(path: Path, output: Path) -> dict:
     }
 
 
-def export(output: Path, checkpoint: Path) -> None:
+def export(output: Path, checkpoint: Path, warehouse: Path | None = None) -> None:
     if hashlib.sha256(checkpoint.read_bytes()).hexdigest() != POLICY_SHA256:
         raise ValueError("MicroDuck policy changed; review its deployment contract before rebuilding")
     versions = {name: importlib.metadata.version(name) for name in BUILD_VERSIONS}
@@ -135,6 +140,20 @@ def export(output: Path, checkpoint: Path) -> None:
     cfg.play_mode()
     # Use the published whole-body collider variant so pushes and falls have real body contacts.
     cfg.scene.robot = MICRODUCK_ALLCOLLISIONS_CFG.replace(prim_path=cfg.scene.robot.prim_path)
+    colliders = warehouse_colliders(Usd.Stage.Open(str(warehouse))) if warehouse else []
+    for index, collider in enumerate(colliders):
+        setattr(
+            cfg.scene,
+            f"warehouse_box_{index}",
+            AssetBaseCfg(
+                prim_path=f"/World/Warehouse/Box_{index}",
+                spawn=sim_utils.CuboidCfg(
+                    size=tuple(collider["size"]),
+                    collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+                ),
+                init_state=AssetBaseCfg.InitialStateCfg(pos=tuple(collider["position"])),
+            ),
+        )
     cfg.seed = 42
     cfg.sim.physics.use_cuda_graph = False
     # Newton's lean support-map provider contains native pointers not relocated by this exporter.
@@ -271,12 +290,16 @@ def export(output: Path, checkpoint: Path) -> None:
                 "rootBody": root,
                 "jointNames": MICRODUCK_JOINT_NAMES,
                 "decimation": 1,
-                "cameraRadius": 0.85,
+                "cameraRadius": 1.0 if warehouse else 0.85,
                 "cameraHeight": 0.13,
-                "scene": "courtyard",
+                "scene": "warehouse" if warehouse else "courtyard",
+                "turnForwardSpeed": 0.25,
+                "warehouse": {"bounds": BOUNDS, "colliders": colliders, "source": SOURCE, "sha256": SOURCE_SHA256}
+                if warehouse
+                else None,
                 "velocityScale": [0.4, 0.3, 1.0],
                 "pushMaxForce": 2.0,
-                "maxStepsPerFrame": 12,
+                "maxStepsPerFrame": 24 if warehouse else 12,
                 "physicsDt": cfg.sim.dt,
                 "physicsDecimation": cfg.decimation,
                 "actuator": "native BAM",
@@ -324,9 +347,12 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--emxx", default="em++")
+    parser.add_argument(
+        "--warehouse", type=Path, help="Resolved MicroDuck warehouse USD; add static boundary and obstacle boxes"
+    )
     args = parser.parse_args()
     bundle = args.output / "microduck"
-    export(bundle, args.checkpoint)
+    export(bundle, args.checkpoint, args.warehouse)
     subprocess.run(
         ["newton-web", "compile", str(bundle), "--output", str(args.output / "microduck-web"), "--emxx", args.emxx],
         check=True,
@@ -349,6 +375,9 @@ def main() -> None:
     manifest["isaacLabDemo"]["visuals"]["file"] = "visuals.bin.gz"
     if len(visual_files) > 1:
         manifest["isaacLabDemo"]["visuals"]["files"] = visual_files
+    if args.warehouse:
+        scenery, _ = pack_warehouse(args.warehouse, web)
+        manifest["isaacLabDemo"]["visuals"] = [manifest["isaacLabDemo"]["visuals"], scenery]
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
 
