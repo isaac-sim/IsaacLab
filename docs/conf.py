@@ -403,6 +403,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
     "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
     "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
@@ -450,6 +451,9 @@ _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
 # Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/backend_architecture": {
+        "overview": "source/concepts/backends_and_presets#backend-architecture",
+    },
     "source/concepts/joint_and_body_ordering": {
         "": "source/how-to/transfer_policies_between_physx_and_newton#joint-and-body-ordering",
         **{
