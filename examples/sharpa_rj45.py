@@ -105,15 +105,15 @@ class RemovalPostures:
     removal_hand_open: tuple[float, ...] = _OPEN_HAND_RAD
     removal_hand_support: tuple[float, ...] = _SUPPORT_HAND_RAD
     removal_hand_press: tuple[float, ...] = (
-        0.921236652,
-        -0.087092333,
-        0.572781487,
-        -0.034258682,
-        0.044998275,
+        0.9432912606,
+        -0.0816916769,
+        0.5411537581,
+        -0.0139203356,
+        0.0584947575,
         *_SUPPORT_HAND_RAD[5:],
     )
-    removal_index_grasp: tuple[float, ...] = (0.85705546, *_SUPPORT_HAND_RAD[6:9])
-    removal_middle_grasp: tuple[float, ...] = (1.25133955, -0.18874855, *_SUPPORT_HAND_RAD[11:13])
+    removal_index_grasp: tuple[float, ...] = (0.85330546, *_SUPPORT_HAND_RAD[6:9])
+    removal_middle_grasp: tuple[float, ...] = (1.24758955, -0.18499855, *_SUPPORT_HAND_RAD[11:13])
     removal_thumb_clearance_reserve_m: float = 0.0001
     """Extra measured clip clearance required before pulling [m]."""
 
@@ -274,7 +274,7 @@ class CableCycleStateMachine:
                 phase, (0.003, 0.25 if phase == "RAISE" else 0.035)
             )
             ready = np.linalg.norm(head[:3] - seat_position) < position_limit and angular_error < angular_limit
-            ready &= phase != "INSERT" or (head[1] >= self.goal[1] - 0.0005 and captured)
+            ready &= phase != "INSERT" or (head[1] >= self.goal[1] + 0.0003 and captured)
             self.dwell = self.dwell + self.dt if ready else 0.0
             if self.dwell > 0.5:
                 next_phase = {"RAISE": "ORIENT", "ORIENT": "ALIGN", "ALIGN": "INSERT", "INSERT": "RELEASE"}[phase]
@@ -283,7 +283,7 @@ class CableCycleStateMachine:
                     self.carry_target[3:] = self.goal[3:]
                 elif next_phase in ("ALIGN", "INSERT"):
                     self.carry_target = self.goal.copy()
-                    self.carry_target[1] += -0.05 if next_phase == "ALIGN" else 0.0002
+                    self.carry_target[1] += -0.05 if next_phase == "ALIGN" else 0.0004
                 else:
                     # Cancel insertion preload before opening beside the seated plug.
                     self.target = tcp.copy()
@@ -451,6 +451,10 @@ class CableCycleStateMachine:
         return self.dwell >= duration_s
 
     def _advance_command(self, tcp: np.ndarray, head: np.ndarray) -> None:
+        if self.phase == "REMOVAL/PINCH" and self.grip_blend == 1.0:
+            # Closing the fingers changes the grasp frame; align the measured plug before pulling.
+            self.carry_target = self.goal.copy()
+            self._transport_target(tcp, head)
         desired = self.target.copy()
         inserting = self.phase == "INSERTION/INSERT"
         lead = self.target[:3] - self.command[:3]

@@ -433,12 +433,8 @@ def add_connectors(
                         density=0.0,
                         mu=1.0,
                         ke=contact_stiffness,
-                        # Hydroelastic contacts supply their own gains; damp ordinary housing contact.
-                        kd=(
-                            2.0 * math.sqrt(rigid_connector_contact_stiffness * builder.body_mass[body])
-                            if name == "head"
-                            else 0.1
-                        ),
+                        # Hydroelastic contacts supply their own gains; damp ordinary socket contact.
+                        kd=2.0 * math.sqrt(contact_stiffness * builder.body_mass[body]),
                         margin=0.0,
                         gap=0.0003,
                         is_visible=False,

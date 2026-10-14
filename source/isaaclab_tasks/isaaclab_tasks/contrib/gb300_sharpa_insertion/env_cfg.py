@@ -98,7 +98,10 @@ class ActionsCfg:
     right_palm = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
         joint_names=list(RIZON_SHARPA_ARM_JOINT_NAMES),
-        controller=NewtonIKSolverCfg(iterations=4),
+        controller=NewtonIKSolverCfg(
+            class_type="isaaclab_tasks.contrib.gb300_sharpa_insertion.ik:CapturedNewtonIKSolver",
+            iterations=4,
+        ),
         objectives=[
             NewtonIKPoseObjectiveCfg(
                 name="right_palm",
@@ -177,7 +180,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                     CouplerEntryCfg(
                         name="rigid",
                         bodies=[r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Fixtures"],
-                        substeps=2,
+                        substeps=1,
                         solver_cfg=MJWarpSolverCfg(
                             cone="elliptic",
                             ls_iterations=50,
@@ -191,10 +194,10 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
                     CouplerEntryCfg(
                         name="cable",
                         bodies=[r"/World/envs/env_.*/Cable"],
-                        substeps=2,
+                        substeps=1,
                         include_static_shapes=True,
                         solver_cfg=VBDSolverCfg(
-                            iterations=8,
+                            iterations=4,
                             rigid_compliant_alm=True,
                             rigid_joint_angular_ke=10.0,
                             rigid_body_contact_buffer_size=1024,

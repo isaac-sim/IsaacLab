@@ -15,6 +15,8 @@ uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --v
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK
 and action manager. Native hydroelastic hand–housing/clip contact is enabled;
 the VBD endpoint follows the measured plug without cable force feedback.
+Dynamics and collision detection run at 480 Hz with four VBD iterations. The
+native IK solve is CUDA-captured; the scripted state machine still reads measured state on the CPU.
 There are no rewards, training presets, policy checkpoints or automatic episode resets.
 
 ## Requirements
