@@ -83,8 +83,9 @@ Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL framework
 Stable-Baselines3, and SKRL. The ``newton_gl``, ``newton_rtx``, ``viser``, and ``rerun`` visualizers are
 included. Use ``--viz newton_gl`` for local visualization with a display available in the container.
 ``--viz newton_gl`` selects the OpenGL rasterizer; ``--viz newton_rtx`` selects the OVRTX
-path tracer. Both can render offscreen without Isaac Sim. Windowed use additionally needs
-a display server accessible inside the container. The deprecated ``--viz newton`` alias
+path tracer. Both can render offscreen without Isaac Sim. To open their windows from a direct
+``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. The deprecated ``--viz newton`` alias
 selects GL; it does not choose between GL and RTX automatically.
 
 Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
