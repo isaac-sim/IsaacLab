@@ -26,6 +26,7 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
 from isaaclab import cli
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg
 
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
@@ -205,6 +206,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     )
     unwrapped = SimpleNamespace(
         action_manager=None,
+        cfg=DirectRLEnvCfg(),
         single_action_space=action_space,
         device="cpu",
         num_envs=2,
@@ -216,54 +218,43 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
 
 
-def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
-    """Direct multi-agent environments receive a zero action for every agent."""
+@pytest.mark.parametrize("policy_name", ["zero", "random"])
+def test_simple_agents_support_direct_multi_agent_action_spaces(policy_name: simple_agents.PolicyName) -> None:
+    """Direct MARL playback receives batched actions for every agent from either policy."""
     unwrapped = SimpleNamespace(
+        cfg=DirectMARLEnvCfg(),
         action_manager=None,
         action_spaces={
             "robot": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
-            "object": gym.spaces.Discrete(2),
+            "object": (
+                gym.spaces.Discrete(2)
+                if policy_name == "zero"
+                else gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32)
+            ),
         },
         device="cpu",
         num_envs=3,
     )
+    env = SimpleNamespace(unwrapped=unwrapped, action_space=unwrapped.action_spaces.__getitem__)
+    create_policy = create_zero_action_policy if policy_name == "zero" else create_random_action_policy
+    policy = create_policy(env)
+    actions = policy()
 
-    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
-
-    assert torch.equal(actions["robot"], torch.zeros(3, 2))
-    assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
-
-
-@pytest.mark.parametrize("multi_agent", [False, True])
-def test_random_agent_samples_batched_actions(multi_agent: bool) -> None:
-    """Random playback emits fresh normalized actions with the batch and shape expected by each agent."""
-    spaces = {
-        "cart": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32),
-        "pendulum": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(2,), dtype=np.float32),
-    }
-    unwrapped = SimpleNamespace(device="cpu", num_envs=3)
-    if multi_agent:
-        unwrapped.action_spaces = spaces
-        unwrapped.action_space = spaces.__getitem__
+    assert set(actions) == {"robot", "object"}
+    assert actions["robot"].shape == (3, 2)
+    assert actions["object"].shape == (3, 1)
+    if policy_name == "zero":
+        assert torch.equal(actions["robot"], torch.zeros(3, 2))
+        assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
     else:
-        unwrapped.action_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3, 1), dtype=np.float32)
-    env = SimpleNamespace(unwrapped=unwrapped, action_space=unwrapped.action_space)
-
-    policy = create_random_action_policy(env)
-    first = policy()
-    second = policy()
-    if multi_agent:
-        assert set(first) == set(second) == {"cart", "pendulum"}
-    else:
-        first, second = {"cart": first}, {"cart": second}
-        spaces = {"cart": spaces["cart"]}
-    for agent, space in spaces.items():
-        assert first[agent].shape == second[agent].shape == (3, *space.shape)
-        assert first[agent].dtype == second[agent].dtype == torch.float32
-        assert first[agent].device == second[agent].device == torch.device("cpu")
-        assert torch.all((first[agent] >= -1) & (first[agent] <= 1))
-        assert torch.all((second[agent] >= -1) & (second[agent] <= 1))
-        assert not torch.equal(first[agent], second[agent])
+        next_actions = policy()
+        for agent in actions:
+            for sample in (actions[agent], next_actions[agent]):
+                assert sample.shape == actions[agent].shape
+                assert sample.dtype == torch.float32
+                assert sample.device == torch.device("cpu")
+                assert torch.all((sample >= -1) & (sample <= 1))
+            assert not torch.equal(actions[agent], next_actions[agent])
 
 
 def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
