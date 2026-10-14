@@ -777,6 +777,27 @@ def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[s
     return [f"{selector}={name}" for selector, name in zip(_SELECTORS, run) if name is not None]
 
 
+def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
+    """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
+    try:
+        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        validate(env_cfg)
+        validate_launch(env_cfg, {"livestream": 0})
+    except ValueError:
+        return None
+    return env_cfg
+
+
+def is_task_run_launchable(task_name: str, run: tuple[str | None, str | None, str | None]) -> bool:
+    """Return whether a ``(physics, renderer, presets)`` run of *task_name* resolves, passes the env config's
+    checks, and can launch headless.
+
+    A rejected combination is one whose resolution or validation raises :class:`ValueError`; any other
+    error propagates.
+    """
+    return _launchable_env_cfg(task_name, run) is not None
+
+
 def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str | None]] | None:
     """Return the preset combinations of *task_name* that can launch, one per distinct config.
 
@@ -813,11 +834,8 @@ def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str 
     runs: dict[str, tuple[str | None, str | None, str | None]] = {}
     default_key = None
     for run in candidates:
-        try:
-            env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
-            validate(env_cfg)
-            validate_launch(env_cfg, {"livestream": 0})
-        except ValueError:
+        env_cfg = _launchable_env_cfg(task_name, run)
+        if env_cfg is None:
             continue
         # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
         key = repr(to_dict(env_cfg))
