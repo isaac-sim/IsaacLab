@@ -113,38 +113,6 @@ use case.
    - **Configuration:** :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
    - **Best for:** Workflows that must run inside Isaac Sim or Kit.
 
-.. _renderer-performance:
-
-Performance
------------
-
-Relative to Newton Warp on the same camera task and physics backend:
-
-.. list-table::
-   :header-rows: 1
-   :stub-columns: 1
-   :widths: 31 23 23 23
-
-   * - Metric
-     - Newton Warp
-     - OVRTX
-     - Isaac RTX
-   * - Throughput (FPS)
-     - 1×
-     - 0.5×
-     - 0.2×
-   * - GPU memory (VRAM)
-     - 1×
-     - 4.3×
-     - 5.4×
-   * - Host memory (RAM)
-     - 1×
-     - 2.8×
-     - 4.0×
-
-OVRTX runs about 2.5× faster than Isaac RTX and uses less GPU and host memory. Ratios vary with the
-task, resolution, and outputs.
-
 Choosing a rendering capability
 --------------------------------
 
@@ -320,6 +288,40 @@ motion vectors, while Newton Warp does not. The :ref:`renderer visual comparison
    prior-frame information into the current image. Camera-control tasks that depend
    on velocity-like visual cues should add explicit temporal observations
    (e.g. task-local frame stacking) rather than relying on renderer-specific artifacts.
+
+.. _renderer-performance:
+
+Performance
+-----------
+
+Relative to Newton Warp on the same camera task and physics backend. Both RTX renderers use
+photo-real (RTPT) rendering; Newton Warp's direct-lighting RGB is closest to RTX Minimal with
+diffuse MDL shading (``simple_shading_diffuse_mdl``), which costs less than RTPT.
+
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :widths: 31 23 23 23
+
+   * - Metric
+     - Newton Warp
+     - OVRTX (RTPT)
+     - Isaac RTX (RTPT)
+   * - Throughput (FPS)
+     - 1×
+     - 0.5×
+     - 0.2×
+   * - GPU memory (VRAM)
+     - 1×
+     - 4.3×
+     - 5.4×
+   * - Host memory (RAM)
+     - 1×
+     - 2.8×
+     - 4.0×
+
+OVRTX runs about 2.5× faster than Isaac RTX and uses less GPU and host memory. Ratios vary with the
+task, resolution, and outputs.
 
 Per-environment Isaac RTX scene partitioning
 ---------------------------------------------
