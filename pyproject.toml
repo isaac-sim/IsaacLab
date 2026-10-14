@@ -112,8 +112,6 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
-g1-terrain = ["huggingface-hub>=0.34", "onnxruntime-gpu>=1.22"]
-
 importers = [
     "isaacsim-asset-isolated==6.1.0.0",
     "tinyobjloader==2.0.0rc13",

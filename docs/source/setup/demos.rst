@@ -133,3 +133,41 @@ Command Builder
        </button>
      </div>
    </div>
+
+.. _demo-sonic:
+
+SONIC on gravel and sand
+------------------------
+
+The SONIC demo runs a G1 robot over gravel and sand with Newton MJWarp and MPM,
+or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU and uses Kit for RTX rendering.
+
+From the repository root, install the simulator, recording dependencies, and the
+additional packages used to download and run the released ONNX models:
+
+.. code-block:: bash
+
+   uv sync --extra isaacsim --extra video
+   uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
+
+The demo downloads the planner and tracker from
+`nvidia/GEAR-SONIC <https://huggingface.co/nvidia/GEAR-SONIC>`_ at a pinned revision.
+The robot USD is downloaded from the public Isaac asset server.
+
+Run either backend:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim --extra video isaaclab demo sonic \
+     --physics newton_mjwarp --output logs/sonic_newton
+
+   uv run --extra isaacsim --extra video isaaclab demo sonic \
+     --physics isaacsim_physx --output logs/sonic_physx
+
+Newton records offscreen; PhysX opens a window to synchronize robot and particle
+visuals. Both save ``video.mp4`` in the selected output directory. Recording advances
+in simulation time, so the full MPM scene can take substantially longer than the video
+duration. Pass ``--seconds`` to change the simulation duration.
+
+``uv run`` preserves the manually installed packages. If you run ``uv sync`` again,
+repeat the ``uv pip install`` command before launching SONIC.

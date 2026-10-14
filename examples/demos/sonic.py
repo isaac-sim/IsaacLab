@@ -6,7 +6,9 @@
 """Run SONIC over gravel and sand using Newton MPM or PhysX PBD.
 
 Usage:
-    uv run --extra isaacsim --extra video --extra g1-terrain isaaclab demo sonic
+    uv sync --extra isaacsim --extra video
+    uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
+    uv run --extra isaacsim --extra video isaaclab demo sonic
 
 The released planner and tracker are downloaded from nvidia/GEAR-SONIC on Hugging
 Face under their upstream model license. The robot USD is downloaded from the
