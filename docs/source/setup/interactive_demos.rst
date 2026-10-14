@@ -13,7 +13,7 @@ one self-contained Newton simulation with camera controls, pause, and reset.
 The simulation runs locally on the CPU through WebAssembly; no Isaac Lab
 installation or remote simulation server is needed.
 
-Open the `hosted gallery <../../../demos/v3/>`_ to browse all demos.
+Open the `hosted gallery <../../../demos/v4/>`_ to browse all demos.
 
 These compact scenes illustrate individual effects. Use the full Isaac Lab
 examples and tasks for evaluation, training, and measured comparisons.
@@ -91,7 +91,7 @@ Policy control
 
    .. grid-item-card:: G1 velocity control
       :img-top: ../_static/browser_demos/previews/g1.jpg
-      :link: ../../../demos/v3/?demo=g1
+      :link: ../../../demos/v4/?demo=g1
 
       .. _interactive-demo-g1:
 
@@ -100,7 +100,7 @@ Policy control
 
    .. grid-item-card:: ANYmal-D velocity control
       :img-top: ../_static/browser_demos/previews/anymal.jpg
-      :link: ../../../demos/v3/?demo=anymal
+      :link: ../../../demos/v4/?demo=anymal
 
       .. _interactive-demo-anymal:
 
@@ -109,12 +109,12 @@ Policy control
 
    .. grid-item-card:: MicroDuck walking
       :img-top: ../_static/browser_demos/previews/microduck.jpg
-      :link: ../../../demos/v3/?demo=microduck
+      :link: ../../../demos/v4/?demo=microduck
 
       .. _interactive-demo-microduck:
 
-      Hold the viewport joysticks to walk through a miniature courtyard.
-      Drag the robot to apply a 2 N push; release to let the policy recover.
+      Walk in a bounded warehouse. Drag sticks to their edges to lock commands;
+      pull back or press Escape to stop. Drag the robot for a 2 N push.
 
 Cartpole uses the published ``Isaac-Cartpole-Direct`` Newton policy. G1 uses
 the external 29-joint WBC-AGILE ``Velocity-G1-v0`` policy. ANYmal-D uses the
@@ -122,8 +122,9 @@ the external 29-joint WBC-AGILE ``Velocity-G1-v0`` policy. ANYmal-D uses the
 place of the native task's LSTM actuator. Its motion can differ from a full
 task run. MicroDuck uses Pollen Robotics' published v5 ``velstand`` policy
 and native BAM servos from `task PR #8270 <https://github.com/isaac-sim/IsaacLab/pull/8270>`_.
-Its courtyard is decorative scenery over flat ground; playback uses one
-captured reset with selected observation randomization disabled.
+Its warehouse uses the authored scene with static collision boxes for boundaries
+and obstacle footprints. Turning from rest adds a visible 0.25 m/s forward command.
+Playback uses one captured reset with selected observation randomization disabled.
 See :ref:`reinforcement-learning` for native playback and training.
 
 Manipulation
@@ -180,5 +181,5 @@ and verifies its checksum before publishing; compiled assets are kept outside th
 The public `reference PR #7974 <https://github.com/isaac-sim/IsaacLab/pull/7974>`_
 records the exporters, shared viewer, and scene adaptations.
 Rebuilding requires the pinned internal Newton Web compiler and Emscripten.
-The locomotion demos use the version 3 viewer with controls inside the viewport.
+The locomotion demos use the version 4 viewer with controls inside the viewport.
 Other demos retain version 1 links. Each archive preserves earlier version directories.
