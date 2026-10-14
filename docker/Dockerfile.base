@@ -178,6 +178,11 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -c \
 # should target the venv, including the interactive ``pip`` alias below.
 ENV UV_PYTHON=${VENV_PATH_ARG}/bin/python
 
+# The Isaac Sim image sets MUJOCO_GL=egl, and importing mujoco then sets PYOPENGL_PLATFORM=egl,
+# so the windowed Newton viewers draw an X11 window through EGL bindings and fail with "no valid
+# context". Isaac Lab uses MuJoCo only for physics, so turn off its renderer.
+ENV MUJOCO_GL=disable
+
 # aliasing isaaclab.sh and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias isaaclab=${ISAACLAB_PATH}/isaaclab.sh" >> ${DOCKER_USER_HOME}/.bashrc && \
