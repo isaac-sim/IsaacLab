@@ -933,10 +933,11 @@ different across visualizers. Kit renders the scene's actual authored USD lights
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
 ``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
-authored scene through Newton's native RTX viewer, borrowing a simulation-owned OVStage.
-Body poses follow simulation updates; runtime material randomization is not yet propagated
-to the borrowed stage. Perspective resolution stays fixed when the window is resized; the
-window scales the image for presentation.
+authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the same
+``OVRTXRendererCfg``. Newton GL displays the rendered GPU image and handles window controls;
+Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
+updates follow the camera renderer's normal synchronization. Perspective resolution stays
+fixed when the window is resized; the window scales the image for presentation.
 Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
 and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
 scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.

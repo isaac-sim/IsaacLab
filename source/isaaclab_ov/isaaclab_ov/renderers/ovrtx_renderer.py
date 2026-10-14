@@ -27,6 +27,7 @@ import logging
 import math
 import os
 import sys
+import tempfile
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
@@ -71,11 +72,16 @@ except ModuleNotFoundError as exc:
         "(or, manually: python -m pip install 'ovrtx==0.5.1.385782')."
     ) from exc
 
+from PIL import Image
+
+from pxr import Sdf, Usd, UsdGeom, UsdShade
+
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
+from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -89,9 +95,12 @@ from isaaclab_ov.renderers.ovrtx_annotator_utils import (
 from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
 from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
+    accumulate_mesh_normals,
     create_camera_transforms_kernel,
+    create_marker_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
+    normalize_mesh_normals,
 )
 from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
@@ -797,7 +806,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
-            render_data.resources.callback(self._remove_camera_reference, reference)
+            render_data.resources.callback(self._remove_usd_reference, reference)
             ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
             product_paths = self.backend.paths.create_path_list_from_strings([product_path])
             try:
@@ -932,7 +941,10 @@ class OVRTXRenderer(BaseRenderer):
         converted, matrices = render_data.camera_writes.acquire(stream)
         convert_camera_frame_orientation_convention_wp(orientations, converted, "world", "opengl", device=self._device)
         wp.launch(
-            create_camera_transforms_kernel, len(matrices), inputs=[positions, converted, matrices], device=self._device
+            create_camera_transforms_kernel,
+            len(matrices),
+            inputs=[positions, converted, matrices],
+            device=self._device,
         )
         operation = render_data.camera_writes.submit(render_data.camera_xform_binding, matrices, stream)
         if not self.cfg.async_rendering:
@@ -1610,8 +1622,8 @@ class OVRTXRenderer(BaseRenderer):
                 if render_data.render_product_path in self._render_product_paths:
                     self._render_product_paths.remove(render_data.render_product_path)
 
-    def _remove_camera_reference(self, reference: int) -> None:
-        """Publish removal of a camera's USD reference at the shared stage's current ordinal."""
+    def _remove_usd_reference(self, reference: int) -> None:
+        """Publish removal of a private USD reference at the shared stage's current ordinal."""
         ovstage.population.remove_usd(self.backend.stage, reference)
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
@@ -1694,7 +1706,7 @@ class OVRTXRenderer(BaseRenderer):
         reference = ovstage.population.add_usd_reference_from_string(
             self.backend.stage, render_product_string, f"/{scope}"
         )
-        render_data.resources.callback(self._remove_camera_reference, reference)
+        render_data.resources.callback(self._remove_usd_reference, reference)
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
         camera_paths = render_data.camera_paths
@@ -1905,6 +1917,316 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales = None
         self._object_scales_by_path = {}
         self._current_ordinal = 0
+
+
+class OVRTXMesh:
+    """Own a runtime mesh reference and update its vertices directly from device arrays."""
+
+    def __init__(self, renderer: OVRTXRenderer, path: str):
+        self.renderer = renderer
+        self.path = path
+        self.resources = contextlib.ExitStack()
+        self.stage = None
+        self._face_counts = None
+        self._normals = None
+
+    def update(
+        self,
+        points: wp.array,
+        indices: wp.array,
+        normals: wp.array | None = None,
+        uvs: wp.array | None = None,
+        texture: np.ndarray | str | None = None,
+        hidden: bool = False,
+        backface_culling: bool = True,
+        color: tuple | None = None,
+        roughness: float | None = None,
+        metallic: float | None = None,
+        dynamic: bool = False,
+        opacity: float | None = None,
+    ) -> None:
+        """Author appearance once, then write GPU geometry and visibility into the native scene."""
+        indices = indices.view(wp.int32)
+        errors = self.renderer.drain_pending_renders()
+        if errors:
+            raise ExceptionGroup("OVRTX renders failed before mesh update", errors)
+        if normals is None:
+            if self._normals is None or len(self._normals) != len(points):
+                self._normals = wp.empty_like(points)
+            self._normals.zero_()
+            wp.launch(
+                accumulate_mesh_normals,
+                len(indices) // 3,
+                [points, indices, self._normals],
+                device=points.device,
+            )
+            wp.launch(normalize_mesh_normals, len(points), [self._normals], device=points.device)
+            normals = self._normals
+        if self._face_counts is None or len(self._face_counts) != len(indices) // 3:
+            self._face_counts = wp.full(len(indices) // 3, 3, dtype=wp.int32, device=indices.device)
+        if self.stage is None:
+            self.stage = Usd.Stage.CreateInMemory()
+            mesh = UsdGeom.Mesh.Define(self.stage, "/Mesh")
+            self.stage.SetDefaultPrim(mesh.GetPrim())
+            UsdGeom.PrimvarsAPI(mesh).CreatePrimvar("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("viewer")
+            mesh.CreatePointsAttr(points.numpy())
+            mesh.CreateNormalsAttr(normals.numpy())
+            mesh.SetNormalsInterpolation(UsdGeom.Tokens.vertex)
+            mesh.CreateFaceVertexIndicesAttr(indices.numpy())
+            mesh.CreateFaceVertexCountsAttr(self._face_counts.numpy())
+            mesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
+            mesh.CreateDoubleSidedAttr(not backface_culling)
+            material_cfg = PreviewSurfaceCfg(
+                diffuse_color=(0.7, 0.7, 0.7) if color is None else color,
+                roughness=0.5 if roughness is None else roughness,
+                metallic=0.0 if metallic is None else metallic,
+                opacity=1.0 if opacity is None else opacity,
+            )
+            with use_stage(self.stage):
+                material_cfg.func("/Mesh/Material", material_cfg)
+            material = UsdShade.Material.Get(self.stage, "/Mesh/Material")
+            UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
+            if uvs is not None:
+                UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+                    "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+                ).Set(uvs.numpy())
+                if texture is not None:
+                    if isinstance(texture, np.ndarray):
+                        directory = self.resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab-mesh-"))
+                        texture_path = Path(directory) / "texture.png"
+                        Image.fromarray(texture).save(texture_path)
+                    else:
+                        texture_path = Path(texture).absolute()
+                    reader = UsdShade.Shader.Define(self.stage, "/Mesh/Material/Primvar")
+                    reader.CreateIdAttr("UsdPrimvarReader_float2")
+                    reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+                    reader.CreateOutput("result", Sdf.ValueTypeNames.Float2)
+                    sampler = UsdShade.Shader.Define(self.stage, "/Mesh/Material/Texture")
+                    sampler.CreateIdAttr("UsdUVTexture")
+                    sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(str(texture_path))
+                    sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
+                        reader.ConnectableAPI(), "result"
+                    )
+                    sampler.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+                    surface = material.ComputeSurfaceSource()[0]
+                    surface.GetInput("diffuseColor").ConnectToSource(sampler.ConnectableAPI(), "rgb")
+            usd = self.stage.GetRootLayer().ExportToString()
+            if self.renderer._use_ovstage:
+                reference = ovstage.population.add_usd_reference_from_string(
+                    self.renderer.backend.stage, usd, self.path
+                )
+                self.resources.callback(self.renderer._remove_usd_reference, reference)
+                ovstage.population.apply_usd_changes(
+                    self.renderer.backend.stage, ordinal=self.renderer._current_ordinal
+                )
+                paths = self.renderer.backend.paths.create_path_list_from_strings([self.path])
+                self.resources.callback(self.renderer.backend.paths.destroy_path_list, paths)
+                self.query = self.resources.enter_context(self.renderer.backend.stage.query_from_path_list(paths))
+            else:
+                reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self.path)
+                self.resources.callback(self.renderer.backend.renderer.remove_usd, reference)
+        attributes = {"points": points, "normals": normals}
+        if dynamic:
+            attributes.update(faceVertexIndices=indices, faceVertexCounts=self._face_counts)
+        stream = wp.get_stream(points.device).cuda_stream or 1
+        for name, values in attributes.items():
+            if self.renderer._use_ovstage:
+                semantic = {
+                    "points": ovstage.AttributeSemantic.POINT,
+                    "normals": ovstage.AttributeSemantic.NORMAL,
+                }.get(name, ovstage.AttributeSemantic.NONE)
+                self.renderer.backend.stage.write_attribute(
+                    self.query,
+                    name,
+                    ordinal=self.renderer._current_ordinal,
+                    tensors=[points_tensor_from_warp(values) if name in ("points", "normals") else values],
+                    is_array=True,
+                    semantic=semantic,
+                    cuda_stream=stream,
+                ).wait()
+            else:
+                self.renderer.backend.renderer.write_array_attribute(
+                    [self.path], name, [values], data_access=DataAccess.ASYNC, cuda_stream=stream
+                )
+        token = "invisible" if hidden or not len(points) else "inherited"
+        if self.renderer._use_ovstage:
+            self.renderer.backend.stage.write_attribute(
+                self.query,
+                "visibility",
+                ordinal=self.renderer._current_ordinal,
+                tensors=np.array([self.renderer.backend.paths.intern_token(token)], np.uint64),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.TOKEN_ID,
+            ).wait()
+        else:
+            self.renderer.backend.renderer.write_attribute(
+                [self.path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+            )
+
+    def close(self) -> None:
+        """Release the mesh reference while the shared renderer remains alive."""
+        with self.resources:
+            errors = self.renderer.drain_pending_renders()
+            if errors:
+                raise ExceptionGroup("OVRTX renders failed before mesh cleanup", errors)
+
+
+class OVRTXMarkers:
+    """Shared USD marker instances with GPU transform bindings."""
+
+    def __init__(
+        self, renderer: OVRTXRenderer, cfg: VisualizationMarkersCfg, *, env_ids: list[int] | None, num_envs: int
+    ):
+        self._renderer = renderer
+        self._resources = contextlib.ExitStack()
+        self._path = f"{cfg.prim_path}_{id(self)}"
+        self._visible = True
+        self._env_ids, self._num_envs = env_ids, num_envs
+        self._source_count = -1
+        self._layout = None
+        self._transforms = self._selection = None
+        self._stage = Usd.Stage.CreateInMemory()
+        root = UsdGeom.Xform.Define(self._stage, "/Markers")
+        UsdGeom.PrimvarsAPI(root).CreatePrimvar("omni:scenePartition", Sdf.ValueTypeNames.Token).Set("viewer")
+        root.GetVisibilityAttr().Set("inherited")
+        self._stage.SetDefaultPrim(root.GetPrim())
+        with use_stage(self._stage):
+            for name, prototype in cfg.markers.items():
+                prim = prototype.func(f"/Markers/Prototypes/{name}", prototype)
+                prim.SetSpecifier(Sdf.SpecifierClass)
+        self._prototypes = tuple(f"/Markers/Prototypes/{name}" for name in cfg.markers)
+        self._prototype_transforms = np.array(
+            [UsdGeom.Xformable(self._stage.GetPrimAtPath(path)).GetLocalTransformation() for path in self._prototypes]
+        )
+        self._local_transforms = None
+
+    def update(
+        self,
+        translations: torch.Tensor,
+        orientations: torch.Tensor | None,
+        scales: torch.Tensor | None,
+        marker_indices: torch.Tensor | None,
+        *,
+        visible: bool,
+    ) -> None:
+        """Project the marker owner's current state into GPU-bound USD instances."""
+        renderer = self._renderer
+        count = len(translations)
+        count_changed = count != self._source_count
+        if count_changed:
+            self._selected_ids = np.arange(count, dtype=np.int32)
+            if self._env_ids is not None and count % self._num_envs == 0:
+                self._selected_ids = self._selected_ids.reshape(self._num_envs, -1)[self._env_ids].flatten()
+            self._instance_ids = wp.array(self._selected_ids, dtype=wp.int32, device=renderer._device)
+            self._transforms = wp.empty(len(self._selected_ids), dtype=wp.mat44d, device=renderer._device)
+            self._identity = wp.full(count, wp.quat_identity(), dtype=wp.quat, device=renderer._device)
+            self._unit_scale = wp.ones(count, dtype=wp.vec3, device=renderer._device)
+            self._source_count = count
+        if marker_indices is not self._selection or self._layout is None or count_changed:
+            indices = (0,) * count if marker_indices is None else tuple(marker_indices.tolist())
+            if len(indices) != count or any(i < 0 or i >= len(self._prototypes) for i in indices):
+                raise ValueError("Each marker must select a configured prototype.")
+            indices = tuple(indices[i] for i in self._selected_ids)
+            self._selection = marker_indices
+        else:
+            indices = self._layout
+        token = "inherited" if visible else "invisible"
+        UsdGeom.Imageable(self._stage.GetDefaultPrim()).GetVisibilityAttr().Set(token)
+        if indices != self._layout:
+            errors = renderer.drain_pending_renders()
+            if errors:
+                raise ExceptionGroup("OVRTX renders failed before marker geometry update", errors)
+            self._resources.close()
+            self._stage.RemovePrim("/Markers/Instances")
+            self._local_transforms = wp.array(
+                self._prototype_transforms[list(indices)], dtype=wp.mat44d, device=renderer._device
+            )
+            paths = []
+            for index, prototype in enumerate(indices):
+                path = f"/Markers/Instances/marker_{index}"
+                prim = self._stage.DefinePrim(path)
+                prim.GetReferences().AddInternalReference(self._prototypes[prototype])
+                prim.SetInstanceable(True)
+                prim.CreateAttribute("omni:resetXformStack", Sdf.ValueTypeNames.Bool).Set(True)
+                paths.append(self._path + path[len("/Markers") :])
+            if indices:
+                backend, usd = renderer.backend, self._stage.GetRootLayer().ExportToString()
+                with self._resources:
+                    if renderer._use_ovstage:
+                        reference = ovstage.population.add_usd_reference_from_string(backend.stage, usd, self._path)
+                        self._resources.callback(renderer._remove_usd_reference, reference)
+                        ovstage.population.apply_usd_changes(backend.stage, ordinal=renderer._current_ordinal)
+                        root_paths = backend.paths.create_path_list_from_strings([self._path])
+                        self._resources.callback(backend.paths.destroy_path_list, root_paths)
+                        self._root_query = self._resources.enter_context(backend.stage.query_from_path_list(root_paths))
+                        instance_paths = backend.paths.create_path_list_from_strings(paths)
+                        self._resources.callback(backend.paths.destroy_path_list, instance_paths)
+                        self._query = self._resources.enter_context(backend.stage.query_from_path_list(instance_paths))
+                    else:
+                        reference = backend.renderer.add_usd_reference_from_string(usd, self._path)
+                        self._resources.callback(backend.renderer.remove_usd, reference)
+                        self._binding = backend.renderer.bind_attribute(
+                            paths, "omni:xform", semantic=Semantic.XFORM_MAT4x4
+                        )
+                        self._resources.callback(self._binding.unbind)
+                    self._resources = self._resources.pop_all()
+            self._layout = indices
+        if not indices:
+            return
+        if visible != self._visible:
+            if renderer._use_ovstage:
+                renderer.backend.stage.write_attribute(
+                    self._root_query,
+                    "visibility",
+                    ordinal=renderer._current_ordinal,
+                    tensors=np.array([renderer.backend.paths.intern_token(token)], dtype=np.uint64),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                ).wait()
+            else:
+                renderer.backend.renderer.write_attribute(
+                    [self._path], "visibility", [token], semantic=Semantic.TOKEN_STRING
+                )
+            self._visible = visible
+        stream = wp.stream_from_torch(torch.cuda.current_stream(translations.device))
+        wp.launch(
+            create_marker_transforms_kernel,
+            len(indices),
+            [
+                wp.from_torch(translations.contiguous(), wp.vec3),
+                self._identity if orientations is None else wp.from_torch(orientations.contiguous(), wp.quat),
+                self._unit_scale if scales is None else wp.from_torch(scales.contiguous(), wp.vec3),
+                self._local_transforms,
+                self._instance_ids,
+                self._transforms,
+            ],
+            device=renderer._device,
+            stream=stream,
+        )
+        if renderer._use_ovstage:
+            renderer.backend.stage.write_attribute(
+                self._query,
+                "omni:xform",
+                ordinal=renderer._current_ordinal,
+                tensors=xform_tensor_from_warp(self._transforms),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+                cuda_stream=stream.cuda_stream or 1,
+            ).wait()
+        else:
+            self._binding.write(self._transforms, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
+
+    def close(self) -> None:
+        """Release bindings and geometry before the renderer's native scene closes."""
+        if self._renderer is None:
+            return
+        renderer, self._renderer = self._renderer, None
+        with self._resources:
+            errors = renderer.drain_pending_renders()
+            if errors:
+                raise ExceptionGroup("OVRTX renders failed before marker cleanup", errors)
+        self._transforms = self._selection = self._stage = None
+        self._local_transforms = None
 
 
 class _AsyncWriteBuffers:

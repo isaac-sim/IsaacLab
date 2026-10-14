@@ -160,13 +160,17 @@ Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in w
 Changing the simulation timestep does not change that limit. Headless on-demand capture is
 independent of the window update rate; Kit uses its application's update cadence.
 
-Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
-authored scene and clone placements. Newton owns its perspective renderer, window, and debug
-markers; scene cameras retain their own renderer and resources. No default lights are added:
-scenes without authored lights remain unlit. Scene-camera selections use their sensor's
-renderer, including Newton Warp, and skip the viewer's perspective rendering.
-Closing the viewer releases its resources while leaving the borrowed stage and sensors alive.
-RTX markers are viewer overlays and do not appear in sensor images.
+Newton RTX uses the simulation's ``OVRTXRenderer`` for its perspective product and Newton GL
+for GPU image presentation and window controls. Equal ``OVRTXRendererCfg`` configurations share
+one renderer and its scene. Set ``NewtonRTXVisualizerCfg.renderer_cfg`` to the same configuration
+as your camera sensors when customizing renderer settings. If there are no OVRTX sensors, the
+simulation creates the renderer for the perspective view. Newton's ``ViewerRTX`` and its
+borrowed-stage interface are not used.
+
+No default lights are added: scenes without authored lights remain unlit. Scene-camera selections
+use their sensor's renderer, including Newton Warp, and skip perspective rendering. Closing the
+window removes its private product and debug geometry, leaving the shared renderer and sensors
+alive. Debug markers and runtime surface meshes occupy a viewer partition, outside sensor views.
 
 Display layout and channel mappings are compiled when the source, selection, resolution, or
 color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton

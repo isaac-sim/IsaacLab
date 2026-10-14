@@ -89,10 +89,7 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
         visualizer.log_mesh("/surface", points, indices)
 
 
-@pytest.mark.parametrize("visualizer_cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
-def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(
-    monkeypatch: pytest.MonkeyPatch, visualizer_cfg_type
-):
+def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(monkeypatch: pytest.MonkeyPatch):
     """A reusable extractor must stage visible and empty meshes through the viewer API."""
     model = SimpleNamespace(
         device=wp.get_device("cpu"),
@@ -105,7 +102,7 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(
     monkeypatch.setattr(particle_surface_module.NewtonManager, "get_state_0", lambda: state)
 
     viewer = _Viewer()
-    visualizer = _make_newton_visualizer(viewer, cfg=visualizer_cfg_type(enable_markers=False))
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(enable_markers=False))
     surface = Mock(world_count=2)
     mesh = surface.extract.return_value
     vertices = wp.zeros(4, dtype=wp.vec3)

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Native Newton RTX motion, background, camera, and resource-lifetime checks.
+"""Shared RTX motion, background, camera, and resource-lifetime checks.
 
 Kept apart from ``test_visualizer_integration_newton``: OVRTX cannot share a process with Kit, which
 that module launches at import.
@@ -106,8 +106,8 @@ def test_newton_rtx_mpm_points_follow_world_state():
 
 
 @pytest.mark.arm_ci
-def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture) -> None:
-    """Newton RTX frames are non-flat, move while playing, freeze while paused, and draw a marker."""
+def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, monkeypatch) -> None:
+    """RTX preserves motion, pause controls, markers, and device-updated surface meshes."""
     env = None
     try:
         _viz_utils._prepare_visualizer_test_process()
@@ -120,7 +120,7 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture) -
             env.reset()
             visualizer = env.sim.visualizers[0]
             actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
-            # The first async capture must succeed before warm-up can suppress its error.
+            # The first capture must succeed before warm-up can suppress its error.
             first_frame = visualizer.render_rgb_array()
             width, height = _viz_utils._CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
             assert first_frame is not None and first_frame.shape == (height, width, 3)
@@ -134,6 +134,25 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture) -
                 viz_kind="newton_rtx",
             )
             _viz_utils._assert_newton_rtx_markers_drawn(env, visualizer, case_label="newton_rtx/newton")
+            points = wp.array([(0.5, -0.8, 1.7), (1.3, -0.8, 1.7), (0.5, 0.8, 1.7)], dtype=wp.vec3, device=env.device)
+            indices = wp.array([0, 1, 2], dtype=wp.uint32, device=env.device)
+            visualizer.log_mesh("surface", points, indices, color=(0.0, 0.0, 1.0), dynamic=True)
+            _viz_utils._warm_newton_viewer(visualizer)
+            initial_mesh = visualizer.render_rgb_array()
+            points.assign(np.array([(0.5, -0.8, 2.5), (1.3, -0.8, 2.5), (0.5, 0.8, 2.5)], np.float32))
+            with monkeypatch.context() as gpu_update:
+                gpu_update.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Geometry readback")))
+                visualizer.log_mesh("surface", points, indices, dynamic=True)
+                visualizer.current_image_view.invalidate()
+                visualizer.current_image_view.read(env.sim.get_physics_step_count())
+            _viz_utils._warm_newton_viewer(visualizer)
+            updated_mesh = visualizer.render_rgb_array()
+            blue_rows = []
+            for pixels in (initial_mesh, updated_mesh):
+                blue = (pixels[..., 2] > 50) & (pixels[..., 2] > 1.5 * pixels[..., :2].max(axis=2))
+                assert blue.any(), "The runtime mesh must be visible in RTX output."
+                blue_rows.append(np.nonzero(blue)[0].mean())
+            assert blue_rows[1] < blue_rows[0] - 10, "Moving the mesh upward must move its rendered pixels."
         _viz_utils._assert_no_visualizer_log_issues(caplog)
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)
@@ -144,11 +163,7 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture) -
 @pytest.mark.parametrize("lighting", [True, False])
 @pytest.mark.parametrize("background_color", [None, (0.0, 0.0, 1.0)])
 def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lighting, background_color):
-    """The native viewer preserves authored lighting and borrows a stage without owning sensors."""
-    if lighting:
-        pytest.skip(
-            "Two OVRTX renderers can hang; re-enable after adopting https://github.com/newton-physics/newton/pull/4627."
-        )
+    """The window shares sensor rendering, preserves lighting, and owns no sensor resources."""
     import gymnasium as gym
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -162,6 +177,10 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
+    monkeypatch.setattr(
+        "newton.viewer.ViewerRTX.__init__",
+        Mock(side_effect=AssertionError("RTX windows must use the simulation renderer, not construct ViewerRTX")),
+    )
     if sys.platform == "linux" and not os.environ.get("DISPLAY"):
         monkeypatch.setenv("PYOPENGL_PLATFORM", "egl")
 
@@ -209,9 +228,10 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             visualizer = env.unwrapped.sim.visualizers[0]
             camera = env.unwrapped.scene["camera"]
             viewer = visualizer._viewer
-            native_stage = viewer._borrowed_stage
-            # Exercise the native presentation path through an EGL window in headless CI.
-            viewer._headless = False
+            renderer = visualizer._renderer
+            native_renderer = renderer.backend.renderer
+            if lighting:
+                assert renderer is camera._renderer
             assert visualizer.current_image_view.camera is None
             assert len(env.unwrapped.scene.sensors) == 1
             origin = env.unwrapped.scene.env_origins[0].cpu().numpy()
@@ -235,17 +255,23 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             sensor_frame = camera.frame.torch.clone()
             sensor_ptr = output.ptr
             captured_output = wp.empty_like(output)
+            perspective = visualizer.current_image_view.read(env.unwrapped.sim.get_physics_step_count())
+            perspective_ptr = perspective.ptr
+            captured_perspective = wp.empty_like(perspective)
             with wp.ScopedCapture(device=output.device) as capture:
                 wp.copy(captured_output, output)
-            viewer._window.set_size(160, 96)
-            viewer._window.dispatch_events()
+                wp.copy(captured_perspective, perspective)
+            viewer.renderer.window.set_size(160, 96)
+            viewer.renderer.window.dispatch_events()
             pixels = visualizer.render_rgb_array()
             assert pixels.shape == (128, 128, 3)
             assert camera.image_shape == (128, 128)
             assert camera.data.output["rgba"].warp.ptr == sensor_ptr
+            assert visualizer.current_image_view.read(env.unwrapped.sim.get_physics_step_count()).ptr == perspective_ptr
             torch.testing.assert_close(camera.frame.torch, sensor_frame)
             wp.capture_launch(capture.graph)
             np.testing.assert_array_equal(captured_output.numpy(), output.numpy())
+            np.testing.assert_array_equal(captured_perspective.numpy(), perspective.numpy())
 
             visualizer._select_camera(1)
             image = visualizer.render_tiled_rgba_array()
@@ -253,17 +279,16 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             assert image.device.is_cuda
             with monkeypatch.context() as gpu_display:
                 gpu_display.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Display downloaded pixels")))
+                visualizer._select_camera(0)
+                visualizer._render_frame()
+                visualizer._select_camera(1)
                 visualizer._render_frame()
             if lighting and background_color is None:
                 env.unwrapped.sim.reset()
                 visualizer._select_camera(0)
                 assert visualizer.render_rgb_array().shape == (128, 128, 3)
             visualizer.close()
-            query = native_stage.get_attribute_write_floor()
-            try:
-                assert native_stage.fetch_ordinal(query) > 0
-            finally:
-                native_stage.release_ordinal_query(query).wait()
+            assert renderer.backend.renderer is native_renderer
             camera.update(cfg.sim.dt)
             assert np.ptp(camera.data.output["rgba"].warp.numpy()) > 0
         finally:

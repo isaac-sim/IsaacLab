@@ -790,87 +790,84 @@ def _run_newton_viewer_frame_motion_test(
         debug_phase="playing",
     )
 
-    # The RTX viewer exposes no Pause Rendering control (its end_frame() keeps the imgui running), so that
-    # phase only applies to the GL viewer.
-    supports_rendering_pause = not isinstance(visualizer, NewtonRTXVisualizer)
-    rendering_play_end_idx = play_end_idx
-    if supports_rendering_pause:
-        rendering_pause_start_idx = play_end_idx
-        rendering_pause_end_idx = rendering_pause_start_idx + PAUSE_VIZ_N_STEP
+    rendering_pause_start_idx = play_end_idx
+    rendering_pause_end_idx = rendering_pause_start_idx + PAUSE_VIZ_N_STEP
 
-        def _attempt_rendering_pause():
-            _set_newton_rendering_paused(viewer, True)
-            rendering_paused_start_frame = visualizer.render_rgb_array()
-            rendering_pause_start_state = _cartpole_body_state(env)
-            physics_step_before_render_pause = get_physics_step_count()
-            for _ in range(PAUSE_VIZ_N_STEP):
-                step_hook()
-            rendering_pause_end_state = _cartpole_body_state(env)
-            rendering_paused_end_frame = visualizer.render_rgb_array()
-            _save_visualizer_debug_phase_images(
-                rendering_paused_start_frame,
-                rendering_paused_end_frame,
-                prefix="2",
-                phase="pausing_rendering",
-                frame_start_idx=rendering_pause_start_idx,
-                frame_end_idx=rendering_pause_end_idx,
-            )
-            _assert_frames_remain_stable(
-                rendering_paused_start_frame,
-                rendering_paused_end_frame,
-                case_label=case_label,
-                phase="pausing_rendering",
-                debug_phase="pausing_rendering",
-            )
-            return physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state
-
-        physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state = (
-            _attempt_rendering_pause()
+    def _attempt_rendering_pause():
+        _set_newton_rendering_paused(viewer, True)
+        rendering_paused_start_frame = visualizer.render_rgb_array()
+        rendering_pause_start_state = _cartpole_body_state(env)
+        physics_step_before_render_pause = get_physics_step_count()
+        for _ in range(PAUSE_VIZ_N_STEP):
+            step_hook()
+        rendering_pause_end_state = _cartpole_body_state(env)
+        rendering_paused_end_frame = visualizer.render_rgb_array()
+        _save_visualizer_debug_phase_images(
+            rendering_paused_start_frame,
+            rendering_paused_end_frame,
+            prefix="2",
+            phase="pausing_rendering",
+            frame_start_idx=rendering_pause_start_idx,
+            frame_end_idx=rendering_pause_end_idx,
         )
-        assert get_physics_step_count() > physics_step_before_render_pause, (
-            f"{case_label} physics step count did not advance during pausing_rendering."
-        )
-        _assert_body_state_changed(
-            rendering_pause_start_state,
-            rendering_pause_end_state,
+        _assert_frames_remain_stable(
+            rendering_paused_start_frame,
+            rendering_paused_end_frame,
             case_label=case_label,
             phase="pausing_rendering",
+            debug_phase="pausing_rendering",
+        )
+        return physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state
+
+    physics_step_before_render_pause, rendering_pause_start_state, rendering_pause_end_state = (
+        _attempt_rendering_pause()
+    )
+    assert get_physics_step_count() > physics_step_before_render_pause, (
+        f"{case_label} physics step count did not advance during pausing_rendering."
+    )
+    _assert_body_state_changed(
+        rendering_pause_start_state,
+        rendering_pause_end_state,
+        case_label=case_label,
+        phase="pausing_rendering",
+    )
+
+    rendering_play_start_idx = rendering_pause_end_idx
+    rendering_play_end_idx = rendering_play_start_idx + PLAY_VIZ_N_STEP
+
+    def _attempt_rendering_play():
+        _set_newton_rendering_paused(viewer, False)
+        rendering_play_start_frame = visualizer.render_rgb_array()
+        for _ in range(PLAY_VIZ_N_STEP):
+            step_hook()
+        _flush_newton_render_for_motion_capture(visualizer)
+        rendering_play_end_frame = visualizer.render_rgb_array()
+        _save_visualizer_debug_phase_images(
+            rendering_play_start_frame,
+            rendering_play_end_frame,
+            prefix="3",
+            phase="playing",
+            frame_start_idx=rendering_play_start_idx,
+            frame_end_idx=rendering_play_end_idx,
+        )
+        _assert_non_flat_frame_array(rendering_play_end_frame)
+        _assert_frames_differ(
+            rendering_play_start_frame,
+            rendering_play_end_frame,
+            case_label=case_label,
+            phase="playing after rendering pause",
+            debug_phase="playing",
         )
 
-        rendering_play_start_idx = rendering_pause_end_idx
-        rendering_play_end_idx = rendering_play_start_idx + PLAY_VIZ_N_STEP
-
-        def _attempt_rendering_play():
-            _set_newton_rendering_paused(viewer, False)
-            rendering_play_start_frame = visualizer.render_rgb_array()
-            for _ in range(PLAY_VIZ_N_STEP):
-                step_hook()
-            _flush_newton_render_for_motion_capture(visualizer)
-            rendering_play_end_frame = visualizer.render_rgb_array()
-            _save_visualizer_debug_phase_images(
-                rendering_play_start_frame,
-                rendering_play_end_frame,
-                prefix="3",
-                phase="playing",
-                frame_start_idx=rendering_play_start_idx,
-                frame_end_idx=rendering_play_end_idx,
-            )
-            _assert_non_flat_frame_array(rendering_play_end_frame)
-            _assert_frames_differ(
-                rendering_play_start_frame,
-                rendering_play_end_frame,
-                case_label=case_label,
-                phase="playing after rendering pause",
-                debug_phase="playing",
-            )
-
-        _attempt_rendering_play()
+    _attempt_rendering_play()
 
     simulation_pause_start_idx = rendering_play_end_idx
     simulation_pause_end_idx = simulation_pause_start_idx + PAUSE_VIZ_N_STEP
 
     def _attempt_simulation_pause():
         _set_newton_simulation_paused(viewer, True)
+        # Let temporal rendering settle at the paused state before comparing static frames.
+        _warm_newton_viewer(visualizer)
         simulation_paused_start_frame = visualizer.render_rgb_array()
         simulation_pause_start_state = _cartpole_body_state(env)
         physics_step_before_simulation_pause = get_physics_step_count()
@@ -1017,11 +1014,6 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
     call uses the latest physics state.
     """
     visualizer.step(0.0)
-    if isinstance(visualizer, NewtonRTXVisualizer):
-        # Async OVRTX displays the previous submission. Advance another display frame so the next
-        # capture observes the current state instead of rereading the shared cached image.
-        visualizer.render_rgb_array()
-        visualizer.step(0.0)
 
 
 def _assert_newton_rtx_markers_drawn(env, visualizer: NewtonRTXVisualizer, *, case_label: str) -> None:
