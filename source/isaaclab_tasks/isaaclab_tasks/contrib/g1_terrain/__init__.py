@@ -9,7 +9,7 @@ import gymnasium as gym
 
 gym.register(
     id="IsaacContrib-G1-Terrain",
-    entry_point=f"{__name__}.terrain_env:G1TerrainEnv",
+    entry_point=f"{__name__}.fixed_course_env:G1FixedCourseEnv",
     disable_env_checker=True,
-    kwargs={"env_cfg_entry_point": f"{__name__}.terrain_env_cfg:G1TerrainPresetsCfg"},
+    kwargs={"env_cfg_entry_point": f"{__name__}.fixed_course_env_cfg:G1TerrainPresetsCfg"},
 )

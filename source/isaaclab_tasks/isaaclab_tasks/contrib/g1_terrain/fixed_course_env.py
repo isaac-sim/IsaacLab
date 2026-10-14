@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Environment setup for the G1 terrain traversals."""
+"""G1 playback on reconstructed fixed courses with matched spectator cameras."""
 
 from __future__ import annotations
 
@@ -17,14 +17,14 @@ from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from .terrain import create_terrain
-from .terrain_env_cfg import G1PlatformsEnvCfg
+from .fixed_course import create_fixed_course
+from .fixed_course_env_cfg import G1PlatformsEnvCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.kit import KitVisualizer
 
 
-class G1TerrainEnv(ManagerBasedRLEnv):
+class G1FixedCourseEnv(ManagerBasedRLEnv):
     """A fixed course with explicit resets and absolute joint position actions."""
 
     def __init__(self, cfg: G1PlatformsEnvCfg, **kwargs):
@@ -42,7 +42,7 @@ class G1TerrainEnv(ManagerBasedRLEnv):
             configure_granular(cfg, is_physx)
         self._terrain_directory = TemporaryDirectory(prefix="g1-terrain-")
         cfg.scene.terrain.usd_path = str(
-            create_terrain(Path(self._terrain_directory.name), cfg.terrain_name, cfg.course, is_physx)
+            create_fixed_course(Path(self._terrain_directory.name), cfg.terrain_name, cfg.course, is_physx)
         )
         super().__init__(cfg, **kwargs)
         if cfg.terrain_name == "granular" and is_physx:
@@ -73,7 +73,7 @@ class G1TerrainEnv(ManagerBasedRLEnv):
 
         from isaaclab.sim import bind_visual_material  # noqa: PLC0415
 
-        from .terrain import separate_ramp_base  # noqa: PLC0415
+        from .fixed_course import separate_ramp_base  # noqa: PLC0415
 
         omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
         import omni.replicator.core as rep  # noqa: PLC0415

@@ -16,7 +16,7 @@ import torch
 from isaaclab.utils.assets import retrieve_file_path
 
 if TYPE_CHECKING:
-    from ..terrain_env_cfg import DepthPolicyCfg
+    from ..fixed_course_env_cfg import DepthPolicyCfg
 
 
 class DepthStudentPolicy:

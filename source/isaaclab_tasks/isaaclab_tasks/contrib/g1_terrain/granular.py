@@ -26,7 +26,7 @@ from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerP
 from .sonic_parameters import DAMPING, JOINT_NAMES, STIFFNESS
 
 if TYPE_CHECKING:
-    from .terrain_env_cfg import CourseCfg
+    from .fixed_course_env_cfg import FixedCourseCfg
 
 
 class ParticleTerrainImporter(TerrainImporter):
@@ -128,7 +128,7 @@ def configure_granular(cfg, is_physx: bool):
     )
 
 
-def create_pbd_beds(stage, cfg: CourseCfg):
+def create_pbd_beds(stage, cfg: FixedCourseCfg):
     """Author rigid tray contacts and two native PhysX solid-particle layers."""
     from omni.physx.scripts import particleUtils, physicsUtils  # noqa: PLC0415
     from pxr import Sdf, UsdGeom, UsdShade, Vt

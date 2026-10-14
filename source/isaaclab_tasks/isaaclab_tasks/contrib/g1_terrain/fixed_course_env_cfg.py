@@ -114,7 +114,7 @@ class TerrainPhysicsCfg(PresetCfg):
 
 
 @configclass
-class CourseCfg:
+class FixedCourseCfg:
     """Surface appearance and static collision properties of the terrain courses."""
 
     ramp_angle_deg: float = 10.0
@@ -284,9 +284,9 @@ class EventsCfg:
 class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
     """Depth-based locomotion over uneven white platforms."""
 
-    class_type = "{DIR}.terrain_env:G1TerrainEnv"
+    class_type = "{DIR}.fixed_course_env:G1FixedCourseEnv"
     policy: DepthPolicyCfg = DepthPolicyCfg()
-    course: CourseCfg = CourseCfg()
+    course: FixedCourseCfg = FixedCourseCfg()
     robot_visual_materials = {
         "light": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.7, 0.7, 0.7), roughness=0.5),
         "dark": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.2), roughness=0.5),

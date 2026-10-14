@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Procedural geometry and materials for the G1 terrain courses."""
+"""Fixed platform, ramp, and granular courses reconstructed from real-world traversals."""
 
 from __future__ import annotations
 
@@ -20,9 +20,11 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.spawners.materials import spawn_physics_material
+from isaaclab.terrains.height_field.utils import convert_height_field_to_mesh
+from isaaclab.utils.mesh import convert_faces_to_triangles
 
 if TYPE_CHECKING:
-    from .terrain_env_cfg import CourseCfg
+    from .fixed_course_env_cfg import FixedCourseCfg
 
 
 def _apply_texture(stage: Usd.Stage, material_path: str, texture: Path) -> None:
@@ -43,7 +45,7 @@ def _apply_texture(stage: Usd.Stage, material_path: str, texture: Path) -> None:
     shader.GetInput("diffuseColor").ConnectToSource(tex.ConnectableAPI(), "rgb")
 
 
-def _mesh(name, vertices, faces, cfg: CourseCfg, material=None, physics=None, uv_scale=1.0):
+def _mesh(name, vertices, faces, cfg: FixedCourseCfg, material=None, physics=None, uv_scale=1.0):
     mesh_cfg = sim_utils.MeshFileCfg(
         mesh=sim_utils.MeshFileCfg.TriangleMeshCfg(vertices=vertices, faces=faces),
         collision_props=cfg.collision_props if physics else [sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
@@ -102,7 +104,7 @@ def _textures(directory):
     wood.save(directory / "wood.png")
 
 
-def _platforms_and_ramps(stage, directory, cfg: CourseCfg, extended_exit):
+def _platforms_and_ramps(stage, directory, cfg: FixedCourseCfg, extended_exit):
     materials = {}
     for name in ("white", "steel", "black", "wood", "wall", "floor", "gravel"):
         path = f"/Course/Looks/{name}"
@@ -123,33 +125,23 @@ def _platforms_and_ramps(stage, directory, cfg: CourseCfg, extended_exit):
     box("floor", (1.8, 1, -0.05), (18, 14, 0.1), "floor")
     box("wall", (xmin - 0.05, 1.5, 2.3), (0.10, 16, 4.6), "wall")
     box("wood_base", (1.8, 0, 0.42), (3.6, 1.6, 0.06), "black")
+    slope = math.tan(math.radians(cfg.ramp_angle_deg))
+    # Keep the face order fixed for depth rasterization and contact generation.
+    ramp_faces = ((0, 1, 2, 3), (4, 6, 5), (4, 7, 6), (0, 4, 5, 1), (1, 5, 6, 2), (2, 6, 7, 3), (3, 7, 4, 0))
+    ramp_triangles = convert_faces_to_triangles(
+        np.concatenate(ramp_faces), np.array([len(face) for face in ramp_faces])
+    )
     for i in range(6):
         for j in range(2):
             x0, y0 = i * 0.6, -0.8 + j * 0.8
             x1, y1 = x0 + 0.6, y0 + 0.8
-            sx = math.tan(math.radians(cfg.ramp_angle_deg)) * (1 if (i + j) % 3 else -1)
-            sy = math.tan(math.radians(cfg.ramp_angle_deg)) * (1 if j else -1) * (0.35 if i in (2, 3) else 0.0)
+            sx = slope * (1 if (i + j) % 3 else -1)
+            sy = slope * (1 if j else -1) * (0.35 if i in (2, 3) else 0.0)
             top = np.array([[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]], dtype=float)
             top[:, 2] = 0.45 + sx * (top[:, 0] - (x0 + x1) / 2) + sy * (top[:, 1] - (y0 + y1) / 2) + 0.053
             vertices = np.vstack([top, top.copy()])
             vertices[4:, 2] = 0.42
-            faces = np.array(
-                [
-                    [0, 1, 2],
-                    [0, 2, 3],
-                    [4, 6, 5],
-                    [4, 7, 6],
-                    [0, 4, 5],
-                    [0, 5, 1],
-                    [1, 5, 6],
-                    [1, 6, 2],
-                    [2, 6, 7],
-                    [2, 7, 3],
-                    [3, 7, 4],
-                    [3, 4, 0],
-                ]
-            )
-            _mesh(f"wood_{i}_{j}", vertices, faces, cfg, materials["wood"], physics, 0.6)
+            _mesh(f"wood_{i}_{j}", vertices, ramp_triangles, cfg, materials["wood"], physics, 0.6)
     for i, row in enumerate(cfg.platform_heights):
         for j, height in enumerate(row):
             x, y = (i + 0.5) * 0.6, 1.05 + (j + 0.5) * 0.5
@@ -210,44 +202,25 @@ def _container_mesh(top: float):
         np.array([-0.7, -0.6, 0.6, 0.7]),
         np.array([bottom - 0.1, bottom, top]),
     )
-    filled = {(i, j, k) for i, j, k in itertools.product(range(3), range(3), range(2)) if k == 0 or i != 1 or j != 1}
-    vertices, faces, ids = [], [], {}
-    for cell in sorted(filled):
-        for axis, side in itertools.product(range(3), (-1, 1)):
-            neighbor = list(cell)
-            neighbor[axis] += side
-            if tuple(neighbor) in filled:
-                continue
-            other = [a for a in range(3) if a != axis]
-            quad = []
-            for u, v in ((0, 0), (1, 0), (1, 1), (0, 1)):
-                index = list(cell)
-                index[axis] += int(side > 0)
-                index[other[0]] += u
-                index[other[1]] += v
-                index = tuple(index)
-                if index not in ids:
-                    ids[index] = len(vertices)
-                    vertices.append([axes[a][index[a]] for a in range(3)])
-                quad.append(ids[index])
-            a, b, c = np.asarray(vertices)[quad[:3]]
-            if np.cross(b - a, c - a)[axis] * side < 0:
-                quad.reverse()
-            faces.extend(((quad[0], quad[1], quad[2]), (quad[0], quad[2], quad[3])))
-    return np.asarray(vertices, dtype=np.float32), np.asarray(faces, dtype=np.int32)
+    cells = [(i, j, k) for i, j, k in itertools.product(range(3), range(3), range(2)) if k == 0 or i != 1 or j != 1]
+    mesh = trimesh.voxel.ops.multibox(cells)
+    occupied = set(cells)
+    neighbors = np.rint(mesh.triangles_center + 0.5 * mesh.face_normals).astype(int)
+    mesh.update_faces([tuple(neighbor) not in occupied for neighbor in neighbors])
+    mesh.remove_unreferenced_vertices()
+    # Map the exposed unit-cell corners to the tray's nonuniform wall and floor intervals.
+    corners = np.rint(mesh.vertices + 0.5).astype(int)
+    vertices = np.column_stack([axis[corners[:, i]] for i, axis in enumerate(axes)])
+    return vertices.astype(np.float32), mesh.faces
 
 
-def _granular(stage, directory, cfg: CourseCfg, is_physx):
+def _granular(stage, directory, cfg: FixedCourseCfg, is_physx):
     for name, start, end in (("approach", -1.5, 5.5), ("end", 11.5, 16.5)):
         x = np.round(np.arange(start, end + 0.025, 0.05), 6)
         y = np.round(np.arange(-4.0, 4.025, 0.05), 6)
-        xx, yy = np.meshgrid(x, y, indexing="ij")
-        zz = np.clip((xx - 1.0) / 2.5, 0, 1) * cfg.granular_top
-        vertices = np.stack((xx, yy, zz), -1).reshape(-1, 3)
-        i, j = np.meshgrid(np.arange(len(x) - 1), np.arange(len(y) - 1), indexing="ij")
-        a = (i * len(y) + j).ravel()
-        b, c, d = a + len(y), a + len(y) + 1, a + 1
-        faces = np.concatenate((np.stack((a, b, c), -1), np.stack((a, c, d), -1)))
+        heights = np.broadcast_to((np.clip((x - 1.0) / 2.5, 0, 1) * cfg.granular_top)[:, None], (len(x), len(y)))
+        vertices, faces = convert_height_field_to_mesh(heights, horizontal_scale=0.05, vertical_scale=1.0)
+        vertices[:, :2] = np.round(vertices[:, :2] + (start, -4.0), 6)
         material = f"/Course/Looks/{name}"
         material_cfg = cfg.visual_materials[name]
         material_cfg.func(material, material_cfg)
@@ -267,7 +240,7 @@ def _granular(stage, directory, cfg: CourseCfg, is_physx):
         create_pbd_beds(stage, cfg)
 
 
-def create_terrain(directory: Path, terrain_name: str, cfg: CourseCfg, is_physx: bool = False) -> Path:
+def create_fixed_course(directory: Path, terrain_name: str, cfg: FixedCourseCfg, is_physx: bool = False) -> Path:
     """Write a course and its procedural textures into the run's asset directory."""
     directory.mkdir(parents=True, exist_ok=True)
     _textures(directory)
