@@ -1,0 +1,17 @@
+SUPPLEMENT TO SOFTWARE LICENSE AGREEMENT FOR CERTAIN 3D ASSETS WITH LIMITED USE RIGHTS
+
+The terms in this supplement govern your use of certain NVIDIA Omniverse USD assets in the /Isaac/Environments (“Limited Use Content”). By installing or using the Limited Use Content, you affirm that you accept the terms of this supplement.
+
+Your use of the Limited Use Content is governed by terms of your NVIDIA Omniverse license agreement (“Agreement”), as amended by this supplement.
+
+1. The license grant for Limited Use Content is as follows:
+
+Subject to the terms of the Agreement and this supplement and payment of fees (where applicable), NVIDIA grants you a non-exclusive, non-transferable, non-sublicensable license to install and use copies of the Limited Use Content for your use only, without modifications, subject to the applicable limitations of your license (for example, your license type and duration.
+
+2. The license grant for Content as described in the Agreement does not apply to Limited Use Content.
+
+3. Except as amended above in this supplement, all terms in the Agreement that apply to Content shall apply to Limited Use Content.
+
+This supplement is an exhibit to the Agreement and is incorporated as an integral part of the Agreement. In the event of conflict between the terms in this supplement and the terms in the Agreement, the terms in this supplement govern with respect to Limited Use Content.
+
+(v. November 18, 2021)
