@@ -41,17 +41,11 @@ from isaaclab_assets.robots.microduck import (
 from . import mdp
 
 MICRODUCK_FOOT_BODY_NAMES = ["ankle_left", "ankle_right"]
-MICRODUCK_TRUNK_BODY_NAME = "trunk_base"
-MICRODUCK_HEAD_BODY_NAMES = ["neck", "neck_pitch(_[0-9]+)?", "yaw_roll_motion", "jaw_soft"]
 _SERVO_JOINT_CFG = SceneEntityCfg("robot", joint_names=MICRODUCK_JOINT_NAMES, preserve_order=True)
-_LEG_JOINT_CFG = SceneEntityCfg("robot", joint_names=MICRODUCK_LEG_JOINT_NAMES, preserve_order=True)
 _HEAD_JOINT_CFG = SceneEntityCfg("robot", joint_names=MICRODUCK_HEAD_JOINT_NAMES, preserve_order=True)
-_TRUNK_BODY_CFG = SceneEntityCfg("robot", body_names=[MICRODUCK_TRUNK_BODY_NAME])
-_HEAD_BODY_CFG = SceneEntityCfg("robot", body_names=MICRODUCK_HEAD_BODY_NAMES)
+_TRUNK_BODY_CFG = SceneEntityCfg("robot", body_names=["trunk_base"])
 _FOOT_SENSOR_CFG = SceneEntityCfg("contact_forces", body_names=MICRODUCK_FOOT_BODY_NAMES, preserve_order=True)
 _FOOT_BODY_CFG = SceneEntityCfg("robot", body_names=MICRODUCK_FOOT_BODY_NAMES, preserve_order=True)
-_FOOT_MATERIAL_CFG = SceneEntityCfg("robot", body_names=MICRODUCK_FOOT_BODY_NAMES)
-_SELF_COLLISION_SENSOR_CFG = SceneEntityCfg("self_collision")
 _PLAY_JOINT_CFG = SceneEntityCfg(
     "robot", joint_names=[f"passive_{name}_backlash" for name in MICRODUCK_JOINT_NAMES], preserve_order=True
 )
@@ -61,7 +55,6 @@ _HEAD_PLAY_JOINT_CFG = SceneEntityCfg(
 MICRODUCK_SOLE_TO_ANKLE_OFFSET = 0.0225
 """Standing ankle-frame height above the sole [m]."""
 MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
-_FOOT_SWING_HEIGHT_WEIGHT = -0.25 * (MICRODUCK_FOOT_TARGET_HEIGHT / 0.02) ** 2
 MICRODUCK_STEPS_PER_ITERATION = 24
 
 
@@ -221,7 +214,7 @@ class EventsCfg:
         func=mdp.randomize_rigid_body_material,
         mode="startup",
         params={
-            "asset_cfg": _FOOT_MATERIAL_CFG,
+            "asset_cfg": SceneEntityCfg("robot", body_names=MICRODUCK_FOOT_BODY_NAMES),
             "static_friction_range": (0.7, 1.3),
             "dynamic_friction_range": (0.7, 1.3),
             "restitution_range": (0.0, 0.0),
@@ -264,7 +257,9 @@ class EventsCfg:
         func=mdp.randomize_rigid_body_com,
         mode="reset",
         params={
-            "asset_cfg": _HEAD_BODY_CFG,
+            "asset_cfg": SceneEntityCfg(
+                "robot", body_names=["neck", "neck_pitch(_[0-9]+)?", "yaw_roll_motion", "jaw_soft"]
+            ),
             "com_range": {"x": (-0.003, 0.003), "y": (-0.003, 0.003), "z": (-0.003, 0.003)},
         },
     )
@@ -307,7 +302,7 @@ class RewardsCfg:
             "std_standing": {".*hip_yaw": 0.1, ".*hip_roll": 0.05, ".*hip_pitch": 0.15, ".*knee": 0.15, ".*ankle": 0.1},
             "std_walking": {".*hip_yaw": 0.3, ".*hip_roll": 0.05, ".*hip_pitch": 0.4, ".*knee": 0.4, ".*ankle": 0.25},
             "walking_threshold": 0.01,
-            "asset_cfg": _LEG_JOINT_CFG,
+            "asset_cfg": SceneEntityCfg("robot", joint_names=MICRODUCK_LEG_JOINT_NAMES, preserve_order=True),
         },
     )
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
@@ -340,7 +335,7 @@ class RewardsCfg:
     )
     foot_swing_height = RewTerm(
         func=mdp.foot_swing_height,
-        weight=_FOOT_SWING_HEIGHT_WEIGHT,
+        weight=-0.25 * (MICRODUCK_FOOT_TARGET_HEIGHT / 0.02) ** 2,
         params={
             "sensor_cfg": _FOOT_SENSOR_CFG,
             "asset_cfg": _FOOT_BODY_CFG,
@@ -360,7 +355,7 @@ class RewardsCfg:
         },
     )
     self_collisions = RewTerm(
-        func=mdp.self_collision_cost, weight=-1.0, params={"sensor_cfg": _SELF_COLLISION_SENSOR_CFG}
+        func=mdp.self_collision_cost, weight=-1.0, params={"sensor_cfg": SceneEntityCfg("self_collision")}
     )
     head_pose_tracking = _backlash_preset(
         RewTerm(
@@ -403,11 +398,6 @@ def _schedule(address: str, *stages: tuple[int, object]) -> CurrTerm:
     )
 
 
-def _com_range(half_width: float) -> dict[str, tuple[float, float]]:
-    """Symmetric per-axis center-of-mass offset range [m]."""
-    return {axis: (-half_width, half_width) for axis in ("x", "y", "z")}
-
-
 @configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
@@ -428,12 +418,14 @@ class CurriculumCfg:
     )
     com_range = _schedule(
         "events.randomize_com.params.com_range",
-        (500, _com_range(0.005)),
-        (1000, _com_range(0.01)),
-        (1500, _com_range(0.015)),
+        (500, {axis: (-0.005, 0.005) for axis in "xyz"}),
+        (1000, {axis: (-0.01, 0.01) for axis in "xyz"}),
+        (1500, {axis: (-0.015, 0.015) for axis in "xyz"}),
     )
     head_com_range = _schedule(
-        "events.randomize_head_com.params.com_range", (500, _com_range(0.005)), (1000, _com_range(0.01))
+        "events.randomize_head_com.params.com_range",
+        (500, {axis: (-0.005, 0.005) for axis in "xyz"}),
+        (1000, {axis: (-0.01, 0.01) for axis in "xyz"}),
     )
 
 

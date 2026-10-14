@@ -42,10 +42,8 @@ POLICY_TERMS = [
 """Actor input order of the deployed ONNX policy."""
 
 
-def _make_env(task: str, device: str, num_envs: int, overrides: tuple[str, ...] = (), cfg_hook=None):
+def _make_env(task: str, device: str, num_envs: int, overrides: tuple[str, ...] = ()):
     cfg = parse_env_cfg(task, device=device, num_envs=num_envs, overrides=overrides)
-    if cfg_hook is not None:
-        cfg_hook(cfg)
     sim_utils.create_new_stage()
     return gym.make(task, cfg=cfg).unwrapped
 
@@ -128,19 +126,19 @@ def test_microduck_foot_height_on_steps():
     torch.testing.assert_close(foot_height_safe(env, **params), torch.tensor([[0.0, 0.07]]))
 
 
-def _small_terrain(cfg):
-    generator = cfg.scene.terrain.terrain_generator
-    generator.num_rows, generator.num_cols, generator.seed = 2, 4, 42
-    for sub_terrain in generator.sub_terrains.values():
-        sub_terrain.proportion = 0.25
-
-
 @pytest.mark.integration
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_microduck_rough_terrain_contact_and_foot_rays(device):
     """The terrain carries upstream's contact response, and foot rays see the ground under each foot."""
-    env = _make_env(ROUGH_TASK, device, num_envs=8, cfg_hook=_small_terrain)
+    cfg = parse_env_cfg(ROUGH_TASK, device=device, num_envs=8)
+    # A two-row map with one column per sub-terrain.
+    generator = cfg.scene.terrain.terrain_generator
+    generator.num_rows, generator.num_cols, generator.seed = 2, 4, 42
+    for sub_terrain in generator.sub_terrains.values():
+        sub_terrain.proportion = 0.25
+    sim_utils.create_new_stage()
+    env = gym.make(ROUGH_TASK, cfg=cfg).unwrapped
     try:
         env.reset()
         mesh = sim_utils.get_current_stage().GetPrimAtPath("/World/ground/terrain/mesh")
