@@ -11,9 +11,9 @@ sequence. The managed dependencies include the Newton hydroelastic contact corre
 
 .. code-block:: bash
 
-    uv run isaaclab example gb300-sharpa-insertion
-    uv run --extra isaacsim --extra video isaaclab example gb300-sharpa-insertion --viz kit --video
-    uv run isaaclab example gb300-sharpa-insertion --viz none
+    uv run isaaclab example sharpa-rj45
+    uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
+    uv run isaaclab example sharpa-rj45 --viz none
 
 """
 
@@ -79,7 +79,7 @@ def main() -> int:
     parser.add_argument(
         "--failure_tail_s", type=float, default=0.0, help="Simulate with held targets after a fault [s]."
     )
-    parser.add_argument("--output_dir", type=Path, default=Path("logs/demos/gb300_sharpa_insertion"))
+    parser.add_argument("--output_dir", type=Path, default=Path("logs/demos/sharpa_rj45"))
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton_gl"])
     args = parser.parse_args()

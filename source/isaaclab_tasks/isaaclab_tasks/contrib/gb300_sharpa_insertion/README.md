@@ -1,4 +1,4 @@
-# GB300 RJ45 insertion and extraction
+# Sharpa RJ45
 
 Non-RL manager-based environment with a Rizon 4s / Sharpa hand, two sockets,
 a spring-clip connector and a VBD cable. One end is fixed; the loose end starts
@@ -8,8 +8,8 @@ The checked-in scene is the minimal physical workcell. The full GB300 facility
 and cinematic overlays remain separate local presentation tooling.
 
 ```bash
-uv run isaaclab example gb300-sharpa-insertion
-uv run --extra isaacsim --extra video isaaclab example gb300-sharpa-insertion --viz kit --video
+uv run isaaclab example sharpa-rj45
+uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
 ```
 
 The example supplies absolute palm/finger targets through Isaac Lab's Newton IK

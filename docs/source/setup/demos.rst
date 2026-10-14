@@ -17,9 +17,6 @@ focused programs for learning an API or tuning a feature in directories such as 
 ``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
 ``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
 
-Run ``uv run isaaclab example gb300-sharpa-insertion`` from a checkout for the continuous cable insertion
-and extraction example using a non-RL manager-based environment. Record it with ``--video``.
-
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
 
@@ -165,3 +162,25 @@ Focused examples
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
       and `wider-side grasp and pull
       <https://github.com/user-attachments/assets/27ac0365-e862-4d60-bd85-51f585a580d5>`__.
+
+   .. grid-item-card:: Sharpa RJ45
+
+      .. _sharpa-rj45-example:
+
+      .. figure:: ../_static/examples/sharpa_rj45.jpg
+         :width: 100%
+         :alt: A SHARPA hand holding a green RJ45 connector at a GB300 switch port.
+
+         Kit preview with optional GB300 rack visuals.
+
+      A scripted Rizon 4s and SHARPA hand insert, release, regrasp and extract an
+      RJ45 connector in one continuous simulation. The non-RL manager-based
+      example uses native hydroelastic hand contact, a spring clip and a VBD cable.
+
+      .. code-block:: bash
+
+         uvx isaaclab example sharpa-rj45
+
+      From a checkout, use ``uv run isaaclab example sharpa-rj45``.
+      Requires the external Rizon/SHARPA robot asset bundle; see the
+      :download:`asset and recording setup <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/gb300_sharpa_insertion/README.md>`.
