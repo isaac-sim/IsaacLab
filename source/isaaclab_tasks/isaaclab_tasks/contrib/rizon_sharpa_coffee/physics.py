@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
@@ -94,7 +93,7 @@ class CoffeeMPMSolver(SolverImplicitMPM):
 
 
 class NewtonCoffeeCouplerManager(NewtonCouplerManager):
-    """Use independent stepping for a mount, or native proxy coupling for a grasp.
+    """Advance the robot and material independently around the measured tool mount.
 
     The task explicitly updates its kinematic spoon from the measured palm.
     Newton's proxy solver steps only connected proxy groups, so an empty proxy
@@ -159,28 +158,6 @@ def configure_spoon_rim_margin(solver: CoffeeMPMSolver, scale: float) -> None:
     collider.face_material_index.assign(face_material)
     for name, values in properties.items():
         setattr(collider, name, wp.array(values, dtype=float, device=model.device))
-
-
-def configure_grasp_contacts(builder: newton.ModelBuilder, shape_ids: Iterable[int]) -> None:
-    """Resolve the small-tool contact profile during scene construction.
-
-    The default 100 mm search gap is inappropriate for a millimetre-scale
-    pinch. Six-dimensional friction represents a finite fingertip contact
-    patch; these coefficients are simulation parameters, not hardware calibration.
-    """
-    for shape_id in shape_ids:
-        if not builder.shape_flags[shape_id] & newton.ShapeFlags.COLLIDE_SHAPES:
-            continue
-        builder.shape_gap[shape_id] = 0.0005
-        builder.shape_material_mu_torsional[shape_id] = 0.005
-        builder.shape_material_mu_rolling[shape_id] = 0.005
-        for name, value in (
-            ("condim", 6),
-            ("solref_mode", 1),  # Newton's raw MuJoCo solref interpretation.
-            ("solref", (0.002, 1.0)),
-            ("geom_solimp", (0.95, 0.99, 0.001, 0.5, 2.0)),
-        ):
-            builder.custom_attributes[f"mujoco:{name}"].values[shape_id] = value
 
 
 @wp.kernel

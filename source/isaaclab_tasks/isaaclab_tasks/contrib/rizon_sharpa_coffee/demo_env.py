@@ -28,7 +28,7 @@ from .assets import (
 )
 from .attachment import MountedSpoonAttachment
 from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
-from .physics import CoffeeMPMSolver, configure_grasp_contacts, configure_spoon_rim_margin
+from .physics import CoffeeMPMSolver, configure_spoon_rim_margin
 from .robot import PALM_BODY_NAME
 
 
@@ -64,10 +64,9 @@ class PalmPoseIKAction(DifferentialInverseKinematicsAction):
 class CoffeeDemoEnv(ManagerBasedEnv):
     """Control an already-held spoon using absolute palm and finger targets.
 
-    MJWarp advances the arm and hand; implicit MPM advances the material. Mounted
-    mode makes the spoon follow the palm. Contact mode instead gives the free
-    spoon to MJWarp and couples MPM reaction impulses back through a proxy.
-    Both modes start with an already-held spoon; acquisition is a separate task.
+    MJWarp advances the arm and hand; implicit MPM advances the material. A
+    kinematic mount makes the spoon follow the measured palm. Physical grasp
+    acquisition and retention are separate tasks.
     """
 
     cfg: CoffeeDemoEnvCfg
@@ -89,10 +88,9 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         self._tool_quaternion = torch.tensor(self.cfg.spoon_offset_rot, device=self.device).expand(self.num_envs, -1)
         self._cup_position = torch.tensor(CUP_POSITION, device=self.device)
         self.sync_spoon()
-        if self.cfg.grasp_mode == "mounted":
-            self._attachment = MountedSpoonAttachment(
-                robot, self.scene["spoon"], self.cfg.spoon_offset_pos, self.cfg.spoon_offset_rot
-            )
+        self._attachment = MountedSpoonAttachment(
+            robot, self.scene["spoon"], self.cfg.spoon_offset_pos, self.cfg.spoon_offset_rot
+        )
         (solver,) = (
             solver for solver in NewtonMPMManager._implicit_mpm_solvers() if isinstance(solver, CoffeeMPMSolver)
         )
@@ -139,13 +137,8 @@ class CoffeeDemoEnv(ManagerBasedEnv):
                 newton.ShapeFlags.COLLIDE_SHAPES | newton.ShapeFlags.COLLIDE_PARTICLES
             ):
                 builder.shape_flags[index] |= int(newton.ShapeFlags.COLLIDE_PARTICLES)
-                if self.cfg.grasp_mode != "contact" or "/Spoon/" not in str(label):
-                    builder.shape_flags[index] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
+                builder.shape_flags[index] &= ~int(newton.ShapeFlags.COLLIDE_SHAPES)
                 builder.shape_margin[index] = self._spoon_margin if "/Spoon/" in str(label) else self._margin
-        if self.cfg.grasp_mode == "contact":
-            configure_grasp_contacts(
-                builder, (index for index, label in enumerate(builder.shape_label) if str(label).startswith(prefix))
-            )
 
     def palm_pose(self) -> torch.Tensor:
         """Measured palm pose relative to the robot root, shape (N, 7), XYZW."""
@@ -200,14 +193,7 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         robot = self.scene["robot"]
         q = robot.data.default_joint_pos.torch[env_ids].clone()
         robot.write_joint_state_to_sim_index(position=q, velocity=torch.zeros_like(q), env_ids=env_ids)
-        targets = q.clone()
-        if self.cfg.grasp_reset_joint_targets is not None:
-            names = list(self.cfg.grasp_reset_joint_targets)
-            joint_ids, _ = robot.find_joints(names, preserve_order=True)
-            targets[:, joint_ids] = torch.tensor(
-                [self.cfg.grasp_reset_joint_targets[name] for name in names], device=self.device
-            )
-        robot.actuators.target_command.set_position_index(value=targets, env_ids=env_ids)
+        robot.actuators.target_command.set_position_index(value=q.clone(), env_ids=env_ids)
         self.sync_spoon(env_ids)
         mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
         mask[: self.num_envs][env_ids] = True

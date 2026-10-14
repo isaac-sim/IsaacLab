@@ -28,7 +28,7 @@ from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
 from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
 from .robot import (
@@ -38,7 +38,6 @@ from .robot import (
     HAND_JOINT_LIMITS,
     HAND_JOINT_NAMES,
     PALM_BODY_NAME,
-    configure_grasp_reset,
 )
 
 
@@ -53,51 +52,6 @@ class CoffeeMPMSolverCfg(MPMSolverCfg):
     """Pressure budget; ``None`` selects the final wet or dry task profile."""
     grains_per_particle: int = 0
     """Number of visual samples per physical particle; zero disables their allocation."""
-
-
-def make_grasp_solver_cfg() -> MJWarpSolverCfg:
-    """Rigid solver profile for the contact-held spoon."""
-    return MJWarpSolverCfg(
-        use_mujoco_contacts=True,
-        integrator="implicitfast",
-        cone="elliptic",
-        impratio=20.0,
-        enable_multiccd=True,
-        iterations=100,
-        ls_iterations=30,
-        njmax=512,
-        nconmax=128,
-    )
-
-
-def configure_contact_grasp(physics: NewtonCfg, *, rigid_substeps: int = 2, mass_scale: float = 20.0) -> None:
-    """Give the free spoon to MJWarp and return MPM reaction impulses to it.
-
-    Args:
-        physics: Task coupling configuration, modified before model creation.
-        rigid_substeps: Rigid integration steps per coupling tick.
-        mass_scale: Finite MPM proxy inertia multiplier; the rigid mass is unchanged.
-    """
-    coupler = physics.solver_cfg
-    rigid, media = coupler.entries
-    rigid.solver_cfg = make_grasp_solver_cfg()
-    rigid.bodies = [r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Spoon"]
-    rigid.substeps = rigid_substeps
-    media.bodies = []
-    coupler.proxies = [
-        CouplerProxyMappingCfg(
-            source="robot",
-            destination="media",
-            bodies=[r"/World/envs/env_.*/Spoon"],
-            # MPM's free-spoon inertia omits support from the finger contacts.
-            # A finite virtual inertia prevents the particle solve from yielding
-            # through the held tool. The source spoon remains 25 g and receives
-            # the reaction impulses; opening the hand still releases it.
-            mass_scale=mass_scale,
-            mode="staggered",
-            collision_pipeline=None,
-        )
-    ]
 
 
 def make_physics_cfg(voxel_size: float) -> NewtonCfg:
@@ -231,16 +185,10 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
     """Spoon collision expansion in grid cells, separate from the container margins."""
     spoon_rim_margin_scale: float = 0.0
     """Rim margin relative to the broad faces; zero keeps the lip at the actual mesh."""
-    spoon_proxy_mass_scale: float = 20.0
-    """Finite inertia multiplier for the contact-held spoon's MPM proxy."""
     water_enabled: bool = False
     coffee_wetting_time: float = 0.02
     """Accumulated contact with water before soluble coffee becomes liquid [s]."""
     grains_per_particle: int = 0
-    grasp_reset_path: str | None = None
-    grasp_reset_joint_targets: dict[str, float] | None = None
-    grasp_mode: Literal["mounted", "contact"] = "mounted"
-    """Use a kinematic tool mount or a free spoon held by rigid finger contacts."""
     coffee_fill_height: float = 0.065
     water_fill_height: float = 0.075
     """Initial water seed height [m]; gravity spreads the fill to a lower free surface."""
@@ -267,24 +215,13 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("spoon_margin_voxels must be finite and nonnegative.")
     if not math.isfinite(cfg.spoon_rim_margin_scale) or not 0.0 <= cfg.spoon_rim_margin_scale <= 1.0:
         raise ValueError("spoon_rim_margin_scale must be between zero and one.")
-    if not math.isfinite(cfg.spoon_proxy_mass_scale) or cfg.spoon_proxy_mass_scale <= 0.0:
-        raise ValueError("spoon_proxy_mass_scale must be finite and positive.")
     if not 0.009 <= cfg.coffee_fill_height <= 0.075:
         raise ValueError("coffee_fill_height must be between 9 and 75 mm.")
     if not 0.012 <= cfg.water_fill_height <= 0.079:
         raise ValueError("water_fill_height must be between 12 and 79 mm.")
     if not 0.0 < cfg.min_delivered_fraction <= 1.0:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
-    cfg.scene.robot = get_robot_cfg(contact_grasp=cfg.grasp_mode == "contact")
-    if cfg.grasp_mode not in ("mounted", "contact"):
-        raise ValueError("grasp_mode must be 'mounted' or 'contact'.")
-    if cfg.grasp_mode == "contact":
-        configure_contact_grasp(
-            cfg.sim.physics,
-            rigid_substeps=max(1, round(1600.0 * cfg.sim.dt)),
-            mass_scale=cfg.spoon_proxy_mass_scale,
-        )
-    configure_grasp_reset(cfg)
+    cfg.scene.robot = get_robot_cfg()
     cfg.scene.table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/table.usda"),
@@ -304,7 +241,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         prim_path="{ENV_REGEX_NS}/Spoon",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{COFFEE_ASSET_DIR}/spoon.usda",
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=cfg.grasp_mode == "mounted"),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, -0.12, 0.15)),
     )

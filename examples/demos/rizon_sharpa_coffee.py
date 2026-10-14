@@ -103,7 +103,7 @@ def _parse_args():
         type=int,
         choices=(100, 120, 200, 400, 800),
         default=None,
-        help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm mounted scripts, otherwise 800 Hz.",
+        help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm scripts, otherwise 800 Hz.",
     )
     parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 3, 5, 10, 20, 64, 128), default=5)
     parser.add_argument("--render_samples", type=int, default=4)
@@ -120,17 +120,13 @@ def _parse_args():
     parser.add_argument(
         "--keep_open", action="store_true", help="Keep the desktop viewer open after the scripted cycle."
     )
-    parser.add_argument("--grasp_reset", type=str, default=None, help="Load an authored, named-joint grasp reset JSON.")
-    parser.add_argument("--grasp_mode", choices=("mounted", "contact"), default="mounted")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=960)
     add_launcher_args(parser)
     parser.set_defaults(visualizer=None)
     args = parser.parse_args()
     if args.physics_hz is None:
-        fast_script = args.grasp_mode == "mounted" and (
-            (not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003)
-        )
+        fast_script = (not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003)
         args.physics_hz = 400 if fast_script else 800
     args.control_hz = 60 if args.physics_hz == 120 else 100
     if args.video_fps is None:
@@ -141,8 +137,6 @@ def _parse_args():
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
     if any(name not in ("newton_gl", "newton_rtx", "kit") for name in args.visualizer):
         parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
-    if args.grasp_mode == "contact" and args.physics_hz == 120:
-        parser.error("120 Hz physics currently supports mounted tools; contact grasping uses a 1600 Hz solver.")
     if args.keep_open and args.headless:
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
@@ -162,8 +156,6 @@ def _make_env_cfg(args, video_stride):
     # The robot and material keep independent integration rates.
     rigid_hz = 840 if args.physics_hz == 120 else 800
     cfg.sim.physics.solver_cfg.entries[0].substeps = rigid_hz // args.physics_hz
-    cfg.grasp_reset_path = args.grasp_reset
-    cfg.grasp_mode = args.grasp_mode
     cfg.sim.physics.use_cuda_graph = not args.disable_cuda_graph
     media = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
     if not args.water and cfg.voxel_size == 0.002:

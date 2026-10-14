@@ -15,7 +15,7 @@ import torch
 from isaaclab.utils import math as math_utils
 
 from .assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION, SPOON_BOWL_WIDTH
-from .robot import configured_hand_targets
+from .robot import HAND_HOLD_POSITIONS
 
 if TYPE_CHECKING:
     from .demo_env import CoffeeDemoEnv
@@ -26,8 +26,7 @@ class CoffeeScoopDemo:
 
     Waypoints describe the spoon cavity in the environment frame. Each command
     is converted through the measured robot root and palm/tool transform, so IK
-    controls the physical arm. Contact mode measures the tool offset each step
-    to compensate for compliance; mounted mode uses its configured rigid offset.
+    controls the physical arm through its configured rigid tool offset.
     Phase transitions require both elapsed motion time and measured arrival.
     """
 
@@ -35,7 +34,7 @@ class CoffeeScoopDemo:
         self._env = env
         self._offset_pos = torch.tensor(env.cfg.spoon_offset_pos, device=env.device).expand(env.num_envs, -1)
         self._offset_quat = torch.tensor(env.cfg.spoon_offset_rot, device=env.device).expand(env.num_envs, -1)
-        self._hand = torch.tensor(configured_hand_targets(env.cfg), device=env.device).expand(env.num_envs, -1)
+        self._hand = torch.tensor(HAND_HOLD_POSITIONS, device=env.device).expand(env.num_envs, -1)
         self._phases: list[tuple[str, float, torch.Tensor, float]] = []
         self.reset()
 
@@ -159,8 +158,7 @@ class CoffeeScoopDemo:
 
         Raises:
             RuntimeError: The real spoon fails to reach a phase endpoint within
-                six additional seconds, its state becomes invalid, or the
-                contact grasp exceeds the allowed slip/rotation bounds.
+                six additional seconds or its state becomes invalid.
         """
         actual = self._env.spoon_pose()
         if not torch.isfinite(actual).all():
@@ -224,23 +222,9 @@ class CoffeeScoopDemo:
     def _palm_action(self, spoon_pose: torch.Tensor) -> torch.Tensor:
         # T_world_palm = T_world_spoon * inverse(T_palm_spoon).
         robot = self._env.scene["robot"].data
-        offset_pos, offset_quat = self._offset_pos, self._offset_quat
-        if self._env.cfg.grasp_mode == "contact":
-            palm = robot.body_link_pose_w.torch[:, self._env._palm_id]
-            spoon = self._env.scene["spoon"].data.root_link_pose_w.torch
-            offset_pos, offset_quat = math_utils.subtract_frame_transforms(
-                palm[:, :3], palm[:, 3:], spoon[:, :3], spoon[:, 3:]
-            )
-            slip = torch.linalg.vector_norm(offset_pos - self._offset_pos, dim=-1)
-            rotation = math_utils.quat_error_magnitude(offset_quat, self._offset_quat)
-            if bool(((slip > 0.03) | (rotation > math.radians(35.0))).any()):
-                raise RuntimeError(
-                    f"Coffee demo lost its contact grasp: {float(slip.max()):.4f} m displacement, "
-                    f"{math.degrees(float(rotation.max())):.1f} deg rotation. Reset or refine the finger preload."
-                )
         spoon_pos_w = spoon_pose[:, :3] + self._env.scene.env_origins
-        palm_quat_w = math_utils.quat_mul(spoon_pose[:, 3:], math_utils.quat_inv(offset_quat))
-        palm_pos_w = spoon_pos_w - math_utils.quat_apply(palm_quat_w, offset_pos)
+        palm_quat_w = math_utils.quat_mul(spoon_pose[:, 3:], math_utils.quat_inv(self._offset_quat))
+        palm_pos_w = spoon_pos_w - math_utils.quat_apply(palm_quat_w, self._offset_pos)
         pos_b, quat_b = math_utils.subtract_frame_transforms(
             robot.root_pos_w.torch, robot.root_quat_w.torch, palm_pos_w, palm_quat_w
         )

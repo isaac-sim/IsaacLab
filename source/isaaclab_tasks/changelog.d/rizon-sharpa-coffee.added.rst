@@ -1,17 +1,6 @@
-* Added reusable non-learning scene helpers for a Rizon-Sharpa coffee IK demo
-  with coupled Newton MPM/MJWarp, external tableware, absolute palm and finger
-  controls, and per-world resets. The licensed robot bundle remains external.
-* Added a single-scoop scripted IK controller, physical soluble-coffee conversion,
-  and experimental contact grasping.
-* Added optional GL, RTX and Kit presentation with native grains, conservative
-  colour transport, a filtered liquid surface and a render-only kitchen.
-  The runner uses Isaac Lab's existing video recorder and a 4 mm grid.
-* Loaded the complete companion asset bundle from the Isaac Lab environment library,
-  including the prepared robot, contact reset and self-contained kitchen presentation.
-* Kept converted-mass reporting on the device and native RTX appearance state
-  with its viewer, and reused shared MPM solver preparation.
-* Shared the full render-only kitchen and lighting between Kit and Newton RTX,
-  retaining Newton GL's tabletop scene. Reused native bounded liquid-surface
-  buffers and spatial smoothing alongside captured physics.
-* Shared the authored refracting water material between Kit and Newton RTX,
-  using local coffee colour for optical absorption.
+* Added a non-learning Rizon-Sharpa coffee IK demo with coupled Newton MPM/MJWarp,
+  a mounted spoon, a single scoop/pour/stir controller and per-world resets.
+* Added physical soluble-coffee conversion, conservative colour transport and
+  native grains and bounded liquid surfaces, including refracting water for RTX.
+* Loaded a self-contained hosted asset bundle and a render-only kitchen shared
+  by Kit and Newton RTX; retained Newton GL's tabletop scene and the native recorder.

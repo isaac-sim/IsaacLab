@@ -26,7 +26,7 @@ policy registration.
 | Files | Responsibility |
 | --- | --- |
 | `demo_env_cfg.py`, `demo_env.py` | Scene, solver/render configuration, IK actions and resets |
-| `assets.py`, `robot.py` | Asset dimensions, robot joint contract and authored grasp resets |
+| `assets.py`, `robot.py` | Asset dimensions, robot joint contract and measured reset pose |
 | `physics.py`, `dissolution.py`, `attachment.py` | Coupled physics, soluble coffee and tool mounting |
 | `scripted.py` | Scoop, pour and stir state machine |
 | `rendering.py` | Shared grain, colour and native liquid-surface state for Newton viewers |
@@ -58,7 +58,7 @@ The fixed bowl, cup, spoon, table and prepared kitchen are supplied at
 `{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaCoffee`. The bundle includes
 `walnut.png`, `CoffeeWater.mdl`, `kitchen.usda`, the collected kitchen geometry,
 materials and textures in `Kitchen/`, the prepared robot in `Robot/`, licenses
-and checksum manifests, and `contact_grasp.json` for the optional contact reset.
+and checksum manifests.
 Props are authored in metres with Z up; their default
 prim is `/Asset`. The exact concave spoon triangles and material groups are
 required for MPM contact. Assets load without runtime generation.
@@ -94,11 +94,9 @@ not generate or modify the kitchen asset at runtime.
 
 ## Control and recording
 
-The supported default mounts the spoon to the measured palm pose. The optional
-`--grasp_mode contact` uses a free spoon, authored finger preload and Newton
-proxy coupling; complete contact-mode manipulation remains experimental.
-`--grasp_reset` accepts a local or hosted named-joint reset JSON; reset-authoring tools are not
-part of this demo.
+The spoon follows the measured palm through a kinematic mount, with the tool
+offset configured in `CoffeeDemoEnvCfg`. Physical grasp acquisition and
+retention are separate tasks.
 
 The controller commands a 29-value action: robot-base palm XYZ, XYZW quaternion,
 then 22 finger angles in the named order declared by `robot.py`. IK uses Isaac
@@ -106,8 +104,16 @@ Lab's differential IK action and DLS controller. Finger commands use its normal
 joint-position action. Scripted waypoints enter steeply, flatten inside the
 coffee, lift, pour and optionally stir. The camera follows smoothly.
 
-`--video` uses Isaac Lab's `VideoRecorderCfg`; install the `video` extra. The
-selected visualizer supplies the camera and resolution, including headless
+`--video` uses Isaac Lab's `VideoRecorderCfg` and defaults to Newton RTX.
+Install the recording and renderer extras for the selected viewer:
+
+```bash
+uv run --extra ovrtx --extra video isaaclab demo rizon-sharpa-coffee --water --video
+uv run --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer newton_gl
+uv run --extra isaacsim --extra video isaaclab demo rizon-sharpa-coffee --water --video --visualizer kit
+```
+
+The selected visualizer supplies the camera and resolution, including headless
 capture. `--video_fps` controls cadence and `--output_dir` selects the destination
 (default `logs/coffee_video`). Clips are named `coffee_0000.mp4`, incrementing
 on later runs. The native recorder buffers frames until encoding, so long or
