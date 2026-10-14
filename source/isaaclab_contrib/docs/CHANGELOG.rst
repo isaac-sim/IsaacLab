@@ -3,6 +3,18 @@ Changelog
 
 .. towncrier release notes start
 
+3.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed and adaptive relaxation settings to
+  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` for stabilizing
+  lagged and staggered two-way proxy feedback and expressing one-way coupling
+  with zero relaxation from an initial state.
+
+
 3.1.1 (2026-10-01)
 ~~~~~~~~~~~~~~~~~~
 

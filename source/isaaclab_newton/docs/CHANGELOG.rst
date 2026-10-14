@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+9.1.4 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton frame views returning cloned frames in prototype-group order instead of environment order,
+  keeping poses, indexed writes, scales, and renderer destinations aligned for interleaved world prototypes.
+
+
 9.1.3 (2026-10-13)
 ~~~~~~~~~~~~~~~~~~
 
