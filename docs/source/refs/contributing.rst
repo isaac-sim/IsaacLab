@@ -156,7 +156,7 @@ complete site locally, serve ``docs/_build`` over HTTP:
    uv run --no-project python -m http.server 8000 --directory docs/_build
 
 Open ``http://localhost:8000/current/index.html`` for the docs or
-``http://localhost:8000/demos/v4/`` for the demos. Downloaded ``docs-html`` artifacts include
+``http://localhost:8000/demos/v5/`` for the demos. Downloaded ``docs-html`` artifacts include
 ``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
 The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
 
