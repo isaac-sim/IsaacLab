@@ -15,10 +15,8 @@ import numpy as np
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.shapes.shapes import spawn_cable
 from isaaclab.sim.utils import clone
 from isaaclab.utils import configclass
-from isaaclab.utils.mesh import convert_faces_to_triangles
 
 if TYPE_CHECKING:
     import newton
@@ -115,6 +113,8 @@ def _connector_closed_mesh(name: str) -> newton.Mesh:
     import newton
     import trimesh
 
+    from isaaclab.utils.mesh import convert_faces_to_triangles
+
     from .assets import connector_render_parts
 
     part = next(part for part in connector_render_parts(CONNECTOR_SPAN_M) if part.name == name)
@@ -202,6 +202,8 @@ def spawn_patch_cable(
 ) -> Usd.Prim:
     """Spawn a native cable, two connector housings, and an independently moving clip."""
     from pxr import Gf, UsdGeom, UsdPhysics, Vt
+
+    from isaaclab.sim.spawners.shapes.shapes import spawn_cable
 
     from .assets import LATCH_LIMIT_LOWER, LATCH_LIMIT_UPPER, LATCH_SPRING_KE, connector_render_parts
 
@@ -357,6 +359,8 @@ def add_connectors(
     ordinary contacts [N/m]; the spring clip and native VBD path are unchanged.
     """
     import newton
+
+    from isaaclab.utils.mesh import convert_faces_to_triangles
 
     from .assets import connector_render_parts
     from .workcell import add_rack_colliders

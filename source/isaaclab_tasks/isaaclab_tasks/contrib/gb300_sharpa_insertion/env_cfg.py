@@ -45,6 +45,8 @@ class GB300SharpaSceneCfg(InteractiveSceneCfg):
     """One pregrasped short cable, two physical sockets and the fixed-base robot."""
 
     robot = rizon_sharpa_articulation_cfg()
+    visual_scene: AssetBaseCfg | None = None
+    visual_racks: AssetBaseCfg | None = None
     ground = AssetBaseCfg(prim_path="/World/GroundPlane", spawn=sim_utils.GroundPlaneCfg())
     light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1500))
     task_light = AssetBaseCfg(
@@ -208,7 +210,9 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
         )
         configure_hydroelastic_physics(self.sim.physics)
         self.sim.physics.collision_cfg.contact_matching = "latest"
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.65, -1.5, 2.35), lookat=(0.6, 0.35, 1.9))
+        self.sim.default_visualizer_cfg = VisualizerCfg(
+            eye=(0.15, -0.35, 2.32), lookat=(0.50, 0.29, 2.075), focal_length=22.0
+        )
         # Millimeter-scale grasps do not need the default 10 mm search halo.
         self.scene.robot.spawn.collision_props = {
             "/.*": [NewtonCollisionCfg(contact_gap=0.001)],

@@ -4,11 +4,13 @@ Non-RL manager-based environment with a Rizon 4s / Sharpa hand, two sockets,
 a spring-clip connector and a VBD cable. One end is fixed; the loose end starts
 physically grasped. The example inserts, releases, regrasps, presses the clip and
 extracts in one continuous simulation.
-The checked-in scene is the minimal physical workcell. The full GB300 facility
-and cinematic overlays remain separate local presentation tooling.
+NewtonGL shows one full-detail GB300 rack. Kit and Newton RTX compose the full
+data-center USD and eight foreground racks through USD-only scene cloning;
+this scenery adds no physics bodies or colliders. Cinematic overlays remain local.
 
 ```bash
 uv run isaaclab example sharpa-rj45
+uv run --extra ovrtx isaaclab example sharpa-rj45 --viz newton_rtx
 uv run --extra isaacsim --extra video isaaclab example sharpa-rj45 --viz kit --video
 ```
 
@@ -21,6 +23,10 @@ There are no rewards, training presets, policy checkpoints or automatic episode 
 
 ## Requirements
 
+- Visuals: published `Environments/RizonSharpaRJ45` asset bundle. Set
+  `ISAACLAB_SHARPA_RJ45_VISUAL_ROOT` to an alternate bundle root.
+  The current staging bundle is on authenticated `isaac-dev` and still needs
+  approved publication on the standard Isaac Lab asset server before merging.
 - Robot: pinned Fabrics-Sim USD and textures; set
   `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`. Revision and bundle checks are in `assets.py`.
   This access-controlled default must be replaced/validated before public release.

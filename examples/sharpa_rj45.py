@@ -492,6 +492,7 @@ def _run(args: argparse.Namespace) -> int:
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.assets import RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.env_cfg import GB300SharpaInsertionEnvCfg
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.robot_cfg import CLOSE_HAND_RAD
+    from isaaclab_tasks.contrib.gb300_sharpa_insertion.visual_scene import add_gl_visuals, configure_visual_scene
     from isaaclab_tasks.contrib.gb300_sharpa_insertion.workcell import head_goal_for_socket
 
     cfg = GB300SharpaInsertionEnvCfg()
@@ -506,9 +507,11 @@ def _run(args: argparse.Namespace) -> int:
             )
         ]
     with launch_simulation(cfg, args):
+        rack_path = configure_visual_scene(cfg)
         env = instantiate(cfg)
         try:
             observations, _ = env.reset(seed=args.seed)
+            add_gl_visuals(env, rack_path)
             if env.action_manager.total_action_dim != 29:
                 raise RuntimeError("The example must provide absolute TCP and 22 finger targets.")
             robot = env.scene["robot"]
