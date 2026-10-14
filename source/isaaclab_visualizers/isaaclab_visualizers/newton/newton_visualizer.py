@@ -385,6 +385,7 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
                     rgba = wp.from_dlpack(mapping)
                     if target_image is None or target_image.shape != rgba.shape or target_image.device != rgba.device:
                         target_image = wp.empty_like(rgba)
+                    mapping.wait_on(target_image.device.stream.cuda_stream)
                     wp.copy(target_image, rgba)
                     mapping.unmap(stream=target_image.device.stream.cuda_stream)
                 return target_image
