@@ -7,8 +7,8 @@
 set -euo pipefail
 
 # Keep the archive and checksum pinned together; retain published version directories in each release.
-readonly archive_url="https://github.com/isaac-sim/IsaacLab/releases/download/browser-demos-v5/isaaclab-browser-demos-v5.tar.gz"
-readonly archive_sha256="08de8419b05815c629bc92d25826eee472cb6ee36d977f61611962ac977c4964"
+readonly archive_url="https://github.com/isaac-sim/IsaacLab/releases/download/browser-demos-v6/isaaclab-browser-demos-v6.tar.gz"
+readonly archive_sha256="64533877aeda11fa3e6169012008a20b208e7cb83308483ba252b8b33e3ba8d7"
 
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT
@@ -39,7 +39,7 @@ Extract the complete docs-html artifact, then run this command in its root direc
     python -m http.server 8000
 
 Documentation: http://localhost:8000/current/index.html
-Interactive demos: http://localhost:8000/demos/v5/
+Interactive demos: http://localhost:8000/demos/v6/
 
 Use HTTP to preview the demos; opening the HTML files directly does not allow
 the browser to load their WebAssembly modules and data through fetch().

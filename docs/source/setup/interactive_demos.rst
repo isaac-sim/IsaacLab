@@ -13,7 +13,7 @@ one self-contained Newton simulation with camera controls, pause, and reset.
 The simulation runs locally on the CPU through WebAssembly; no Isaac Lab
 installation or remote simulation server is needed.
 
-Open the `hosted gallery <../../../demos/v5/>`_ to browse all demos.
+Open the `hosted gallery <../../../demos/v6/>`_ to browse all demos.
 
 These compact scenes illustrate individual effects. Use the full Isaac Lab
 examples and tasks for evaluation, training, and measured comparisons.
@@ -69,8 +69,18 @@ Solver and actuator tuning
       Drop 1,728 particles onto a cylinder inside a catch tub. Try sand,
       snow, clay, and water references, or tune individual parameters.
 
+   .. grid-item-card:: VBD cable bending
+      :img-top: ../_static/browser_demos/previews/cable_bending.jpg
+      :link: ../../../demos/v6/?demo=cable_bending
+
+      .. _interactive-demo-cable-bending:
+
+      Bend a clamped 20-segment cable. Adjust bending stiffness and
+      downward tip load, then reset to compare the same transient.
+
 For the corresponding native settings, see :ref:`newton-using-vbd`,
-:ref:`mjwarp-solver-tuning`, :ref:`newton-tuning-mpm`, and :ref:`overview-actuators`.
+:ref:`mjwarp-solver-tuning`, :ref:`newton-tuning-mpm`, :ref:`overview-actuators`,
+and :ref:`deformables`.
 The MPM presets are qualitative references on a coarse grid, rather than
 calibrated materials. Material changes apply on reset with fresh plastic history.
 
@@ -116,6 +126,15 @@ Policy control
       Walk in a bounded warehouse. Drag sticks to their edges to lock commands;
       pull back or press Escape to stop. Drag the robot for a 2 N push.
 
+   .. grid-item-card:: Ant walking
+      :img-top: ../_static/browser_demos/previews/ant.jpg
+      :link: ../../../demos/v6/?demo=ant
+
+      .. _interactive-demo-ant:
+
+      Steer a pretrained walking policy with the transparent viewport stick.
+      Drag the robot for a fixed 100 N push; pause or reset at any time.
+
 Cartpole uses the published ``Isaac-Cartpole-Direct`` Newton policy. G1 uses
 the external 29-joint WBC-AGILE ``Velocity-G1-v0`` policy. ANYmal-D uses the
 ``Isaac-Velocity-Flat-AnymalD`` RSL-RL checkpoint with a tuned PD drive in
@@ -126,7 +145,31 @@ Its warehouse uses convex colliders from the authored scene and 12 movable floor
 with nominal mass and inertia. Other props and fixtures remain fixed to bound CPU work.
 Turning from rest adds a visible 0.25 m/s forward command.
 Playback uses one captured reset with selected observation randomization disabled.
-See :ref:`reinforcement-learning` for native playback and training.
+Ant uses the published ``Isaac-Ant`` Newton checkpoint with native effort drives
+and foot joint-wrench observations. Its stick changes the target direction within
+±45°; the policy walks continuously, so use Pause to stop playback. A fall or the
+16-second episode limit replays one captured reset. See :ref:`reinforcement-learning`
+for native playback and training.
+
+Rigid-body dynamics
+-------------------
+
+.. grid:: 1 2 3 3
+   :gutter: 3
+
+   .. grid-item-card:: Domino cascade
+      :img-top: ../_static/browser_demos/previews/dominoes.jpg
+      :link: ../../../demos/v6/?demo=dominoes
+
+      .. _interactive-demo-dominoes:
+
+      Topple 24 slabs with a short push. Change friction and replay the
+      cascade using Newton XPBD and the Isaac Lab checker ground.
+
+This compact row uses the slab dimensions and materials of ``newton-dominoes``
+with a smaller CPU solver budget. The full native example contains 5,640 bodies.
+The cable lesson similarly isolates one native VBD rod; neither is a performance
+measurement of the full showcase. See :doc:`/source/concepts/visualization` for native viewers.
 
 Manipulation
 ------------
@@ -182,5 +225,6 @@ and verifies its checksum before publishing; compiled assets are kept outside th
 The public `reference PR #7974 <https://github.com/isaac-sim/IsaacLab/pull/7974>`_
 records the exporters, shared viewer, and scene adaptations.
 Rebuilding requires the pinned internal Newton Web compiler and Emscripten.
-The locomotion demos use the version 4 viewer with controls inside the viewport.
-Other demos retain version 1 links. Each archive preserves earlier version directories.
+Version 6 adds the compact domino, cable and Ant lessons with the shared viewer
+and controls. Earlier demos retain their versioned links, and every archive
+preserves earlier version directories.

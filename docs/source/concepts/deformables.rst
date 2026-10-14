@@ -616,6 +616,10 @@ Run an example first to confirm that the spawner, solver, and visualizer all wor
     # A larger cable pile, stopping after a fixed number of steps.
     uv run isaaclab example cables --num_cables 40 --num_segments 15 --max_steps 500
 
+Try :ref:`VBD cable bending <interactive-demo-cable-bending>` for a compact browser lesson with one
+clamped VBD rod, live bending stiffness and a downward tip load. It illustrates
+transient response; use the native example for cable piles and measured comparisons.
+
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.
 

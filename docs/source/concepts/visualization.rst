@@ -209,6 +209,9 @@ Visualizer Overview
            </div>
          </div>
 
+      Try :ref:`Domino cascade <interactive-demo-dominoes>` for a compact 24-slab version running
+      locally in the browser, with friction and a repeatable toppling pulse.
+
       **Core configuration:**
 
       .. code-block:: python
