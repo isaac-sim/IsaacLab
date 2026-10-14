@@ -39,6 +39,7 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
+from isaaclab.app import validate_launch
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -49,6 +50,7 @@ from isaaclab.utils import (
     replace_strings_with_slices,
     to_dict,
     update_from_dict,
+    validate,
 )
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
@@ -765,3 +767,81 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
             matched = next((target for target in typed_targets if target.matches(cfg)), PresetTarget.DOMAIN)
             result[matched].add(name)
     return {target: sorted(names) for target, names in result.items()}
+
+
+_SELECTORS = ("physics", "renderer", "presets")
+
+
+def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[str]:
+    """Return the command-line tokens of a ``(physics, renderer, presets)`` run, e.g. ``["physics=ovphysx"]``."""
+    return [f"{selector}={name}" for selector, name in zip(_SELECTORS, run) if name is not None]
+
+
+def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
+    """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
+    try:
+        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
+        validate(env_cfg)
+        validate_launch(env_cfg, {"livestream": 0})
+    except ValueError:
+        return None
+    return env_cfg
+
+
+def is_task_run_launchable(task_name: str, run: tuple[str | None, str | None, str | None]) -> bool:
+    """Return whether a ``(physics, renderer, presets)`` run of *task_name* resolves, passes the env config's
+    checks, and can launch headless.
+
+    A rejected combination is one whose resolution or validation raises :class:`ValueError`; any other
+    error propagates.
+    """
+    return _launchable_env_cfg(task_name, run) is not None
+
+
+def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str | None]] | None:
+    """Return the preset combinations of *task_name* that can launch, one per distinct config.
+
+    Each physics and renderer preset, or leaving that axis to the config, is crossed with each domain
+    preset in turn. Every combination is resolved, validated with the env config's own checks, and
+    checked with :func:`~isaaclab.app.validate_launch` for a headless launch without livestreaming. Combinations
+    that resolve to the same config, such as ``physics=physx`` and the backend it selects, are
+    reported once, by their most explicit spelling.
+
+    Only one domain preset is applied per run, so a task with several independent domain
+    presets supports more combinations than are listed. A rejected combination is one whose
+    resolution or validation raises :class:`ValueError`; any other error propagates.
+
+    Args:
+        task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-Camera-Direct"``).
+
+    Returns:
+        ``(physics, renderer, presets)`` names per run, ``None`` on an axis left to the config. The
+        first run is the one the task uses when no names are passed, unless that run cannot launch.
+        ``None`` if the task's env config cannot be loaded.
+    """
+    preset_map = enumerate_task_presets(task_name)
+    if preset_map is None:
+        return None
+    typed = {*preset_map[PresetTarget.PHYSICS], *preset_map[PresetTarget.RENDERER]}
+    domains = [name for name in preset_map[PresetTarget.DOMAIN] if name not in typed]
+    candidates = [
+        (physics, renderer, domain)
+        for physics in [None, *preset_map[PresetTarget.PHYSICS]]
+        for renderer in [None, *preset_map[PresetTarget.RENDERER]]
+        for domain in [None, *domains]
+    ]
+
+    runs: dict[str, tuple[str | None, str | None, str | None]] = {}
+    default_key = None
+    for run in candidates:
+        env_cfg = _launchable_env_cfg(task_name, run)
+        if env_cfg is None:
+            continue
+        # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
+        key = repr(to_dict(env_cfg))
+        if run == (None, None, None):
+            default_key = key
+        if key not in runs or len(task_run_overrides(run)) > len(task_run_overrides(runs[key])):
+            runs[key] = run
+    default = [runs.pop(default_key)] if default_key is not None else []
+    return default + list(runs.values())

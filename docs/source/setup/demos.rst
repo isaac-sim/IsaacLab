@@ -10,12 +10,13 @@ Demos
 
 Demos are polished showcases of Isaac Lab capabilities. They ship in the ``isaaclab`` wheel, so you can run them
 without a source checkout. Start with Zoo to see several robot families and simulation features in one scene, or run
-``uvx isaaclab demo list`` to inspect the complete catalog.
+``uvx --torch-backend cu130 isaaclab demo list`` to inspect the complete catalog.
 
 All programs live under the repository-level ``examples/`` directory: curated showcases in ``examples/demos/``,
 focused programs for learning an API or tuning a feature in directories such as ``examples/mpm/`` and
 ``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
-``uvx isaaclab example list`` and run one with ``uvx isaaclab example <name>``.
+``uvx --torch-backend cu130 isaaclab example list`` and run one with
+``uvx --torch-backend cu130 isaaclab example <name>``.
 
 Demo and example commands show the same Isaac Lab startup screen as task playback while
 their simulation initializes. Pass ``--info`` to keep startup messages visible.
@@ -29,7 +30,7 @@ and ``tacsl-sensor``, run without a visualizer. Pass ``--viz`` to pick a differe
 In any packaged demo or example running with ``--viz newton_gl``, the **Isaac Lab Programs**
 panel shows the core showcases first, with focused examples in a separate collapsed section.
 Selecting one closes the current simulation and relaunches it with ``--viz newton_gl``.
-For example, run ``uvx isaaclab demo zoo --viz newton_gl`` to explore the catalog.
+For example, run ``uvx --torch-backend cu130 isaaclab demo zoo --viz newton_gl`` to explore the catalog.
 Programs whose required modules are unavailable, hardware-dependent teleoperation, and
 Kit-only demos are not shown.
 
@@ -105,6 +106,14 @@ Command Builder
          <span>H1 Locomotion</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="NIST" data-demo-id="nist"
+               data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
+               data-demo-visualizers="newton_gl,newton_rtx"
+               data-demo-description="Assemble ten randomized NIST parts using an automatically downloaded TorchScript policy.">
+         <img src="../../_static/demos/nist.jpg" alt="Franka robot assembling parts on a NIST task board" loading="lazy">
+         <span>NIST</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Pick and Place" data-demo-id="pick-and-place"
                data-demo-physics="isaacsim_physx" data-demo-visualizers="kit"
                data-demo-description="Interactively pick up a cube with a parallel robot and place it on a target.">
@@ -171,7 +180,7 @@ Focused examples
 
       .. code-block:: bash
 
-         uvx isaaclab example tablecloth --device cuda:0
+         uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
 
       Kit videos: `five-speed overview
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__

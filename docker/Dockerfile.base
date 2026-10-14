@@ -182,6 +182,11 @@ ENV PATH=${VENV_PATH_ARG}/bin:${PATH}
 ENV UV_NO_SYNC=1
 ENV PYTHONUNBUFFERED=1
 
+# The Isaac Sim image sets MUJOCO_GL=egl, and importing mujoco then sets PYOPENGL_PLATFORM=egl,
+# so the windowed Newton viewers draw an X11 window through EGL bindings and fail with "no valid
+# context". Isaac Lab uses MuJoCo only for physics, so turn off its renderer.
+ENV MUJOCO_GL=disable
+
 # aliasing uv run isaaclab and python for convenience
 RUN echo "export ISAACLAB_PATH=${ISAACLAB_PATH}" >> ${DOCKER_USER_HOME}/.bashrc && \
     echo "alias python='uv run --project ${ISAACLAB_PATH} --no-sync isaaclab -p'" >> ${DOCKER_USER_HOME}/.bashrc && \

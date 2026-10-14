@@ -15,6 +15,9 @@ Camera data is expensive compared with low-dimensional state. Isaac Lab therefor
 camera copies from cloned environments into tiled render passes and exposes the de-tiled result as
 one device-resident buffer per requested output.
 
+For silent black or corrupted RTX camera images when scaling the workload, see
+:ref:`known-issues-rtx-buffer-limit`.
+
 Rendering model
 ---------------
 
@@ -362,7 +365,7 @@ this with ``--warmup_steps``.
 
          uv run --extra isaacsim isaaclab example ppisp-camera \
              --input_scene /path/to/scene.usd --renderer isaac_rtx \
-             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+             --camera_prim_path /usd/path/to/camera --max_steps 60
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -374,16 +377,18 @@ this with ``--warmup_steps``.
 
          uv run --extra isaacsim isaaclab example ppisp-camera ^
              --input_scene C:/path/to/scene.usd --renderer isaac_rtx ^
-             --camera_prim_path /World/Cameras/front_cam --max_steps 60
+             --camera_prim_path /usd/path/to/camera --max_steps 60
 
 ``--input_scene`` accepts a local path or URL to a USD or USDZ scene containing the Gaussian PPISP
 setup. If omitted, the example uses the ``Samples/Scene_ParticleField/valiant_auto.usdz``
 sample from ``ISAAC_NUCLEUS_DIR``.
 
-``--camera_prim_path`` is an optional absolute USD prim path in the input scene. The prim must exist,
+``--camera_prim_path`` is an optional absolute USD prim path in the input scene; in both commands
+above, replace ``/usd/path/to/camera`` with the path of a camera in your scene. The prim must exist,
 have type ``Camera``, and carry ``ppisp:*`` attributes. If omitted, the example selects the first
 camera with PPISP attributes. For both renderers, the input scene must have a ``defaultPrim`` and
-the camera must be a descendant of it (for example, ``/World`` for the camera path above).
+the camera must be a descendant of it (for example, a camera at ``/World/Cameras/front_cam`` requires
+``/World`` as the ``defaultPrim``).
 
 Images are saved to ``output/ppisp_camera`` in the current working directory; use ``--output_dir``
 to change it. ``--max_steps`` sets the number of steps after warmup (default: 120), and
