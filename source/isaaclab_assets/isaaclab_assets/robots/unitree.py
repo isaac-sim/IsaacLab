@@ -588,7 +588,10 @@ Usage examples:
 
 G1_29DOF_LOCOMOTION_CFG = G1_29DOF_CFG.replace(
     spawn=G1_29DOF_CFG.spawn.replace(
-        usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Robots/Unitree/G1/g1_29dof.usd",
+        usd_path=(
+            "https://omniverse-content-production.s3-us-west-2.amazonaws.com"
+            "/Assets/Isaac/6.2/Isaac/IsaacLab/Robots/Unitree/G1/g1_29dof.usd"
+        ),
         activate_contact_sensors=True,
         fix_root_link=None,
     ),
