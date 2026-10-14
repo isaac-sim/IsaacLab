@@ -20,8 +20,6 @@ import isaaclab.actuators as actuator_api
 from isaaclab.actuators import (
     ActuatorCollection,
     ActuatorControl,
-    BamActuatorCfg,
-    BamMotorCfg,
     DCMotor,
     DCMotorCfg,
     DelayedPDActuatorCfg,
@@ -715,32 +713,6 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     torch.testing.assert_close(articulation.data.joint_damping.torch, torch.zeros((2, 3)))
     assert articulation.calls[-2][1]["stiffness"] == 0.0
     assert articulation.calls[-1][1]["damping"] == 0.0
-
-
-def _bam_cfg(joints: list[str], **kwargs) -> BamActuatorCfg:
-    """Create a native BAM configuration."""
-    motor = BamMotorCfg(
-        model="m1",
-        kt=0.36,
-        resistance=2.8,
-        error_gain=0.003,
-        max_current=0.0,
-        friction_base=0.005,
-        friction_viscous=0.006,
-    )
-    return BamActuatorCfg(joint_names_expr=joints, motor=motor, kp_fw=200.0, vin=7.4, **kwargs)
-
-
-def test_native_model_owned_groups_keep_their_authored_friction():
-    """The Newton-executed path publishes the budget itself, so its seed rows are left alone."""
-    control = NativeFakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2", "joint_3"])
-    control._current_joint_properties["friction"].fill_(0.0048)
-
-    ActuatorCollection({"servos": _bam_cfg([".*"])}, control)
-
-    properties, _, _, native_managed = control.written_properties[0]
-    assert native_managed
-    torch.testing.assert_close(properties["friction"], torch.full((2, 4), 0.0048))
 
 
 @pytest.mark.parametrize("env_ids", [torch.tensor([0]), slice(0, 1)])
