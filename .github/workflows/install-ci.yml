@@ -159,9 +159,9 @@ jobs:
       # GB10 allocates GPU memory from host RAM; page cache left by earlier jobs starves CUDA init.
       - name: Runner health and page-cache drop (pre)
         run: |
-          free -m; df -h / "$(docker info -f '{{.DockerRootDir}}')"; docker system df
+          .github/scripts/runner_health.sh pre-test
           docker run --rm --privileged ubuntu:24.04 sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
-          free -m
+          .github/scripts/runner_health.sh after-cache-drop
       - name: Run Tests
         uses: ./.github/actions/install-ci-run
         with:
@@ -171,4 +171,4 @@ jobs:
         if: always()
         continue-on-error: true
         run: |
-          free -m; df -h / "$(docker info -f '{{.DockerRootDir}}')"; docker system df
+          .github/scripts/runner_health.sh post-test
