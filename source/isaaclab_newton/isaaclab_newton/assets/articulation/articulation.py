@@ -39,6 +39,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.utils import make_unique_names
 
 from .articulation_data import ArticulationData
 
@@ -197,7 +198,7 @@ class Articulation(BaseArticulation):
     @property
     def body_names(self) -> list[str]:
         """Unique body names in articulation order; duplicate suffixes skip names already in use."""
-        return _make_unique_names(self.root_view.link_names)
+        return make_unique_names(self.root_view.link_names)
 
     @property
     def root_view(self) -> ArticulationView:
@@ -4243,23 +4244,3 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
-
-
-def _make_unique_names(names: Sequence[str]) -> list[str]:
-    """Preserve input order while suffixing duplicate names without collisions."""
-    authored_names = set(names)
-    used_names: set[str] = set()
-    unique_names: list[str] = []
-    for name in names:
-        if name not in used_names:
-            unique_name = name
-        else:
-            suffix = 0
-            while True:
-                unique_name = f"{name}_{suffix}"
-                suffix += 1
-                if unique_name not in authored_names and unique_name not in used_names:
-                    break
-        unique_names.append(unique_name)
-        used_names.add(unique_name)
-    return unique_names
