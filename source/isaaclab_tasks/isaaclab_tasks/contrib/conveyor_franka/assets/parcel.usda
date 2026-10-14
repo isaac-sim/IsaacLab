@@ -1,0 +1,23 @@
+#usda 1.0
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+(
+    defaultPrim = "Parcel"
+    doc = "Conveyor Franka presentation. NVIDIA assets remain external references; this layer owns only layout and appearance. SPDX-License-Identifier: BSD-3-Clause"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Parcel"
+{
+    def Xform "Cardboard" (
+        prepend references = @https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/simready_content/common_assets/props/cardbox_a1/cardbox_a1.usd@
+    )
+    {
+        float3 xformOp:scale = (0.057189006, 0.07675307, 0.07844259)
+        double3 xformOp:translate = (-0, 8.463453207854634e-8, -0.02)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+    }
+}
