@@ -156,8 +156,7 @@ def build_render_product_as_string(
     resolved camera path after runtime cloning.
 
     Args:
-        spec: Camera configuration, environment count, and camera paths. ISP configurations
-            automatically request the HDR render variable in addition to the configured outputs.
+        spec: Camera configuration, environment count, and camera paths.
         render_data: Camera's render scope and product identity.
         device_id: CUDA device index the render product is pinned to, so its render var buffers are
             allocated on the same device as the Warp kernels that read them.
@@ -168,8 +167,6 @@ def build_render_product_as_string(
         Render product USD layer, including the USDA header and default prim metadata.
     """
     data_types = list(spec.cfg.data_types)
-    if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
-        data_types.append("rgb_hdr")
     tiled_width, tiled_height = render_data.num_cols * render_data.width, render_data.num_rows * render_data.height
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
     minimal_mode = next(

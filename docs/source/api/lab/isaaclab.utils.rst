@@ -171,6 +171,20 @@ Image operations
 
 .. autofunction:: isaaclab.utils.images.compose_image
 
+.. autoclass:: isaaclab.utils.images.ImageBufferSpec
+   :members:
+
+.. autoclass:: isaaclab.utils.images.PreparedBufferOperation
+   :members:
+
+.. autoclass:: isaaclab.utils.images.RenderBufferStepCfg
+   :members:
+   :exclude-members: __init__
+
+.. autoclass:: isaaclab.utils.images.RenderBufferPipe
+   :members:
+   :special-members: __call__
+
 Timer operations
 ~~~~~~~~~~~~~~~~
 

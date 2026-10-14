@@ -4,9 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import pytest
+import torch
 import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispControllerWeights,
+    PpispStepCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -36,6 +39,10 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_OFF_TRUNK2_W,
     PPISP_CONTROLLER_PARAM_COUNT,
 )
+
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils.images import ImageBufferSpec, RenderBufferPipe
+from isaaclab.utils.warp import ProxyArray
 
 wp.init()
 
@@ -282,15 +289,14 @@ def _crf_reference(x, toe_raw: float, shoulder_raw: float, gamma_raw: float, cen
     return np.maximum(y, 0.0) ** gamma
 
 
-def test_ppisp_warp_crf_extreme_centers_match_reference():
-    """Saturated CRF centers produce the reference curve instead of NaN-cast bytes."""
+def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference():
+    """A CPU RGB pipe preserves the reference curve, including saturated CRF centers."""
     import numpy as np
 
     # a gray ramp passes the default exposure, vignetting, and color stages unchanged
     ramp = np.linspace(0.0, 1.0, 16, dtype=np.float32)
     hdr_data = np.repeat(ramp[None, None, :, None], 3, axis=3)
-    hdr_color = wp.from_numpy(hdr_data, dtype=wp.float32)
-    rgba = _rgba((1, 1, 16, 4))
+    hdr_color = wp.from_numpy(hdr_data, dtype=wp.float32, device="cpu")
     cfg = normalize_ppisp_cfg(
         PpispCfg(
             inputs={
@@ -307,10 +313,12 @@ def test_ppisp_warp_crf_extreme_centers_match_reference():
         )
     )
 
-    apply_ppisp_to_rgba(hdr_color, rgba, cfg)
-
-    rgba_np = rgba.numpy()[0, 0]
-    assert (rgba_np[:, 3] == 255).all()
+    pipe = RenderBufferPipe(
+        {"rgb_radiance": ImageBufferSpec(hdr_color.shape, wp.float32, "cpu", encoding="scene_linear")},
+        [PpispStepCfg(params={"cfg": cfg})],
+    )
+    rgb = pipe({"rgb_radiance": ProxyArray(hdr_color)})["rgb"]
+    rgb_np = rgb.warp.numpy()[0, 0]
     for channel, suffix in enumerate("RGB"):
         expected = _crf_reference(
             ramp,
@@ -321,4 +329,56 @@ def test_ppisp_warp_crf_extreme_centers_match_reference():
         )
         expected_bytes = np.floor(np.clip(expected, 0.0, 1.0) * 255.0)
         # float32 kernel math may land one byte away from the float64 reference at a floor boundary
-        np.testing.assert_allclose(rgba_np[:, channel].astype(float), expected_bytes, atol=1.0, err_msg=suffix)
+        np.testing.assert_allclose(rgb_np[:, channel].astype(float), expected_bytes, atol=1.0, err_msg=suffix)
+    np.testing.assert_array_equal(hdr_color.numpy(), hdr_data)
+    pipe.close()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
+    """Both controller output layouts match a known response; closing one consumer preserves another."""
+    import numpy as np
+
+    weights_np = np.zeros(PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, dtype=np.float32)
+    weights_np[PPISP_CONTROLLER_OFF_EXP_B] = 1.0  # A constant one-stop controller exposure.
+    weights = wp.from_numpy(weights_np, dtype=wp.float32, device=device)
+    source = ImageBufferSpec((1, 1, 4, 3), wp.float32, device, encoding="scene_linear")
+    cfg = PpispCfg()
+    shared_weights = PpispControllerWeights(weights)
+    pipes = [
+        RenderBufferPipe(
+            {"rgb_radiance": source},
+            [PpispStepCfg(params={"cfg": cfg, "channels": channels, "controller_weights": shared_weights})],
+        )
+        for channels in (3, 4)
+    ]
+    ramp = np.array([0.0, 0.125, 0.25, 0.5], dtype=np.float32)
+    hdr_data = np.repeat(ramp[None, None, :, None], 3, axis=3)
+    hdr = wp.from_numpy(hdr_data, dtype=wp.float32, device=device)
+    # The observation path must honor work already queued on a non-default Torch stream.
+    with torch.cuda.stream(torch.cuda.Stream(device=device)):
+        incoming = torch.from_numpy(hdr_data * 0.5).to(device) * 2.0
+        observation = pipes[0].apply_to_tensor(incoming, input_name="rgb_radiance", output_name="rgb")
+        results = [observation.cpu().numpy()]
+    results.append(pipes[1]({"rgb_radiance": ProxyArray(hdr)})["rgb"].warp.numpy())
+    expected = np.floor(_crf_reference(ramp * 2.0, 0.013659, 0.013659, 0.378165, 0.0) * 255.0)
+    for result in results:
+        np.testing.assert_allclose(result[0, 0, :, :3].astype(float), np.repeat(expected[:, None], 3, axis=1), atol=1.0)
+    assert (results[1][..., 3] == 255).all()
+    pipes[0].close()
+    hdr.zero_()
+    np.testing.assert_array_equal(pipes[1]({"rgb_radiance": ProxyArray(hdr)})["rgb"].warp.numpy()[..., :3], 0)
+    np.testing.assert_array_equal(weights.numpy(), weights_np)
+    pipes[1].close()
+
+
+def test_ppisp_pipe_requires_scene_linear_input_and_resolved_configuration():
+    """Reject semantically wrong radiance and unresolved scene dependencies before execution."""
+    source = ImageBufferSpec((1, 2, 2, 3), wp.float32, "cpu", encoding="srgb")
+    with pytest.raises(ValueError, match="scene_linear encoding"):
+        RenderBufferPipe({"rgb_radiance": source}, [PpispStepCfg()])
+    source = ImageBufferSpec((1, 2, 2, 3), wp.float32, "cpu", encoding="scene_linear")
+    with pytest.raises(ValueError, match="resolve USD camera attributes"):
+        RenderBufferPipe(
+            {"rgb_radiance": source}, [PpispStepCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]
+        )

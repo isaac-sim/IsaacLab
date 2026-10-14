@@ -6,16 +6,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any
 
 import torch
+import warp as wp
 
 from .. import configclass
 
 if TYPE_CHECKING:
+    from ..images import RenderBufferStepCfg
     from .modifier import DigitalFilter, Integrator
     from .modifier_base import ModifierBase
+    from .render_buffer_pipe import RenderBufferPipeModifier
 
 
 @configclass
@@ -35,6 +38,36 @@ class ModifierCfg:
     Function modifiers receive them as keyword arguments on each call. Class modifiers access them through this
     configuration during construction; they are not forwarded to the constructed instance.
     """
+
+
+@configclass
+class RenderBufferPipeModifierCfg(ModifierCfg):
+    """Bind an incoming observation tensor to a render buffer pipe.
+
+    The declared dtype, layout and encoding describe the tensor *after* preceding modifiers.
+    The pipe validates storage and lets each operation validate the semantic encoding.
+    """
+
+    func: type[RenderBufferPipeModifier] | str = "{DIR}.render_buffer_pipe:RenderBufferPipeModifier"
+    """Modifier class consuming the incoming tensor."""
+
+    pipeline: list[RenderBufferStepCfg] = MISSING
+    """Ordered buffer processing operations."""
+
+    input_name: str = "rgb"
+    """Name assigned to the incoming tensor in the buffer bundle."""
+
+    output_name: str = "rgb"
+    """Name selected from the processed bundle."""
+
+    dtype: type = field(default_factory=lambda: wp.float32)
+    """Expected Warp element type of the incoming tensor."""
+
+    encoding: str = "unknown"
+    """Semantic encoding of the incoming tensor, such as ``scene_linear``."""
+
+    layout: str = "NHWC"
+    """Axis layout of the incoming tensor."""
 
 
 @configclass

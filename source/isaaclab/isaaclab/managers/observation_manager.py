@@ -8,7 +8,9 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from builtins import ExceptionGroup
+from collections.abc import Iterator, Sequence
+from dataclasses import fields
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,10 +18,10 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, modifiers, noise, to_dict
+from ..utils import instantiate, modifiers, noise, string_to_callable, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from .manager_term_cfg import ManagerTermBaseCfg, ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
@@ -85,6 +87,7 @@ class ObservationManager(ManagerBase):
         if cfg is None:
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
 
+        self._is_closed = False
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
 
@@ -119,6 +122,54 @@ class ObservationManager(ManagerBase):
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
+
+    @classmethod
+    def prepare_scene(cls, cfg: object, env: ManagerBasedEnv) -> None:
+        """Collect observation input requirements before renderer initialization.
+
+        Manager-based environments call this after creating the scene and before resetting
+        the simulation. Standalone users must call it at the same point when terms require
+        private sensor outputs. Term instances and processing storage are created later.
+        """
+        if cfg is None:
+            return
+        groups = cfg.values() if isinstance(cfg, dict) else vars(cfg).values()
+        for group in groups:
+            if not isinstance(group, ObservationGroupCfg):
+                continue
+            for term in _iter_term_configs(group):
+                if not isinstance(term, ManagerTermBaseCfg):
+                    continue
+                func = string_to_callable(term.func) if isinstance(term.func, str) else term.func
+                if inspect.isclass(func) and issubclass(func, ManagerTermBase):
+                    func.prepare_scene(term, env)
+
+    def close(self) -> None:
+        """Close every owned term and modifier once, including nested configurations.
+
+        All resources are closed before any callback errors are raised. Repeated calls are safe.
+        """
+        if self._is_closed:
+            return
+        self._is_closed = True
+        resources = []
+        seen = set()
+        for cfg in _iter_term_configs(self._group_obs_term_cfgs):
+            resource = cfg.func
+            if isinstance(resource, (ManagerTermBase, modifiers.ModifierBase)) and id(resource) not in seen:
+                seen.add(id(resource))
+                resources.append(resource)
+        errors = []
+        for resource in reversed(resources):
+            try:
+                resource.close()
+            except Exception as error:
+                errors.append(error)
+        self._obs_buffer = None
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise ExceptionGroup("Failed to close observation resources.", errors)
 
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
@@ -770,3 +821,19 @@ class ObservationManager(ManagerBase):
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
+
+
+def _iter_term_configs(value: object) -> Iterator[ManagerTermBaseCfg | modifiers.ModifierCfg]:
+    """Visit manager-owned configurations without following term instances back into their configs."""
+    if isinstance(value, (ManagerTermBaseCfg, modifiers.ModifierCfg, ObservationGroupCfg)):
+        if isinstance(value, (ManagerTermBaseCfg, modifiers.ModifierCfg)):
+            yield value
+        for field in fields(value):
+            if field.name != "func":
+                yield from _iter_term_configs(getattr(value, field.name))
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from _iter_term_configs(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _iter_term_configs(child)

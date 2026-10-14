@@ -90,6 +90,19 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
+    @classmethod
+    def prepare_scene(cls, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv) -> None:
+        """Declare scene requirements before simulation initialization.
+
+        This hook may request sensor outputs but must not read runtime data or allocate
+        processing buffers. Observation terms are visited by :meth:`ObservationManager.prepare_scene`.
+        """
+        pass
+
+    def close(self) -> None:
+        """Release resources owned by the term before the scene closes."""
+        pass
+
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Resets the manager term.
 

@@ -6,10 +6,13 @@
 """Tests for the renderer→camera output contract."""
 
 import warnings
+from builtins import ExceptionGroup
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
+import torch
 import warp as wp
 
 pytest.importorskip("isaaclab_physx")
@@ -22,6 +25,7 @@ from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, Re
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, validate
+from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -376,9 +380,24 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
         lambda path, **kwargs: SimpleNamespace(count=2, prims=[stage.GetPrimAtPath(path)] * 2, close=lambda: None),
     )
     cameras = []
-    for prim, data_types in zip(prims, (["rgb"], ["rgb_radiance"])):
+
+    def prepare_identity(input_specs):
+        return PreparedBufferOperation(
+            {"image": input_specs["image"]},
+            lambda inputs, outputs: wp.copy(outputs["image"].warp, inputs["image"].warp),
+        )
+
+    for prim, data_types in zip(prims, (["rgb"], ["processed_radiance"])):
         camera = Camera.__new__(Camera)
-        camera.cfg = SimpleNamespace(prim_path=str(prim.GetPath()), data_types=data_types, height=2, width=3)
+        pipeline = (
+            [RenderBufferStepCfg(prepare_identity, {"image": "rgb_radiance"}, {"image": "processed_radiance"})]
+            if data_types == ["processed_radiance"]
+            else []
+        )
+        camera.cfg = CameraCfg(
+            prim_path=str(prim.GetPath()), data_types=data_types, height=2, width=3, spawn=None, pipeline=pipeline
+        )
+        camera._render_cfg = replace(camera.cfg, data_types=camera.cfg.render_data_types(), pipeline=[])
         camera.stage = stage
         camera._device = "cpu"
         camera._num_envs = 2
@@ -399,3 +418,143 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
         for camera in cameras:
             camera.__del__()
     assert not CameraPhysicsManager._callbacks
+
+
+def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkeypatch):
+    """Camera publication preserves raw pixels, capture metadata and calibration-compatible geometry."""
+    from isaaclab.sensors.camera import Camera
+    from isaaclab.sensors.sensor_base import SensorBase
+    from isaaclab.sim import SimulationContext
+
+    events = []
+    output_shape = (2, 1, 1, 4)
+    close_fails = False
+
+    def prepare_color(input_specs):
+        assert input_specs["radiance"].encoding == "scene_linear"
+        assert input_specs["range"].encoding == "meters"
+        spec = replace(input_specs["radiance"], shape=output_shape, dtype=wp.uint8, encoding="camera_response")
+
+        def apply(inputs, outputs):
+            events.append("apply")
+            output = outputs["color"].torch
+            output[..., :3].copy_(100 * (inputs["radiance"].torch + inputs["range"].torch))
+            output[..., 3] = 255
+
+        def close():
+            events.append("close")
+            if close_fails:
+                raise RuntimeError("processor close failed")
+
+        return PreparedBufferOperation({"color": spec}, apply, reset=lambda ids: events.append(tuple(ids)), close=close)
+
+    cfg = CameraCfg(
+        prim_path="/World/Camera",
+        spawn=None,
+        height=1,
+        width=1,
+        data_types=["rgb", "depth"],
+        pipeline=[
+            RenderBufferStepCfg(prepare_color, {"radiance": "rgb_radiance", "range": "depth"}, {"color": "rgba"})
+        ],
+    )
+    specs = {
+        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
+        RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+    }
+    capture = {"frame": 1}
+    radiance = 0.2
+
+    def read_output(render_data, camera_data):
+        camera_data.output["rgb_radiance"].torch.fill_(radiance)
+        camera_data.output["depth"].torch.fill_(0.5)
+        for name in camera_data.info:
+            camera_data.info[name] = {"capture": capture}
+
+    camera = Camera.__new__(Camera)
+    camera.cfg = cfg
+    camera._render_cfg = replace(cfg, data_types=cfg.render_data_types(), pipeline=[])
+    camera._view = SimpleNamespace(count=2, close=lambda: None)
+    camera._device = "cpu"
+    camera._num_envs = 2
+    camera._is_initialized = True
+    camera._render_data = None
+    camera._clear_callbacks = lambda: None
+    camera._renderer = SimpleNamespace(
+        supported_output_types=lambda: specs,
+        set_outputs=lambda data, outputs: None,
+        render=lambda data: None,
+        read_output=read_output,
+        reset=lambda data, ids: None,
+        cleanup=lambda data: None,
+    )
+    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: None))
+    monkeypatch.setattr(SensorBase, "reset", lambda self, ids, mask: None)
+    monkeypatch.setattr(camera, "_initialize_intrinsics", lambda: None)
+    monkeypatch.setattr(camera, "_update_poses", lambda **kwargs: None)
+    monkeypatch.setattr(camera, "_prepare_camera", lambda mask: None)
+    monkeypatch.setattr(camera, "_update_outdated_buffers", lambda: None)
+    camera._create_buffers()
+    mask = wp.ones(2, dtype=wp.bool, device="cpu")
+    camera._update_buffers_impl(mask)
+
+    assert set(camera.data.output) == {"rgb", "depth"}
+    assert set(camera.render_outputs) == {"rgb_radiance", "depth"}
+    torch.testing.assert_close(camera.data.output["rgb"].torch, torch.full((2, 1, 1, 3), 70, dtype=torch.uint8))
+    torch.testing.assert_close(camera.render_outputs["rgb_radiance"].torch, torch.full((2, 1, 1, 3), 0.2))
+    assert camera.data.output["depth"] is camera.render_outputs["depth"]
+    assert camera.data.info["rgb"]["capture"] is capture
+
+    camera._update_buffers_impl(mask)
+    assert events == ["apply"]
+    capture = {"frame": 2}
+    radiance = 0.4
+    camera._update_buffers_impl(mask)
+    torch.testing.assert_close(camera.data.output["rgb"].torch, torch.full((2, 1, 1, 3), 90, dtype=torch.uint8))
+    assert events == ["apply", "apply"]
+    reset_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
+    camera.reset(env_mask=reset_mask)
+    assert events[-1] == (1,)
+    # A rebuilt pipe cannot publish resized pixels against unchanged camera calibration.
+    output_shape = (2, 2, 1, 4)
+    with pytest.raises(ValueError, match="camera calibration"):
+        camera._create_buffers()
+    assert camera._buffer_pipe is None
+    assert events[-2:] == ["close", "close"]
+    output_shape = (2, 1, 1, 4)
+    camera._create_buffers()
+    camera._render_data = object()
+    camera._renderer.cleanup = lambda data: events.append("renderer-close")
+    camera._view.close = lambda: events.append("view-close")
+    close_fails = True
+    with pytest.raises(ExceptionGroup, match="close render buffer operations"):
+        camera._invalidate_initialize_callback(None)
+    assert events[-3:] == ["close", "renderer-close", "view-close"]
+    assert not camera.is_initialized
+    assert camera._renderer is camera._render_data is camera._view is camera._buffer_pipe is None
+    camera.__del__()
+
+
+def test_camera_requests_private_observation_inputs_before_initialization():
+    """An observation may request raw inputs before reset, while late additions fail clearly."""
+    from isaaclab.sensors.camera import Camera
+
+    camera = Camera.__new__(Camera)
+    camera.cfg = _make_camera_cfg(["rgb"])
+    camera._render_cfg = replace(camera.cfg, pipeline=[])
+    camera._render_outputs = {}
+    camera._is_initialized = False
+    camera._clear_callbacks = lambda: None
+    camera.request_render_inputs(["depth", "rgb_radiance"])
+    assert camera.cfg.data_types == ["rgb"]
+    assert set(camera._render_cfg.data_types) == {"rgb", "depth", "rgb_radiance"}
+    camera._is_initialized = True
+    camera.request_render_inputs(["depth"])
+    with pytest.raises(RuntimeError, match="before initialization"):
+        camera.request_render_inputs(["normals"])
+
+
+def test_camera_retired_isp_setting_reports_pipeline_migration():
+    """Legacy camera ISP configuration fails before it can silently skip image processing."""
+    with pytest.raises(ValueError, match="CameraCfg.pipeline"):
+        CameraCfg(isp_cfg="auto_any")

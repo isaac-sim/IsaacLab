@@ -104,6 +104,12 @@ class CameraData:
         and C is the number of channels. Use ``.torch`` for a ``torch.Tensor`` view
         or ``.warp`` for the underlying ``wp.array``.
 
+        When :attr:`CameraCfg.pipeline` is configured, values are the pipeline results selected by
+        :attr:`CameraCfg.data_types`. Results preserve NHWC layout, batch size and image dimensions
+        so camera calibration remains applicable; channel count and dtype may change. Use an observation
+        pipe for results with different dimensions. Buffers are reused at the next capture. Unprocessed
+        inputs are available from :attr:`Camera.render_outputs`.
+
         The format of the data is available in the `Replicator Documentation`_. For semantic-based data,
         this corresponds to the ``"data"`` key in the output of the sensor.
 

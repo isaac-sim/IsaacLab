@@ -187,6 +187,8 @@ class ManagerBasedEnv:
         if "prestartup" in self.event_manager.available_modes:
             self.event_manager.apply(mode="prestartup")
 
+        ObservationManager.prepare_scene(self.cfg.observations, self)
+
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
@@ -609,6 +611,12 @@ class ManagerBasedEnv:
 
             # destructor is order-sensitive
             del self.action_manager
+            observation_error = None
+            try:
+                self.observation_manager.close()
+            except Exception as error:
+                # A user operation must not prevent scene and simulation teardown.
+                observation_error = error
             del self.observation_manager
             del self.event_manager
             del self.recorder_manager
@@ -622,6 +630,8 @@ class ManagerBasedEnv:
                 self._window = None
             # update closing status
             self._is_closed = True
+            if observation_error is not None:
+                raise observation_error
 
     """
     Helper functions.

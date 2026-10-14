@@ -19,13 +19,254 @@ Shared camera-image operations:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from builtins import ExceptionGroup
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import MISSING, dataclass
+from types import MappingProxyType
 from typing import Any
 
 import torch
 import warp as wp
 
 from .buffers import CircularBuffer
+from .configclass import configclass
+from .string import string_to_callable
+from .warp import ProxyArray
+
+
+@dataclass(frozen=True)
+class ImageBufferSpec:
+    """Shape, storage and semantic encoding of one image-processing buffer.
+
+    The producer declares the encoding: it cannot be inferred from pixel values or dtype.
+    ``shape`` includes the batch dimension. Borrowed arrays may be strided; operations must
+    either support their strides or explicitly copy to suitable storage.
+    """
+
+    shape: tuple[int, ...]
+    dtype: type
+    device: str
+    encoding: str = "unknown"
+    layout: str = "NHWC"
+
+    def __post_init__(self):
+        if not self.shape or any(size <= 0 for size in self.shape):
+            raise ValueError("Image buffer dimensions must be positive.")
+        if self.layout == "NHWC" and len(self.shape) != 4:
+            raise ValueError("NHWC image buffers must have four dimensions.")
+
+    def validate(self, name: str, value: ProxyArray) -> None:
+        """Validate the storage of a borrowed buffer before submitting work."""
+        if (
+            value.shape != self.shape
+            or value.dtype != self.dtype
+            or str(value.device) != str(wp.get_device(self.device))
+        ):
+            raise ValueError(f"Buffer {name!r} must match shape, dtype and device {self}.")
+
+
+@dataclass(frozen=True)
+class PreparedBufferOperation:
+    """One operation bound to input contracts and resolved resources.
+
+    ``apply`` receives input and destination dictionaries keyed by operation roles, not sensor
+    output names. Inputs are borrowed read-only by convention. The operation must fill each
+    supplied destination and enqueue GPU work on the current Warp stream. Output storage and
+    execution order belong to :class:`RenderBufferPipe`; private workspace belongs to the operation.
+    """
+
+    output_specs: Mapping[str, ImageBufferSpec]
+    apply: Callable[[Mapping[str, ProxyArray], Mapping[str, ProxyArray]], None]
+    reset: Callable[[Sequence[int] | None], None] | None = None
+    close: Callable[[], None] | None = None
+
+
+@configclass
+class RenderBufferStepCfg:
+    """Bind named buffers to the input/output roles of one processing operation.
+
+    The factory ``prepare(input_specs, **params)`` runs once during pipe construction and returns
+    a :class:`PreparedBufferOperation`. ``input_specs`` is keyed by the roles in ``inputs``.
+    Factories receive concrete array contracts and explicitly supplied resources; they should not
+    discover cameras, environments, renderers or simulation singletons.
+    """
+
+    prepare: Callable[..., PreparedBufferOperation] | str = MISSING
+    """Operation factory or an import string in ``module:attribute`` form."""
+
+    inputs: dict[str, str] = MISSING
+    """Map operation input roles to buffer names read from the preceding stage."""
+
+    outputs: dict[str, str] = MISSING
+    """Map operation output roles to names created or replaced in the bundle."""
+
+    params: dict[str, Any] = {}
+    """Resolved operation parameters passed to the factory.
+
+    Configurations are deep-copied by ``configclass`` and managers. Borrowed device allocations
+    or models need a resource wrapper that preserves identity through ``__deepcopy__``, or a
+    factory closure retaining the resource. Do not put a raw Warp allocation in this dictionary.
+    """
+
+
+class RenderBufferPipe:
+    """Apply an ordered sequence of operations to named :class:`ProxyArray` buffers.
+
+    A pipe owns persistent output storage and prepared operations. Create one instance per
+    consumer; instances are not reentrant. Borrowed inputs are never modified by the pipe, and
+    untouched channels pass through by reference. Returned buffers remain valid until the next
+    call, reset or close; consumers retaining an observation must take a snapshot.
+
+    Buffer dependencies are resolved in order, so an operation reads preceding replacements.
+    GPU execution uses the caller's current Warp stream without a device-wide synchronization.
+    The caller owns producer readiness and keeps borrowed storage alive until consumption ends.
+
+    Args:
+        source_specs: Contracts for available external buffers.
+        steps: Ordered operation configurations.
+    """
+
+    def __init__(self, source_specs: Mapping[str, ImageBufferSpec], steps: Sequence[RenderBufferStepCfg]):
+        self.source_specs = MappingProxyType(dict(source_specs))
+        self.required_inputs = self.required_source_names(steps)
+        self._operations: list[
+            tuple[PreparedBufferOperation, dict[str, str], dict[str, str], dict[str, ProxyArray]]
+        ] = []
+        self._closed = False
+        self.outputs: Mapping[str, ProxyArray] = MappingProxyType({})
+        available = dict(source_specs)
+        final_outputs: dict[str, ProxyArray] = {}
+        try:
+            for step in steps:
+                inputs, outputs = dict(step.inputs), dict(step.outputs)
+                if not outputs or len(set(outputs.values())) != len(outputs):
+                    raise ValueError("A processing step must bind distinct output names to its output roles.")
+                missing = set(inputs.values()) - available.keys()
+                if missing:
+                    raise ValueError(f"Missing image buffer declarations: {sorted(missing)}.")
+                prepare = string_to_callable(step.prepare) if isinstance(step.prepare, str) else step.prepare
+                input_specs = {role: available[name] for role, name in inputs.items()}
+                operation = prepare(MappingProxyType(input_specs), **step.params)
+                if not isinstance(operation, PreparedBufferOperation):
+                    raise TypeError("A buffer operation factory must return PreparedBufferOperation.")
+                destinations: dict[str, ProxyArray] = {}
+                # Register ownership before allocation/validation, so failure closes the operation.
+                self._operations.append((operation, inputs, outputs, destinations))
+                if operation.output_specs.keys() != outputs.keys():
+                    raise ValueError("Operation output roles must match the step's output bindings.")
+                devices = {
+                    str(wp.get_device(spec.device))
+                    for spec in (*input_specs.values(), *operation.output_specs.values())
+                }
+                if len(devices) > 1:
+                    raise ValueError("A buffer operation must use one device for its inputs and outputs.")
+                for role, name in outputs.items():
+                    spec = operation.output_specs[role]
+                    destinations[role] = ProxyArray(wp.empty(spec.shape, dtype=spec.dtype, device=spec.device))
+                    available[name] = spec
+                    final_outputs[name] = destinations[role]
+        except Exception as error:
+            try:
+                self.close()
+            except Exception as cleanup_error:
+                raise error from cleanup_error
+            raise
+        self.output_specs = MappingProxyType(available)
+        self.outputs = MappingProxyType(final_outputs)
+        self.produced_outputs = frozenset(final_outputs)
+
+    @staticmethod
+    def required_source_names(
+        steps: Sequence[RenderBufferStepCfg], published_names: Sequence[str] = ()
+    ) -> frozenset[str]:
+        """Resolve external names without constructing operations or allocating pixel storage.
+
+        Call this before renderer initialization to request private processing inputs. Public
+        pass-through outputs also require a source, even when no operation reads them.
+        """
+        required: set[str] = set()
+        produced: set[str] = set()
+        for step in steps:
+            required.update(set(step.inputs.values()) - produced)
+            produced.update(step.outputs.values())
+        required.update(set(published_names) - produced)
+        return frozenset(required)
+
+    def __call__(self, buffers: Mapping[str, ProxyArray]) -> dict[str, ProxyArray]:
+        """Execute the pipe on ready source buffers and return the resulting bundle."""
+        if self._closed:
+            raise RuntimeError("Cannot execute a closed render buffer pipe.")
+        missing = self.required_inputs - buffers.keys()
+        if missing:
+            raise ValueError(f"Missing required image buffers: {sorted(missing)}.")
+        for name in self.required_inputs:
+            self.source_specs[name].validate(name, buffers[name])
+        current = dict(buffers)
+        for operation, inputs, outputs, destinations in self._operations:
+            operation.apply({role: current[name] for role, name in inputs.items()}, destinations)
+            current.update({name: destinations[role] for role, name in outputs.items()})
+        return current
+
+    def apply_to_tensor(
+        self,
+        data: torch.Tensor,
+        *,
+        input_name: str,
+        output_name: str,
+        auxiliary_buffers: Mapping[str, ProxyArray] | None = None,
+    ) -> torch.Tensor:
+        """Process an incoming observation tensor and return an independently owned snapshot.
+
+        The supplied tensor is authoritative: earlier observation transformations are preserved.
+        Auxiliary inputs must already be ready on the current Warp/Torch stream. CUDA work is
+        ordered with the caller's Torch stream; no host/device transfer is performed.
+        """
+        if auxiliary_buffers is not None and input_name in auxiliary_buffers:
+            raise ValueError("Auxiliary buffers must not replace the incoming observation tensor.")
+        buffers = dict(auxiliary_buffers or {})
+        buffers[input_name] = ProxyArray(wp.from_torch(data))
+        return self.as_tensor(buffers, output_name=output_name)
+
+    def as_tensor(
+        self, buffers: Mapping[str, ProxyArray], *, output_name: str, out: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Execute on the current Torch stream and snapshot one output for an observation.
+
+        Source buffers must be ready on the current Warp or Torch stream. Stream ordering
+        is established without a device-wide synchronization; no host/device copy is made.
+        A supplied ``out`` must match the selected output contract and is overwritten in place.
+        """
+        if out is not None:
+            self.output_specs[output_name].validate("out", ProxyArray(wp.from_torch(out)))
+        device = wp.get_device(self.output_specs[output_name].device)
+        stream = wp.stream_from_torch(torch.cuda.current_stream(str(device))) if device.is_cuda else None
+        with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
+            result = self(buffers)[output_name].torch
+            return result.clone() if out is None else out.copy_(result)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Reset operation-owned state for selected batch entries."""
+        for operation, *_ in self._operations:
+            if operation.reset is not None:
+                operation.reset(env_ids)
+
+    def close(self) -> None:
+        """Release operation resources; repeated calls have no effect."""
+        if self._closed:
+            return
+        self._closed = True
+        operations, self._operations = self._operations, []
+        self.outputs = MappingProxyType({})
+        errors = []
+        for operation, *_ in reversed(operations):
+            if operation.close is not None:
+                try:
+                    operation.close()
+                except Exception as error:
+                    errors.append(error)
+        if errors:
+            raise ExceptionGroup("Failed to close render buffer operations.", errors)
+
 
 _RGB_LIKE_PREFIXES: tuple[str, ...] = ("rgb", "albedo", "simple_shading")
 _DEPTH_LIKE_PATTERNS: tuple[str, ...] = ("depth", "distance_to")

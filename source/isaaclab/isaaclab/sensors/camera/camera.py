@@ -8,7 +8,10 @@ from __future__ import annotations
 import logging
 import sys
 import weakref
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from copy import copy
+from dataclasses import replace
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
@@ -22,6 +25,7 @@ from ...app.logging_utils import force_log_level
 from ...physics import PhysicsEvent, PhysicsManager
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
+from ...utils.images import ImageBufferSpec, RenderBufferPipe
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
@@ -248,6 +252,13 @@ class Camera(SensorBase):
         if sim_ctx is not None:
             sim_ctx.require_visual_shapes()
 
+        # Renderer requirements include private pipeline inputs and exclude produced public outputs.
+        self._render_cfg = replace(self.cfg, data_types=self.cfg.render_data_types(), pipeline=[])
+        self._buffer_pipe: RenderBufferPipe | None = None
+        self._pipeline_capture: object | None = None
+        self._render_camera_data: CameraData | None = None
+        self._render_outputs: dict[str, ProxyArray] = {}
+        self._render_output_specs: dict[str, ImageBufferSpec] = {}
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
@@ -273,16 +284,19 @@ class Camera(SensorBase):
         """
         if _sys.is_finalizing() or _sys.meta_path is None:
             return
-        # unsubscribe callbacks
-        super().__del__()
+        try:
+            # unsubscribe callbacks
+            super().__del__()
 
-        # release the frame view's backend state, getattr covers partial initialization
-        if getattr(self, "_view", None) is not None:
-            self._view.close()
-            self._view = None
-        # cleanup render resources (renderer may be None if never initialized)
-        if getattr(self, "_renderer", None) is not None:
-            self._renderer.cleanup(getattr(self, "_render_data", None))
+            # release the frame view's backend state, getattr covers partial initialization
+            if getattr(self, "_view", None) is not None:
+                self._view.close()
+                self._view = None
+            # cleanup render resources (renderer may be None if never initialized)
+            if getattr(self, "_renderer", None) is not None:
+                self._renderer.cleanup(getattr(self, "_render_data", None))
+        finally:
+            self._close_pipeline()
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -321,6 +335,42 @@ class Camera(SensorBase):
         self._update_outdated_buffers()
         # return the data
         return self._data
+
+    @property
+    def render_outputs(self) -> Mapping[str, ProxyArray]:
+        """Borrowed renderer buffers before the camera pipeline, including private pipeline inputs.
+
+        Access updates the camera when due. Arrays must not be modified by callers, and their contents
+        are replaced by later captures. Copy any values that must outlive the next camera update.
+        """
+        self._update_outdated_buffers()
+        return MappingProxyType(self._render_outputs)
+
+    @property
+    def render_output_specs(self) -> Mapping[str, ImageBufferSpec]:
+        """Resolved raw image contracts, available after camera initialization and treated as read-only."""
+        return MappingProxyType(self._render_output_specs)
+
+    def request_render_inputs(self, names: Sequence[str]) -> None:
+        """Request private renderer buffers before camera initialization.
+
+        Observation pipelines use this during scene preparation. Inputs already requested are a no-op;
+        adding outputs after initialization raises because renderer setup and USD export are complete.
+        These requests do not change the camera's public :attr:`CameraData.output` selection.
+        """
+        additional = [
+            name for name in names if name not in self._render_cfg.data_types and name not in self._render_outputs
+        ]
+        if not additional:
+            return
+        if self._is_initialized:
+            raise RuntimeError("Camera renderer inputs must be requested before initialization.")
+        render_cfg = replace(
+            self._render_cfg, data_types=list(dict.fromkeys([*self._render_cfg.data_types, *additional]))
+        )
+        self._check_supported_data_types(render_cfg)
+        render_cfg.validate_config()
+        self._render_cfg = render_cfg
 
     @property
     def frame(self) -> ProxyArray:
@@ -609,6 +659,9 @@ class Camera(SensorBase):
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
+        if self._buffer_pipe is not None:
+            pipeline_env_ids = wp.to_torch(env_mask).nonzero().squeeze(-1) if env_mask is not None else env_ids
+            self._buffer_pipe.reset(pipeline_env_ids)
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -651,7 +704,7 @@ class Camera(SensorBase):
         # cameras initialized without that callback.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         render_spec = CameraRenderSpec(
-            cfg=self.cfg,
+            cfg=self._render_cfg,
             device=str(sim_ctx.device),
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
@@ -701,7 +754,7 @@ class Camera(SensorBase):
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
-        self._renderer.prepare_capture(self._render_data, self._data, self._frame)
+        self._renderer.prepare_capture(self._render_data, self._render_camera_data, self._frame)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
@@ -715,12 +768,13 @@ class Camera(SensorBase):
             sim_ctx.render_context.render_into_camera(
                 renderer,
                 self._render_data,
-                self._data,
+                self._render_camera_data,
                 sim_ctx.get_physics_step_count(),
             )
         else:
             renderer.render(self._render_data)
-            renderer.read_output(self._render_data, self._data)
+            renderer.read_output(self._render_data, self._render_camera_data)
+        self._apply_pipeline()
 
     @staticmethod
     def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
@@ -742,9 +796,41 @@ class Camera(SensorBase):
             return
 
         sim_ctx.render_context.render_into_cameras(
-            [(camera._renderer, camera._render_data, camera._data) for camera in ready],
+            [(camera._renderer, camera._render_data, camera._render_camera_data) for camera in ready],
             sim_ctx.get_physics_step_count(),
         )
+        for camera in ready:
+            camera._apply_pipeline()
+
+    def _close_pipeline(self) -> None:
+        """Release pipeline resources, including partially initialized cameras."""
+        pipe = getattr(self, "_buffer_pipe", None)
+        self._buffer_pipe = None
+        if pipe is not None:
+            pipe.close()
+
+    def _apply_pipeline(self) -> None:
+        """Process a new capture once and publish metadata matching its processed pixels."""
+        if self._buffer_pipe is None:
+            if self._data is not self._render_camera_data:
+                for name in self._data.output:
+                    self._data.info[name] = self._render_camera_data.info.get(name)
+            return
+        info = self._render_camera_data.info
+        capture = next(
+            (value["capture"] for value in info.values() if isinstance(value, dict) and "capture" in value), None
+        )
+        if capture is not None and capture is self._pipeline_capture:
+            return
+        self._buffer_pipe(self._render_outputs)
+        self._pipeline_capture = capture
+        for name in self._data.output:
+            if name in self._buffer_pipe.produced_outputs or (
+                name == "rgb" and "rgba" in self._buffer_pipe.produced_outputs
+            ):
+                self._data.info[name] = {"capture": capture} if capture is not None else None
+            else:
+                self._data.info[name] = info.get(name)
 
     """
     Private Helpers
@@ -760,7 +846,7 @@ class Camera(SensorBase):
             )
         # check if there is any intersection in unsupported types
         # reason: these use np structured data types which are not compatible with the camera buffer contract
-        common_elements = set(cfg.data_types) & Camera.UNSUPPORTED_TYPES
+        common_elements = set(cfg.render_data_types()) & Camera.UNSUPPORTED_TYPES
         if common_elements:
             # provide alternative fast counterparts
             fast_common_elements = []
@@ -783,7 +869,7 @@ class Camera(SensorBase):
         known: list[str] = []
         unknown: list[str] = []
         unsupported: list[str] = []
-        for name in self.cfg.data_types:
+        for name in self._render_cfg.data_types:
             try:
                 if RenderBufferKind(name) in specs:
                     known.append(name)
@@ -815,7 +901,75 @@ class Camera(SensorBase):
         self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
-        self._renderer.set_outputs(self._render_data, self._data.output)
+        self._render_camera_data = self._data
+        self._render_outputs = self._render_camera_data.output
+        self._renderer.set_outputs(self._render_data, self._render_outputs)
+        encodings = {
+            "rgb_radiance": "scene_linear",
+            "rgb": "camera_response",
+            "rgba": "camera_response",
+            "depth": "meters",
+            "distance_to_camera": "meters",
+            "distance_to_image_plane": "meters",
+        }
+        self._render_output_specs = {
+            name: ImageBufferSpec(
+                shape=buffer.shape,
+                dtype=buffer.dtype,
+                device=str(buffer.device),
+                encoding=encodings.get(name, "unknown"),
+            )
+            for name, buffer in self._render_outputs.items()
+        }
+        self._close_pipeline()
+        self._pipeline_capture = None
+        if self.cfg.pipeline:
+            self._buffer_pipe = RenderBufferPipe(self._render_output_specs, self.cfg.pipeline)
+            try:
+                outputs = {**self._render_outputs, **self._buffer_pipe.outputs}
+                alias_rgb = (
+                    "rgba" in self._buffer_pipe.produced_outputs and "rgb" not in self._buffer_pipe.produced_outputs
+                )
+                expected_shape = (self._view.count, self.cfg.height, self.cfg.width)
+                for name in self.cfg.data_types:
+                    spec = self._buffer_pipe.output_specs["rgba" if alias_rgb and name == "rgb" else name]
+                    if spec.layout != "NHWC" or len(spec.shape) != 4 or spec.shape[:3] != expected_shape:
+                        raise ValueError(
+                            f"Camera pipeline output {name!r} must use NHWC with batch and spatial shape"
+                            f" {expected_shape}; received {spec.layout} {spec.shape}. Use an observation pipe"
+                            " for shape-changing results, because camera calibration describes the rendered image."
+                        )
+                # Preserve RGB's view semantics when an operation produces RGBA, without publishing stale raw RGB.
+                if alias_rgb:
+                    rgba = outputs["rgba"].warp
+                    if len(rgba.shape) != 4 or rgba.shape[-1] != 4:
+                        raise ValueError("A pipeline output named rgba must have shape (N, H, W, 4).")
+                    rgb = wp.array(
+                        ptr=rgba.ptr,
+                        shape=(*rgba.shape[:-1], 3),
+                        strides=rgba.strides,
+                        dtype=rgba.dtype,
+                        device=rgba.device,
+                        copy=False,
+                    )
+                    outputs["rgb"] = ProxyArray(rgb)
+                self._data = copy(self._render_camera_data)
+                self._data._output = {name: outputs[name] for name in self.cfg.data_types}
+                self._data.info = dict.fromkeys(self._data.output)
+            except Exception as error:
+                try:
+                    self._close_pipeline()
+                except Exception as cleanup_error:
+                    error.add_note(f"Failed to close camera pipeline after initialization failed: {cleanup_error}")
+                raise
+        elif set(self._render_cfg.data_types) != set(self.cfg.data_types):
+            # Observation-only dependencies remain private even when this camera has no own pipeline.
+            public = set(self.cfg.data_types)
+            if not public.isdisjoint({"rgb", "rgba"}):
+                public.update({"rgb", "rgba"})
+            self._data = copy(self._render_camera_data)
+            self._data._output = {name: buffer for name, buffer in self._render_outputs.items() if name in public}
+            self._data.info = dict.fromkeys(self._data.output)
 
     def _read_authored_opencv_intrinsics(
         self, prim: Usd.Prim, width: int, height: int, env_id: int
@@ -1070,7 +1224,7 @@ class Camera(SensorBase):
             num_views = len(sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         render_spec = CameraRenderSpec(
-            cfg=self.cfg,
+            cfg=self._render_cfg,
             device=str(sim_ctx.device),
             num_instances=num_views,
             camera_prim_paths=cam_paths,
@@ -1080,13 +1234,16 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
-        if self._renderer is not None and self._render_data is not None:
-            self._renderer.cleanup(self._render_data)
-        self._render_data = None
-        self._renderer = None
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # release backend state deterministically, then invalidate the view
-        if self._view is not None:
-            self._view.close()
-            self._view = None
+        try:
+            self._close_pipeline()
+        finally:
+            if self._renderer is not None and self._render_data is not None:
+                self._renderer.cleanup(self._render_data)
+            self._render_data = None
+            self._renderer = None
+            # call parent
+            super()._invalidate_initialize_callback(event)
+            # release backend state deterministically, then invalidate the view
+            if self._view is not None:
+                self._view.close()
+                self._view = None

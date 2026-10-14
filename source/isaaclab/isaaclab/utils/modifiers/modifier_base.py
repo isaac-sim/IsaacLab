@@ -56,6 +56,10 @@ class ModifierBase(ABC):
         self._data_dim = data_dim
         self._device = device
 
+    def close(self) -> None:
+        """Release resources owned by this modifier."""
+        pass
+
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the Modifier.

@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate the camera PPISP wrapper applied to a 3D Gaussian (NuRec /
+"""Validate the camera PPISP pipeline applied to a 3D Gaussian (NuRec /
 ParticleField) scene through the ``ovrtx`` renderer.
 
 The asset is synthesised at test time by :mod:`generate_synthetic_gaussian_asset`
-and rendered via :func:`generate_synthetic_gaussian_asset.render_synthetic_gaussian_scene`.
-The aggressive wrapper PPISP cfg
+and rendered through the camera's shared render-buffer pipeline.
+The aggressive PPISP cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) intentionally
 engages every feature past its subtle-correction defaults so each can be
 asserted independently:
@@ -38,8 +38,8 @@ Notes:
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
-    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP render path
-    itself also allocates an internal HDR buffer when ``isp_cfg`` is set, so
+    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP camera pipeline
+    requests its private ``"rgb_radiance"`` input automatically, so
     ``"rgb_hdr"`` is not required just to enable PPISP.
 """
 
@@ -57,10 +57,10 @@ from generate_synthetic_gaussian_asset import (
     make_aggressive_ppisp_cfg,
     make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
-    render_synthetic_gaussian_scene,
     render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
     render_synthetic_gaussian_scene_with_static_ppisp_attrs,
 )
+from isaaclab_ppisp import PpispCfg
 
 from isaaclab.sim import SimulationCfg
 
@@ -87,17 +87,14 @@ else:
 SIM_DT = 1.0 / 60.0
 MULTI_TILE_COUNT = 4
 
-# Mark the gaussian-on-OVRTX tests xfail by default: the wrapper-side
-# ``carb.settings.set_bool`` call that disables RTX-side tonemapping is a
-# no-op for the kit-less ovrtx backend, and the equivalent must be applied
-# externally before launching pytest.
-_XFAIL_OVRTX_GAUSSIAN_PPISP = pytest.mark.xfail(
-    reason=(
-        "kit-less ovrtx cannot toggle RTX-side tonemapping at runtime; the equivalent must be "
-        "applied externally before launching pytest"
-    ),
-    strict=False,
-)
+
+def _ovrtx_ppisp_cfg() -> PpispCfg:
+    """Expose the unexposed scene-linear Gaussian signal into the CRF's useful range."""
+    cfg = make_aggressive_ppisp_cfg()
+    # rgb_radiance has a center near 0.12; +2 EV places it near 0.48 before the
+    # response curve. The shared fixture's -5 EV targets legacy exposed HDR.
+    cfg.inputs["exposureOffset"] = 2.0
+    return cfg
 
 
 def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
@@ -110,12 +107,11 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_ovrtx(device):
     """OVRTX must apply camera-authored static PPISP attributes."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        aggressive_cfg = make_aggressive_ppisp_cfg()
+        aggressive_cfg = _ovrtx_ppisp_cfg()
 
         neutral = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
             asset_path,
@@ -141,12 +137,11 @@ def test_camera_ppisp_authored_static_attrs_are_applied_on_synthetic_gaussians_o
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovrtx(device):
     """OVRTX controller output must match the equivalent static PPISP cfg."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        ppisp_cfg = make_aggressive_ppisp_cfg()
+        ppisp_cfg = _ovrtx_ppisp_cfg()
 
         static = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
             asset_path,
@@ -171,7 +166,10 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @_SKIP_MISSING_OVRTX
-@_XFAIL_OVRTX_GAUSSIAN_PPISP
+@pytest.mark.xfail(
+    reason="OVRTX renders cloned Gaussian tiles black in native RGB and radiance, including without a camera pipeline",
+    strict=False,
+)
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
     """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants
     independently for every tile.
@@ -184,10 +182,11 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
-        output = render_synthetic_gaussian_scene(
+        output = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
             asset_path,
             sim_cfg=_ovrtx_sim_cfg(device),
             renderer_cfg=OVRTXRendererCfg(),
+            ppisp_cfg=_ovrtx_ppisp_cfg(),
             data_types=["rgb", "rgb_hdr"],
             num_envs=MULTI_TILE_COUNT,
             sim_dt=SIM_DT,

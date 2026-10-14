@@ -153,8 +153,9 @@ updating it adds frame-query overhead.
 Output types
 ------------
 
-The active renderer validates ``data_types`` and allocates the channel count and data type declared
-by its :class:`~isaaclab.renderers.RenderBufferSpec`.
+For raw outputs, the active renderer validates the requested names and allocates the channel count
+and data type declared by its :class:`~isaaclab.renderers.RenderBufferSpec`. A camera pipeline may
+produce additional output names; its operation factories declare their output contracts.
 
 .. list-table:: Common output contracts
    :header-rows: 1
@@ -326,47 +327,148 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
 
-Post-render image signal processing
------------------------------------
+Post-render image processing
+----------------------------
 
-:attr:`~sensors.CameraCfg.isp_cfg` optionally applies an image signal processing (ISP) pass to the
-renderer's scene-linear HDR output. The shipped implementation is PPISP (Physically Plausible Image
-Signal Processing), which applies responsivity, exposure, vignetting, color correction, and a camera
-response function before writing ``rgb`` or ``rgba``.
+:attr:`~sensors.CameraCfg.pipeline` applies an ordered sequence of operations to named image buffers.
+Each :class:`~isaaclab.utils.images.RenderBufferStepCfg` maps operation input and output roles to buffer
+names. A step can read several channels, such as radiance and depth, and later steps read the preceding
+step's results. The same :class:`~isaaclab.utils.images.RenderBufferPipe` can run independently or serve
+an observation consumer; operations receive explicit buffers and resources without discovering a camera,
+environment, or simulation singleton.
 
-The field accepts:
-
-* ``None`` to disable post-render ISP.
-* :class:`~isaaclab_ppisp.PpispCfg` for explicit coefficients or coefficients imported from a USD
-  camera.
-* :class:`~sensors.CameraISPMode` to discover ``ppisp:*`` attributes on a camera prim.
+The camera resolves external inputs before renderer initialization, including inputs needed only by the
+pipeline. It publishes the names in ``data_types`` after processing. For example, this camera requests
+private ``rgb_radiance`` from its renderer and publishes PPISP's processed ``rgb``:
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
    from isaaclab.utils import replace
-   from isaaclab_ppisp import PpispCfg
+   from isaaclab_ppisp import PpispCfg, PpispStepCfg
 
-   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+   processed_camera = replace(
+       front_camera,
+       data_types=["rgb"],
+       pipeline=[PpispStepCfg(params={"cfg": PpispCfg(inputs={"exposureOffset": 1.5})})],
+   )
 
-   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
+PPISP (Physically Plausible Image Signal Processing) applies responsivity, exposure, vignetting, color
+correction, and a camera response function. It consumes float32 scene-linear radiance and produces
+uint8 color. Set ``outputs={"color": "rgba"}`` and ``params={"cfg": ppisp_cfg, "channels": 4}`` on the
+step for RGBA output. A pipeline-produced RGBA buffer also supplies a zero-copy RGB view when ``rgb``
+is requested. A pipeline producing only RGB cannot satisfy an explicit RGBA request.
 
-``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
-camera anywhere on the stage. Discovery happens once during camera construction.
+For a custom operation, provide a factory ``prepare(input_specs, **params)`` returning
+:class:`~isaaclab.utils.images.PreparedBufferOperation`. Input and output mappings inside the operation
+use role names, while the step configuration owns camera-buffer names. Declare output shape, dtype,
+device, layout, and encoding with :class:`~isaaclab.utils.images.ImageBufferSpec`; then write each
+supplied output destination in ``apply(inputs, outputs)``. The pipe allocates these destinations once.
+Encoding is declared by the producer rather than inferred from dtype or pixel values. Camera radiance
+uses ``scene_linear``, RGB/RGBA uses ``camera_response``, and depth uses ``meters``.
+Published camera outputs must keep the camera's batch size, height, width, and NHWC layout so pose
+and calibration metadata remain valid. Intermediate buffers may change shape. Use ``processed_image``
+below when the final observation should have a different image shape or layout.
 
-PPISP is composed by Isaac RTX, OVRTX, and Newton Warp. It requires ``rgb`` or ``rgba`` output. A
-static configuration is shared by all cloned views in one camera batch; controller weights may
-predict per-view exposure and color parameters, while the remaining coefficients stay shared. ISP
-configuration and discovered USD attributes are fixed for the camera lifetime.
+``camera.render_outputs`` exposes borrowed raw renderer buffers, including private inputs, and
+``camera.render_output_specs`` exposes their contracts after initialization. Reading raw outputs updates
+the camera when due. Neither an operation nor a caller may mutate borrowed inputs. Public processed
+buffers and raw buffers retain their storage until camera reinitialization, but later captures replace
+their contents; clone values that must survive another capture. Each camera owns its pipe and operation
+workspace. Operations may share explicitly supplied immutable model resources.
+Configuration copying must preserve the identity of borrowed resources: PPISP provides
+``PpispControllerWeights`` for device weights. Custom factories can capture a resource in a closure
+or use a wrapper with identity-preserving ``__deepcopy__``; raw Warp allocations are not configuration values.
 
-.. important::
+Pipelines run after scalar and batched captures. When an asynchronous renderer republishes a capture,
+the camera retains its processed result and matching capture metadata. Camera reset forwards only the
+selected environment indices to operation reset callbacks; teardown closes the operations. For an
+observation-only pipeline, declare raw dependencies with ``camera.request_render_inputs(names)`` before
+simulation initialization. Additional requests after initialization fail because renderer setup is
+already complete. Observation consumers use their own pipe and snapshot results needed across captures.
 
-   With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
-   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
-   ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
-   separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
-   renderer leaves authored camera exposure unchanged.
+Processing observation images
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :class:`~isaaclab.envs.mdp.processed_image` for observation-only processing, including operations
+that combine several camera outputs or change image dimensions:
+
+.. code-block:: python
+
+   from isaaclab.envs import mdp
+   from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+   from isaaclab_ppisp import PpispStepCfg
+
+   policy_image = ObservationTermCfg(
+       func=mdp.processed_image,
+       params={
+           "sensor_cfg": SceneEntityCfg("front_camera"),
+           "pipeline": [PpispStepCfg()],
+           "output_name": "rgb",
+       },
+   )
+
+Manager-based environments collect the term's private renderer inputs before simulation reset. A
+standalone observation manager must call ``ObservationManager.prepare_scene(cfg, env)`` before reset.
+The term processes raw renderer outputs even when the camera has its own pipeline. To read the
+camera's published processed output, use an existing image term such as ``mdp.image_rgb`` instead.
+The observation pipe executes on every term evaluation and returns a snapshot; its state belongs to
+that term rather than the camera's capture cadence.
+
+For a single incoming tensor, :class:`~isaaclab.utils.modifiers.RenderBufferPipeModifierCfg` uses the
+same operations while preserving preceding observation transformations. This form must preserve
+shape; use ``processed_image`` for multiple camera inputs or shape changes. The declared dtype,
+encoding, and layout describe the tensor reaching the modifier:
+
+.. code-block:: python
+
+   import warp as wp
+   from isaaclab.utils import modifiers
+
+   # This camera publishes radiance for the ordinary image term to read.
+   raw_camera = replace(front_camera, data_types=["rgb_radiance"], pipeline=[])
+   policy_image = ObservationTermCfg(
+       func=mdp.image_rgb,
+       params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_radiance", "normalize": False},
+       modifiers=[
+           modifiers.RenderBufferPipeModifierCfg(
+               pipeline=[PpispStepCfg()],
+               input_name="rgb_radiance",
+               output_name="rgb",
+               dtype=wp.float32,
+               encoding="scene_linear",
+               layout="NHWC",
+           )
+       ],
+   )
+
+Migrating renderer-owned ISP configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``CameraCfg.isp_cfg`` no longer executes image processing. A non-None value raises a migration error;
+replace it with ``CameraCfg.pipeline`` as above. ``CameraISPMode`` remains importable for legacy
+configuration values, but new code should resolve USD attributes explicitly before constructing the
+operation:
+
+.. code-block:: python
+
+   from isaaclab_ppisp import PpispDiscoveryMode, PpispStepCfg, resolve_and_normalize
+
+   ppisp_cfg = resolve_and_normalize(PpispDiscoveryMode.AUTO_CAMERA, stage, "/World/Camera")
+   discovered_camera = replace(
+       front_camera,
+       data_types=["rgb"],
+       pipeline=[PpispStepCfg(params={"cfg": ppisp_cfg})] if ppisp_cfg is not None else [],
+   )
+
+``AUTO_CAMERA`` checks the supplied camera prim; ``AUTO_ANY`` can fall back to the first PPISP camera
+on the supplied stage. Alternatively, pass an already resolved camera prim to
+``ppisp_cfg_from_usd_camera(camera_prim)``. Discovery has no implicit simulation or stage lookup inside
+the operation. Static coefficients apply to the whole camera batch; controller weights may predict
+per-view exposure and color parameters.
+
+Requesting ``rgb_radiance``, including a private pipeline request, still neutralizes camera exposure on
+Isaac RTX and OVRTX as described in :ref:`camera-supported-annotators`. Processing configuration itself
+does not change renderer settings. Newton Warp has no exposure model.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
 ``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).

@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispDiscoveryMode,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
     default_ppisp_inputs,
@@ -226,13 +227,11 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
 
 
 def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")
     _author_ppisp_camera(stage, "/World/Camera_ppisp", inherits=None, attrs={"exposureOffset": 2.0})
 
-    cfg = resolve_and_normalize(CameraISPMode.AUTO_CAMERA, stage)
+    cfg = resolve_and_normalize(PpispDiscoveryMode.AUTO_CAMERA, stage)
 
     assert cfg is not None
     assert cfg.camera_prim_path is None

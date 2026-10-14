@@ -508,7 +508,8 @@ def _ppisp_controller_mlp_native_kernel(
     _ppisp_controller_mlp_native(features, weights, controller_params, prior_exposure, camera_id, lane)
 
 
-@wp.kernel(enable_backward=False)
+# Keep image transforms compilable on CPU without the CUDA-only native controller snippets.
+@wp.kernel(enable_backward=False, module="unique")
 def _apply_ppisp_kernel(
     hdr_color: wp.array4d(dtype=wp.float32),
     out_rgba: wp.array4d(dtype=wp.uint8),
@@ -591,10 +592,11 @@ def _apply_ppisp_kernel(
     out_rgba[camera_id, height_id, width_id, 0] = wp.uint8(wp.clamp(out_rgb[0], 0.0, 1.0) * 255.0)
     out_rgba[camera_id, height_id, width_id, 1] = wp.uint8(wp.clamp(out_rgb[1], 0.0, 1.0) * 255.0)
     out_rgba[camera_id, height_id, width_id, 2] = wp.uint8(wp.clamp(out_rgb[2], 0.0, 1.0) * 255.0)
-    out_rgba[camera_id, height_id, width_id, 3] = wp.uint8(255)
+    if out_rgba.shape[3] == 4:
+        out_rgba[camera_id, height_id, width_id, 3] = wp.uint8(255)
 
 
-@wp.kernel(enable_backward=False)
+@wp.kernel(enable_backward=False, module="unique")
 def _apply_ppisp_controller_kernel(
     hdr_color: wp.array4d(dtype=wp.float32),
     out_rgba: wp.array4d(dtype=wp.uint8),
@@ -670,23 +672,38 @@ def _apply_ppisp_controller_kernel(
     out_rgba[camera_id, height_id, width_id, 0] = wp.uint8(wp.clamp(out_rgb[0], 0.0, 1.0) * 255.0)
     out_rgba[camera_id, height_id, width_id, 1] = wp.uint8(wp.clamp(out_rgb[1], 0.0, 1.0) * 255.0)
     out_rgba[camera_id, height_id, width_id, 2] = wp.uint8(wp.clamp(out_rgb[2], 0.0, 1.0) * 255.0)
-    out_rgba[camera_id, height_id, width_id, 3] = wp.uint8(255)
+    if out_rgba.shape[3] == 4:
+        out_rgba[camera_id, height_id, width_id, 3] = wp.uint8(255)
+
+
+def _validate_ppisp_image_buffers(hdr_color: wp.array, out_rgba: wp.array) -> None:
+    """Check the shapes, scalar types, and device required by both image kernels."""
+    if hdr_color.dtype is not wp.float32:
+        raise ValueError(f"Camera PPISP HDR input must be wp.float32, got {hdr_color.dtype}.")
+    if out_rgba.dtype is not wp.uint8:
+        raise ValueError(f"Camera PPISP RGB/RGBA output must be wp.uint8, got {out_rgba.dtype}.")
+    if len(hdr_color.shape) != 4 or hdr_color.shape[-1] != 3:
+        raise ValueError("PPISP input must have shape (N, H, W, 3).")
+    if (
+        len(out_rgba.shape) != 4
+        or out_rgba.shape[-1] not in (3, 4)
+        or out_rgba.shape[:3] != hdr_color.shape[:3]
+        or out_rgba.device != hdr_color.device
+    ):
+        raise ValueError("PPISP output must match the input batch, image dimensions, and device, with 3 or 4 channels.")
 
 
 def apply_ppisp_to_rgba(hdr_color: wp.array, out_rgba: wp.array, cfg: PpispCfg) -> None:
-    """Apply PPISP to ``hdr_color`` and write LDR RGBA into ``out_rgba``.
+    """Apply PPISP to ``hdr_color`` and write LDR RGB or RGBA into ``out_rgba``.
 
     Args:
         hdr_color: HDR scene-linear input. ``wp.array4d(dtype=wp.float32)`` of
             shape ``(N, H, W, 3)``.
-        out_rgba: LDR RGBA output. ``wp.array4d(dtype=wp.uint8)`` of shape
-            ``(N, H, W, 4)``. Written in place.
+        out_rgba: LDR output. ``wp.array4d(dtype=wp.uint8)`` of shape
+            ``(N, H, W, 3)`` or ``(N, H, W, 4)``. Written in place; alpha is 255 when present.
         cfg: PPISP configuration.
     """
-    if hdr_color.dtype is not wp.float32:
-        raise ValueError(f"Camera PPISP HDR input must be wp.float32, got {hdr_color.dtype}.")
-    if out_rgba.dtype is not wp.uint8:
-        raise ValueError(f"Camera PPISP RGBA output must be wp.uint8, got {out_rgba.dtype}.")
+    _validate_ppisp_image_buffers(hdr_color, out_rgba)
 
     inputs = cfg.inputs
     wp.launch(
@@ -812,17 +829,14 @@ def apply_ppisp_to_rgba_with_controller_params(
 
     Args:
         hdr_color: HDR scene-linear input, shape ``(N, H, W, 3)``.
-        out_rgba: LDR RGBA output, shape ``(N, H, W, 4)``.
+        out_rgba: LDR RGB/RGBA output, shape ``(N, H, W, 3)`` or ``(N, H, W, 4)``.
         cfg: PPISP configuration. Static inputs provide responsivity,
             vignetting and CRF.
         controller_params: ``wp.array2d(float32)`` of shape ``(N, 9)`` holding
             ``[exposureOffset, colorLatentBlue.xy, colorLatentRed.xy,
             colorLatentGreen.xy, colorLatentNeutral.xy]``.
     """
-    if hdr_color.dtype is not wp.float32:
-        raise ValueError(f"Camera PPISP HDR input must be wp.float32, got {hdr_color.dtype}.")
-    if out_rgba.dtype is not wp.uint8:
-        raise ValueError(f"Camera PPISP RGBA output must be wp.uint8, got {out_rgba.dtype}.")
+    _validate_ppisp_image_buffers(hdr_color, out_rgba)
     if controller_params.dtype is not wp.float32:
         raise ValueError(f"Camera PPISP controller params must be wp.float32, got {controller_params.dtype}.")
     if controller_params.shape[0] != out_rgba.shape[0] or controller_params.shape[1] != 9:

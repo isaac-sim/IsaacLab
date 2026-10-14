@@ -12,6 +12,7 @@ https://arxiv.org/abs/2601.18336.
 from __future__ import annotations
 
 from dataclasses import field
+from enum import StrEnum
 from typing import Any
 
 from isaaclab.utils import configclass
@@ -77,6 +78,16 @@ PPISP_DEFAULT_INPUTS: dict[str, float | tuple[float, float]] = {
 def default_ppisp_inputs() -> dict[str, float | tuple[float, float]]:
     """Return a copy of the PPISP identity/default input dictionary."""
     return dict(PPISP_DEFAULT_INPUTS)
+
+
+class PpispDiscoveryMode(StrEnum):
+    """Explicit USD configuration discovery strategies used before preparing a PPISP stage."""
+
+    AUTO_CAMERA = "auto_camera"
+    """Read the specified camera, or the first PPISP camera when no path is supplied."""
+
+    AUTO_ANY = "auto_any"
+    """Read the specified camera, then fall back to the first PPISP camera on the stage."""
 
 
 @configclass
@@ -321,29 +332,17 @@ def has_ppisp_camera_attrs(camera_prim: Any | None) -> bool:
     return _has_ppisp_camera_attrs(camera_prim)
 
 
-def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None = None) -> PpispCfg | None:
-    """Resolve a Camera sensor batch's ``isp_cfg`` to a normalised cfg or ``None``.
+def resolve_and_normalize(
+    isp_cfg: PpispCfg | PpispDiscoveryMode | None, stage: Any, camera_prim_path: str | None = None
+) -> PpispCfg | None:
+    """Resolve explicit settings or a discovery mode using the caller's USD stage.
 
-    Handles all three legal forms of :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`:
-
-    * ``None`` → returns ``None``.
-    * :class:`~isaaclab.sensors.camera.CameraISPMode` sentinel — checks the
-      target camera via :func:`auto_camera_ppisp_cfg` (and uses
-      :func:`auto_any_ppisp_cfg` for ``AUTO_ANY`` or when no camera path is
-      supplied) to discover a PPISP camera. Returns the parsed + normalised
-      :class:`PpispCfg`, or ``None`` if no PPISP camera matched.
-    * Concrete :class:`PpispCfg` — normalises in place (validates input keys,
-      fills defaults, and merges camera-authored USD values when
-      ``camera_prim_path`` is set).
-
-    This is the single entry point renderer backends call inside their
-    ``prepare_cameras`` hook so :mod:`isaaclab.sensors.camera` does not need
-    to know about PPISP types at all. The returned cfg applies to the whole
-    Camera sensor batch; callers pass the first matched camera prim path for
-    the camera-local discovery phase.
+    Call this before constructing a PPISP stage. The processing operation receives only concrete
+    settings and never looks up a camera or stage. Legacy ``CameraISPMode`` string-enum values
+    remain accepted for migration without importing the camera package.
 
     Args:
-        isp_cfg: The Camera sensor's :attr:`isp_cfg` value (``None``, ``CameraISPMode``, or :class:`PpispCfg`).
+        isp_cfg: Explicit settings, a discovery mode, or ``None`` to disable processing.
         stage: USD stage used for sentinel discovery and camera-path resolution.
         camera_prim_path: Optional absolute path of the first matched camera
             prim in the Camera sensor batch. When omitted, discovery uses the
@@ -352,14 +351,12 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
     Returns:
         A fully-normalised :class:`PpispCfg`, or ``None`` if the batch has no ISP.
     """
-    # Local import avoids a top-of-module dep on isaaclab.sensors.
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
     if isp_cfg is None:
         return None
-    if isinstance(isp_cfg, CameraISPMode):
+    if isinstance(isp_cfg, str):
+        mode = PpispDiscoveryMode(isp_cfg)
         resolved = auto_camera_ppisp_cfg(stage, camera_prim_path) if camera_prim_path else None
-        if resolved is None and (isp_cfg == CameraISPMode.AUTO_ANY or not camera_prim_path):
+        if resolved is None and (mode == PpispDiscoveryMode.AUTO_ANY or not camera_prim_path):
             resolved = auto_any_ppisp_cfg(stage)
         if resolved is None:
             return None

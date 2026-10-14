@@ -3,20 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-render PPISP pipeline composed into renderer backends.
-
-:class:`PpispPipeline` runs *after* a renderer fills its HDR scene-linear AOV,
-converting HDR → LDR via a single Warp kernel. Renderer backends instantiate
-this class when their cfg/spec carries a :class:`PpispCfg` and dispatch
-:meth:`apply` once per render tick. The HDR scratch buffer is owned by the
-renderer backend, not by this class.
-"""
+"""PPISP numerical execution with owned controller workspace and optional shared weights."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import warp as wp
 
-from .cfg import PpispCfg, normalize_ppisp_cfg
+from .cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, PpispCfg, normalize_ppisp_cfg
 from .kernels import (
     PPISP_CONTROLLER_FEATURE_LEN,
     PPISP_CONTROLLER_PARAM_COUNT,
@@ -26,89 +21,105 @@ from .kernels import (
 )
 
 
-class PpispPipeline:
-    """Post-render PPISP kernel applier.
+@dataclass(frozen=True, eq=False, slots=True)
+class PpispControllerWeights:
+    """Shared, read-only device weights with identity preserved when configurations are copied.
 
-    Constructed by renderer backends when ``spec.cfg.isp_cfg`` is set. Owns the
-    normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel once per
-    render tick via :meth:`apply`.
-
-    One pipeline instance applies to the whole Camera sensor batch. The PPISP
-    Warp kernel takes scalar coefficients, so every cloned view in a tiled
-    batch shares the same ISP configuration — there is no per-view ISP today.
-    Per-view support would require packing the cfg into GPU arrays and indexing
-    by ``camera_id`` inside the kernel.
-
-    Today only :class:`PpispCfg` is accepted; future ISP implementations can
-    either subclass or be selected by cfg type without changes to the backend
-    renderers.
+    The caller supplies the allocation and orders its upload before processing. The wrapper retains
+    that allocation for every consumer; neither processors nor configuration copies mutate it.
     """
 
-    def __init__(self, cfg: PpispCfg):
-        """Initialize the PPISP pipeline.
+    values: wp.array
 
-        Normalises ``cfg`` on construction (validates input keys, fills
-        defaults).
-        :class:`~isaaclab.sensors.camera.Camera` already normalises ``isp_cfg``
-        before passing the :class:`~isaaclab.renderers.CameraRenderSpec` to
-        the backend, so renderer backends pass a concrete, resolved config here.
+    def __post_init__(self) -> None:
+        if self.values.shape != (PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN,) or self.values.dtype != wp.float32:
+            raise ValueError("PPISP controller weights require the expected one-dimensional float32 buffer.")
 
-        Args:
-            cfg: The PPISP configuration.
-        """
+    def __deepcopy__(self, memo: dict) -> PpispControllerWeights:
+        # Config cloning must share model resources, while each operation creates its own workspace.
+        return self
+
+
+class PpispPipeline:
+    """Apply concrete PPISP settings to explicitly supplied image buffers.
+
+    This numerical object performs no camera, scene, or renderer discovery. Resolve USD settings
+    with :func:`~isaaclab_ppisp.ppisp_cfg_from_usd_camera` before construction. Each instance owns
+    its controller workspace and is not reentrant; coefficients apply to its whole image batch.
+    :func:`~isaaclab_ppisp.prepare_ppisp` creates an independent instance for each buffer-pipe stage.
+
+    Args:
+        cfg: Concrete PPISP settings, normalized in place for direct numerical use.
+        controller_weights: Optional device-resident controller weights to borrow read-only.
+            Callers may share these across instances, but must keep them unchanged and order their
+            upload before execution. Workspace and outputs are never shared automatically.
+    """
+
+    def __init__(self, cfg: PpispCfg, *, controller_weights: PpispControllerWeights | None = None):
         normalized_cfg = normalize_ppisp_cfg(cfg)
         if normalized_cfg is None:
             raise ValueError("PpispPipeline requires a concrete PpispCfg.")
         self.cfg = normalized_cfg
+        self._shared_controller_weights = controller_weights
         self._controller_weights_by_device: dict[str, wp.array] = {}
         self._controller_buffers_by_shape: dict[tuple[str, int, int, int], tuple[wp.array, ...]] = {}
+        self._closed = False
+
+    def initialize(self, shape: tuple[int, ...], device: str | wp.Device) -> None:
+        """Prepare controller weights and scratch before the first image is processed."""
+        if self._closed:
+            raise RuntimeError("Cannot initialize a closed PPISP pipeline.")
+        if self.cfg.controller_weights is None and self._shared_controller_weights is None:
+            return
+        if not wp.get_device(device).is_cuda:
+            raise ValueError("PPISP controller requires a CUDA device.")
+        device_name = str(wp.get_device(device))
+        if device_name not in self._controller_weights_by_device:
+            if self._shared_controller_weights is None:
+                if len(self.cfg.controller_weights) != PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN:
+                    raise ValueError(f"PPISP controller requires {PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN} weights.")
+                weights = wp.array(self.cfg.controller_weights, dtype=wp.float32, device=device_name)
+            else:
+                weights = self._shared_controller_weights.values
+            if weights.device != wp.get_device(device_name):
+                raise ValueError("Shared PPISP controller weights must match the image device.")
+            self._controller_weights_by_device[device_name] = weights
+        self._controller_buffers(shape, device_name)
 
     def apply(self, hdr: wp.array, rgba: wp.array) -> None:
-        """Run the PPISP kernel: HDR scene-linear → LDR RGBA, in place on ``rgba``."""
-        if self.cfg.controller_weights is None:
+        """Write RGB or RGBA to the supplied destination on the current Warp stream."""
+        if self._closed:
+            raise RuntimeError("Cannot apply a closed PPISP pipeline.")
+        if self.cfg.controller_weights is None and self._shared_controller_weights is None:
             apply_ppisp_to_rgba(hdr, rgba, self.cfg)
             return
-        controller_params = self._compute_controller_params(hdr)
-        apply_ppisp_to_rgba_with_controller_params(hdr, rgba, self.cfg, controller_params)
-
-    def _compute_controller_params(self, hdr: wp.array) -> wp.array:
-        """Run the exported PPISP controller and return a Warp view of ``(N, 9)`` params."""
-        controller_weights = self.cfg.controller_weights
-        assert controller_weights is not None
-
+        self.initialize(hdr.shape, hdr.device)
         device = str(hdr.device)
-        weights = self._controller_weights_by_device.get(device)
-        if weights is None:
-            weights = wp.array(controller_weights, dtype=wp.float32, device=device)
-            self._controller_weights_by_device[device] = weights
-
-        features, controller_params = self._controller_buffers(hdr)
+        features, controller_params = self._controller_buffers(hdr.shape, device)
         compute_ppisp_controller_params(
             hdr,
-            weights,
+            self._controller_weights_by_device[device],
             features,
             controller_params,
             self.cfg.controller_prior_exposure,
             float(self.cfg.controller_responsivity),
         )
-        return controller_params
+        apply_ppisp_to_rgba_with_controller_params(hdr, rgba, self.cfg, controller_params)
 
-    def _controller_buffers(self, hdr: wp.array) -> tuple[wp.array, ...]:
-        """Return cached controller scratch buffers matching ``hdr`` shape/device."""
-        num_cameras = int(hdr.shape[0])
-        image_height = int(hdr.shape[1])
-        image_width = int(hdr.shape[2])
-        device = str(hdr.device)
-        key = (device, num_cameras, image_height, image_width)
+    def close(self) -> None:
+        """Release references to owned workspace and borrowed weights. Repeated calls are safe."""
+        self._controller_weights_by_device.clear()
+        self._controller_buffers_by_shape.clear()
+        self._shared_controller_weights = None
+        self._closed = True
+
+    def _controller_buffers(self, shape: tuple[int, ...], device: str) -> tuple[wp.array, ...]:
+        key = (device, *shape[:3])
         buffers = self._controller_buffers_by_shape.get(key)
-        if buffers is not None:
-            return buffers
-
-        # Camera output shape is fixed for a pipeline lifetime; cache buffers so
-        # controller execution does not allocate every frame.
-        buffers = (
-            wp.empty((num_cameras, PPISP_CONTROLLER_FEATURE_LEN), dtype=wp.float32, device=device),
-            wp.empty((num_cameras, PPISP_CONTROLLER_PARAM_COUNT), dtype=wp.float32, device=device),
-        )
-        self._controller_buffers_by_shape[key] = buffers
+        if buffers is None:
+            buffers = (
+                wp.empty((shape[0], PPISP_CONTROLLER_FEATURE_LEN), dtype=wp.float32, device=device),
+                wp.empty((shape[0], PPISP_CONTROLLER_PARAM_COUNT), dtype=wp.float32, device=device),
+            )
+            self._controller_buffers_by_shape[key] = buffers
         return buffers
