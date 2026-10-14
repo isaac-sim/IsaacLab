@@ -3,6 +3,36 @@ Changelog
 
 .. towncrier release notes start
 
+3.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a reusable Newton particle-surface renderer for GL and RTX viewers,
+  shared by the teapot demo and MPM surface-reconstruction tutorial.
+
+Fixed
+^^^^^
+
+* Fixed dynamic MPM surface mesh submission in Newton RTX and shared staged
+  mesh updates between the Newton GL and RTX frame lifecycles.
+
+
+3.1.1 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Ctrl+C sometimes being swallowed by Kit while updating the visualizer.
+* Fixed Kit toolbar controls so they reflected the running state, paused and resumed training while keeping the app
+  responsive, and did not start PhysX when another physics backend owned the simulation.
+* Fixed Newton GL camera keyboard controls when ImGui captured only mouse input and kept the viewer compatible with
+  Newton's updated fullscreen image handling.
+* Prevented unchanged Rerun instance appearance from being retransmitted every frame during training.
+
+
 3.1.0 (2026-10-12)
 ~~~~~~~~~~~~~~~~~~
 

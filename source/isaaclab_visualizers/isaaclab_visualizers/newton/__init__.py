@@ -17,6 +17,7 @@ from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
+    from .particle_surface import ParticleSurfaceRenderer
 
 __all__ = [
     # Deprecated GL configuration
@@ -27,10 +28,16 @@ __all__ = [
     # RTX backend
     "NewtonRTXVisualizer",
     "NewtonRTXVisualizerCfg",
+    # MPM particle-surface rendering
+    "ParticleSurfaceRenderer",
 ]
 
 
 def __getattr__(name: str):
+    if name == "ParticleSurfaceRenderer":
+        from .particle_surface import ParticleSurfaceRenderer
+
+        return ParticleSurfaceRenderer
     if name == "NewtonRTXVisualizer":
         from .newton_visualizer import NewtonRTXVisualizer
 

@@ -37,8 +37,12 @@ def _exit_on_error(status: int) -> None:
         raise SystemExit(status)
 
 
-def _load_external_tasks() -> None:
-    """Import task packages registered by installed downstream projects."""
+def load_external_tasks() -> None:
+    """Import task packages registered by installed downstream projects.
+
+    Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
+    Entry points should reference modules so repeated discovery uses Python's import cache.
+    """
     for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
         entry_point.load()
 
@@ -206,7 +210,7 @@ def cli() -> None:
         example(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
-        _load_external_tasks()
+        load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":

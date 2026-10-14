@@ -176,6 +176,16 @@ How-to Guides
 
             :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
+      .. container:: guide-entry
+
+         :doc:`Exploring MPM materials and coupling </source/how-to/mpm_tutorials>`
+
+         Compare material response, fluid surface reconstruction, and robot--particle coupling.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
    .. container:: guide-group
 
       .. rubric:: Scenes and Cloning
