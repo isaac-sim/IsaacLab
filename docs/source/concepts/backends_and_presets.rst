@@ -69,29 +69,23 @@ offers:
       --task Isaac-Cartpole-Camera-Direct --help
 
 The help output groups names by ``physics=``, ``renderer=``, and ``presets=``.
-To browse all registered environments and their presets at once, run:
+To list the combinations each registered environment can launch, run:
 
 .. code-block:: bash
 
    uv run isaaclab list_envs --show_presets
 
-An empty preset list is not an error. It means that the environment uses its
-registered default configuration and does not expose alternatives. Passing a
-name that a task does not list is unsupported and fails during configuration
-validation.
+Each line is one combination that resolves, passes the task's own configuration
+checks, and can launch headless; ``[default]`` marks the one the task uses when
+no names are passed. Not every pairing of declared names can run together:
+OvPhysX and OVRTX cannot share a process with Isaac Sim / Kit, and a task can
+reject a combination in its own configuration checks. Checking every
+combination takes a few seconds per task, so narrow the list with
+``--keyword``.
 
-Not every pairing of listed names can run together: Kit and kitless runtimes
-cannot share a process, and a task can reject a combination in its own
-configuration checks. To list only the combinations that pass both, resolved
-for a headless launch, run:
-
-.. code-block:: bash
-
-   uv run isaaclab list_envs --keyword Cartpole-Camera --resolve
-
-Each line is one distinct run, and ``[default]`` marks the one the task uses
-when no names are passed. Resolving every combination takes a few seconds per
-task, so narrow the list with ``--keyword``.
+A task listed only with ``(defaults)`` uses its registered default
+configuration and does not expose alternatives. Passing a name that a task does
+not list is unsupported and fails during configuration validation.
 
 
 Choose a selector

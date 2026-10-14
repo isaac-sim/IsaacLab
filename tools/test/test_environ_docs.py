@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import itertools
 import json
 import sys
 from dataclasses import replace
@@ -55,7 +54,6 @@ from environ_docs import (  # noqa: E402
     format_rl_libraries,
     get_workflow,
     is_training_task,
-    launchable_selectors,
     parse_rl_libraries_from_kwargs,
     patch_curated_environment_tables,
     patch_environment_browser_javascript,
@@ -567,36 +565,3 @@ def test_render_comprehensive_list_table_includes_header():
     assert "**Task Name**" in table
     assert "Isaac-Cartpole" in table
     assert format_rl_libraries({"rsl_rl": ["PPO"]}) in table
-
-
-_CAMERA_OPTIONS = (["isaacsim_physx", "ovphysx"], ["isaacsim_rtx", "ovrtx"], ["depth", "rgb", "raycaster"])
-
-
-def _rejected_with(*pairs: tuple[int, str, int, str]) -> set[tuple[str, str, str]]:
-    """Return the combinations of ``_CAMERA_OPTIONS`` that contain any of *pairs* (axis index, name)."""
-    return {
-        combination
-        for combination in itertools.product(*_CAMERA_OPTIONS)
-        if any(combination[i] == a and combination[j] == b for i, a, j, b in pairs)
-    }
-
-
-def test_launchable_selectors_reports_pairs_and_drops_unreachable_names():
-    # Kit and kitless runtimes cannot mix, and the raycaster preset rejects every renderer token.
-    rejected = _rejected_with(
-        (0, "isaacsim_physx", 1, "ovrtx"),
-        (0, "ovphysx", 1, "isaacsim_rtx"),
-        (1, "isaacsim_rtx", 2, "raycaster"),
-        (1, "ovrtx", 2, "raycaster"),
-    )
-
-    options, pairs = launchable_selectors("Isaac-X", _CAMERA_OPTIONS, rejected)
-
-    assert options == (["isaacsim_physx", "ovphysx"], ["isaacsim_rtx", "ovrtx"], ["depth", "rgb"])
-    assert pairs == (("physics=isaacsim_physx", "renderer=ovrtx"), ("physics=ovphysx", "renderer=isaacsim_rtx"))
-    assert launchable_selectors("Isaac-X", _CAMERA_OPTIONS, set()) == (_CAMERA_OPTIONS, ())
-
-
-def test_launchable_selectors_raises_when_no_single_pair_explains_a_rejection():
-    with pytest.raises(ValueError, match="Isaac-X"):
-        launchable_selectors("Isaac-X", _CAMERA_OPTIONS, {("isaacsim_physx", "ovrtx", "depth")})

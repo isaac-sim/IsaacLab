@@ -32,13 +32,14 @@ import enum
 import sys
 import warnings
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, is_dataclass
+from dataclasses import is_dataclass
 from types import SimpleNamespace
 
 import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
+from isaaclab.app import validate_launch
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -767,38 +768,18 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
     return {target: sorted(names) for target, names in result.items()}
 
 
-@dataclass(frozen=True)
-class TaskRun:
-    """The preset tokens that select one way to run a task; ``None`` leaves that axis to the config."""
-
-    physics: str | None = None
-    renderer: str | None = None
-    presets: str | None = None
-
-    @property
-    def overrides(self) -> list[str]:
-        """The command-line tokens for this run, e.g. ``["physics=ovphysx", "renderer=ovrtx"]``."""
-        tokens = (("physics", self.physics), ("renderer", self.renderer), ("presets", self.presets))
-        return [f"{key}={value}" for key, value in tokens if value is not None]
+_SELECTORS = ("physics", "renderer", "presets")
 
 
-@dataclass(frozen=True)
-class TaskRuns:
-    """The distinct runs a task supports, as returned by :func:`resolve_task_runs`."""
-
-    runs: tuple[TaskRun, ...]
-    """One spelling per distinct resolved config, the most explicit one seen."""
-
-    default: TaskRun | None
-    """The entry of :attr:`runs` that passing no tokens resolves to; ``None`` if that run is rejected."""
+def task_run_overrides(run: tuple[str | None, str | None, str | None]) -> list[str]:
+    """Return the command-line tokens of a ``(physics, renderer, presets)`` run, e.g. ``["physics=ovphysx"]``."""
+    return [f"{selector}={name}" for selector, name in zip(_SELECTORS, run) if name is not None]
 
 
-def _launchable_env_cfg(task_name: str, run: TaskRun):
+def _launchable_env_cfg(task_name: str, run: tuple[str | None, str | None, str | None]):
     """Return the resolved and launch-scanned env config of *run*, or ``None`` if it is rejected."""
-    from isaaclab.app import validate_launch
-
     try:
-        env_cfg, _ = resolve_task_config(task_name, None, overrides=run.overrides)
+        env_cfg, _ = resolve_task_config(task_name, None, overrides=task_run_overrides(run))
         env_cfg.validate()
         validate_launch(env_cfg, {"livestream": 0})
     except ValueError:
@@ -806,8 +787,9 @@ def _launchable_env_cfg(task_name: str, run: TaskRun):
     return env_cfg
 
 
-def is_task_run_launchable(task_name: str, run: TaskRun) -> bool:
-    """Return whether *run* of *task_name* resolves, passes the env config's checks, and can launch headless.
+def is_task_run_launchable(task_name: str, run: tuple[str | None, str | None, str | None]) -> bool:
+    """Return whether a ``(physics, renderer, presets)`` run of *task_name* resolves, passes the env config's
+    checks, and can launch headless.
 
     A rejected combination is one whose resolution or validation raises :class:`ValueError`; any other
     error propagates.
@@ -815,14 +797,14 @@ def is_task_run_launchable(task_name: str, run: TaskRun) -> bool:
     return _launchable_env_cfg(task_name, run) is not None
 
 
-def resolve_task_runs(task_name: str) -> TaskRuns | None:
+def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str | None]] | None:
     """Return the preset combinations of *task_name* that can launch, one per distinct config.
 
     Every declared physics and renderer preset is crossed with each domain preset in turn, and
     each combination is resolved, validated with the env config's own checks, and checked with
     :func:`~isaaclab.app.validate_launch` for a headless launch without livestreaming. Combinations
     that resolve to the same config, such as ``physics=physx`` and the backend it selects, are
-    reported once.
+    reported once, by their most explicit spelling.
 
     Only one domain preset is applied per run, so a task with several independent domain
     presets supports more combinations than are listed. A rejected combination is one whose
@@ -832,7 +814,9 @@ def resolve_task_runs(task_name: str) -> TaskRuns | None:
         task_name: Gymnasium task ID (e.g. ``"Isaac-Cartpole-Camera-Direct"``).
 
     Returns:
-        The task's runs, or ``None`` if its env config cannot be loaded.
+        ``(physics, renderer, presets)`` names per run, ``None`` on an axis left to the config. The
+        first run is the one the task uses when no names are passed, unless that run cannot launch.
+        ``None`` if the task's env config cannot be loaded.
     """
     preset_map = enumerate_task_presets(task_name)
     if preset_map is None:
@@ -840,16 +824,16 @@ def resolve_task_runs(task_name: str) -> TaskRuns | None:
     typed = {*preset_map[PresetTarget.PHYSICS], *preset_map[PresetTarget.RENDERER]}
     domains = [name for name in preset_map[PresetTarget.DOMAIN] if name not in typed]
     candidates = dict.fromkeys(
-        [TaskRun()]
+        [(None, None, None)]
         + [
-            TaskRun(physics, renderer, domain)
+            (physics, renderer, domain)
             for physics in preset_map[PresetTarget.PHYSICS] or [None]
             for renderer in preset_map[PresetTarget.RENDERER] or [None]
             for domain in [None, *domains]
         ]
     )
 
-    runs: dict[str, TaskRun] = {}
+    runs: dict[str, tuple[str | None, str | None, str | None]] = {}
     default_key = None
     for run in candidates:
         env_cfg = _launchable_env_cfg(task_name, run)
@@ -857,8 +841,9 @@ def resolve_task_runs(task_name: str) -> TaskRuns | None:
             continue
         # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
         key = repr(to_dict(env_cfg))
-        if run == TaskRun():
+        if run == (None, None, None):
             default_key = key
-        if key not in runs or len(run.overrides) > len(runs[key].overrides):
+        if key not in runs or len(task_run_overrides(run)) > len(task_run_overrides(runs[key])):
             runs[key] = run
-    return TaskRuns(runs=tuple(runs.values()), default=runs.get(default_key))
+    default = [runs.pop(default_key)] if default_key is not None else []
+    return default + list(runs.values())

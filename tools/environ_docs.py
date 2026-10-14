@@ -27,7 +27,6 @@ import gymnasium as gym
 from isaaclab_tasks.utils.hydra import (
     _LEGACY_PRESET_ALIASES,
     PresetTarget,
-    TaskRun,
     enumerate_task_presets,
     is_task_run_launchable,
 )
@@ -693,7 +692,7 @@ def collect_environment_doc_rows(
             rejected = {
                 combination
                 for combination in itertools.product(*(names or [None] for names in options))
-                if not is_task_run_launchable(spec.id, TaskRun(*combination))
+                if not is_task_run_launchable(spec.id, combination)
             }
             kept, incompatible = launchable_selectors(spec.id, options, rejected)
             for target, shown, names in zip(targets, options, kept):
