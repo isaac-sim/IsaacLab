@@ -25,9 +25,10 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 6. Ask for the smallest relevant error output when the failure mode is unclear.
 7. Prefer a minimal verification command before running examples, training, or rendering workflows.
 8. Route backend-specific setup to the unified installation guide and backend choice questions to the physics-backends concept.
-9. For unexpectedly slow simulation or training, route to the performance section in the troubleshooting reference and profile a representative workload before prescribing tuning changes.
-10. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
-11. If the docs are incomplete or stale, update the docs rather than expanding this skill.
+9. For silent black or corrupted RTX camera images after scaling the camera workload, route to the RTX buffer-limit entry in the known issues reference.
+10. For unexpectedly slow simulation or training, route to the performance section in the troubleshooting reference and profile a representative workload before prescribing tuning changes.
+11. For XR teleoperation setup, which is a separate workflow from the base installation, route to the CloudXR how-to rather than the installation guide.
+12. If the docs are incomplete or stale, update the docs rather than expanding this skill.
 
 ## Validation
 
@@ -59,3 +60,4 @@ Keep this skill synchronized with the unified installation guide, the Docker/Clo
 - [Docker/Cloud](../../../docs/source/workflows/docker/index.rst)
 - [Physics backends](../../../docs/source/concepts/physics_backends.rst)
 - [Troubleshooting](../../../docs/source/refs/troubleshooting.rst)
+- [Known issues](../../../docs/source/refs/issues.rst)
