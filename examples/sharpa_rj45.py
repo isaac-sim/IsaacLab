@@ -168,7 +168,6 @@ class CableCycleStateMachine:
         self.elapsed = self.dwell = self.width = 0.0
         self.insertion_completed = False
         self.failure: str | None = None
-        self.transitions: list[str] = []
         self.grasp_offset_m: np.ndarray | None = None
         self.grasp_rotation: Rotation | None = None
         self.carry_target: np.ndarray | None = None
@@ -440,7 +439,6 @@ class CableCycleStateMachine:
     def _transition(self, phase: str) -> None:
         self.phase = phase
         self.elapsed = self.dwell = self.latch_loss_s = 0.0
-        self.transitions.append(phase)
 
     def _fail(self, reason: str) -> None:
         self.failure = reason
