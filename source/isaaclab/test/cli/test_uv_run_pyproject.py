@@ -35,15 +35,24 @@ def test_uv_run_extra_names_match_documented_workflow(source_checkout_root: Path
     assert documented_extras <= set(optional_dependencies)
 
 
-def test_published_wheel_docs_use_registry_uvx_without_project_edits(source_checkout_root: Path):
-    """The one-off workflow must resolve the published CUDA wheel without project setup."""
+def test_published_wheel_docs_cover_one_off_and_managed_uv_workflows(source_checkout_root: Path):
+    """Published workflows must cover isolated execution and a persistent uv project."""
     docs = (source_checkout_root / "docs/source/setup/installation/index.rst").read_text(encoding="utf-8")
     published_docs = docs.split("Installing the published wheel", maxsplit=1)[1].split("Optional extras", maxsplit=1)[0]
+    project_docs = published_docs.split("uv project dependency", maxsplit=1)[1].split(
+        "Standalone uv environment", maxsplit=1
+    )[0]
     windows_docs = published_docs.split("Windows (x86_64)", maxsplit=1)[1].split("Linux (aarch64)", maxsplit=1)[0]
 
     assert "uvx --index https://pypi.nvidia.com" in published_docs
     assert '--from "isaaclab==3.0.0rc1"' in published_docs
     assert "--torch-backend cu130" in published_docs
+    assert "uv init --python 3.12 my_isaaclab_project" in project_docs
+    assert project_docs.count("--index-strategy unsafe-best-match") == 2
+    assert "--index pytorch-cu130=https://download.pytorch.org/whl/cu130" in project_docs
+    assert "torch==2.11.0 torchvision==0.26.0" in project_docs
+    assert "--index nvidia=https://pypi.nvidia.com" in project_docs
+    assert "isaaclab==3.0.0rc1" in project_docs
     assert "git+" not in published_docs
     assert "[tool.uv.sources]" not in published_docs
     assert "--torch-backend cu130" in windows_docs
