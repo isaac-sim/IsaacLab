@@ -157,26 +157,18 @@ jobs:
         with:
           test-filter: ${{ inputs.test_filter }}
       # GB10 allocates GPU memory from host RAM; page cache left by earlier jobs starves CUDA init.
-      - name: Drop host page cache
+      - name: Runner health and page-cache drop (pre)
         run: |
-          free -m
+          free -m; df -h / "$(docker info -f '{{.DockerRootDir}}')"; docker system df
           docker run --rm --privileged ubuntu:24.04 sh -c 'sync; echo 3 > /proc/sys/vm/drop_caches'
           free -m
-      - name: Start host memory trace
-        run: |
-          free -m; nvidia-smi || true; docker ps || true
-          nohup bash -c 'while :; do echo "$(date +%T) $(free -m | awk "/^Mem:/{print \$4, \$6, \$7}")"; sleep 1; done' \
-            > "$RUNNER_TEMP/memtrace.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/memtrace.pid"
       - name: Run Tests
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
-      - name: Show host memory trace
+      - name: Runner health (post)
         if: always()
+        continue-on-error: true
         run: |
-          kill "$(cat "$RUNNER_TEMP/memtrace.pid")" || true
-          echo "time free_MiB buff_cache_MiB available_MiB"
-          cat "$RUNNER_TEMP/memtrace.log"
-          echo "Lowest free:"; sort -k2 -n "$RUNNER_TEMP/memtrace.log" | head -5
+          free -m; df -h / "$(docker info -f '{{.DockerRootDir}}')"; docker system df
