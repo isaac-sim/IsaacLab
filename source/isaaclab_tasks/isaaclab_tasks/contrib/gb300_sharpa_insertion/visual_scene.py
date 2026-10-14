@@ -124,10 +124,13 @@ def _spawn_visual_racks(
     spacing = GB300_SIMREADY_COMPOSED_BOUNDS_MAX_M[1] - GB300_SIMREADY_COMPOSED_BOUNDS_MIN_M[1]
     x, y, z = GB300_PRESENTATION_TRANSLATION_E
     for index in range(8):
-        rack = sim_utils.spawn_from_usd(
-            f"{prim_path}/Rack{index:02d}", cfg,
+        rack_path = f"{prim_path}/Rack{index:02d}"
+        # Compose placement with the CAD's authored root rotation and lift.
+        sim_utils.create_prim(
+            rack_path,
             translation=(x + index * spacing, y, z + FLOOR_OFFSET_M),
             orientation=GB300_PRESENTATION_ROTATION_XYZW,
         )  # fmt: skip
+        rack = sim_utils.spawn_from_usd(f"{rack_path}/Asset", cfg)
         rack.SetInstanceable(True)
     return root
