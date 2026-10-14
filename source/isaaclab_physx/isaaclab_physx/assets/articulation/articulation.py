@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -19,13 +18,12 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from pxr import Usd, UsdPhysics
+from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.assets.articulation.ordering import ArticulationOrderingConvention, parse_articulation_ordering_convention
-from isaaclab.sim.utils.queries import find_matching_prims, path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
@@ -48,60 +46,6 @@ logger = logging.getLogger(__name__)
 
 _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD = 64
 _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD = 32
-
-
-_OVPHYSX_JOINT_TYPE_ORDER = (
-    "PhysicsFixedJoint",
-    "PhysicsRevoluteJoint",
-    "PhysicsPrismaticJoint",
-    "PhysicsSphericalJoint",
-)
-"""Joint prim types in the order OVPhysX visits sibling links; other types follow."""
-
-
-def _reorder_prims_like_ovphysx(asset_prims: list[Usd.Prim]) -> None:
-    """Reorder prims so Isaac Sim PhysX visits the child links of each link in OVPhysX order.
-
-    Isaac Sim PhysX visits child links in stage order of their joints, OVPhysX by joint type and then joint prim path.
-    Each prim between a joint and the prim holding the joint's parent link takes the joint's key, and the keyed
-    children of every prim are sorted by it; other children keep their positions. This covers joints next to their
-    links and joints stored under their child links. The order is planned on the first copy and applied to every copy.
-    """
-
-    def ovphysx_key(joint: Usd.Prim) -> tuple[int, str]:
-        type_name, order = joint.GetTypeName(), _OVPHYSX_JOINT_TYPE_ORDER
-        return (order.index(type_name) if type_name in order else len(order)), joint.GetPath().pathString
-
-    if not asset_prims:
-        return
-    source = asset_prims[0]
-    keys: dict[Usd.Prim, tuple[int, str]] = {}
-    for joint in Usd.PrimRange(source, Usd.TraverseInstanceProxies()):
-        if not joint.IsA(UsdPhysics.Joint):
-            continue
-        parent_link = next(iter(UsdPhysics.Joint(joint).GetBody0Rel().GetTargets()), None)
-        prim, key = joint, ovphysx_key(joint)
-        while prim != source and not (parent_link and parent_link.HasPrefix(prim.GetPath())):
-            keys[prim] = min(keys.get(prim, key), key)
-            prim = prim.GetParent()
-    plan = []
-    for parent in {prim.GetParent() for prim in keys}:
-        if parent.IsInstance() or parent.IsInstanceProxy():
-            continue
-        children = parent.GetChildren()
-        slots = [index for index, child in enumerate(children) if child in keys]
-        keyed = sorted((children[index] for index in slots), key=keys.__getitem__)
-        if keyed == [children[index] for index in slots]:
-            continue
-        for index, child in zip(slots, keyed):
-            children[index] = child
-        relative_path = parent.GetPath().pathString[len(source.GetPath().pathString) :]
-        plan.append((relative_path, [child.GetName() for child in children]))
-    for asset_prim in asset_prims:
-        for relative_path, child_names in plan:
-            asset_prim.GetStage().GetPrimAtPath(asset_prim.GetPath().pathString + relative_path).SetChildrenReorder(
-                child_names
-            )
 
 
 class Articulation(BaseArticulation):
@@ -159,7 +103,7 @@ class Articulation(BaseArticulation):
     """The name of the backend for the articulation."""
 
     __backend_native_orderings__: tuple[str, ...] = ()
-    """Authored joint-prim order. Articulations that request ``"physx"`` reorder their prims to match it."""
+    """Authored joint-prim order, which can differ from the ``"physx"`` (OVPhysX) order."""
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
@@ -178,14 +122,6 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
-
-        # Requesting "physx" reorders prims before PhysX parses and clones them, so the native order matches it
-        # without an ordering map. Scenes hold only the prototype here; direct spawns hold every copy.
-        orderings = (cfg.joint_ordering, cfg.body_ordering)
-        requested = {parse_articulation_ordering_convention(o) for o in orderings if isinstance(o, str)}
-        if ArticulationOrderingConvention.PHYSX in requested:
-            _reorder_prims_like_ovphysx(find_matching_prims(cfg.prim_path))
-            self.__backend_native_orderings__ = ("physx",)
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -4228,7 +4164,6 @@ class Articulation(BaseArticulation):
         # parse fixed tendons properties if they exist
         if self.num_fixed_tendons > 0 or self.num_spatial_tendons > 0:
             joint_paths = self.root_view.dof_paths[0]
-            fixed_tendon_roots: list[tuple[str, list[str]]] = []
 
             # iterate over all joints to find tendons attached to them
             for j in range(self.num_joints):
@@ -4243,20 +4178,12 @@ class Articulation(BaseArticulation):
                     if str(schema_name).startswith("PhysxTendonAxisRootAPI:")
                 ]
                 if root_instances:
-                    fixed_tendon_roots.append((usd_joint_path, root_instances))
+                    self._fixed_tendon_names.extend(root_instances)
                 elif any(
                     "PhysxTendonAttachmentRootAPI" in schema_name or "PhysxTendonAttachmentLeafAPI" in schema_name
                     for schema_name in joint_applied_schemas
                 ):
                     self._spatial_tendon_names.append(usd_joint_path.split("/")[-1])
-
-            # PhysX creates fixed tendons in stage traversal order of their root joints, not in DoF order.
-            if fixed_tendon_roots:
-                articulation_prim = self.stage.GetPrimAtPath(os.path.commonpath(joint_paths))
-                traversal = Usd.PrimRange(articulation_prim, Usd.TraverseInstanceProxies())
-                traversal_index = {prim.GetPath().pathString: index for index, prim in enumerate(traversal)}
-                for _, root_instances in sorted(fixed_tendon_roots, key=lambda root: traversal_index[root[0]]):
-                    self._fixed_tendon_names.extend(root_instances)
 
             # store the fixed tendon names
             self._data.fixed_tendon_names = self._fixed_tendon_names

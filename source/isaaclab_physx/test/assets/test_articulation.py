@@ -40,10 +40,9 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
-from isaaclab_physx.assets.articulation.articulation import _reorder_prims_like_ovphysx
 from isaaclab_physx.assets.articulation.kernels import write_joint_state_data, write_joint_state_data_kernel
 
-from pxr import Gf, PhysxSchema, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -303,8 +302,6 @@ class _ArticulationScene:
     """Floating base with an explicit root path and a body ordering that moves the root link."""
     tendon: Articulation
     """Fixed base with a reversed left elbow, a spatial tendon, and a fixed tendon."""
-    physx_order: Articulation
-    """Fixed base requesting the ``"physx"`` order, which reorders its joint prims at spawn."""
     origins: dict[str, torch.Tensor]
     """World position of every environment of each island, keyed by island name."""
     refcounts: dict[str, int]
@@ -317,13 +314,7 @@ class _ArticulationScene:
     @property
     def islands(self) -> dict[str, Articulation]:
         """All articulations keyed by island name."""
-        return {
-            "ordered": self.ordered,
-            "floating": self.floating,
-            "reordered": self.reordered,
-            "tendon": self.tendon,
-            "physx_order": self.physx_order,
-        }
+        return {"ordered": self.ordered, "floating": self.floating, "reordered": self.reordered, "tendon": self.tendon}
 
     def step(self, num_steps: int = 1) -> None:
         """Write, step, and update every articulation."""
@@ -378,7 +369,6 @@ def articulation_scene(request) -> Iterator[_ArticulationScene]:
                 _branching_cfg(),
                 {"fixed_base": True, "reversed_left_elbow": True, "spatial_tendon": True, "fixed_tendon": True},
             ),
-            "physx_order": (_branching_cfg(joint_ordering="physx", body_ordering="physx"), {"fixed_base": True}),
         }
         for index, (name, (cfg, authoring)) in enumerate(island_specs.items()):
             islands[name], origins[name] = _spawn_island(name.capitalize(), 3.0 * index, cfg, **authoring)
@@ -413,25 +403,6 @@ def articulation_scene(request) -> Iterator[_ArticulationScene]:
         )
 
 
-def test_physx_reorder_sorts_links_that_hold_their_joints():
-    """Requesting ``"physx"`` sorts link prims by the joints they hold, as in the Shadow Hand, fixed joints first."""
-    stage = Usd.Stage.CreateInMemory()
-    robot = stage.DefinePrim("/Robot", "Xform")
-    for link, schema in (
-        ("tip", UsdPhysics.RevoluteJoint),
-        ("mount", UsdPhysics.FixedJoint),
-        ("arm", UsdPhysics.RevoluteJoint),
-    ):
-        stage.DefinePrim(f"/Robot/base/{link}", "Xform")
-        joint = schema.Define(stage, f"/Robot/base/{link}/{link}_joint")
-        joint.CreateBody0Rel().SetTargets(["/Robot/base"])
-        joint.CreateBody1Rel().SetTargets([f"/Robot/base/{link}"])
-
-    _reorder_prims_like_ovphysx([robot])
-
-    assert [child.GetName() for child in stage.GetPrimAtPath("/Robot/base").GetChildren()] == ["mount", "arm", "tip"]
-
-
 def test_articulation_initialization_and_ordering(articulation_scene: _ArticulationScene) -> None:
     """Resolve the configured structure, orderings, gains, and limits of every real island."""
     scene = articulation_scene
@@ -453,16 +424,12 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
     assert scene.floating.root_view.prim_paths[0] == "/World/Floating/Env_0/Robot/base"
     assert scene.reordered.root_view.prim_paths[0] == "/World/Reordered/Env_0/Robot/base"
 
-    ordered, floating, physx_order = scene.ordered, scene.floating, scene.physx_order
+    ordered, floating = scene.ordered, scene.floating
     # Isaac Sim PhysX keeps the authored joint-prim order natively; "physx" resolves the OVPhysX order from the USD.
     assert tuple(ordered.backend_joint_names) == BRANCHING_AUTHORED_JOINT_NAMES
     assert tuple(ordered.backend_body_names) == BRANCHING_AUTHORED_BODY_NAMES
     assert get_articulation_name_ordering(ordered, "physx", "joint") == BRANCHING_PHYSX_JOINT_NAMES
     assert get_articulation_name_ordering(ordered, "physx", "body") == BRANCHING_PHYSX_BODY_NAMES
-    # Requesting "physx" reorders the joint prims at spawn, so the native order matches it without a map.
-    assert tuple(physx_order.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
-    assert tuple(physx_order.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
-    assert physx_order.joint_ordering is None and physx_order.body_ordering is None
     assert get_articulation_name_ordering(ordered, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
     assert tuple(ordered.joint_names) == BRANCHING_MJWARP_JOINT_NAMES

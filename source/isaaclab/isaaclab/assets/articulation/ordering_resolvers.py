@@ -760,11 +760,11 @@ def get_articulation_name_ordering(
 
     The supported conventions are:
 
-    * ``"physx"`` -- OVPhysX articulation-view order. OVPhysX articulations, and
-      PhysX articulations that request it, return active-backend names without
-      discovery; other backends discover the order from a temporary Newton USD
-      view, walked breadth-first from the root PhysX elects with child links
-      ordered by joint type, then joint prim path.
+    * ``"physx"`` -- OVPhysX articulation-view order. OVPhysX articulations return
+      active-backend names without discovery; other backends, Isaac Sim PhysX
+      included, discover the order from a temporary Newton USD view, walked
+      breadth-first from the root PhysX elects with child links ordered by joint
+      type, then joint prim path.
     * ``"mjwarp"`` -- Newton or MJWarp articulation-view order. Newton
       articulations return active-backend names without discovery; other backends
       discover the order from a temporary Newton USD view using depth-first joint
