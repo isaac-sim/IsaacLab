@@ -571,10 +571,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "--policy",
-        default=(
-            "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/"
-            "PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt"
-        ),
+        default=f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt",
         help="Exported K10 TorchScript .pt path or URL; defaults to the published policy.",
     )
     parser.add_argument("--seed", type=int, default=1701)
