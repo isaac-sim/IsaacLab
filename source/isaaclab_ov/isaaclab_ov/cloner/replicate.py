@@ -19,6 +19,8 @@ from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
+from isaaclab_ov._joint_compat import convert_legacy_joint_properties
+from isaaclab_ov.physics import ovphysx_compat
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -264,6 +266,8 @@ def _serialize_stage(
 
     # Materialize only originals on GPU. Each native destination is absent from the export.
     layer = stage.Flatten()
+    if ovphysx_compat.OVPHYSX_USES_TASKS:
+        convert_legacy_joint_properties(layer)
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
     native = {}

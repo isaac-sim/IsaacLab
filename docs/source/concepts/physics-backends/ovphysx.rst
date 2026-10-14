@@ -130,6 +130,67 @@ Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combin
 extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
 with this runtime combination.
 
+Opt-in OVPhysX 0.7 validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The default dependency pins remain on OVPhysX 0.6.4. The backend also accepts
+OVPhysX 0.7, including development builds. It selects task completion, stage
+teardown, scene reads and schema discovery from the installed runtime version.
+Tensor and contact bindings remain in use on both versions.
+
+Use a separate environment when testing unpublished wheels. From the repository
+root, prepare the frozen dependencies, then overlay the supplied wheels without
+resolving their dependencies again:
+
+.. code-block:: bash
+
+    export UV_PROJECT_ENVIRONMENT=/tmp/isaaclab-ov07-env
+    uv sync --frozen --extra ov --extra test
+    uv pip install --python "$UV_PROJECT_ENVIRONMENT/bin/python" --no-deps \
+        physx-usd-schemas==25.11.2.72696984 \
+        /tmp/isaaclab-ovwheels/ovphysx-0.7.0.73686034-py3-none-manylinux_2_35_x86_64.whl \
+        /tmp/isaaclab-ovwheels/ovstage-0.3.0.1791947691-py3-none-manylinux_2_35_x86_64.whl \
+        /tmp/isaaclab-ovwheels/ovrtx-0.6.0.1791947691-py3-none-manylinux_2_35_x86_64.whl
+    uv run --no-sync python -m pytest source/isaaclab_ov/test/physics/test_ovphysx_joint_import.py
+
+OVPhysX ``0.7.0.73686034`` declares ``ovstage==0.3.0.1791884669``. The recipe
+intentionally overrides that pin with ``0.3.0.1791947691`` to match OVRTX's
+build. Dependency consistency tools will report this mismatch. Use
+``uv run --no-sync`` for subsequent commands: normal synchronization reinstalls
+the project's pinned releases. Native compatibility must be validated for each
+such override; matching release numbers alone is not sufficient.
+
+For baseline comparisons, use another environment, for example
+``UV_PROJECT_ENVIRONMENT=/tmp/isaaclab-ov06-env uv sync --frozen --extra ov --extra test``,
+and run tests with that same environment selected. No project metadata or lockfile
+changes are needed for these local installations.
+
+OVPhysX 0.7 no longer bundles PhysX USD schemas. Install ``physx-usd-schemas>=25.11.2``
+separately; the recipe above specifies the validation version. Isaac Lab locates
+both PhysX and deformable schema directories without importing the provider,
+then registers them before USD population. The already-installed Newton schemas
+are also registered. Do not suppress schema-registration errors: late registration
+requires a fresh process and cannot recover settings lost during population.
+
+Legacy joint USD
+~~~~~~~~~~~~~~~~
+
+OVPhysX 0.7 no longer consumes ``PhysxJointAPI``. In the temporary physics export,
+Isaac Lab translates authored ``physxJoint:maxJointVelocity`` and
+``physxJoint:armature`` to ``NewtonJointAPI`` values. Angular velocity stays in
+USD degrees per second; linear velocity and armature retain their USD units.
+Authored modern values take precedence, and existing per-axis PhysX overrides
+remain intact. Source assets and the live stage are not edited, so other physics
+backends and older OVPhysX runtimes keep their previous behavior.
+
+Nonzero legacy ``physxJoint:jointFriction`` is rejected with the joint path.
+The dimensionless coefficient has no exact conversion to the new effort-based
+friction model. Remove it and retune ``newton:friction`` / ``newton:damping`` or
+``PhysxJointAxisAPI`` friction efforts explicitly. Unsupported joint types and
+time-sampled legacy settings that cannot be represented also require migration.
+This compatibility layer does not promise identical trajectories across PhysX
+engine versions.
+
 Testing the Installation
 ------------------------
 

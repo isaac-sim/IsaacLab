@@ -93,3 +93,59 @@ def test_published_entry_points_are_read_only():
 )
 def test_reversed_joint_sign_correction_version_boundary(version: Version | None, expected: bool):
     assert requires_legacy_joint_sign_correction(version) is expected
+
+
+@pytest.mark.parametrize(
+    ("version", "modern"),
+    [
+        (None, False),
+        (Version("0.5.11"), False),
+        (Version("0.6.4"), False),
+        (Version("0.7.0.dev1"), True),
+        (Version("0.7.0.73686034"), True),
+    ],
+)
+def test_operation_completion_contracts(monkeypatch, version, modern):
+    """Legacy synchronous calls have no receipt; new receipts must be collected once."""
+    from types import SimpleNamespace
+
+    from isaaclab_ov.physics import ovphysx_compat as compat
+
+    monkeypatch.setattr(compat, "OVPHYSX_USES_TASKS", compat.uses_task_api(version))
+    clone_receipt, stage_receipt, detach_receipt = (object(), object(), object()) if modern else (17, None, 18)
+    calls = []
+    runtime = SimpleNamespace(
+        **{
+            "wait_task" if modern else "wait_op": lambda value: calls.append(value),
+            "detach_ovstage" if modern else "reset_stage": lambda: detach_receipt,
+        }
+    )
+    compat.wait_for_operation(runtime, clone_receipt)
+    compat.finish_stage_operation(runtime, stage_receipt)
+    compat.detach_stage(runtime)
+    assert calls == ([clone_receipt, stage_receipt, detach_receipt] if modern else [clone_receipt, detach_receipt])
+
+
+def test_external_schema_resources_are_checked_without_importing_provider(monkeypatch, tmp_path):
+    from isaaclab_ov.physics import ovphysx_compat as compat
+
+    monkeypatch.setattr(compat, "OVPHYSX_USES_TASKS", True)
+    metadata_dir = tmp_path / "physx_usd_schemas-25.11.2.dist-info"
+    metadata_dir.mkdir()
+    (metadata_dir / "METADATA").write_text("Name: physx-usd-schemas\nVersion: 25.11.2\n")
+    root = tmp_path / "physx_usd_schemas"
+    root.mkdir()
+    (root / "__init__.py").write_text("raise AssertionError('must not import USD provider')\n")
+    paths = [root / name / "resources" for name in ("PhysxSchema", "OmniUsdPhysicsDeformableSchema")]
+    for path in paths:
+        path.mkdir(parents=True)
+        (path / "plugInfo.json").write_text("{}")
+        (path / "generatedSchema.usda").write_text("#usda 1.0\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    assert compat.physx_schema_paths(None) == paths
+    (paths[1] / "generatedSchema.usda").unlink()
+    with pytest.raises(FileNotFoundError, match="Incomplete physx-usd-schemas"):
+        compat.physx_schema_paths(None)
+    monkeypatch.setattr(importlib.metadata, "distribution", _missing_distribution)
+    with pytest.raises(FileNotFoundError, match="requires physx-usd-schemas"):
+        compat.physx_schema_paths(None)

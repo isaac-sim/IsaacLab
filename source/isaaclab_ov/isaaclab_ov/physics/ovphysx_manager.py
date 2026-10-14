@@ -45,6 +45,7 @@ from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
+from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
@@ -158,15 +159,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             backend, device, entries = self._pending_setup
             # Native output metadata names the actual bodies, not articulation-root aliases.
             # Keep these renderer-only bindings out of headless simulation startup.
-            from ovphysx.types import SimObjectType
-            from ovstage import PathDictionary
-
-            body_paths = []
-            with PathDictionary() as paths:
-                for kind in (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK):
-                    with backend.physx.read(kind, ["mass"]) as bodies:
-                        for group in bodies.groups:
-                            body_paths.extend(paths.get_path_strings(group.prim_list))
+            body_paths = ovphysx_compat.rigid_body_paths(backend.physx)
             if body_paths:
                 backend.rigid_body_view = backend.physx.create_tensor_binding(prim_paths=body_paths)
             self.setup(backend, device, entries)
@@ -351,7 +344,7 @@ class OvPhysxBackend:
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
-                    physx.wait_op(physx.reset_stage())
+                    ovphysx_compat.detach_stage(physx)
                 finally:
                     try:
                         destroy = getattr(physx, destroy_entry_point, None)
@@ -466,8 +459,8 @@ class OvPhysxManager(PhysicsManager):
     def _ensure_physx_schemas_registered(cls) -> None:
         """Register the USD schemas consumed by the OVPhysX runtime.
 
-        OVStage maintains its own USD schema registry, so register the wheel's
-        schema root and the separately packaged Newton schemas there even when
+        OVStage maintains its own USD schema registry, so register the selected
+        PhysX provider and the separately packaged Newton schemas there even when
         the host USD runtime already provides the same plugins. For the host USD
         registry, only register providers that are not already available from a
         compiled plugin.
@@ -480,6 +473,7 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
+        schema_paths = ovphysx_compat.physx_schema_paths(ovphysx)
         try:
             import ovstage  # noqa: PLC0415
         except ImportError:
@@ -488,7 +482,9 @@ class OvPhysxManager(PhysicsManager):
             schema_root = getattr(ovphysx, "codeless_schema_root", None)
             register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
             if callable(register_ovstage_schemas):
-                if callable(schema_root):
+                if ovphysx_compat.OVPHYSX_USES_TASKS:
+                    register_ovstage_schemas([str(path) for path in schema_paths])
+                elif callable(schema_root):
                     register_ovstage_schemas(str(schema_root()))
                 if (newton_schema_root := _newton_schema_root()) is not None:
                     register_ovstage_schemas(newton_schema_root)
@@ -496,9 +492,7 @@ class OvPhysxManager(PhysicsManager):
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
         # bundled plugin names match those module directory names case-insensitively.
-        schema_paths = [
-            str(path) for path in ovphysx.codeless_schema_paths() if path.parent.name.casefold() not in registered_names
-        ]
+        schema_paths = [str(path) for path in schema_paths if path.parent.name.casefold() not in registered_names]
         if schema_paths:
             registry.RegisterPlugins(schema_paths)
         cls._physx_schemas_registered = True
@@ -639,14 +633,15 @@ class OvPhysxManager(PhysicsManager):
                 domains=ovstage.PopulationDomain.ALL,
             )
             # ovphysx reads sealed data only: population completes the writes but never
-            # commits the ordinal, so attaching at an unsealed ordinal fails the parse
-            # and silently yields an empty scene.
+            # commits the ordinal. The initial parse requires a sealed ordinal.
             stage.advance_write_floor(ordinal=1).wait()
-            cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
+            operation = cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
             stage.destroy()
             raise
         cls.backend.stage = stage
+        # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
+        ovphysx_compat.finish_stage_operation(cls.backend.physx, operation)
 
         cls._next_control_ordinal = 2
 
@@ -660,7 +655,7 @@ class OvPhysxManager(PhysicsManager):
             cls.backend.rigid_body_view.destroy()
             cls.backend.rigid_body_view = None
         OvPhysxView._close_all_for(physx)
-        physx.wait_op(physx.reset_stage())
+        ovphysx_compat.detach_stage(physx)
         if cls.backend.stage is not None:
             cls.backend.stage.destroy()
             cls.backend.stage = None
@@ -673,7 +668,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
-        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
+        """Return the last successfully applied world-frame gravity vector [m/s^2].
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
         can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
@@ -732,10 +727,10 @@ class OvPhysxManager(PhysicsManager):
                 query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
             stage.advance_write_floor(ordinal=ordinal).wait()
-            cls.backend.physx.update_from_ovstage(ordinal, ordinal)
+            operation = cls.backend.physx.update_from_ovstage(ordinal, ordinal)
+            ovphysx_compat.finish_stage_operation(cls.backend.physx, operation)
 
-        # Only publish once the ordinal has been applied, so a failed write leaves
-        # :meth:`get_gravity` reporting the gravity the scene is still running with.
+        # Publish only after successful completion; a failed native update need not be atomic.
         cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
     @classmethod
@@ -810,7 +805,9 @@ class OvPhysxManager(PhysicsManager):
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
-            cls.backend.physx.wait_op(cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
+            ovphysx_compat.wait_for_operation(
+                cls.backend.physx, cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids)
+            )
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
         cls._warmup_physx(cls.backend.physx)

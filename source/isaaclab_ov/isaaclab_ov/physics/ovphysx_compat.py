@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Version compatibility between the public OVPhysX 0.5.11 API and OVPhysX 0.6 and later.
+"""Version compatibility for OVPhysX lifecycle, tasks, schemas, and scene reads.
 
 OVPhysX 0.5.11 warms GPU state with ``warmup_gpu()`` and tears the runtime down
 with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and
@@ -20,7 +20,9 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 from collections.abc import Mapping
+from pathlib import Path
 from types import MappingProxyType
+from typing import Any
 
 from packaging.version import InvalidVersion, Version
 
@@ -78,6 +80,11 @@ def requires_legacy_joint_sign_correction(version: Version | None) -> bool:
     return version is None or version.release[:2] < (0, 6)
 
 
+def uses_task_api(version: Version | None) -> bool:
+    """Select the 0.7 contracts, including prereleases, without importing a native runtime."""
+    return version is not None and version.release[:2] >= (0, 7)
+
+
 def build_lifecycle_entry_points(version: Version | None) -> Mapping[str, str]:
     """Return the lifecycle entry-point names for ``version``.
 
@@ -100,3 +107,69 @@ OVPHYSX_VERSION: Version | None = detect_ovphysx_version()
 
 OVPHYSX_LIFECYCLE_ENTRY_POINTS: Mapping[str, str] = build_lifecycle_entry_points(OVPHYSX_VERSION)
 """Maps lifecycle operations to method names for the installed OVPhysX version."""
+
+OVPHYSX_USES_TASKS: bool = uses_task_api(OVPHYSX_VERSION)
+"""Whether this runtime uses 0.7 task receipts and external PhysX schemas (including development builds)."""
+
+
+def wait_for_operation(physx: Any, operation: Any) -> None:
+    """Collect a clone or legacy reset operation exactly once."""
+    if OVPHYSX_USES_TASKS:
+        physx.wait_task(operation)
+    else:
+        physx.wait_op(operation)
+
+
+def finish_stage_operation(physx: Any, operation: Any) -> None:
+    """Collect an attach/update receipt; older runtimes already complete these calls synchronously."""
+    if OVPHYSX_USES_TASKS:
+        physx.wait_task(operation)
+
+
+def detach_stage(physx: Any) -> None:
+    """Complete stage teardown before its owner releases the OVStage."""
+    operation = physx.detach_ovstage() if OVPHYSX_USES_TASKS else physx.reset_stage()
+    wait_for_operation(physx, operation)
+
+
+def rigid_body_paths(physx: Any) -> list[str]:
+    """Resolve rigid body and articulation-link paths while their read sessions are alive."""
+    from ovphysx.types import SimObjectType
+
+    kinds = (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK)
+    body_paths = []
+    if OVPHYSX_USES_TASKS:
+        for kind in kinds:
+            with physx.read_sync(kind, ["mass"]) as bodies:
+                for group in bodies.groups:
+                    body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
+    else:
+        from ovstage import PathDictionary
+
+        with PathDictionary() as paths:
+            for kind in kinds:
+                with physx.read(kind, ["mass"]) as bodies:
+                    for group in bodies.groups:
+                        body_paths.extend(paths.get_path_strings(group.prim_list))
+    return body_paths
+
+
+def physx_schema_paths(ovphysx: Any) -> list[Path]:
+    """Locate the selected runtime's schemas without importing the external USD plugin provider."""
+    if not OVPHYSX_USES_TASKS:
+        return list(ovphysx.codeless_schema_paths())
+    try:
+        package = importlib.metadata.distribution("physx-usd-schemas")
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise FileNotFoundError(
+            "OVPhysX 0.7 requires physx-usd-schemas>=25.11.2. Install it before starting simulation."
+        ) from exc
+    paths = [
+        Path(package.locate_file(f"physx_usd_schemas/{module}/resources"))
+        for module in ("PhysxSchema", "OmniUsdPhysicsDeformableSchema")
+    ]
+    for path in paths:
+        for name in ("plugInfo.json", "generatedSchema.usda"):
+            if not (path / name).is_file():
+                raise FileNotFoundError(f"Incomplete physx-usd-schemas: missing {path / name}. Reinstall the provider.")
+    return paths
