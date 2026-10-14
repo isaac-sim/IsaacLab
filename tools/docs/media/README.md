@@ -10,6 +10,10 @@ For the quickstart page:
 tools/docs/media/generate_quickstart.sh
 ```
 
+After regenerating, upload `agent-comparison.mp4` and `task-sampler.mp4` from
+`docs/source/_static/quickstart/` to `https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/`.
+The quickstart page embeds these hosted videos; do not commit the generated MP4 files.
+
 For the reinforcement-learning page:
 
 ```bash
