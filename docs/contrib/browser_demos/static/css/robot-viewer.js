@@ -66,7 +66,7 @@ export class RobotViewer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = this.demo.scene === 'warehouse' ? 1.25 : this.demo.kind === 'microduck' ? 1.05 : 1.65;
+    this.renderer.toneMappingExposure = this.demo.toneMappingExposure ?? (this.demo.scene === 'warehouse' ? 1.25 : this.demo.kind === 'microduck' ? 1.05 : 1.65);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.scene = new THREE.Scene();

@@ -187,13 +187,13 @@ class IsaacLabBrowserDemo extends HTMLElement {
       }
       this.simulation = simulation;
       this.demo = this.simulation.manifest.isaacLabDemo;
-      if (!this.demo || !['stiffness', 'cloth_bending', 'mpm', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal', 'franka_reach', 'franka_lift', 'franka_drawer', 'microduck'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
+      if (!this.demo || !['stiffness', 'cloth_bending', 'rigid_friction', 'joint_pd', 'mpm', 'cartpole', 'g1', 'anymal', 'microduck', 'franka_reach', 'franka_lift', 'franka_drawer', 'dominoes', 'cable_bending', 'ant'].includes(this.demo.kind)) throw new Error('Unknown Isaac Lab demo');
       this.isManipulation = this.demo.kind.startsWith('franka_');
       this.querySelector('.browser-demo').classList.add(`browser-demo-${this.demo.kind}`, `browser-demo-scene-${this.demo.scene || "default"}`);
       const title = this.getAttribute('demo-title') || this.demo.title;
       this.querySelector('.browser-demo-head strong').textContent = title;
       this.canvas.setAttribute('aria-label', `${title} interactive simulation`);
-      if (this.demo.kind === 'rigid_friction' || this.demo.kind === 'joint_pd') {
+      if (this.demo.viewer === 'rigid' || this.demo.kind === 'rigid_friction' || this.demo.kind === 'joint_pd') {
         const { RigidViewer } = await import('./rigid-viewer.js');
         const viewer = await RigidViewer.load(this.canvas, this.simulation);
         if (this.generation !== generation) {
@@ -273,7 +273,32 @@ class IsaacLabBrowserDemo extends HTMLElement {
 
   setupControls() {
     const panel = this.querySelector('.browser-demo-controls');
-    if (this.demo.kind === 'stiffness' || this.demo.kind === 'cloth_bending' || this.demo.kind === 'rigid_friction') {
+    if (this.demo.controls === 'parameters') {
+      for (const parameter of this.simulation.manifest.parameters) {
+        const logarithmic = this.demo.logParameters?.includes(parameter.binding);
+        const physical = (value) => logarithmic ? 10 ** value : value;
+        this.addSlider(panel, parameter.label,
+          logarithmic ? Math.log10(parameter.minimum) : parameter.minimum,
+          logarithmic ? Math.log10(parameter.maximum) : parameter.maximum,
+          logarithmic ? 0.01 : parameter.step,
+          logarithmic ? Math.log10(this.simulation.binding(parameter.binding)[parameter.index]) : this.simulation.binding(parameter.binding)[parameter.index],
+          (value) => { this.simulation.binding(parameter.binding)[parameter.index] = physical(value); },
+          (value) => Number(physical(value)).toPrecision(3));
+      }
+      if (this.demo.action) {
+        const button = document.createElement('button');
+        button.textContent = this.demo.action.label;
+        button.addEventListener('click', () => {
+          this.simulation.binding(this.demo.action.binding)[0] = this.demo.action.value;
+          this.running = true;
+          const pause = this.querySelector('.browser-demo-pause');
+          pause.textContent = 'Pause'; pause.setAttribute('aria-label', 'Pause simulation');
+        });
+        panel.append(button);
+      }
+    } else if (this.demo.controls === 'heading') {
+      this.addVelocityControls();
+    } else if (this.demo.kind === 'stiffness' || this.demo.kind === 'cloth_bending' || this.demo.kind === 'rigid_friction') {
       const legend = document.createElement('div');
       legend.className = 'browser-demo-legend';
       const references = this.demo.kind === 'cloth_bending'
@@ -570,41 +595,55 @@ class IsaacLabBrowserDemo extends HTMLElement {
     this.viewport.append(hint);
     const controls = document.createElement('div');
     controls.className = 'browser-demo-joysticks';
-    const requested = new Float32Array(3);
-    let linear;
-    let travelReadout;
-    const updateCommand = () => {
-      const assist = this.demo.turnForwardSpeed && requested[2] && !requested[0] && !requested[1]
-        ? this.demo.turnForwardSpeed : 0;
-      this.command[0] = requested[0] || assist;
-      this.command[1] = requested[1];
-      this.command[2] = requested[2];
-      const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1'
-        ? [this.command[0] >= 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
-      linear?.show(-this.command[1] / scale[1], -this.command[0] / scale[0]);
-      if (travelReadout) travelReadout.value = assist ? `${assist.toFixed(2)} m/s · assist`
-        : requested[0] || requested[1] ? `${Math.hypot(requested[0], requested[1]).toFixed(2)} m/s` : 'Edge locks · pull back';
-    };
-    linear = this.addStick(controls, 'Move', 'Forward / back · left / right', true,
-      (x, y, readout) => {
-        const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1' ? [y < 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
-        requested[0] = -y * scale[0];
-        requested[1] = -x * scale[1];
-        travelReadout = readout;
-        updateCommand();
-      });
-    const yaw = this.addStick(controls, 'Turn', 'Yaw left / right', false,
-      (x, _y, readout) => {
-        requested[2] = -x * (this.demo.velocityScale?.[2] || 1);
-        readout.value = x ? `${Math.abs(requested[2]).toFixed(2)} rad/s` : 'Edge locks · pull back';
-        updateCommand();
-      });
-    this.resetSticks = () => { linear.reset(); yaw.reset(); };
-    this.setVelocityCommand = ([x, y, turn]) => {
-      const scale = this.demo.velocityScale || [1, 1, 1];
-      linear.move(-y / scale[1], -x / scale[0]);
-      yaw.move(-turn / scale[2], 0);
-    };
+    if (this.demo.controls === 'heading') {
+      controls.classList.add('browser-demo-steering');
+      const stick = this.addStick(controls, 'Steer', 'Left / right · Pause to stop walking', false,
+        (x, _y, readout) => {
+          const angle = -x * Math.PI / 4;
+          this.simulation.binding('heading')[0] = angle;
+          readout.value = x ? `${Math.round(angle * 180 / Math.PI)}°` : 'Straight · Pause to stop';
+        });
+      const pad = controls.querySelector('.browser-demo-stick');
+      pad.title = 'Steer left or right. Drag to the edge to lock; pull back or press Escape to straighten. Pause stops walking.';
+      pad.setAttribute('aria-label', pad.title);
+      this.resetSticks = () => stick.reset();
+    } else {
+      const requested = new Float32Array(3);
+      let linear;
+      let travelReadout;
+      const updateCommand = () => {
+        const assist = this.demo.turnForwardSpeed && requested[2] && !requested[0] && !requested[1]
+          ? this.demo.turnForwardSpeed : 0;
+        this.command[0] = requested[0] || assist;
+        this.command[1] = requested[1];
+        this.command[2] = requested[2];
+        const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1'
+          ? [this.command[0] >= 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
+        linear?.show(-this.command[1] / scale[1], -this.command[0] / scale[0]);
+        if (travelReadout) travelReadout.value = assist ? `${assist.toFixed(2)} m/s · assist`
+          : requested[0] || requested[1] ? `${Math.hypot(requested[0], requested[1]).toFixed(2)} m/s` : 'Edge locks · pull back';
+      };
+      linear = this.addStick(controls, 'Move', 'Forward / back · left / right', true,
+        (x, y, readout) => {
+          const scale = this.demo.velocityScale || (this.demo.policyType === 'wbc_agile_g1' ? [y < 0 ? 0.8 : 0.6, 0.5, 1] : [1, 1, 1]);
+          requested[0] = -y * scale[0];
+          requested[1] = -x * scale[1];
+          travelReadout = readout;
+          updateCommand();
+        });
+      const yaw = this.addStick(controls, 'Turn', 'Yaw left / right', false,
+        (x, _y, readout) => {
+          requested[2] = -x * (this.demo.velocityScale?.[2] || 1);
+          readout.value = x ? `${Math.abs(requested[2]).toFixed(2)} rad/s` : 'Edge locks · pull back';
+          updateCommand();
+        });
+      this.resetSticks = () => { linear.reset(); yaw.reset(); };
+      this.setVelocityCommand = ([x, y, turn]) => {
+        const scale = this.demo.velocityScale || [1, 1, 1];
+        linear.move(-y / scale[1], -x / scale[0]);
+        yaw.move(-turn / scale[2], 0);
+      };
+    }
     this.viewport.append(controls);
     this.releaseControls = () => this.resetSticks();
     this.canvas.tabIndex = 0;
@@ -727,7 +766,7 @@ class IsaacLabBrowserDemo extends HTMLElement {
   }
 
   applyPolicy() {
-    if (this.isManipulation || this.demo.policyType === 'microduck') {
+    if (this.isManipulation || this.demo.policyType === 'microduck' || this.demo.policyType === 'captured') {
       const observation = this.simulation.binding('observation');
       if (this.demo.policyType === 'microduck') observation.set(this.command, 48);
       const action = this.policy.run(observation);
@@ -836,7 +875,9 @@ class IsaacLabBrowserDemo extends HTMLElement {
               this.simulation.binding('target_q')[this.selectedJoint],
               this.simulation.binding('joint_q')[this.selectedJoint]);
           }
-          if (this.demo.cycleSteps && this.tick >= this.demo.cycleSteps) {
+          const fallen = this.demo.terminationHeight !== undefined
+            && !(this.simulation.binding('body_q')[this.demo.rootBody * 7 + 2] >= this.demo.terminationHeight);
+          if ((this.demo.cycleSteps && this.tick >= this.demo.cycleSteps) || fallen) {
             this.resetSimulation();
             resetDuringFrame = true;
             break;

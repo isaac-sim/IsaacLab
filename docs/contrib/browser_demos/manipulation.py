@@ -345,6 +345,24 @@ def _pack_visuals(stage: Usd.Stage, roots: list[str], bodies: list[str], output:
             elif prim.GetTypeName() == "Cube":
                 size = UsdGeom.Cube(prim).GetSizeAttr().Get()
                 geometry = trimesh.creation.box(extents=(size, size, size))
+            elif prim.GetTypeName() in ("Sphere", "Capsule", "Cylinder"):
+                shape = getattr(UsdGeom, prim.GetTypeName())(prim)
+                radius = shape.GetRadiusAttr().Get()
+                if prim.GetTypeName() == "Sphere":
+                    geometry = trimesh.creation.icosphere(subdivisions=2, radius=radius)
+                elif prim.GetTypeName() == "Capsule":
+                    geometry = trimesh.creation.capsule(
+                        height=shape.GetHeightAttr().Get(), radius=radius, count=(8, 12)
+                    )
+                else:
+                    geometry = trimesh.creation.cylinder(height=shape.GetHeightAttr().Get(), radius=radius, sections=16)
+                if prim.GetTypeName() != "Sphere" and shape.GetAxisAttr().Get() != "Z":
+                    axis = shape.GetAxisAttr().Get()
+                    geometry.apply_transform(
+                        trimesh.transformations.rotation_matrix(
+                            np.pi / 2 if axis == "X" else -np.pi / 2, (0, 1, 0) if axis == "X" else (1, 0, 0)
+                        )
+                    )
             else:
                 continue
             path = str(prim.GetPath())

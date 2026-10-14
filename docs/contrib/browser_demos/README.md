@@ -9,10 +9,11 @@ SPDX-License-Identifier: BSD-3-Clause
 
 This draft reference contains the exporters and shared viewer used to build the
 [released browser demos](https://isaac-sim.github.io/IsaacLab/demos/v1/).
+The version 6 preview adds dominoes, VBD cable bending and Ant walking.
 Production documentation downloads a checksum-pinned release archive; it does
 not build these sources. The original embed implementation below is retained
-for reference. MicroDuck's compiled files are distributed in the v2 release,
-rather than added to this source branch.
+for reference. Additional compiled bundles, including MicroDuck and the version 6
+examples, are distributed through versioned releases rather than added to this source branch.
 
 This checkout-only contrib collection owns the exporters, browser viewer, and
 reviewed bundles. It is outside the Python packages and wheel staging inputs.
@@ -464,3 +465,49 @@ Turning from rest adds a visible 0.25 m/s forward command; lower commands do not
 this published checkpoint's gait. Pulling back clears a latched stick; Escape, reset, and window
 focus loss clear both. To preview the complete current scene, serve the release archive's root
 and open `v5/`. Retain its earlier version directories.
+
+
+## Compact examples (version 6)
+
+[Gallery](https://maxkra15.github.io/isaaclab-browser-demos/v6/) ·
+[Domino cascade](https://maxkra15.github.io/isaaclab-browser-demos/v6/?demo=dominoes) ·
+[VBD cable bending](https://maxkra15.github.io/isaaclab-browser-demos/v6/?demo=cable_bending) ·
+[Ant walking](https://maxkra15.github.io/isaaclab-browser-demos/v6/?demo=ant)
+
+`scenes.py` exports a 24-slab XPBD row and a clamped 20-segment VBD rod.
+They reuse the native representations from `newton-dominoes` and `cables`, with
+bounded CPU solver budgets. Friction, bending stiffness and tip load are named
+bindings handled by generic parameter controls; the shared rigid viewer displays
+actual body poses and capsule geometry. The cable's transient response is a
+qualitative stiffness comparison, not a calibrated beam measurement.
+
+`ant.py` captures the `Isaac-Ant` Newton task with its native effort drives and
+joint-wrench sensor. It validates all 60 observations against the native task for
+180 steps before export, then verifies 240 captured policy steps. The existing
+JavaScript actor evaluator uses the published 60→400→200→100→8 ELU checkpoint.
+The transparent steering stick selects a target direction within ±45° and can
+latch at the edge. The policy walks continuously; Pause stops playback. Direct
+robot dragging applies a fixed 100 N perturbation. A fall below 0.31 m or the
+16-second limit replays the captured reset; Python episode managers are not exported.
+The display palette is adjusted; native geometry and dynamics are preserved.
+
+Use native Isaac Lab revision `380ddac0c5b1fed6a50b4e439c24071be8b798fb`, Newton
+`1.7.0.dev0`, Warp `1.17.0`, MJWarp `3.14.0`, the Newton Web revision above and
+Emscripten `5.0.3` in a separate uv environment. Set
+`PYTHONPATH=/path/to/newton-web/src` so the compiler checkout can be imported.
+The new exporters check the reviewed toolchain; Ant also checks the native task
+revision and checkpoint hash.
+
+```bash
+uv run --no-sync python /path/to/docs/contrib/browser_demos/scenes.py dominoes --output /tmp/browser-v6 --emxx /path/to/em++
+uv run --no-sync python /path/to/docs/contrib/browser_demos/scenes.py cable_bending --output /tmp/browser-v6 --emxx /path/to/em++
+curl -fL https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/Isaac-Ant_newtonmjwarp_none_rsl_rl.pt -o /tmp/ant-policy.pt
+uv run --no-sync python /path/to/docs/contrib/browser_demos/ant.py --checkpoint /tmp/ant-policy.pt --output /tmp/browser-v6 --emxx /path/to/em++
+```
+
+Publish only `*-web/` outputs and their license/attribution notices in the next
+release directory. Build intermediates and native `reference.npz` trajectories
+remain outside Git. Review native/WASM trajectory agreement, meaningful physical
+response, control/reset behavior and measured browser timing before publishing.
+The [coverage guide](../../source/developer-tools/interactive_examples.rst)
+records tested examples and remaining task/example families.

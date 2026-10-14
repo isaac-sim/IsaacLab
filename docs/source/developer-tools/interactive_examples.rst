@@ -18,6 +18,11 @@ outside the simulator's Python packages and wheel inputs. Documentation keeps
 the lessons and embed directive; Sphinx's ``html_static_path`` copies the contrib
 static directory into the built site's ``_static/`` directory.
 
+The deployed gallery uses versioned release archives. This draft preserves the
+original embed implementation below for reference; new compiled files are
+published separately. The version 6 sources add compact dominoes, cable bending,
+and native Ant walking without adding another viewer or policy framework.
+
 Choose the execution mode
 -------------------------
 
@@ -148,17 +153,60 @@ Current bundles and manual adaptations
      - Port action/observation packing, lift history/normalization, and fixed episode reset.
        Reuse native scene and actuators; reduce lift's batched contact capacity for one world.
        Share Franka visuals and the policy viewer. Target controls use the robot's root frame.
+   * - ``microduck``
+     - MicroDuck native task, BAM servos and Pollen Robotics' published policy
+     - Port delayed observations, disable selected startup observation randomization,
+       package the warehouse and bound it with authored colliders and 12 movable props.
+   * - ``dominoes``, ``cable_bending``
+     - ``newton-dominoes`` and ``cables``
+     - Use 24 slabs or one clamped 20-segment rod; bind a push/friction or stiffness/load.
+       Preserve native XPBD/VBD kernels and record the smaller CPU solver budgets.
+   * - ``ant``
+     - ``Isaac-Ant`` and its published Newton RSL-RL checkpoint
+     - Validate the 60-value observation contract, capture the native joint-wrench sensor
+       and effort drives, package primitive visuals, and replay one reset on fall/timeout.
+       A steering stick changes target direction; the policy has no velocity/stand command.
    * - ``mpm``
      - Newton implicit MPM and the granular material lesson
      - Analytic boundaries, a scalar strain-basis path, and allocation-alias capture handling.
        The coarse-grid materials are qualitative references.
+
+Measured version 6 candidates
+-----------------------------
+
+Desktop headless Chrome on an Intel Core Ultra 9 285K kept these demos at wall-time
+speed over six-second runs. These are measurements on one desktop, not a mobile
+guarantee. The physics budget is 16.7 ms per 60 Hz step; timing excludes rendering.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 25 45
+
+   * - Demo
+     - Measured CPU step
+     - Behavioral validation
+   * - Domino cascade (24 bodies)
+     - 6.6 ms
+     - All 24 slabs topple; native/WASM positions match over the first second.
+   * - VBD cable bending (20 segments)
+     - 5.9–6.7 ms
+     - Native/WASM positions match; mean tip height over seconds 3–4 changes
+       from 0.293 m to 0.621 m between the stiffness range endpoints.
+   * - Ant walking
+     - 0.22 ms, including actor
+     - Published policy stays upright and steers; maximum native/WASM body-position
+       difference over the first second is below 0.000001 m.
+
+The full domino logo has 5,640 bodies and was not exported or benchmarked in WASM.
+The cable is a new compact cantilever lesson using the native rod representation,
+with a qualitative transient comparison. Full example fidelity needs its own check.
 
 Coverage of the remaining examples
 ----------------------------------
 
 These groups cover the packaged ``examples/`` programs, the
 ``scripts/tutorials/`` families, and task families presented in the docs.
-They are source-review assessments; their WASM exports have not been validated.
+The remaining entries are source-review assessments, not realtime browser claims.
 
 .. list-table::
    :header-rows: 1
@@ -167,11 +215,11 @@ They are source-review assessments; their WASM exports have not been validated.
    * - Documentation/example family
      - Likely execution mode
      - Remaining manual work or blocker
-   * - Rigid objects, articulations, cube/Cartpole tutorials; dominoes and bin packing
+   * - Rigid objects, articulations, cube tutorials and bin packing
      - Compact Newton WASM candidates
      - Share native scene setup, package assets, and port command/reset logic.
        Bound scene and contact sizes for browser CPU performance.
-   * - Deformables, cables, block and tackle
+   * - Deformables, cable piles, block and tackle
      - Compact VBD WASM candidates
      - Share volume/cloth/cable setup; expose handles/stiffness and package pulley/cable visuals.
        Preserve required self-contact and validate contact behavior.
@@ -183,17 +231,25 @@ They are source-review assessments; their WASM exports have not been validated.
      - Native session initially; selected small scenes in WASM
      - Asset selection/packaging, scene size, terrain/BVH serialization, and control loops.
        Resolve each selected physics backend explicitly.
-   * - Other locomotion/manipulation policies; Ant, Humanoid, Allegro, and reaching robots
+   * - Humanoid, H1/Cassie/Go2, UR10, Kuka/Allegro lift, reorient and handover policies
      - Native session initially; WASM subsets after actuator/controller work
      - Match actor contracts, recurrent state, actuator limits/delays, resets/events,
        and sensors. Warp frontend coverage alone is insufficient.
+   * - Pendulum and four-bar pole
+     - Small Newton WASM candidates
+     - Export joint constraints, task-specific multi-agent/control logic and compatible policies.
+       Small body count alone does not validate a checkpoint or closed-loop constraints.
+   * - Tablecloth manipulation
+     - Native CUDA session initially
+     - The example explicitly requires CUDA, a captured manipulation state machine and
+       texture-based contact geometry. Port these before claiming a CPU/WASM equivalent.
    * - IK/OSC controllers and pick-and-place/surface-gripper tutorials
      - Native session initially
      - Port controller math and actuator state; review attachment/gripper backend APIs.
-   * - Contact, frame-transform, IMU, and PVA sensors
+   * - Contact, frame-transform, IMU, PVA and joint-wrench sensors
      - Compact WASM candidates after sensor adapters
      - Export matching frames, timing, filtering/history, and reset state.
-       Reuse native math and measured quantities.
+       Ant demonstrates a native wrench-sensor capture; other sensors remain unvalidated.
    * - Newton and multi-mesh ray casting; height scans
      - Native session until portable queries are available
      - Serialize/rebuild mesh/BVH resources; captured native handles cannot be reused in WASM.

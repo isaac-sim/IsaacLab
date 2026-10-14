@@ -50,7 +50,9 @@ export class RigidViewer {
     this.bodies.forEach((body) => this.stage.add(body));
     this.geometries = [];
     this.materials = [];
-    if (visualization.ground) {
+    const groundIsRaised = visualization.ground && (Math.abs(visualization.ground.transform[2]) > 1e-4
+      || visualization.ground.transform.slice(3, 6).some((value) => Math.abs(value) > 1e-4));
+    if (groundIsRaised) {
       const ground = visualization.ground;
       const thickness = 0.08;
       const geometry = new THREE.BoxGeometry(ground.size[0], ground.size[1], thickness);
@@ -65,16 +67,19 @@ export class RigidViewer {
       this.geometries.push(geometry);
       this.materials.push(material);
     }
-    for (const shape of visualization.shapes) {
-      if (shape.type !== 'box') throw new Error(`Unsupported rigid shape: ${shape.type}`);
-      const geometry = new THREE.BoxGeometry(...shape.size);
+    for (const shape of [...visualization.shapes, ...(simulation.manifest.isaacLabDemo.fixtures || [])]) {
+      if (!['box', 'capsule'].includes(shape.type)) throw new Error(`Unsupported rigid shape: ${shape.type}`);
+      const geometry = shape.type === 'capsule'
+        ? new THREE.CapsuleGeometry(shape.radius, shape.length, 6, 12)
+        : new THREE.BoxGeometry(...shape.size);
+      if (shape.type === 'capsule') geometry.rotateX(Math.PI / 2);
       const material = new THREE.MeshStandardMaterial({ color: shape.color, roughness: 0.35, metalness: 0.12 });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.fromArray(shape.transform.slice(0, 3));
       mesh.quaternion.fromArray(shape.transform.slice(3));
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      this.bodies[shape.body].add(mesh);
+      (shape.body === undefined || shape.body < 0 ? this.stage : this.bodies[shape.body]).add(mesh);
       this.geometries.push(geometry);
       this.materials.push(material);
     }
@@ -120,8 +125,9 @@ export class RigidViewer {
     }
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 35);
     const jointPd = simulation.manifest.isaacLabDemo.kind === 'joint_pd';
-    this.target = new THREE.Vector3(0, jointPd ? 1.1 : 0.85, 0);
-    this.orbit = new OrbitCamera(canvas, this.camera, jointPd ? Math.PI / 2 : 1.25, jointPd ? 0.12 : 0.35, jointPd ? 4.2 : 5.2);
+    const demo = simulation.manifest.isaacLabDemo;
+    this.target = new THREE.Vector3(...(demo.cameraTarget || [0, jointPd ? 1.1 : 0.85, 0]));
+    this.orbit = new OrbitCamera(canvas, this.camera, demo.cameraAzimuth ?? (jointPd ? Math.PI / 2 : 1.25), demo.cameraElevation ?? (jointPd ? 0.12 : 0.35), demo.cameraRadius ?? (jointPd ? 4.2 : 5.2));
   }
 
   render() {

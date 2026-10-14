@@ -93,3 +93,4 @@ isaaclab-browser-demo.locomotion { min-height: 0; }
 .browser-demo-scene-warehouse .browser-demo-stick-heading output { color: #e3ecf0; }
 .browser-demo-scene-warehouse .browser-demo-stick.latched ~ .browser-demo-stick-heading::after { color: #b9e56c; }
 .browser-demo-scene-warehouse .browser-demo-viewer-hint { color: #f3f6f7; text-shadow: 0 1px 4px #0008; }
+.browser-demo-steering .browser-demo-stick.latched ~ .browser-demo-stick-heading::after { content: 'Locked · pull back to straighten'; }
