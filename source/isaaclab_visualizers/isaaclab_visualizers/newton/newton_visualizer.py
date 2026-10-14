@@ -591,6 +591,8 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _select_camera(self, index: int) -> None:
         """Bind the selected source; all scene cameras retain their normal lazy-data lifecycle."""
         self.current_image_view = self._image_views[index]
+        self._camera_tracking_step = -1
+        self._camera_origin_applied = False
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):

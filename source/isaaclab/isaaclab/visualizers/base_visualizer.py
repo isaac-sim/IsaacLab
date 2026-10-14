@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import numpy as np
+import torch
 import warp as wp
 
 from ..utils import validate
@@ -61,6 +62,12 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
+        self._interactive_scene = None
+        self._viewer_origin: torch.Tensor | None = None
+        self._tracking_asset = None
+        self._tracking_body_id: int | None = None
+        self._camera_origin_applied = False
+        self._camera_tracking_step = -1
         self.current_image_view: ImageView | None = None
         self._image_views: list[ImageView] = []
 
@@ -82,6 +89,8 @@ class BaseVisualizer(ABC):
         """
         scene_data_provider = sim.get_scene_data_provider()
         self._sim = sim
+        if self.cfg.origin_type != "world":
+            self._setup_initial_camera_view()
 
         num_envs = scene_data_provider.num_envs
         self._env_ids = None
@@ -102,6 +111,8 @@ class BaseVisualizer(ABC):
             if isinstance(self.cfg.view.source, str):
                 camera = scene_data_provider.get_camera_sensors().get(self.cfg.view.source)
             self.current_image_view = sim.get_or_create_backend(self.cfg.view, camera=camera)
+            if camera is None:
+                self.current_image_view.before_render = self.update_camera_tracking
             self._image_views.append(self.current_image_view)
             return
         env_ids = []
@@ -117,6 +128,7 @@ class BaseVisualizer(ABC):
                 if self.cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
+                view.before_render = self.update_camera_tracking
             else:
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=tuple(map(int, env_ids)),
@@ -157,8 +169,14 @@ class BaseVisualizer(ABC):
         Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
         """
         self.current_image_view = None
+        for view in self._image_views:
+            if view.before_render == self.update_camera_tracking:
+                view.before_render = None
         self._image_views.clear()
         self._sim = None
+        self._interactive_scene = None
+        self._tracking_asset = None
+        self._viewer_origin = None
         self._is_closed = True
 
     @abstractmethod
@@ -333,6 +351,88 @@ class BaseVisualizer(ABC):
         """
         pass
 
+    def _setup_initial_camera_view(self) -> None:
+        """Resolve the configured origin; defer asset state reads until the first render."""
+        self._tracking_asset = None
+        self._tracking_body_id = None
+        self._camera_origin_applied = False
+        self._camera_tracking_step = -1
+        self._viewer_origin = None
+        if self.cfg.origin_type == "world":
+            self._viewer_origin = torch.zeros(3)
+        elif self.cfg.origin_type in ("env", "asset"):
+            self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
+            if self._interactive_scene is None:
+                raise ValueError("Camera origin tracking requires an interactive scene.")
+            if not 0 <= self.cfg.origin_env_index < self._interactive_scene.num_envs:
+                raise ValueError("Camera origin_env_index is outside the scene's environment range.")
+            if self.cfg.origin_type == "env":
+                self._viewer_origin = self._interactive_scene.env_origins[self.cfg.origin_env_index]
+            else:
+                if not self.cfg.origin_track_path:
+                    raise ValueError("Camera origin_type='asset' requires origin_track_path.")
+                asset_name, _, _ = self.cfg.origin_track_path.partition("/")
+                self._tracking_asset = self._interactive_scene[asset_name]
+                return
+        else:
+            raise ValueError(f"Unsupported camera origin_type: {self.cfg.origin_type!r}.")
+        if self.is_initialized:
+            self._apply_viewer_origin_to_camera()
+
+    def update_camera_tracking(self) -> None:
+        """Apply perspective camera tracking before rendering a frame.
+
+        SimulationContext calls this before step(), so display and recording use the same
+        camera pose. ImageView also calls this before on-demand perspective capture.
+        Updates are shared within a physics step so recording preserves the displayed frame.
+        Fixed world cameras incur no scene reads.
+        """
+        if not self.is_initialized or self.cfg.origin_type == "world":
+            return
+        if self.current_image_view is not None and self.current_image_view.camera is not None:
+            return
+        step = self._sim.get_physics_step_count()
+        if self._camera_tracking_step == step:
+            return
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
+        elif not self._camera_origin_applied:
+            self._apply_viewer_origin_to_camera()
+        if self._camera_origin_applied:
+            self._camera_tracking_step = step
+
+    def _update_asset_tracking_camera(self) -> None:
+        """Read the selected asset position and translate the perspective camera offsets."""
+        asset = self._tracking_asset
+        if asset is None or not asset.is_initialized:
+            return
+        _, _, body_name = self.cfg.origin_track_path.partition("/")
+        if body_name:
+            if self._tracking_body_id is None:
+                body_ids, _ = asset.find_bodies(body_name)
+                if len(body_ids) != 1:
+                    raise ValueError(f"Camera tracking body {body_name!r} must match exactly one body.")
+                self._tracking_body_id = body_ids[0]
+            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.origin_env_index, self._tracking_body_id]
+        else:
+            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
+        self._apply_viewer_origin_to_camera()
+
+    def _apply_viewer_origin_to_camera(self) -> None:
+        """Set the absolute camera pose while preserving the configured relative offsets."""
+        if self._viewer_origin is None:
+            return
+        origin = self._viewer_origin.detach().cpu().tolist()
+        eye_offset, target_offset = self.cfg.eye, self.cfg.lookat
+        eye = tuple(float(position + offset) for position, offset in zip(origin, eye_offset))
+        target = tuple(float(position + offset) for position, offset in zip(origin, target_offset))
+        try:
+            self.set_camera_view(eye, target)
+        finally:
+            # Some adapters store the absolute pose in cfg; tracking must retain its offsets.
+            self.cfg.eye, self.cfg.lookat = eye_offset, target_offset
+        self._camera_origin_applied = True
+
     def _focal_length_to_vertical_fov_degrees(self) -> float:
         """Convert cfg focal length to vertical FOV using USD's default aperture."""
         focal_length = float(self.cfg.focal_length)
@@ -346,7 +446,7 @@ class BaseVisualizer(ABC):
         Args:
             soft: Whether to perform a soft reset.
         """
-        pass
+        self._camera_tracking_step = -1
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.

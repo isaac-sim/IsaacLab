@@ -9,13 +9,16 @@ from __future__ import annotations
 
 import random
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
+import torch
+import warp as wp
 
 from isaaclab.utils import validate
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.image_view import ImageView
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -89,6 +92,10 @@ class _DummyVisualizer(BaseVisualizer):
     def step(self, dt: float) -> None:
         return
 
+    def set_camera_view(self, eye, target) -> None:
+        self.camera_pose = (tuple(eye), tuple(target))
+        self.cfg.eye, self.cfg.lookat = tuple(eye), tuple(target)
+
     def close(self) -> None:
         self._is_closed = True
 
@@ -147,3 +154,117 @@ def test_physics_backend_returns_none_without_simulation_context():
     """physics_backend is None when no SimulationContext is active."""
     viz = _DummyVisualizer(VisualizerCfg())
     assert viz.physics_backend is None
+
+
+@pytest.fixture
+def tracking_scene():
+    """Two distinct environment and asset positions expose wrong-instance tracking."""
+    asset = SimpleNamespace(
+        is_initialized=True,
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 1.0], [12.0, 24.0, 2.0]])),
+            body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 3.0]], [[13.0, 25.0, 4.0]]])),
+        ),
+        find_bodies=Mock(return_value=([0], ["torso_link"])),
+    )
+    scene = MagicMock(num_envs=2, env_origins=torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]]))
+    scene.__getitem__.side_effect = {"robot": asset}.__getitem__
+    sim = Mock(stage=None)
+    sim.get_scene_data_provider.return_value = SimpleNamespace(num_envs=2, get_interactive_scene=lambda: scene)
+    sim.get_physics_step_count.return_value = 1
+    sim.get_or_create_backend.side_effect = lambda cfg, **kwargs: ImageView(cfg, **kwargs)
+    return sim, asset
+
+
+@pytest.mark.parametrize(
+    "origin_type,path,expected_eye,expected_target",
+    [
+        ("env", None, (12.0, 22.0, 2.0), (10.0, 20.0, 0.0)),
+        ("asset", "robot", (14.0, 26.0, 4.0), (12.0, 24.0, 2.0)),
+        ("asset", "robot/torso_link", (15.0, 27.0, 6.0), (13.0, 25.0, 4.0)),
+    ],
+)
+def test_camera_tracking_selects_origin_and_preserves_offsets(
+    tracking_scene, origin_type, path, expected_eye, expected_target
+):
+    """Camera offsets stay relative when tracking an environment, root, or body."""
+    sim, asset = tracking_scene
+    viz = _DummyVisualizer(
+        VisualizerCfg(
+            eye=(2.0, 2.0, 2.0),
+            lookat=(0.0, 0.0, 0.0),
+            origin_type=origin_type,
+            origin_track_path=path,
+            origin_env_index=1,
+        )
+    )
+    viz.initialize(sim, cameras=[])
+    viz.update_camera_tracking()
+    assert viz.camera_pose == (expected_eye, expected_target)
+    asset.data.root_pos_w.torch[1, 0] += 5.0
+    asset.data.body_pos_w.torch[1, 0, 0] += 5.0
+    sim.get_physics_step_count.return_value = 2
+    viz.update_camera_tracking()
+    displacement = 0.0 if origin_type == "env" else 5.0
+    assert viz.camera_pose == (
+        (expected_eye[0] + displacement, *expected_eye[1:]),
+        (expected_target[0] + displacement, *expected_target[1:]),
+    )
+    assert viz.cfg.eye == (2.0, 2.0, 2.0)
+    assert viz.cfg.lookat == (0.0, 0.0, 0.0)
+
+
+def test_perspective_capture_tracks_before_render_and_reset(tracking_scene):
+    """Recording without a display step follows the asset and refreshes after reset."""
+    sim, asset = tracking_scene
+    viz = _DummyVisualizer(
+        VisualizerCfg(
+            visualizer_type="newton_gl",
+            eye=(2.0, 2.0, 2.0),
+            origin_type="asset",
+            origin_track_path="robot",
+            origin_env_index=1,
+        )
+    )
+    viz.initialize(sim, cameras=[PerspectiveCameraCfg()])
+    view = viz._image_views[0]
+    poses = []
+
+    def capture(_):
+        poses.append(viz.camera_pose)
+        return wp.zeros((1, 1, 4), dtype=wp.uint8, device="cpu")
+
+    view.render = capture
+    view.read(1)
+    assert poses == [((14.0, 26.0, 4.0), (12.0, 24.0, 2.0))]
+    view.read(1)
+    assert len(poses) == 1
+    asset.data.root_pos_w.torch[1] = torch.tensor([1.0, 2.0, 3.0])
+    viz.reset(soft=True)
+    view.invalidate()
+    view.read(1)
+    assert poses[-1] == ((3.0, 4.0, 5.0), (1.0, 2.0, 3.0))
+
+
+def test_tracking_does_not_move_scene_camera_views(tracking_scene):
+    """Selecting a sensor view must not turn tracking into sensor navigation."""
+    sim, _ = tracking_scene
+    viz = _DummyVisualizer(VisualizerCfg(origin_type="asset", origin_track_path="robot"))
+    viz.initialize(sim, cameras=[])
+    viz.current_image_view = SimpleNamespace(camera=object())
+    viz.update_camera_tracking()
+    assert not hasattr(viz, "camera_pose")
+
+
+@pytest.mark.parametrize("env_index,path", [(2, "robot"), (0, None)])
+def test_camera_tracking_rejects_invalid_origin(tracking_scene, env_index, path):
+    sim, _ = tracking_scene
+    viz = _DummyVisualizer(
+        VisualizerCfg(
+            origin_type="asset",
+            origin_track_path=path,
+            origin_env_index=env_index,
+        )
+    )
+    with pytest.raises(ValueError, match="origin_env_index|origin_track_path"):
+        viz.initialize(sim, cameras=[])

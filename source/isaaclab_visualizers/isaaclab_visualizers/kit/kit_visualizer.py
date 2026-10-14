@@ -82,9 +82,6 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step: bool = False
         self._controls_kit_timeline = False
         self._owns_kit_timeline = False
-        # Camera tracking state (replaces ViewportCameraController)
-        self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
-        self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -177,8 +174,7 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        if self.cfg.origin_type == "asset":
-            self._update_asset_tracking_camera()
+        self.update_camera_tracking()
         self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
@@ -294,8 +290,7 @@ class KitVisualizer(BaseVisualizer):
         provider = self._sim.get_scene_data_provider()
         self._fabric.update_transforms(provider)
         self._fabric.update_geometries(provider, self._sim.render_generation)
-        if self._runtime_headless and self.cfg.origin_type == "asset":
-            self._update_asset_tracking_camera()
+        self.update_camera_tracking()
         w, h = self.cfg.window.size
 
         # Create the render product and annotator before the app update so the first
@@ -925,63 +920,6 @@ class KitVisualizer(BaseVisualizer):
                 inv_attr.Set(prev)
         self._point_instancer_invisible_ids_backup.clear()
 
-    def _setup_initial_camera_view(self) -> None:
-        """Position the viewport camera according to :attr:`KitVisualizerCfg.origin_type`.
-
-        Called once at the end of :meth:`initialize`. For ``"world"`` and ``"env"`` origins the
-        camera is positioned immediately. For asset-tracking origins the first update is deferred
-        to :meth:`step` because asset state is not yet available at initialization time.
-        """
-        self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
-
-        if self.cfg.origin_type == "world":
-            self._viewer_origin = torch.zeros(3)
-        elif self.cfg.origin_type == "env":
-            scene = self._interactive_scene
-            if scene is None:
-                logger.warning("[KitVisualizer] origin_type='env' requested but no scene is registered yet.")
-                self._viewer_origin = torch.zeros(3)
-            else:
-                num_envs = scene.num_envs
-                if not (0 <= self.cfg.origin_env_index < num_envs):
-                    raise ValueError(
-                        f"[KitVisualizer] origin_env_index {self.cfg.origin_env_index} is out of range "
-                        f"[0, {num_envs - 1}] for origin_type='env'."
-                    )
-                self._viewer_origin = scene.env_origins[self.cfg.origin_env_index]
-        elif self.cfg.origin_type == "asset":
-            if self.cfg.origin_track_path is None:
-                raise ValueError("[KitVisualizer] origin_type='asset' requires origin_track_path to be set.")
-            # Asset data is not available until after sim.reset(); defer to step().
-            return
-        else:
-            logger.warning("[KitVisualizer] Unknown origin_type '%s'; defaulting to world.", self.cfg.origin_type)
-            self._viewer_origin = torch.zeros(3)
-
-        self._apply_viewer_origin_to_camera()
-
-    def _update_asset_tracking_camera(self) -> None:
-        """Update the viewport camera to track an asset root or body.
-
-        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
-        Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
-        ``"asset_name/body_name"`` tracks a specific body.
-        """
-        scene = self._interactive_scene
-        if scene is None or self.cfg.origin_track_path is None:
-            return
-        asset_name, _, body_name = self.cfg.origin_track_path.partition("/")
-        try:
-            asset = scene[asset_name]
-        except KeyError:
-            return
-        if body_name:
-            body_ids, _ = asset.find_bodies(body_name)
-            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.origin_env_index, body_ids[0]]
-        else:
-            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
-        self._apply_viewer_origin_to_camera()
-
     def _apply_viewer_origin_to_camera(self) -> None:
         """Compute absolute eye/target from :attr:`_viewer_origin` and push to the viewport."""
         if self._viewer_origin is None:
@@ -989,7 +927,7 @@ class KitVisualizer(BaseVisualizer):
         origin = self._viewer_origin.detach().cpu().numpy()
         eye = np.array(self.cfg.eye, dtype=float) + origin
         target = np.array(self.cfg.lookat, dtype=float) + origin
-        self.set_camera_view(tuple(float(v) for v in eye), tuple(float(v) for v in target))
+        super()._apply_viewer_origin_to_camera()
         # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
         try:
             from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415

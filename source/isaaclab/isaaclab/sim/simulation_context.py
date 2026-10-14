@@ -711,6 +711,7 @@ class SimulationContext:
                 if viz.is_training_paused():
                     viz.step(0.0)
                     continue
+                viz.update_camera_tracking()
                 viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)

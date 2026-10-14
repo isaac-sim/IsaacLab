@@ -716,22 +716,54 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 ``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
-**Following a moving robot (Kit)**
+**Following a moving robot**
 
-Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step, running with ``--viz kit``:
+Kit, Newton GL, and Newton RTX can follow a scene asset without updating ``eye`` and
+``lookat`` in an event. For example, run with ``--viz newton_rtx`` and configure:
 
 .. code-block:: python
 
-    from isaaclab_visualizers.kit import KitVisualizerCfg
+    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
     sim_cfg.visualizer_cfgs = [
-        KitVisualizerCfg(
+        NewtonRTXVisualizerCfg(
+            eye=(2.0, 2.0, 2.0),
+            lookat=(0.0, 0.0, 0.0),
             origin_type="asset",
-            origin_track_path="robot",  # or "robot/panda_hand" to track a specific body
-            eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
-        )
+            origin_track_path="robot",
+            origin_env_index=0,
+        ),
     ]
+
+Use ``origin_track_path="robot/torso_link"`` to follow one body instead of the asset root.
+The path uses the scene asset name followed by an optional body expression that must
+match exactly one body. ``origin_env_index`` selects the environment instance.
+
+``eye`` and ``lookat`` are offsets from the tracked position, expressed in world axes;
+they translate with the asset but do not rotate with it. Tracking applies to perspective
+views and their video captures. Scene-camera sensors keep their own poses.
+Use ``origin_type="env"`` for a fixed environment origin or ``"world"`` (the default)
+for absolute world coordinates. The same options work with ``NewtonGLVisualizerCfg``
+and ``KitVisualizerCfg``.
+
+For offline video, keep the tracked visualizer configuration and set ``headless=True``.
+Configure the recorder on the environment:
+
+.. code-block:: python
+
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(
+            source="viz:newton_rtx",
+            output_dir="videos",
+            video_length=200,
+        ),
+    ]
+
+Run with ``--video viz:newton_rtx`` and omit ``--viz`` to use the configured RTX
+visualizer only for recording. Tracking updates before each on-demand capture, so
+it does not require a visible viewer window. Use ``viz:newton_gl`` for GL recording.
 
 **Sharing a live view with a remote teammate**
 
