@@ -14,11 +14,10 @@ import math
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-import torch
 import warp as wp
 from newton.actuators import ComponentKind, DriveBase, register_actuator_component
 
-from isaaclab.actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg
+from isaaclab.actuators.actuator_bam_cfg import BAM_DRIVE_API
 
 from .bam_kernels import bam_delay_kernel, bam_friction_kernel, bam_motor_kernel, bam_state_reset_kernel
 
@@ -470,25 +469,6 @@ class DriveBam(DriveBase):
         # The phase and seed only change on reset.
         wp.copy(next_state.delay_phase, current_state.delay_phase)
         wp.copy(next_state.delay_rng_seed, current_state.delay_rng_seed)
-
-
-def _apply_bam_startup_sampling(drive: DriveBam, cfg: BamActuatorCfg) -> None:
-    """Draw the per-environment supply voltage and sag gain of one BAM drive.
-
-    A USD prim is shared by every clone, so these ranges are sampled once here instead and held
-    constant across resets.
-
-    Args:
-        drive: The BAM drive, with its environment stride set.
-        cfg: The group's actuator configuration.
-    """
-    for attr, value_range in (("vin", cfg.vin_range), ("sag_gain", cfg.vin_drop_gain_range)):
-        if value_range is None:
-            continue
-        per_env = wp.to_torch(getattr(drive, attr)).view(-1, drive.env_dof_stride)
-        samples = torch.empty(per_env.shape[0], 1, device=per_env.device, dtype=per_env.dtype)
-        samples.uniform_(*value_range)
-        per_env.copy_(samples.expand_as(per_env))
 
 
 register_actuator_component(BAM_DRIVE_API, DriveBam, ComponentKind.DRIVE)

@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 from newton import JointType, Model
 from newton.actuators import Actuator
@@ -25,7 +26,7 @@ from isaaclab.actuators.newton.adapter import NewtonActuatorSelection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 
-from isaaclab_newton.actuators.bam import DriveBam, _apply_bam_startup_sampling
+from isaaclab_newton.actuators.bam import DriveBam
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
@@ -34,11 +35,6 @@ if TYPE_CHECKING:
     from .articulation import Articulation
 
 logger = logging.getLogger(__name__)
-
-
-def _bam_startup_settings(cfg: BamActuatorCfg) -> tuple:
-    """Return the BAM settings that Newton does not use to group actuators."""
-    return (cfg.vin_range, cfg.vin_drop_gain_range, cfg.stiff_frictionloss, cfg.backlash_joint_template)
 
 
 class NewtonActuatorControl(ArticulationActuatorControl):
@@ -237,15 +233,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         if self._native_actuator_path_active and SimulationManager._adapter is not None:
             SimulationManager._adapter.reset(env_ids)
 
-    def _bam_actuators(self) -> list[tuple[Actuator, BamActuatorCfg]]:
-        """Return the Newton BAM actuators that drive this articulation, each with its groups' configuration.
+    def _bam_actuators(self) -> list[tuple[Actuator, list[str]]]:
+        """Return the Newton BAM actuators that drive this articulation, each with the BAM groups it drives.
 
         Newton merges structurally identical actuators across groups and articulations, so an
         actuator belongs here when any of its DOFs belongs to one of this articulation's BAM groups.
-
-        Raises:
-            ValueError: If BAM groups sharing a Newton actuator disagree on settings that Newton
-                does not use to group actuators.
         """
         adapter = SimulationManager._adapter
         if adapter is None:
@@ -256,34 +248,46 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 continue
             local_dofs = set((actuator.indices.numpy() % adapter.num_joints).tolist())
             names = [name for name, dofs in self._bam_group_dofs.items() if dofs & local_dofs]
-            if not names:
-                continue
-            if len({_bam_startup_settings(self._bam_cfgs[name]) for name in names}) > 1:
-                raise ValueError(
-                    f"BAM groups {names} share a Newton actuator and must agree on 'vin_range',"
-                    " 'vin_drop_gain_range', 'stiff_frictionloss' and 'backlash_joint_template'."
-                )
-            owned.append((actuator, self._bam_cfgs[names[0]]))
+            if names:
+                owned.append((actuator, names))
         return owned
 
     def _sample_bam_startup_parameters(self) -> None:
         """Sample the per-environment BAM supply voltage and sag gain once per Newton actuator.
 
+        A USD prim is shared by every clone, so these ranges are sampled here and held across resets.
+
         Raises:
             ValueError: If BAM groups or articulations sharing a Newton actuator disagree on settings
                 that Newton does not use to group actuators.
         """
-        for actuator, cfg in self._bam_actuators():
+        for actuator, names in self._bam_actuators():
             drive = actuator.drive
-            setting = _bam_startup_settings(cfg)
-            if drive.startup_settings is None:
-                drive.startup_settings = setting
-                _apply_bam_startup_sampling(drive, cfg)
-            elif drive.startup_settings != setting:
+            cfgs = [self._bam_cfgs[name] for name in names]
+            settings = {
+                (c.vin_range, c.vin_drop_gain_range, c.stiff_frictionloss, c.backlash_joint_template) for c in cfgs
+            }
+            if len(settings) > 1:
+                raise ValueError(
+                    f"BAM groups {names} share a Newton actuator and must agree on 'vin_range',"
+                    " 'vin_drop_gain_range', 'stiff_frictionloss' and 'backlash_joint_template'."
+                )
+            (setting,) = settings
+            if drive.startup_settings == setting:
+                # Another articulation sharing this drive already sampled it.
+                continue
+            if drive.startup_settings is not None:
                 raise ValueError(
                     "Articulations sharing a Newton BAM actuator must agree on 'vin_range', 'vin_drop_gain_range',"
                     f" 'stiff_frictionloss' and 'backlash_joint_template' (got {drive.startup_settings} and {setting})."
                 )
+            drive.startup_settings = setting
+            for values, value_range in ((drive.vin, cfgs[0].vin_range), (drive.sag_gain, cfgs[0].vin_drop_gain_range)):
+                if value_range is None:
+                    continue
+                per_env = wp.to_torch(values).view(-1, drive.env_dof_stride)
+                samples = torch.empty(per_env.shape[0], 1, device=per_env.device, dtype=per_env.dtype)
+                per_env.copy_(samples.uniform_(*value_range).expand_as(per_env))
 
     def _bind_bam_backlash(self, actuator: Actuator, template: str) -> None:
         """Resolve each servo's sibling play hinge to its model coordinate index.
@@ -326,10 +330,12 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
             )
         model = SimulationManager.backend.model
-        for actuator, cfg in self._bam_actuators():
+        for actuator, names in self._bam_actuators():
             drive = actuator.drive
             if drive.external_torque is not None:
                 continue
+            # Start-up sampling already checked that the groups sharing this actuator agree.
+            cfg = self._bam_cfgs[names[0]]
             if drive.has_backlash:
                 self._bind_bam_backlash(actuator, cfg.backlash_joint_template)
             bridge = MjWarpActuatorBridge(solver, model, actuator.indices, self.device)
