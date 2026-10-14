@@ -234,6 +234,10 @@ OVERRIDES = {
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+    ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_mpm",

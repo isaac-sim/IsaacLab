@@ -385,6 +385,7 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
                     rgba = wp.from_dlpack(mapping)
                     if target_image is None or target_image.shape != rgba.shape or target_image.device != rgba.device:
                         target_image = wp.empty_like(rgba)
+                    mapping.wait_on(target_image.device.stream.cuda_stream)
                     wp.copy(target_image, rgba)
                     mapping.unmap(stream=target_image.device.stream.cuda_stream)
                 return target_image
@@ -1150,6 +1151,9 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
     Resizing the window scales the displayed image without resizing either source's buffers.
     """
 
+    _viewer_class: type[NewtonViewerRTX] = NewtonViewerRTX
+    """Native viewer implementation; subclasses may extend its frame publication."""
+
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Attach to the populated scene and bind the model used to publish body poses."""
         from isaaclab_ov.stage import OvstageBackendCfg
@@ -1169,7 +1173,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
-        self._viewer = NewtonViewerRTX(
+        self._viewer = self._viewer_class(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
             headless=self._runtime_headless,

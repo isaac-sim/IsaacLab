@@ -77,6 +77,11 @@ Command Builder
          <p class="admonition-title">Pick and place</p>
          <p>Pick and place requires Kit input.</p>
        </aside>
+       <aside class="admonition note demo-command-note" data-demo-note="rizon-sharpa-coffee" hidden>
+         <p class="admonition-title">Coffee assets</p>
+         <p>Coffee props and the licensed Rizon/Sharpa robot bundle load from the Isaac Lab asset library.
+           See the demo README for asset-root overrides.</p>
+       </aside>
      </section>
 
      <div class="demo-card-grid" data-demo-list>
@@ -148,6 +153,16 @@ Command Builder
                data-demo-description="Fill a Utah teapot with MPM water particles and pour them into a bowl.">
          <img src="../../_static/demos/teapot_fill.jpg" alt="Utah teapot pouring simulated water" loading="lazy">
          <span>Teapot Fill</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="Rizon–Sharpa Coffee" data-demo-id="rizon-sharpa-coffee"
+               data-demo-physics="newton_coupler" data-demo-fixed-physics="true"
+               data-demo-visualizers="newton_gl,newton_rtx,kit"
+               data-demo-args="--device cuda:0 --water"
+               data-demo-description="Scoop coffee with scripted IK, dissolve it into water and stir.">
+         <img src="../../_static/environment-previews/rizon_sharpa_coffee.jpg"
+              alt="Rizon and Sharpa hand scooping coffee beside a filled cup" loading="lazy">
+         <span>Rizon–Sharpa Coffee</span>
        </button>
      </div>
    </div>
