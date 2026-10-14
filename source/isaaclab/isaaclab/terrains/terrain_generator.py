@@ -271,6 +271,8 @@ class TerrainGenerator:
 
     def _add_terrain_border(self):
         """Add a surrounding border over all the sub-terrains into the terrain meshes."""
+        if self.cfg.border_width == 0.0:
+            return
         # border parameters
         border_size = (
             self.cfg.num_rows * self.cfg.size[0] + 2 * self.cfg.border_width,

@@ -81,6 +81,8 @@ def test_generation_star_terrain():
     assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
     # check the sub-terrain origin is at the center of the terrain
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
+    # A zero-width border must not add degenerate contact triangles.
+    assert np.all(terrain_generator.terrain_mesh.area_faces > 0.0)
 
 
 @pytest.mark.parametrize(
