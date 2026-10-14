@@ -157,6 +157,34 @@ jobs:
         with:
           test-filter: ${{ inputs.test_filter }}
       # GB10 shares one memory pool between host and GPU; trace it to diagnose CUDA OOMs.
+      - name: Probe host page cache
+        run: |
+          set +e
+          memfree() { awk '/^MemFree:/{print int($2/1024)}' /proc/meminfo; }
+          grep -E '^(MemFree|Buffers|Cached|Dirty|Shmem|Active\(file\)|Inactive\(file\)):' /proc/meminfo
+          for d in "$HOME/.cache" "$RUNNER_TOOL_CACHE" "$GITHUB_WORKSPACE"; do
+            printf '%s cached MiB: ' "$d"
+            find "$d" -xdev -type f -readable -print0 2>/dev/null \
+              | xargs -0 -r fincore -b -n -o RES 2>/dev/null | awk '{s+=$1} END {print int(s/1048576)}'
+          done
+          echo "MemFree before: $(memfree) MiB"
+          find "$HOME/.cache" "$RUNNER_TOOL_CACHE" -xdev -type f -readable -print0 2>/dev/null | python3 -c '
+          import os, sys
+          for p in sys.stdin.buffer.read().split(b"\0"):
+              try:
+                  fd = os.open(p, os.O_RDONLY)
+                  os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+                  os.close(fd)
+              except OSError:
+                  pass
+          '
+          echo "MemFree after fadvise(DONTNEED) on own caches: $(memfree) MiB"
+          drop='sync; echo 3 > /proc/sys/vm/drop_caches'
+          if [ -w /proc/sys/vm/drop_caches ] && sh -c "$drop"; then how=direct
+          elif sudo -n sh -c "$drop" 2>/dev/null; then how=sudo
+          elif docker run --rm --privileged ubuntu:24.04 sh -c "$drop"; then how=docker-privileged
+          else how=none; fi
+          echo "drop_caches via: $how; MemFree after: $(memfree) MiB"
       - name: Start host memory trace
         run: |
           free -m; nvidia-smi || true; docker ps || true
