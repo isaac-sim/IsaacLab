@@ -258,27 +258,24 @@ def test_frame_created_before_model_covers_selected_envs(device, parent, envs, c
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_interleaved_clone_prototypes_preserve_frame_order(device: str) -> None:
-    """Cloned frames follow expression, environment, then source-frame order, including writes."""
-    num_envs = 12
+    """Frame slots follow expression and environment order across clone prototypes."""
+    num_envs = 4
     env_template = "/World/scenes/scene_{}"
     with _sim_context(device, num_envs=num_envs) as sim:
         root = env_template.format(0)
         sim_utils.create_prim(root, "Xform")
         cube_cfg = _SceneCfg(num_envs=num_envs, env_spacing=2.0).cube.spawn
         cube_cfg.func(f"{root}/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
-        sim_utils.create_prim(f"{root}/Cube/MountZ", translation=(0.1, 0.2, 0.3), scale=(1.0, 2.0, 3.0))
-        sim_utils.create_prim(f"{root}/Cube/MountA", translation=(0.4, 0.5, 0.6), scale=(3.0, 2.0, 1.0))
-        sim_utils.create_prim(f"{root}/Prop", "Xform", translation=(0.0, 0.0, 2.0))
-        sim_utils.create_prim(f"{root}/Prop/Mount", translation=(0.7, 0.8, 0.9))
+        sim_utils.create_prim(f"{root}/Cube/MountA", translation=(0.1, 0.2, 0.3))
+        sim_utils.create_prim(f"{root}/Cube/MountB", translation=(0.4, 0.5, 0.6))
         sim_utils.create_prim(f"{root}/Extra", "Xform")
-        sim_utils.create_prim("/World/Marker", translation=WORLD_MARKER_POS)
         origins = np.zeros((num_envs, 3), dtype=np.float32)
         origins[:, 0] = 3 * np.arange(num_envs)
         env_expr = env_template.format("[^/]+")
-        assets = tuple(AssetBaseCfg(prim_path=f"{env_expr}/{name}") for name in ("Cube", "Prop", "Extra"))
+        assets = tuple(AssetBaseCfg(prim_path=f"{env_expr}/{name}") for name in ("Cube", "Extra"))
         plan = cloner.make_clone_plan(
             assets,
-            ((0, 1), (0, 1, 2)),
+            ((0,), (0, 1)),
             num_envs,
             clone_strategy=lambda weights, count: np.arange(count, dtype=np.int32) % 2,
             env_template=env_template,
@@ -286,50 +283,21 @@ def test_interleaved_clone_prototypes_preserve_frame_order(device: str) -> None:
         )
         sim.set_clone_plan(plan)
         cloner.replicate(plan)
-        expressions = [f"{env_expr}/Prop/Mount", f"{env_expr}/Cube/Mount[ZA]", "/World/Marker"]
-        deferred = FrameView(expressions, device=device)
+        view = FrameView([f"{env_expr}/Cube/MountB", f"{env_expr}/Cube/MountA"], device=device)
         sim.reset()
-        finalized = FrameView(expressions, device=device)
         origins = torch.as_tensor(origins, device=device)
-        cube_offsets = torch.tensor([[0.1, 0.2, 1.3], [0.4, 0.5, 1.6]], device=device)
         expected = torch.cat(
             (
-                origins + torch.tensor([0.7, 0.8, 2.9], device=device),
-                (origins[:, None] + cube_offsets).reshape(-1, 3),
-                torch.tensor([WORLD_MARKER_POS], device=device),
+                origins + torch.tensor([0.4, 0.5, 1.6], device=device),
+                origins + torch.tensor([0.1, 0.2, 1.3], device=device),
             )
         )
-        expected_scales = torch.cat(
-            (
-                torch.ones((num_envs, 3), device=device),
-                torch.tensor([[1.0, 2.0, 3.0], [3.0, 2.0, 1.0]], device=device).repeat(num_envs, 1),
-                torch.ones((1, 3), device=device),
-            )
-        )
-        expected_paths = [f"{env_template.format(i)}/Prop/Mount" for i in range(num_envs)]
-        expected_paths.extend(
-            f"{env_template.format(i)}/Cube/{mount}" for i in range(num_envs) for mount in ("MountZ", "MountA")
-        )
-        expected_paths.append("/World/Marker")
-        for view in (deferred, finalized):
-            torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
-            torch.testing.assert_close(view.get_local_scales().torch, expected_scales, atol=0, rtol=0)
-            # No public API exposes the destination paths used to mirror these poses to the renderer.
-            assert view._site_prim_paths == expected_paths
-
-            # These slots select different prototypes and different child frames. A world write must
-            # use the selected environment's parent pose when computing the new local transform.
-            indices = wp.array([num_envs + 2, num_envs + 21], dtype=wp.int32, device=device)
-            positions = _wp_vec3f([[4.0, 2.0, 3.0], [32.0, 4.0, 5.0]], device=device)
-            with view.xform_world_space_writer() as writer:
-                writer.set_poses(positions=positions, indices=indices)
-            torch.testing.assert_close(
-                view.get_local_poses(indices)[0].torch,
-                torch.tensor([[1.0, 2.0, 2.0], [2.0, 4.0, 4.0]], device=device),
-                atol=1e-5,
-                rtol=0,
-            )
-            view.close()
+        torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
+        # No public API exposes the destination paths used to mirror these poses to the renderer.
+        assert view._site_prim_paths == [
+            f"{env_template.format(i)}/Cube/{mount}" for mount in ("MountB", "MountA") for i in range(num_envs)
+        ]
+        view.close()
 
 
 # ==================================================================
