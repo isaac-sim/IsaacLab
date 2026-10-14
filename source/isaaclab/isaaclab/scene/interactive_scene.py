@@ -434,6 +434,25 @@ class InteractiveScene:
     Operations.
     """
 
+    def export_to_usd(self, path: str, env_id: int = 0) -> str:
+        """Export one environment as USD that reproduces its initialized physics.
+
+        The file keeps the scene's USD, with assets as references to their source files, and adds
+        the values the physics engine holds that an import of that USD would not produce. Call it
+        after asset initialization and before the first physics step. Joint and body state,
+        events after initialization, and controllers are not exported.
+
+        Args:
+            path: Destination USD file.
+            env_id: Environment to export. Defaults to 0.
+
+        Returns:
+            The destination path.
+        """
+        from isaaclab.sim.usd_export import UsdExporter
+
+        return UsdExporter(self, env_id).export(path)
+
     def reset(self, env_ids: Sequence[int] | None = None):
         """Resets the scene entities.
 

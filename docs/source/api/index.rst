@@ -44,6 +44,7 @@ The following modules are available in the ``isaaclab`` extension:
    lab/isaaclab.sim.spawners
    lab/isaaclab.sim.views
    lab/isaaclab.sim.utils
+   lab/isaaclab.sim.usd_export
 
 
 isaaclab_rl extension
@@ -163,6 +164,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
    :hidden:
 
    lab_newton/isaaclab_newton.sim.spawners
+   lab_newton/isaaclab_newton.sim.usd_export
 
 isaaclab_ov extension
 ---------------------
