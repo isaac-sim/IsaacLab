@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+
 RIZON_SHARPA_REPOSITORY = "https://gitlab-master.nvidia.com/dex/fabrics-sim.git"
 RIZON_SHARPA_REVISION = "d0dbd1ddaefc4996db546949a7dfb37e39afcbeb"
 RIZON_SHARPA_RELATIVE_PATH = (
@@ -25,6 +27,9 @@ RIZON_SHARPA_RELATIVE_PATH = (
     "rizon4s_sharpa_no_spheres/rizon4s_sharpa_no_spheres_generated.usd"
 )
 RIZON_SHARPA_USD_NAME = "rizon4s_sharpa_no_spheres_generated.usd"
+RIZON_SHARPA_USD_PATH = (
+    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa/{RIZON_SHARPA_USD_NAME}"
+)
 RIZON_SHARPA_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 RIZON_SHARPA_BUNDLE_SIZE_BYTES = 379_258_308
 RIZON_SHARPA_ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
@@ -106,13 +111,6 @@ _REQUIRED_PATHS = (
 )
 
 
-def default_rizon_sharpa_bundle_root() -> Path:
-    """Return the content-addressed default asset bundle root."""
-    return (
-        Path.home() / ".cache" / "isaaclab" / "fabrics-sim" / "rizon4s-sharpa" / "sha256" / RIZON_SHARPA_BUNDLE_SHA256
-    )
-
-
 def _bundle_digest(root: Path) -> tuple[str, int]:
     manifest = hashlib.sha256()
     total_size = 0
@@ -145,21 +143,25 @@ def verify_rizon_sharpa_bundle(root: str | Path) -> Path:
     return resolved / RIZON_SHARPA_USD_NAME
 
 
-def configured_rizon_sharpa_usd(*, required: bool) -> Path | None:
-    """Resolve the configured bundle, optionally failing if it is absent."""
+def configured_rizon_sharpa_usd() -> str:
+    """Return the public USD URL or verify an explicitly configured local bundle.
+
+    Returns:
+        Public asset URL or verified local USD path.
+    """
     configured_root = os.environ.get(RIZON_SHARPA_ASSET_ROOT_ENV)
-    root = Path(configured_root).expanduser() if configured_root else default_rizon_sharpa_bundle_root()
+    if not configured_root:
+        return RIZON_SHARPA_USD_PATH
+    root = Path(configured_root).expanduser()
     candidate = root.parent if root.suffix.lower() in (".usd", ".usda", ".usdc") else root
     if not (candidate / RIZON_SHARPA_USD_NAME).is_file():
-        if required:
-            raise FileNotFoundError(
-                "The Rizon Sharpa task needs the pinned Fabrics-Sim bundle. "
-                f"Check out {RIZON_SHARPA_REPOSITORY} at {RIZON_SHARPA_REVISION}, copy "
-                f"{RIZON_SHARPA_RELATIVE_PATH} and its sibling textures to {candidate}, "
-                f"or set {RIZON_SHARPA_ASSET_ROOT_ENV}."
-            )
-        return None
-    return verify_rizon_sharpa_bundle(candidate)
+        raise FileNotFoundError(
+            "The Rizon Sharpa task needs the pinned Fabrics-Sim bundle. "
+            f"Check out {RIZON_SHARPA_REPOSITORY} at {RIZON_SHARPA_REVISION}, copy "
+            f"{RIZON_SHARPA_RELATIVE_PATH} and its sibling textures to {candidate}, "
+            f"or set {RIZON_SHARPA_ASSET_ROOT_ENV}."
+        )
+    return str(verify_rizon_sharpa_bundle(candidate))
 
 
 RJ45_PLUG_SHA256 = "50c95bcfb63544777f9148d548aac6f16b62f65cacbaaa9316453d579de4b4fa"

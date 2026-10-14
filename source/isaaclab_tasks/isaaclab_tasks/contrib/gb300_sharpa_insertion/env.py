@@ -28,7 +28,7 @@ class GB300SharpaInsertionEnv(ManagerBasedEnv):
     def __init__(self, cfg: GB300SharpaInsertionEnvCfg):
         from .sharpa_contacts import spawn_sharpa_contact_meshes
 
-        cfg.scene.robot.spawn.usd_path = str(configured_rizon_sharpa_usd(required=True))
+        cfg.scene.robot.spawn.usd_path = configured_rizon_sharpa_usd()
         cfg.scene.robot.spawn.func = spawn_sharpa_contact_meshes
         super().__init__(cfg)
 

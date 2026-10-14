@@ -23,13 +23,11 @@ There are no rewards, training presets, policy checkpoints or automatic episode 
 
 ## Requirements
 
-- Visuals: published `Environments/RizonSharpaRJ45` asset bundle. Set
+- Visuals: `Environments/RizonSharpaRJ45` on the standard Isaac Lab asset server. Set
   `ISAACLAB_SHARPA_RJ45_VISUAL_ROOT` to an alternate bundle root.
-  The current staging bundle is on authenticated `isaac-dev` and still needs
-  approved publication on the standard Isaac Lab asset server before merging.
-- Robot: pinned Fabrics-Sim USD and textures; set
-  `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`. Revision and bundle checks are in `assets.py`.
-  This access-controlled default must be replaced/validated before public release.
+- Robot: `Robots/Rizon4sSharpa` in the same bundle, loaded through the native USD resolver by default.
+  Set `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` to a local USD bundle with its complete textures
+  for offline use. Explicit local bundles retain the revision and integrity checks in `assets.py`.
 - Connector: Newton's canonical `rj45_plug.usd`; set `ISAACLAB_RJ45_PLUG_USD`
   if it is absent from the installation. The resolver reports its pinned download URL.
 - The prerequisite [Newton dependency update](https://github.com/isaac-sim/IsaacLab/pull/8524) includes the merged

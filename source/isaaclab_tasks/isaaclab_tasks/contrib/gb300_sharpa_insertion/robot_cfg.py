@@ -14,7 +14,7 @@ from isaaclab.assets import ArticulationCfg
 from .assets import (
     RIZON_SHARPA_ARM_JOINT_NAMES,
     RIZON_SHARPA_RIGHT_HAND_JOINT_NAMES,
-    default_rizon_sharpa_bundle_root,
+    RIZON_SHARPA_USD_PATH,
 )
 
 ROBOT_BASE_POSITION_E = (0.40706384, -0.44981234, 1.78624670)
@@ -52,7 +52,7 @@ def rizon_sharpa_articulation_cfg() -> ArticulationCfg:
     return ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=str(default_rizon_sharpa_bundle_root() / "rizon4s_sharpa_no_spheres_generated.usd"),
+            usd_path=RIZON_SHARPA_USD_PATH,
             joint_drive_props={"/Physics/.*": [MujocoJointCfg(actuatorgravcomp=True)]},
         ),
         init_state=ArticulationCfg.InitialStateCfg(
