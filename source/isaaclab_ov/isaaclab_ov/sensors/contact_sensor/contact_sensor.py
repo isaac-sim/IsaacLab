@@ -226,7 +226,8 @@ class ContactSensor(BaseContactSensor):
         sensor_patterns = [path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
         plan = OvPhysxManager._sim.get_clone_plan()
         sensor_patterns = [path for pattern in sensor_patterns for path in _expand_env_pattern(pattern, plan)]
-        filter_globs = [path_expr_to_glob(expr) for expr in self.cfg.filter_prim_paths_expr]
+        # a filter pattern must match one prim per sensor body, so each filter body gets its own pattern
+        filter_globs = [path_expr_to_glob(expr) for expr in self._resolve_filter_body_exprs()]
         filters_per_sensor = len(filter_globs)
         filter_worlds = [None] * filters_per_sensor
         if plan is not None:

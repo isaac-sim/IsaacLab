@@ -37,17 +37,16 @@ Use the explicit normal and friction properties when the split matters.
 
 Set :attr:`~sensors.ContactSensorCfg.filter_prim_paths_expr` when forces from specific collision
 partners are also needed. :attr:`~sensors.ContactSensorData.normal_force_matrix_w` and
-:attr:`~sensors.ContactSensorData.friction_force_matrix_w` retain one entry per configured
-filter expression.
+:attr:`~sensors.ContactSensorData.friction_force_matrix_w` retain one entry per partner body
+matched by the configured filter expressions.
 The corresponding :attr:`~sensors.ContactSensorData.force_matrix_w` reports normal plus friction
 on Newton, OvPhysX, and Isaac Sim PhysX 6.2 or later, regardless of ``track_friction_forces``.
 
 Summing a force matrix over its filter dimension reconstructs the corresponding aggregate
 force only when the filters cover every contacting object.
 
-Body-level filtering supports a many-to-one relationship: ``prim_path`` must resolve to one sensor
-body per environment when filters are configured. Define one sensor per source body when separate
-filtered forces are required, for example one sensor for each foot. Newton additionally supports
+Body-level filtering is many-to-many: every sensor body reports its forces against every filter
+body, for example all feet of a robot against an object. Newton additionally supports
 shape-level sensing and filtering through ``sensor_shape_prim_expr`` and
 ``filter_shape_prim_expr``.
 
@@ -96,7 +95,7 @@ points and friction anchors can have different counts.
 Read the data
 -------------
 
-For ``E`` environments, ``S`` sensor bodies, ``F`` filter expressions, and history length ``H``, the
+For ``E`` environments, ``S`` sensor bodies, ``F`` filter bodies, and history length ``H``, the
 principal Torch views have these contracts:
 
 .. list-table::

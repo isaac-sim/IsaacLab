@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -12,6 +13,8 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from ... import cloner
+from ... import sim as sim_utils
 from ...utils import string as string_utils
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
@@ -19,6 +22,9 @@ from .base_contact_sensor_data import BaseContactSensorData
 
 if TYPE_CHECKING:
     from .contact_sensor_cfg import ContactSensorCfg
+
+_GLOB_WILDCARD = re.compile(r"(?<![.\])])\*")
+"""Matches a glob ``*``: one that does not repeat a regex ``.``, character class, or group."""
 
 
 class BaseContactSensor(SensorBase):
@@ -37,9 +43,8 @@ class BaseContactSensor(SensorBase):
     when you want to report the contact forces between the sensor bodies and a specific set of
     bodies in the scene. The data can be accessed using the :attr:`ContactSensorData.normal_force_matrix_w`.
 
-    The PhysX backend only supports one-to-many filtered contact reporting: a single sensor
-    body filtered against multiple partners. For many-to-many, create separate sensors per
-    body. The Newton backend supports many-to-many natively.
+    Filtered contact reporting is many-to-many: every sensor body reports its contact forces
+    against every filter body.
     """
 
     cfg: ContactSensorCfg
@@ -163,6 +168,67 @@ class BaseContactSensor(SensorBase):
             return abs_tol
         # An update period of 0.0 means the sensor is updated on every physics step.
         return 0.5 * max(self.cfg.update_period, self._sim_physics_dt)
+
+    def _resolve_filter_body_exprs(self) -> list[str]:
+        """Resolves :attr:`ContactSensorCfg.filter_prim_paths_expr` into one path expression per filter body.
+
+        The physics views turn each expression into one filter column, so an expression must match a single
+        prim per environment. An expression whose last segment is a regular expression and which has no glob
+        ``*`` is therefore resolved from the stage, clone-plan aware like the sensor bodies: the segment is
+        matched against the names of the prims at any depth below the prims matched by the rest of the
+        expression, which are not candidates themselves. Rigid bodies match, and so do colliders without a
+        rigid-body ancestor (static geometry such as a ground plane); colliders, visuals, and other prims inside
+        a rigid body do not. If several prims match, each gets its own expression, which keeps the environment
+        segment of the original.
+
+        Other expressions, and expressions that match at most one such prim, are returned unchanged.
+
+        Returns:
+            The expressions in the configured order, the bodies of one expression in breadth-first order.
+        """
+        from pxr import UsdPhysics  # noqa: PLC0415
+
+        def is_rigid_body(prim) -> bool:
+            return prim.HasAPI(UsdPhysics.RigidBodyAPI)
+
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        body_exprs = []
+        for path_expr in self.cfg.filter_prim_paths_expr:
+            *parent_segments, leaf_pattern = sim_utils.split_path_expr(path_expr)
+            parent_expr = "/".join(parent_segments)
+            # the physics views match a leaf name at any depth themselves, and globs are their syntax
+            if leaf_pattern.isidentifier() or not parent_expr.startswith("/") or _GLOB_WILDCARD.search(path_expr):
+                body_exprs.append(path_expr)
+                continue
+            name_pattern = re.compile(leaf_pattern)
+
+            def is_partner(prim) -> bool:
+                if not name_pattern.fullmatch(prim.GetName()):
+                    return False
+                body = sim_utils.get_first_matching_ancestor_prim(prim.GetPath(), is_rigid_body, prim.GetStage())
+                return body == prim if body is not None else prim.HasAPI(UsdPhysics.CollisionAPI)
+
+            bodies = {}
+            parents = sim_utils.resolve_matching_prims_from_source(parent_expr, raise_if_no_matches=False)
+            for parent, parent_dest in parents:
+                root = parent.GetPath().pathString
+                prims = sim_utils.get_all_matching_child_prims(root, is_partner, traverse_instance_prims=False)
+                # only the prims below the parent, each once
+                for path in (prim.GetPath().pathString for prim in prims):
+                    if path != root:
+                        bodies.setdefault(path, parent_dest + path[len(root) :])
+            exprs = list(bodies.values())
+            if len(exprs) < 2:
+                # at most one body: the expression stays one pattern, matched by the views
+                body_exprs.append(path_expr)
+                continue
+            world = None if plan is None else cloner.path.match(path_expr, plan.env_template)
+            if world is not None:
+                # the clone plan resolves the environment segment to a wildcard; keep the expression's own
+                source_root, own_root = plan.env_template.format("[^/]+"), plan.env_template.format(world.instance)
+                exprs = [cloner.path.rebase(expr, source_root, own_root) for expr in exprs]
+            body_exprs.extend(exprs)
+        return body_exprs
 
     @abstractmethod
     def compute_first_contact(self, dt: float, abs_tol: float | None = None) -> ProxyArray:
