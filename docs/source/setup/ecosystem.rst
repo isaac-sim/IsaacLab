@@ -21,7 +21,7 @@ Isaac Lab is not itself a simulator. It provides a framework for defining
 concepts such as the scene, asset, sensors, actuators, controllers, and tasks, which can run on
 multiple physics and rendering backends. The shared backend interface
 lets a supported environment keep the same structure while its preset selects the runtime. See
-:doc:`/source/concepts/backend_architecture` for the implementation model.
+:ref:`backend-architecture` for the implementation model.
 
 
 Modular Multi-Backend Physics and Rendering
