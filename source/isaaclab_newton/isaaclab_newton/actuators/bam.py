@@ -369,11 +369,6 @@ class DriveBam(DriveBase):
         dt: float,
         device: wp.Device | None = None,
     ) -> None:
-        # A drive stepped without the bridge would silently read no external load.
-        if self.external_torque is None:
-            raise RuntimeError("BAM requires an MJWarp solver binding before stepping (external_torque is unbound).")
-        if self.has_backlash and self.backlash_pos_indices is None:
-            raise RuntimeError("BAM backlash requires play-hinge coordinate binding before stepping.")
         num_actuators = len(forces)
         scratch = self._next_state_arrays
         wp.launch(
