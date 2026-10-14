@@ -12,10 +12,40 @@ Choose a renderer
 
 For tasks that advertise renderer presets, choose a compatible physics and renderer pair at launch.
 Use ``--task <task-name> --help`` to see the presets a task actually supports; renderer availability
-is task-specific. :ref:`renderer-selection` compares the renderers; the
-:ref:`renderer details <renderer-details>` and the
-:ref:`camera renderer support matrix <camera-supported-annotators>` are the authoritative references
-for runtime requirements and output availability.
+is task-specific.
+
+.. list-table:: Renderer choices
+   :header-rows: 1
+   :widths: 20 25 30 25
+
+   * - Renderer
+     - Choose it when
+     - Trade-off
+     - Typical command
+   * - Newton Warp
+     - You need the lowest VRAM use and high camera throughput for Newton training.
+     - Lightweight ray tracing; it has a smaller output set and does not provide motion vectors
+       or full RTX material transport.
+     - ``physics=newton_mjwarp renderer=newton_renderer presets=rgb``
+   * - OVRTX
+     - You need scalable kit-less RTX rendering and higher visual fidelity.
+     - Uses more VRAM than Newton Warp. Choose RTX Minimal outputs when throughput matters more
+       than photo-real appearance.
+     - ``physics=newton_mjwarp renderer=ovrtx presets=rgb``
+   * - Isaac RTX (legacy)
+     - A workflow must run through Isaac Sim/Kit or needs its broad RTX and Replicator output set.
+     - Requires Isaac Sim; do not use it as the default performance path for new work.
+     - ``physics=isaacsim_physx renderer=isaacsim_rtx presets=rgb``
+
+For example, start a camera task with the low-VRAM Newton renderer:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera \
+      physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+Switch the same supported task to the higher-fidelity kit-less RTX renderer:
 
 .. code-block:: bash
 
@@ -23,8 +53,10 @@ for runtime requirements and output availability.
       --task Isaac-Cartpole-Camera \
       physics=newton_mjwarp renderer=ovrtx presets=rgb
 
-Do not compare the renderer choices through a camera-count heuristic: measure the complete task and
-observation configuration you intend to train.
+The :ref:`renderer details <renderer-details>` and the
+:ref:`camera renderer support matrix <camera-supported-annotators>` are the authoritative references
+for output availability and runtime requirements. Do not compare the renderer choices through a
+camera-count heuristic: measure the complete task and observation configuration you intend to train.
 
 Customize Newton Warp
 ---------------------
@@ -84,8 +116,8 @@ OVRTX outputs always cast shadows, so this option does not affect regular ``rgb`
 Customize Isaac RTX
 -------------------
 
-Isaac RTX remains available for workflows that run inside Isaac Sim. The settings below are specific
-to that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
+Isaac RTX remains available for Isaac Sim workflows. The settings below are specific to
+that legacy renderer; use Newton Warp or OVRTX for new Newton and kit-less workloads.
 
 .. note::
 
