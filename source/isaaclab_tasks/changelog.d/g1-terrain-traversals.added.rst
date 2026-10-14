@@ -4,3 +4,4 @@
   Supported Isaac Sim PhysX and Newton MJWarp, with PBD and MPM respectively for granular terrain.
   Selected courses through a shared task preset and declared terrain materials and collision properties
   with standard spawner configurations.
+  Kept pretrained depth and SONIC policy inference in the task's ``agents`` package.
