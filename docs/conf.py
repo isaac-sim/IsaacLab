@@ -90,6 +90,8 @@ ovphysx_version = _pinned_versions["ovphysx"]
 # Short version strings used in external documentation URLs and badges.
 torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
 isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.2.0"
+# The rendered OVRTX docs are unversioned, so link its docs sources at the pinned release tag, e.g. "v0.5.1".
+ovrtx_docs_ref = f"v{'.'.join(ovrtx_version.split('.')[:3])}" if ovrtx_version[0].isdigit() else "main"
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
@@ -101,6 +103,7 @@ rst_prolog = f"""
 .. |torch_version| replace:: {torch_version}
 .. |torchvision_version| replace:: {torchvision_version}
 .. |ovrtx_spec| replace:: {ovrtx_spec}
+.. |ovrtx_docs_ref| replace:: {ovrtx_docs_ref}
 .. |ovphysx_version| replace:: {ovphysx_version}
 """
 
@@ -116,6 +119,7 @@ extensions = [
     "sphinxemoji.sphinxemoji",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
+    "sphinx.ext.extlinks",
     "sphinx.ext.githubpages",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
@@ -201,6 +205,11 @@ intersphinx_mapping = {
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
     "omniverse": ("https://docs.omniverse.nvidia.com/dev-guide/latest", None),
+}
+
+# Usage: :ovrtx-docs:`Minimal mode <sensors/cameras/render_modes/minimal.rst>`
+extlinks = {
+    "ovrtx-docs": (f"https://github.com/NVIDIA-Omniverse/ovrtx/blob/{ovrtx_docs_ref}/docs/%s", None),
 }
 
 # Add any paths that contain templates here, relative to this directory.
