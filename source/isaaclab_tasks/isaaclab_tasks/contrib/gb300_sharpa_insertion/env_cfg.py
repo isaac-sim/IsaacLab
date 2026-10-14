@@ -211,7 +211,7 @@ class GB300SharpaInsertionEnvCfg(ManagerBasedEnvCfg):
         configure_hydroelastic_physics(self.sim.physics)
         self.sim.physics.collision_cfg.contact_matching = "latest"
         self.sim.default_visualizer_cfg = VisualizerCfg(
-            eye=(0.15, -0.35, 2.32), lookat=(0.50, 0.29, 2.075), focal_length=22.0
+            eye=(0.92, -0.02, 2.22), lookat=(0.52, 0.30, 2.075), focal_length=22.0
         )
         # Millimeter-scale grasps do not need the default 10 mm search halo.
         self.scene.robot.spawn.collision_props = {
