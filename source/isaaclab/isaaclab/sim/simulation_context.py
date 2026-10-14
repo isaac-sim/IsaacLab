@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
@@ -28,17 +30,16 @@ from ..renderers.render_context import RenderContext
 from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
+from ..utils.device import reserve_cuda_graph_memory
 from ..utils.images import sensor_key_for_gt_type
-from ..utils.string import clear_resolve_matching_names_cache
+from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
+    VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
-    get_visualizer_install_hint,
-    parse_visualizer_csv,
-    resolve_visualizer_cfgs,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -57,9 +58,6 @@ logger = logging.getLogger(__name__)
 def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
-        # core must not import a backend package at module level
-        from isaaclab_physx.physics import PhysxCfg
-
         physics_cfg = PhysxCfg()
     elif not isinstance(physics_cfg, PhysicsCfg):
         raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
@@ -170,16 +168,22 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Normalize the visualizers to a list, applying the --visualizer selection a launch recorded for the
-        # config built afterwards. Without a selection (the setting absent or empty), a config built by the caller
-        # keeps the visualizers it lists.
+        # Bare-physics launches defer their CLI selection until this SimulationCfg exists.
+        if not isinstance(self.cfg.visualizer_cfgs, list):
+            self.cfg.visualizer_cfgs = [] if self.cfg.visualizer_cfgs is None else [self.cfg.visualizer_cfgs]
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
+        if pending_visualizers:
+            names = pending_visualizers.split(",")
+            self.cfg.visualizer_cfgs = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type in names]
+            for name in names:
+                if not any(cfg.visualizer_type == name for cfg in self.cfg.visualizer_cfgs):
+                    self.cfg.visualizer_cfgs.append(
+                        string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")()
+                    )
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        self.cfg.visualizer_cfgs = resolve_visualizer_cfgs(
-            self.cfg.visualizer_cfgs,
-            parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
-            None if max_visible_envs is None or max_visible_envs < 0 else max_visible_envs,
-        )
+        if max_visible_envs is not None and max_visible_envs >= 0:
+            for visualizer in self.cfg.visualizer_cfgs:
+                visualizer.max_visible_envs = int(max_visible_envs)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -196,6 +200,9 @@ class SimulationContext:
         if "cuda" in self.cfg.device:
             torch.cuda.set_device(self.cfg.device)
         wp.set_device(self.cfg.device)
+        # Must precede physics backends and renderers created by this context; see reserve_cuda_graph_memory.
+        # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
+        reserve_cuda_graph_memory(self.cfg.device)
 
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         # Must be set before physics_manager.initialize() so that any render callbacks
@@ -426,18 +433,8 @@ class SimulationContext:
             and self.get_setting("/isaaclab/xr/auto_start")
             and not any(cfg.visualizer_type == "kit" for cfg in resolved)
         ):
-            try:
-                # isaaclab_visualizers is optional
-                from isaaclab_visualizers.kit import KitVisualizerCfg
-            except ImportError as exc:
-                logger.warning(
-                    "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
-                    exc,
-                    get_visualizer_install_hint("kit"),
-                )
-            else:
-                resolved.append(KitVisualizerCfg())
-                logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
+            resolved.append(KitVisualizerCfg())
+            logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         for cfg in resolved:
             if cfg.visualizer_type is not None:
@@ -621,6 +618,15 @@ class SimulationContext:
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
         self.physics_manager.wait_for_playing()
+        visualizers_to_remove = []
+        for viz in self._visualizers:
+            try:
+                while viz.is_training_paused() and viz.is_running():
+                    viz.step(0.0)
+            except Exception as exc:
+                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
+                visualizers_to_remove.append(viz)
+        self._remove_visualizers(visualizers_to_remove)
         self._physics_step_count += 1
         self.physics_manager.step()
         if render and self.is_rendering:
@@ -702,14 +708,19 @@ class SimulationContext:
                     if not viz.pumps_app_update():
                         viz.step(0.0)
                     continue
-                while viz.is_training_paused() and viz.is_running():
+                if viz.is_training_paused():
                     viz.step(0.0)
+                    continue
                 viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)
 
-        for viz in visualizers_to_remove:
+        self._remove_visualizers(visualizers_to_remove)
+
+    def _remove_visualizers(self, visualizers: list[BaseVisualizer]) -> None:
+        """Close and remove visualizers that can no longer be stepped."""
+        for viz in visualizers:
             try:
                 viz.close()
                 self._visualizers.remove(viz)

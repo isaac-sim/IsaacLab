@@ -5,9 +5,17 @@
 How-to Guides
 =============
 
+.. role:: guide-tag
+   :class: guide-tag
+
+.. role:: guide-tag-newton
+   :class: guide-tag guide-tag-newton
+
 .. container:: guide-browser-intro
 
    Find step-by-step guides for building with Isaac Lab. Search by topic, then open a guide without leaving this page.
+   Backend tags identify the physics backends covered by each guide, and ``Isaac Sim`` marks guides whose
+   documented workflow requires the Isaac Sim runtime. Guides without tags cover backend-independent concepts.
 
 .. raw:: html
 
@@ -46,17 +54,29 @@ How-to Guides
 
          Launch an empty simulation and learn the core startup sequence.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Spawning prims into the scene </source/how-to/spawn_prims>`
 
          Add lights, ground planes, and primitive shapes to a simulation stage.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Deep-dive into launching the simulation </source/how-to/launch_app>`
 
          Configure and launch simulation applications from Python and the command line.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
    .. container:: guide-group
 
@@ -70,11 +90,19 @@ How-to Guides
 
          Create, reset, and command a cone; includes the runnable run_rigid_object.py example.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Interacting with an articulation </source/how-to/run_articulation>`
 
          Work with joint state, commands, and articulation data.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -82,11 +110,19 @@ How-to Guides
 
          Spawn and manipulate deformable bodies in a scene.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Interacting with a surface gripper </source/how-to/run_surface_gripper>`
 
          Attach and release rigid objects with a surface gripper.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -94,11 +130,19 @@ How-to Guides
 
          Convert URDF, MJCF, or mesh assets into USD for use in Isaac Lab.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Robot and articulation configuration </source/how-to/write_articulation_cfg>`
 
          Reuse or author a robot configuration, with a Jetbot/Dofbot worked example.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -112,6 +156,10 @@ How-to Guides
 
          Batch rigid objects and vary asset configurations across environments.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Managing asset downloads </source/how-to/manage_asset_downloads>`
@@ -124,6 +172,20 @@ How-to Guides
 
          Prepare an asset and task to run with the Newton MJWarp physics preset.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Exploring MPM materials and coupling </source/how-to/mpm_tutorials>`
+
+         Compare material response, fluid surface reconstruction, and robot--particle coupling.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
    .. container:: guide-group
 
       .. rubric:: Scenes and Cloning
@@ -133,6 +195,10 @@ How-to Guides
          :doc:`Using the interactive scene </source/how-to/create_scene>`
 
          Compose assets and sensors with the higher-level interactive scene interface.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -150,11 +216,19 @@ How-to Guides
 
          Build a non-RL environment from reusable manager terms.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Creating a manager-based RL environment </source/how-to/create_manager_rl_env>`
 
          Add rewards, terminations, curricula, and commands for reinforcement learning.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -162,11 +236,19 @@ How-to Guides
 
          Implement an RL task with direct control over the environment loop.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Registering an environment </source/how-to/register_rl_env_gym>`
 
          Register an Isaac Lab task with Gymnasium and expose its configurations.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -174,11 +256,19 @@ How-to Guides
 
          Launch training and inference with a supported reinforcement learning library.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Configuring an RL agent </source/how-to/configuring_rl_training>`
 
          Customize agent settings and training hyperparameters.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -186,11 +276,19 @@ How-to Guides
 
          Extend and adjust a direct workflow task without rebuilding it from scratch.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Policy inference in a USD environment </source/how-to/policy_inference_in_usd>`
 
          Run a trained policy against an environment defined in a USD stage.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -210,6 +308,10 @@ How-to Guides
 
          Drive environments with deterministic state-machine policies.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Curriculum utilities </source/how-to/curriculums>`
@@ -222,6 +324,10 @@ How-to Guides
 
          Validate and evaluate policy checkpoints across the PhysX and Newton backends.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
    .. container:: guide-group
 
       .. rubric:: Sensors, Cameras, and Rendering
@@ -232,11 +338,19 @@ How-to Guides
 
          Add camera, ray-caster, and contact sensors to an environment.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Saving rendered images and 3D re-projection </source/how-to/save_camera_output>`
 
          Save camera outputs and reconstruct point clouds from depth images.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 
@@ -244,11 +358,37 @@ How-to Guides
 
          Choose Newton Warp, OVRTX, or legacy Isaac RTX and tune the selected renderer.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Streaming a camera view in a visualizer </source/how-to/visualizer_streaming_camera_view>`
+
+         Show tiled ground-truth camera feeds from many environments in a live visualizer panel.
+
       .. container:: guide-entry
 
          :doc:`Capturing sensor frames during training </source/how-to/capture_sensor_frames>`
 
          Record selected sensor outputs from a running training job.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
+
+      .. container:: guide-entry
+
+         :doc:`Recording video </source/how-to/record_video>`
+
+         Record mp4 clips from a visualizer or scene sensor, from the CLI or an environment config.
+
+      .. container:: guide-entry
+
+         :doc:`Creating visualization markers </source/how-to/create_visualization_markers>`
+
+         Draw frames, arrows, and custom shapes over the scene to debug per-environment state.
 
    .. container:: guide-group
 
@@ -260,15 +400,33 @@ How-to Guides
 
          Control a robot end effector with differential inverse kinematics.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Using an operational space controller </source/how-to/run_osc>`
 
          Apply operational-space control to a robot manipulator.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
    .. container:: guide-group
 
       .. rubric:: Simulation and Data
+
+      .. container:: guide-entry
+
+         :doc:`Reproducibility and determinism </source/how-to/reproducibility>`
+
+         Seed runs and request deterministic physics, rendering, and training.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -290,11 +448,19 @@ How-to Guides
 
          Tune timestep, iterations, and contacts to diagnose PhysX solver stability.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Tuning the MJWarp solver </source/how-to/solver_tuning_mjwarp>`
 
          Tune Newton MuJoCo-Warp contact capacity, timestep, friction, and convergence.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
       .. container:: guide-entry
 
@@ -302,17 +468,29 @@ How-to Guides
 
          Tune Newton Kamino PADMM or DVI convergence, stabilization, timestep, and substeps.
 
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Tuning the VBD solver </source/how-to/solver_tuning_vbd>`
 
          Tune Newton Vertex Block Descent (VBD) materials, contacts, cloth, soft bodies, and proxy or ADMM coupling.
 
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
+
       .. container:: guide-entry
 
          :doc:`Tuning the MPM solver </source/how-to/solver_tuning_mpm>`
 
          Tune Newton Material Point Method (MPM) resolution, timestep, convergence, and material parameters.
+
+         .. container:: guide-metadata
+
+            :guide-tag-newton:`Newton`
 
    .. container:: guide-group
 
@@ -324,11 +502,19 @@ How-to Guides
 
          Connect XR devices through CloudXR for immersive teleoperation.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Setting up Haply teleoperation </source/how-to/haply_teleoperation>`
 
          Use Haply devices for robot control with directional force feedback.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag-newton:`Newton`
 
    .. container:: guide-group
 
@@ -340,11 +526,19 @@ How-to Guides
 
          Capture simulation state and export an animation.
 
+         .. container:: guide-metadata
+
+            :guide-tag:`PhysX` :guide-tag:`Isaac Sim`
+
       .. container:: guide-entry
 
          :doc:`Mastering Omniverse for robotics </source/how-to/master_omniverse>`
 
          Find Omniverse workflows and resources relevant to Isaac Lab.
+
+         .. container:: guide-metadata
+
+            :guide-tag:`Isaac Sim`
 
       .. container:: guide-entry
 

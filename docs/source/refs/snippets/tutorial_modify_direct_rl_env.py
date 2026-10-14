@@ -17,9 +17,10 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": H1EnvCfg,
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidDirectPPORunnerCfg",
+        "default_agent": "rsl_rl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
     },
 )
 # [end-init-register]
@@ -44,10 +45,11 @@ class H1SceneCfg(HumanoidDirectSceneCfg):
 @configclass
 class H1EnvCfg(HumanoidEnvCfg):
     action_space = 19
-    observation_space = 69
+    observation_space = 81
     scene: H1SceneCfg = H1SceneCfg(num_envs=4096, env_spacing=5.0, replicate_physics=True, clone_in_fabric=True)
     # the gears are keyed by joint name expression, so they are independent of the joint ordering
     joint_gears: dict[str, float] = {".*": 50.0}
+    feet_body_names: list[str] = [".*ankle_link"]
 
 
 class H1Env(HumanoidEnv):

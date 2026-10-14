@@ -13,7 +13,6 @@ requirements end up in the wheel metadata.
 
 import re
 import sys
-from pathlib import Path
 
 import tomllib
 
@@ -101,35 +100,8 @@ deps = _dedup(
         if not _is_workspace_member(d) and _requirement_name(d) not in _WHEEL_EXCLUDED_DEPENDENCIES
     ]
 )
-
-# Index settings are not part of wheel metadata. Use the locked CUDA wheel URLs so
-# uvx and pip cannot silently resolve CPU builds from PyPI (especially on Windows).
-with Path(root_pyproject_path).with_name("uv.lock").open("rb") as f:
-    lock = tomllib.load(f)
-_torch_platforms = {
-    "manylinux_2_28_x86_64": "sys_platform == 'linux' and platform_machine == 'x86_64'",
-    "manylinux_2_28_aarch64": "sys_platform == 'linux' and platform_machine == 'aarch64'",
-    "win_amd64": "sys_platform == 'win32' and platform_machine == 'AMD64'",
-}
-wheel_deps = []
-for requirement in deps:
-    name = _requirement_name(requirement)
-    if name not in {"torch", "torchvision"}:
-        wheel_deps.append(requirement)
-        continue
-    packages = [package for package in lock["package"] if package["name"] == name]
-    if len(packages) != 1 or requirement != f"{name}=={packages[0]['version'].split('+')[0]}":
-        raise ValueError(f"Regenerate uv.lock before building: {requirement} does not match the locked package")
-    package = packages[0]
-    if "+cu" not in package["version"]:
-        raise ValueError(f"The locked {name} package must be CUDA-enabled")
-    for platform, marker in _torch_platforms.items():
-        wheels = [wheel for wheel in package["wheels"] if wheel["url"].endswith(f"-cp312-cp312-{platform}.whl")]
-        if len(wheels) != 1:
-            raise ValueError(f"Expected one Python 3.12 CUDA wheel for {name} on {platform}")
-        wheel = wheels[0]
-        wheel_deps.append(f"{name} @ {wheel['url']}#{wheel['hash'].replace(':', '=', 1)} ; {marker}")
-deps = wheel_deps
+# Keep the Torch pins index-resolvable. PyPI rejects direct URL requirements in
+# uploaded distributions, so consumers select the CUDA index during installation.
 
 # Optional dependencies: per extra, strip workspace members and unpublished integrations, then dedup.
 opt_deps = {}

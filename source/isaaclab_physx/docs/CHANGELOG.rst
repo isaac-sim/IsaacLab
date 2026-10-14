@@ -3,6 +3,41 @@ Changelog
 
 .. towncrier release notes start
 
+7.5.2 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Allowed a further Ctrl+C during Kit shutdown to force process termination.
+* Fixed Isaac Sim PhysX 6.2 contact sensors to report total contact forces as normal plus friction,
+  including filtered forces and histories, and to report aggregate friction without filters or a
+  detailed-contact capacity. Isaac Sim PhysX 6.1 retains its normal-only compatibility behavior.
+
+* Fixed ``friction_forces_w`` on Isaac Sim PhysX 6.2 to return the documented aggregate vector
+  shape instead of the filtered friction matrix shape.
+* Fixed PhysX startup error logs in static-only scenes by avoiding empty scene-data rigid-body view requests.
+* Preserved compliant-contact stiffness while randomizing friction and non-compliant restitution.
+
+
+7.5.1 (2026-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Defaulted the launcher's parsed ``visualizer`` selection to an empty list instead of ``None``.
+  Omission of ``--viz`` continued to select no display; code inspecting the parsed arguments could iterate
+  the selection directly.
+
+Fixed
+^^^^^
+
+* Fixed the first camera observation after :meth:`~isaaclab.envs.ManagerBasedEnv.reset` showing rigid bodies at
+  their spawn pose on GPU simulation. The Fabric re-synchronization in :meth:`~isaaclab_physx.physics.PhysxManager.play`
+  now runs only when the timeline resumes from pause.
+
+
 7.5.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

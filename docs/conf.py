@@ -88,7 +88,7 @@ ovphysx_version = _pinned_versions["ovphysx"]
 
 # Short version strings used in external documentation URLs and badges.
 torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
-isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.1.0"
+isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.2.0"
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
@@ -403,6 +403,13 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
+    "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
+    "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
+    "source/concepts/native-physics-api/ovphysx": "source/concepts/physics-backends/ovphysx",
+    "source/concepts/native-physics-api/physx": "source/concepts/physics-backends/physx",
+    "source/concepts/ovphysx": "source/concepts/physics-backends/ovphysx",
+    "source/concepts/warp_environment_migration": "source/concepts/warp_environments",
     "source/concepts/solver-tuning/index": "source/how-to/index",
     "source/concepts/solver-tuning/tune_kamino": "source/how-to/solver_tuning_kamino",
     "source/concepts/solver-tuning/tune_mjwarp": "source/how-to/solver_tuning_mjwarp",
@@ -410,6 +417,12 @@ isaaclab_doc_redirects = {
     "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
     "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
     "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/features/reproducibility": "source/how-to/reproducibility",
+    "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
+    "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
+    "source/features/draw_markers": "source/how-to/create_visualization_markers",
+    "source/features/record_video": "source/how-to/record_video",
+    "source/features/visualizer_tiled_camera": "source/how-to/visualizer_streaming_camera_view",
     "source/how-to/robots": "source/how-to/write_articulation_cfg",
     "source/tutorials/00_sim/create_empty": "source/how-to/create_empty",
     "source/tutorials/00_sim/launch_app": "source/how-to/launch_app",
@@ -434,13 +447,82 @@ isaaclab_doc_redirects = {
     "source/tutorials/index": "source/how-to/index",
 }
 
-# Sections of the former combined Docker page now live on separate pages.
+_streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
+
+# Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/backend_architecture": {
+        "overview": "source/concepts/backends_and_presets#backend-architecture",
+    },
+    "source/concepts/joint_and_body_ordering": {
+        "": "source/how-to/transfer_policies_between_physx_and_newton#joint-and-body-ordering",
+        **{
+            anchor: f"source/how-to/transfer_policies_between_physx_and_newton#{anchor}"
+            for anchor in (
+                "joint-and-body-ordering",
+                "why-articulation-orders-differ",
+                "public-and-backend-order",
+                "high-level-mdp-terms",
+                "conversion-cost",
+                "direct-backend-view-access",
+                "torch-conversion",
+                "warp-conversion",
+                "what-ordering-does-not-solve",
+                "verification-and-troubleshooting",
+            )
+        },
+    },
+    "source/concepts/native-physics-api/newton": {
+        "": "source/concepts/physics-backends/newton#newton-native-access",
+        "newton-native-data-and-selection-api": "source/concepts/physics-backends/newton#newton-native-access",
+    },
+    "source/concepts/native-physics-api/ovphysx": {
+        "": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+        "ovphysx-tensor-bindings": "source/concepts/physics-backends/ovphysx#ovphysx-native-access",
+    },
+    "source/concepts/native-physics-api/physx": {
+        "": "source/concepts/physics-backends/physx#physx-native-access",
+        "physx-tensor-api": "source/concepts/physics-backends/physx#physx-native-access",
+    },
+    "source/concepts/warp_environment_migration": {
+        "": "source/concepts/warp_environments#warp-env-migration",
+        **{
+            anchor: f"source/concepts/warp_environments#{anchor}"
+            for anchor in (
+                "warp-env-migration",
+                "design-rationale",
+                "project-structure",
+                "writing-warp-mdp-terms",
+                "imports",
+                "common-pattern",
+                "observation-terms",
+                "event-terms",
+                "action-terms",
+                "capture-safety",
+                "parity-testing",
+                "available-warp-mdp-terms",
+            )
+        },
+    },
     "source/features/docker_cloud": {
         "clusters": "source/workflows/docker/cluster#deployment-cluster",
         "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
         "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
         "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+    },
+    "source/features/record_video": {
+        "overview": "source/concepts/visualization#video-recording",
+        "record-video-cli": "source/concepts/visualization#record-video-cli",
+        "usage": "source/how-to/record_video#sources",
+        "source-types": "source/how-to/record_video#sources",
+        "limitations-and-compatibility": "source/how-to/record_video#limitations",
+    },
+    "source/features/visualizer_tiled_camera": {
+        "overview": "source/concepts/visualization#visualization-streaming-camera-view",
+        "usage": "source/concepts/visualization#visualization-streaming-camera-view",
+        "configuration-notes": f"{_streaming_how_to}#configuration",
+        "migration-from-generated-streaming-cameras": f"{_streaming_how_to}#migrating-from-generated-cameras",
+        "declared-display-sources": f"{_streaming_how_to}#display-sources",
     },
 }
 
