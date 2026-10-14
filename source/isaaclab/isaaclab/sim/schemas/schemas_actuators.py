@@ -21,7 +21,6 @@ side effect of asset construction.
 from __future__ import annotations
 
 import json
-import math
 import re
 import tempfile
 from typing import Any
@@ -31,7 +30,7 @@ from torch._export.converter import TS2EPConverter
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg
+from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
@@ -252,29 +251,27 @@ def author_actuator_prims(
         configured_effort_limit = cfg.actuator_effort_limit
         if is_bam:
             validate(cfg)
-            bam_attrs = to_dict(cfg.motor)
-            # Viscous friction is applied as passive joint damping, not by the drive.
-            bam_attrs.pop("friction_viscous")
-            model = bam_attrs.pop("model")
-            bam_attrs.update(
-                has_backlash=int(cfg.backlash_joint_template is not None),
-                stribeck=int(model != "m1"),
-                load_dependent=int(model in ("m5", "m6")),
-                quadratic=int(model == "m6"),
-                kp_fw=cfg.kp_fw,
-                vin=cfg.vin,
-                min_delay=cfg.min_delay,
-                max_delay=cfg.max_delay,
-                delay_hold_prob=cfg.delay_hold_prob,
-                delay_update_period=cfg.delay_update_period,
-                vin_min=cfg.vin_min if cfg.vin_min is not None else -math.inf,
-                # Reset runtime parameters so values on a weaker USD layer do not survive replacement.
-                kp_scale=1.0,
-                kd_scale=1.0,
-                friction_scale=1.0,
-                sag_gain=0.0,
-                delay_seed=0,
-            )
+            motor = to_dict(cfg.motor)
+            # The model becomes drive flags; viscous friction is applied as passive joint damping.
+            del motor["model"], motor["friction_viscous"]
+            bam_attrs = {
+                **motor,
+                "kp_fw": cfg.kp_fw,
+                "vin": cfg.vin,
+                "vin_min": cfg.vin_min,
+                "delay_hold_prob": cfg.delay_hold_prob,
+                **BAM_MODEL_FLAGS[cfg.motor.model],
+                "has_backlash": int(cfg.backlash_joint_template is not None),
+                "min_delay": cfg.min_delay,
+                "max_delay": cfg.max_delay,
+                "delay_update_period": cfg.delay_update_period,
+                # Runtime parameters are reset so values on a weaker USD layer do not survive replacement.
+                "kp_scale": 1.0,
+                "kd_scale": 1.0,
+                "friction_scale": 1.0,
+                "sag_gain": 0.0,
+                "delay_seed": 0,
+            }
             # Default to the stall torque at the highest sampled voltage.
             voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
             configured_effort_limit = (

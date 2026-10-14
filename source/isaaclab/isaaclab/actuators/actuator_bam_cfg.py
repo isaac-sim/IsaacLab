@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 from dataclasses import MISSING
 from typing import Literal
 
@@ -12,6 +13,14 @@ from .actuator_base_cfg import ActuatorBaseCfg
 
 BAM_DRIVE_API = "NewtonBamDriveAPI"
 """USD API schema token of the BAM drive."""
+
+BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
+    "m1": {"stribeck": 0, "load_dependent": 0, "quadratic": 0},
+    "m2": {"stribeck": 1, "load_dependent": 0, "quadratic": 0},
+    "m5": {"stribeck": 1, "load_dependent": 1, "quadratic": 0},
+    "m6": {"stribeck": 1, "load_dependent": 1, "quadratic": 1},
+}
+"""Drive flags of the friction terms each BAM model enables."""
 
 
 @configclass
@@ -75,7 +84,7 @@ class BamMotorCfg:
         Raises:
             ValueError: If the model is not m1, m2, m5, or m6.
         """
-        if self.model not in ("m1", "m2", "m5", "m6"):
+        if self.model not in BAM_MODEL_FLAGS:
             raise ValueError(f"Unsupported BAM model {self.model!r}; expected m1, m2, m5, or m6.")
 
 
@@ -119,8 +128,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     disables sag.
     """
 
-    vin_min: float | None = None
-    """Lower bound on the sagged supply voltage [V]. None keeps only the 0 V floor."""
+    vin_min: float = -math.inf
+    """Lower bound on the sagged supply voltage [V]. The default keeps only the 0 V floor."""
 
     min_delay: int = 0
     """Minimum command delay [physics steps]."""
