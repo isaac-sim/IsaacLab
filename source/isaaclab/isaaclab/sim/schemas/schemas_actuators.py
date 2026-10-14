@@ -31,19 +31,26 @@ from torch._export.converter import TS2EPConverter
 
 from pxr import Sdf, Usd, UsdPhysics
 
+from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg
+from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
+from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
+from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
+from ...actuators.actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, RemotizedPDActuator
+from ...actuators.actuator_pd_cfg import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, RemotizedPDActuatorCfg
 from ...utils import clone, to_dict, validate
 from ...utils.assets import retrieve_file_path
 from ...utils.backend_utils import FactoryBase
 from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable, to_camel_case
+from ..simulation_context import SimulationContext
+from ..utils.queries import find_matching_prims
+from ..utils.stage import get_current_stage
 from .schemas import drive_instance_name
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
     """Resolve and validate an actuator class reference for authoring identity checks."""
-    from ...actuators import ActuatorBase  # noqa: PLC0415
-
     if isinstance(class_type, str):
         try:
             class_type = string_to_callable(str(class_type))
@@ -56,18 +63,6 @@ def _resolve_actuator_class(class_type: type | str) -> type:
 
 def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     """Return whether an actuator config can be authored as a Newton actuator."""
-    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
-    from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
-    from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from ...actuators.actuator_pd import (  # noqa: PLC0415
-        DCMotor,
-        DelayedPDActuator,
-        IdealPDActuator,
-        RemotizedPDActuator,
-    )
-    from ...actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
-
     if isinstance(cfg, BamActuatorCfg):
         return cfg.class_type is None
 
@@ -192,9 +187,6 @@ def define_actuator_properties(
         ValueError: If BAM is configured without native Newton execution, or if Newton-native
             execution is enabled and an explicit actuator config is unsupported.
     """
-    from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
-    from .. import SimulationContext  # noqa: PLC0415
-
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
     if sim_cfg is not None and any(isinstance(cfg, BamActuatorCfg) for cfg in actuator_cfgs.values()):
@@ -202,9 +194,6 @@ def define_actuator_properties(
             raise ValueError("BAM requires use_newton_actuators=True with the Newton backend and MJWarp solver.")
     if sim_cfg is None or not sim_cfg.use_newton_actuators:
         return
-
-    from ..utils.queries import find_matching_prims  # noqa: PLC0415
-    from ..utils.stage import get_current_stage  # noqa: PLC0415
 
     if stage is None:
         stage = get_current_stage()
@@ -248,11 +237,6 @@ def author_actuator_prims(
         cfg_entries.append((group_name, resolved_cfg, joint_names))
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
-
-    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BamActuatorCfg  # noqa: PLC0415
-    from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
     _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 

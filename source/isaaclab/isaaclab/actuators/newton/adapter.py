@@ -28,7 +28,7 @@ import torch
 import warp as wp
 from newton import Model
 from newton._src.utils.selection import FrequencyLayout
-from newton.actuators import Actuator, ClampingBase, Delay
+from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
@@ -607,8 +607,6 @@ def _create_actuators_from_usd(
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
     """
-    from newton.actuators import parse_actuator_prim  # noqa: PLC0415
-
     from pxr import Usd  # noqa: PLC0415
 
     wp_device = wp.get_device(device)

@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import warp as wp
-from newton import JointType
+from newton import JointType, Model
 from newton.actuators import Actuator
 
 from isaaclab.actuators import ActuatorCollection
@@ -345,9 +345,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
     def _joint_dof_offset(self) -> int:
         """Return the first selected joint DOF's model offset within an environment."""
-        from newton import Model as NewtonModel  # noqa: PLC0415
-
-        dof_layout = self._articulation._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
+        dof_layout = self._articulation._root_view.frequency_layouts[Model.AttributeFrequency.JOINT_DOF]
         if dof_layout.slice is not None:
             selection_offset = dof_layout.slice.start
         elif dof_layout.indices is not None:
