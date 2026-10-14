@@ -90,15 +90,46 @@ def _imgui_optional_checkbox(imgui, label: str, value: bool, available: bool, ti
 
 
 # ---------------------------------------------------------------------------
-# Newton viewer wrappers (add IsaacLab ImGui controls to Newton's viewers)
+# Newton GL window with Isaac Lab controls
 # ---------------------------------------------------------------------------
 
 
-class NewtonViewerUI:
-    """Isaac Lab controls shared by Newton's native GL and RTX viewers."""
+class NewtonViewerGL(ViewerGL):
+    """Newton GL window with Isaac Lab controls and device-image presentation."""
 
     _contacts_available = True
     CAMERA_SPEED_BOOST_MULTIPLIER = 2.0
+
+    def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._paused_training = False
+        self._reset_requested = False
+        self._metadata = metadata or {}
+        self.window_cfg = window_cfg
+        self._live_plots_callback = None
+        self.marker_groups = ()
+        self._close_requested = False
+        backend = self._metadata.get("physics_backend", "Unknown")
+        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+        self.particle_color: tuple[float, float, float] | None = None
+        self._particle_color_buffer: wp.array | None = None
+        self._particle_color_buffer_value: tuple[float, float, float] | None = None
+        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
+        self._mpm_particles_all_active = False
+        self._fullscreen_image_active = False
+        self._implot = self._implot_ctx = None
+        if self.gui is not None:
+            from imgui_bundle import implot
+
+            self._patch_viewer_panel()
+            # Keep camera keys active while ImGui captures mouse input for its controls.
+            self.gui.is_capturing = self.gui.should_ignore_keyboard_input
+            self._implot = implot
+            self._implot_ctx = implot.create_context()
+            implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
+            # Live plots are drawn in the sidebar, not Newton's floating window.
+            self.gui._render_scalar_plots = lambda: None
+        self.register_ui_callback(self._render_training_controls, position="side")
 
     @property
     def camera_speed(self) -> float:
@@ -196,7 +227,7 @@ class NewtonViewerUI:
                 live_plots_cb(imgui)
 
             # --- Model overlays ---------------------------------------------
-            if isinstance(viewer, NewtonViewerGL) and viewer.model is not None and not viewer._fullscreen_image_active:
+            if viewer.model is not None and not viewer._fullscreen_image_active:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Model Overlays"):
                     imgui.separator()
@@ -286,11 +317,7 @@ class NewtonViewerUI:
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                if (
-                    isinstance(viewer, NewtonViewerGL)
-                    and viewer.picking_enabled
-                    and not viewer._fullscreen_image_active
-                ):
+                if viewer.picking_enabled and not viewer._fullscreen_image_active:
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
@@ -341,45 +368,6 @@ class NewtonViewerUI:
     def request_close(self) -> None:
         """Close the window once the current frame ends."""
         self._close_requested = True
-
-    def __init__(self, *args, window_cfg: WindowCfg, metadata: dict | None = None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._paused_training = False
-        self._reset_requested = False
-        self._metadata = metadata or {}
-        self.window_cfg = window_cfg
-        self._live_plots_callback = None
-        self.marker_groups = ()
-        self._close_requested = False
-        backend = self._metadata.get("physics_backend", "Unknown")
-        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
-        if self.gui is not None:
-            self._patch_viewer_panel()
-        self.register_ui_callback(self._render_training_controls, position="side")
-
-
-class NewtonViewerGL(NewtonViewerUI, ViewerGL):
-    """Newton GL window with Isaac Lab controls and device-image presentation."""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.particle_color: tuple[float, float, float] | None = None
-        self._particle_color_buffer: wp.array | None = None
-        self._particle_color_buffer_value: tuple[float, float, float] | None = None
-        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
-        self._mpm_particles_all_active = False
-        self._fullscreen_image_active = False
-        self._implot = self._implot_ctx = None
-        if self.gui is not None:
-            from imgui_bundle import implot
-
-            # Keep camera keys active while ImGui captures mouse input for its controls.
-            self.gui.is_capturing = self.gui.should_ignore_keyboard_input
-            self._implot = implot
-            self._implot_ctx = implot.create_context()
-            implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
-            # Live plots are drawn in the sidebar, not Newton's floating window.
-            self.gui._render_scalar_plots = lambda: None
 
     def begin_frame(self, time: float) -> None:
         """Update mesh VAOs in their owning context because VAOs are not shared between viewers."""
