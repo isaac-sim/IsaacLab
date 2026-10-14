@@ -101,6 +101,14 @@ Command Builder
          <span>H1 Locomotion</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="SONIC" data-demo-id="sonic"
+               data-demo-physics="newton_mjwarp,isaacsim_physx"
+               data-demo-visualizers="kit"
+               data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
+         <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
+         <span>SONIC</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="NIST" data-demo-id="nist"
                data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl,newton_rtx"

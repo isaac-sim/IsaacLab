@@ -35,11 +35,14 @@ def main() -> None:
     parser.add_argument("--video", action="store_true", help="Record video.mp4")
     parser.add_argument("--output", type=Path, default=Path("logs/g1_terrain"))
     parser.add_argument("--seconds", type=float, help="Simulation duration in seconds, independent of wall time")
+    parser.add_argument("--max_steps", type=int, help="Stop after at most this many control steps")
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
     args, overrides = parser.parse_known_args()
     if args.seconds is not None and (not math.isfinite(args.seconds) or args.seconds <= 0):
         parser.error("--seconds must be finite and positive")
+    if args.max_steps is not None and args.max_steps <= 0:
+        parser.error("--max_steps must be positive")
     if min(args.width, args.height) < 2 or args.width % 2 or args.height % 2:
         parser.error("Capture dimensions must be positive even integers")
     task = "IsaacContrib-G1-Terrain"
@@ -88,6 +91,8 @@ def main() -> None:
             started = time.perf_counter()
             last_log = started
             num_steps = math.ceil(duration / env.step_dt)
+            if args.max_steps is not None:
+                num_steps = min(num_steps, args.max_steps)
             for step in range(num_steps):
                 if env.sim.is_stopped():
                     break
