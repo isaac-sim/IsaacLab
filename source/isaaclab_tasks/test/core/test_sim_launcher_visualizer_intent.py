@@ -16,9 +16,13 @@ import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, get_settings_manager
+from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
 
 
@@ -91,6 +95,42 @@ def kit_launcher_args(monkeypatch) -> list:
 
     monkeypatch.setattr(physx_app, "KitLauncher", _FakeKitLauncher)
     return launches
+
+
+@pytest.mark.parametrize(
+    "default_visualizer_cfg",
+    [
+        KitVisualizerCfg(streaming_view=True),
+        NewtonRTXVisualizerCfg(),
+        VisualizerCfg(streaming_cam_renderer_cfg=OVRTXRendererCfg()),
+    ],
+    ids=["kit", "newton_rtx", "nested_renderer"],
+)
+def test_default_visualizer_settings_do_not_launch_runtime(monkeypatch, default_visualizer_cfg):
+    """Viewer defaults must not start a runtime when no visualizer is selected."""
+    runtime_launches = []
+
+    def resolve_launcher(launcher_type):
+        runtime_launches.append(launcher_type)
+        return SimulationLauncher
+
+    monkeypatch.setattr(sim_launcher, "string_to_callable", resolve_launcher)
+    cfg = SimulationCfg(physics=NewtonCfg(), default_visualizer_cfg=default_visualizer_cfg)
+
+    with sim_launcher.launch_simulation(cfg):
+        pass
+
+    assert runtime_launches == []
+
+
+def test_default_kit_streaming_view_enables_cameras_when_kit_is_selected(kit_launcher_args):
+    """Selecting Kit must retain the camera requirements of its shared streaming settings."""
+    cfg = SimulationCfg(physics=NewtonCfg(), default_visualizer_cfg=KitVisualizerCfg(streaming_view=True))
+
+    with sim_launcher.launch_simulation(cfg, {"visualizer": ["kit"]}):
+        pass
+
+    assert kit_launcher_args[0]["enable_cameras"] is True
 
 
 def test_caller_visualizer_intent_requests_kit_visualizer(kit_launcher_args):

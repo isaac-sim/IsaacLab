@@ -349,6 +349,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     auto_physx_locations: list[tuple[PhysicsCfg, Any, Any, bool]] = []  # (node, parent, key, is_first_physics)
     launcher_types: list[str] = []
     visualizer_cfgs: list[VisualizerCfg] = []
+    default_visualizer_cfgs: list[VisualizerCfg] = []
     visited: set[int] = set()
 
     def add_launcher_type(node: PhysicsCfg | RendererCfg):
@@ -393,6 +394,11 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
         except TypeError:
             return
         for name, child in children.items():
+            # Defaults customize selected visualizers; they do not require a runtime.
+            if name == "default_visualizer_cfg":
+                if isinstance(child, VisualizerCfg):
+                    default_visualizer_cfgs.append(child)
+                continue
             if child is None or isinstance(child, (int, float, str, bool)):
                 continue
             if isinstance(child, (list, tuple)):
@@ -403,12 +409,18 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
 
     visit(cfg, None, None)
     has_ovrtx = has_ovrtx or any(visualizer_cfg.visualizer_type == "newton_rtx" for visualizer_cfg in visualizer_cfgs)
+    visualizer_intent = _get_visualizer_intent(visualizer_cfgs, args)
+    if visualizer_intent["has_kit_visualizer"]:
+        visualizer_intent["has_kit_streaming_view"] |= any(
+            default_cfg.visualizer_type == "kit" and default_cfg.streaming_view
+            for default_cfg in default_visualizer_cfgs
+        )
 
     has_physics = bool(physics_cfgs)
     config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
-        visualizer_intent=_get_visualizer_intent(visualizer_cfgs, args),
+        visualizer_intent=visualizer_intent,
         has_ovrtx=has_ovrtx,
         has_kit_camera=has_kit_camera,
         has_kit_physics=False,
