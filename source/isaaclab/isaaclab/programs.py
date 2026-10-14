@@ -85,6 +85,14 @@ DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
     ProgramSpec(
+        "sonic",
+        "examples/demos/sonic.py",
+        "Record SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
+        extras=("isaacsim", "video"),
+        required_modules=("isaacsim", "imageio", "imageio_ffmpeg"),
+        newton_gl_args=None,
+    ),
+    ProgramSpec(
         "nist",
         "examples/demos/nist.py",
         "Assemble ten randomized NIST parts with a pretrained policy.",
@@ -108,6 +116,11 @@ DEMOS = (
         "Smash rigid crates with MPM snowballs.",
     ),
     ProgramSpec("teapot-fill", "examples/demos/teapot_fill.py", "Fill and pour a teapot with MPM fluid."),
+    ProgramSpec(
+        "rizon-sharpa-coffee",
+        "examples/demos/rizon_sharpa_coffee.py",
+        "Scoop, dissolve and stir coffee using IK (external Rizon/Sharpa robot assets required).",
+    ),
 )
 
 
@@ -131,6 +144,13 @@ EXAMPLES = (
         "examples/heterogeneous_scene.py",
         "Compose heterogeneous task scenes.",
         **_ISAACSIM,
+    ),
+    ProgramSpec(
+        "g1-terrain",
+        "examples/g1_terrain.py",
+        "Run a pretrained G1 depth policy over platforms or ramps.",
+        **_ISAACSIM,
+        newton_gl_args=None,
     ),
     ProgramSpec("markers", "examples/markers.py", "Render reusable visualization markers.", **_ISAACSIM),
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),

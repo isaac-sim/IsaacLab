@@ -221,6 +221,15 @@ OVERRIDES = {
     ),
     # Smoke launches retain every robot family and MPM solver path with smaller scenes.
     "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
+    "examples/demos/sonic.py": ScriptOverride(
+        skip_reason="downloads released ONNX policy models and builds the full granular scene",
+        visualizers=("kit",),
+    ),
+    "examples/g1_terrain.py": ScriptOverride(
+        args=("--task", "platforms"),
+        skip_reason="downloads a published depth policy",
+        visualizers=("kit",),
+    ),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
@@ -228,6 +237,10 @@ OVERRIDES = {
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
         skip_reason="requires a licensed Rizon--Sharpa bundle",
+    ),
+    "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
     ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
