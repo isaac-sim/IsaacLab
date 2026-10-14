@@ -159,7 +159,7 @@ Privileged foot observations.
 """
 
 
-def _finite(value: torch.Tensor) -> torch.Tensor:
+def zero_non_finite(value: torch.Tensor) -> torch.Tensor:
     """Replace non-finite entries with zero."""
     return torch.nan_to_num(value, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -177,13 +177,13 @@ def foot_contact_forces_safe(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -
     sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     forces = sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
     forces = forces.flatten(start_dim=1)
-    return _finite(torch.sign(forces) * torch.log1p(forces.abs()))
+    return zero_non_finite(torch.sign(forces) * torch.log1p(forces.abs()))
 
 
 def foot_air_time_safe(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
     """Air time [s] per foot, with non-finite values replaced by zero."""
     sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
-    return _finite(sensor.data.current_air_time.torch[:, sensor_cfg.body_ids])
+    return zero_non_finite(sensor.data.current_air_time.torch[:, sensor_cfg.body_ids])
 
 
 def foot_height(
@@ -219,4 +219,4 @@ def foot_height_safe(
     env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, height_sensor_names: tuple[str, ...] = ()
 ) -> torch.Tensor:
     """Foot clearance [m] above terrain, with non-finite values replaced by zero."""
-    return _finite(foot_height(env, asset_cfg, height_sensor_names))
+    return zero_non_finite(foot_height(env, asset_cfg, height_sensor_names))

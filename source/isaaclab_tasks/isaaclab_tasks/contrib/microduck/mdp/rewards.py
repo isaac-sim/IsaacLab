@@ -22,7 +22,7 @@ from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.string import resolve_matching_names_values
 
-from .observations import _finite, foot_height, joint_pos_rel_biased
+from .observations import foot_height, joint_pos_rel_biased, zero_non_finite
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -50,7 +50,7 @@ def track_linear_velocity(
     actual = asset.data.root_link_lin_vel_b.torch
     xy_error = torch.sum(torch.square(command[:, :2] - actual[:, :2]), dim=1)
     z_error = torch.square(actual[:, 2])
-    return _finite(torch.exp(-(xy_error + z_error) / std**2))
+    return zero_non_finite(torch.exp(-(xy_error + z_error) / std**2))
 
 
 def track_angular_velocity(
@@ -62,7 +62,7 @@ def track_angular_velocity(
     actual = asset.data.root_link_ang_vel_b.torch
     z_error = torch.square(command[:, 2] - actual[:, 2])
     xy_error = torch.sum(torch.square(actual[:, :2]), dim=1)
-    return _finite(torch.exp(-(z_error + xy_error) / std**2))
+    return zero_non_finite(torch.exp(-(z_error + xy_error) / std**2))
 
 
 """
@@ -111,7 +111,7 @@ class joint_deviation_exp(ManagerTermBase):
         joint_pos = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
         default_joint_pos = asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
         error_squared = torch.square(joint_pos - default_joint_pos)
-        return _finite(torch.exp(-torch.mean(error_squared / std**2, dim=1)))
+        return zero_non_finite(torch.exp(-torch.mean(error_squared / std**2, dim=1)))
 
 
 """
@@ -129,7 +129,7 @@ def head_pose_tracking(
     """Track head encoder offsets with tolerance ``std`` [rad], including play when configured."""
     command = env.command_manager.get_command(command_name)
     error = joint_pos_rel_biased(env, asset_cfg, biased=False, backlash_cfg=backlash_cfg) - command
-    return _finite(torch.exp(-((error / std) ** 2)).mean(dim=-1))
+    return zero_non_finite(torch.exp(-((error / std) ** 2)).mean(dim=-1))
 
 
 class head_pose_bias_penalty(ManagerTermBase):
@@ -157,10 +157,10 @@ class head_pose_bias_penalty(ManagerTermBase):
     ) -> torch.Tensor:
         """Return the absolute error averaged with time constant ``tau_s`` [s]."""
         command = env.command_manager.get_command(command_name)
-        error = _finite(joint_pos_rel_biased(env, asset_cfg, biased=False, backlash_cfg=backlash_cfg) - command)
+        error = zero_non_finite(joint_pos_rel_biased(env, asset_cfg, biased=False, backlash_cfg=backlash_cfg) - command)
         alpha = min(1.0, env.step_dt / tau_s)
         self._error_ema = (1.0 - alpha) * self._error_ema + alpha * error
-        return _finite(self._error_ema.abs().mean(dim=-1))
+        return zero_non_finite(self._error_ema.abs().mean(dim=-1))
 
 
 """
@@ -198,7 +198,7 @@ def foot_clearance(
     heights = foot_height(env, asset_cfg, height_sensor_names)
     foot_vel_xy = asset.data.body_link_lin_vel_w.torch[:, asset_cfg.body_ids, :2]
     cost = torch.sum(torch.abs(heights - target_height) * torch.norm(foot_vel_xy, dim=-1), dim=1)
-    return _finite(cost * (_command_magnitude(env, command_name) > command_threshold).float())
+    return zero_non_finite(cost * (_command_magnitude(env, command_name) > command_threshold).float())
 
 
 class foot_swing_height(ManagerTermBase):
@@ -230,14 +230,14 @@ class foot_swing_height(ManagerTermBase):
         """Penalize touchdown error relative to ``target_height`` [m]."""
         contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
         in_air = contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids] == 0.0
-        heights = _finite(foot_height(env, asset_cfg, height_sensor_names))
+        heights = zero_non_finite(foot_height(env, asset_cfg, height_sensor_names))
         self._peak_heights = torch.where(in_air, torch.maximum(self._peak_heights, heights), self._peak_heights)
         first_contact = contact_sensor.compute_first_contact(env.step_dt).torch[:, sensor_cfg.body_ids] > 0.5
         error = self._peak_heights / target_height - 1.0
         cost = torch.sum(torch.square(error) * first_contact.float(), dim=1)
         cost = cost * (_command_magnitude(env, command_name) > command_threshold).float()
         self._peak_heights = torch.where(first_contact, torch.zeros_like(self._peak_heights), self._peak_heights)
-        return _finite(cost)
+        return zero_non_finite(cost)
 
 
 def foot_slip(
@@ -253,7 +253,7 @@ def foot_slip(
     in_contact = (contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids] > 0.0).float()
     foot_vel_xy = asset.data.body_link_lin_vel_w.torch[:, asset_cfg.body_ids, :2]
     cost = torch.sum(torch.square(torch.norm(foot_vel_xy, dim=-1)) * in_contact, dim=1)
-    return _finite(cost * (_command_magnitude(env, command_name) > command_threshold).float())
+    return zero_non_finite(cost * (_command_magnitude(env, command_name) > command_threshold).float())
 
 
 """
@@ -265,7 +265,7 @@ def body_ang_vel_xy_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> tor
     """Penalize the roll and pitch rate of selected bodies, in the world frame."""
     asset: Articulation = env.scene[asset_cfg.name]
     ang_vel_xy = asset.data.body_link_ang_vel_w.torch[:, asset_cfg.body_ids, :2]
-    return _finite(torch.sum(torch.square(ang_vel_xy), dim=(1, 2)))
+    return zero_non_finite(torch.sum(torch.square(ang_vel_xy), dim=(1, 2)))
 
 
 def angular_momentum_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
@@ -285,14 +285,14 @@ def angular_momentum_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = Scen
     spin = torch.matmul(inertia_w, ang_vel_w.unsqueeze(-1)).squeeze(-1)
     orbit = mass.unsqueeze(-1) * torch.cross(pos_w - com_pos_w, lin_vel_w - com_lin_vel_w, dim=-1)
     momentum = (spin + orbit).sum(dim=1)
-    return _finite(torch.sum(torch.square(momentum), dim=-1))
+    return zero_non_finite(torch.sum(torch.square(momentum), dim=-1))
 
 
 def joint_pos_limits_finite(
     env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """:func:`~isaaclab.envs.mdp.joint_pos_limits`, zero for environments whose state is not finite."""
-    return _finite(_joint_pos_limits(env, asset_cfg))
+    return zero_non_finite(_joint_pos_limits(env, asset_cfg))
 
 
 """
