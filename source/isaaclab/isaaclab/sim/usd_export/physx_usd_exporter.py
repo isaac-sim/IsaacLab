@@ -144,9 +144,9 @@ def physics_prims(stage: Usd.Stage) -> tuple[list[str], list[str]]:
 
 
 def articulation_scope(stage: Usd.Stage, root: str) -> Usd.Prim:
-    """The prim containing an articulation's links: its root, or the root's parent if the root is a link."""
+    """The prim containing an articulation's links: its root, or the root's parent if the root is a link or joint."""
     prim = stage.GetPrimAtPath(root)
-    return prim.GetParent() if prim.HasAPI(UsdPhysics.RigidBodyAPI) else prim
+    return prim.GetParent() if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.IsA(UsdPhysics.Joint) else prim
 
 
 def _uniform(values: np.ndarray, path: str, name: str) -> np.ndarray:
