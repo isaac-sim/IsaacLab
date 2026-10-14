@@ -13,7 +13,10 @@ from typing import Literal
 
 import numpy as np
 from isaaclab_newton.assets import MPMObjectCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.spawners.mpm import MPMParticleMaterialCfg, MPMPointsCfg
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 import isaaclab.envs.mdp as common_mdp
 import isaaclab.sim as sim_utils
@@ -24,8 +27,9 @@ from isaaclab.managers import EventTermCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
+
 from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
-from .physics_cfg import configure_contact_grasp, make_physics_cfg
 from .robot import (
     ARM_JOINT_NAMES,
     DEFAULT_SPOON_OFFSET_POS,
@@ -33,7 +37,123 @@ from .robot import (
     HAND_JOINT_LIMITS,
     HAND_JOINT_NAMES,
     PALM_BODY_NAME,
+    configure_grasp_reset,
 )
+
+
+@configclass
+class CoffeeMPMSolverCfg(MPMSolverCfg):
+    """Native MPM with optional passive rendering grains, disabled for training."""
+
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:CoffeeMPMManager"
+    solver: str | tuple[str, ...] | None = None
+    """Pressure solver; ``None`` selects the final wet or dry task profile."""
+    max_iterations: int | None = None
+    """Pressure budget; ``None`` selects the final wet or dry task profile."""
+    grains_per_particle: int = 0
+    """Number of visual samples per physical particle; zero disables their allocation."""
+
+
+def make_grasp_solver_cfg() -> MJWarpSolverCfg:
+    """Rigid solver profile for the contact-held spoon."""
+    return MJWarpSolverCfg(
+        use_mujoco_contacts=True,
+        integrator="implicitfast",
+        cone="elliptic",
+        impratio=20.0,
+        enable_multiccd=True,
+        iterations=100,
+        ls_iterations=30,
+        njmax=512,
+        nconmax=128,
+    )
+
+
+def configure_contact_grasp(physics: NewtonCfg, *, rigid_substeps: int = 2, mass_scale: float = 20.0) -> None:
+    """Give the free spoon to MJWarp and return MPM reaction impulses to it.
+
+    Args:
+        physics: Task coupling configuration, modified before model creation.
+        rigid_substeps: Rigid integration steps per coupling tick.
+        mass_scale: Finite MPM proxy inertia multiplier; the rigid mass is unchanged.
+    """
+    coupler = physics.solver_cfg
+    rigid, media = coupler.entries
+    rigid.solver_cfg = make_grasp_solver_cfg()
+    rigid.bodies = [r"/World/envs/env_.*/Robot", r"/World/envs/env_.*/Spoon"]
+    rigid.substeps = rigid_substeps
+    media.bodies = []
+    coupler.proxies = [
+        CouplerProxyMappingCfg(
+            source="robot",
+            destination="media",
+            bodies=[r"/World/envs/env_.*/Spoon"],
+            # MPM's free-spoon inertia omits support from the finger contacts.
+            # A finite virtual inertia prevents the particle solve from yielding
+            # through the held tool. The source spoon remains 25 g and receives
+            # the reaction impulses; opening the hand still releases it.
+            mass_scale=mass_scale,
+            mode="staggered",
+            collision_pipeline=None,
+        )
+    ]
+
+
+def make_physics_cfg(voxel_size: float) -> NewtonCfg:
+    """Configure coupling with material defaults resolved after scene overrides."""
+    return NewtonCfg(
+        solver_cfg=CouplerProxyCfg(
+            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:NewtonCoffeeCouplerManager",
+            entries=[
+                CouplerEntryCfg(
+                    name="robot",
+                    solver_cfg=MJWarpSolverCfg(
+                        use_mujoco_contacts=False, integrator="implicitfast", njmax=1024, nconmax=128
+                    ),
+                    bodies=[r"/World/envs/env_.*/Robot"],
+                ),
+                CouplerEntryCfg(
+                    name="media",
+                    solver_cfg=CoffeeMPMSolverCfg(
+                        voxel_size=voxel_size,
+                        # configure_scene reserves a particle-count-based budget
+                        # unless the caller supplies a positive capacity.
+                        max_active_cell_count=-1,
+                        max_lower_node_count=256,
+                        max_upper_node_count=32,
+                        # Resolve contacts at particle sites and pressure within
+                        # each cell. Hard projection can permanently collapse
+                        # powder onto the concave tool's surface.
+                        collider_basis="pic27",
+                        strain_basis="P1d",
+                        collider_velocity_mode="backward",
+                        # Native background-air regularization bounds nearly empty grid nodes.
+                        air_drag=1.0,
+                        separate_worlds=True,
+                    ),
+                    bodies=[r"/World/envs/env_.*/Spoon"],
+                    all_particles=True,
+                    include_static_shapes=True,
+                    in_place=True,
+                ),
+            ],
+            proxies=[],
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(soft_contact_max=0),
+        num_substeps=1,
+        use_cuda_graph=True,
+    )
+
+
+@configclass
+class CoffeeKitVisualizerCfg(KitVisualizerCfg):
+    """Coffee presentation with an optional render-only public kitchen."""
+
+    class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_rendering:CoffeeKitVisualizer"
+    backdrop: Literal["kitchen", "studio"] = "kitchen"
+    """Presentation backdrop: ``kitchen`` or the original ``studio``."""
+    render_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
+    """Global RTX settings for the Kit viewport and its recorded frames."""
 
 
 @configclass
@@ -63,7 +183,7 @@ class CoffeeActionsCfg:
     """Absolute robot-base palm XYZ/XYZW followed by 22 named finger angles."""
 
     arm = common_mdp.DifferentialInverseKinematicsActionCfg(
-        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.control:PalmPoseIKAction",
+        class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env:PalmPoseIKAction",
         asset_name="robot",
         joint_names=list(ARM_JOINT_NAMES),
         body_name=PALM_BODY_NAME,
@@ -83,7 +203,7 @@ class CoffeeActionsCfg:
 
 @configclass
 class CoffeeEventsCfg:
-    reset = EventTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.control:reset_scene", mode="reset")
+    reset = EventTermCfg(func="isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env:reset_scene", mode="reset")
 
 
 @configclass
@@ -146,8 +266,6 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     if not 0.0 < cfg.min_delivered_fraction <= 1.0:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
     cfg.scene.robot = get_robot_cfg(contact_grasp=cfg.grasp_mode == "contact")
-    from .grasp_reset import configure_grasp_reset
-
     if cfg.grasp_mode not in ("mounted", "contact"):
         raise ValueError("grasp_mode must be 'mounted' or 'contact'.")
     if cfg.grasp_mode == "contact":

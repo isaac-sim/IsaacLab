@@ -20,23 +20,25 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import retrieve_file_path
 
 from .assets import COFFEE_ASSET_DIR
-from .presentation import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights, _vertex_color_material
+from .rendering import COFFEE_COLOR, WATER_COLOR, _add_coffee_studio_lights, _vertex_color_material
 
 if TYPE_CHECKING:
-    from .kit_presentation_cfg import CoffeeKitVisualizerCfg
-    from .presentation import CoffeePresentation
+    from .demo_env_cfg import CoffeeKitVisualizerCfg
+    from .rendering import CoffeeRendering
 
 
 class CoffeeKitVisualizer(KitVisualizer):
     """Render the coffee task through Kit while Newton remains the physics owner."""
 
     cfg: CoffeeKitVisualizerCfg
-    presentation: CoffeePresentation | None = None
+    rendering: CoffeeRendering | None = None
     _update_subscription = None
 
     def initialize(self, sim, *, cameras) -> None:
         if self._is_initialized:
             return
+        if self.cfg.backdrop not in ("kitchen", "studio"):
+            raise ValueError("Coffee backdrop must be 'kitchen' or 'studio'.")
         apply_isaac_rtx_global_settings(self.cfg.render_settings)
         super().initialize(sim, cameras=cameras)
         self._stage = self._sim.stage
@@ -66,8 +68,6 @@ class CoffeeKitVisualizer(KitVisualizer):
                     imageable = UsdGeom.Imageable(prim)
                     self._visibility_backup[str(prim.GetPath())] = imageable.GetVisibilityAttr().Get()
                     imageable.MakeInvisible()
-        elif self.cfg.backdrop != "studio":
-            raise ValueError("Coffee backdrop must be 'kitchen' or 'studio'.")
         self._coffee = UsdGeom.Points.Define(self._stage, f"{self._root_path}/Coffee")
         self._coffee.CreateWidthsAttr()
         self._coffee.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
@@ -104,7 +104,7 @@ class CoffeeKitVisualizer(KitVisualizer):
         self._update_subscription = (
             omni.kit.app.get_app()
             .get_pre_update_event_stream()
-            .create_subscription_to_pop(self._update_presentation, name="Coffee presentation")
+            .create_subscription_to_pop(self._update_rendering, name="Coffee presentation")
         )
 
     def update_coffee(
@@ -137,10 +137,10 @@ class CoffeeKitVisualizer(KitVisualizer):
         self._water_colors.Set(Vt.Vec3fArray.FromNumpy(colors))
         self._water_shader.GetInput("opacity").Set(float(opacity))
 
-    def _update_presentation(self, event) -> None:
+    def _update_rendering(self, event) -> None:
         """Publish scene geometry before both viewport and on-demand Kit frames."""
-        if self.presentation is not None:
-            self.presentation.draw_kit(self)
+        if self.rendering is not None:
+            self.rendering.draw_kit(self)
 
     def close(self) -> None:
         if self._is_closed:
@@ -148,7 +148,7 @@ class CoffeeKitVisualizer(KitVisualizer):
         if self._update_subscription is not None:
             self._update_subscription.unsubscribe()
             self._update_subscription = None
-        self.presentation = None
+        self.rendering = None
         if self._is_initialized:
             for path, visibility in self._visibility_backup.items():
                 UsdGeom.Imageable(self._stage.GetPrimAtPath(path)).GetVisibilityAttr().Set(visibility)
@@ -156,3 +156,8 @@ class CoffeeKitVisualizer(KitVisualizer):
                 self._stage.GetPrimAtPath(path).GetAttribute("inputs:intensity").Set(intensity)
             self._stage.RemovePrim(self._root_path)
         super().close()
+
+    def _set_usd_camera_pose(self, camera_path: str, position, target) -> bool:
+        """Publish this demo's camera above Kit's session-layer defaults."""
+        with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+            return super()._set_usd_camera_pose(camera_path, position, target)

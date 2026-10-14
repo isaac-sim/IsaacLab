@@ -35,7 +35,7 @@ def main() -> None:
         os.environ["HEADLESS"] = "1"
     with launch_simulation(cfg, args), ExitStack() as stack:
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env import CoffeeDemoEnv
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation import CoffeePresentation
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering import CoffeeRendering
         from isaaclab_tasks.contrib.rizon_sharpa_coffee.scripted import CoffeeScoopDemo
 
         # Launch owns the final display and recording producers, including Kit
@@ -48,7 +48,7 @@ def main() -> None:
         stack.callback(env.close)
         env.reset()
         if cfg.sim.visualizer_cfgs and cfg.grains_per_particle:
-            env.presentation = CoffeePresentation(env, voxel_size=cfg.voxel_size)
+            env.rendering = CoffeeRendering(env, voxel_size=cfg.voxel_size)
         if cfg.sim.visualizer_cfgs:
             env.sim.render()
         controller = CoffeeScoopDemo(env)
@@ -192,7 +192,7 @@ def _make_visualizers(args):
 
     from isaaclab.visualizers import WindowCfg
 
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.kit_presentation_cfg import CoffeeKitVisualizerCfg
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeKitVisualizerCfg
 
     camera_cfg = dict(
         headless=args.headless,
@@ -207,7 +207,7 @@ def _make_visualizers(args):
         kit_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
     visualizers = [
         NewtonGLVisualizerCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeGLVisualizer",
+            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
             show_particles=args.grains_per_particle == 0,
             particle_color=(0.095, 0.029, 0.010) if not args.water else None,
             enable_picking=False,
@@ -215,7 +215,7 @@ def _make_visualizers(args):
             **camera_cfg,
         ),
         NewtonRTXVisualizerCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.presentation:CoffeeRTXVisualizer",
+            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeRTXVisualizer",
             render_settings={
                 "omni:rtx:rtpt:spp": ("Int", args.render_samples),
                 "omni:rtx:rtpt:maxBounces": ("UInt", 8),

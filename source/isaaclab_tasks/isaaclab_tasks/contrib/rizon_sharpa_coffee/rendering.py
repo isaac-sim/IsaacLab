@@ -22,7 +22,6 @@ from newton.viewer import ViewerRTX
 import isaaclab.sim as sim_utils
 
 from .physics import CoffeeMPMSolver
-from .surface import SurfaceHistory
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -35,33 +34,33 @@ BREW_COLOR = (0.12, 0.041, 0.014)
 class CoffeeGLVisualizer(NewtonGLVisualizer):
     """Publish task geometry while the native GL frame is active."""
 
-    presentation: CoffeePresentation | None = None
+    rendering: CoffeeRendering | None = None
 
     def _update_state(self):
         state = super()._update_state()
-        if self.presentation is not None:
-            self.presentation.draw(self._viewer)
+        if self.rendering is not None:
+            self.rendering.draw(self._viewer)
         return state
 
 
 class CoffeeRTXViewer(NewtonViewerRTX):
     """Publish liquid attributes after native RTX opens the next stage ordinal."""
 
-    presentation: CoffeePresentation | None = None
+    rendering: CoffeeRendering | None = None
 
     def _update_ovrtx_mesh_points(self):
         super()._update_ovrtx_mesh_points()
-        if self.presentation is not None and self.presentation._surface is not None:
-            _, _, _, colors, fraction = self.presentation._water_surface_arrays()
+        if self.rendering is not None and self.rendering._surface is not None:
+            _, _, _, colors, fraction = self.rendering._water_surface_arrays()
             if colors is not None:
-                self.presentation._update_rtx_water_appearance(self, 0.42 + 0.40 * fraction, colors)
+                self.rendering._update_rtx_water_appearance(self, 0.42 + 0.40 * fraction, colors)
 
 
 class CoffeeRTXVisualizer(NewtonRTXVisualizer):
     """Borrow the task scene and extend native geometry publication."""
 
     _viewer_class = CoffeeRTXViewer
-    presentation: CoffeePresentation | None = None
+    rendering: CoffeeRendering | None = None
 
     def initialize(self, sim, *, cameras):
         if self._is_initialized:
@@ -77,46 +76,23 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
 
     def _update_state(self):
         state = super()._update_state()
-        self._viewer.presentation = self.presentation
-        if self.presentation is not None:
-            self.presentation.draw(self._viewer)
+        self._viewer.rendering = self.rendering
+        if self.rendering is not None:
+            self.rendering.draw(self._viewer)
         return state
 
     def close(self):
         if self._is_closed:
             return
         if self._is_initialized:
-            self._viewer.presentation = None
+            self._viewer.rendering = None
             for name, intensity in self._light_backup.items():
                 self._sim.stage.GetPrimAtPath(name).GetAttribute("inputs:intensity").Set(intensity)
             self._sim.stage.RemovePrim("/World/CoffeeRTXLights")
         super().close()
 
 
-def _add_coffee_studio_lights(stage, parent: str) -> None:
-    """Author the same broad tabletop emitters for the USD renderers."""
-    from pxr import Gf, UsdGeom, UsdLux
-
-    dome = UsdLux.DomeLight.Define(stage, f"{parent}/Ambient")
-    dome.CreateIntensityAttr(180.0)
-    dome.CreateColorAttr(Gf.Vec3f(0.92, 0.95, 1.0))
-    target = Gf.Vec3d(0.45, 0.0, 0.18)
-    softboxes = (
-        ("Key", (1.12, -0.48, 1.05), (0.65, 0.90), 3600.0, (1.0, 0.94, 0.85)),
-        ("Fill", (0.20, 0.65, 1.10), (0.80, 1.10), 1800.0, (0.90, 0.95, 1.0)),
-        ("Rim", (-0.30, 0.30, 1.30), (0.35, 0.90), 700.0, (1.0, 0.97, 0.92)),
-    )
-    for name, position, size, intensity, color in softboxes:
-        light = UsdLux.RectLight.Define(stage, f"{parent}/{name}")
-        light.CreateWidthAttr(size[0])
-        light.CreateHeightAttr(size[1])
-        light.CreateIntensityAttr(intensity)
-        light.CreateColorAttr(Gf.Vec3f(*color))
-        transform = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*position), target, Gf.Vec3d(0.0, 0.0, 1.0))
-        UsdGeom.Xformable(light).AddTransformOp().Set(transform.GetInverse())
-
-
-class CoffeePresentation:
+class CoffeeRendering:
     """Render one demonstration scene with native grains and a reconstructed liquid.
 
     Visualizers call :meth:`update` before publishing geometry. Call :meth:`reset`
@@ -146,7 +122,7 @@ class CoffeePresentation:
         surface_smoothing_time: float = 0.06,
     ):
         if env.num_envs != 1:
-            raise ValueError("CoffeePresentation supports one demo scene; disable presentation for batched RL.")
+            raise ValueError("CoffeeRendering supports one demo scene; disable presentation for batched RL.")
         if not math.isfinite(color_mass_scale) or color_mass_scale <= 0:
             raise ValueError("color_mass_scale must be finite and positive.")
         if not math.isfinite(diffusion_rate) or diffusion_rate < 0:
@@ -160,16 +136,16 @@ class CoffeePresentation:
         ]
         if any(visualizer.cfg.visualizer_type == "kit" for visualizer in env.sim.visualizers):
             # Defer the optional runtime implementation until Kit has launched.
-            from .kit_presentation import CoffeeKitVisualizer
+            from .kit_rendering import CoffeeKitVisualizer
 
             self._visualizers.extend(
                 visualizer for visualizer in env.sim.visualizers if isinstance(visualizer, CoffeeKitVisualizer)
             )
         solvers = [solver for solver in NewtonMPMManager._implicit_mpm_solvers() if isinstance(solver, CoffeeMPMSolver)]
         if len(solvers) != 1 or solvers[0].grains is None:
-            raise ValueError("CoffeePresentation requires one CoffeeMPMSolver with grains_per_particle > 0.")
+            raise ValueError("CoffeeRendering requires one CoffeeMPMSolver with grains_per_particle > 0.")
         if not self._visualizers:
-            raise ValueError("CoffeePresentation requires a coffee GL, RTX or Kit visualizer.")
+            raise ValueError("CoffeeRendering requires a coffee GL, RTX or Kit visualizer.")
         self._solver = solvers[0]
         self._dissolution = self._solver.dissolution
         device = self._model.device
@@ -186,7 +162,7 @@ class CoffeePresentation:
         self._liquid_points = None
         self._liquid_radii = None
         self._surface = None
-        self._surface_history = SurfaceHistory(surface_smoothing_time)
+        self._surface_history = _SurfaceHistory(surface_smoothing_time)
         self._clear_surface_cache()
         self._hash_grid = None
         self._mixing_radius = 2.0 * voxel_size
@@ -244,7 +220,7 @@ class CoffeePresentation:
         self._rtx_water_shaders: dict[int, str] = {}
         self._rtx_static_grain_views: weakref.WeakSet[ViewerRTX] = weakref.WeakSet()
         for visualizer in self._visualizers:
-            visualizer.presentation = self
+            visualizer.rendering = self
         self.update()
 
     def update(self) -> None:
@@ -501,11 +477,85 @@ class CoffeePresentation:
     def close(self) -> None:
         """Detach presentation from viewers before environment teardown."""
         for visualizer in self._visualizers:
-            visualizer.presentation = None
+            visualizer.rendering = None
         self._visualizers.clear()
         self._rtx_water_shaders.clear()
         self._rtx_static_grain_views.clear()
         self._clear_surface_cache()
+
+
+class _SurfaceHistory:
+    """Filter density at fixed spatial coordinates before marching cubes.
+
+    Mesh vertex indices change on each extraction, so averaging vertices would
+    connect unrelated locations. Instead, match the current and previous native
+    sparse fields by voxel coordinates. Newly occupied voxels use their current
+    values. Only the render field changes; physical particles remain untouched.
+
+    The single-world presentation uses exact allocations, keeping the previous
+    field's volume and values alive until the next update. Rebuildable volumes
+    cannot retain history this way because their topology changes in place.
+
+    Args:
+        time_constant: Exponential filter time constant [s]; zero disables filtering.
+    """
+
+    def __init__(self, time_constant: float = 0.06):
+        if not math.isfinite(time_constant) or time_constant < 0.0:
+            raise ValueError("Surface smoothing time must be finite and nonnegative.")
+        self._time_constant = time_constant
+        self._previous: ParticleSurface.SparseField | None = None
+        self._coordinates: wp.array | None = None
+
+    def apply(self, field: ParticleSurface.SparseField | None, dt: float) -> None:
+        """Filter a newly allocated native field after ``dt`` simulated seconds."""
+        previous = self._previous
+        if field is not None and previous is not None and self._time_constant > 0.0 and dt > 0.0:
+            count = field.volume.get_voxel_count()
+            if self._coordinates is None or self._coordinates.size < count:
+                self._coordinates = wp.empty(count, dtype=wp.vec3i, device=field.voxel_data.device)
+            field.volume.get_voxels(self._coordinates)
+            wp.launch(
+                _filter_density,
+                dim=count,
+                inputs=[
+                    self._coordinates,
+                    field.volume.id,
+                    field.voxel_data,
+                    previous.volume.id,
+                    previous.voxel_data,
+                    1.0 - math.exp(-dt / self._time_constant),
+                ],
+                device=field.voxel_data.device,
+            )
+        self._previous = field if self._time_constant > 0.0 else None
+
+    def reset(self) -> None:
+        """Discard history so an episode reset cannot leave a ghost surface."""
+        self._previous = None
+
+
+def _add_coffee_studio_lights(stage, parent: str) -> None:
+    """Author the same broad tabletop emitters for the USD renderers."""
+    from pxr import Gf, UsdGeom, UsdLux
+
+    dome = UsdLux.DomeLight.Define(stage, f"{parent}/Ambient")
+    dome.CreateIntensityAttr(180.0)
+    dome.CreateColorAttr(Gf.Vec3f(0.92, 0.95, 1.0))
+    target = Gf.Vec3d(0.45, 0.0, 0.18)
+    softboxes = (
+        ("Key", (1.12, -0.48, 1.05), (0.65, 0.90), 3600.0, (1.0, 0.94, 0.85)),
+        ("Fill", (0.20, 0.65, 1.10), (0.80, 1.10), 1800.0, (0.90, 0.95, 1.0)),
+        ("Rim", (-0.30, 0.30, 1.30), (0.35, 0.90), 700.0, (1.0, 0.97, 0.92)),
+    )
+    for name, position, size, intensity, color in softboxes:
+        light = UsdLux.RectLight.Define(stage, f"{parent}/{name}")
+        light.CreateWidthAttr(size[0])
+        light.CreateHeightAttr(size[1])
+        light.CreateIntensityAttr(intensity)
+        light.CreateColorAttr(Gf.Vec3f(*color))
+        transform = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*position), target, Gf.Vec3d(0.0, 0.0, 1.0))
+        UsdGeom.Xformable(light).AddTransformOp().Set(transform.GetInverse())
 
 
 def _vertex_color_material(stage, path, color, *, roughness: float, opacity: float = 1.0):
@@ -669,3 +719,19 @@ def _gather_grains(
         result_radii[index] = 0.0
     rng = wp.rand_init(index)
     colors[index] = color * (0.75 + 0.5 * wp.randf(rng))
+
+
+@wp.kernel
+def _filter_density(
+    coordinates: wp.array[wp.vec3i],
+    grid: wp.uint64,
+    density: wp.array[float],
+    previous_grid: wp.uint64,
+    previous_density: wp.array[float],
+    fraction: float,
+):
+    coordinate = coordinates[wp.tid()]
+    current = wp.volume_lookup_index(grid, coordinate[0], coordinate[1], coordinate[2])
+    previous = wp.volume_lookup_index(previous_grid, coordinate[0], coordinate[1], coordinate[2])
+    if current >= 0 and previous >= 0:
+        density[current] = wp.lerp(previous_density[previous], density[current], fraction)

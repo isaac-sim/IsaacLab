@@ -15,7 +15,7 @@ import torch
 from isaaclab.utils import math as math_utils
 
 from .assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION, SPOON_BOWL_WIDTH
-from .grasp_reset import configured_hand_targets
+from .robot import configured_hand_targets
 
 if TYPE_CHECKING:
     from .demo_env import CoffeeDemoEnv

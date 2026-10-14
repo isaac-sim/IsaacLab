@@ -17,6 +17,7 @@ from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
 
 from isaaclab.envs import ManagerBasedEnv
+from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 from isaaclab.utils import math as math_utils
 
 from .assets import (
@@ -29,6 +30,35 @@ from .attachment import MountedSpoonAttachment
 from .demo_env_cfg import CoffeeDemoEnvCfg, configure_scene
 from .physics import CoffeeMPMSolver, configure_grasp_contacts, configure_spoon_rim_margin
 from .robot import PALM_BODY_NAME
+
+
+class PalmPoseIKAction(DifferentialInverseKinematicsAction):
+    """Use absolute palm poses while keeping IK drives within soft joint limits."""
+
+    def process_actions(self, actions: torch.Tensor) -> None:
+        if not torch.isfinite(actions).all():
+            raise ValueError("Palm IK targets must be finite.")
+        super().process_actions(actions)
+
+    def reset(self, env_ids=None) -> None:
+        super().reset(env_ids)
+        selected = slice(None) if env_ids is None else env_ids
+        pos, quat = self._compute_frame_pose()
+        self._processed_actions[selected] = torch.cat((pos[selected], quat[selected]), dim=-1)
+        # Keep targets in unreset worlds unchanged.
+        self._ik_controller.ee_pos_des[selected] = pos[selected]
+        self._ik_controller.ee_quat_des[selected] = quat[selected]
+
+    def apply_actions(self) -> None:
+        """Keep drive targets inside soft limits before native actuation."""
+        super().apply_actions()
+        # MJWarp limits are compliant: an unconstrained IK drive can push past
+        # even the authored hard stop. Retain the articulation's soft margin.
+        targets = self._asset.actuators.target_command.position.torch[:, self._joint_ids]
+        limits = self._asset.data.soft_joint_pos_limits.torch[:, self._joint_ids]
+        self._asset.actuators.target_command.set_position_index(
+            value=targets.clamp(min=limits[..., 0], max=limits[..., 1]), joint_ids=self._joint_ids
+        )
 
 
 class CoffeeDemoEnv(ManagerBasedEnv):
@@ -44,7 +74,7 @@ class CoffeeDemoEnv(ManagerBasedEnv):
 
     def __init__(self, cfg: CoffeeDemoEnvCfg):
         configure_scene(cfg)
-        self.presentation = None
+        self.rendering = None
         self.dissolution = None
         self._attachment = None
         self._margin = cfg.voxel_size * 0.3
@@ -184,14 +214,19 @@ class CoffeeDemoEnv(ManagerBasedEnv):
         NewtonMPMManager.reset_solver_state(
             world_mask=wp.from_torch(mask, dtype=wp.bool), flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE
         )
-        if self.presentation is not None:
-            self.presentation.reset(env_ids)
+        if self.rendering is not None:
+            self.rendering.reset(env_ids)
 
     def close(self) -> None:
         if self._attachment is not None:
             self._attachment.close()
             self._attachment = None
-        if self.presentation is not None:
-            self.presentation.close()
-            self.presentation = None
+        if self.rendering is not None:
+            self.rendering.close()
+            self.rendering = None
         super().close()
+
+
+def reset_scene(env: CoffeeDemoEnv, env_ids: torch.Tensor | slice) -> None:
+    """Restore robot/tool poses and solver history for selected environments."""
+    env.reset_scene(env_ids)

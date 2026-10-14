@@ -15,6 +15,28 @@ plain studio. `--visualizer none --headless` runs physics without presentation.
 Use `--help` for voxel, solver-rate and rendering options. Material properties,
 tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
 
+This is a demo: a complete visual showcase, like `teapot-fill`. Focused examples
+show an individual API or tuning method. This demo has no learning task or
+policy registration.
+
+## Code layout
+
+| Files | Responsibility |
+| --- | --- |
+| `demo_env_cfg.py`, `demo_env.py` | Scene, solver/render configuration, IK actions and resets |
+| `assets.py`, `robot.py` | Asset dimensions, robot joint contract and authored grasp resets |
+| `physics.py`, `dissolution.py`, `attachment.py` | Coupled physics, soluble coffee and tool mounting |
+| `scripted.py` | Scoop, pour and stir state machine |
+| `rendering.py` | Shared grain, colour and filtered liquid-surface state for Newton viewers |
+| `kit_rendering.py` | Optional Kit USD publication, loaded after app startup |
+
+Native Newton reconstructs the surface. The rendering code adds the local
+coffee colour and temporal filtering used by this scene. Kit stays separate
+because its runtime cannot be imported during configuration. Its camera
+session-layer handling is local to this demo. The shared Newton visualizer only
+provides a viewer-subclass hook for publishing liquid colours during the native
+RTX update.
+
 ## Assets and runtime
 
 Use Isaac Lab's uv environment, Newton and a CUDA-capable NVIDIA GPU. Standalone

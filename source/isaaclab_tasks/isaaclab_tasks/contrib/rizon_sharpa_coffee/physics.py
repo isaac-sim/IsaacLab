@@ -24,7 +24,7 @@ from warp.fem import TemporaryStore
 from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
 from .assets import SPOON_BOWL_LENGTH, SPOON_BOWL_WIDTH
-from .physics_cfg import CoffeeMPMSolverCfg
+from .demo_env_cfg import CoffeeMPMSolverCfg
 
 if TYPE_CHECKING:
     from newton import Model, State
@@ -161,7 +161,7 @@ def configure_spoon_rim_margin(solver: CoffeeMPMSolver, scale: float) -> None:
 
 
 def configure_grasp_contacts(builder: newton.ModelBuilder, shape_ids: Iterable[int]) -> None:
-    """Resolve the same small-tool contact profile in both scene builders.
+    """Resolve the small-tool contact profile during scene construction.
 
     The default 100 mm search gap is inappropriate for a millimetre-scale
     pinch. Six-dimensional friction represents a finite fingertip contact
