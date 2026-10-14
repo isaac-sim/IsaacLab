@@ -10,7 +10,7 @@ from dataclasses import fields
 import numpy as np
 import pytest
 import torch
-from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager, NewtonSolverCfg
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
 from newton import ModelBuilder
 from newton.solvers import SolverMuJoCo
@@ -50,17 +50,17 @@ INITIAL_ANGLE = 0.3
 """Angle the arm is released from [rad]. The commanded target is always 0."""
 
 
-def _make_sim_cfg(device: str, use_newton_actuators: bool = False) -> SimulationCfg:
-    """Build the MJWarp configuration used by every test in this module."""
+def _make_sim_cfg(
+    device: str, solver_cfg: NewtonSolverCfg | None = None, use_newton_actuators: bool = True
+) -> SimulationCfg:
+    """Build the simulation configuration, with this module's MJWarp solver unless *solver_cfg* is given."""
+    if solver_cfg is None:
+        solver_cfg = MJWarpSolverCfg(njmax=20, nconmax=20, ls_iterations=20, integrator="implicitfast", impratio=1)
     return SimulationCfg(
         dt=DT,
         device=device,
         use_newton_actuators=use_newton_actuators,
-        physics=NewtonCfg(
-            solver_cfg=MJWarpSolverCfg(njmax=20, nconmax=20, ls_iterations=20, integrator="implicitfast", impratio=1),
-            num_substeps=2,
-            debug_mode=False,
-        ),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=2, debug_mode=False),
     )
 
 
@@ -71,36 +71,13 @@ def pendulum_usd() -> str:
 
 
 @pytest.fixture
-def sim(device):
-    """Newton simulation context running the Isaac Lab-executed actuator path."""
-    with build_simulation_context(
-        device=device,
-        gravity_enabled=True,
-        add_ground_plane=False,
-        sim_cfg=_make_sim_cfg(device),
-    ) as sim_ctx:
-        sim_ctx._app_control_on_stop_handle = None  # noqa: SLF001
-        yield sim_ctx
-
-
-@pytest.fixture
 def native_sim(device):
     """Newton simulation context running the Newton-native actuator path."""
     with build_simulation_context(
-        device=device,
-        gravity_enabled=True,
-        add_ground_plane=False,
-        sim_cfg=_make_sim_cfg(device, use_newton_actuators=True),
+        device=device, gravity_enabled=True, add_ground_plane=False, sim_cfg=_make_sim_cfg(device)
     ) as sim_ctx:
         sim_ctx._app_control_on_stop_handle = None  # noqa: SLF001
         yield sim_ctx
-
-
-def _release(robot: Articulation) -> None:
-    """Put every arm back at :data:`INITIAL_ANGLE` at rest and clear the actuator state."""
-    robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, INITIAL_ANGLE))
-    robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
-    robot.actuators.reset()
 
 
 def _make_cfg(**overrides) -> BamActuatorCfg:
@@ -168,7 +145,9 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
         robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
     )
     NewtonManager.set_decimation(decimation)
-    _release(robot)
+    robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, INITIAL_ANGLE))
+    robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
+    robot.actuators.reset()
     with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory.npz")) as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
@@ -200,9 +179,31 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_articulations_sharing_one_actuator_bind_once(native_sim, device, pendulum_usd):
-    """Identical robots merge into one Newton actuator whose drive is bound to the solver, again after hard resets."""
-    robot_a, robot_b = _spawn_pendulums(native_sim, pendulum_usd, {"RobotA": _make_cfg(), "RobotB": _make_cfg()})
+def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, device, pendulum_usd):
+    """Identical robots share one bound actuator, and a differing robot samples its own start-up ranges.
+
+    The samples hold across environment resets; hard resets rebind without stacking solver hooks.
+    """
+    sampled_cfg = _make_cfg(max_delay=2, vin_range=(6.0, 8.0), vin_drop_gain_range=(0.0, 0.2))
+    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(), "RobotC": sampled_cfg}
+    robot_a, robot_b, robot_c = _spawn_pendulums(native_sim, pendulum_usd, cfgs)
+    assert robot_c.actuators["servo"] is not robot_a.actuators["servo"], "differing max_delay must not merge"
+    voltage = read_group_parameter(robot_a.actuators, "servo", "drive", "vin")
+    torch.testing.assert_close(voltage, torch.full_like(voltage, VIN), atol=1e-6, rtol=0.0)
+    sampled = {}
+    for attr, (low, high) in (("vin", sampled_cfg.vin_range), ("sag_gain", sampled_cfg.vin_drop_gain_range)):
+        values = read_group_parameter(robot_c.actuators, "servo", "drive", attr)
+        assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
+        assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
+        sampled[attr] = values.clone()
+    robot_c.actuators.reset()
+    for attr, values in sampled.items():
+        torch.testing.assert_close(read_group_parameter(robot_c.actuators, "servo", "drive", attr), values)
+    torch.testing.assert_close(
+        read_group_parameter(robot_c.actuators, "servo", "drive", "friction_scale"),
+        torch.ones(NUM_ENVS, robot_c.num_joints, device=robot_c.device),
+    )
+
     hook_counts = (len(NewtonManager._pre_actuator_callbacks), len(NewtonManager._post_actuator_callbacks))
     for reset_index in range(3):
         if reset_index:
@@ -213,50 +214,9 @@ def test_articulations_sharing_one_actuator_bind_once(native_sim, device, pendul
                 len(NewtonManager._post_actuator_callbacks),
             )
         assert robot_a.actuators["servo"] is robot_b.actuators["servo"], "identical robots must merge"
-        assert robot_a.actuators["servo"].drive.external_torque is not None
+        for robot in (robot_a, robot_c):
+            assert robot.actuators["servo"].drive.external_torque is not None
         native_sim.step()
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_articulations_sharing_one_actuator_reject_conflicting_settings(native_sim, device, pendulum_usd):
-    """Differing start-up ranges cannot be applied to one shared drive."""
-    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(vin_drop_gain_range=(0.0, 0.2))}
-    with pytest.raises(ValueError, match="sharing a Newton BAM actuator"):
-        _spawn_pendulums(native_sim, pendulum_usd, cfgs)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_startup_ranges_are_sampled_per_environment_and_kept_on_reset(native_sim, device, pendulum_usd):
-    """Start-up ranges give one value per environment, held across resets; friction stays unscaled."""
-    cfg = _make_cfg(vin_range=(6.0, 8.0), vin_drop_gain_range=(0.0, 0.2))
-    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": cfg})
-
-    sampled = {}
-    for attr, (low, high) in (("vin", cfg.vin_range), ("sag_gain", cfg.vin_drop_gain_range)):
-        values = read_group_parameter(robot.actuators, "servo", "drive", attr)
-        assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
-        assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
-        sampled[attr] = values.clone()
-    robot.actuators.reset()
-    for attr, values in sampled.items():
-        torch.testing.assert_close(read_group_parameter(robot.actuators, "servo", "drive", attr), values)
-    torch.testing.assert_close(
-        read_group_parameter(robot.actuators, "servo", "drive", "friction_scale"),
-        torch.ones(NUM_ENVS, robot.num_joints, device=robot.device),
-    )
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_each_articulation_configures_only_its_own_actuator(native_sim, device, pendulum_usd):
-    """Robots in separate Newton actuators each get their own start-up configuration."""
-    cfgs = {"RobotA": _make_cfg(), "RobotB": _make_cfg(max_delay=2, vin_range=(6.5, 6.5))}
-    robot_a, robot_b = _spawn_pendulums(native_sim, pendulum_usd, cfgs)
-    assert robot_a.actuators["servo"] is not robot_b.actuators["servo"], "differing max_delay must not merge"
-
-    # robot_a keeps the nominal supply; robot_b uses its configured start-up range.
-    for robot, expected in ((robot_a, VIN), (robot_b, 6.5)):
-        voltage = read_group_parameter(robot.actuators, "servo", "drive", "vin")
-        torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -288,44 +248,37 @@ def test_groups_sharing_one_actuator_reject_conflicting_settings(native_sim, dev
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_backlash_requires_a_play_hinge(native_sim, device, pendulum_usd):
-    """A backlash configuration on a plain servo must fail before graph capture."""
-    cfg = _make_cfg(backlash_joint_template="passive_{}_backlash")
-    with pytest.raises(ValueError, match="BAM backlash requires.*passive_joint_backlash"):
-        _spawn_pendulums(native_sim, pendulum_usd, {"Robot": cfg})
+@pytest.mark.parametrize(
+    "solver_cfg, use_newton_actuators, overrides, error",
+    [
+        (FeatherstoneSolverCfg(), True, [{}], "BAM actuators require.*MJWarp"),
+        (None, False, [{}], "use_newton_actuators"),
+        (
+            None,
+            True,
+            [{"backlash_joint_template": "passive_{}_backlash"}],
+            "BAM backlash requires.*passive_joint_backlash",
+        ),
+        (None, True, [{}, {"vin_drop_gain_range": (0.0, 0.2)}], "sharing a Newton BAM actuator"),
+    ],
+    ids=["featherstone", "lab-executed", "missing-play-hinge", "conflicting-robots"],
+)
+def test_unsupported_setups_fail_at_startup(device, pendulum_usd, solver_cfg, use_newton_actuators, overrides, error):
+    """Setups BAM cannot run fail while the scene starts, instead of approximating friction or dropping settings."""
+    sim_cfg = _make_sim_cfg(device, solver_cfg=solver_cfg, use_newton_actuators=use_newton_actuators)
+    with build_simulation_context(device=device, gravity_enabled=True, add_ground_plane=False, sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None  # noqa: SLF001
+        cfgs = {f"Robot{index}": _make_cfg(**kwargs) for index, kwargs in enumerate(overrides)}
+        with pytest.raises(ValueError, match=error):
+            _spawn_pendulums(sim, pendulum_usd, cfgs)
 
 
-def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
-    """Reject BAM during solver initialization instead of approximating solver friction."""
-    device = "cpu"
-    sim_cfg = SimulationCfg(
-        dt=DT,
-        device=device,
-        use_newton_actuators=True,
-        physics=NewtonCfg(solver_cfg=FeatherstoneSolverCfg(), num_substeps=2, debug_mode=False),
-    )
-    with build_simulation_context(
-        device=device, gravity_enabled=True, add_ground_plane=False, sim_cfg=sim_cfg
-    ) as sim_ctx:
-        sim_ctx._app_control_on_stop_handle = None  # noqa: SLF001
-        with pytest.raises(ValueError, match="BAM actuators require.*MJWarp"):
-            _spawn_pendulums(sim_ctx, pendulum_usd, {"Robot": _make_cfg(vin_range=(6.0, 8.0))})
-
-
-@pytest.mark.parametrize("use_mujoco_cpu", [False, True])
-def test_bridge_requires_mujoco_warp_stepping(use_mujoco_cpu):
+def test_bridge_rejects_cpu_mujoco():
     """CPU MuJoCo builds the MuJoCo Warp model too, but steps the host model the bridge never reaches."""
     builder = ModelBuilder()
     body = builder.add_link(mass=1.0)
     builder.add_shape_box(body, hx=0.1, hy=0.1, hz=0.1)
     builder.add_articulation([builder.add_joint_revolute(-1, body, axis=(0.0, 0.0, 1.0))])
-    solver = SolverMuJoCo(builder.finalize(device="cpu"), use_mujoco_cpu=use_mujoco_cpu)
+    solver = SolverMuJoCo(builder.finalize(device="cpu"), use_mujoco_cpu=True)
     assert solver.mjw_model is not None
-    assert MjWarpActuatorBridge.is_available(solver) is not use_mujoco_cpu
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_bam_cfg_is_refused_on_the_isaac_lab_executed_path(sim, device, pendulum_usd):
-    """BAM requires the native actuator loop."""
-    with pytest.raises(ValueError, match="use_newton_actuators"):
-        _spawn_pendulums(sim, pendulum_usd, {"Robot": _make_cfg()})
+    assert not MjWarpActuatorBridge.is_available(solver)
