@@ -6,8 +6,8 @@ Training the Jetbot: Ground Truth
 With the environment defined, we can now start modifying our observations and rewards in order to train a policy
 to act as a controller for the Jetbot. As a user, we would like to be able to specify the desired direction for the Jetbot to drive,
 and have the wheels turn such that the robot drives in that specified direction as fast as possible. How do we achieve this with
-Reinforcement Learning (RL)? If you want to cut to the end and checkout the result of this stage of the walk through, checkout
-`this branch of the tutorial repository <https://github.com/isaac-sim/IsaacLabTutorial/tree/jetbot-intro-1-2>`_!
+Reinforcement Learning (RL)? If you want to inspect the tutorial project's source, see the
+`archived tutorial repository <https://github.com/isaac-sim/IsaacLabTutorial/tree/archive/main-before-overhaul>`_.
 
 Expanding the Environment
 --------------------------

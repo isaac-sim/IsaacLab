@@ -46,28 +46,6 @@ if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
 
-def _make_unique_names(names: Sequence[str]) -> list[str]:
-    """Preserve input order while disambiguating duplicate names."""
-    authored_names = set(names)
-    used_names: set[str] = set()
-    seen_names: set[str] = set()
-    unique_names: list[str] = []
-    for name in names:
-        if name not in seen_names:
-            unique_name = name
-            seen_names.add(name)
-        else:
-            suffix = 0
-            while True:
-                unique_name = f"{name}_{suffix}"
-                suffix += 1
-                if unique_name not in authored_names and unique_name not in used_names:
-                    break
-        unique_names.append(unique_name)
-        used_names.add(unique_name)
-    return unique_names
-
-
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -218,7 +196,7 @@ class Articulation(BaseArticulation):
 
     @property
     def body_names(self) -> list[str]:
-        """Ordered, unique body names; later duplicates receive ``_0``, ``_1``, etc. suffixes."""
+        """Unique body names in articulation order; duplicate suffixes skip names already in use."""
         return _make_unique_names(self.root_view.link_names)
 
     @property
@@ -4265,3 +4243,23 @@ class Articulation(BaseArticulation):
             stacklevel=2,
         )
         self.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+
+
+def _make_unique_names(names: Sequence[str]) -> list[str]:
+    """Preserve input order while suffixing duplicate names without collisions."""
+    authored_names = set(names)
+    used_names: set[str] = set()
+    unique_names: list[str] = []
+    for name in names:
+        if name not in used_names:
+            unique_name = name
+        else:
+            suffix = 0
+            while True:
+                unique_name = f"{name}_{suffix}"
+                suffix += 1
+                if unique_name not in authored_names and unique_name not in used_names:
+                    break
+        unique_names.append(unique_name)
+        used_names.add(unique_name)
+    return unique_names

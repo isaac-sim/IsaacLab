@@ -41,7 +41,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
+     - See the `Isaac Teleop 1.3 quick start <https://github.com/NVIDIA/IsaacCapture/blob/v1.3.131/docs/source/getting_started/quick_start.rst>`_; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)

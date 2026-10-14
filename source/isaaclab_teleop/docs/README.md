@@ -159,7 +159,7 @@ source ~/.cloudxr/run/cloudxr.env
 ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
 ```
 
-In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html).
+In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and the [Isaac Teleop 1.3 quick start](https://github.com/NVIDIA/IsaacCapture/blob/v1.3.131/docs/source/getting_started/quick_start.rst).
 
 For a fully headless experience, replace `--visualizer kit` with `--headless` when running docker and XR teleop session will run automatically.
 
