@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import torch
 
-from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
+from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit, joint_vel_out_of_manual_limit
 from isaaclab.managers import SceneEntityCfg
 
 
@@ -29,3 +29,14 @@ def test_joint_effort_limit_terminates_only_environments_with_clipped_selected_j
     result = joint_effort_out_of_limit(env, SceneEntityCfg("robot", joint_ids=[0, 1]))
 
     torch.testing.assert_close(result, torch.tensor([True, False, True, False]))
+
+
+def test_joint_velocity_limit_terminates_non_finite_values() -> None:
+    """Terminate environments with non-finite joint velocities before they reach observations."""
+    joint_vel = torch.tensor([[1.0, 2.0], [float("nan"), 2.0], [float("inf"), 2.0], [101.0, 2.0]])
+    robot = SimpleNamespace(data=SimpleNamespace(joint_vel=SimpleNamespace(torch=joint_vel)))
+    env = SimpleNamespace(scene={"robot": robot})
+
+    result = joint_vel_out_of_manual_limit(env, max_velocity=100.0, asset_cfg=SceneEntityCfg("robot"))
+
+    torch.testing.assert_close(result, torch.tensor([False, True, True, True]))

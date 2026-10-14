@@ -17,7 +17,6 @@ from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
 from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
-from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -1053,12 +1052,5 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
         self.heightmap_dropout_probability = 0.0
         self.reset_cycle = True
         self.reset_level_probabilities = (0.0,) * (len(self.reset_randomization_scales) - 1) + (1.0,)
-        camera_cfg = self.sim.default_visualizer_cfg
-        self.sim.default_visualizer_cfg = NewtonRTXVisualizerCfg(
-            eye=camera_cfg.eye,
-            lookat=camera_cfg.lookat,
-            show_particles=True,
-            particle_color=MPM_VISUAL_COLOR,
-        )
         self.heightmap_visualizer_cfg = HEIGHTMAP_VISUALIZER_CFG
         configure_sparse_mpm_capacities(self)

@@ -88,7 +88,8 @@ the alternative model dependencies below.
        "git+https://github.com/RLinf/RLinf.git@0f9ea98c7a6d9e3ade24e8f4846c64d3b135dbcc"
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
-   uv pip install transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
+   uv pip install transformers==4.51.3 "tokenizers>=0.21,<0.22" \
+       "huggingface-hub>=0.30,<1.0" --no-deps
    # Use the official PyTorch3D v0.7.9 tag instead of the older pipablepytorch3d package.
    # GR00T N1.5 only uses pytorch3d.transforms, so skip the compiled extension.
    PYTORCH3D_NO_EXTENSION=1 uv pip install --no-build-isolation \
@@ -136,7 +137,7 @@ package with incompatible APIs. After Step 1 above, replace Steps 2–4 with:
 
    uv pip install --no-deps \
        "git+https://github.com/NVIDIA/Isaac-GR00T.git@1a1837f20538b7d7e21f977a11a5aee14f99803c" \
-       "transformers==4.57.3" "tokenizers>=0.22,<0.23"
+       "transformers==4.57.3" "tokenizers>=0.22,<0.23" "huggingface-hub>=0.34,<1.0"
    uv pip install --no-deps --no-build-isolation "flash-attn==2.8.3"
 
 Set ``actor.model.model_type: gr00t_n1d7`` in the task YAML. RLinf loads the model and

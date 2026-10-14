@@ -56,9 +56,6 @@ Install the host compiler and Git on Ubuntu x86_64:
    sudo apt-get update
    sudo apt-get install -y build-essential git
 
-PyTorch 2.12 builds extensions as C++20. The commands below remove cuRobo's conflicting scalar ``lerp``
-overload while preserving its vector overloads, matching the cuRobo Docker image.
-
 .. tab-set::
 
    .. tab-item:: uv
@@ -84,16 +81,12 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
          export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
          git clone https://github.com/NVlabs/curobo.git src/nvidia-curobo && \
          git -C src/nvidia-curobo checkout ebb71702f3f70e767f40fd8e050674af0288abe8 && \
-         test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
-            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
-         sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
-            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h && \
          uv pip install -e ./src/nvidia-curobo --no-build-isolation
 
 .. note::
    * The commit hash ``ebb71702f3f70e767f40fd8e050674af0288abe8`` is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.
 
-   * Use GCC 10–15 for CUDA 13.0 C++20 compilation, as specified by NVIDIA's `host compiler support policy
+   * Use a host compiler supported by CUDA 13.0, as specified by NVIDIA's `host compiler support policy
      <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#host-compiler-support-policy>`__
      and `C++ dialect requirements
      <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#supported-c-dialects>`__.
@@ -159,7 +152,7 @@ The dataset contains:
 Download and Setup
 ^^^^^^^^^^^^^^^^^^
 
-1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
+1. Download the pre-annotated dataset by clicking `here <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Mimic/franka_stack_datasets/annotated_dataset_skillgen.hdf5>`__.
 
 2. Prepare the datasets directory and move the downloaded file:
 

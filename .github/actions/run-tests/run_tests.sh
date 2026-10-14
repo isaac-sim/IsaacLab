@@ -205,6 +205,9 @@ run_tests() {
     echo "Setting CI_MARKER=$ci_marker"
   fi
 
+  # Set by the multi-GPU smoke steps: fail rather than skip on a runner with too few GPUs.
+  [ -z "${ISAACLAB_TEST_REQUIRE_MULTI_GPU:-}" ] || docker_env_args+=(-e ISAACLAB_TEST_REQUIRE_MULTI_GPU)
+
   if [ -n "$standalone_script_scope" ]; then
     docker_env_args+=(
       -e "ISAACLAB_RUN_STANDALONE_SCRIPT_TESTS=1"
@@ -249,6 +252,8 @@ run_tests() {
       "${docker_runtime_dir}/isaac-sim/pkg"
     docker_volume_args=(
       -v "${volume_mount_source}:/workspace/isaaclab:rw"
+      # Hide .git as the images do: the checkout's config requires Git LFS, which they do not ship.
+      --tmpfs /workspace/isaaclab/.git
       -v "${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw"

@@ -31,10 +31,11 @@ class ProgramSpec:
 
     def uvx_command(self, command: str) -> str:
         """Return the command for running the program from a released package."""
+        uvx = "uvx --torch-backend cu130"
         if not self.extras:
-            return f"uvx isaaclab {command} {self.name}"
+            return f"{uvx} isaaclab {command} {self.name}"
         extras = ",".join(self.extras)
-        return f"uvx --from 'isaaclab[{extras}]' isaaclab {command} {self.name}"
+        return f"{uvx} --from 'isaaclab[{extras}]' isaaclab {command} {self.name}"
 
     def missing_modules(self) -> tuple[str, ...]:
         """Return required Python modules that are unavailable."""
@@ -83,6 +84,12 @@ _TELEOP = {"extras": ("teleop",), "required_modules": ("isaaclab_teleop", "webso
 DEMOS = (
     ProgramSpec("zoo", "examples/demos/zoo.py", "Explore Isaac Lab robots and simulation features."),
     ProgramSpec("h1-locomotion", "examples/demos/h1_locomotion.py", "Control a trained H1 locomotion policy."),
+    ProgramSpec(
+        "nist",
+        "examples/demos/nist.py",
+        "Assemble ten randomized NIST parts with a pretrained policy.",
+        extras=("ovrtx",),
+    ),
     ProgramSpec(
         "pick-and-place",
         "examples/demos/pick_and_place.py",
@@ -135,6 +142,11 @@ EXAMPLES = (
         **_ISAACSIM,
     ),
     ProgramSpec(
+        "tablecloth",
+        "examples/tablecloth.py",
+        "Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.",
+    ),
+    ProgramSpec(
         "visual-color-randomization",
         "examples/visual_color_randomization.py",
         "Randomize visual materials on cloned assets.",
@@ -148,6 +160,13 @@ EXAMPLES = (
         "mpm-two-way-coupling",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "Couple MPM sand with rigid bodies.",
+    ),
+    ProgramSpec(
+        "mpm-g1-coupling",
+        "examples/mpm/g1_coupling.py",
+        "Compare one-way and two-way G1 coupling across particle materials.",
+        extras=("isaacsim", "rsl-rl"),
+        required_modules=("rsl_rl",),
     ),
     ProgramSpec(
         "camera",

@@ -3,6 +3,178 @@ Changelog
 
 .. towncrier release notes start
 
+28.0.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to alternate
+  their goal between the two hands after each completed transfer, continuing until
+  timeout or an object drop.
+* Added ``success_steps_required`` (20 cumulative steps inside the success distance; must be positive) to
+  both workflows and ``goal_position_offset`` to the Direct configuration. The manager
+  command's ``position_offset`` now uses each hand's local root frame instead of the
+  object's initial position; update custom offsets for this frame change.
+* Changed ``Metrics/success_rate`` to report ``goals / (goals + 1)`` and added
+  ``Metrics/consecutive_success`` for the number of transfers per episode. Success rates
+  from the previous single-goal task are not directly comparable; retrain policies for
+  the alternating task objective.
+* Changed the default recording view of both handover tasks to face one hand pair from the
+  side instead of the gap between environment rows.
+* Simplified task preset traversal and CLI help, preserving selection validation and deprecated-name warnings.
+* **Breaking:** Consolidated task preset parsing and categories in ``isaaclab_tasks.utils.hydra``.
+  Replace direct imports from ``isaaclab_tasks.utils.preset_cli`` and ``isaaclab_tasks.utils.preset_target``
+  with imports from ``isaaclab_tasks.utils.hydra``; ``isaaclab_tasks.utils.setup_preset_cli`` stayed unchanged.
+
+
+27.0.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a Franka Reach ``hold`` preset with end-effector pose-error feedback, a fixed episode goal,
+  continued pose-success rewards, task-level Newton and Isaac Sim PhysX control profiles for
+  quiet holding, and a separate RSL-RL experiment directory for its 38-input policies.
+  Holding requires the Torch frontend and a trained or local holding checkpoint until pretrained
+  policies are published. The environment browser filters domain presets by Warp compatibility
+  and only offers pretrained checkpoints for declared published presets.
+* Added a contributed dual-Franka shoelace task with Newton MJWarp/VBD coupling, contact-aware rewards,
+  randomized resets, and an RSL-RL PPO configuration.
+  Supported seven externally supplied shoe variants with mixed eyelet counts and baked USD friction,
+  retaining Franka finger friction overrides for grasp retention.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Aligned Franka Reach with the shared reach success reward and reset behavior and increased
+  RSL-RL PPO exploration to match UR10. Existing Franka Reach policies should be retrained for
+  the updated task; continuous tracking evaluations can disable the success reward and termination.
+  The default reward configuration now uses the shared ``RewardsCfg`` and no longer includes
+  ``end_effector_position_tracking_fine_grained``; add that term explicitly for custom tracking tasks.
+* Tuned Franka Reach arm damping per joint and used bounded initial joint offsets supported by
+  both frontends to avoid concentrating reset samples at joint limits, while retaining the shared robot
+  asset and finger drives.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``FrankaReachRewardsCfg`` while retaining its legacy rewards for existing imports.
+  Use the shared Reach ``RewardsCfg`` and add ``end_effector_position_tracking_fine_grained``
+  explicitly if needed.
+
+Fixed
+^^^^^
+
+* Fixed DR Legs training with the Newton Kamino solver by constraining destabilizing
+  initialization randomization and joint-position targets, terminating invalid joint states before observation,
+  and preventing non-finite solver rewards from reaching the trainer.
+* Tuned the DR Legs walking actions, actuator gains, observations, gait timing, rewards, and exploration noise for
+  stable locomotion on Newton and PhysX, and separated the strict walk-success metric from command metrics.
+* Fixed the Shadow Hand and Allegro Hand reorientation task videos missing the hands in play mode;
+  they now record a close view of one hand and its cube.
+* Fixed the reorientation goal cube displaying away from the hand, outside the recording view. It now
+  follows the hand at ``goal_marker_offset`` from the in-hand position.
+* Allowed non-string literal overrides to replace resolved preset values while preserving named preset selection.
+
+
+26.0.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both Franka drawer workflows with the existing EMA joint-position action,
+  stronger motion and joint-limit penalties, increased arm damping, and 16-second episodes.
+  Actions now map to soft joint limits and are smoothed before application. Retrain existing
+  policies for the changed action semantics, rewards, and reset pose. Direct configurations
+  now use ``arm_action`` in place of ``arm_joint_names`` and ``arm_action_scale``.
+  The 0.3 rad/s actuator limit is not a hard physical speed bound in MJWarp.
+* Gave both cabinet workflows light-brown satin fronts, a cream body, and bronze hardware
+  using shared materials, without changing cabinet physics or the default floor.
+
+Fixed
+^^^^^
+
+* Retracted the initial Franka shoulder pose in both cabinet workflows to prevent randomized
+  hand poses from penetrating the lower cabinet doors and knobs with the shared Franka asset.
+* Fixed the Anymal-C direct rough-terrain task loading its shingles material from the relocated Isaac Sim 6.2 asset path.
+
+
+25.0.3 (2026-10-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed unintended stacking cubes in Agibot Toy2Box and upright mug place tasks, including
+  their Mimic variants, by using a dedicated place scene configuration.
+
+
+25.0.2 (2026-10-10)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``IsaacContrib-Factory-Franka`` asset configuration to author its Newton collision settings
+  through collision and mesh-collision schema fragments instead of the deprecated
+  ``CollisionPropertiesCfg`` / ``NewtonSDFCollisionPropertiesCfg`` cfgs. The authored USD is unchanged.
+* Migrated bundled task configurations off the deprecated ``RigidBodyMaterialCfg`` alias to
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` (configurations using
+  PhysX-only friction/restitution combine modes) or
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (solver-common properties
+  only), so loading these tasks no longer emits a ``DeprecationWarning``. The authored USD material
+  attributes are unchanged.
+
+Fixed
+^^^^^
+
+* Fixed the ANYmal symmetry augmentation in :mod:`isaaclab_tasks.core.velocity.mdp.symmetry.anymal` mirroring
+  the wrong joints when the articulation's joint order is not the PhysX order, such as on the default Newton
+  backend. The left-right and front-back joint permutations are now resolved from the joint names.
+* Fixed missing RL configuration errors to suggest compatible ``--rl_library`` selections.
+* Fixed the Shadow Hand ``randomized`` preset setting the hand and cube restitution to 1.0, which bounced the cube off
+  the hand on PhysX and OvPhysX and slowed learning; it now keeps the unrandomized value of 0.0.
+* Removed GL-only particle options from the Franka pour and UR10 particle push RTX playback configs.
+  RTX used the particle appearance authored in the shared scene.
+* Kept playback camera defaults on their existing configuration instead of rebuilding an RTX configuration
+  from the same values. Removed the soft-body lift task's redundant window configuration subclass.
+
+
+25.0.1 (2026-10-06)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Franka Pour's default particle density for higher simulation throughput while
+  keeping ``env.source_fill_level=0.70`` as the default fill and the voxel size fixed at
+  15 mm. Set ``env.scene.media.spawn.particles_per_cell=3`` and
+  ``env.scene.media.spawn.jitter=0.0015`` to restore the previous particle density.
+* Reduced the default UR10 Particle Push sparse-grid reservations to improve large-batch
+  memory use and throughput while retaining bounded topology for CUDA graph capture. Set
+  ``mpm_active_cell_count_per_world=3072``, ``mpm_leaf_node_count_per_world=512``,
+  ``mpm_lower_node_count_per_world=64``, and ``mpm_upper_node_count_per_world=8`` to retain
+  the previous reservation sizes.
+
+Fixed
+^^^^^
+
+* Matched Franka Pour's invisible particle-only spill floor to the ground plane and extended
+  the particle workspace to include it, so particles falling off the table remained counted as spills.
+* Kept the UR10 Particle Push sparse-grid capacity hierarchy valid for small environment
+  counts, including headroom for pile spreading in single-environment play and evaluation.
+* Kept global entities out of Franka Pour and UR10 Particle Push's local-world reset masks
+  when resetting all environments with a slice, fixing single-environment playback.
+* Fixed the UR10 particle-push paddle and its visual becoming world-fixed during per-asset
+  Newton cloning by authoring both inside the robot prototype. Paddle geometry overrides
+  now live under ``scene.robot.spawn.paddle`` and ``scene.robot.spawn.paddle_visual``.
+* Made Franka Pour's stationary table a static collider, retaining its collision geometry
+  without adding unnecessary rigid-body degrees of freedom before the robot.
+
+
 25.0.0 (2026-10-03)
 ~~~~~~~~~~~~~~~~~~~
 

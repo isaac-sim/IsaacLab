@@ -185,6 +185,11 @@ Breaking Changes
 Preset CLI
 ~~~~~~~~~~
 
+Task preset utilities now share ``isaaclab_tasks.utils.hydra``. Replace imports from
+``isaaclab_tasks.utils.preset_cli`` or ``isaaclab_tasks.utils.preset_target`` with imports from
+``isaaclab_tasks.utils.hydra``. The package-level ``from isaaclab_tasks.utils import setup_preset_cli``
+entry point is unchanged.
+
 ``isaaclab_tasks.utils.fold_preset_tokens`` has been removed. ``setup_preset_cli()`` now returns ``physics=``,
 ``renderer=``, and ``presets=`` tokens verbatim, and ``register_task()`` parses them directly. Scripts should assign
 the returned remainder to ``sys.argv`` unchanged.

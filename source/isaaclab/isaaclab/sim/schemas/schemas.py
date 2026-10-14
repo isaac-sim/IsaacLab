@@ -918,9 +918,10 @@ def apply_mesh_collision(
     standard ``UsdPhysics.MeshCollisionAPI``) on top of its own backend cooking namespace.
 
     The token is *not* a plain namespaced attribute -- it is shared state on the family anchor implied
-    by the present cooking fragment. Each fragment carries a :attr:`mesh_approximation_name` whose
-    default encodes the token its schema implies (e.g. ``"convexHull"`` for :class:`PhysxConvexHullCfg`,
-    ``"sdf"`` for :class:`PhysxSDFMeshCfg`). A name of ``"none"`` leaves the token unchanged, so when
+    by the present cooking fragment. The core and PhysX fragments carry a :attr:`mesh_approximation_name`
+    whose default encodes the token their schema implies (e.g. ``"convexHull"`` for :class:`PhysxConvexHullCfg`,
+    ``"sdf"`` for :class:`PhysxSDFMeshCfg`); the Newton cooking fragments carry none and leave the token
+    unchanged. A name of ``"none"`` also leaves the token unchanged, so when
     several fragments are dispatched in order by :func:`apply_mesh_collision_properties` the last one
     with a non-``"none"`` name wins -- this is how a core fragment composes with a backend cooking
     fragment. The name is validated against :const:`MESH_APPROXIMATION_TOKENS`; an unknown name raises
@@ -2247,6 +2248,64 @@ def _setup_deformable_meshes(
     return sim_mesh_prim, vis_mesh_prim
 
 
+def _setup_omniphysics_deformable_body(
+    prim: Usd.Prim, deformable_type: str, sim_mesh_prim: Usd.Prim, vis_mesh_prim: Usd.Prim
+) -> None:
+    """Apply the OmniPhysics deformable anchor schemas, rest state, and bind pose to a prepared body.
+
+    The OmniPhysics deformable schemas are shared by the PhysX-based backends (Kit PhysX and
+    OvPhysX), so their :meth:`~isaaclab.physics.PhysicsManager.setup_deformable_body` hooks delegate
+    here after :func:`_setup_deformable_meshes` has created the simulation and visual meshes.
+
+    Args:
+        prim: The deformable-body prim to anchor.
+        deformable_type: The deformable type, ``"volume"`` or ``"surface"``.
+        sim_mesh_prim: The prepared simulation-mesh prim.
+        vis_mesh_prim: The visual-mesh prim.
+
+    Raises:
+        RuntimeError: When an anchor schema cannot be applied.
+    """
+    sim_mesh_path = sim_mesh_prim.GetPath().pathString
+    if deformable_type == "surface":
+        if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
+            raise RuntimeError(f"Failed to set surface deformable sim API on prim '{sim_mesh_path}'.")
+        sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+        # flatten through numpy so USD coerces the flat index run into the Vec3i array the
+        # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
+        sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
+            np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
+        )
+    else:
+        if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
+            raise RuntimeError(f"Failed to set volume deformable sim API on prim '{sim_mesh_path}'.")
+        sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
+        sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
+            sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
+        )
+    # bind visual to sim mesh through the default bind pose
+    purposes = ["bindPose"]
+    vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+    vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        purposes
+    )
+    points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+    vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(
+        points
+    )
+    sim_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
+    sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        purposes
+    )
+    if not prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
+        raise RuntimeError(f"Failed to set deformable body API on prim '{prim.GetPath().pathString}'.")
+
+
+@deprecated(
+    "define_deformable_body_properties is deprecated. Use apply_volume_deformable_properties or"
+    " apply_surface_deformable_properties with schema fragments and create_if_missing=True instead;"
+    " define_deformable_body_properties will be removed in 3.2."
+)
 def define_deformable_body_properties(
     prim_path: str,
     cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg,
@@ -2290,6 +2349,12 @@ def define_deformable_body_properties(
         ValueError: When the prim path is not valid.
         ValueError: When the prim has no mesh or multiple meshes.
         RuntimeError: When setting the deformable body properties fails.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_volume_deformable_properties` (for ``deformable_type="volume"``) or
+        :func:`apply_surface_deformable_properties` (for ``deformable_type="surface"``) with schema
+        fragments and ``create_if_missing=True`` instead. The active physics backend, rather than
+        the cfg type, then selects the deformable schemas. This function will be removed in 3.2.
     """
     # get stage handle
     if stage is None:
@@ -2311,53 +2376,14 @@ def define_deformable_body_properties(
         root_prim, deformable_type, sim_mesh_prim_path, stage, tetrahedralization_edge_length_fac
     )
 
-    # apply the simulation API and rest state on the simulation mesh (backend-specific)
-    if deformable_type == "surface":
-        if use_omni_physics_apis:
-            if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-            # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
-            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
-            # flatten through numpy so USD coerces the flat index run into the Vec3i array the
-            # schema declares; a ``Vt.IntArray`` read straight back is rejected as a type mismatch
-            sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(
-                np.asarray(sim_mesh_prim.GetAttribute("faceVertexIndices").Get()).flatten()
-            )
-        else:
-            if not sim_mesh_prim.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-    else:
-        if use_omni_physics_apis:
-            if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
-            # set rest-shape attributes required by OmniPhysicsVolumeDeformableSimAPI
-            sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(sim_mesh_prim.GetAttribute("points").Get())
-            sim_mesh_prim.GetAttribute("omniphysics:restTetVtxIndices").Set(
-                sim_mesh_prim.GetAttribute("tetVertexIndices").Get()
-            )
-        else:
-            if not sim_mesh_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
-                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
-
     if use_omni_physics_apis:
-        # PhysX binds the visual mesh to the simulation mesh through the bind-pose deformable pose API
-        purposes = ["bindPose"]
-        vis_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
-        vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
-            purposes
-        )
-        points = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
-        vis_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(
-            points
-        )
-
-        sim_mesh_prim.ApplyAPI("OmniPhysicsDeformablePoseAPI", "default")
-        sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
-            purposes
-        )
-        if not root_prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
-            raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
+        # PhysX-based backends: simulation API, rest state, bind pose, and body API
+        _setup_omniphysics_deformable_body(root_prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
     else:
+        # apply the backend-neutral simulation API on the simulation mesh
+        sim_api = "PhysicsSurfaceDeformableSimAPI" if deformable_type == "surface" else "PhysicsVolumeDeformableSimAPI"
+        if not sim_mesh_prim.AddAppliedSchema(sim_api):
+            raise RuntimeError(f"Failed to set {deformable_type} deformable body API on prim '{sim_mesh_prim_path}'.")
         # TODO: Temporary solution for Newton: Overwrite visual mesh with tet mesh surface points or copy
         # surface sim mesh to vis mesh. In the future we can have separate visual from simulation mesh.
         # This currently does not work if an asset is loaded where the visual mesh is not the simulation mesh surface.
@@ -2380,9 +2406,15 @@ def define_deformable_body_properties(
         if not root_prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
             raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
 
-    modify_deformable_body_properties(prim_path, cfg, stage)
+    # ``__wrapped__`` skips only the deprecation warning and keeps the nested traversal
+    modify_deformable_body_properties.__wrapped__(prim_path, cfg, stage)
 
 
+@deprecated(
+    "modify_deformable_body_properties is deprecated. Use apply_volume_deformable_properties or"
+    " apply_surface_deformable_properties with schema fragments instead; modify_deformable_body_properties"
+    " will be removed in 3.2."
+)
 @apply_nested
 def modify_deformable_body_properties(
     prim_path: str, cfg: schemas_cfg.DeformableBodyPropertiesBaseCfg, stage: Usd.Stage | None = None
@@ -2426,6 +2458,11 @@ def modify_deformable_body_properties(
 
     Returns:
         True if the properties were successfully set, False otherwise.
+
+    .. deprecated:: 3.1
+        Use :func:`apply_volume_deformable_properties` or :func:`apply_surface_deformable_properties`
+        with schema fragments instead. They match a prim-path expression and, like this function,
+        tune deformable bodies already on the stage. This function will be removed in 3.2.
     """
     if stage is None:
         stage = get_current_stage()
