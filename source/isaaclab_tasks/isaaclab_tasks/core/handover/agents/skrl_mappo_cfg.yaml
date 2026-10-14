@@ -66,7 +66,7 @@ agent:
   ratio_clip: 0.2
   value_clip: 0.2
   clip_predicted_values: True
-  entropy_loss_scale: 0.0
+  entropy_loss_scale: 0.02
   value_loss_scale: 2.0
   kl_threshold: 0.0
   rewards_shaper_scale: 1.0
