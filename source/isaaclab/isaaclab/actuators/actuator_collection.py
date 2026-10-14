@@ -18,6 +18,7 @@ import warp as wp
 from prettytable import PrettyTable
 
 from ..utils import clone, instantiate
+from ..utils.leapp import leapp_tensor_semantics
 from ..utils.types import ArticulationActions
 from ..utils.warp import ProxyArray
 from ..utils.warp.launch_cache import _WarpLaunchCache
@@ -169,11 +170,13 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         return self._has_implicit_actuators
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/torque")
     def computed_effort(self) -> ProxyArray:
         """Joint efforts computed before clipping [N or N·m, depending on joint type]."""
         return self._computed_effort_ta
 
     @property
+    @leapp_tensor_semantics(kind="state/joint/torque")
     def applied_effort(self) -> ProxyArray:
         """Joint efforts applied after clipping [N or N·m, depending on joint type]."""
         return self._applied_effort_ta

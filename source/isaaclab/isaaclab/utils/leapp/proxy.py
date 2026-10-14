@@ -7,15 +7,17 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable, Mapping
+from operator import attrgetter
 from typing import Any
 
 import torch
+from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
 from ...managers import ManagerTermBase
 from ..warp.proxy_array import ProxyArray
 from .leapp_semantics import resolve_leapp_element_names
-from .utils import TracedProxyArray, build_write_connection
+from .utils import TracedProxyArray, build_state_connection, build_write_connection
 
 
 def _resolve_annotated_property(
@@ -23,8 +25,10 @@ def _resolve_annotated_property(
     real_data: Any,
     name: str,
 ) -> tuple[Callable, Any] | None:
-    """Resolve a concrete property getter and inherited semantics metadata.
+    """Resolve a property or explicitly annotated field and its inherited semantics.
 
+    Plain fields declare metadata in ``_leapp_field_semantics`` so mutable buffers
+    can be annotated without replacing public attributes or dataclass constructors.
     The execution getter always comes from the concrete runtime class. Semantic
     metadata is resolved independently by walking the MRO until a property
     definition with ``_leapp_semantics`` is found. This mirrors the output-side
@@ -36,16 +40,16 @@ def _resolve_annotated_property(
         return property_resolution_cache[cache_key]
 
     execution_prop = getattr(type(real_data), name, None)
-    if not isinstance(execution_prop, property) or execution_prop.fget is None:
-        property_resolution_cache[cache_key] = None
-        return None
+    execution_getter = execution_prop.fget if isinstance(execution_prop, property) else attrgetter(name)
 
     semantics_meta = None
     for data_cls in type(real_data).__mro__:
         prop = data_cls.__dict__.get(name)
-        if not isinstance(prop, property) or prop.fget is None:
-            continue
-        candidate = getattr(prop.fget, "_leapp_semantics", None)
+        candidate = (
+            getattr(prop.fget, "_leapp_semantics", None)
+            if isinstance(prop, property)
+            else data_cls.__dict__.get("_leapp_field_semantics", {}).get(name)
+        )
         if candidate is None:
             continue
         if getattr(candidate, "const", False):
@@ -58,7 +62,7 @@ def _resolve_annotated_property(
         property_resolution_cache[cache_key] = None
         return None
 
-    resolution = (execution_prop.fget, semantics_meta)
+    resolution = (execution_getter, semantics_meta)
     property_resolution_cache[cache_key] = resolution
     return resolution
 
@@ -127,10 +131,9 @@ class _DataProxy:
     concrete backend overrides reuse semantic metadata authored on abstract base
     properties without copying decorators onto every implementation.
 
-    When a semantic property returns a ProxyArray or a mapping of proxy arrays,
-    each proxy array is wrapped in a ``TracedProxyArray`` and cached for
-    deduplication. Non-proxy results and ordinary attributes are forwarded
-    transparently.
+    Annotated ProxyArray and Torch tensors, including mapping entries, become live
+    inputs and are cached for deduplication. Unannotated attributes and constants
+    are forwarded transparently.
 
     All other attribute access is forwarded transparently to the real object.
     """
@@ -143,6 +146,8 @@ class _DataProxy:
         property_resolution_cache: dict[tuple[type, str], tuple[Callable, Any] | None],
         cache: dict,
         input_name_resolver: Callable,
+        *,
+        connection_type: str = "state",
     ):
         object.__setattr__(self, "_real_data", real_data)
         object.__setattr__(self, "_entity_name", entity_name)
@@ -150,6 +155,7 @@ class _DataProxy:
         object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)
         object.__setattr__(self, "_cache", cache)
         object.__setattr__(self, "_input_name_resolver", input_name_resolver)
+        object.__setattr__(self, "_connection_type", connection_type)
 
     def __getattr__(self, name):
         """Intercept semantic property reads; forward everything else."""
@@ -171,36 +177,54 @@ class _DataProxy:
         entity_name = object.__getattribute__(self, "_entity_name")
         task_name = object.__getattribute__(self, "_task_name")
 
-        if isinstance(result, Mapping):
-            traced = {
-                key: TracedProxyArray(
+        connection_type = object.__getattribute__(self, "_connection_type")
+
+        def trace(value, property_name, tensor_name):
+            if isinstance(value, ProxyArray):
+                return TracedProxyArray(
                     value,
-                    input_name=f"{input_name}_{key}",
+                    input_name=tensor_name,
                     semantics_meta=semantics_meta,
                     real_data=real_data,
                     entity_name=entity_name,
-                    property_name=f"{name}.{key}",
+                    property_name=property_name,
                     task_name=task_name,
+                    connection_type=connection_type,
                 )
-                if isinstance(value, ProxyArray)
-                else value
-                for key, value in result.items()
-            }
-        elif isinstance(result, ProxyArray):
-            traced = TracedProxyArray(
-                result,
-                input_name=input_name,
-                semantics_meta=semantics_meta,
-                real_data=real_data,
-                entity_name=entity_name,
-                property_name=name,
-                task_name=task_name,
-            )
-        else:
-            return result
+            if isinstance(value, torch.Tensor):
+                return annotate.input_tensors(
+                    task_name,
+                    TensorSemantics(
+                        name=tensor_name,
+                        ref=value,
+                        kind=semantics_meta.kind,
+                        element_names=resolve_leapp_element_names(semantics_meta, real_data),
+                        extra=build_state_connection(entity_name, property_name, connection_type),
+                    ),
+                )
+            return value
+
+        traced = (
+            {key: trace(value, f"{name}.{key}", f"{input_name}_{key}") for key, value in result.items()}
+            if isinstance(result, Mapping)
+            else trace(result, name, input_name)
+        )
 
         cache[cache_key] = traced
         return traced
+
+
+class _ActuatorCollectionProxy(_DataProxy, Mapping):
+    """Annotate collection effort buffers while preserving actuator-group lookup."""
+
+    def __getitem__(self, key):
+        return self._real_data[key]
+
+    def __iter__(self):
+        return iter(self._real_data)
+
+    def __len__(self):
+        return len(self._real_data)
 
 
 class _EntityProxy:
@@ -212,6 +236,27 @@ class _EntityProxy:
     def __init__(self, real_entity: Any, data_proxy: _DataProxy):
         object.__setattr__(self, "_real_entity", real_entity)
         object.__setattr__(self, "_data_proxy", data_proxy)
+        object.__setattr__(self, "_actuators_proxy", None)
+
+    @property
+    def actuators(self):
+        """Annotate effort observations outside the asset data container."""
+        if self._actuators_proxy is None:
+            data = self._data_proxy
+            object.__setattr__(
+                self,
+                "_actuators_proxy",
+                _ActuatorCollectionProxy(
+                    self._real_entity.actuators,
+                    data._entity_name,
+                    data._task_name,
+                    data._property_resolution_cache,
+                    data._cache,
+                    lambda name: f"{data._entity_name}_actuators_{name}",
+                    connection_type="actuator",
+                ),
+            )
+        return self._actuators_proxy
 
     @property
     def data(self):
@@ -379,11 +424,29 @@ class _EnvProxy:
         cache: dict,
     ):
         object.__setattr__(self, "_real_env", real_env)
+        object.__setattr__(self, "_task_name", task_name)
+        object.__setattr__(self, "_cache", cache)
         object.__setattr__(
             self,
             "_scene_proxy",
             _SceneProxy(real_env.scene, task_name, property_resolution_cache, cache),
         )
+
+    @property
+    def episode_length_buf(self):
+        """Expose episode time as an external input shared by time observations."""
+        key = (id(self._real_env), "episode_length_buf")
+        if key not in self._cache:
+            self._cache[key] = annotate.input_tensors(
+                self._task_name,
+                TensorSemantics(
+                    name="episode_length_buf",
+                    ref=self._real_env.episode_length_buf,
+                    kind="state/environment/episode_length",
+                    extra={"isaaclab_connection": "env:episode_length_buf"},
+                ),
+            )
+        return self._cache[key]
 
     @property
     def scene(self):

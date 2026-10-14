@@ -16,7 +16,7 @@ import inspect
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import torch
 import yaml
@@ -26,6 +26,7 @@ try:
 except ImportError as e:
     raise ImportError("LEAPP package is required for policy deployment testing. Install with: pip install leapp") from e
 
+from ..utils.warp import ProxyArray
 from .manager_based_rl_env import ManagerBasedRLEnv
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,14 @@ class StateInputSpec:
     entity_name: str
     property_name: str
     joint_ids: list[int] | None = None
+    source: Literal["data", "actuators"] = "data"
+
+
+@dataclass
+class EnvInputSpec:
+    """Read an environment tensor such as the episode-length buffer."""
+
+    property_name: str
 
 
 @dataclass
@@ -169,6 +178,8 @@ class LeappDeploymentEnv:
     scene entity name, and the property or method to call:
 
     - ``state:{entity}:{property}`` -- read ``scene[entity].data.{property}``
+    - ``actuator:{entity}:{property}`` -- read ``scene[entity].actuators.{property}``
+    - ``env:{property}`` -- read a tensor on the registered environment
     - ``command:{name}`` -- read ``command_manager.get_command(name)``
     - ``write:{entity}:{method}`` -- call ``scene[entity].{method}(tensor, ...)``
 
@@ -193,7 +204,7 @@ class LeappDeploymentEnv:
         # ── Parse YAML and resolve I/O mappings ───────────────────
         with open(leapp_yaml_path) as f:
             self._leapp_desc = yaml.safe_load(f)
-        self._input_mapping: dict[str, StateInputSpec | CommandInputSpec] = {}
+        self._input_mapping: dict[str, StateInputSpec | EnvInputSpec | CommandInputSpec] = {}
         self._output_mapping: dict[str, WriteOutputSpec] = {}
         self._resolve_io()
 
@@ -248,7 +259,7 @@ class LeappDeploymentEnv:
                 parts = connection.split(":")
                 conn_type = parts[0]
 
-                if conn_type == "state":
+                if conn_type in ("state", "actuator"):
                     entity_name, prop_name = parts[1], parts[2]
                     entity = self.scene[entity_name]
                     jids = _resolve_joint_ids(desc.get("element_names"), entity)
@@ -256,7 +267,10 @@ class LeappDeploymentEnv:
                         entity_name=entity_name,
                         property_name=prop_name,
                         joint_ids=jids,
+                        source="actuators" if conn_type == "actuator" else "data",
                     )
+                elif conn_type == "env":
+                    self._input_mapping[key] = EnvInputSpec(property_name=parts[1])
                 elif conn_type == "command":
                     command_name = parts[1]
                     if self.command_manager is None:
@@ -309,13 +323,16 @@ class LeappDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = entity.data
-                for part in spec.property_name.split("."):
+                parts = spec.property_name.split(".")
+                value = getattr(getattr(entity, spec.source), parts[0])
+                for part in parts[1:]:
                     value = value[part] if isinstance(value, Mapping) else getattr(value, part)
-                value = value.torch
+                value = value.torch if isinstance(value, ProxyArray) else value
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value
+            elif isinstance(spec, EnvInputSpec):
+                inputs[key] = getattr(self._env, spec.property_name)
             elif isinstance(spec, CommandInputSpec):
                 command_manager = self.command_manager
                 assert command_manager is not None
@@ -351,6 +368,7 @@ class LeappDeploymentEnv:
         env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         self.scene.reset(env_ids)
+        self._env.episode_length_buf.zero_()
 
         if self.event_manager is not None and "reset" in self.event_manager.available_modes:
             self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=self._env.common_step_counter)
@@ -372,7 +390,8 @@ class LeappDeploymentEnv:
                 while assets_loading():
                     self.sim.render()
 
-        self.inference.reset()
+        with torch.inference_mode():
+            self.inference.reset()
 
         return self._read_inputs()
 
@@ -399,7 +418,8 @@ class LeappDeploymentEnv:
 
         # 4. Infer
         with torch.inference_mode():
-            outputs = self.inference.run_policy(inputs)
+            # LEAPP retains and clears its input buffers on reset; do not lend it scene storage.
+            outputs = self.inference.run_policy({name: value.clone() for name, value in inputs.items()})
 
         # 5. Write outputs to scene entities
         self._write_outputs(outputs)
@@ -413,6 +433,7 @@ class LeappDeploymentEnv:
             if self._env._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
             self.scene.update(dt=self.physics_dt)
+        self._env.episode_length_buf += 1
         self._env.common_step_counter += 1
 
         return outputs

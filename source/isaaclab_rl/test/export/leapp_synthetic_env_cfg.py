@@ -17,6 +17,7 @@ from isaaclab.sensors import FrameTransformerCfg, ImuCfg, PvaCfg, RayCasterCfg, 
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.modifiers import DigitalFilterCfg, IntegratorCfg, ModifierCfg, scale
 from isaaclab.utils.noise import GaussianNoiseCfg
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_rl.rsl_rl import RslRlCNNModelCfg
 
@@ -36,7 +37,15 @@ def contact_history(env) -> torch.Tensor:
 def data_observation(env, entity: str, properties: tuple[str, ...]) -> torch.Tensor:
     """Read sensor/asset properties through their annotated public data interface."""
     data = env.scene[entity].data
-    return torch.cat([getattr(data, name).torch.flatten(start_dim=1) for name in properties], dim=-1)
+    values = [getattr(data, name) for name in properties]
+    return torch.cat(
+        [(value.torch if isinstance(value, ProxyArray) else value).flatten(start_dim=1) for value in values], dim=-1
+    )
+
+
+def computed_effort(env) -> torch.Tensor:
+    """Read actuator effort before clipping [N or N·m, depending on joint type]."""
+    return env.scene["robot"].actuators.computed_effort.torch
 
 
 def motion_vectors(env) -> torch.Tensor:
@@ -98,6 +107,8 @@ class SyntheticSceneCfg(CartpoleSceneCfg):
     deformable = SensorBaseCfg(class_type="leapp_synthetic_env:InjectedDeformable", prim_path="{ENV_REGEX_NS}/Object")
     wrench = SensorBaseCfg(class_type="leapp_synthetic_env:InjectedWrench", prim_path="{ENV_REGEX_NS}/Robot")
     cable = SensorBaseCfg(class_type="leapp_synthetic_env:InjectedCable", prim_path="{ENV_REGEX_NS}/Robot")
+    ray_mesh = SensorBaseCfg(class_type="leapp_synthetic_env:InjectedRayMeshIds", prim_path="{ENV_REGEX_NS}/Robot")
+    tactile = SensorBaseCfg(class_type="leapp_synthetic_env:InjectedTactile", prim_path="{ENV_REGEX_NS}/Robot")
     imu = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/pole", offset=ImuCfg.OffsetCfg(pos=(0.1, 0.0, 0.0)))
     pva = PvaCfg(prim_path="{ENV_REGEX_NS}/Robot/pole")
     frames = FrameTransformerCfg(
@@ -165,6 +176,10 @@ class SyntheticPolicyCfg(ObservationGroupCfg):
         noise=GaussianNoiseCfg(mean=0.0, std=0.01),
     )
     relative_pos = ObservationTermCfg(func=mdp.joint_pos, params={"asset_cfg": SceneEntityCfg("relative")})
+    effort = ObservationTermCfg(func=mdp.joint_effort)
+    effort_unclipped = ObservationTermCfg(func=computed_effort)
+    time = ObservationTermCfg(func=mdp.current_time_s)
+    remaining_time = ObservationTermCfg(func=mdp.remaining_time_s)
     gravity = ObservationTermCfg(func=mdp.projected_gravity)
     linear_velocity = ObservationTermCfg(func=mdp.base_lin_vel)
     angular_velocity = ObservationTermCfg(func=mdp.base_ang_vel)
@@ -194,7 +209,14 @@ class SyntheticPolicyCfg(ObservationGroupCfg):
         func=data_observation,
         params={
             "entity": "deformable",
-            "properties": ("nodal_pos_w", "nodal_vel_w", "nodal_state_w", "root_pos_w", "root_vel_w"),
+            "properties": (
+                "nodal_pos_w",
+                "nodal_vel_w",
+                "nodal_state_w",
+                "root_pos_w",
+                "root_vel_w",
+                "nodal_kinematic_target",
+            ),
         },
     )
     imu = ObservationTermCfg(func=data_observation, params={"entity": "imu", "properties": ("ang_vel_b", "lin_acc_b")})
@@ -213,7 +235,32 @@ class SyntheticPolicyCfg(ObservationGroupCfg):
         func=data_observation,
         params={
             "entity": "camera",
-            "properties": ("pos_w", "quat_w_world", "intrinsic_matrices", "quat_w_ros", "quat_w_opengl"),
+            "properties": (
+                "pos_w",
+                "quat_w_world",
+                "intrinsic_matrices",
+                "quat_w_ros",
+                "quat_w_opengl",
+                "image_mesh_ids",
+            ),
+        },
+    )
+    ray_mesh_ids = ObservationTermCfg(
+        func=data_observation, params={"entity": "ray_mesh", "properties": ("ray_mesh_ids",)}
+    )
+    tactile = ObservationTermCfg(
+        func=data_observation,
+        params={
+            "entity": "tactile",
+            "properties": (
+                "tactile_depth_image",
+                "tactile_rgb_image",
+                "tactile_points_pos_w",
+                "tactile_points_quat_w",
+                "penetration_depth",
+                "tactile_normal_force",
+                "tactile_shear_force",
+            ),
         },
     )
     wrench = ObservationTermCfg(func=data_observation, params={"entity": "wrench", "properties": ("force", "torque")})

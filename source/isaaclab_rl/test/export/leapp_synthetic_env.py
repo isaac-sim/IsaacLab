@@ -14,8 +14,11 @@ from isaaclab_physx.assets.deformable_object.deformable_object_data import Defor
 from isaaclab.assets.cable_object.base_cable_object_data import BaseCableObjectData
 from isaaclab.managers import ActionTerm
 from isaaclab.sensors import SensorBase
-from isaaclab.sensors.camera import CameraData
+from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
+from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_data import MultiMeshRayCasterData
 from isaaclab.utils.warp import ProxyArray
+
+from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
 
 
 class InjectedCamera(SensorBase):
@@ -26,13 +29,13 @@ class InjectedCamera(SensorBase):
     """
 
     @property
-    def data(self) -> CameraData:
+    def data(self) -> MultiMeshRayCasterCameraData:
         self._update_outdated_buffers()
         return self._data
 
     def _initialize_impl(self):
         super()._initialize_impl()
-        self._data = CameraData()
+        self._data = MultiMeshRayCasterCameraData()
         self._data.create_buffers(self._num_envs, self.device)
         self._data._output = {
             "rgb": ProxyArray(wp.zeros((self._num_envs, 4, 4, 3), dtype=wp.uint8, device=self.device)),
@@ -44,6 +47,7 @@ class InjectedCamera(SensorBase):
             ),
             "motion_vectors": ProxyArray(wp.zeros((self._num_envs, 4, 4, 2), dtype=wp.float32, device=self.device)),
         }
+        self._data.image_mesh_ids = ProxyArray(wp.zeros((self._num_envs, 4, 4, 1), dtype=wp.int32, device=self.device))
         self._pattern = torch.arange(48, device=self.device).reshape(1, 4, 4, 3)
 
     def _update_buffers_impl(self, env_mask: wp.array):
@@ -53,6 +57,7 @@ class InjectedCamera(SensorBase):
         self._data.output["depth"].torch[:, 0, :, 0] = torch.tensor(
             [float("nan"), float("inf"), -0.5, 3.0], device=self.device
         )
+        self._data.image_mesh_ids.torch.copy_(((self._pattern[..., :1] + phase) % 4).to(torch.int32))
         self._data.pos_w.torch.copy_(phase.reshape(-1, 1) / 100 + 0.1)
         self._data.quat_w_world.torch[:, 3] = 1.0
         self._data.intrinsic_matrices.torch.copy_(torch.eye(3, device=self.device) * (phase.reshape(-1, 1, 1) + 1))
@@ -122,6 +127,9 @@ class InjectedDeformable(SensorBase):
 
         self._view = NodalView()
         self._data = DeformableObjectData(self._view, self.device)
+        self._data.nodal_kinematic_target = ProxyArray(
+            wp.zeros((self._num_envs, 4), dtype=wp.vec4f, device=self.device)
+        )
 
     def _update_buffers_impl(self, env_mask: wp.array):
         phase = wp.to_torch(self._timestamp).reshape(-1, 1, 1)
@@ -129,6 +137,8 @@ class InjectedDeformable(SensorBase):
         wp.to_torch(self._view.velocities).copy_(
             torch.sin(phase * 120 + torch.arange(12, device=self.device).reshape(1, 4, 3))
         )
+        self._data.nodal_kinematic_target.torch[..., :3].copy_(wp.to_torch(self._view.positions))
+        self._data.nodal_kinematic_target.torch[..., 3] = 1.0
         self._data.update(self._sim_physics_dt)
 
 
@@ -184,6 +194,55 @@ class InjectedCable(SensorBase):
 
     def _update_buffers_impl(self, env_mask: wp.array):
         self._data.update(self._sim_physics_dt)
+
+
+class InjectedRayMeshIds(SensorBase):
+    """Supply mesh IDs through the multi-mesh ray caster's public data field."""
+
+    @property
+    def data(self) -> MultiMeshRayCasterData:
+        self._update_outdated_buffers()
+        return self._data
+
+    def _initialize_impl(self):
+        super()._initialize_impl()
+        self._data = MultiMeshRayCasterData()
+        self._data.create_buffers(self._num_envs, 4, self.device)
+        self._data.ray_mesh_ids = ProxyArray(wp.zeros((self._num_envs, 4, 1), dtype=wp.int32, device=self.device))
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        phase = wp.to_torch(self._timestamp).reshape(-1, 1, 1) * 120
+        self._data.ray_mesh_ids.torch.copy_(((phase + torch.arange(4, device=self.device).reshape(1, 4, 1)) % 5).int())
+
+
+class InjectedTactile(SensorBase):
+    """Exercise tactile tensor fields without starting the tactile renderer."""
+
+    @property
+    def data(self) -> VisuoTactileSensorData:
+        self._update_outdated_buffers()
+        return self._data
+
+    def _initialize_impl(self):
+        super()._initialize_impl()
+        shapes = {
+            "tactile_depth_image": (4, 4, 1),
+            "tactile_rgb_image": (4, 4, 3),
+            "tactile_points_pos_w": (4, 3),
+            "tactile_points_quat_w": (4, 4),
+            "penetration_depth": (4,),
+            "tactile_normal_force": (4,),
+            "tactile_shear_force": (4, 2),
+        }
+        self._data = VisuoTactileSensorData(
+            **{name: torch.zeros((self._num_envs, *shape), device=self.device) for name, shape in shapes.items()}
+        )
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        phase = wp.to_torch(self._timestamp) * 120
+        for value in vars(self._data).values():
+            pattern = torch.arange(value[0].numel(), device=self.device).reshape(1, *value.shape[1:])
+            value.copy_(torch.sin(pattern + phase.reshape(-1, *([1] * (value.ndim - 1)))))
 
 
 class CommandAction(ActionTerm):

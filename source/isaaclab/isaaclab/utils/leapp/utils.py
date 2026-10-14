@@ -29,6 +29,7 @@ class TracedProxyArray(ProxyArray):
         entity_name: str,
         property_name: str,
         task_name: str,
+        connection_type: str = "state",
     ) -> None:
         super().__init__(proxy_array.warp)
         astorch = super().torch
@@ -37,7 +38,7 @@ class TracedProxyArray(ProxyArray):
             ref=astorch,
             kind=semantics_meta.kind,
             element_names=resolve_leapp_element_names(semantics_meta, real_data),
-            extra=build_state_connection(entity_name, property_name),
+            extra=build_state_connection(entity_name, property_name, connection_type),
         )
         annotated = annotate.input_tensors(task_name, sem)
         object.__setattr__(self, "_traced_array", annotated)
@@ -71,9 +72,9 @@ def ensure_env_spec_id(env, fallback_task_name: str = "policy") -> str:
 # ══════════════════════════════════════════════════════════════════
 
 
-def build_state_connection(entity_name: str, property_name: str) -> dict[str, str]:
-    """Return a compact deployment connection string for a state property."""
-    return {"isaaclab_connection": f"state:{entity_name}:{property_name}"}
+def build_state_connection(entity_name: str, property_name: str, connection_type: str = "state") -> dict[str, str]:
+    """Return a deployment connection for a data or actuator-collection property."""
+    return {"isaaclab_connection": f"{connection_type}:{entity_name}:{property_name}"}
 
 
 def build_command_connection(command_name: str) -> dict[str, str]:

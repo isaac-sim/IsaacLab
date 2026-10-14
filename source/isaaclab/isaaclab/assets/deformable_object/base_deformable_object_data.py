@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ...utils.leapp import XYZ_ELEMENT_NAMES, InputKindEnum, leapp_tensor_semantics
+from ...utils.leapp import XYZ_ELEMENT_NAMES, InputKindEnum, LeappTensorSemantics, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 
 
@@ -22,6 +22,10 @@ class BaseDeformableObjectData(ABC):
     This is useful when the data is expensive to compute or retrieve. The data is updated
     when the timestamp of the buffer is older than the current simulation timestamp.
     """
+
+    _leapp_field_semantics = {
+        "nodal_kinematic_target": LeappTensorSemantics(kind="state/deformable/nodal_kinematic_target"),
+    }
 
     def __init__(self, device: str):
         """Initialize the deformable object data.
