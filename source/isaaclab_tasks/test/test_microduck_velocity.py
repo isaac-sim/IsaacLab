@@ -161,7 +161,7 @@ def test_microduck_rough_terrain_contact_and_foot_rays(device):
 @pytest.mark.kitless
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_microduck_backlash_preset_reads_output_side_encoders(device):
-    """With ``presets=backlash``, encoders and head rewards see servo plus play, and play joints stay undriven.
+    """With ``presets=backlash``, encoders, servo feedback and head rewards see servo plus play; play stays undriven.
 
     Distinct play values per joint and environment catch pairing or ordering mistakes. The kitless contributed-task
     test only steps default presets, so this test also steps the backlash robot.
@@ -195,6 +195,20 @@ def test_microduck_backlash_preset_reads_output_side_encoders(device):
         head_bias.func.reset()
         expected = play[:, 5:9].abs().mean(dim=-1) * env.step_dt / head_bias.params["tau_s"]
         torch.testing.assert_close(head_bias.func(env, **head_bias.params), expected)
+        # Each servo feeds back its own play angle, the only error at rest; play-hinge velocity adds no back-EMF.
+        # One physics step, not a decimated env step, keeps the first-step effort analytic.
+        robot.actuators.target_command.set_position_index(value=robot.data.default_joint_pos.torch)
+        robot.write_data_to_sim()
+        env.sim.physics_manager.set_decimation(1)
+        env.sim.step(render=False)
+        env.sim.physics_manager.set_decimation(env.cfg.decimation)
+        robot.update(env.physics_dt)
+        servos = robot.cfg.actuators["servos"]
+        vin = read_group_parameter(robot.actuators, "servos", "drive", "vin")[:, :1]
+        expected = -play * servos.kp_fw * servos.motor.error_gain * vin * servos.motor.kt / servos.motor.resistance
+        servo_ids = robot.find_joints(MICRODUCK_JOINT_NAMES, preserve_order=True)[0]
+        effort = robot.actuators.applied_effort.torch[:, servo_ids]
+        torch.testing.assert_close(effort, expected, atol=1e-6, rtol=1e-5)
         # Riding the play stops must not incur a servo soft-limit penalty.
         q[:, play_ids] = robot.data.soft_joint_pos_limits.torch[:, play_ids, 1] + 0.001
         robot.write_joint_state_to_sim_index(position=q, velocity=qd)
