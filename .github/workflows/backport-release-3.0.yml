@@ -166,6 +166,18 @@ jobs:
             echo "target_sha=$target_sha"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Create repository write token
+        # Created early so a failed backport can still be reported on the source PR.
+        if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
       - name: Cherry-pick merged change
         if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
         id: cherry_pick
@@ -248,7 +260,8 @@ jobs:
             --model "$primary_model" \
             --model "$fallback_model" \
             --report "$RUNNER_TEMP/backport-resolution.json" \
-            --summary "$RUNNER_TEMP/backport-resolution.md"
+            --summary "$RUNNER_TEMP/backport-resolution.md" \
+            --failure "$RUNNER_TEMP/backport-failure.md"
 
       - name: Set up Python for inferred-resolution checks
         if: steps.cherry_pick.outputs.conflict == 'true'
@@ -320,17 +333,6 @@ jobs:
             --resolution_report "$RUNNER_TEMP/backport-resolution.json"
           git diff --check "$TARGET_SHA" HEAD
 
-      - name: Create repository write token
-        if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
-        id: app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
-        with:
-          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
-          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-          permission-workflows: write
-
       - name: Push exact clean backport
         if: steps.cherry_pick.outputs.conflict == 'false'
         working-directory: repository
@@ -401,3 +403,24 @@ jobs:
           # Docker CI runs only on request; the App token's comment triggers run-docker-ci.yml.
           gh pr comment "$pr_url" --body "run-ci" \
             || echo "::warning::The draft PR was opened, but Docker CI could not be requested. Comment 'run-ci' on it."
+
+      - name: Report failed backport on source PR
+        if: failure() && steps.app_token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          body_file="$RUNNER_TEMP/backport-failure-comment.md"
+          {
+            echo "Automatic backport to \`$TARGET_BRANCH\` failed; this change needs a manual backport."
+            echo
+            if [ -s "$RUNNER_TEMP/backport-failure.md" ]; then
+              cat "$RUNNER_TEMP/backport-failure.md"
+              echo
+            fi
+            echo "Workflow run: $RUN_URL"
+          } > "$body_file"
+          gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body-file "$body_file"

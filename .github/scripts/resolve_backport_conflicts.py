@@ -673,8 +673,10 @@ def _git_paths(*args: str) -> list[str]:
         raise ConflictResolutionError("non-UTF-8 Git paths are not supported") from error
 
 
-def _write_step_summary(text: str) -> None:
-    """Append text to the GitHub Actions step summary when one is available."""
+def _report_failure(path: Path | None, text: str) -> None:
+    """Record a failure reason for the workflow step summary and the source-PR comment."""
+    if path is not None:
+        path.write_text(text + "\n", encoding="utf-8")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with open(summary, "a", encoding="utf-8") as file:
@@ -691,6 +693,7 @@ def _create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", action="append", dest="models")
     parser.add_argument("--report", type=Path, required=True, help="JSON paths report for backport.py validation.")
     parser.add_argument("--summary", type=Path, required=True, help="Markdown review summary for the draft PR.")
+    parser.add_argument("--failure", type=Path, help="Markdown file that receives the reason when resolution fails.")
     return parser
 
 
@@ -713,11 +716,11 @@ def main() -> int:
         write_summary(args.summary, model, result, context)
     except BackportBlockedError as error:
         print(f"conflict resolution blocked: {error}", file=sys.stderr)
-        _write_step_summary(f"The model reported that this change needs a manual backport:\n\n> {error}")
+        _report_failure(args.failure, f"The model reported that this change needs a manual backport:\n\n> {error}")
         return 1
     except (ConflictResolutionError, subprocess.CalledProcessError) as error:
         print(f"conflict resolution failed: {error}", file=sys.stderr)
-        _write_step_summary(f"Automatic conflict resolution failed: {error}")
+        _report_failure(args.failure, f"Automatic conflict resolution failed: {error}")
         return 1
     print(f"Resolved and staged {len(result['resolutions'])} conflicted path(s) through NVIDIA inference.")
     return 0
