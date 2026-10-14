@@ -64,7 +64,7 @@ class TerrainSceneCfg(InteractiveSceneCfg):
     robot = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
-            usd_path="omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Robots/Unitree/G1/g1_29dof.usd",
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/IsaacLab/Robots/Unitree/G1/g1_29dof.usd",
             rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=False,
                 linear_damping=0.0,

@@ -9,8 +9,8 @@ Usage:
     uv run --extra isaacsim --extra video --extra g1-terrain isaaclab demo sonic
 
 The released planner and tracker are downloaded from nvidia/GEAR-SONIC on Hugging
-Face under their upstream model license. The configured robot requires access to
-isaac-dev.ov.nvidia.com. Recording advances in simulation time; Newton records
+Face under their upstream model license. The robot USD is downloaded from the
+public Isaac asset server. Recording advances in simulation time; Newton records
 offscreen, while PhysX opens a window to synchronize robot and particle visuals.
 """
 
