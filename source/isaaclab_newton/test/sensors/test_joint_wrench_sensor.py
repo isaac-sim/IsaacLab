@@ -14,6 +14,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.utils import get_unique_names_at_indices
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -26,6 +27,7 @@ from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_assets import UR10e_ROBOTIQ_2F_85_CFG
 from isaaclab_assets.robots.ant import ANT_CFG
 
 
@@ -114,6 +116,16 @@ class _NestedRootAntSceneCfg(InteractiveSceneCfg):
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
+@configclass
+class _DuplicateBodyNamesSceneCfg(InteractiveSceneCfg):
+    """UR10e with Robotiq gripper, which contains duplicate ``base_link`` bodies."""
+
+    env_spacing = 4.0
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    robot = UR10e_ROBOTIQ_2F_85_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
+
+
 @pytest.fixture
 def sim():
     """Simulation context using the Newton backend."""
@@ -141,6 +153,14 @@ def test_data_before_init_is_none():
     data = JointWrenchSensorData()
     assert data.force is None
     assert data.torque is None
+
+
+def test_joint_child_names_use_unique_body_names():
+    """Joint-child indices resolve to disambiguated names without shifting authored names."""
+    assert get_unique_names_at_indices(["base_link", "arm", "base_link", "base_link_0"], [2, 3]) == [
+        "base_link_1",
+        "base_link_0",
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -196,6 +216,20 @@ def test_nested_articulation_root_resolution(sim):
     assert set(sensor.body_names).issubset(set(robot.body_names))
     assert sensor.data.force.torch.shape == (1, robot.num_joints, 3)
     assert sensor.data.torque.torch.shape == (1, robot.num_joints, 3)
+
+
+def test_duplicate_body_names_match_joint_wrench_sensor(sim):
+    """Joint-wrench body labels use the same unique names as the articulation."""
+    scene = InteractiveScene(_DuplicateBodyNamesSceneCfg(num_envs=1))
+    sim.reset()
+
+    robot: Articulation = scene["robot"]
+    sensor: JointWrenchSensor = scene["wrench"]
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    assert robot.find_bodies("base_link_0") == ([7], ["base_link_0"])
+    assert sensor.body_names == [robot.body_names[int(body_idx)] for body_idx in sensor._joint_child.numpy()]
 
 
 # ---------------------------------------------------------------------------

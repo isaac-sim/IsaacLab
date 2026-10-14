@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import sys
 from copy import deepcopy
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -26,6 +27,8 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_physx.assets import Articulation as PhysxArticulation
+from isaaclab_physx.physics import PhysxCfg
 from newton.solvers import SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
@@ -49,7 +52,12 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets import (  # isort:skip
+    ANYMAL_C_CFG,
+    FRANKA_PANDA_CFG,
+    FRANKA_PANDA_HIGH_PD_CFG,
+    UR10e_ROBOTIQ_2F_85_CFG,
+)
 # , SHADOW_HAND_CFG  # isort:skip
 
 SIM_CFGs = {
@@ -482,6 +490,86 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+def test_duplicate_body_names_match_physx_naming():
+    link_names = [
+        "base_link",
+        "shoulder_link",
+        "upper_arm_link",
+        "forearm_link",
+        "wrist_1_link",
+        "wrist_2_link",
+        "wrist_3_link",
+        "base_link",
+    ]
+    articulation = Articulation.__new__(Articulation)
+    articulation._root_view = SimpleNamespace(link_names=link_names)
+    articulation._initialize_handle = None
+    articulation._invalidate_initialize_handle = None
+    articulation._prim_deletion_handle = None
+
+    assert articulation.body_names == [
+        "base_link",
+        "shoulder_link",
+        "upper_arm_link",
+        "forearm_link",
+        "wrist_1_link",
+        "wrist_2_link",
+        "wrist_3_link",
+        "base_link_0",
+    ]
+    assert articulation.find_bodies("base_link") == ([0], ["base_link"])
+    assert articulation.find_bodies("base_link_0") == ([7], ["base_link_0"])
+    assert articulation.root_view.link_names == link_names
+
+
+def test_duplicate_body_names_avoid_colliding_with_existing_names():
+    link_names = ["base_link", "base_link", "base_link_0"]
+    articulation = Articulation.__new__(Articulation)
+    articulation._root_view = SimpleNamespace(link_names=link_names)
+    articulation._initialize_handle = None
+    articulation._invalidate_initialize_handle = None
+    articulation._prim_deletion_handle = None
+
+    assert articulation.body_names == ["base_link", "base_link_1", "base_link_0"]
+
+
+def test_duplicate_body_names_match_physx_for_same_asset():
+    backend_results = {}
+    for backend, physics_cfg, articulation_cls in (
+        ("physx", PhysxCfg(), PhysxArticulation),
+        (
+            "newton",
+            NewtonCfg(solver_cfg=MJWarpSolverCfg(njmax=400, nconmax=200), num_substeps=1),
+            Articulation,
+        ),
+    ):
+        with build_simulation_context(
+            device="cuda:0",
+            auto_add_lighting=True,
+            sim_cfg=SimulationCfg(device="cuda:0", physics=physics_cfg),
+        ) as sim:
+            articulation = articulation_cls(UR10e_ROBOTIQ_2F_85_CFG.replace(prim_path="/World/Robot"))
+            sim.reset()
+
+            body_names = articulation.body_names
+            assert len(body_names) == 16
+            assert len(set(body_names)) == len(body_names)
+            assert body_names[0] == "base_link"
+            assert body_names[7] == "base_link_0"
+            assert articulation.find_bodies("base_link") == ([0], ["base_link"])
+            assert articulation.find_bodies("base_link_0") == ([7], ["base_link_0"])
+            backend_results[backend] = (
+                body_names,
+                articulation.data.body_link_pos_w.torch[0, [0, 7]].clone(),
+            )
+
+    physx_names, physx_base_positions = backend_results["physx"]
+    newton_names, newton_base_positions = backend_results["newton"]
+    assert newton_names == physx_names
+    torch.testing.assert_close(newton_base_positions, physx_base_positions, atol=5e-3, rtol=1e-3)
+    assert torch.linalg.vector_norm(physx_base_positions[0] - physx_base_positions[1]) > 0.01
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

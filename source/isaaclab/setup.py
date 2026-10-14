@@ -66,16 +66,18 @@ INSTALL_REQUIRES = [
 # Append Linux x86_64 and ARM64 deps via PEP 508 markers
 SUPPORTED_ARCHS_ARM = "platform_machine in 'x86_64,AMD64,aarch64,arm64'"
 SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
+SUPPORTED_ARCHS_AARCH64 = "platform_machine in 'aarch64,arm64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
     f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"pin-pink==3.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
-# Adds OpenUSD dependencies based on architecture for Kit less mode.
+# Use a single OpenUSD runtime per architecture in Kit-less mode. ``usd-exchange``
+# bundles ``pxr`` and must not be installed alongside ``usd-core``.
 INSTALL_REQUIRES += [
     f"usd-core>=25.11,<26.0 ; ({SUPPORTED_ARCHS})",
-    f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_ARM})",
+    f"usd-exchange>=2.2 ; ({SUPPORTED_ARCHS_AARCH64})",
 ]
 
 # pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on

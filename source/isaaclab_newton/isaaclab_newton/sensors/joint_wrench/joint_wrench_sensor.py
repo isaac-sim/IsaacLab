@@ -19,6 +19,7 @@ from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 
 from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.utils import get_unique_names_at_indices
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_to_incoming_joint_frame_kernel
@@ -181,8 +182,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             raise RuntimeError(f"joint_child contains out-of-range body indices for '{self.cfg.prim_path}'")
         self._joint_child = wp.array(joint_child_np, dtype=wp.int32, device=self._device)
 
-        link_names = list(self._root_view.link_names)
-        self._data._body_names = [link_names[int(b)] for b in joint_child_np]
+        self._data._body_names = get_unique_names_at_indices(self._root_view.link_names, joint_child_np)
 
         self._data.create_buffers(num_envs=self._num_envs, num_joints=self._num_joints, device=self._device)
 

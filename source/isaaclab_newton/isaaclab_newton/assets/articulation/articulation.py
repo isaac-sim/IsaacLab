@@ -39,6 +39,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.utils import make_unique_names
 
 from .articulation_data import ArticulationData
 
@@ -196,8 +197,8 @@ class Articulation(BaseArticulation):
 
     @property
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        return self.root_view.link_names
+        """Unique body names in articulation order; duplicate suffixes skip names already in use."""
+        return make_unique_names(self.root_view.link_names)
 
     @property
     def root_view(self) -> ArticulationView:

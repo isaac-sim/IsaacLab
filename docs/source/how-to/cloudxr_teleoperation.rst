@@ -11,7 +11,7 @@ pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleope
 
 This guide walks you through setting up CloudXR, connecting an XR device, and running your first
 teleoperation session. For additional details see the `Isaac Teleop Quick Start
-<https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
+<https://github.com/NVIDIA/IsaacCapture/blob/v1.3.131/docs/source/getting_started/quick_start.rst>`_.
 
 .. tip::
 
@@ -212,15 +212,8 @@ choose the tab that matches your hardware.
          :ref:`run-isaac-lab-with-the-cloudxr-runtime`. The CloudXR runtime and WSS proxy
          start automatically.
 
-      #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`_.
-
-         .. note::
-
-            The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in
-            ``source/isaaclab_teleop/setup.py``). When Isaac Lab bumps its Isaac Teleop
-            pin, update this link to the matching client release.
+      #. Follow the `Isaac Teleop 1.3 quick start <https://github.com/NVIDIA/IsaacCapture/blob/v1.3.131/docs/source/getting_started/quick_start.rst>`_
+         to open the version-matched CloudXR.js client in the headset browser.
 
          .. tip::
 
