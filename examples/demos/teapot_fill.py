@@ -104,8 +104,7 @@ parser.add_argument(
     type=_unit_interval_float,
     default=DEFAULT_FILL_LEVEL,
     help=(
-        "Water line as a fraction [0, 1] of the teapot height to fill the cavity up to."
-        f" Defaults to {DEFAULT_FILL_LEVEL:g}; use 1.0 to fill to the brim."
+        "Water line as a fraction [0, 1] of the teapot height to fill the cavity up to. Use 1.0 to fill to the brim."
     ),
 )
 parser.add_argument(
