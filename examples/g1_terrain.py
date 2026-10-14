@@ -11,7 +11,6 @@ import argparse
 import math
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import numpy as np
@@ -26,74 +25,6 @@ from isaaclab.app import launch_simulation
 from isaaclab.visualizers import WindowCfg
 
 from isaaclab_tasks.utils.hydra import resolve_task_config
-
-if TYPE_CHECKING:
-    from isaaclab_visualizers.kit import KitVisualizer
-
-    from isaaclab_tasks.contrib.g1_terrain.terrain_env import G1TerrainEnv
-
-
-def _prepare_view(env: G1TerrainEnv, visualizer: KitVisualizer) -> None:
-    """Configure the spectator camera after initializing physics and depth geometry."""
-    import omni.kit.app  # noqa: PLC0415
-    from pxr import Gf, Usd, UsdGeom, UsdPhysics  # noqa: PLC0415
-
-    from isaaclab.sim import bind_visual_material, get_current_stage  # noqa: PLC0415
-
-    from isaaclab_tasks.contrib.g1_terrain.terrain import separate_ramp_base  # noqa: PLC0415
-
-    omni.kit.app.get_app().get_extension_manager().set_extension_enabled_immediate("omni.replicator.core", True)
-    import omni.replicator.core as rep  # noqa: PLC0415
-
-    rep.settings.set_render_rtx_realtime(antialiasing="DLAA")
-    stage = get_current_stage()
-    for name, material_cfg in env.cfg.robot_visual_materials.items():
-        material_cfg.func(f"/World/G1Looks/{name}", material_cfg)
-    dark_parts = {
-        "head_link",
-        "pelvis",
-        "left_hip_pitch_link",
-        "right_hip_pitch_link",
-        "left_ankle_roll_link",
-        "right_ankle_roll_link",
-    }
-    for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/envs/env_0/Robot")):
-        if prim.HasAPI(UsdPhysics.CollisionAPI) or prim.GetName().startswith("imu_in_"):
-            UsdGeom.Imageable(prim).MakeInvisible()
-        if prim.GetName() == "visuals":
-            prim.SetInstanceable(False)
-            for part in prim.GetChildren():
-                if part.GetName() == "logo_link":
-                    UsdGeom.Imageable(part).MakeInvisible()
-                else:
-                    material = "/World/G1Looks/" + ("dark" if part.GetName() in dark_parts else "light")
-                    bind_visual_material(part.GetPath(), material)
-    # Kit's viewport camera opinions in the session layer override the scene layer.
-    with Usd.EditContext(stage, stage.GetSessionLayer()):
-        camera_path = "/OmniverseKit_Persp"
-        camera = UsdGeom.Camera.Define(stage, camera_path)
-        transform = UsdGeom.Xformable(camera.GetPrim())
-        transform.ClearXformOpOrder()
-        transform.SetResetXformStack(True)
-        view = Gf.Matrix4d(1.0).SetLookAt(
-            Gf.Vec3d(*env.cfg.camera_eye), Gf.Vec3d(*env.cfg.camera_target), Gf.Vec3d(0.0, 0.0, 1.0)
-        )
-        transform.AddTransformOp(UsdGeom.XformOp.PrecisionDouble).Set(view.GetInverse())
-        aperture = 20.955 * visualizer.cfg.window.size[1] / visualizer.cfg.window.size[0]
-        camera.CreateHorizontalApertureAttr(20.955)
-        camera.CreateVerticalApertureAttr(aperture)
-        camera.CreateFocalLengthAttr(aperture / (2 * math.tan(math.radians(env.cfg.camera_vfov) / 2)))
-    for _ in range(60):
-        env.sim.render()
-        visualizer.render_rgb_array()
-    env.sim.forward()
-    env.scene.update(0.0)
-    if env.cfg.scene.depth_camera is not None:
-        env.scene["depth_camera"].update(0.0, force_recompute=True)
-        separate_ramp_base(stage)
-    for _ in range(30):
-        env.sim.render()
-        visualizer.render_rgb_array()
 
 
 def main() -> None:
@@ -135,7 +66,7 @@ def main() -> None:
             env.reset()
             robot = env.scene["robot"]
             visualizer = env.sim.visualizers[0]
-            _prepare_view(env, visualizer)
+            env.prepare_view(visualizer)
             from isaaclab_tasks.contrib.g1_terrain.agents.depth_policy import DepthStudentPolicy  # noqa: PLC0415
 
             policy = DepthStudentPolicy(cfg.policy)

@@ -8,6 +8,7 @@
 from pathlib import Path
 
 import numpy as np
+import torch
 from scipy.spatial.transform import Rotation
 
 from ..sonic_parameters import ACTION_SCALE, DEFAULT_POS, JOINT_NAMES, POLICY_ORDER
@@ -48,7 +49,10 @@ class SonicPolicy:
         options.intra_op_num_threads = 1
         options.inter_op_num_threads = 1
         model_dir = Path(model_dir)
-        providers = [("CUDAExecutionProvider", {"use_tf32": 0}), "CPUExecutionProvider"]
+        providers = [
+            ("CUDAExecutionProvider", {"device_id": torch.cuda.current_device(), "use_tf32": 0}),
+            "CPUExecutionProvider",
+        ]
         self.encoder = ort.InferenceSession(str(model_dir / "model_encoder.onnx"), options, providers=providers)
         self.decoder = ort.InferenceSession(str(model_dir / "model_decoder.onnx"), options, providers=providers)
         self.planner = ort.InferenceSession(str(model_dir / "planner_sonic.onnx"), options, providers=providers)

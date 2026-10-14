@@ -11,6 +11,7 @@ import re
 from typing import TYPE_CHECKING
 
 import numpy as np
+import torch
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
@@ -36,7 +37,7 @@ class ParticleTerrainImporter(TerrainImporter):
 
         super().import_usd(name, usd_path)
         sim = SimulationContext.instance()
-        sim.set_setting("/physics/cudaDevice", 0)
+        sim.set_setting("/physics/cudaDevice", torch.cuda.current_device())
         sim.set_setting("/physics/suppressReadback", False)
         scene = PhysxSchema.PhysxSceneAPI(sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path))
         scene.CreateEnableGPUDynamicsAttr(True)
@@ -59,6 +60,7 @@ def configure_granular(cfg, is_physx: bool):
         actuator.stiffness = stiffness
         actuator.damping = damping
     if is_physx:
+        # Host buffers enable USD readback; the launcher has already selected the CUDA device.
         cfg.sim.device = "cpu"
         cfg.scene.terrain.class_type = ParticleTerrainImporter
         return

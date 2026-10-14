@@ -169,5 +169,9 @@ visuals. Both save ``video.mp4`` in the selected output directory. Recording adv
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
 
+Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC
+inference. PhysX keeps state buffers on the CPU for USD readback while particle
+simulation uses the selected GPU.
+
 ``uv run`` preserves the manually installed packages. If you run ``uv sync`` again,
 repeat the ``uv pip install`` command before launching SONIC.
