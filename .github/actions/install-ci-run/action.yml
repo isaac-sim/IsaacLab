@@ -29,6 +29,14 @@ runs:
         # `auto` (the default) enables the cache only on GitHub-hosted runners;
         # this action also runs on the self-hosted arm64 runner, so force it on.
         enable-cache: true
+    - name: Host memory snapshot (before tests)
+      shell: bash
+      run: |
+        # GB10 runners share one memory pool between host and GPU; record who holds it.
+        free -m || true
+        nvidia-smi || true
+        ps -eo pid,user,rss,etime,comm --sort=-rss | head -15 || true
+        docker ps --format '{{.Names}}\t{{.Image}}\t{{.RunningFor}}' || true
     - name: Run Tests
       shell: bash
       env:
@@ -41,6 +49,15 @@ runs:
               -- --tb=short -sv)
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         uv run --no-project --python 3.12 python tools/run_install_ci.py "${args[@]}"
+    - name: Host memory snapshot (on failure)
+      if: failure()
+      shell: bash
+      run: |
+        # GB10 runners share one memory pool between host and GPU; record who holds it.
+        free -m || true
+        nvidia-smi || true
+        ps -eo pid,user,rss,etime,comm --sort=-rss | head -15 || true
+        docker ps --format '{{.Names}}\t{{.Image}}\t{{.RunningFor}}' || true
     - name: Upload JUnit XML report
       if: always()
       id: upload-junit-report
