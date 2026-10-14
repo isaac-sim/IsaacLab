@@ -62,12 +62,12 @@ class CoffeeRTXViewer(NewtonViewerRTX):
     def _update_ovrtx_mesh_points(self):
         super()._update_ovrtx_mesh_points()
         if self.rendering is not None and self.rendering._surface is not None:
-            _, _, _, colors, fraction = self.rendering._water_surface_arrays()
+            _, _, _, colors, _ = self.rendering._water_surface_arrays()
             if colors is not None:
-                self._update_water_appearance(0.42 + 0.40 * fraction, colors)
+                self._update_water_appearance(colors)
 
-    def _update_water_appearance(self, opacity: float, colors: np.ndarray) -> None:
-        """Bind interpolated vertex colours and update the live RTX primvar and opacity."""
+    def _update_water_appearance(self, colors: np.ndarray) -> None:
+        """Bind refracting liquid and publish tracer colours for optical absorption."""
         from pxr import Sdf, UsdGeom, UsdShade, Vt
 
         name = self._qualify("/coffee_water_surface")
@@ -75,13 +75,7 @@ class CoffeeRTXViewer(NewtonViewerRTX):
             # Native mesh maps point at runtime siblings, not the authoring stage.
             mesh_path = self._get_path(name)
             mesh = self.stage.GetPrimAtPath(mesh_path)
-            material, _ = _vertex_color_material(
-                self.stage,
-                f"{mesh_path}/CoffeeMaterial",
-                WATER_COLOR,
-                roughness=0.08,
-                opacity=self._preview_surface_opacity_value(opacity),
-            )
+            material, _ = _water_material(self.stage, f"{mesh_path}/CoffeeMaterial")
             UsdShade.MaterialBindingAPI.Apply(mesh).Bind(material)
             primvar = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
                 "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.vertex
@@ -91,14 +85,9 @@ class CoffeeRTXViewer(NewtonViewerRTX):
             # The owned material retains its relative path in the exported mesh.
             runtime_path = self._replace_runtime_prim(mesh_path)
             self._mesh_prim_paths[name] = runtime_path
-            self._water_shader_path = f"{runtime_path}/CoffeeMaterial/Shader"
+            self._water_shader_path = f"{runtime_path}/CoffeeMaterial/Liquid"
             self._apply_ovstage_population_changes()
         self._write_runtime_array_attribute(self._mesh_prim_paths[name], "primvars:displayColor", colors)
-        self._write_runtime_attribute(
-            [self._water_shader_path],
-            "inputs:opacity",
-            np.asarray([self._preview_surface_opacity_value(opacity)], dtype=np.float32),
-        )
 
 
 class CoffeeRTXVisualizer(NewtonRTXVisualizer):
@@ -565,6 +554,29 @@ def _vertex_color_material(stage, path, color, *, roughness: float, opacity: flo
     reader.CreateOutput("result", Sdf.ValueTypeNames.Float3)
     shader.GetInput("diffuseColor").ConnectToSource(reader.ConnectableAPI(), "result")
     return UsdShade.Material.Get(stage, path), shader
+
+
+def _water_material(stage, path):
+    """Share the authored absorption shader and PreviewSurface fallback across RTX renderers."""
+    from pxr import Usd, UsdShade
+
+    from isaaclab.utils.assets import retrieve_file_path
+
+    from .assets import COFFEE_ASSET_DIR
+
+    material, preview_shader = _vertex_color_material(stage, path, WATER_COLOR, roughness=0.08)
+    mdl = sim_utils.MdlFileCfg(mdl_path=retrieve_file_path(f"{COFFEE_ASSET_DIR}/CoffeeWater.mdl"))
+    with sim_utils.use_stage(stage):
+        shader = mdl.func(f"{path}/MDL", mdl)
+    mdl_path = f"{path}/Liquid"
+    editor = Usd.NamespaceEditor(stage)
+    if not editor.MovePrimAtPath(shader.GetPath(), mdl_path) or not editor.ApplyEdits():
+        raise RuntimeError("Cannot move the native liquid shader into its bound material.")
+    stage.RemovePrim(f"{path}/MDL")
+    output = UsdShade.Shader.Get(stage, mdl_path).ConnectableAPI()
+    for terminal in (material.CreateSurfaceOutput, material.CreateVolumeOutput, material.CreateDisplacementOutput):
+        terminal("mdl").ConnectToSource(output, "out")
+    return material, preview_shader
 
 
 @wp.kernel

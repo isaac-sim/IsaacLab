@@ -16,11 +16,7 @@ from isaaclab_visualizers.kit import KitVisualizer
 
 from pxr import Usd, UsdGeom, UsdShade, Vt
 
-import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import retrieve_file_path
-
-from .assets import COFFEE_ASSET_DIR
-from .rendering import COFFEE_COLOR, WATER_COLOR, _CoffeePresentationCfg, _vertex_color_material
+from .rendering import COFFEE_COLOR, _CoffeePresentationCfg, _vertex_color_material, _water_material
 
 if TYPE_CHECKING:
     from .demo_env_cfg import CoffeeKitVisualizerCfg
@@ -55,22 +51,7 @@ class CoffeeKitVisualizer(KitVisualizer):
         coffee_material, _ = _vertex_color_material(
             self._stage, f"{self._root_path}/Looks/Coffee", COFFEE_COLOR, roughness=0.85
         )
-        water_material, self._water_shader = _vertex_color_material(
-            self._stage, f"{self._root_path}/Looks/Water", WATER_COLOR, roughness=0.08
-        )
-        # The MDL surface uses the local tracer colour as optical absorption.
-        # Opacity remains available on the PreviewSurface fallback.
-        mdl = sim_utils.MdlFileCfg(mdl_path=retrieve_file_path(f"{COFFEE_ASSET_DIR}/CoffeeWater.mdl"))
-        mdl_path = f"{water_material.GetPath()}/Liquid"
-        with sim_utils.use_stage(self._stage):
-            shader = mdl.func(f"{self._root_path}/Looks/WaterMDL", mdl)
-        editor = Usd.NamespaceEditor(self._stage)
-        if not editor.MovePrimAtPath(shader.GetPath(), mdl_path) or not editor.ApplyEdits():
-            raise RuntimeError("Cannot move the native liquid shader into its bound material.")
-        self._stage.RemovePrim(f"{self._root_path}/Looks/WaterMDL")
-        water_material.CreateSurfaceOutput("mdl").ConnectToSource(
-            UsdShade.Shader.Get(self._stage, mdl_path).ConnectableAPI(), "out"
-        )
+        water_material, self._water_shader = _water_material(self._stage, f"{self._root_path}/Looks/Water")
         UsdShade.MaterialBindingAPI.Apply(self._coffee.GetPrim()).Bind(coffee_material)
         UsdShade.MaterialBindingAPI.Apply(self._water.GetPrim()).Bind(water_material)
         self._coffee_attributes_ready = False

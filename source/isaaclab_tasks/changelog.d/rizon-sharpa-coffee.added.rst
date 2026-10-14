@@ -13,3 +13,5 @@
 * Shared the full render-only kitchen and lighting between Kit and Newton RTX,
   retaining Newton GL's tabletop scene. Reused native bounded liquid-surface
   buffers and spatial smoothing alongside captured physics.
+* Shared the authored refracting water material between Kit and Newton RTX,
+  using local coffee colour for optical absorption.

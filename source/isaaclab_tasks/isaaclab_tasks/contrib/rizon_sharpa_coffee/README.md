@@ -44,7 +44,9 @@ only specializes solver construction. Native RTX material paths and updates
 belong to the coffee viewer; its adapter still depends on the pinned Newton
 runtime API.
 Kit and RTX reuse one render-only backdrop through the simulation's existing
-resource registry. It remains alive until the viewers close.
+resource registry. It remains alive until the viewers close. Both use the
+authored refracting water material, with local coffee colour driving optical
+absorption. GL uses its native textured surface.
 
 ## Assets and runtime
 
@@ -79,7 +81,7 @@ That folder must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
 The source revision is `d0dbd1ddaefc4996db546949a7dfb37e39afcbeb`; its manifest
 records the source fingerprint and file checksums. The robot retains its original
 licensing and access restrictions and is not part of the BSD-licensed coffee
-props. Internal hosting does not imply public redistribution approval.
+props. Hosting does not change the source asset's licensing terms.
 
 The optional kitchen is prepared from NVIDIA's public
 `Isaac/Environments/replicator_kitchen/kitchen_l_island.usda`. Its placement,
