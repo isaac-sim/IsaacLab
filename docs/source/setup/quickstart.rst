@@ -237,7 +237,7 @@ Many tasks default to Isaac Sim PhysX, which needs Isaac Sim, while others, such
 already default to Newton. Pick the setup path that matches your install and set its ``physics=``
 selector whenever a task's default backend doesn't match it. Add ``renderer=`` only for tasks
 with cameras or renderer presets, such as ``Isaac-Cartpole-Camera``; other tasks reject it. Run
-``uv run isaaclab list_envs --show_presets`` to see which presets a task declares:
+``uv run isaaclab list_envs --show_presets`` to see which combinations a task can launch:
 
 .. list-table::
    :widths: 24 38 38
