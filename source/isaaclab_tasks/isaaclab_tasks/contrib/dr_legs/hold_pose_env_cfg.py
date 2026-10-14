@@ -79,7 +79,7 @@ class DrLegsPhysicsCfg(PresetCfg):
     physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
 
 
-def _dr_legs_robot_cfg() -> ArticulationCfg:
+def dr_legs_robot_cfg() -> ArticulationCfg:
     """Return the task-local DR Legs articulation configuration."""
     cfg = replace(DR_LEGS_IMPLICIT_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     # Work around Newton issue #4173: finite implicit-PD effort rows can destabilize closed-loop P-ADMM.
@@ -104,7 +104,7 @@ class HoldPoseSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0), physics_material=_PHYSICS_MATERIAL),
     )
 
-    robot = _dr_legs_robot_cfg()
+    robot = dr_legs_robot_cfg()
 
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
@@ -123,13 +123,13 @@ class ActionsCfg:
         asset_name="robot",
         joint_names=DR_LEGS_ACTUATED_JOINTS,
         preserve_order=True,
-        scale=0.3,
+        scale=0.03,
         use_default_offset=True,
     )
 
 
 def _physx_actions_cfg() -> ActionsCfg:
-    """Return the reduced PhysX joint-target action profile."""
+    """Return the PhysX joint-target action profile."""
     cfg = ActionsCfg()
     cfg.joint_pos.scale = 0.1
     return cfg
@@ -242,17 +242,19 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "position_range": (-0.1, 0.1),
-            "velocity_range": (-0.05, 0.05),
+            "position_range": (0.0, 0.0),
+            "velocity_range": (0.0, 0.0),
         },
     )
 
 
-def _physx_event_cfg() -> EventCfg:
-    """Return the PhysX reset profile with assembled joint coordinates."""
+def _newton_event_cfg() -> EventCfg:
+    """Return the stable Newton initialization profile."""
     cfg = EventCfg()
-    cfg.reset_robot_joints.params["position_range"] = (0.0, 0.0)
-    cfg.reset_robot_joints.params["velocity_range"] = (0.0, 0.0)
+    cfg.randomize_joint_params = None
+    # Tilted initialization can destabilize the closed-loop Kamino P-ADMM solve.
+    cfg.reset_base.params["pose_range"].pop("roll")
+    cfg.reset_base.params["pose_range"].pop("pitch")
     return cfg
 
 
@@ -260,9 +262,9 @@ def _physx_event_cfg() -> EventCfg:
 class DrLegsEventCfg(PresetCfg):
     """Backend-specific DR Legs event presets."""
 
-    default: EventCfg = EventCfg()
-    newton_kamino: EventCfg = EventCfg()
-    physx: EventCfg = _physx_event_cfg()
+    default: EventCfg = _newton_event_cfg()
+    newton_kamino: EventCfg = _newton_event_cfg()
+    physx: EventCfg = EventCfg()
     isaacsim_physx: EventCfg = physx
 
 
@@ -294,6 +296,10 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     root_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.12})
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 1.0})
+    abnormal_joint_velocity = DoneTerm(
+        func=mdp.joint_vel_out_of_manual_limit,
+        params={"max_velocity": 100.0, "asset_cfg": SceneEntityCfg("robot")},
+    )
 
 
 ##
@@ -305,6 +311,7 @@ class TerminationsCfg:
 class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     """DR Legs hold-pose environment."""
 
+    class_type: type | str = "{DIR}.dr_legs_env:DrLegsRLEnv"
     scene: HoldPoseSceneCfg = HoldPoseSceneCfg(num_envs=_NUM_ENVS, env_spacing=2.0)
     observations: ObservationsCfg = ObservationsCfg()
     actions: DrLegsActionsCfg = DrLegsActionsCfg()

@@ -200,6 +200,7 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
    uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
+     --torch-backend cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -221,6 +222,7 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
    uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --index https://pypi.nvidia.com \\
+     --torch-backend cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -289,8 +291,10 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
             doc, separator, anchor = route.partition("#")
             page = Path(app.builder.get_outfilename(doc))
             if not page.is_file():
+                if is_multiversion_build:
+                    continue
                 raise ValueError(f"Documentation redirect target was not built: {doc}")
-            sections[f"#{fragment}"] = [
+            sections[f"#{fragment}" if fragment else ""] = [
                 posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
             ]
         output.parent.mkdir(parents=True, exist_ok=True)

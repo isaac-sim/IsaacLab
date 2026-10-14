@@ -33,6 +33,11 @@ To evaluate the latest compatible checkpoint in the interactive visualizer:
 
 The ``train`` and ``play`` commands work across the supported RL libraries.
 
+Try pretrained Cartpole, G1, and ANYmal-D controllers in the
+:ref:`interactive demo gallery <interactive-browser-demos>` without installing
+Isaac Lab. These compact browser scenes illustrate policy control; use native
+playback for full task evaluation.
+
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/rl_learning_progression_anymald.gif
    :width: 100%
    :align: center
@@ -65,7 +70,7 @@ features your experiment needs, not on a single throughput result.
    * - **skrl**
      - JAX workflows or explicit multi-agent training
      - PPO, AMP, IPPO, and MAPPO with PyTorch or JAX
-     - ``--extra skrl``
+     - ``--extra skrl`` for PyTorch or ``--extra skrl-jax`` for JAX
    * - **RL-Games**
      - Existing RL-Games projects or population-based workflows
      - PPO, SAC, A2C, population-based training, distributed training, and Ray
@@ -91,6 +96,7 @@ Install optional dependencies by selecting the corresponding ``uv`` extra when r
 .. code-block:: bash
 
    uv run --extra skrl isaaclab train --rl_library skrl --task Isaac-Cartpole
+   uv run --extra skrl-jax isaaclab train --rl_library skrl --task Isaac-Cartpole --ml_framework jax
    uv run --extra rl-games isaaclab train --rl_library rl_games --task Isaac-Cartpole
    uv run --extra sb3 isaaclab train --rl_library sb3 --task Isaac-Cartpole
    uv run --extra torchrl isaaclab train --rl_library torchrl --task Isaac-Cartpole
@@ -386,15 +392,20 @@ compilation and execution:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train --rl_library skrl \
+   uv run --extra skrl-jax isaaclab train --rl_library skrl \
        --task Isaac-Reach-Franka \
        --ml_framework jax
 
-Install a CUDA-enabled JAX build that matches your platform before using this
-workflow. JAX preallocates GPU memory by default, so ensure that the simulation
-and learner can share the available memory. See the `skrl installation guide
+.. note::
+
+   The ``skrl-jax`` extra installs JAX with CUDA 13 support and the skrl JAX
+   dependencies. Use it instead of the ``skrl`` extra for this workflow.
+
+JAX preallocates GPU memory by default, so ensure that the simulation and
+learner can share the available memory. See the `skrl installation guide
 <https://skrl.readthedocs.io/en/latest/intro/installation.html>`__ and the `JAX
-installation guide <https://docs.jax.dev/en/latest/installation.html>`__.
+installation guide <https://docs.jax.dev/en/latest/installation.html>`__ for
+more information.
 
 RLinf VLA post-training
 ~~~~~~~~~~~~~~~~~~~~~~~
