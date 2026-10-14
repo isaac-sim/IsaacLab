@@ -148,9 +148,9 @@ Focused examples
 
       .. image:: ../_static/examples/tablecloth_h2.jpg
          :width: 100%
-         :alt: Five side-by-side H2 Plus robots pulling red tablecloths at different speeds.
+         :alt: Three H2 Plus robots comparing cloth pulls in the optional Cloth Pull Challenge cantina.
 
-      Five H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
+      Three H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
       different speeds using GPU-captured Newton VBD and scripted Newton IK.
       This is calibrated fixed-base manipulation, not balance or an RL task;
       the settings favor contact accuracy over real-time throughput.
@@ -158,6 +158,16 @@ Focused examples
       .. code-block:: bash
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
+
+      Add a visual-only restaurant USD with ``--backdrop_usd``; local paths and
+      hosted asset URLs are supported. The cantina USD is supplied separately.
+      The backdrop keeps the original robot scale, manipulation, cloth physics,
+      and tableware, while hiding the duplicate ground graphic.
+      Use ``--speeds 4.0 2.0 1.5 0.75 0.5`` for the original five-trial comparison.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0 --backdrop_usd /path/to/tablecloth_cantina.usdc
 
       Kit videos: `five-speed overview
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__

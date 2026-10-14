@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compare contact-driven bimanual tablecloth pulls at five speeds.
+"""Compare contact-driven bimanual tablecloth pulls at three speeds.
 
 InteractiveScene owns fixed-base H2 Plus robots with SHARPA hands, cloths, and tableware.
 Newton VBD simulates the articulations, cloth, and tableware together; Newton IK and a Warp
@@ -12,6 +12,7 @@ state machine run inside the physics CUDA graph. This is scripted manipulation, 
 .. code-block:: bash
 
     uv run isaaclab example tablecloth --device cuda:0
+    uv run isaaclab example tablecloth --device cuda:0 --backdrop_usd /path/to/tablecloth_cantina.usdc
 """
 
 from __future__ import annotations
@@ -27,12 +28,12 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 logger = logging.getLogger("isaaclab.examples.tablecloth")
 
-parser = argparse.ArgumentParser(description="Five side-by-side GPU humanoid tablecloth pulls.")
+parser = argparse.ArgumentParser(description="Three side-by-side GPU humanoid tablecloth pulls.")
 parser.add_argument(
     "--speeds",
     nargs="+",
     type=float,
-    default=[4.0, 2.0, 1.5, 0.75, 0.5],
+    default=[4.0, 1.5, 0.5],
     help="Peak pull speeds, ordered left to right from fastest to slowest [m/s].",
 )
 parser.add_argument(
@@ -40,6 +41,10 @@ parser.add_argument(
     type=int,
     default=0,
     help="Frame limit; zero completes all pulls and a final hold, negative runs forever.",
+)
+parser.add_argument(
+    "--backdrop_usd",
+    help="Local path or hosted URL of a visual-only USD backdrop, such as the Cloth Pull Challenge cantina.",
 )
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -680,6 +685,13 @@ TABLECLOTH_ASSETS = {
     ),
 }
 
+if args_cli.backdrop_usd:
+    TABLECLOTH_ASSETS["backdrop"] = AssetBaseCfg(
+        prim_path="/World/Backdrop",
+        spawn=sim_utils.UsdFileCfg(usd_path=args_cli.backdrop_usd),
+    )
+    TABLECLOTH_ASSETS["ground"].spawn.visible = False
+
 
 # Scripted GPU manipulation and physical grasp monitoring.
 
@@ -1283,7 +1295,7 @@ def main() -> None:
         rigid_body_contact_buffer_size=256,
         rigid_body_particle_contact_buffer_size=8192,
     )
-    camera_distance = max(3.0, 1.6 * len(speeds))
+    camera_distance = max(5.0, 1.16 * len(speeds))
     sim_cfg = sim_utils.SimulationCfg(
         dt=step_dt / substeps,
         render_interval=substeps,
@@ -1300,7 +1312,7 @@ def main() -> None:
             solver_cfg=solver_cfg,
         ),
         default_visualizer_cfg=VisualizerCfg(
-            eye=(camera_distance, -1.5, 1.0 + 0.35 * camera_distance), lookat=(-0.3, 0.0, 1.0)
+            eye=(camera_distance, -1.4, 2.4), lookat=(-0.35, 0.0, 1.35), focal_length=20.0
         ),
     )
     with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):
