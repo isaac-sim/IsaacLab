@@ -19,7 +19,7 @@ from isaaclab_assets import P7_L6_CFG, P7_L20_CFG, P7_O6_CFG
     ],
 )
 def test_realhand_asset_configuration(cfg, asset_name, actuator_names):
-    """Each model points to its public USD and declares the expected actuator groups."""
+    """Each model pins a public USD and starts with zero-angle arms and open hands."""
     assert cfg.spawn.usd_path.startswith("https://huggingface.co/realhandinc/realhand-teleop/resolve/")
     revision = cfg.spawn.usd_path.split("/resolve/", maxsplit=1)[1].split("/", maxsplit=1)[0]
     assert len(revision) == 40
@@ -29,6 +29,10 @@ def test_realhand_asset_configuration(cfg, asset_name, actuator_names):
     assert cfg.spawn.variants == {"Physics": "physx"}
     assert cfg.init_state.pos == (0.0, 0.0, 1.25)
     assert set(cfg.actuators) == actuator_names
+    for side in ("left", "right"):
+        for joint in range(1, 8):
+            assert cfg.init_state.joint_pos[f"{side}_joint{joint}"] == 0.0
+    assert cfg.init_state.joint_pos[".*_hand_.*"] == 0.0
 
 
 def test_realhand_hand_specific_settings():
@@ -46,3 +50,15 @@ def test_realhand_configs_are_independent():
     copied.actuators["arms"].stiffness = 1.0
     assert P7_L6_CFG.actuators["arms"].stiffness == 1100.0
     assert P7_O6_CFG.actuators["arms"].stiffness == 1100.0
+
+
+def test_realhand_mimic_configs_are_independent():
+    """An in-place edit of one preset's mimic patterns cannot alter the other."""
+    o6_patterns = P7_O6_CFG.actuators["hand_mimics"].joint_names_expr
+    l20_patterns = P7_L20_CFG.actuators["hand_mimics"].joint_names_expr
+    original = list(l20_patterns)
+    try:
+        o6_patterns.append("test_only_mimic_joint")
+        assert l20_patterns == original
+    finally:
+        o6_patterns.pop()

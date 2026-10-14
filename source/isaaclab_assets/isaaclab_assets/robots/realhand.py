@@ -11,6 +11,10 @@ The following configurations are available:
 * :obj:`P7_O6_CFG`: P7 dual-arm robot with two RealHand O6 dexterous hands.
 * :obj:`P7_L20_CFG`: P7 dual-arm robot with two RealHand L20 dexterous hands.
 
+All configurations start with straight arms lowered beside the body, open
+hands, and hand backs facing outward (palms inward). All arm joint defaults
+are zero; the fixed hand mounts set the outward orientation.
+
 The versioned robot assets and their license information are hosted at:
 https://huggingface.co/realhandinc/realhand-teleop/tree/main/assets/isaaclab
 """
@@ -21,26 +25,26 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 
-_REALHAND_ASSET_REVISION = "4979eb3fbecc7cbb06728a58edfe0c9c6a0a7400"
+_REALHAND_ASSET_REVISION = "bc8c711f1346be6f4c7b519f59aba2ec9d058b45"
 _REALHAND_ASSET_ROOT = (
     f"https://huggingface.co/realhandinc/realhand-teleop/resolve/{_REALHAND_ASSET_REVISION}/assets/isaaclab/robots"
 )
 
 _P7_HOME_JOINT_POS = {
-    "left_joint1": 0.4014901088150363,
-    "left_joint2": 0.5517304757432392,
-    "left_joint3": 0.24490410906952312,
-    "left_joint4": -0.888493123948427,
-    "left_joint5": -0.4891875163310463,
-    "left_joint6": 0.4559396579034241,
-    "left_joint7": -0.19427215553367727,
-    "right_joint1": 0.4015177394625187,
-    "right_joint2": -0.5521344368361245,
-    "right_joint3": 0.24572695517009388,
-    "right_joint4": 0.8886354864268062,
-    "right_joint5": -0.4901601026743809,
-    "right_joint6": -0.4556307512290781,
-    "right_joint7": 0.19395175851152108,
+    "left_joint1": 0.0,
+    "left_joint2": 0.0,
+    "left_joint3": 0.0,
+    "left_joint4": 0.0,
+    "left_joint5": 0.0,
+    "left_joint6": 0.0,
+    "left_joint7": 0.0,
+    "right_joint1": 0.0,
+    "right_joint2": 0.0,
+    "right_joint3": 0.0,
+    "right_joint4": 0.0,
+    "right_joint5": 0.0,
+    "right_joint6": 0.0,
+    "right_joint7": 0.0,
 }
 
 _MIMIC_JOINT_EXPR = [
@@ -80,7 +84,7 @@ def _make_p7_cfg(
     }
     if mimic_joint_expr:
         actuators["hand_mimics"] = ImplicitActuatorCfg(
-            joint_names_expr=mimic_joint_expr,
+            joint_names_expr=list(mimic_joint_expr),
             joint_effort_limit=0.0,
             stiffness=0.0,
             damping=0.0,
