@@ -837,7 +837,7 @@ When a streaming view samples tiles with ``streaming_envs``, it draws them from 
 
 .. note::
 
-   Selected envs keep their simulated positions. The visualizer does not move them closer together and the
+   By default, selected envs keep their simulated positions. The visualizer does not move them closer together and the
    camera does not follow them. A random sample, or the first envs of a large grid, can therefore lie far from
    the camera target, and a small ``max_visible_envs`` can look like an empty scene. Choose indices near the
    camera target, whose positions ``env.scene.env_origins`` gives, or move ``eye`` and ``lookat``.
