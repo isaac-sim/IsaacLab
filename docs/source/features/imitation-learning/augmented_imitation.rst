@@ -250,6 +250,11 @@ The ``mp4_to_hdf5.py`` script converts the visually augmented MP4 videos back to
 .. note::
     The input HDF5 file is used to preserve the non-visual data (such as robot states and actions) while replacing the visual data with the augmented versions.
 
+.. note::
+    If an augmented video has a different number of frames than the original demonstration, the new demonstration is
+    truncated to the shorter of the two so that all observations and actions stay aligned. A warning is emitted in
+    that case.
+
 .. important::
     The visually augmented MP4 files must follow the naming convention ``demo_{demo_id}_*.mp4``, where:
 
