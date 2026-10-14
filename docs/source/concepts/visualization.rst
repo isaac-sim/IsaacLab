@@ -798,6 +798,71 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 
+.. _visualization-partial-visualization:
+
+Partial Visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualizers can be configured to visualize just a subset of environments.
+This is called partial visualization. With thousands of environments, it keeps the viewer responsive and the
+scene readable. Every environment is still simulated and stepped; only the display is filtered.
+
+There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
+- ``max_visible_envs`` caps how many envs are shown. It also caps an explicit ``visible_env_indices`` list.
+- ``visible_env_indices`` explicitly selects the envs to visualize, in the order given. Out-of-range and
+  duplicate indices are dropped. It takes precedence over ``randomly_sample_visible_envs``.
+- ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs``
+  is set, enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
+
+Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
+
+The envs are chosen once, when the visualizer starts. Each visualizer applies the selection in its own way:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 76
+
+   * - Visualizer
+     - Effect of the selection
+   * - Newton GL, Rerun, Viser
+     - Only the selected envs are drawn, including their visualization markers.
+   * - Kit
+     - The prims of the unselected envs are hidden.
+   * - Newton RTX
+     - The selection limits the sensor display tiles and the visualization markers. The perspective view
+       shows the full scene.
+
+When a streaming view samples tiles with ``streaming_envs``, it draws them from the selected envs.
+
+.. note::
+
+   Selected envs keep their simulated positions. The visualizer does not move them closer together and the
+   camera does not follow them. A random sample, or the first envs of a large grid, can therefore lie far from
+   the camera target, and a small ``max_visible_envs`` can look like an empty scene. Choose indices near the
+   camera target, whose positions ``env.scene.env_origins`` gives, or move ``eye`` and ``lookat``.
+
+**Limiting the display from the command line**
+
+.. code-block:: bash
+
+    uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl --max_visible_envs 4
+
+**Choosing which envs to show in code**
+
+.. code-block:: python
+
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+    # four random envs, sampled on each launch (the default selection)
+    sim_cfg.visualizer_cfgs = [NewtonGLVisualizerCfg(max_visible_envs=4)]
+
+    # the first four envs
+    sim_cfg.visualizer_cfgs = [NewtonGLVisualizerCfg(max_visible_envs=4, randomly_sample_visible_envs=False)]
+
+    # specific envs, in this order
+    sim_cfg.visualizer_cfgs = [NewtonGLVisualizerCfg(visible_env_indices=[24, 31, 30, 23])]
+
 Scene Background
 ~~~~~~~~~~~~~~~~
 
@@ -833,7 +898,7 @@ Performance
      - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
-       environments.
+       environments (see :ref:`visualization-partial-visualization`).
    * - Newton RTX
      - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
        Environment selection limits sensor display tiles; the perspective view shows the full scene.
@@ -841,7 +906,7 @@ Performance
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
      - Highest overhead of the five visualizers; reduce ``window.size``
-       or use ``--max_visible_envs``.
+       or use ``--max_visible_envs`` (see :ref:`visualization-partial-visualization`).
 
 
 Limitations
