@@ -22,6 +22,8 @@ rendering-correctness-kitless-legacy = [
   "source/isaaclab_tasks/test/core/test_rendering_franka_cable_kitless.py::test_rendering_franka_cable_kitless[legacy-newton-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx-async]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx-async]",
+  "source/isaaclab_tasks/test/core/test_rendering_kuka_visual_material_randomization_kitless.py::test_rendering_kuka_visual_material_randomization_kitless[legacy-newton-newton_warp]",
+  "source/isaaclab_tasks/test/core/test_rendering_kuka_visual_material_randomization_kitless.py::test_rendering_kuka_visual_material_randomization_kitless[legacy-newton-ovrtx]",
 ]
 
 rendering-correctness-kitless-ovstage = [
@@ -30,16 +32,20 @@ rendering-correctness-kitless-ovstage = [
   "source/isaaclab_tasks/test/core/test_rendering_franka_cloth_kitless.py::test_rendering_franka_cloth_kitless[ovstage-newton-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_franka_soft_kitless.py::test_rendering_franka_soft_kitless[ovstage-newton-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_franka_cable_kitless.py::test_rendering_franka_cable_kitless[ovstage-newton-ovrtx_renderer-static]",
+  "source/isaaclab_tasks/test/core/test_rendering_kuka_visual_material_randomization_kitless.py::test_rendering_kuka_visual_material_randomization_kitless[ovstage-newton-ovrtx]",
 ]
 
-# Nodes the shader-cache warmer runs: the RTX-renderer subset of the lists above,
+# Nodes the shader-cache warmers run: the RTX-renderer subset of the lists above,
 # which are the only ones that compile PSO blobs. isaacsim_rtx fills kit/ and ovrtx
 # fills kitless/; the newton_renderer nodes drive the Warp rasterizer and populate
 # neither tree. Exact node IDs rather than a -k expression so a parametrize-ID
 # rename fails collection instead of silently selecting nothing.
-ovrtx-cache-warm = [
+ovrtx-cache-warm-kit = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx_renderer-static]",
+]
+
+ovrtx-cache-warm-kitless = [
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-newton-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[legacy-ovphysx-ovrtx_renderer-static]",
   "source/isaaclab_tasks/test/core/test_rendering_franka_cloth_kitless.py::test_rendering_franka_cloth_kitless[legacy-newton-ovrtx_renderer-static]",

@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 import warp as wp
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.sensors.ray_caster import ray_caster as ray_caster_module
+
+pytestmark = pytest.mark.kitless
 
 
 class _FakeBinding:

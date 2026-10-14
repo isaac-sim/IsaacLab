@@ -10,6 +10,8 @@ import pytest
 import warp as wp
 from isaaclab_newton.cloner.newton_clone_utils import _quat_rotate
 
+pytestmark = pytest.mark.kitless
+
 _TOL = 1e-5
 
 # Hand-picked quaternions (xyzw) that cover identity and the 180-degree cases where a sign

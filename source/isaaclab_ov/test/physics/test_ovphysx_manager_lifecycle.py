@@ -18,6 +18,8 @@ import pytest
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
+pytestmark = pytest.mark.kitless
+
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 _CPU_DEVICES = test_devices(DeviceScope.CPU)
