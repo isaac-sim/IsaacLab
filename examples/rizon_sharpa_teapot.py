@@ -59,7 +59,8 @@ CONTAINER_BASE_POS = (-0.340, 0.0, 1.020)
 BOWL_SCALE = 1.5
 BOWL_BASE_POS = (-0.144, 0.0, 0.9004073255)
 ROBOT_BASE_POS = (-0.930, 0.0, 1.15041)
-PICKUP_TIME = 5.6
+PICKUP_TIME = 2.5
+GRASP_CLOSE_INTERVAL = (1.0, 1.7)
 INITIAL_LIFT_TIME = 5.0
 POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
 HOLD_TIME = 0.55
@@ -100,7 +101,7 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
     lift, lift_derivative = _blend((time - TILT_TIME) / LIFT_TIME)
     recovery_raw = (time - TILT_TIME - LIFT_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
-    # Increase tilt gradually so the fuller open pot drains through the spout before its rim lowers.
+    # Drain through the spout while gradually increasing tilt as the pot rises.
     angle = _POUR_ANGLE * tilt + (_UPPER_ANGLE - _POUR_ANGLE) * lift - _UPPER_ANGLE * recovery
     angular_speed = (
         _POUR_ANGLE * tilt_derivative / TILT_TIME
@@ -143,18 +144,9 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
 
 
 def approach_offset_at_time(sim_time: float) -> tuple[float, ...]:
-    """Descend beside the pot, align with the handle and insert the index finger [m]."""
-    if sim_time < 1.8:
-        first, second = (-0.09, -0.16, 0.20), (0.0, -0.10, 0.065)
-        raw = (sim_time - 0.3) / 1.5
-    elif sim_time < 2.6:
-        first, second = (0.0, -0.10, 0.065), (0.0, -0.08, 0.0)
-        raw = (sim_time - 1.8) / 0.8
-    else:
-        first, second = (0.0, -0.08, 0.0), (0.0, 0.0, 0.0)
-        raw = (sim_time - 2.6) / 0.8
-    progress, _ = _blend(raw)
-    return tuple(a + progress * (b - a) for a, b in zip(first, second, strict=True))
+    """Insert the index finger from beside the handle after a brief settling interval [m]."""
+    progress, _ = _blend((sim_time - 0.2) / (GRASP_CLOSE_INTERVAL[0] - 0.2))
+    return (0.0, -0.08 * (1.0 - progress), 0.0)
 
 
 def main() -> None:
@@ -164,7 +156,7 @@ def main() -> None:
         "--robot",
         "rizon_sharpa",
         "--fill_level",
-        "0.70",
+        "0.40",
         "--fluid_render_mode",
         "particles",
         "--max_steps",
