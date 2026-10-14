@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Pack MicroDuck's authored warehouse with instanced visual meshes and static collision proxies."""
+"""Pack MicroDuck's warehouse visuals and prepare its authored collisions for MJWarp."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from PIL import Image
 from scipy.spatial import cKDTree
 
 import omni.client
-from pxr import Sdf, Usd, UsdGeom, UsdShade, UsdUtils
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
 
 SOURCE = (
     "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Environments/MicroDuckWarehouse/microduck_warehouse_static.usdc"
@@ -31,6 +31,172 @@ SOURCE = (
 SOURCE_SHA256 = "4ac3e17232179a72086a3ff7c5af4d4546694f15a4931a0d21478a4a523da419"
 ROOT = "/World/envs/env_0/Factory"
 BOUNDS = (-5.85, 5.85, -8.85, 3.65)
+MAX_FREE_PROPS = 12
+
+
+def prepare_warehouse_physics(stage_path: Path, output: Path) -> dict:
+    """Keep fixtures fixed and make nearby floor props free bodies with nominal density.
+
+    The source is static and has no authored masses. Props use uniform 250 kg/m³
+    density and convex collision geometry; these are illustrative physical settings.
+    MJWarp contacts use convex meshes. Disconnected rack and pallet components are
+    kept separate so a whole shelf row does not become one solid collision box.
+    """
+    stage = Usd.Stage.Open(str(stage_path))
+    output.mkdir(parents=True, exist_ok=True)
+    fixtures = Usd.Stage.CreateNew(str(output / "fixtures.usdc"))
+    fixture_root = UsdGeom.Xform.Define(fixtures, "/Warehouse")
+    fixtures.SetDefaultPrim(fixture_root.GetPrim())
+    UsdGeom.SetStageMetersPerUnit(fixtures, 1.0)
+    UsdGeom.SetStageUpAxis(fixtures, UsdGeom.Tokens.z)
+    cache, geometries, props = UsdGeom.XformCache(), {}, []
+    shape_count = 0
+
+    def geometry(prim: Usd.Prim) -> list[trimesh.Trimesh]:
+        if prim.IsA(UsdGeom.Cube):
+            return [trimesh.creation.box(extents=[UsdGeom.Cube(prim).GetSizeAttr().Get()] * 3)]
+        if not prim.IsA(UsdGeom.Mesh):
+            raise ValueError(f"Unsupported warehouse collider: {prim.GetPath()}: {prim.GetTypeName()}")
+        mesh = UsdGeom.Mesh(prim)
+        points = np.asarray(mesh.GetPointsAttr().Get(), dtype=np.float64)
+        indices = np.asarray(mesh.GetFaceVertexIndicesAttr().Get())
+        counts = mesh.GetFaceVertexCountsAttr().Get()
+        key = hashlib.sha256(points.tobytes() + indices.tobytes() + np.asarray(counts).tobytes()).hexdigest()
+        if key not in geometries:
+            faces, start = [], 0
+            for count in counts:
+                faces.extend((indices[start], indices[start + i], indices[start + i + 1]) for i in range(1, count - 1))
+                start += count
+            original = trimesh.Trimesh(points, faces, process=True)
+            components = (
+                original.split(only_watertight=False)
+                if any(n in str(prim.GetPath()) for n in ("Rack", "Pallet"))
+                else [original]
+            )
+            hulls = []
+            for component in components:
+                if (
+                    len(component.vertices) < 4
+                    or np.linalg.matrix_rank(component.vertices - component.vertices.mean(axis=0), tol=1e-4) < 3
+                ):
+                    hull = component
+                else:
+                    hull = component.convex_hull
+                    if len(hull.faces) > 128:
+                        reduced = hull.simplify_quadric_decimation(face_count=128).convex_hull
+                        if np.all(
+                            np.abs(reduced.bounds - hull.bounds) <= np.maximum(hull.extents * 0.02, 1e-6)
+                        ) and np.isclose(reduced.volume, hull.volume, rtol=0.02):
+                            hull = reduced
+                hulls.append(hull)
+            geometries[key] = hulls
+        return geometries[key]
+
+    def add_shape(target: Usd.Stage, path: str, hull: trimesh.Trimesh) -> None:
+        # Apply thickness in world metres, after the source asset's nested scales.
+        points = hull.vertices
+        _, singular, axes = np.linalg.svd(points - points.mean(axis=0), full_matrices=False)
+        if singular[-1] < singular[0] * 1e-5:
+            coordinates = points @ axes.T
+            bounds = np.array([coordinates.min(axis=0), coordinates.max(axis=0)])
+            hull = trimesh.creation.box(extents=np.maximum(bounds[1] - bounds[0], 0.005))
+            transform = np.eye(4)
+            transform[:3, :3] = axes.T
+            transform[:3, 3] = bounds.mean(axis=0) @ axes
+            hull.apply_transform(transform)
+        mesh = UsdGeom.Mesh.Define(target, path)
+        mesh.CreatePointsAttr(hull.vertices.tolist())
+        mesh.CreateFaceVertexCountsAttr([3] * len(hull.faces))
+        mesh.CreateFaceVertexIndicesAttr(hull.faces.reshape(-1).tolist())
+        UsdPhysics.CollisionAPI.Apply(mesh.GetPrim())
+        UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr("convexHull")
+
+    # The task's existing plane remains the contact floor; decorations have no physics.
+    for prim in Usd.PrimRange(stage.GetPrimAtPath(ROOT), Usd.TraverseInstanceProxies()):
+        if (
+            not prim.HasAPI(UsdPhysics.CollisionAPI)
+            or not UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+        ):
+            continue
+        path = str(prim.GetPath())
+        if path.startswith(ROOT + "/Floor/") or path.startswith(ROOT + "/Clutter/"):
+            continue
+        matrix = np.asarray(cache.GetLocalToWorldTransform(prim))
+        for source in geometry(prim):
+            hull = source.copy()
+            hull.apply_transform(matrix.T)
+            add_shape(fixtures, f"/Warehouse/Shape_{shape_count}", hull)
+            shape_count += 1
+    # Retain the four containment walls, including the warehouse's open ends.
+    for index, collider in enumerate(warehouse_boundaries()):
+        cube = UsdGeom.Cube.Define(fixtures, f"/Warehouse/Boundary_{index}")
+        cube.CreateSizeAttr(1.0)
+        cube.AddTranslateOp().Set(Gf.Vec3d(*collider["position"]))
+        cube.AddScaleOp().Set(Gf.Vec3f(*collider["size"]))
+        UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+    items = list(stage.GetPrimAtPath(ROOT + "/Clutter").GetChildren())
+    bbox = UsdGeom.BBoxCache(0, [UsdGeom.Tokens.default_, UsdGeom.Tokens.render])
+    free = {
+        item.GetPath()
+        for item in sorted(
+            items,
+            key=lambda p: np.linalg.norm(np.asarray(bbox.ComputeWorldBound(p).ComputeAlignedRange().GetMidpoint())[:2]),
+        )[:MAX_FREE_PROPS]
+    }
+    for item in items:
+        hulls = []
+        for prim in Usd.PrimRange(item, Usd.TraverseInstanceProxies()):
+            if (
+                not prim.HasAPI(UsdPhysics.CollisionAPI)
+                or not UsdPhysics.CollisionAPI(prim).GetCollisionEnabledAttr().Get()
+            ):
+                continue
+            matrix = np.asarray(cache.GetLocalToWorldTransform(prim))
+            for source in geometry(prim):
+                hull = source.copy()
+                hull.apply_transform(matrix.T)
+                hulls.append(hull)
+        if not hulls:
+            raise ValueError(f"Floor prop has no enabled collision geometry: {item.GetPath()}")
+        if item.GetPath() not in free:
+            for hull in hulls:
+                add_shape(fixtures, f"/Warehouse/Shape_{shape_count}", hull)
+                shape_count += 1
+            continue
+        body = trimesh.util.concatenate(hulls)
+        body.density = 250.0
+        center = body.center_mass
+        if not np.isfinite(center).all() or body.mass <= 0 or np.min(np.linalg.eigvalsh(body.moment_inertia)) <= 0:
+            raise ValueError(f"Invalid floor prop inertia: {item.GetPath()}")
+        target = Usd.Stage.CreateNew(str(output / f"{item.GetName()}.usdc"))
+        root = UsdGeom.Xform.Define(target, "/Object").GetPrim()
+        target.SetDefaultPrim(root)
+        UsdGeom.SetStageMetersPerUnit(target, 1.0)
+        UsdGeom.SetStageUpAxis(target, UsdGeom.Tokens.z)
+        UsdPhysics.RigidBodyAPI.Apply(root)
+        mass = UsdPhysics.MassAPI.Apply(root)
+        mass.CreateMassAttr(float(body.mass))
+        mass.CreateCenterOfMassAttr(Gf.Vec3f(0.0))
+        values, axes = np.linalg.eigh(body.moment_inertia)
+        if np.linalg.det(axes) < 0:
+            axes[:, 0] *= -1
+        mass.CreateDiagonalInertiaAttr(Gf.Vec3f(*values))
+        mass.CreatePrincipalAxesAttr(Gf.Quatf(Gf.Matrix3d(axes.T.tolist()).ExtractRotation().GetQuat()))
+        for index, hull in enumerate(hulls):
+            hull.apply_translation(-center)
+            add_shape(target, f"/Object/Shape_{index}", hull)
+        target.GetRootLayer().Save()
+        props.append(
+            {
+                "name": item.GetName(),
+                "sourcePath": str(item.GetPath()),
+                "position": center.tolist(),
+                "mass": float(body.mass),
+            }
+        )
+    fixtures.GetRootLayer().Save()
+    print(f"Warehouse physics: {shape_count + 4} fixed colliders, {len(props)} free props", flush=True)
+    return {"fixtures": shape_count + 4, "props": props, "density": 250.0}
 
 
 def resolve_warehouse(output: Path) -> Path:
@@ -170,7 +336,7 @@ def _geometry(prim: Usd.Prim, uv_name: str) -> tuple[np.ndarray, np.ndarray, np.
     geometry = original
     if len(original.faces) > 800:
         reduced = original.simplify_quadric_decimation(face_count=800)
-        # These are decorative meshes; physics uses separate box proxies.
+        # These are decorative meshes; physics uses separate convex colliders.
         # Preserve silhouette and volume rather than tiny scanned interior holes.
         if np.all(np.abs(reduced.bounds - original.bounds) <= np.maximum(original.extents * 0.02, 1e-6)) and (
             not original.is_watertight or np.isclose(reduced.volume, original.volume, rtol=0.02, atol=0.0)
@@ -189,14 +355,14 @@ def _geometry(prim: Usd.Prim, uv_name: str) -> tuple[np.ndarray, np.ndarray, np.
     return vertices, np.arange(len(vertices), dtype="<u4"), coordinates
 
 
-def pack_warehouse(stage_path: Path, output: Path) -> tuple[dict, list[dict]]:
+def pack_warehouse(stage_path: Path, output: Path, props: list[dict] | None = None) -> dict:
     """Use the resolved Factory subset; the captured robot and RTX cameras are excluded."""
     stage = Usd.Stage.Open(str(stage_path))
     root = stage.GetPrimAtPath(ROOT)
     if not root:
         raise ValueError("Warehouse Factory root changed")
     output.mkdir(parents=True, exist_ok=True)
-    cache, prototypes, textures = UsdGeom.XformCache(), {}, {}
+    cache, prototypes, geometries, textures = UsdGeom.XformCache(), {}, {}, {}
     data, meshes = bytearray(), []
     for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
         if not prim.IsA(UsdGeom.Mesh):
@@ -221,12 +387,25 @@ def pack_warehouse(stage_path: Path, output: Path) -> tuple[dict, list[dict]]:
             + str((uv_name, material, texture, mesh.GetOrientationAttr().Get())).encode()
         ).hexdigest()
         transform = np.asarray(cache.GetLocalToWorldTransform(prim), dtype=np.float32)
-        if identity in prototypes:
-            prototypes[identity]["instances"].append(transform.reshape(-1).tolist())
+        body = -1
+        for prop in props or ():
+            if str(prim.GetPath()).startswith(prop["sourcePath"] + "/"):
+                body = prop["body"]
+                transform[3, :3] -= np.asarray(prop["position"], dtype=np.float32)
+                break
+        instance_key = (identity, body)
+        if instance_key in prototypes:
+            prototypes[instance_key]["instances"].append(transform.reshape(-1).tolist())
+            continue
+        if identity in geometries:
+            record = {**geometries[identity], "body": body, "instances": [transform.reshape(-1).tolist()]}
+            meshes.append(record)
+            prototypes[instance_key] = record
             continue
         vertices, indices, uv = _geometry(prim, uv_name)
         record = {
-            "body": -1,
+            "body": body,
+            "environment": True,
             "name": prim.GetName(),
             "instances": [transform.reshape(-1).tolist()],
             **material,
@@ -251,52 +430,31 @@ def pack_warehouse(stage_path: Path, output: Path) -> tuple[dict, list[dict]]:
                 textures[texture] = path.name
             record["texture"] = textures[texture]
         meshes.append(record)
-        prototypes[identity] = record
+        prototypes[instance_key] = record
+        geometries[identity] = record
     files = write_binary_files(gzip.compress(bytes(data), mtime=0), output, "warehouse.bin.gz")
     for stale in output.glob("warehouse.bin*"):
         if stale.name not in files:
             stale.unlink()
     description = {"file": "warehouse.bin.gz", "files": files, "byteLength": len(data), "meshes": meshes}
     (output / "warehouse.json").write_text(json.dumps(description, indent=2) + "\n")
-    colliders = warehouse_colliders(stage)
-    (output / "colliders.json").write_text(json.dumps(colliders, indent=2) + "\n")
     print(
-        f"Warehouse: {len(meshes)} prototypes, {sum(len(m['instances']) for m in meshes)} instances, "
-        f"{len(colliders)} static boxes",
+        f"Warehouse: {len(geometries)} geometries, {sum(len(m['instances']) for m in meshes)} instances",
         flush=True,
     )
-    return description, colliders
+    return description
 
 
-def warehouse_colliders(stage: Usd.Stage) -> list[dict]:
-    """Bound the walkable floor and block shelf/clutter footprints with static boxes."""
-    bbox = UsdGeom.BBoxCache(0, [UsdGeom.Tokens.default_, UsdGeom.Tokens.render], useExtentsHint=True)
+def warehouse_boundaries() -> list[dict]:
+    """Keep the robot and free props inside the walkable room, including its open ends."""
     x0, x1, y0, y1 = BOUNDS
     height, width = 1.0, 0.3
-    colliders = [
+    return [
         {"position": [x0 - width / 2, (y0 + y1) / 2, height / 2], "size": [width, y1 - y0 + 2 * width, height]},
         {"position": [x1 + width / 2, (y0 + y1) / 2, height / 2], "size": [width, y1 - y0 + 2 * width, height]},
         {"position": [(x0 + x1) / 2, y0 - width / 2, height / 2], "size": [x1 - x0, width, height]},
         {"position": [(x0 + x1) / 2, y1 + width / 2, height / 2], "size": [x1 - x0, width, height]},
     ]
-    obstacles = list(stage.GetPrimAtPath(ROOT + "/Shelves").GetChildren())
-    obstacles += list(stage.GetPrimAtPath(ROOT + "/Clutter").GetChildren())
-    obstacles.append(stage.GetPrimAtPath(ROOT + "/SpillBox"))
-    for prim in obstacles:
-        if not prim:
-            continue
-        bounds = bbox.ComputeWorldBound(prim).ComputeAlignedRange()
-        low, high = np.asarray(bounds.GetMin()), np.asarray(bounds.GetMax())
-        if high[2] < 0.08:
-            continue
-        extent = high[:2] - low[:2]
-        if np.any(extent < 0.01):
-            continue
-        if np.all(low[:2] < 0.15) and np.all(high[:2] > -0.15):
-            raise ValueError(f"Warehouse proxy intersects MicroDuck reset: {prim.GetPath()}")
-        height = min(high[2], 1.0)
-        colliders.append({"position": [*((low[:2] + high[:2]) / 2), height / 2], "size": [*extent, height]})
-    return colliders
 
 
 def main() -> None:

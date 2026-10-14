@@ -149,6 +149,8 @@ export class RobotViewer {
       visual.instances?.forEach((matrix, index) => mesh.setMatrixAt(index, new THREE.Matrix4().fromArray(matrix)));
       mesh.castShadow = (visual.opacity ?? 1) > 0.95 && !/_(zero|one|two|three|four|five|six)_link$/.test(visual.name);
       mesh.receiveShadow = true;
+      // Free warehouse props share the solver's pose array, but are not robot drag targets.
+      if (visual.environment && visual.body >= 0) this.environment.add(this.bodies[visual.body]);
       (visual.body < 0 ? this.environment : this.bodies[visual.body]).add(mesh);
       this.geometries.push(geometry);
     }

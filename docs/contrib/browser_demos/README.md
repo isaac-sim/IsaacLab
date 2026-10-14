@@ -417,26 +417,31 @@ compares the policy observations with native Isaac Lab, and verifies native and
 captured standing/walking and the solver's elapsed time before compiling.
 
 
-For a local preview with this checkout's viewer, download and verify the release
-archive using its `.sha256` file, extract it outside the checkout, and copy
-`v2/browser_demos/microduck/` to `static/browser_demos/microduck/`. Then serve
-`static/` over HTTP and open `browser_demos/preview.html?demo=microduck`.
-Keep that downloaded directory untracked. To view the complete released gallery,
-serve the archive's root and open `v2/`; retain its `v1/` directory because v2
-reuses the original demos and shared rendering dependencies.
+For a local preview, download and verify the release archive using its `.sha256`
+file, extract it outside the checkout, and serve its complete root over HTTP.
+Open `v5/`; retain earlier version directories because current bundles reuse their assets.
 
-### Bounded warehouse (version 4)
+### Warehouse interactions (version 5)
 
-The v4 viewer uses the authored `MicroDuckWarehouse/microduck_warehouse_static.usdc`
+The v5 viewer uses the authored `MicroDuckWarehouse/microduck_warehouse_static.usdc`
 from the linked Isaac Lab asset server, pinned to SHA-256
 `4ac3e17232179a72086a3ff7c5af4d4546694f15a4931a0d21478a4a523da419`.
 The native velocity task trains on flat/rough terrain; this warehouse is a browser scene adaptation.
 
 `warehouse.py` resolves the scene's references, excludes its recorded robot and RTX cameras,
 and packs the Factory subset with instancing, base-color textures, and decorative mesh reduction.
-Textures are capped at 512 pixels. The native capture adds 25 static boxes for the perimeter,
-shelf rows, and clutter footprints. These proxies are intentionally simpler than the full scene's
-collision meshes. The collected stage's metadata is inherited from a centimeter/Y-up stage;
+Textures are capped at 512 pixels. The native capture uses 1,868 fixed colliders, including
+four containment walls, and the 12 floor props nearest the reset as free rigid bodies. MJWarp contacts
+use convex geometry derived from the enabled source collision meshes, with separate
+disconnected rack/pallet components and 5 mm thickness for planar panels. Shelf loads and
+fixtures and the other 30 floor props remain fixed. The source scene is static and contains no masses or joints: free
+props use nominal uniform density of 250 kg/m³ with calculated mass, center of mass and
+principal inertia. These values are illustrative, not validated material measurements.
+The free-body budget keeps the browser CPU simulation responsive. All 42 floor props
+have collision geometry. The native Newton constraint solver, 100-iteration budget,
+convergence tolerance, BAM drives, and four 5 ms physics steps are retained. MJWarp's
+sleeping path currently needs a captured conditional operation unsupported by the pinned exporter.
+The collected stage's metadata is inherited from a centimeter/Y-up stage;
 its Factory world coordinates are the metre/Z-up layout used here.
 
 ```bash
@@ -450,9 +455,12 @@ uv run --no-sync python /path/to/docs/contrib/browser_demos/microduck.py \
 The output includes the warehouse geometry/textures; retain the source asset's attribution and
 license notices when publishing. Server access is required only to rebuild. The deployed bundle
 has no runtime dependency on Nucleus. The release reuses v2 actor/CAD files after checking their
-body mapping, topology, geometry (within 0.1 micrometre), and actor bytes.
+body mapping, topology, geometry (within 0.1 micrometre), and actor bytes. Version 5 also
+reuses the identical v4 warehouse geometry and textures; only pose mappings and physics change.
+The viewer reads prop poses from the same captured Newton state as the robot. Reset restores
+the complete physics snapshot, including prop poses and velocities.
 
 Turning from rest adds a visible 0.25 m/s forward command; lower commands do not reliably engage
 this published checkpoint's gait. Pulling back clears a latched stick; Escape, reset, and window
 focus loss clear both. To preview the complete current scene, serve the release archive's root
-and open `v4/`. Retain its earlier version directories.
+and open `v5/`. Retain its earlier version directories.

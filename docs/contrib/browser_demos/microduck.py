@@ -25,13 +25,11 @@ from bundle import write_binary_files
 from isaaclab_newton.physics import NewtonManager
 from manipulation import _joint_coordinates, _pack_visuals
 from newton_web import export_graph
-from warehouse import BOUNDS, SOURCE, SOURCE_SHA256, pack_warehouse, warehouse_colliders
-
-from pxr import Usd
+from warehouse import BOUNDS, SOURCE, SOURCE_SHA256, pack_warehouse, prepare_warehouse_physics
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import launch_simulation
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim import get_current_stage
 from isaaclab.utils.assets import retrieve_file_path
@@ -140,18 +138,20 @@ def export(output: Path, checkpoint: Path, warehouse: Path | None = None) -> Non
     cfg.play_mode()
     # Use the published whole-body collider variant so pushes and falls have real body contacts.
     cfg.scene.robot = MICRODUCK_ALLCOLLISIONS_CFG.replace(prim_path=cfg.scene.robot.prim_path)
-    colliders = warehouse_colliders(Usd.Stage.Open(str(warehouse))) if warehouse else []
-    for index, collider in enumerate(colliders):
+    scenery = prepare_warehouse_physics(warehouse, output.parent / "physics") if warehouse else None
+    if scenery:
+        cfg.scene.warehouse = AssetBaseCfg(
+            prim_path="/World/Warehouse",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(output.parent / "physics" / "fixtures.usdc")),
+        )
+    for prop in scenery["props"] if scenery else []:
         setattr(
             cfg.scene,
-            f"warehouse_box_{index}",
-            AssetBaseCfg(
-                prim_path=f"/World/Warehouse/Box_{index}",
-                spawn=sim_utils.CuboidCfg(
-                    size=tuple(collider["size"]),
-                    collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
-                ),
-                init_state=AssetBaseCfg.InitialStateCfg(pos=tuple(collider["position"])),
+            f"prop_{prop['name']}",
+            RigidObjectCfg(
+                prim_path=f"/World/Props/{prop['name']}",
+                spawn=sim_utils.UsdFileCfg(usd_path=str(output.parent / "physics" / f"{prop['name']}.usdc")),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(prop["position"])),
             ),
         )
     cfg.seed = 42
@@ -159,8 +159,8 @@ def export(output: Path, checkpoint: Path, warehouse: Path | None = None) -> Non
     # Newton's lean support-map provider contains native pointers not relocated by this exporter.
     # MJWarp stores the same convex foot geometry in captured Warp arrays.
     cfg.sim.physics.solver_cfg.use_mujoco_contacts = True
-    cfg.sim.physics.solver_cfg.nconmax = 64
-    cfg.sim.physics.solver_cfg.njmax = 256
+    cfg.sim.physics.solver_cfg.nconmax = 128 if warehouse else 64
+    cfg.sim.physics.solver_cfg.njmax = 384 if warehouse else 256
     cfg.sim.physics.collision_cfg = None
     # One deterministic nominal robot; retain BAM's voltage, friction and command-delay kernels.
     cfg.events.encoder_bias.params["bias_range"] = (0.0, 0.0)
@@ -188,6 +188,9 @@ def export(output: Path, checkpoint: Path, warehouse: Path | None = None) -> Non
             if env.action_manager.get_term("joint_pos")._joint_names != MICRODUCK_JOINT_NAMES:
                 raise ValueError("MicroDuck action order changed")
             model = NewtonManager.get_model()
+            if scenery:
+                for prop in scenery["props"]:
+                    prop["body"] = model.body_label.index(f"/World/Props/{prop['name']}")
             coordinates, velocities = _joint_coordinates(model, MICRODUCK_JOINT_NAMES)
             slots = [robot.joint_names.index(name) for name in MICRODUCK_JOINT_NAMES]
             defaults_np = robot.data.default_joint_pos.warp.numpy()[0, slots]
@@ -238,6 +241,10 @@ def export(output: Path, checkpoint: Path, warehouse: Path | None = None) -> Non
             print("Verified 160 native stand/walk steps and policy observations", flush=True)
             env.step(torch.zeros((1, 14)))
             env.reset(seed=42)
+            for prop in scenery["props"] if scenery else []:
+                obj = env.scene[f"prop_{prop['name']}"]
+                obj.write_root_link_pose_to_sim_index(root_pose=torch.tensor([[*prop["position"], 0.0, 0.0, 0.0, 1.0]]))
+                obj.write_root_com_velocity_to_sim_index(root_velocity=torch.zeros((1, 6)))
             action.zero_()
             command.zero_()
             previous_velocity.zero_()
@@ -294,12 +301,12 @@ def export(output: Path, checkpoint: Path, warehouse: Path | None = None) -> Non
                 "cameraHeight": 0.13,
                 "scene": "warehouse" if warehouse else "courtyard",
                 "turnForwardSpeed": 0.25,
-                "warehouse": {"bounds": BOUNDS, "colliders": colliders, "source": SOURCE, "sha256": SOURCE_SHA256}
+                "warehouse": {"bounds": BOUNDS, **scenery, "source": SOURCE, "sha256": SOURCE_SHA256}
                 if warehouse
                 else None,
                 "velocityScale": [0.4, 0.3, 1.0],
                 "pushMaxForce": 2.0,
-                "maxStepsPerFrame": 24 if warehouse else 12,
+                "maxStepsPerFrame": 32 if warehouse else 12,
                 "physicsDt": cfg.sim.dt,
                 "physicsDecimation": cfg.decimation,
                 "actuator": "native BAM",
@@ -348,7 +355,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--emxx", default="em++")
     parser.add_argument(
-        "--warehouse", type=Path, help="Resolved MicroDuck warehouse USD; add static boundary and obstacle boxes"
+        "--warehouse",
+        type=Path,
+        help="Resolved MicroDuck warehouse USD; add fixture collisions and movable floor props",
     )
     args = parser.parse_args()
     bundle = args.output / "microduck"
@@ -376,7 +385,7 @@ def main() -> None:
     if len(visual_files) > 1:
         manifest["isaacLabDemo"]["visuals"]["files"] = visual_files
     if args.warehouse:
-        scenery, _ = pack_warehouse(args.warehouse, web)
+        scenery = pack_warehouse(args.warehouse, web, manifest["isaacLabDemo"]["warehouse"]["props"])
         manifest["isaacLabDemo"]["visuals"] = [manifest["isaacLabDemo"]["visuals"], scenery]
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
 
