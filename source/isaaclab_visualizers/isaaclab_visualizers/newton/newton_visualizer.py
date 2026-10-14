@@ -1131,6 +1131,9 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
     Resizing the window scales the displayed image without resizing either source's buffers.
     """
 
+    _viewer_class: type[NewtonViewerRTX] = NewtonViewerRTX
+    """Native viewer implementation; subclasses may extend its frame publication."""
+
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Attach to the populated scene and bind the model used to publish body poses."""
         from isaaclab_ov.stage import OvstageBackendCfg
@@ -1150,7 +1153,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
-        self._viewer = NewtonViewerRTX(
+        self._viewer = self._viewer_class(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
             headless=self._runtime_headless,
