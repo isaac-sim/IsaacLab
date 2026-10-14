@@ -188,6 +188,10 @@ class SmokeResult:
 _NEWTON_MJCF = str(Path(importlib.util.find_spec("newton").origin).parent / "examples" / "assets" / "nv_ant.xml")
 
 OVERRIDES = {
+    "examples/demos/nist.py": ScriptOverride(
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None, "newton_gl", "newton_rtx"),
+    ),
     "examples/sharpa_rj45.py": ScriptOverride(
         args=("--max_steps", "1800"),
         skip_reason="requires the external Rizon/SHARPA robot bundle",
