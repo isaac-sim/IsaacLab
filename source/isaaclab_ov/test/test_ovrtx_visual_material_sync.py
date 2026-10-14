@@ -120,6 +120,7 @@ def _renderer(*, use_ovstage: bool = False):
     renderer._use_ovstage = use_ovstage
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
+    renderer._visual_material_color_paths = {}
     renderer.cfg = OVRTXRendererCfg()
     renderer._camera_render_data = []
     if use_ovstage:
@@ -172,6 +173,31 @@ def test_legacy_compiles_typed_bindings_and_publishes_selected_channels_zero_cop
     assert write[2]["cuda_stream"] == 1
     writer.drain()
     assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+def test_legacy_color_primvars_preserve_mixed_fallback_rows_and_buffer_slices():
+    renderer, _events = _renderer()
+    colors = torch.arange(15, dtype=torch.float32, device="cuda").reshape(5, 3)
+    batch = _batch("color", ("diffuseColor",) * 4 + ("diffuse_color_constant",), colors)
+    renderer._visual_material_color_paths = {batch.shader_paths[index]: f"/Objects/mesh_{index}" for index in (0, 1, 3)}
+    writer = renderer.visual_material_writer((batch,))
+    writer()
+    writer.publish()
+    writer.drain()
+
+    writes = renderer.backend.renderer.writes
+    assert [(write[0].attribute_name, write[0].prim_paths) for write in writes] == [
+        ("primvars:isaaclab:materialColor", ("/Objects/mesh_0", "/Objects/mesh_1")),
+        ("inputs:diffuseColor", (batch.shader_paths[2],)),
+        ("primvars:isaaclab:materialColor", ("/Objects/mesh_3",)),
+        ("inputs:diffuse_color_constant", (batch.shader_paths[4],)),
+    ]
+    for write, start, end in zip(writes, (0, 2, 3, 4), (2, 3, 4, 5), strict=True):
+        assert write[1].data_ptr() == colors[start:end].data_ptr()
+        torch.testing.assert_close(write[1], colors[start:end])
+    writer.close()
+    assert all(write[0].unbound for write in writes)
 
 
 @pytest.mark.skipif(importlib.util.find_spec("ovstage") is None, reason="requires optional module: ovstage")

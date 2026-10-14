@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import ClassVar
 
 import torch
 
@@ -49,6 +50,9 @@ class VisualMaterial(AssetBase):
     """A visual material cloned and finalized through the normal asset lifecycle."""
 
     cfg: VisualMaterialCfg
+
+    _initialization_order: ClassVar[int] = 9
+    """Register materials before cameras prepare their renderer's scene, including after STOP."""
 
     def __init__(self, cfg: VisualMaterialCfg):
         super().__init__(cfg)
