@@ -178,7 +178,7 @@ class G1PlatformsEnvCfg(ManagerBasedRLEnvCfg):
 
     class_type = "{DIR}.terrain_env:G1TerrainEnv"
     policy_path: str = (
-        "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/PretrainedCheckpoints/rsl_rl/"
+        f"{ISAAC_NUCLEUS_DIR}/IsaacLab/PretrainedCheckpoints/rsl_rl/"
         "IsaacContrib-Velocity-Rough-G1_Terrain_newtonmjwarp_none_rsl_rl.pt"
     )
     warmup_height: float | None = 1.38
