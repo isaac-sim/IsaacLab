@@ -25,8 +25,6 @@ Choosing an image
      - Ubuntu 24.04, Python 3.12, Newton and OVPhysX physics, OVRTX rendering, four RL libraries
      - You are training with Newton and want the smallest image; also the only one with no Isaac Sim EULA
 
-.. _docker-build-image:
-
 Building an image
 -----------------
 
@@ -150,8 +148,6 @@ Replay in a browser with:
 Viser is reachable through the host network without forwarding a desktop display. Stop playback
 with ``Ctrl+C`` without stopping the container. Copy the logs to the host with
 ``docker cp isaac-lab-kitless:/workspace/isaaclab/logs ./logs``.
-To use a locally built image instead, see :ref:`docker-build-image` and replace the image name
-with ``isaac-lab-kitless``.
 
 Check which architectures a tag publishes with ``docker buildx imagetools inspect <image:tag>``
 before choosing a host.
