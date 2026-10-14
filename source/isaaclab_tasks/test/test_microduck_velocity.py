@@ -31,8 +31,7 @@ TASK = "IsaacContrib-Velocity-Flat-MicroDuck"
 ROUGH_TASK = "IsaacContrib-Velocity-Rough-MicroDuck"
 
 POLICY_TERMS = [
-    "base_ang_vel",
-    "projected_gravity",
+    "imu",
     "joint_pos",
     "joint_vel",
     "actions",
@@ -65,6 +64,8 @@ def test_microduck_deploy_interface_and_friction_reset(device):
         assert obs["policy"].shape == (2, 61)
         assert obs["critic"].shape == (2, 76)
         assert env.observation_manager.active_terms["policy"] == POLICY_TERMS
+        # The IMU reads angular velocity, at rest after reset, then unit gravity.
+        assert ((obs["policy"][:, 3:6].norm(dim=-1) - 1.0).abs() < 0.05).all()
         assert env.action_manager.get_term("joint_pos").IO_descriptor.joint_names == MICRODUCK_JOINT_NAMES
 
         robot = env.scene["robot"]

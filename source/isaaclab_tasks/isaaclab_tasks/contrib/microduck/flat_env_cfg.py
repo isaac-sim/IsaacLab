@@ -58,8 +58,6 @@ _PLAY_JOINT_CFG = SceneEntityCfg(
 _HEAD_PLAY_JOINT_CFG = SceneEntityCfg(
     "robot", joint_names=[f"passive_{name}_backlash" for name in MICRODUCK_HEAD_JOINT_NAMES], preserve_order=True
 )
-_IMU_MISALIGNMENT_DEG = 6.0
-_IMU_DELAY_UPDATE_PERIOD = 64
 MICRODUCK_SOLE_TO_ANKLE_OFFSET = 0.0225
 """Standing ankle-frame height above the sole [m]."""
 MICRODUCK_FOOT_TARGET_HEIGHT = 0.02 + MICRODUCK_SOLE_TO_ANKLE_OFFSET
@@ -147,25 +145,11 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for the policy group: the 61-wide deploy contract."""
 
-        base_ang_vel = ObsTerm(
-            func=mdp.delayed_observation,
-            params={
-                "term_func": mdp.base_ang_vel_imu_misaligned,
-                "min_lag": 0,
-                "max_lag": 1,
-                "update_period": _IMU_DELAY_UPDATE_PERIOD,
-            },
-            noise=Unoise(n_min=-0.03, n_max=0.03),
-        )
-        projected_gravity = ObsTerm(
-            func=mdp.delayed_observation,
-            params={
-                "term_func": mdp.projected_gravity_imu_misaligned,
-                "min_lag": 0,
-                "max_lag": 1,
-                "update_period": _IMU_DELAY_UPDATE_PERIOD,
-            },
-            noise=Unoise(n_min=-0.01, n_max=0.01),
+        # Angular velocity [rad/s], then projected gravity.
+        imu = ObsTerm(
+            func=mdp.misaligned_imu,
+            params={"max_angle_deg": 6.0, "min_lag": 0, "max_lag": 1, "update_period": 64},
+            noise=mdp.ImuNoiseCfg(ang_vel=0.03, gravity=0.01),
         )
         # With backlash, encoders measure servo plus play angle.
         joint_pos = _backlash_preset(
@@ -245,9 +229,6 @@ class EventsCfg:
         },
     )
     encoder_bias = EventTerm(func=mdp.randomize_encoder_bias, mode="startup", params={"bias_range": (-0.015, 0.015)})
-    imu_misalignment = EventTerm(
-        func=mdp.randomize_imu_misalignment, mode="startup", params={"max_angle_deg": _IMU_MISALIGNMENT_DEG}
-    )
     mass_inertia = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",

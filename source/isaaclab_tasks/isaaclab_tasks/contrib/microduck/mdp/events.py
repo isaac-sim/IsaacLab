@@ -7,15 +7,13 @@
 
 from __future__ import annotations
 
-import math
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.actuators import BamActuatorCfg
 from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
-from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.math import quat_from_angle_axis
+from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -29,25 +27,6 @@ def randomize_encoder_bias(
     bias = env.action_manager.get_term(action_name).encoder_bias
     rows = slice(None) if env_ids is None else env_ids
     bias[rows] = torch.empty_like(bias[rows]).uniform_(*bias_range)
-
-
-class randomize_imu_misalignment(ManagerTermBase):
-    """Sample a fixed IMU mounting misalignment per environment.
-
-    The misaligned IMU observations read :attr:`quat` through the event manager.
-    """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        super().__init__(cfg, env)
-        self.quat = torch.zeros(env.num_envs, 4, device=env.device)
-        self.quat[:, 3] = 1.0  # identity quaternion in (x, y, z, w) layout
-
-    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor | None, max_angle_deg: float) -> None:
-        """Draw a uniformly random axis and an angle in ``[0, max_angle_deg]`` [deg]."""
-        num = env.num_envs if env_ids is None else len(env_ids)
-        axis = torch.nn.functional.normalize(torch.randn(num, 3, device=env.device), dim=-1)
-        angles = torch.rand(num, device=env.device) * math.radians(max_angle_deg)
-        self.quat[slice(None) if env_ids is None else env_ids] = quat_from_angle_axis(angles, axis)
 
 
 def randomize_bam_friction(

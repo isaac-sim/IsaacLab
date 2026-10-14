@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import math
+from collections.abc import Callable, Sequence
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
@@ -15,11 +17,11 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.math import quat_apply
+from isaaclab.utils.configclass import configclass
+from isaaclab.utils.math import quat_apply, quat_from_angle_axis
+from isaaclab.utils.noise import NoiseCfg
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv, ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
@@ -65,40 +67,28 @@ def joint_vel_rel_backlash(
     return velocity - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
 
 
-def projected_gravity_imu_misaligned(
-    env: ManagerBasedEnv, event_name: str = "imu_misalignment", asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
-) -> torch.Tensor:
-    """Gravity projected on the root frame, seen through the misaligned IMU of event ``event_name``."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    quat = env.event_manager.get_term_cfg(event_name).func.quat
-    return quat_apply(quat, asset.data.projected_gravity_b.torch)
+class misaligned_imu(ManagerTermBase):
+    """Root angular velocity [rad/s] then projected gravity, read by a misaligned IMU with bus latency.
 
-
-def base_ang_vel_imu_misaligned(
-    env: ManagerBasedEnv, event_name: str = "imu_misalignment", asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
-) -> torch.Tensor:
-    """Root angular velocity [rad/s], seen through the misaligned IMU of event ``event_name``."""
-    asset: Articulation = env.scene[asset_cfg.name]
-    quat = env.event_manager.get_term_cfg(event_name).func.quat
-    return quat_apply(quat, asset.data.root_ang_vel_b.torch)
-
-
-class delayed_observation(ManagerTermBase):
-    """Wraps another observation term in a lag redrawn on a fixed period with a per-environment phase.
-
-    This matches upstream's IMU bus latency; constant lags use :attr:`ObservationTermCfg.delay_min_lag`.
-    ``min_lag``, ``max_lag`` and ``update_period`` are fixed at construction; ``max_lag`` sizes the history buffer.
+    Each environment draws a fixed mounting rotation at construction, about a uniform random axis by an angle in
+    ``[0, max_angle_deg]`` [deg], and applies it to both readings. Each reading lags by its own draw in
+    ``[min_lag, max_lag]`` samples, redrawn every ``update_period`` samples with its own per-environment phase to
+    match upstream's separate IMU delay buffers. All parameters are fixed at construction; ``max_lag`` sizes the
+    history buffer.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
+        axis = torch.nn.functional.normalize(torch.randn(self.num_envs, 3, device=self.device), dim=-1)
+        angle = torch.rand(self.num_envs, device=self.device) * math.radians(cfg.params["max_angle_deg"])
+        self._quat = quat_from_angle_axis(angle, axis)
         self._min_lag = cfg.params["min_lag"]
         self._max_lag = cfg.params["max_lag"]
         self._update_period = cfg.params["update_period"]
         self._buffer = CircularBuffer(max_len=self._max_lag + 1, batch_size=self.num_envs, device=self.device)
-        self._lags = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._lags = torch.zeros(self.num_envs, 2, dtype=torch.long, device=self.device)
         self._step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._phase_offsets = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
+        self._phase_offsets = torch.zeros(self.num_envs, 2, dtype=torch.long, device=self.device)
         self._pending_reset = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._has_pending_reset = False
         self._last_step: int | None = None
@@ -109,7 +99,7 @@ class delayed_observation(ManagerTermBase):
         resolved = slice(None) if env_ids is None else env_ids
         self._lags[resolved] = 0
         self._step_count[resolved] = 0
-        phases = torch.randint(0, self._update_period, (self.num_envs,), device=self.device)
+        phases = torch.randint(0, self._update_period, (self.num_envs, 2), device=self.device)
         self._phase_offsets[resolved] = phases[resolved]
         self._pending_reset[resolved] = True
         self._has_pending_reset = True
@@ -117,32 +107,51 @@ class delayed_observation(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        term_func: Callable[[ManagerBasedRLEnv], torch.Tensor],
+        max_angle_deg: float,
         min_lag: int,
         max_lag: int,
         update_period: int,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     ) -> torch.Tensor:
-        """Compute the wrapped term and return a stale copy of it."""
+        """Return each environment's reading from its current lag, shape (num_envs, 6)."""
         # Repeated reads within one step return the same sample, except for freshly reset environments.
-        if env.common_step_counter == self._last_step and self._output is not None:
-            if not self._has_pending_reset:
-                return self._output
-            fresh = term_func(env)
-            mask = self._pending_reset.view(-1, *[1] * (fresh.dim() - 1))
-            return torch.where(mask, fresh, self._output)
-        obs = term_func(env)
+        repeated_read = env.common_step_counter == self._last_step
+        if repeated_read and not self._has_pending_reset:
+            return self._output
+        asset: Articulation = env.scene[asset_cfg.name]
+        vectors = torch.stack((asset.data.root_ang_vel_b.torch, asset.data.projected_gravity_b.torch), dim=1)
+        reading = quat_apply(self._quat.unsqueeze(1), vectors).flatten(start_dim=1)
+        if repeated_read:
+            return torch.where(self._pending_reset.unsqueeze(-1), reading, self._output)
         if self._has_pending_reset:
             self._buffer.reset(self._pending_reset)
             self._pending_reset.fill_(False)
             self._has_pending_reset = False
         self._last_step = env.common_step_counter
-        self._buffer.append(obs)
-        should_update = (self._step_count + self._phase_offsets) % self._update_period == 0
-        candidates = torch.randint(self._min_lag, self._max_lag + 1, (self.num_envs,), device=self.device)
+        self._buffer.append(reading)
+        should_update = (self._step_count.unsqueeze(-1) + self._phase_offsets) % self._update_period == 0
+        candidates = torch.randint(self._min_lag, self._max_lag + 1, (self.num_envs, 2), device=self.device)
         self._lags = torch.where(should_update, candidates, self._lags)
         self._step_count += 1
-        self._output = self._buffer[self._lags]
+        self._output = torch.cat((self._buffer[self._lags[:, 0]][:, :3], self._buffer[self._lags[:, 1]][:, 3:]), dim=-1)
         return self._output
+
+
+def imu_noise(data: torch.Tensor, cfg: ImuNoiseCfg) -> torch.Tensor:
+    """Add uniform noise within ``cfg.ang_vel`` to angular velocity and within ``cfg.gravity`` to gravity."""
+    noise = torch.rand_like(data) * 2.0 - 1.0
+    return data + torch.cat((noise[:, :3] * cfg.ang_vel, noise[:, 3:] * cfg.gravity), dim=-1)
+
+
+@configclass
+class ImuNoiseCfg(NoiseCfg):
+    """Additive uniform noise on :class:`misaligned_imu`, with one bound per reading."""
+
+    func: Callable[[torch.Tensor, ImuNoiseCfg], torch.Tensor] = imu_noise
+    ang_vel: float = MISSING
+    """Angular-velocity noise bound [rad/s]."""
+    gravity: float = MISSING
+    """Projected-gravity noise bound."""
 
 
 """
