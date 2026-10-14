@@ -30,6 +30,7 @@ from ..renderers.render_context import RenderContext
 from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
+from ..utils.device import reserve_cuda_graph_memory
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
@@ -199,6 +200,9 @@ class SimulationContext:
         if "cuda" in self.cfg.device:
             torch.cuda.set_device(self.cfg.device)
         wp.set_device(self.cfg.device)
+        # Must precede physics backends and renderers created by this context; see reserve_cuda_graph_memory.
+        # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
+        reserve_cuda_graph_memory(self.cfg.device)
 
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         # Must be set before physics_manager.initialize() so that any render callbacks
@@ -614,6 +618,15 @@ class SimulationContext:
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
         self.physics_manager.wait_for_playing()
+        visualizers_to_remove = []
+        for viz in self._visualizers:
+            try:
+                while viz.is_training_paused() and viz.is_running():
+                    viz.step(0.0)
+            except Exception as exc:
+                logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
+                visualizers_to_remove.append(viz)
+        self._remove_visualizers(visualizers_to_remove)
         self._physics_step_count += 1
         self.physics_manager.step()
         if render and self.is_rendering:
@@ -695,14 +708,19 @@ class SimulationContext:
                     if not viz.pumps_app_update():
                         viz.step(0.0)
                     continue
-                while viz.is_training_paused() and viz.is_running():
+                if viz.is_training_paused():
                     viz.step(0.0)
+                    continue
                 viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)
                 visualizers_to_remove.append(viz)
 
-        for viz in visualizers_to_remove:
+        self._remove_visualizers(visualizers_to_remove)
+
+    def _remove_visualizers(self, visualizers: list[BaseVisualizer]) -> None:
+        """Close and remove visualizers that can no longer be stepped."""
+        for viz in visualizers:
             try:
                 viz.close()
                 self._visualizers.remove(viz)

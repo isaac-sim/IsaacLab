@@ -65,7 +65,7 @@ from environ_docs import (  # noqa: E402
 from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
 
 import isaaclab_tasks  # noqa: E402, F401
-from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
+from isaaclab_tasks.utils.hydra import PresetTarget  # noqa: E402
 
 
 def test_is_training_task_filters_non_training_variants():

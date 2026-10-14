@@ -68,6 +68,8 @@ from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
 )
 
+from .vbd_manager_cfg import VBDSolverCfg
+
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
@@ -1458,6 +1460,8 @@ class NewtonManager(PhysicsManager):
         """
         valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
         kwargs = {k: v for k, v in to_dict(solver_cfg).items() if k in valid}
+        if isinstance(solver_cfg, VBDSolverCfg) and solver_cfg.rigid_compliant_alm is None:
+            kwargs.pop("rigid_compliant_alm", None)
         if "deterministic" in valid:
             kwargs["deterministic"] = NewtonManager._deterministic_mode
         return kwargs

@@ -13,10 +13,8 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import PresetTarget, collect_presets, enumerate_task_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from scripts.tools.train_and_publish_checkpoints import (
     CheckpointJob,

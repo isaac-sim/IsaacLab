@@ -107,7 +107,7 @@ for most core tasks.
      - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl ...``
    * - skrl
      - JAX
-     - ``uv run --extra skrl isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
+     - ``uv run --extra skrl-jax isaaclab train_multigpu --rl_library skrl --ml_framework jax ...``
 
 skrl with JAX uses skrl's distributed launcher instead of ``torchrun``. Pass an
 integer ``--num_gpus`` and use ``--coordinator_address`` to configure its
@@ -115,7 +115,7 @@ coordinator:
 
 .. code-block:: bash
 
-   uv run --extra skrl isaaclab train_multigpu \
+   uv run --extra skrl-jax isaaclab train_multigpu \
       --rl_library skrl --ml_framework jax --num_gpus 4 \
       --coordinator_address localhost:5000 \
       --task Isaac-Cartpole
