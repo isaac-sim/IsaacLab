@@ -101,6 +101,14 @@ Command Builder
          <span>H1 Locomotion</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="SONIC" data-demo-id="sonic"
+               data-demo-physics="newton_mjwarp,isaacsim_physx"
+               data-demo-visualizers="kit"
+               data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
+         <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
+         <span>SONIC</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="NIST" data-demo-id="nist"
                data-demo-physics="newton_mjwarp" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl,newton_rtx"
@@ -143,6 +151,48 @@ Command Builder
        </button>
      </div>
    </div>
+
+.. _demo-sonic:
+
+SONIC on gravel and sand
+------------------------
+
+The SONIC demo runs a G1 robot over gravel and sand with Newton MJWarp and MPM,
+or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU and uses Kit for RTX rendering.
+
+From the repository root, install the simulator, recording dependencies, and the
+additional packages used to download and run the released ONNX models:
+
+.. code-block:: bash
+
+   uv sync --extra isaacsim --extra video
+   uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
+
+The demo downloads the planner and tracker from
+`nvidia/GEAR-SONIC <https://huggingface.co/nvidia/GEAR-SONIC>`_ at a pinned revision.
+The robot USD is downloaded from the public Isaac asset server.
+
+Run either backend:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim --extra video isaaclab demo sonic \
+     --physics newton_mjwarp --output logs/sonic_newton
+
+   uv run --extra isaacsim --extra video isaaclab demo sonic \
+     --physics isaacsim_physx --output logs/sonic_physx
+
+Newton records offscreen; PhysX opens a window to synchronize robot and particle
+visuals. Both save ``video.mp4`` in the selected output directory. Recording advances
+in simulation time, so the full MPM scene can take substantially longer than the video
+duration. Pass ``--seconds`` to change the simulation duration.
+
+Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC
+inference. PhysX keeps state buffers on the CPU for USD readback while particle
+simulation uses the selected GPU.
+
+``uv run`` preserves the manually installed packages. If you run ``uv sync`` again,
+repeat the ``uv pip install`` command before launching SONIC.
 
 .. _tablecloth-example:
 
