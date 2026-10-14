@@ -221,6 +221,9 @@ def export_rsl_rl_agent(
 ) -> bool:
     """Export a RSL-RL agent."""
     _load_runtime_dependencies()
+    # Validate full-precision exported models against full-precision GPU inference.
+    torch.set_float32_matmul_precision("highest")
+    torch.backends.cudnn.allow_tf32 = False
 
     task_name = args_cli.task.split(":")[-1]
     checkpoint_task_name = task_name.replace("-Play", "")
@@ -271,11 +274,12 @@ def export_rsl_rl_agent(
 
         if isinstance(env.unwrapped, ManagerBasedRLEnv):
             export_method = "onnx-dynamo" if args_cli.export_method is None else args_cli.export_method
-            # Patch only the observation groups consumed by the actor policy.
+            # Distillation deploys the student, which can consume additional image groups.
             # This filters out the critic and teacher observation groups.
             obs_groups_cfg = getattr(agent_cfg, "obs_groups", None)
             if isinstance(obs_groups_cfg, Mapping):
-                required_obs_groups = set(obs_groups_cfg.get("actor", ["policy"]))
+                policy_role = "student" if agent_cfg.class_name == "DistillationRunner" else "actor"
+                required_obs_groups = set(obs_groups_cfg.get(policy_role, ["policy"]))
             else:
                 required_obs_groups = {"policy"}
             patch_env_for_export(

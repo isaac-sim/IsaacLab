@@ -5,12 +5,12 @@
 
 """Deploy a LEAPP-exported policy in an Isaac Lab simulation."""
 
-"""Launch Isaac Sim Simulator first."""
+"""Resolve the task configuration before launching the selected simulator."""
 
 import argparse
 import sys
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher, launch_simulation
 
 parser = argparse.ArgumentParser(description="Deploy a LEAPP-exported policy in simulation.")
 parser.add_argument("--task", type=str, default=None, help="Name of the registered Isaac Lab task.")
@@ -29,23 +29,16 @@ if args_cli.task is None or args_cli.leapp_model is None:
 
 sys.argv = [sys.argv[0]] + hydra_args
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
-import torch
-
-from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config
 
 
-def main():
-    # ── Load env config from gym registry ─────────────────────────
+def main(env_cfg):
+    import torch
+
+    from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
+
     task_name = args_cli.task.split(":")[-1]
-    env_cfg, _ = resolve_task_config(task_name, "")
 
     if args_cli.seed is not None:
         env_cfg.seed = args_cli.seed
@@ -70,7 +63,7 @@ def main():
     env.reset()
     try:
         with torch.inference_mode():
-            while simulation_app.is_running():
+            while env.sim.is_headless_or_exist_active_visualizer():
                 env.step()
         env.close()
     except KeyboardInterrupt:
@@ -78,5 +71,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
-    simulation_app.close()
+    env_cfg, _ = resolve_task_config(args_cli.task, "", overrides=hydra_args)
+    with launch_simulation(env_cfg, args_cli):
+        main(env_cfg)

@@ -46,6 +46,7 @@ from isaaclab.actuators import IdealPDActuator, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.array import convert_to_torch
+from isaaclab.utils.buffers import CircularBuffer
 
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
@@ -161,8 +162,8 @@ class ExportPatcher:
         )
 
         self._disable_training_managers(unwrapped)
-        self._patch_observation_manager(unwrapped.observation_manager, proxy_env)
         self._patch_history_buffers(unwrapped.observation_manager)
+        self._patch_observation_manager(unwrapped.observation_manager, proxy_env)
         self._patch_action_manager(
             unwrapped.action_manager,
             self._annotated_tensor_cache,
@@ -256,6 +257,12 @@ class ExportPatcher:
             group_term_names = term_names_by_group.get(group_name, [])
 
             for index, term_cfg in enumerate(term_cfgs):
+                term_name = group_term_names[index] if index < len(group_term_names) else str(index)
+                # Stateful observation terms can own additional histories (e.g. image channels).
+                if isinstance(term_cfg.func, ManagerTermBase):
+                    for name, buffer in vars(term_cfg.func).items():
+                        if isinstance(buffer, CircularBuffer):
+                            self._patch_history_buffer_append(buffer, f"h_{group_name}_{term_name}_{name.lstrip('_')}")
                 history_length = getattr(term_cfg, "history_length", 0) or 0
                 if history_length <= 0:
                     continue
@@ -277,8 +284,8 @@ class ExportPatcher:
         Production :meth:`~isaaclab.utils.buffers.CircularBuffer.append` shifts
         with in-place ``copy_``, which the tracer cannot see. During export the
         same oldest→newest layout is produced with ``torch.cat`` so the
-        recurrence appears in the graph. Observation-manager buffers use the
-        legacy ``(K, B, ...)`` layout (no ``stack_dim``).
+        recurrence appears in the graph. A per-environment ready flag preserves
+        first-observation backfill, including after deployment resets.
 
         Args:
             circular_buffer: Circular buffer instance to patch.
@@ -289,6 +296,17 @@ class ExportPatcher:
 
         task_name = self.task_name
         circular_buffer._leapp_original_append = circular_buffer.append
+        original_reset = circular_buffer.reset
+        ready = circular_buffer._num_pushes > 0
+
+        def patched_reset(batch_ids=None):
+            nonlocal ready
+            original_reset(batch_ids)
+            if batch_ids is None:
+                ready = torch.zeros_like(ready)
+            else:
+                ready = ready.clone()
+                ready[batch_ids] = False
 
         def patched_append(data: torch.Tensor) -> None:
             """Shift history with ``torch.cat`` and annotate as LEAPP state.
@@ -296,6 +314,7 @@ class ExportPatcher:
             Args:
                 data: New observation slice appended to the buffer.
             """
+            nonlocal ready
             if data.shape[0] != circular_buffer.batch_size:
                 raise ValueError(
                     f"The input data has '{data.shape[0]}' batch size while expecting '{circular_buffer.batch_size}'"
@@ -303,17 +322,23 @@ class ExportPatcher:
             data = data.to(circular_buffer._device)
 
             if circular_buffer._buffer is None:
-                # Match first-push backfill: broadcast into all K slots.
-                circular_buffer._buffer = data.unsqueeze(0).expand(circular_buffer._max_len_int, *data.shape).clone()
-            else:
-                buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
-                circular_buffer._buffer = torch.cat([buffer[1:], data.unsqueeze(0)], dim=0)
-
-            circular_buffer._buffer = annotate.update_state(task_name, {state_name: circular_buffer._buffer})
+                circular_buffer._allocate_buffer(data)
+                circular_buffer._buffer.zero_()
+            axis = circular_buffer._stack_dim_internal or 0
+            buffer = annotate.state_tensors(task_name, {state_name: circular_buffer._buffer})
+            initialized = annotate.state_tensors(task_name, {state_name + "_ready": ready})
+            frame = data.unsqueeze(axis)
+            shifted = torch.cat([buffer.narrow(axis, 1, circular_buffer.max_length - 1), frame], dim=axis)
+            mask_shape = [1] * buffer.ndim
+            mask_shape[1 if axis == 0 else 0] = circular_buffer.batch_size
+            history = torch.where(initialized.reshape(mask_shape), shifted, frame)
+            circular_buffer._buffer = annotate.update_state(task_name, {state_name: history})
+            ready = annotate.update_state(task_name, {state_name + "_ready": torch.ones_like(initialized)})
             circular_buffer._num_pushes += 1
             circular_buffer._need_reset = False
 
         circular_buffer.append = patched_append
+        circular_buffer.reset = patched_reset
 
     def _patch_observation_manager(self, obs_manager, proxy_env):
         """Patch observation terms to use annotating proxies and disable noise.

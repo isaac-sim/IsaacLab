@@ -42,11 +42,12 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class StateInputSpec:
-    """Read a property from a scene entity's data object."""
+    """Read a property, or one entry of a tensor mapping, from a scene entity."""
 
     entity_name: str
     property_name: str
     joint_ids: list[int] | None = None
+    buffer_name: str | None = None
 
 
 @dataclass
@@ -149,6 +150,7 @@ class LeappDeploymentEnv:
     scene entity name, and the property or method to call:
 
     - ``state:{entity}:{property}`` -- read ``scene[entity].data.{property}``
+    - ``state:{entity}:{property}:{buffer}`` -- read a mapping entry, such as a camera image
     - ``command:{name}`` -- read ``command_manager.get_command(name)``
     - ``write:{entity}:{method}`` -- call ``scene[entity].{method}(tensor, ...)``
 
@@ -265,6 +267,7 @@ class LeappDeploymentEnv:
                         entity_name=entity_name,
                         property_name=prop_name,
                         joint_ids=jids,
+                        buffer_name=parts[3] if len(parts) == 4 else None,
                     )
                 elif conn_type == "command":
                     command_name = parts[1]
@@ -316,7 +319,10 @@ class LeappDeploymentEnv:
         for key, spec in self._input_mapping.items():
             if isinstance(spec, StateInputSpec):
                 entity = self.scene[spec.entity_name]
-                value = getattr(entity.data, spec.property_name).torch
+                value = getattr(entity.data, spec.property_name)
+                if spec.buffer_name is not None:
+                    value = value[spec.buffer_name]
+                value = value.torch if hasattr(value, "torch") else value
                 if spec.joint_ids is not None:
                     value = value[:, spec.joint_ids]
                 inputs[key] = value
@@ -352,6 +358,10 @@ class LeappDeploymentEnv:
         Returns:
             The initial input tensors (for logging / debugging).
         """
+        # LEAPP retains input aliases and inference tensors. Clear them before refreshing scene data.
+        with torch.inference_mode():
+            self.inference.reset()
+
         env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
 
         self.scene.reset(env_ids)
@@ -375,8 +385,6 @@ class LeappDeploymentEnv:
             if callable(assets_loading):
                 while assets_loading():
                     self.sim.render()
-
-        self.inference.reset()
 
         return self._read_inputs()
 

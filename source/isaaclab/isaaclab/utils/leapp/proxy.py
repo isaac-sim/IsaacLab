@@ -6,17 +6,18 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, cast
 
 import torch
+from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
 from isaaclab.managers import ManagerTermBase
 from isaaclab.utils.warp.proxy_array import ProxyArray
 
 from .leapp_semantics import resolve_leapp_element_names
-from .utils import TracedProxyArray, build_write_connection
+from .utils import TracedProxyArray, build_state_connection, build_write_connection
 
 
 def _resolve_annotated_property(
@@ -117,6 +118,23 @@ def _unique_output_name(term_name: str, method_name: str, output_cache: list[Ten
     return candidate
 
 
+class _TensorMappingProxy(Mapping):
+    """Annotate only the entries read from a semantic tensor mapping."""
+
+    def __init__(self, mapping: Mapping, wrap_value: Callable):
+        self._mapping = mapping
+        self._wrap_value = wrap_value
+
+    def __getitem__(self, key):
+        return self._wrap_value(key, self._mapping[key])
+
+    def __iter__(self):
+        return iter(self._mapping)
+
+    def __len__(self):
+        return len(self._mapping)
+
+
 class _DataProxy:
     """Proxy around a real data object that intercepts tensor-returning property reads.
 
@@ -128,8 +146,8 @@ class _DataProxy:
 
     When a semantic property returns a :class:`~isaaclab.utils.warp.ProxyArray`,
     the result is wrapped in a ``TracedProxyArray`` and cached for
-    deduplication. Non-proxy results and ordinary attributes are forwarded
-    transparently.
+    deduplication. Torch tensors and entries of tensor mappings are annotated
+    as well. Ordinary attributes are forwarded transparently.
 
     All other attribute access is forwarded transparently to the real object.
     """
@@ -160,25 +178,50 @@ class _DataProxy:
             return getattr(real_data, name)
 
         cache = object.__getattribute__(self, "_cache")
+        if (id(real_data), name) in cache:
+            return cache[(id(real_data), name)]
+        execution_fget, semantics_meta = resolution
+        result = execution_fget(real_data)
+        if isinstance(result, Mapping):
+            return _TensorMappingProxy(
+                result, lambda key, value: self._wrap_tensor(value, f"{name}:{key}", semantics_meta)
+            )
+        return self._wrap_tensor(result, name, semantics_meta)
+
+    def _wrap_tensor(self, result, name, semantics_meta):
+        """Preserve array conventions while annotating a property or mapping entry."""
+        if not isinstance(result, (ProxyArray, torch.Tensor)):
+            return result
+        real_data = object.__getattribute__(self, "_real_data")
+        cache = object.__getattribute__(self, "_cache")
         cache_key = (id(real_data), name)
         if cache_key in cache:
             return cache[cache_key]
 
-        execution_fget, semantics_meta = resolution
-        result = execution_fget(real_data)
-        if not isinstance(result, ProxyArray):
-            return result
-
-        input_name = object.__getattribute__(self, "_input_name_resolver")(name)
-        traced = TracedProxyArray(
-            result,
-            input_name=input_name,
-            semantics_meta=semantics_meta,
-            real_data=real_data,
-            entity_name=object.__getattribute__(self, "_entity_name"),
-            property_name=name,
-            task_name=object.__getattribute__(self, "_task_name"),
-        )
+        input_name = object.__getattribute__(self, "_input_name_resolver")(name.replace(":", "_"))
+        entity_name = object.__getattribute__(self, "_entity_name")
+        task_name = object.__getattribute__(self, "_task_name")
+        if isinstance(result, ProxyArray):
+            traced = TracedProxyArray(
+                result,
+                input_name=input_name,
+                semantics_meta=semantics_meta,
+                real_data=real_data,
+                entity_name=entity_name,
+                property_name=name,
+                task_name=task_name,
+            )
+        else:
+            traced = annotate.input_tensors(
+                task_name,
+                TensorSemantics(
+                    name=input_name,
+                    ref=result,
+                    kind=semantics_meta.kind,
+                    element_names=resolve_leapp_element_names(semantics_meta, real_data),
+                    extra=build_state_connection(entity_name, name),
+                ),
+            )
         cache[cache_key] = traced
         return traced
 

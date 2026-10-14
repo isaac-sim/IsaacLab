@@ -288,6 +288,17 @@ The export script performs the following steps:
 The patching is transparent to the policy — no changes to your training code or environment
 configuration are needed.
 
+For RSL-RL distillation checkpoints, the exporter traces the observation groups assigned to
+``student`` in ``obs_groups``, including image groups. Camera output entries are live graph inputs;
+for example, ``state:depth_camera:output:distance_to_image_plane`` identifies the depth tensor in
+``scene["depth_camera"].data.output``. The deployment environment resolves this connection from
+the exported metadata.
+
+Observation-manager histories and ``CircularBuffer`` attributes owned directly by observation
+terms are exported as feedback state. This includes channel-stacked image histories. After an
+inference reset, each history is filled from its first new observation, preserving the buffer's
+normal reset behavior. Other custom state containers still require explicit LEAPP annotations.
+
 .. warning::
 
    LEAPP is designed to support a broad range of model architectures, but the current
@@ -399,6 +410,10 @@ correctly when driven through the deployment stack instead of the training stack
 
 Run the deployment script with the task name and the exported LEAPP ``.yaml`` file.
 Use the same backend extra pattern as training and export.
+
+The deployment script resolves the physics, renderer, and visualizer configuration before
+launching the simulator, so Newton can run without Isaac Sim. The loop runs until interrupted or
+the active visualizers close. This validates deployment in simulation, not robot hardware I/O.
 
 By default, Isaac Lab launches headless when no visualization option is selected. If you expect
 to see the policy running in a viewport, pass a visualization option such as ``--viz newton``

@@ -243,7 +243,7 @@ class DepthImageStack(ManagerTermBase):
         # order -- fixed here rather than in the mount quaternion because the asset's own
         # ``d435_link`` frame has no axis pointing where the real camera looks, so there is no
         # authoritative rotation to correct it to.
-        observation = frame.permute(0, 3, 1, 2).flip(-2).flip(-1).contiguous()
+        observation = frame.permute(0, 3, 1, 2).flip((-2, -1)).contiguous()
         if noise_frac > 0.0 or dropout_prob > 0.0 or blob_prob > 0.0:
             observation = self._corrupt(observation, noise_frac, dropout_prob, blob_prob, blob_radius)
         self._stack.append(observation)

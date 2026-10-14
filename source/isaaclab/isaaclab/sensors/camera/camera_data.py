@@ -11,6 +11,7 @@ import warp as wp
 
 # Re-exported as part of the public isaaclab.sensors.camera API
 from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
+from isaaclab.utils.leapp.leapp_semantics import leapp_tensor_semantics
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -90,6 +91,7 @@ class CameraData:
         return self._intrinsic_matrices
 
     @property
+    @leapp_tensor_semantics()
     def output(self) -> dict[str, ProxyArray] | None:
         """The retrieved sensor data with sensor types as key.
 
