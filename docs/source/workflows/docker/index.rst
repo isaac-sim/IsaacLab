@@ -272,7 +272,8 @@ Display forwarding with X11
 X11 forwarding lets GUI applications started inside the container display on the host. The first
 ``start`` asks whether to enable it and records the answer in ``docker/.container.cfg``. To change it
 later, set ``X11_FORWARDING_ENABLED`` to ``0`` or ``1`` in that file and run ``start`` again -- the
-rebuild is what applies the change.
+rebuild is what applies the change. The container user (uid 1000) cannot read the host's X authorization
+when your host uid differs; in that case, run ``xhost +local:`` on the host before opening a window.
 
 .. toctree::
    :maxdepth: 1
