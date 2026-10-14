@@ -14,7 +14,7 @@ from typing import Any
 import warp as wp
 
 from isaaclab.utils import configclass
-from isaaclab.utils.images import ImageBufferSpec, PreparedBufferOperation, RenderBufferStepCfg
+from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
 from isaaclab.utils.warp import ProxyArray
 
 from .cfg import PpispCfg
@@ -22,35 +22,36 @@ from .pipeline import PpispControllerWeights, PpispPipeline
 
 
 def prepare_ppisp(
-    input_specs: Mapping[str, ImageBufferSpec],
+    inputs: Mapping[str, ProxyArray],
     *,
     cfg: PpispCfg,
     channels: int = 3,
     controller_weights: PpispControllerWeights | None = None,
 ) -> PreparedBufferOperation:
-    """Prepare a PPISP stage from concrete settings and a scene-linear radiance contract.
+    """Prepare PPISP and allocate its persistent output from an actual radiance buffer.
+
+    The producer must supply scene-linear color before camera exposure and response. This semantic
+    requirement cannot be inferred from the array's dtype, shape, or pixel values.
 
     Args:
-        input_specs: One ``radiance`` input: NHWC float32, three scene-linear channels.
+        inputs: One ``radiance`` input: float32 with shape ``(N, H, W, 3)``.
         cfg: Concrete configuration. Resolve USD camera attributes before preparing the pipe.
         channels: Number of output channels, three for RGB or four for opaque RGBA.
         controller_weights: Optional read-only device weights shared across operations. Each operation
             retains its own mutable controller workspace; weights must be ready on the calling stream.
 
     Returns:
-        A prepared operation producing uint8 ``color`` with ``camera_response`` encoding.
+        A prepared operation owning a uint8 ``color`` output with three or four channels.
     """
-    if set(input_specs) != {"radiance"}:
+    if set(inputs) != {"radiance"}:
         raise ValueError("PPISP requires exactly one input role named 'radiance'.")
-    source = input_specs["radiance"]
-    if (
-        source.layout != "NHWC"
-        or len(source.shape) != 4
-        or source.shape[-1] != 3
-        or source.dtype != wp.float32
-        or source.encoding != "scene_linear"
-    ):
-        raise ValueError("PPISP radiance must be NHWC float32 with three channels and scene_linear encoding.")
+    source = inputs["radiance"]
+    if not isinstance(source, ProxyArray):
+        raise TypeError("PPISP radiance must be a ProxyArray.")
+    if len(source.shape) != 4 or source.shape[-1] != 3 or any(size <= 0 for size in source.shape):
+        raise ValueError("PPISP radiance must have shape (N, H, W, 3) with positive dimensions.")
+    if source.dtype is not wp.float32:
+        raise ValueError("PPISP radiance must have dtype wp.float32.")
     if channels not in (3, 4):
         raise ValueError("PPISP color output requires three RGB or four RGBA channels.")
     if not isinstance(cfg, PpispCfg) or cfg.camera_prim_path is not None:
@@ -58,22 +59,15 @@ def prepare_ppisp(
     pipeline = PpispPipeline(deepcopy(cfg), controller_weights=controller_weights)
     try:
         pipeline.initialize(source.shape, source.device)
+        color = ProxyArray(wp.empty((*source.shape[:3], channels), dtype=wp.uint8, device=source.device))
+
+        def apply(inputs: Mapping[str, ProxyArray], outputs: Mapping[str, ProxyArray]) -> None:
+            pipeline.apply(inputs["radiance"].warp, outputs["color"].warp)
+
+        return PreparedBufferOperation(outputs={"color": color}, apply=apply, close=pipeline.close)
     except Exception:
         pipeline.close()
         raise
-
-    def apply(inputs: Mapping[str, ProxyArray], outputs: Mapping[str, ProxyArray]) -> None:
-        pipeline.apply(inputs["radiance"].warp, outputs["color"].warp)
-
-    return PreparedBufferOperation(
-        output_specs={
-            "color": ImageBufferSpec(
-                shape=(*source.shape[:3], channels), dtype=wp.uint8, device=source.device, encoding="camera_response"
-            ),
-        },
-        apply=apply,
-        close=pipeline.close,
-    )
 
 
 @configclass

@@ -41,7 +41,7 @@ from isaaclab_ppisp.kernels import (
 )
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.images import ImageBufferSpec, RenderBufferPipe
+from isaaclab.utils.images import RenderBufferPipe
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -314,7 +314,7 @@ def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference():
     )
 
     pipe = RenderBufferPipe(
-        {"rgb_radiance": ImageBufferSpec(hdr_color.shape, wp.float32, "cpu", encoding="scene_linear")},
+        {"rgb_radiance": ProxyArray(hdr_color)},
         [PpispStepCfg(params={"cfg": cfg})],
     )
     rgb = pipe({"rgb_radiance": ProxyArray(hdr_color)})["rgb"]
@@ -342,27 +342,26 @@ def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
     weights_np = np.zeros(PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, dtype=np.float32)
     weights_np[PPISP_CONTROLLER_OFF_EXP_B] = 1.0  # A constant one-stop controller exposure.
     weights = wp.from_numpy(weights_np, dtype=wp.float32, device=device)
-    source = ImageBufferSpec((1, 1, 4, 3), wp.float32, device, encoding="scene_linear")
+    ramp = np.array([0.0, 0.125, 0.25, 0.5], dtype=np.float32)
+    hdr_data = np.repeat(ramp[None, None, :, None], 3, axis=3)
+    hdr = wp.from_numpy(hdr_data, dtype=wp.float32, device=device)
     cfg = PpispCfg()
     shared_weights = PpispControllerWeights(weights)
     pipes = [
         RenderBufferPipe(
-            {"rgb_radiance": source},
+            {"rgb_radiance": ProxyArray(hdr)},
             [PpispStepCfg(params={"cfg": cfg, "channels": channels, "controller_weights": shared_weights})],
         )
         for channels in (3, 4)
     ]
-    ramp = np.array([0.0, 0.125, 0.25, 0.5], dtype=np.float32)
-    hdr_data = np.repeat(ramp[None, None, :, None], 3, axis=3)
-    hdr = wp.from_numpy(hdr_data, dtype=wp.float32, device=device)
-    # The observation path must honor work already queued on a non-default Torch stream.
+    # Use different pixels from preparation and honor prior work on a non-default Torch stream.
     with torch.cuda.stream(torch.cuda.Stream(device=device)):
-        incoming = torch.from_numpy(hdr_data * 0.5).to(device) * 2.0
+        incoming = torch.from_numpy(hdr_data * 0.5).to(device) * 3.0
         observation = pipes[0].apply_to_tensor(incoming, input_name="rgb_radiance", output_name="rgb")
         results = [observation.cpu().numpy()]
     results.append(pipes[1]({"rgb_radiance": ProxyArray(hdr)})["rgb"].warp.numpy())
-    expected = np.floor(_crf_reference(ramp * 2.0, 0.013659, 0.013659, 0.378165, 0.0) * 255.0)
-    for result in results:
+    for result, input_scale in zip(results, (1.5, 1.0), strict=True):
+        expected = np.floor(_crf_reference(ramp * input_scale * 2.0, 0.013659, 0.013659, 0.378165, 0.0) * 255.0)
         np.testing.assert_allclose(result[0, 0, :, :3].astype(float), np.repeat(expected[:, None], 3, axis=1), atol=1.0)
     assert (results[1][..., 3] == 255).all()
     pipes[0].close()
@@ -372,12 +371,20 @@ def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
     pipes[1].close()
 
 
-def test_ppisp_pipe_requires_scene_linear_input_and_resolved_configuration():
-    """Reject semantically wrong radiance and unresolved scene dependencies before execution."""
-    source = ImageBufferSpec((1, 2, 2, 3), wp.float32, "cpu", encoding="srgb")
-    with pytest.raises(ValueError, match="scene_linear encoding"):
+@pytest.mark.parametrize(
+    ("shape", "dtype", "message"),
+    [((1, 2, 2, 4), wp.float32, "must have shape"), ((1, 2, 2, 3), wp.uint8, "must have dtype")],
+)
+def test_ppisp_pipe_rejects_incompatible_input_storage(shape, dtype, message):
+    """Reject invalid image channels and scalar types before preparing numerical execution."""
+    source = ProxyArray(wp.empty(shape, dtype=dtype, device="cpu"))
+    with pytest.raises(ValueError, match=message):
         RenderBufferPipe({"rgb_radiance": source}, [PpispStepCfg()])
-    source = ImageBufferSpec((1, 2, 2, 3), wp.float32, "cpu", encoding="scene_linear")
+
+
+def test_ppisp_pipe_requires_resolved_configuration():
+    """An image operation must not discover its settings from a camera during preparation."""
+    source = ProxyArray(wp.empty((1, 2, 2, 3), dtype=wp.float32, device="cpu"))
     with pytest.raises(ValueError, match="resolve USD camera attributes"):
         RenderBufferPipe(
             {"rgb_radiance": source}, [PpispStepCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]

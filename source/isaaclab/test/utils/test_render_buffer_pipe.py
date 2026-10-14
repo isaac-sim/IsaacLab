@@ -6,30 +6,30 @@
 """Contracts for buffer routing, ownership and lifecycle independent of camera rendering."""
 
 from builtins import ExceptionGroup
-from dataclasses import replace
 
 import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.images import ImageBufferSpec, PreparedBufferOperation, RenderBufferPipe, RenderBufferStepCfg
+from isaaclab.utils.images import PreparedBufferOperation, RenderBufferPipe, RenderBufferStepCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
 
-def _prepare_scale(specs, *, factor=2.0):
+def _prepare_scale(inputs, *, factor=2.0):
+    destination = ProxyArray(wp.empty_like(inputs["value"].warp))
+
     def apply(inputs, outputs):
         torch.mul(inputs["value"].torch, factor, out=outputs["value"].torch)
 
-    return PreparedBufferOperation({"value": specs["value"]}, apply)
+    return PreparedBufferOperation({"value": destination}, apply)
 
 
-def _prepare_composite(specs):
+def _prepare_composite(inputs):
     """Combine color and depth, retaining only one spatial sample per batch entry."""
-    assert specs["color"].encoding == "scene_linear"
-    assert specs["depth"].encoding == "meters"
-    shape = (specs["color"].shape[0], 1, 1, 3)
+    color = inputs["color"]
+    destination = ProxyArray(wp.empty((color.shape[0], 1, 1, 3), dtype=color.dtype, device=color.device))
 
     def apply(inputs, outputs):
         torch.sub(
@@ -38,14 +38,14 @@ def _prepare_composite(specs):
             out=outputs["value"].torch,
         )
 
-    return PreparedBufferOperation({"value": replace(specs["color"], shape=shape)}, apply)
+    return PreparedBufferOperation({"value": destination}, apply)
 
 
 @pytest.fixture
 def composite_pipe():
-    specs = {
-        "raw_color": ImageBufferSpec((2, 2, 2, 3), wp.float32, "cpu", "scene_linear"),
-        "range": ImageBufferSpec((2, 2, 2, 1), wp.float32, "cpu", "meters"),
+    sources = {
+        "raw_color": ProxyArray(wp.zeros((2, 2, 2, 3), dtype=wp.float32, device="cpu")),
+        "range": ProxyArray(wp.zeros((2, 2, 2, 1), dtype=wp.float32, device="cpu")),
     }
     steps = [
         RenderBufferStepCfg(prepare=_prepare_scale, inputs={"value": "raw_color"}, outputs={"value": "color"}),
@@ -56,7 +56,7 @@ def composite_pipe():
         ),
     ]
     assert RenderBufferPipe.required_source_names(steps, ["color", "labels"]) == {"raw_color", "range", "labels"}
-    pipe = RenderBufferPipe(specs, steps)
+    pipe = RenderBufferPipe(sources, steps)
     yield pipe
     pipe.close()
 
@@ -78,13 +78,15 @@ def test_ordered_multi_input_operations_preserve_sources_and_reuse_output_storag
     assert output["labels"] is labels
     assert output["raw_color"] is color
     assert set(sources) == {"raw_color", "range", "labels"}
-    assert composite_pipe.output_specs["color"].shape == (2, 1, 1, 3)
+    assert composite_pipe.outputs["color"].shape == (2, 1, 1, 3)
 
     backing.fill_(5.0)
     updated = composite_pipe(sources)
     assert updated["color"] is destination
     torch.testing.assert_close(destination.torch, torch.full_like(snapshot, 8.0))
     torch.testing.assert_close(snapshot, torch.full_like(snapshot, 4.0))
+    updated.pop("color")
+    assert composite_pipe.outputs["color"] is destination
 
 
 def test_tensor_adapter_preserves_incoming_transformations_and_returns_snapshots(composite_pipe):
@@ -110,21 +112,36 @@ def test_tensor_adapter_preserves_incoming_transformations_and_returns_snapshots
         )
 
 
+def test_tensor_snapshot_accepts_passthrough_buffer_omitted_from_previous_call():
+    """Optional pass-through buffers can return after a call that did not supply them."""
+    original = ProxyArray(wp.zeros((2,), dtype=wp.float32, device="cpu"))
+    pipe = RenderBufferPipe({"value": original}, [])
+    try:
+        pipe({})
+        current = ProxyArray(wp.full((2,), 3.0, dtype=wp.float32, device="cpu"))
+        snapshot = pipe.as_tensor({"value": current}, output_name="value")
+        current.torch.fill_(5.0)
+        torch.testing.assert_close(snapshot, torch.full((2,), 3.0))
+    finally:
+        pipe.close()
+
+
 @pytest.mark.parametrize("invalid", ["missing", "shape", "dtype"])
 def test_invalid_source_buffers_are_rejected_before_processing(invalid):
     """Missing or incompatible external storage must fail before a callback reads it."""
     calls = []
-    spec = ImageBufferSpec((2, 1, 1, 1), wp.float32, "cpu")
+    source = ProxyArray(wp.zeros((2, 1, 1, 1), dtype=wp.float32, device="cpu"))
 
-    def prepare(specs):
-        return PreparedBufferOperation({"value": specs["value"]}, lambda *_: calls.append(True))
+    def prepare(inputs):
+        destination = ProxyArray(wp.empty_like(inputs["value"].warp))
+        return PreparedBufferOperation({"value": destination}, lambda *_: calls.append(True))
 
     pipe = RenderBufferPipe(
-        {"source": spec},
+        {"source": source},
         [RenderBufferStepCfg(prepare=prepare, inputs={"value": "source"}, outputs={"value": "result"})],
     )
     try:
-        shape = (1, 1, 1, 1) if invalid == "shape" else spec.shape
+        shape = (1, 1, 1, 1) if invalid == "shape" else source.shape
         dtype = wp.uint8 if invalid == "dtype" else wp.float32
         inputs = {} if invalid == "missing" else {"source": ProxyArray(wp.zeros(shape, dtype=dtype, device="cpu"))}
         with pytest.raises(ValueError, match="Missing required|shape, dtype and device"):
@@ -134,14 +151,17 @@ def test_invalid_source_buffers_are_rejected_before_processing(invalid):
         pipe.close()
 
 
-@pytest.mark.parametrize("invalid", ["missing_dependency", "output_roles", "duplicate_outputs"])
+@pytest.mark.parametrize("invalid", ["missing_dependency", "output_roles", "duplicate_outputs", "output_type"])
 def test_invalid_bindings_release_prepared_operations(invalid):
     """Construction failure closes owned operations, including one whose outputs could not be bound."""
     closed = []
-    spec = ImageBufferSpec((2, 1, 1, 1), wp.float32, "cpu")
+    source = ProxyArray(wp.zeros((2, 1, 1, 1), dtype=wp.float32, device="cpu"))
 
-    def prepare(specs, *, name):
-        return PreparedBufferOperation({"value": specs["value"]}, lambda *_: None, close=lambda: closed.append(name))
+    def prepare(inputs, *, name):
+        destination = ProxyArray(wp.empty_like(inputs["value"].warp))
+        if invalid == "output_type" and name == "second":
+            destination = destination.warp
+        return PreparedBufferOperation({"value": destination}, lambda *_: None, close=lambda: closed.append(name))
 
     first = RenderBufferStepCfg(
         prepare=prepare, inputs={"value": "source"}, outputs={"value": "middle"}, params={"name": "first"}
@@ -151,26 +171,29 @@ def test_invalid_bindings_release_prepared_operations(invalid):
     )
     if invalid == "missing_dependency":
         second.inputs = {"value": "absent"}
-        message = "Missing image buffer declarations"
+        message = "Missing input buffers for preparation"
     elif invalid == "output_roles":
         second.outputs = {"wrong": "result"}
         message = "output roles"
-    else:
+    elif invalid == "duplicate_outputs":
         second.outputs = {"value": "result", "other": "result"}
         message = "distinct output names"
-    with pytest.raises(ValueError, match=message):
-        RenderBufferPipe({"source": spec}, [first, second])
-    assert closed == (["second", "first"] if invalid == "output_roles" else ["first"])
+    else:
+        message = "outputs must be ProxyArray"
+    with pytest.raises(TypeError if invalid == "output_type" else ValueError, match=message):
+        RenderBufferPipe({"source": source}, [first, second])
+    assert closed == (["second", "first"] if invalid in ("output_roles", "output_type") else ["first"])
 
 
 @pytest.mark.parametrize("close_fails", [False, True], ids=["normal_close", "failing_close"])
 def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_order(close_fails):
     """State belongs to each operation; selected resets and idempotent teardown preserve its lifecycle."""
     closed = []
-    spec = ImageBufferSpec((2, 1, 1, 1), wp.float32, "cpu")
+    source = ProxyArray(wp.zeros((2, 1, 1, 1), dtype=wp.float32, device="cpu"))
 
-    def prepare(specs, *, name):
-        history = torch.zeros(specs["value"].shape)
+    def prepare(inputs, *, name):
+        destination = ProxyArray(wp.empty_like(inputs["value"].warp))
+        history = torch.zeros(inputs["value"].shape)
 
         def apply(inputs, outputs):
             history.add_(inputs["value"].torch)
@@ -184,10 +207,10 @@ def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_or
             if close_fails and name == "second":
                 raise RuntimeError("Operation cleanup failed")
 
-        return PreparedBufferOperation({"value": specs["value"]}, apply, reset=reset, close=close)
+        return PreparedBufferOperation({"value": destination}, apply, reset=reset, close=close)
 
     pipe = RenderBufferPipe(
-        {"value": spec},
+        {"value": source},
         [
             RenderBufferStepCfg(
                 prepare=prepare, inputs={"value": "value"}, outputs={"value": "value"}, params={"name": name}
@@ -195,7 +218,7 @@ def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_or
             for name in ("first", "second")
         ],
     )
-    source = {"value": ProxyArray(wp.ones(spec.shape, dtype=wp.float32, device="cpu"))}
+    source = {"value": ProxyArray(wp.ones(source.shape, dtype=wp.float32, device="cpu"))}
     try:
         torch.testing.assert_close(pipe(source)["value"].torch.flatten(), torch.tensor([1.0, 1.0]))
         torch.testing.assert_close(pipe(source)["value"].torch.flatten(), torch.tensor([3.0, 3.0]))
@@ -213,3 +236,5 @@ def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_or
     assert closed == ["second", "first"]
     with pytest.raises(RuntimeError, match="closed"):
         pipe(source)
+    with pytest.raises(RuntimeError, match="closed"):
+        pipe.as_tensor(source, output_name="value")

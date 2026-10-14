@@ -26,6 +26,7 @@ from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, validate
 from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -376,9 +377,10 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
         lambda path, **kwargs: SimpleNamespace(count=2, prims=[stage.GetPrimAtPath(path)] * 2, close=lambda: None),
     )
 
-    def prepare_identity(input_specs):
+    def prepare_identity(inputs):
+        output = ProxyArray(wp.empty_like(inputs["image"].warp))
         return PreparedBufferOperation(
-            {"image": input_specs["image"]},
+            {"image": output},
             lambda inputs, outputs: wp.copy(outputs["image"].warp, inputs["image"].warp),
         )
 
@@ -455,10 +457,8 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     output_shape = (2, 1, 1, 4)
     close_fails = False
 
-    def prepare_color(input_specs):
-        assert input_specs["radiance"].encoding == "scene_linear"
-        assert input_specs["range"].encoding == "meters"
-        spec = replace(input_specs["radiance"], shape=output_shape, dtype=wp.uint8, encoding="camera_response")
+    def prepare_color(inputs):
+        output = ProxyArray(wp.empty(output_shape, dtype=wp.uint8, device=inputs["radiance"].device))
 
         def apply(inputs, outputs):
             events.append("apply")
@@ -471,7 +471,9 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
             if close_fails:
                 raise RuntimeError("processor close failed")
 
-        return PreparedBufferOperation({"color": spec}, apply, reset=lambda ids: events.append(tuple(ids)), close=close)
+        return PreparedBufferOperation(
+            {"color": output}, apply, reset=lambda ids: events.append(tuple(ids)), close=close
+        )
 
     cfg = CameraCfg(
         prim_path="/World/Camera",

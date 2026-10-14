@@ -171,9 +171,6 @@ Image operations
 
 .. autofunction:: isaaclab.utils.images.compose_image
 
-.. autoclass:: isaaclab.utils.images.ImageBufferSpec
-   :members:
-
 .. autoclass:: isaaclab.utils.images.PreparedBufferOperation
    :members:
 

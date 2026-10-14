@@ -21,7 +21,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
 )
 from isaaclab.utils import configclass, modifiers
-from isaaclab.utils.images import ImageBufferSpec, PreparedBufferOperation, RenderBufferStepCfg
+from isaaclab.utils.images import PreparedBufferOperation, RenderBufferStepCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -69,16 +69,18 @@ def _depth_weighted_half(
     result[n, y, x, c] = color[n, y, 2 * x, c] * depth[n, y, 2 * x, 0]
 
 
-def _prepare_gain(specs, gain):
+def _prepare_gain(inputs, gain):
+    result = ProxyArray(wp.empty_like(inputs["color"].warp))
+
     def apply(inputs, outputs):
         wp.launch(
             _gain,
             dim=outputs["color"].shape,
             inputs=[inputs["color"].warp, gain, outputs["color"].warp],
-            device=specs["color"].device,
+            device=result.device,
         )
 
-    return PreparedBufferOperation({"color": specs["color"]}, apply)
+    return PreparedBufferOperation({"color": result}, apply)
 
 
 def _read_image(env):
@@ -107,6 +109,11 @@ class _NestedImage(ManagerTermBase):
 def test_pipe_modifier_uses_preceding_modifier_output():
     """A pipe must consume the current observation, not re-read the source camera."""
     image = torch.ones((2, 2, 4, 3))
+    preparations = []
+
+    def prepare(inputs, gain):
+        preparations.append(inputs["color"].shape)
+        return _prepare_gain(inputs, gain)
 
     @configclass
     class Policy(ObservationGroupCfg):
@@ -118,7 +125,7 @@ def test_pipe_modifier_uses_preceding_modifier_output():
                 modifiers.RenderBufferPipeModifierCfg(
                     pipeline=[
                         RenderBufferStepCfg(
-                            prepare=_prepare_gain,
+                            prepare=prepare,
                             inputs={"color": "rgb"},
                             outputs={"color": "rgb"},
                             params={"gain": 2.0},
@@ -128,31 +135,77 @@ def test_pipe_modifier_uses_preceding_modifier_output():
             ],
         )
 
-    manager = ObservationManager({"policy": Policy()}, _env(image=image))
+    env = _env(image=image)
+    manager = ObservationManager({"policy": Policy()}, env)
+    manager.reset([1])
+    assert preparations == []
     first = manager.compute()["policy"]["image"]
     torch.testing.assert_close(first, torch.full_like(image, 8.0))
     torch.testing.assert_close(image, torch.ones_like(image))
-    image.fill_(2.0)
+    env.image = torch.full_like(image, 2.0)
     torch.testing.assert_close(manager.compute()["policy"]["image"], torch.full_like(image, 10.0))
     torch.testing.assert_close(first, torch.full_like(image, 8.0))
+    assert preparations == [tuple(image.shape)]
     manager.close()
+
+
+def test_pipe_modifier_retries_failed_preparation_and_stays_closed():
+    """A rejected output is released; a later valid preparation works only before close."""
+    image = torch.ones((2, 2, 4, 3))
+    lifecycle = []
+    valid_shape = False
+
+    def prepare(inputs):
+        lifecycle.append("prepare")
+        operation = _prepare_gain(inputs, 2.0)
+        output = (
+            operation.outputs["color"]
+            if valid_shape
+            else ProxyArray(wp.empty((2, 2, 2, 3), dtype=wp.float32, device="cpu"))
+        )
+        return PreparedBufferOperation({"color": output}, operation.apply, close=lambda: lifecycle.append("close"))
+
+    cfg = modifiers.RenderBufferPipeModifierCfg(
+        pipeline=[RenderBufferStepCfg(prepare=prepare, inputs={"color": "rgb"}, outputs={"color": "rgb"})]
+    )
+    modifier = modifiers.RenderBufferPipeModifier(cfg, tuple(image.shape), "cpu")
+    modifier.reset([1])
+    with pytest.raises(ValueError, match="input shape"):
+        modifier(image[:, :, ::2])
+    assert lifecycle == []
+    with pytest.raises(ValueError, match="must preserve shape"):
+        modifier(image)
+    assert lifecycle == ["prepare", "close"]
+    valid_shape = True
+    torch.testing.assert_close(modifier(image), image * 2)
+    modifier.close()
+    modifier.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        modifier(image)
+    assert lifecycle == ["prepare", "close", "prepare", "close"]
+
+    unused_modifier = modifiers.RenderBufferPipeModifier(cfg, tuple(image.shape), "cpu")
+    unused_modifier.close()
+    with pytest.raises(RuntimeError, match="closed"):
+        unused_modifier(image)
+    assert lifecycle == ["prepare", "close", "prepare", "close"]
 
 
 def test_processed_image_declares_private_inputs_and_reports_transformed_shape():
     """Preparation resolves private AOVs before binding; manager dimensions describe the processed output."""
     lifecycle = []
 
-    def prepare(specs):
-        color = specs["color"]
+    def prepare(inputs):
+        color = inputs["color"]
         n, h, w, c = color.shape
-        output_spec = ImageBufferSpec((n, h, w // 2, c), wp.float32, color.device)
+        output = ProxyArray(wp.empty((n, h, w // 2, c), dtype=wp.float32, device=color.device))
 
         def apply(inputs, outputs):
             wp.launch(
                 _depth_weighted_half,
-                dim=output_spec.shape,
+                dim=output.shape,
                 inputs=[inputs["color"].warp, inputs["depth"].warp, outputs["color"].warp],
-                device=color.device,
+                device=output.device,
             )
 
         def close():
@@ -160,7 +213,7 @@ def test_processed_image_declares_private_inputs_and_reports_transformed_shape()
             raise ValueError("operation close failed")
 
         return PreparedBufferOperation(
-            {"color": output_spec},
+            {"color": output},
             apply,
             reset=lambda env_ids: lifecycle.append(("reset", env_ids)),
             close=close,
@@ -171,10 +224,6 @@ def test_processed_image_declares_private_inputs_and_reports_transformed_shape()
     requests = []
     camera = SimpleNamespace(
         request_render_inputs=lambda names: requests.append(set(names)),
-        render_output_specs={
-            "rgb_radiance": ImageBufferSpec(tuple(radiance.shape), wp.float32, "cpu", "scene_linear"),
-            "depth": ImageBufferSpec(tuple(depth.shape), wp.float32, "cpu", "distance"),
-        },
         render_outputs={"rgb_radiance": ProxyArray(wp.from_torch(radiance)), "depth": ProxyArray(wp.from_torch(depth))},
     )
     sensors = {"camera": camera}

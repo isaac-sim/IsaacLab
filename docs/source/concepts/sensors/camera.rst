@@ -155,7 +155,7 @@ Output types
 
 For raw outputs, the active renderer validates the requested names and allocates the channel count
 and data type declared by its :class:`~isaaclab.renderers.RenderBufferSpec`. A camera pipeline may
-produce additional output names; its operation factories declare their output contracts.
+produce additional output names; its operation factories allocate those buffers.
 
 .. list-table:: Common output contracts
    :header-rows: 1
@@ -364,20 +364,22 @@ uint8 color. Set ``outputs={"color": "rgba"}`` and ``params={"cfg": ppisp_cfg, "
 step for RGBA output. A pipeline-produced RGBA buffer also supplies a zero-copy RGB view when ``rgb``
 is requested. A pipeline producing only RGB cannot satisfy an explicit RGBA request.
 
-For a custom operation, provide a factory ``prepare(input_specs, **params)`` returning
-:class:`~isaaclab.utils.images.PreparedBufferOperation`. Input and output mappings inside the operation
-use role names, while the step configuration owns camera-buffer names. Declare output shape, dtype,
-device, layout, and encoding with :class:`~isaaclab.utils.images.ImageBufferSpec`; then write each
-supplied output destination in ``apply(inputs, outputs)``. The pipe allocates these destinations once.
-Encoding is declared by the producer rather than inferred from dtype or pixel values. Camera radiance
-uses ``scene_linear``, RGB/RGBA uses ``camera_response``, and depth uses ``meters``.
+For a custom operation, provide a factory ``prepare(inputs, **params)`` returning
+:class:`~isaaclab.utils.images.PreparedBufferOperation`. The factory receives actual
+:class:`~isaaclab.utils.warp.ProxyArray` inputs, inspects their shape, dtype, and device, and allocates
+its output buffers and workspace once. Return the output arrays in the prepared operation, then write
+each supplied destination in ``apply(inputs, outputs)``. Both mappings use operation role names; the
+step configuration maps those roles to camera-buffer names. Preparation must not read input pixels or
+retain their addresses for execution: each ``apply`` call receives the current inputs.
+Operations document their expected image layout and pixel meaning. PPISP requires NHWC float32
+scene-linear radiance and produces NHWC uint8 color; a float32 array alone does not establish radiance.
 Published camera outputs must keep the camera's batch size, height, width, and NHWC layout so pose
 and calibration metadata remain valid. Intermediate buffers may change shape. Use ``processed_image``
 below when the final observation should have a different image shape or layout.
 
-``camera.render_outputs`` exposes borrowed raw renderer buffers, including private inputs, and
-``camera.render_output_specs`` exposes their contracts after initialization. Reading raw outputs updates
-the camera when due. Neither an operation nor a caller may mutate borrowed inputs. Public processed
+``camera.render_outputs`` exposes borrowed raw renderer buffers, including private inputs. Their
+``ProxyArray`` properties provide shape, dtype, and device. Reading raw outputs updates the camera
+when due. Neither an operation nor a caller may mutate borrowed inputs. Public processed
 buffers and raw buffers retain their storage until camera reinitialization, but later captures replace
 their contents; clone values that must survive another capture. Each camera owns its pipe and operation
 workspace. Operations may share explicitly supplied immutable model resources.
@@ -422,12 +424,12 @@ that term rather than the camera's capture cadence.
 
 For a single incoming tensor, :class:`~isaaclab.utils.modifiers.RenderBufferPipeModifierCfg` uses the
 same operations while preserving preceding observation transformations. This form must preserve
-shape; use ``processed_image`` for multiple camera inputs or shape changes. The declared dtype,
-encoding, and layout describe the tensor reaching the modifier:
+shape; use ``processed_image`` for multiple camera inputs or shape changes. The first incoming tensor
+prepares the operations; later calls reuse their output storage. Its values must meet the operation's
+documented input requirements, including any transformations from preceding modifiers:
 
 .. code-block:: python
 
-   import warp as wp
    from isaaclab.utils import modifiers
 
    # This camera publishes radiance for the ordinary image term to read.
@@ -440,9 +442,6 @@ encoding, and layout describe the tensor reaching the modifier:
                pipeline=[PpispStepCfg()],
                input_name="rgb_radiance",
                output_name="rgb",
-               dtype=wp.float32,
-               encoding="scene_linear",
-               layout="NHWC",
            )
        ],
    )

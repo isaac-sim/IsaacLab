@@ -23,7 +23,7 @@ from ... import sim as sim_utils
 from ...app.logging_utils import force_log_level
 from ...renderers import BaseRenderer, CameraRenderSpec
 from ...sim.views import FrameView
-from ...utils.images import ImageBufferSpec, RenderBufferPipe
+from ...utils.images import RenderBufferPipe
 from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
@@ -257,7 +257,6 @@ class Camera(SensorBase):
         self._pipeline_capture: object | None = None
         self._render_camera_data: CameraData | None = None
         self._render_outputs: dict[str, ProxyArray] = {}
-        self._render_output_specs: dict[str, ImageBufferSpec] = {}
         # UsdGeom Camera prim for the sensor
         self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
@@ -344,11 +343,6 @@ class Camera(SensorBase):
         """
         self._update_outdated_buffers()
         return MappingProxyType(self._render_outputs)
-
-    @property
-    def render_output_specs(self) -> Mapping[str, ImageBufferSpec]:
-        """Resolved raw image contracts, available after camera initialization and treated as read-only."""
-        return MappingProxyType(self._render_output_specs)
 
     def request_render_inputs(self, names: Sequence[str]) -> None:
         """Request private renderer buffers before camera initialization.
@@ -903,39 +897,22 @@ class Camera(SensorBase):
         self._render_camera_data = self._data
         self._render_outputs = self._render_camera_data.output
         self._renderer.set_outputs(self._render_data, self._render_outputs)
-        encodings = {
-            "rgb_radiance": "scene_linear",
-            "rgb": "camera_response",
-            "rgba": "camera_response",
-            "depth": "meters",
-            "distance_to_camera": "meters",
-            "distance_to_image_plane": "meters",
-        }
-        self._render_output_specs = {
-            name: ImageBufferSpec(
-                shape=buffer.shape,
-                dtype=buffer.dtype,
-                device=str(buffer.device),
-                encoding=encodings.get(name, "unknown"),
-            )
-            for name, buffer in self._render_outputs.items()
-        }
         self._close_pipeline()
         self._pipeline_capture = None
         if self.cfg.pipeline:
-            self._buffer_pipe = RenderBufferPipe(self._render_output_specs, self.cfg.pipeline)
+            self._buffer_pipe = RenderBufferPipe(self._render_outputs, self.cfg.pipeline)
             try:
-                outputs = {**self._render_outputs, **self._buffer_pipe.outputs}
+                outputs = dict(self._buffer_pipe.outputs)
                 alias_rgb = (
                     "rgba" in self._buffer_pipe.produced_outputs and "rgb" not in self._buffer_pipe.produced_outputs
                 )
                 expected_shape = (self._view.count, self.cfg.height, self.cfg.width)
                 for name in self.cfg.data_types:
-                    spec = self._buffer_pipe.output_specs["rgba" if alias_rgb and name == "rgb" else name]
-                    if spec.layout != "NHWC" or len(spec.shape) != 4 or spec.shape[:3] != expected_shape:
+                    buffer = outputs["rgba" if alias_rgb and name == "rgb" else name]
+                    if len(buffer.shape) != 4 or buffer.shape[:3] != expected_shape:
                         raise ValueError(
                             f"Camera pipeline output {name!r} must use NHWC with batch and spatial shape"
-                            f" {expected_shape}; received {spec.layout} {spec.shape}. Use an observation pipe"
+                            f" {expected_shape}; received {buffer.shape}. Use an observation pipe"
                             " for shape-changing results, because camera calibration describes the rendered image."
                         )
                 # Preserve RGB's view semantics when an operation produces RGBA, without publishing stale raw RGB.

@@ -11,6 +11,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.images import RenderBufferPipe, RenderBufferStepCfg
@@ -44,8 +45,12 @@ class processed_image(ManagerTermBase):
         super().__init__(cfg, env)
         self._camera = env.scene.sensors[cfg.params["sensor_cfg"].name]
         self._output_name = cfg.params["output_name"]
-        self._pipe = RenderBufferPipe(self._camera.render_output_specs, cfg.params["pipeline"])
-        if self._output_name not in self._pipe.output_specs:
+        buffers = self._camera.render_outputs
+        device = wp.get_device(self.device)
+        stream = wp.stream_from_torch(torch.cuda.current_stream(str(device))) if device.is_cuda else None
+        with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
+            self._pipe = RenderBufferPipe(buffers, cfg.params["pipeline"])
+        if self._output_name not in self._pipe.outputs:
             self._pipe.close()
             raise ValueError(f"Image processing does not provide output {self._output_name!r}.")
 
@@ -58,7 +63,7 @@ class processed_image(ManagerTermBase):
         *,
         out: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Return a processed image in the layout, dtype and shape declared by its final operation.
+        """Return a snapshot of the selected operation output.
 
         The observation manager supplies ``out`` to receive the snapshot without another clone.
         Direct callers may omit it to allocate a new snapshot.

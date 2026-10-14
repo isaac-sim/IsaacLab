@@ -6,11 +6,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import MISSING, field
+from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
 import torch
-import warp as wp
 
 from .. import configclass
 
@@ -44,8 +43,8 @@ class ModifierCfg:
 class RenderBufferPipeModifierCfg(ModifierCfg):
     """Bind an incoming observation tensor to a render buffer pipe.
 
-    The declared dtype, layout and encoding describe the tensor *after* preceding modifiers.
-    The pipe validates storage and lets each operation validate the semantic encoding.
+    Operations are prepared from the first tensor received after preceding modifiers.
+    Their documented input requirements define the expected image layout and value semantics.
     """
 
     func: type[RenderBufferPipeModifier] | str = "{DIR}.render_buffer_pipe:RenderBufferPipeModifier"
@@ -59,15 +58,6 @@ class RenderBufferPipeModifierCfg(ModifierCfg):
 
     output_name: str = "rgb"
     """Name selected from the processed bundle."""
-
-    dtype: type = field(default_factory=lambda: wp.float32)
-    """Expected Warp element type of the incoming tensor."""
-
-    encoding: str = "unknown"
-    """Semantic encoding of the incoming tensor, such as ``scene_linear``."""
-
-    layout: str = "NHWC"
-    """Axis layout of the incoming tensor."""
 
 
 @configclass
