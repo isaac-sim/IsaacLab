@@ -1295,6 +1295,7 @@ def test_resolve_presets_errors_on_cyclic_preset_at_root():
 # =============================================================================
 
 from isaaclab.physics import PhysicsCfg as _RealPhysicsCfg  # noqa: E402
+from isaaclab.renderers.renderer_cfg import RendererCfg as _RealRendererCfg  # noqa: E402
 
 from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 
@@ -1356,6 +1357,21 @@ def test_resolve_active_presets_no_physics_hit_for_scalar_preset():
     # physics=newton_mjwarp (typed selector) must error.
     with pytest.raises(ValueError, match="physics=newton_mjwarp"):
         hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits)
+
+
+def test_register_task_explains_unavailable_typed_selectors(monkeypatch):
+    """A defaults-only task should report all selectors and explain how to use its defaults."""
+
+    @configclass
+    class Cfg:
+        physics: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
+        renderer: _RealRendererCfg = _RealRendererCfg()
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", lambda *_: Cfg())
+    with pytest.raises(ValueError, match="registered default configuration") as error:
+        hydra_mod.register_task("test", "", overrides=["physics=isaacsim_physx", "renderer=isaacsim_rtx"])
+    assert "physics=isaacsim_physx" in str(error.value)
+    assert "renderer=isaacsim_rtx" in str(error.value)
 
 
 # =============================================================================

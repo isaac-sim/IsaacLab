@@ -552,9 +552,8 @@ def _validate_typed_presets(
     if missing:
         clauses = ", ".join(f"{label}={name}" for label, name in missing)
         raise ValueError(
-            f"Typed preset selector(s) {clauses} did not match any preset of that type for this task. "
-            "The name only matched unrelated presets (or nothing), so the backend would stay unchanged. "
-            "Use a task that declares it on the matching config, or drop the selector."
+            f"Typed preset selector(s) {clauses} did not match a selectable preset of that type for this task. "
+            "Choose a declared preset, or remove the selector(s) to use the task's registered default configuration."
         )
 
 
@@ -656,7 +655,8 @@ def register_task(
                     name_to_paths.setdefault(name, []).append(full)
         known_names = set(name_to_paths)
         unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
-        if unknown:
+        typed_names = {name for names in requested_targets.values() for name in names}
+        if unknown - typed_names:
             display = {n: p for n, p in name_to_paths.items() if n != "default"}
             raise ValueError(_format_unknown_presets_error(unknown, display))
 
