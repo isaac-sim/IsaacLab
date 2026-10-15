@@ -86,6 +86,9 @@ class PhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
     )
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(
+        # Match the measured 0.6 runtime actuator efforts, not the USD coefficient (0.035).
+        legacy_joint_friction_replacements={"(index|middle|ring|thumb)_joint_[0-3]": (0.01, 0.0, 0.0)},
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp

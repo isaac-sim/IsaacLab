@@ -203,7 +203,12 @@ def ovphysx_replicate(
 
 
 def _serialize_stage(
-    stage: Usd.Stage, recipes: Sequence[CloneRecipe], full_stage: bool, plan: ClonePlan | None = None
+    stage: Usd.Stage,
+    recipes: Sequence[CloneRecipe],
+    full_stage: bool,
+    plan: ClonePlan | None = None,
+    *,
+    friction_replacements: dict[str, tuple[float, float, float]] | None = None,
 ) -> tuple[str, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
@@ -267,7 +272,7 @@ def _serialize_stage(
     # Materialize only originals on GPU. Each native destination is absent from the export.
     layer = stage.Flatten()
     if ovphysx_compat.OVPHYSX_USES_TASKS:
-        convert_legacy_joint_properties(layer)
+        convert_legacy_joint_properties(layer, friction_replacements)
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
     native = {}

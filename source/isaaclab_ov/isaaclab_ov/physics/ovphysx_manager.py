@@ -782,7 +782,13 @@ class OvPhysxManager(PhysicsManager):
         cls._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, PhysicsManager._cfg, ovphysx_device)
 
         full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
-        stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage, plan)
+        stage_usda, native_clones = _serialize_stage(
+            sim.stage,
+            cls._clone_recipes,
+            full_stage,
+            plan,
+            friction_replacements=getattr(sim.cfg.physics, "legacy_joint_friction_replacements", None),
+        )
         cls._stage_usda = stage_usda
 
         previous_backend = cls.backend

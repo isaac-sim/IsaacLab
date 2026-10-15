@@ -379,10 +379,11 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
             90.0 if name == "Angular" else 2.0
         )
         prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
-        prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.0)
+        prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.035)
     linear = stage.GetPrimAtPath("/Robot/Linear")
     linear.AddAppliedSchema("NewtonJointAPI")
     linear.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.75)
+    linear.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.8)
     angular = stage.GetPrimAtPath("/Robot/Angular")
     angular.AddAppliedSchema("PhysxJointAxisAPI:angular")
     angular.CreateAttribute("physxJointAxis:angular:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(45.0)
@@ -390,7 +391,9 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
     instance.GetReferences().AddInternalReference("/Robot")
     instance.SetInstanceable(True)
     before = stage.GetRootLayer().ExportToString()
-    serialized, _ = _serialize_stage(stage, [], full_stage=True)
+    serialized, _ = _serialize_stage(
+        stage, [], full_stage=True, friction_replacements={"Angular|Linear": (0.01, 0.0, 0.0)}
+    )
     layer = Sdf.Layer.CreateAnonymous()
     layer.ImportFromString(serialized)
     exported = Usd.Stage.Open(layer)
@@ -402,6 +405,18 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
             armature = prim.GetAttribute("newton:armature")
             expected = 0.75 if name == "Linear" else (0.25 if modern else None)
             assert (armature.Get() if armature and armature.HasAuthoredValueOpinion() else None) == expected
+            legacy_friction = prim.GetAttribute("physxJoint:jointFriction")
+            if modern:
+                assert not legacy_friction or not legacy_friction.HasAuthoredValueOpinion()
+                if name == "Angular":
+                    assert prim.GetAttribute("physxJointAxis:angular:staticFrictionEffort").Get() == pytest.approx(0.01)
+                    assert prim.GetAttribute("physxJointAxis:angular:dynamicFrictionEffort").Get() == 0.0
+                else:
+                    assert prim.GetAttribute("newton:friction").Get() == pytest.approx(0.8)
+                    per_axis = prim.GetAttribute("physxJointAxis:linear:staticFrictionEffort")
+                    assert not per_axis or not per_axis.HasAuthoredValueOpinion()
+            else:
+                assert legacy_friction.Get() == pytest.approx(0.035)
         assert (
             exported.GetPrimAtPath(f"{root}/Angular").GetAttribute("physxJointAxis:angular:maxJointVelocity").Get()
             == 45.0

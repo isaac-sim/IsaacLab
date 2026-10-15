@@ -152,7 +152,9 @@ class PhysicsCfg(PresetCfg):
         num_substeps=4,
         debug_mode=False,
     )
-    ovphysx = OvPhysxCfg()
+    ovphysx = OvPhysxCfg(
+        legacy_joint_friction_replacements={"rh_(WR|FF|MF|RF|LF|TH)J[1-5]": (0.01, 0.0, 0.0)},
+    )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 

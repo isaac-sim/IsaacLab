@@ -183,13 +183,31 @@ Authored modern values take precedence, and existing per-axis PhysX overrides
 remain intact. Source assets and the live stage are not edited, so other physics
 backends and older OVPhysX runtimes keep their previous behavior.
 
-Nonzero legacy ``physxJoint:jointFriction`` is rejected with the joint path.
+Unmigrated nonzero legacy ``physxJoint:jointFriction`` is rejected with the joint path.
 The dimensionless coefficient has no exact conversion to the new effort-based
 friction model. Remove it and retune ``newton:friction`` / ``newton:damping`` or
 ``PhysxJointAxisAPI`` friction efforts explicitly. Unsupported joint types and
 time-sampled legacy settings that cannot be represented also require migration.
 This compatibility layer does not promise identical trajectories across PhysX
 engine versions.
+
+For scene-time migration without republishing assets, set
+``OvPhysxCfg.legacy_joint_friction_replacements`` to a mapping from joint-name
+regular expressions to ``(static effort, dynamic effort, viscous coefficient)``.
+The values use SI force/torque and viscous units. Only matching revolute and
+prismatic joints with nonzero legacy friction are migrated in the private 0.7
+export: the legacy property is removed and modern ``PhysxJointAxisAPI`` values
+are authored. Existing modern friction opinions take precedence. Other runtimes,
+source USD files, and the live stage remain unchanged.
+
+The Allegro reorientation, Kuka-Allegro lift/reorientation, Shadow reorientation,
+and Shadow handover presets supply replacements for their affected hand joints.
+The profile is ``(0.01, 0.0, 0.0)``: 0.01 N*m static effort, zero dynamic effort,
+and zero viscous coefficient. These values match measured OVPhysX 0.6.4 runtime
+actuator settings, including the Shadow tendon joints; they are not a numeric
+conversion of the legacy asset coefficients. Actuator initialization and runtime
+friction randomization continue using effort-valued tensor properties. Merely
+copying a legacy coefficient into a modern effort property is not a valid migration.
 
 Testing the Installation
 ------------------------

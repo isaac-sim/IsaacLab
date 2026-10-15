@@ -113,6 +113,10 @@ class KukaAllegroMixinCfg:
 
     def __post_init__(self):
         super().__post_init__()
+        # Seed the private 0.7 export with the existing hand actuator efforts. The
+        # Kit/0.6 paths keep their source opinions and runtime actuator settings.
+        for physics in (self.sim.physics.ovphysx, self.sim.physics.physx.ovphysx):
+            physics.legacy_joint_friction_replacements = {"(index|middle|ring|thumb)_joint_[0-3]": (0.01, 0.0, 0.0)}
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")
