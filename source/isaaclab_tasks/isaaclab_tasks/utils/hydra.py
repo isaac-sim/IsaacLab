@@ -564,28 +564,8 @@ def register_task(
         }
         known_names = {name for fields in available.values() for name in fields}
         unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
-        if unknown:
-            unavailable_target = next(
-                (
-                    target
-                    for target in requested_targets
-                    if not any(
-                        target.matches(value)
-                        for fields in available.values()
-                        for name, value in fields.items()
-                        if name != "default"
-                    )
-                ),
-                None,
-            )
-            if unavailable_target is not None:
-                selectors = ", ".join(
-                    f"'{unavailable_target.value}={name}'" for name in sorted(requested_targets[unavailable_target])
-                )
-                raise ValueError(
-                    f"Task '{task_name}' does not expose selectable {unavailable_target.value} presets. "
-                    f"Remove {selectors} to use its registered default configuration."
-                )
+        typed_names = {name for names in requested_targets.values() for name in names}
+        if unknown - typed_names:
             lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
             for name in sorted(unknown & _LEGACY_PRESET_ALIASES.keys()):
                 lines.append(f"'{name}' was renamed to '{_LEGACY_PRESET_ALIASES[name]}'; this task declares neither.")
@@ -604,7 +584,9 @@ def register_task(
     ]
     if missing:
         raise ValueError(
-            f"Typed preset selector(s) {', '.join(missing)} did not match any preset of that type for this task."
+            f"Typed preset selector(s) {', '.join(missing)} did not match a selectable preset of that type for task "
+            f"'{task_name}'. Choose a declared preset, or remove the selector(s) to use its registered default "
+            "configuration."
         )
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
