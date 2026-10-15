@@ -60,12 +60,14 @@ GRASP_CLOSE_INTERVAL = (1.0, 1.7)
 INITIAL_LIFT_TIME = 5.0
 POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
 HOLD_TIME = 0.55
-TILT_TIME = 6.0
+TILT_TIME = 8.0
 LIFT_TIME = 10.0
 LIFT_HEIGHT = 0.70
 RECOVERY_TIME = 5.0
 SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + LIFT_TIME + RECOVERY_TIME + 0.45
-_POUR_ANGLE = math.radians(54.0)
+_DRAIN_ANGLE = math.radians(28.0)
+_DRAIN_TILT_TIME = 4.0
+_POUR_ANGLE = math.radians(42.0)
 _UPPER_ANGLE = math.radians(49.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
@@ -93,14 +95,21 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
         )
 
     time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
-    tilt, tilt_derivative = _blend(time / TILT_TIME)
+    tilt, tilt_derivative = _blend(time / _DRAIN_TILT_TIME)
+    deeper_tilt, deeper_tilt_derivative = _blend((time - _DRAIN_TILT_TIME) / (TILT_TIME - _DRAIN_TILT_TIME))
     lift, lift_derivative = _blend((time - TILT_TIME) / LIFT_TIME)
     recovery_raw = (time - TILT_TIME - LIFT_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
-    # Establish a strong stream, then reduce tilt as the pot rises and drains.
-    angle = _POUR_ANGLE * tilt + (_UPPER_ANGLE - _POUR_ANGLE) * lift - _UPPER_ANGLE * recovery
+    # Drain the retained fill before deepening the tilt and raising the pot.
+    angle = (
+        _DRAIN_ANGLE * tilt
+        + (_POUR_ANGLE - _DRAIN_ANGLE) * deeper_tilt
+        + (_UPPER_ANGLE - _POUR_ANGLE) * lift
+        - _UPPER_ANGLE * recovery
+    )
     angular_speed = (
-        _POUR_ANGLE * tilt_derivative / TILT_TIME
+        _DRAIN_ANGLE * tilt_derivative / _DRAIN_TILT_TIME
+        + (_POUR_ANGLE - _DRAIN_ANGLE) * deeper_tilt_derivative / (TILT_TIME - _DRAIN_TILT_TIME)
         + (_UPPER_ANGLE - _POUR_ANGLE) * lift_derivative / LIFT_TIME
         - _UPPER_ANGLE * recovery_derivative / RECOVERY_TIME
     )

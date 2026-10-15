@@ -545,6 +545,7 @@ def create_sim_cfg():
 
         solver_cfg = cfg.physics.solver_cfg
         solver_cfg.air_drag = 1.0
+        solver_cfg.strain_basis = "P1d"
         # Cover dense cells during bowl impact; pic27 can omit wall contacts.
         solver_cfg.collider_basis = "pic512"
         cfg.physics = NewtonCfg(
@@ -735,19 +736,19 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(*ROBOT_BASE_POS[:2], 0.5 * ROBOT_BASE_POS[2])),
         )
-        if {"kit", "newton_rtx"}.intersection(args_cli.visualizer or []):
-            cfg.room = AssetBaseCfg(
-                prim_path="/World/Room",
-                spawn=sim_utils.UsdFileCfg(
-                    usd_path=(
-                        f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaTeapot/Environment/enclosed_simple_room_v2.usda"
-                    ),
-                    make_uninstanceable=True,
-                    collision_props=disable_asset_colliders,
+        cfg.room = AssetBaseCfg(
+            prim_path="/World/Room",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=(
+                    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaTeapot/Environment/enclosed_simple_room_v2.usda"
                 ),
-                init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.65, 0.7685705931503188), rot=(0.0, 0.0, 1.0, 0.0)),
-            )
-            cfg.ground.spawn.visible = False
+                make_uninstanceable=True,
+                rigid_props=disable_asset_rigid_bodies,
+                collision_props=disable_asset_colliders,
+            ),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.65, 0.7685705931503188), rot=(0.0, 0.0, 1.0, 0.0)),
+        )
+        cfg.ground.spawn.visible = False
     return cfg
 
 
