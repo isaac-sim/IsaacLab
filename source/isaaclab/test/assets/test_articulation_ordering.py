@@ -770,11 +770,9 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
 def _install_newton_model_case(
     monkeypatch: pytest.MonkeyPatch, bodies: tuple, joints: tuple, root: str = "base", loop_joints: int = 0
 ):
-    """Serve a mocked Newton model and return a Newton articulation stand-in.
+    """Serve a mocked Newton model of ``(name, parent, child, type)`` joints; the last ``loop_joints`` close loops.
 
-    ``bodies`` are body paths below the asset, ``joints`` are ``(name, parent, child, type)`` with the mocked
-    ``JointType`` values, ``root`` is the ArticulationRootAPI prim (a container unless it names a body), and the last
-    ``loop_joints`` joints close loops. The Newton view lists names in model order.
+    ``root`` is the ArticulationRootAPI prim, a container unless it names a body.
     """
     calls = {"add_usd": [], "finalize": [], "views": [], "registered": 0}
 
@@ -851,6 +849,12 @@ def test_physx_ordering_helper_roots_at_the_root_api_body_before_world_joints(mo
         (("a", "b"), (("free", -1, 0, 0), ("ab", 0, 1, 2)), 0, "two bodies tie as its graph center"),
         (("a", "a/b", "a/b/c"), (("free", -1, 0, 0), ("ab", 0, 1, 2), ("bc", 1, 2, 2)), 0, "nested in each other"),
         (("a", "b", "c"), (("free", -1, 0, 0), ("ab", 0, 1, 2), ("bc", 1, 2, 2), ("ca", 2, 0, 2)), 1, "loop-closing"),
+        (
+            ("a", "b", "c", "d"),
+            (("wa", -1, 0, 1), ("ab", 0, 1, 2), ("wc", -1, 2, 1), ("cd", 2, 3, 2)),
+            0,
+            "not reached",
+        ),
     ],
 )
 def test_physx_ordering_helper_rejects_root_choices_it_does_not_emulate(

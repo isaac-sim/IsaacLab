@@ -499,8 +499,8 @@ def _get_names_from_newton_usd_builder(
     # bodies or loops.
     rank = {JointType.FIXED: 0, JointType.REVOLUTE: 1, JointType.PRISMATIC: 2, JointType.BALL: 3}
     parent, child, joint_type = (a.numpy().tolist() for a in (model.joint_parent, model.joint_child, model.joint_type))
-    articulation = int(view.articulation_ids.numpy().flat[0])
-    start, end = (int(a.numpy()[articulation]) for a in (model.articulation_start, model.articulation_end))
+    index = int(view.articulation_ids.numpy().flat[0])
+    start, end = (int(a.numpy()[index]) for a in (model.articulation_start, model.articulation_end))
     joints = sorted(
         (joint for joint in range(start, end) if joint_type[joint] != JointType.FREE),
         key=lambda joint: (rank.get(joint_type[joint], len(rank)), model.joint_label[joint]),
@@ -524,13 +524,13 @@ def _get_names_from_newton_usd_builder(
 
     def unsupported(reason: str) -> NotImplementedError:
         return NotImplementedError(
-            f"Cannot resolve the \"physx\" order of '{source_articulation_path}' on this backend: {reason}, and"
-            " OVPhysX's root choice for that case is not emulated. Set joint_ordering and body_ordering to explicit"
-            " name lists instead."
+            f"Cannot resolve the \"physx\" order of '{source_articulation_path}' on this backend: {reason}, which"
+            " the OVPhysX emulation does not cover. Set joint_ordering and body_ordering to explicit name lists"
+            " instead."
         )
 
-    if model.articulation_label[articulation] in model.body_label:
-        root = model.body_label.index(model.articulation_label[articulation])
+    if model.articulation_label[index] in model.body_label:
+        root = model.body_label.index(model.articulation_label[index])
     elif world_joints:
         root = next(iter(world_joints))
     else:
@@ -542,15 +542,19 @@ def _get_names_from_newton_usd_builder(
             raise unsupported("two bodies tie as its graph center")
         if any(other.startswith(f"{label}/") for label in labels for other in labels):
             raise unsupported("its bodies are nested in each other")
-        if int(model.articulation_start.numpy()[articulation + 1]) != end:
+        if any(parent[j] in radius and child[j] in radius for j in range(len(parent)) if not start <= j < end):
             raise unsupported("it has loop-closing joints")
         root = centers[0]
     visits = breadth_first(root)
     joint_rank = {model.joint_label[j].rsplit("/", 1)[-1]: i for i, (_, _, j) in enumerate(visits) if j is not None}
     body_rank = {model.body_label[body].rsplit("/", 1)[-1]: i for i, (body, _, _) in enumerate(visits)}
+    # Sort the active backend's own names: PhysX numbers a multi-axis joint's DoFs by axis, Newton in sequence.
+    joint_names, body_names = articulation.backend_joint_names, articulation.backend_body_names
+    if {name.split(":")[0] for name in joint_names} - joint_rank.keys() or set(body_names) - body_rank.keys():
+        raise unsupported("some of its joints or bodies are not reached from its root")
     return {
-        "joint": tuple(sorted(view.joint_dof_names, key=lambda name: joint_rank[name.split(":")[0]])),
-        "body": tuple(sorted(view.link_names, key=body_rank.__getitem__)),
+        "joint": tuple(sorted(joint_names, key=lambda name: joint_rank[name.split(":")[0]])),
+        "body": tuple(sorted(body_names, key=body_rank.__getitem__)),
     }
 
 

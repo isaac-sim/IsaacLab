@@ -293,9 +293,7 @@ generic commands above.
        ``play`` entry point applies ``play_mode`` overrides automatically.
    * - ``Isaac-Velocity-Rough-G1``
      - ``g1_rough``
-     - Branched topology: train and play with ``env.scene.robot.joint_ordering=physx
-       env.scene.robot.body_ordering=physx`` for PP and PN, and play with the ``mjwarp``
-       equivalents for NP.
+     - Branched topology: set the ordering overrides shown in the generic commands above.
    * - ``Isaac-Velocity-Rough-AnymalD``
      - ``anymal_d_rough``
      - Branched topology: same ordering overrides as G1.
@@ -375,10 +373,11 @@ Set ``joint_ordering`` and ``body_ordering`` on
 * ``None`` -- backend-native order and the zero-conversion default (see below).
 * ``"physx"`` -- OVPhysX articulation-view order. Other backends, Isaac Sim PhysX
   included, resolve it from the asset with Newton's USD parser and map their own
-  order to it. An articulation rooted on a container prim raises an error when
-  PhysX's choice of root is not emulated: two bodies tie as the graph center,
-  bodies are nested in each other, or loop-closing joints exist. Set explicit
-  name lists for those articulations.
+  order to it. Resolution raises when it cannot reproduce that order: Newton
+  cannot import the asset, the backends name its joints or bodies differently,
+  or a floating articulation rooted on a container prim has tied graph centers,
+  nested bodies or loop-closing joints. Keep ``None`` or set explicit name lists
+  for those articulations.
 * ``"mjwarp"`` -- Newton or MJWarp articulation-view order.
 * ``"robot_schema"`` -- the order authored on the asset's
   ``isaac:physics:robotJoints`` (joints) or ``isaac:physics:robotLinks``

@@ -103,7 +103,7 @@ class Articulation(BaseArticulation):
     """The name of the backend for the articulation."""
 
     __backend_native_orderings__: tuple[str, ...] = ()
-    """Authored joint-prim order, which can differ from the ``"physx"`` (OVPhysX) order."""
+    """None: Isaac Sim PhysX visits sibling links in authored joint-prim order, which can differ from ``"physx"``."""
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
