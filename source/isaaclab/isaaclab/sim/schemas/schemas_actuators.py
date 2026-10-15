@@ -310,7 +310,7 @@ def author_actuator_prims(
             schemas: list[str] = []
             attrs: dict[str, float | int] = {}
             array_attrs: dict[str, list[float]] = {}
-            relationships: dict[str, str] = {}
+            relationships: dict[str, str] = {"targets": joint_prim_path}
 
             if is_neural:
                 schemas.append("NewtonNeuralControlAPI")
@@ -362,13 +362,8 @@ def author_actuator_prims(
             act_prim = stage.DefinePrim(act_prim_path, "NewtonActuator")
             # Replacement may reuse the path of an actuator deactivated above.
             act_prim.SetActive(True)
-            existing = act_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-            existing.prependedItems = list(schemas)
-            act_prim.SetMetadata("apiSchemas", existing)
-
-            rel = act_prim.CreateRelationship("newton:targets")
-            rel.SetTargets([Sdf.Path(joint_prim_path)])
-
+            # Explicit, so a weaker layer cannot add back the replaced actuator's schemas, such as its backlash.
+            act_prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(schemas))
             _set_actuator_properties(act_prim, attrs, array_attrs, relationships, patched_model_path)
 
 
@@ -388,10 +383,10 @@ def _set_actuator_properties(
 ) -> None:
     """Author an actuator prim's ``newton:`` attributes and joint relationships.
 
-    A reused prim path keeps the replaced actuator's attributes, and Newton reads every ``newton:`` attribute for a
-    drive schema without a registered definition, such as BAM's. Values this call does not author are blocked.
+    A reused prim path keeps the replaced actuator's properties, and Newton reads every ``newton:`` attribute for a
+    drive schema without a registered definition, such as BAM's. Properties this call does not author are blocked.
     """
-    authored = {f"newton:{to_camel_case(name)}" for name in (*attrs, *array_attrs)}
+    authored = {f"newton:{to_camel_case(name)}" for name in (*attrs, *array_attrs, *relationships)}
     if model_path is not None:
         act_prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(model_path))
         authored.add("newton:modelPath")
@@ -411,8 +406,13 @@ def _set_actuator_properties(
         act_prim.CreateRelationship(f"newton:{to_camel_case(rel_name)}").SetTargets([Sdf.Path(target)])
 
     for prop in act_prim.GetAuthoredPropertiesInNamespace("newton"):
-        if isinstance(prop, Usd.Attribute) and prop.GetName() not in authored:
+        if prop.GetName() in authored:
+            continue
+        if isinstance(prop, Usd.Attribute):
             prop.Block()
+        else:
+            # An explicit empty target list overrides the weaker layers' targets.
+            prop.SetTargets([])
 
 
 def _bam_play_hinge_path(stage: Usd.Stage, servo_path: str, hinge_name: str) -> str:

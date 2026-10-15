@@ -257,7 +257,7 @@ def test_authored_prim_composes_native_components(goldens, servo_usd, limit, vol
 
 
 def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd):
-    """A serialized asset's fit and joint friction seed are replaced, and stale actuator attributes are blocked."""
+    """A serialized asset's fit, friction seed and backlash are replaced, and stale actuator properties are blocked."""
     cfg = make_cfg(goldens)
     stage = make_stage(servo_usd)
     seeds = []
@@ -270,6 +270,9 @@ def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd
         seeds.append(friction.Get())
         friction.Set(2.0 * friction.Get())
         prim.CreateAttribute("newton:kt", Sdf.ValueTypeNames.Float).Set(0.3 + index * 0.1)
+        # A backlash processor the configuration does not set would keep reading the play hinge.
+        prim.AddAppliedSchema("NewtonActuatorBacklashAPI")
+        prim.CreateRelationship("newton:backlashJoint").SetTargets([f"/Robot/{name}"])
     path = tmp_path / "robot.usda"
     stage.Export(str(path))
     stage = Usd.Stage.CreateInMemory()
@@ -285,6 +288,7 @@ def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd
         assert set(entry.drive_kwargs) == {"kp", "kt", "resistance", "vin", "max_pwm", "max_current"}
         assert entry.drive_kwargs["kt"] == pytest.approx(goldens["attr_kt"].item())
         assert entry.drive_kwargs["kp"] == pytest.approx(123.5 * goldens["attr_error_gain"].item())
+        assert [component for component, _ in entry.component_specs] == [ClampingMaxEffort]
     for name, seed in zip(JOINT_NAMES, seeds, strict=True):
         assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() == seed
 
