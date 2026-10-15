@@ -47,6 +47,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
+from isaaclab.visualizers.camera_follower import CameraFollower
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
@@ -501,10 +502,16 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_present_time = -math.inf
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
+        self._followers: dict[object, CameraFollower] = {}
+        self._follow_time = 0.0
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind scene data and the Newton model shared with the simulation."""
         super().initialize(sim, cameras=cameras)
+        # each perspective view renders itself, so a recorder can capture one the window does not show
+        for view in self._image_views:
+            if view.camera is None:
+                view.render = partial(self._capture_view, view)
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(
@@ -594,15 +601,12 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
-            if (
-                self.current_image_view.render is not None
-                and self.current_image_view.render != self._capture_perspective
-            ):
-                raise ValueError("A perspective image view must have exactly one rendering owner.")
-            self.current_image_view.render = self._capture_perspective
-            self.set_camera_view(camera.eye, camera.lookat)
-            self.cfg.focal_length = camera.focal_length
-            self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+            if camera.is_task_view:
+                self._apply_view_pose(self.current_image_view)
+            else:
+                self.set_camera_view(camera.eye, camera.lookat)
+                self.cfg.focal_length = camera.focal_length
+                self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
         if self._viewer.picking is not None:
             # Release an existing drag without replacing any graph-captured picking buffers.
             self._viewer.picking.release()
@@ -624,6 +628,51 @@ class NewtonVisualizerBase(BaseVisualizer):
         rotation = quat_from_matrix(delta[:3, :3]).expand_as(orientations)
         camera.set_world_poses(positions + translation, quat_mul(orientations, rotation), convention="opengl")
         self.current_image_view.invalidate()
+
+    def _apply_view_pose(self, view) -> bool:
+        """Point the viewer camera where a perspective *view* looks, leaving the configured poses untouched.
+
+        Returns:
+            Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
+        """
+        source = view.cfg.source
+        if source.is_task_view:
+            follower = self._followers.get(view)
+            if follower is None:
+                scene = self._sim.get_scene_data_provider().get_interactive_scene()
+                if scene is None:
+                    return False
+                follower = self._followers[view] = CameraFollower(source, scene)
+            sim_time = self._sim.get_physics_step_count() * self._sim.get_physics_dt()
+            pose = follower.pose(max(sim_time - self._follow_time, 0.0))
+            self._follow_time = sim_time
+            if pose is None:
+                return False
+        else:
+            pose = (source.eye, source.lookat)
+        camera = self._viewer.camera
+        camera.pos = PygletVec3(*pose[0])
+        camera.look_at(pose[1])
+        self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+        camera.fov = self._focal_length_to_vertical_fov_degrees(source.focal_length)
+        return True
+
+    def _capture_view(self, view, output: wp.array | None) -> wp.array:
+        """Capture a perspective *view*, borrowing the viewer camera when the window shows another one."""
+        current = self.current_image_view
+        if view is current:
+            return self._capture_perspective(output)
+        camera = self._viewer.camera
+        saved = (PygletVec3(camera.pos.x, camera.pos.y, camera.pos.z), camera.pitch, camera.yaw, camera.fov)
+        self.current_image_view = view
+        try:
+            self._last_render_step = -1
+            return self._capture_perspective(output)
+        finally:
+            self.current_image_view = current
+            camera.fov = saved[3]
+            self._viewer.set_camera(*saved[:3])
+            self._last_render_step = -1
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
@@ -674,9 +723,10 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
         for view in self._image_views:
-            if view.render == self._capture_perspective:
+            if view.camera is None:
                 view.render = None
                 view.invalidate()
+        self._followers.clear()
         super().close()
 
     def supports_markers(self) -> bool:
@@ -737,6 +787,18 @@ class NewtonVisualizerBase(BaseVisualizer):
         if self.current_image_view is None:
             raise RuntimeError("The visualizer must be initialized before capturing an image.")
         return self.current_image_view.read_rgb(self._sim.get_physics_step_count())
+
+    def render_task_view_rgb_array(self) -> np.ndarray:
+        """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
+        view = next(
+            (v for v in self._image_views if v.camera is None and getattr(v.cfg.source, "is_task_view", False)), None
+        )
+        if view is None:
+            raise RuntimeError(
+                "No perspective view is tied to an environment or an asset. Declare "
+                "PerspectiveCameraCfg(env_index=..., track_path=...) in the visualizer's cameras."
+            )
+        return view.read_rgb(self._sim.get_physics_step_count())
 
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
@@ -883,6 +945,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     def _render_frame(self) -> None:
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
+        view = self.current_image_view
+        if view.camera is None and getattr(view.cfg.source, "is_task_view", False):
+            self._apply_view_pose(view)
         viewer.begin_frame(self._sim_time)
         try:
             if self.current_image_view.camera is not None:
@@ -1230,6 +1295,9 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
     def _render_frame(self) -> None:
         """Update controls and publish GPU poses or sensor pixels to Newton once per frame."""
         viewer = self._viewer
+        view = self.current_image_view
+        if view.camera is None and getattr(view.cfg.source, "is_task_view", False):
+            self._apply_view_pose(view)
         viewer.begin_frame(self._sim_time)
         try:
             if self.current_image_view.camera is not None:
