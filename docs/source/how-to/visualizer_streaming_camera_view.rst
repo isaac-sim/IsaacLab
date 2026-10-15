@@ -196,8 +196,8 @@ viewport's markers and shadows. Tasks declare one in ``sim.default_visualizer_cf
 The interactive view stays free: a free perspective view at the visualizer's own ``eye`` and ``lookat`` is
 added before the task view, and the **Camera View** selector switches between them. While a task view is
 selected the window follows the robot, and selecting the free view hands the camera back. Record a task view,
-whichever view the window shows, with ``--video viz:newton_gl:tracking``. Newton GL supports task views; the
-other visualizers ignore them.
+whichever view the window shows, with ``--video viz:newton_gl:tracking``. Newton GL supports task views and their recording.
+Newton RTX shares the same view code but is untested, and Kit, Rerun, and Viser ignore task views.
 
 Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
 authored scene and clone placements. Newton owns its perspective renderer, window, and debug

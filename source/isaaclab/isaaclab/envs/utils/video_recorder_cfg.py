@@ -53,9 +53,9 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     if kind == "sensor" and 1 <= len(parts) <= 2 and name and sub in ("", *SENSOR_CHANNELS):
         return kind, name, sub
     raise ValueError(
-        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view' or "
-        f"'sensor:<name>[:<channel>]', with <type> one of {', '.join(VISUALIZER_TYPES)} and <channel> one of "
-        f"{', '.join(SENSOR_CHANNELS)}."
+        f"Invalid video source {source!r}: expected '<type>', 'viz', 'viz:<type>', 'viz:<type>:streaming_view', "
+        f"'viz:<type>:tracking' or 'sensor:<name>[:<channel>]', with <type> one of "
+        f"{', '.join(VISUALIZER_TYPES)} and <channel> one of {', '.join(SENSOR_CHANNELS)}."
     )
 
 

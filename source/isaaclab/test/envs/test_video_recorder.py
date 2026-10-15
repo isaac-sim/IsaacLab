@@ -268,11 +268,6 @@ def test_a_tracking_source_records_the_task_view_not_the_selected_one():
     assert viz.render_calls == 0
 
 
-def test_a_visualizer_without_task_views_cannot_record_tracking():
-    with pytest.raises(RuntimeError, match="cannot record a tracking view"):
-        VideoRecorder(_cfg(source="viz:kit:tracking"), _make_env(visualizers=[_FakeViz("kit")]))
-
-
 @pytest.mark.parametrize(
     "source,make_env,error,message",
     [
@@ -283,6 +278,12 @@ def test_a_visualizer_without_task_views_cannot_record_tracking():
             lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
             RuntimeError,
             "Enable streaming_view",
+        ),
+        (
+            "viz:kit:tracking",
+            lambda: _make_env(visualizers=[_FakeViz("kit")]),
+            RuntimeError,
+            "cannot record a tracking view",
         ),
         ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), ValueError, "missing"),
         ("sensor:tiled_camera:depth", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()}), KeyError, "depth"),

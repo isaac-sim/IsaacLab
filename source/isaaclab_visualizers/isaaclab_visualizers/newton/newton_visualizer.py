@@ -516,7 +516,7 @@ class NewtonVisualizerBase(BaseVisualizer):
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
             view.render = partial(self._capture_view, view)
             source = view.cfg.source
-            if source.is_task_view and scene is not None:
+            if self._is_task_view(view) and scene is not None:
                 # fail at initialization, not on a frame: a bad env_index or track_path raises here
                 self._followers[view] = CameraFollower(source, scene)
                 if self._env_ids is not None and (source.env_index or 0) not in self._env_ids:
@@ -595,6 +595,11 @@ class NewtonVisualizerBase(BaseVisualizer):
         return state
 
     @staticmethod
+    def _is_task_view(view) -> bool:
+        """Whether *view* is a perspective view tied to an environment or an asset."""
+        return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
+
+    @staticmethod
     def _view_label(index: int, view) -> str:
         """Name a view for the Camera View selector: a task view says what it follows or frames."""
         if view.camera is not None:
@@ -659,8 +664,9 @@ class NewtonVisualizerBase(BaseVisualizer):
             Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
         """
         source = view.cfg.source
-        pose = self._followers[view].pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
-        if pose is None:
+        follower = self._followers.get(view)
+        pose = follower and follower.pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
+        if pose is None or follower is None:
             return False
         camera = self._viewer.camera
         camera.pos = PygletVec3(*pose[0])
@@ -803,9 +809,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def render_task_view_rgb_array(self) -> np.ndarray:
         """Download the first perspective view that is tied to an environment or an asset, whatever the window shows."""
-        view = next(
-            (v for v in self._image_views if v.camera is None and getattr(v.cfg.source, "is_task_view", False)), None
-        )
+        view = next((v for v in self._image_views if self._is_task_view(v)), None)
         if view is None:
             raise RuntimeError(
                 "No perspective view is tied to an environment or an asset. Declare "
@@ -959,7 +963,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         """Render one GL frame for the window or an on-demand capture."""
         viewer = self._viewer
         view = self.current_image_view
-        if view.camera is None and getattr(view.cfg.source, "is_task_view", False):
+        if self._is_task_view(view):
             self._apply_view_pose(view)
         viewer.begin_frame(self._sim_time)
         try:
@@ -1309,7 +1313,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         """Update controls and publish GPU poses or sensor pixels to Newton once per frame."""
         viewer = self._viewer
         view = self.current_image_view
-        if view.camera is None and getattr(view.cfg.source, "is_task_view", False):
+        if self._is_task_view(view):
             self._apply_view_pose(view)
         viewer.begin_frame(self._sim_time)
         try:

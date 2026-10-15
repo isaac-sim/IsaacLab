@@ -58,6 +58,23 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     return list(dict.fromkeys(names))
 
 
+def with_free_view(
+    cameras: list[PerspectiveCameraCfg | SceneCameraCfg],
+    eye: tuple[float, float, float],
+    lookat: tuple[float, float, float],
+    focal_length: float,
+) -> list[PerspectiveCameraCfg | SceneCameraCfg]:
+    """Return *cameras*, preceded by a free perspective view when it has task views but no free view of its own.
+
+    A task view follows a robot or frames an environment, so the interactive view that a user moves stays
+    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``.
+    """
+    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
+    if perspective and all(camera.is_task_view for camera in perspective):
+        return [PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length), *cameras]
+    return cameras
+
+
 @configclass
 class PerspectiveCameraCfg:
     """Pose and optics for a visualizer-owned perspective camera.
@@ -110,18 +127,6 @@ class PerspectiveCameraCfg:
             raise ValueError("env_index must be non-negative.")
         if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
             raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
-
-
-def with_free_view(cameras: list, eye: tuple, lookat: tuple, focal_length: float) -> list:
-    """Return *cameras*, preceded by a free perspective view when it has task views but no free view of its own.
-
-    A task view follows a robot or frames an environment, so the interactive view that a user moves stays
-    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``.
-    """
-    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
-    if perspective and all(camera.is_task_view for camera in perspective):
-        return [PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length), *cameras]
-    return cameras
 
 
 @configclass

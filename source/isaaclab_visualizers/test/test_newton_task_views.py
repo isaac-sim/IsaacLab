@@ -103,14 +103,25 @@ def test_capturing_another_view_hands_the_viewer_camera_back():
     assert viz.current_image_view is free and viz._last_render_step == -1
 
 
-def test_the_task_view_recording_picks_the_first_tied_view_and_reports_none():
-    free, task = _view(PerspectiveCameraCfg()), _view(PerspectiveCameraCfg(track_path="robot"))
-    viz = _visualizer([free, task])
+def test_the_task_view_recording_picks_the_first_tied_view():
+    free = _view(PerspectiveCameraCfg())
+    first, second = _view(PerspectiveCameraCfg(track_path="robot")), _view(PerspectiveCameraCfg(env_index=1))
+    viz = _visualizer([free, first, second])
     viz._sim.get_physics_step_count = lambda: 3
-    task.read_rgb = lambda step: ("task", step)
-    assert viz.render_task_view_rgb_array() == ("task", 3)
+    first.read_rgb, second.read_rgb = (lambda step: ("first", step)), (lambda step: ("second", step))
+    assert viz.render_task_view_rgb_array() == ("first", 3)
+
+
+def test_the_task_view_recording_reports_a_visualizer_without_one():
     with pytest.raises(RuntimeError, match="tied to an environment or an asset"):
-        _visualizer([free]).render_task_view_rgb_array()
+        _visualizer([_view(PerspectiveCameraCfg())]).render_task_view_rgb_array()
+
+
+def test_a_task_view_without_a_follower_has_no_pose_instead_of_failing():
+    task = _view(PerspectiveCameraCfg(env_index=1))
+    viz = _visualizer([task])
+    viz._followers.clear()  # no interactive scene was registered when the viewer initialized
+    assert not viz._apply_view_pose(task)
 
 
 def test_the_selector_names_what_a_task_view_follows_or_frames():
