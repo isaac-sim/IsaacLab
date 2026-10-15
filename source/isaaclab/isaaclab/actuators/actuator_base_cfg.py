@@ -43,7 +43,7 @@ class ActuatorBaseCfg:
     clip their computed effort with it; implicit actuators use it as the model-facing
     limit for effort telemetry. If None, it defaults to the authored/USD joint effort
     limit (explicit) or tracks the live solver limit (implicit); explicit actuators on the
-    Newton path keep the asset's actuator limit instead (see :ref:`actuators-usd-overlay`).
+    Newton path keep the asset's actuator limit instead (see :ref:`USD actuator overrides <actuators-usd-overlay>`).
     It is not a solver limit; that is :attr:`joint_effort_limit`.
 
     :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
@@ -106,7 +106,7 @@ class ActuatorBaseCfg:
     by the actuator model to compute the joint efforts.
 
     If None, the stiffness is set to the value from the USD joint prim; explicit actuators on the Newton path
-    keep the asset's actuator value instead (see :ref:`actuators-usd-overlay`).
+    keep the asset's actuator value instead (see :ref:`USD actuator overrides <actuators-usd-overlay>`).
     """
 
     damping: dict[str, float] | float | None = MISSING
@@ -117,7 +117,7 @@ class ActuatorBaseCfg:
     by the actuator model to compute the joint efforts.
 
     If None, the damping is set to the value from the USD joint prim; explicit actuators on the Newton path
-    keep the asset's actuator value instead (see :ref:`actuators-usd-overlay`).
+    keep the asset's actuator value instead (see :ref:`USD actuator overrides <actuators-usd-overlay>`).
     """
 
     armature: dict[str, float] | float | None = None

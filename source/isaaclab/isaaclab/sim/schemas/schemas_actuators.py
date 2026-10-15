@@ -110,7 +110,7 @@ def define_actuator_properties(
     Every joint covered by an explicit (non-implicit) Lab actuator config ends up with one
     active ``NewtonActuator`` prim. A config is authored onto the joint's USD actuator when
     its drive matches, so values the config leaves unset keep the asset's value; otherwise
-    the USD actuators are replaced by a new prim. See :ref:`actuators-usd-overlay` for the
+    the USD actuators are replaced by a new prim. See :ref:`USD actuator overrides <actuators-usd-overlay>` for the
     rules and the schemas each config type authors. Joints **not** covered by any Lab
     config keep their USD-authored actuators unchanged.
 

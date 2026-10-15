@@ -52,7 +52,8 @@ class DCMotorCfg(IdealPDActuatorCfg):
     The motor's stall torque reflected at the joint, i.e. the torque produced at zero speed.
     Joints in the same group that sit behind different gear reductions need different values,
     so this accepts a joint-name-pattern dictionary as well as a scalar. Required by the Isaac Lab
-    actuator model; on the Newton path, None keeps the asset's actuator value (see :ref:`actuators-usd-overlay`).
+    actuator model; on the Newton path, None keeps the asset's actuator value
+    (see :ref:`USD actuator overrides <actuators-usd-overlay>`).
     """
 
 
@@ -69,7 +70,7 @@ class DelayedPDActuatorCfg(IdealPDActuatorCfg):
     """Maximum number of physics time-steps with which the actuator command may be delayed.
 
     None applies no delay on the Isaac Lab model and keeps the asset's actuator delay on the Newton path,
-    where zero removes it (see :ref:`actuators-usd-overlay`).
+    where zero removes it (see :ref:`USD actuator overrides <actuators-usd-overlay>`).
     """
 
 
