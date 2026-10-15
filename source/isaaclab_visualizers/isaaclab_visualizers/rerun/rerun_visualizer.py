@@ -17,8 +17,10 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import newton
+import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
+import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerRerun
 
@@ -33,9 +35,6 @@ from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scal
 from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
-    from isaaclab.scene_data import SceneDataProvider
     from isaaclab.sensors.camera import Camera
 
 logger = logging.getLogger(__name__)
@@ -117,6 +116,7 @@ class NewtonViewerRerun(ViewerRerun):
     def __init__(self, *args, open_browser: bool = False, streaming_view: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
         self._live_plot_manager_names = []
+        self._instance_appearance: dict[str, tuple[np.ndarray | None, np.ndarray | None]] = {}
         self._camera_pose: tuple | None = None
         self._streaming_view_active = streaming_view
         if open_browser:
@@ -260,6 +260,47 @@ class NewtonViewerRerun(ViewerRerun):
             hidden,
         )
 
+    def log_instances(
+        self,
+        name: str,
+        mesh: str,
+        xforms: wp.array[wp.transform] | None,
+        scales: wp.array[wp.vec3] | None,
+        colors: wp.array[wp.vec3] | None,
+        materials: wp.array[wp.vec4] | None,
+        hidden: bool = False,
+        opacities: wp.array[wp.float32] | None = None,
+    ):
+        """Avoid resending an instance mesh when its visible appearance did not change."""
+        qualified_name = self._qualify(name)
+        previous = self._instance_appearance.get(qualified_name) if qualified_name in self._instances else None
+        color = self._first_instance_value(colors)
+        opacity = self._first_instance_value(opacities)
+        if previous is not None:
+            if color is not None and np.array_equal(color, previous[0]):
+                colors = None
+            if opacity is not None and np.array_equal(opacity, previous[1]):
+                opacities = None
+
+        result = super().log_instances(name, mesh, xforms, scales, colors, materials, hidden, opacities)
+        if hidden:
+            self._instance_appearance.pop(qualified_name, None)
+        elif qualified_name in self._instances:
+            previous_color, previous_opacity = previous or (None, None)
+            self._instance_appearance[qualified_name] = (
+                previous_color if color is None else color,
+                previous_opacity if opacity is None else opacity,
+            )
+        return result
+
+    @staticmethod
+    def _first_instance_value(values: wp.array | np.ndarray | None) -> np.ndarray | None:
+        """Copy the first value that Rerun uses as the batch appearance."""
+        if values is None or len(values) == 0:
+            return None
+        values_np = values.numpy() if isinstance(values, wp.array) else np.asarray(values)
+        return np.asarray(values_np[0]).copy()
+
 
 class RerunVisualizer(BaseVisualizer):
     """Rerun visualizer for Isaac Lab."""
@@ -278,31 +319,23 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
 
-    def initialize(
-        self,
-        scene_data_provider: SceneDataProvider,
-        *,
-        cameras: list[PerspectiveCameraCfg | Camera],
-        stage: Usd.Stage | None = None,
-    ) -> None:
+    def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
         Args:
-            scene_data_provider: Scene data provider used to fetch model/state data.
+            sim: Simulation owner used to resolve scene data and native resources.
             cameras: Resolved perspective settings and borrowed scene sensors, in display order.
-            stage: Authored scene stage, when available.
         """
         if self._is_initialized:
             return
 
-        super().initialize(scene_data_provider, cameras=cameras, stage=stage)
+        super().initialize(sim, cameras=cameras)
+        scene_data_provider = self._sim.get_scene_data_provider()
         num_envs = scene_data_provider.num_envs
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        self._setup_streaming_view(num_envs, visible_env_ids=self._env_ids)
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
         bind_address = self.cfg.bind_address or "0.0.0.0"
@@ -326,8 +359,9 @@ class RerunVisualizer(BaseVisualizer):
             keep_scalar_history=self.cfg.keep_scalar_history or self.cfg.enable_live_plots,
             record_to_rrd=self.cfg.record_to_rrd,
             open_browser=self.cfg.open_browser,
-            streaming_view=self._camera_sensor is not None,
+            streaming_view=(self.current_image_view is not None and self.current_image_view.camera is not None),
         )
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
         viewer_host = _normalize_host(bind_address)
@@ -387,7 +421,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = self.backend.model.num_envs
 
         if not self._viewer.is_paused():
-            backend, provider = self.backend, self._scene_data_provider
+            backend, provider = self.backend, self._sim.get_scene_data_provider()
             poses = SceneDataFormat.Transform()
             if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
                 backend.state_0.body_q = poses.transforms
@@ -415,12 +449,11 @@ class RerunVisualizer(BaseVisualizer):
         super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = self._sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
-        self._transform_mapping = self._scene_data_provider.create_mapping(list(backend.model.body_label))
+        self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
         self._viewer.set_model(backend.model)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
@@ -470,7 +503,7 @@ class RerunVisualizer(BaseVisualizer):
         # Do not send a Spatial3DView blueprint when the streaming composite is active:
         # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
         # by a 3D view, hiding the streaming composite panel entirely.
-        if self._camera_sensor is not None:
+        if self.current_image_view is not None and self.current_image_view.camera is not None:
             return
         panel_states = [rrb.TimePanel(state="hidden")]
         rr.send_blueprint(

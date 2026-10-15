@@ -92,7 +92,6 @@ TIMEOUT_RETRIES = 0
 PROCESS_FAILURE_RETRIES_BY_FILE = {
     "test_visualizer_integration_physx.py": 4,
     "test_visualizer_integration_newton.py": 4,
-    "test_visualizer_tiled_integration_physx.py": 4,
 }
 """Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
@@ -1403,8 +1402,15 @@ def _run_one_pass(
 
 
 def _starts_renderer(test_content: str) -> bool:
-    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX."""
-    return "enable_cameras=True" in test_content or "ovrtx" in test_content.lower()
+    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX.
+
+    Files built on ``rendering_test_utils`` pick their renderer through its helpers, so they name neither.
+    """
+    return (
+        "enable_cameras=True" in test_content
+        or "ovrtx" in test_content.lower()
+        or "rendering_test_utils" in test_content
+    )
 
 
 def _test_file_job(test_file: str, max_slots: int) -> TestFileJob:

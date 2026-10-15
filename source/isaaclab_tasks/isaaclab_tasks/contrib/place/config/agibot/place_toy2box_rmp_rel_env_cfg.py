@@ -10,7 +10,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionP
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+import isaaclab.sim as sim_utils
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
@@ -22,9 +23,10 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sim.schemas import MassCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
@@ -32,7 +34,6 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.contrib.place import mdp as place_mdp
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
-from isaaclab_tasks.contrib.stack.stack_env_cfg import ObjectTableSceneCfg
 from isaaclab_tasks.utils import PresetCfg
 
 ##
@@ -41,6 +42,27 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.agibot import AGIBOT_A2D_CFG  # isort: skip
 from isaaclab.controllers.config.rmp_flow import AGIBOT_RIGHT_ARM_RMPFLOW_CFG  # isort: skip
+
+
+@configclass
+class AgibotPlaceSceneCfg(InteractiveSceneCfg):
+    """Shared scene for Agibot place tasks; each task supplies its table and objects."""
+
+    robot: ArticulationCfg = MISSING
+    ee_frame: FrameTransformerCfg = MISSING
+    table: AssetBaseCfg = MISSING
+
+    plane = AssetBaseCfg(
+        prim_path="/World/GroundPlane",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
+        spawn=GroundPlaneCfg(),
+    )
+
+    light = AssetBaseCfg(
+        prim_path="/World/light",
+        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+    )
+
 
 ##
 # Event settings
@@ -220,10 +242,10 @@ def raise_if_unsupported_newton_physics(env_cfg: ManagerBasedRLEnvCfg) -> None:
 
 @configclass
 class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the stacking environment."""
+    """Base configuration for Agibot place environments."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
+    scene: AgibotPlaceSceneCfg = AgibotPlaceSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

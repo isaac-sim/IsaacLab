@@ -75,8 +75,10 @@ def test_mesh_edge_refinement_default():
 )
 def test_spawn_mesh_with_edge_refinement(sim, monkeypatch, cfg_type, kwargs, edge_refinement):
     """Test surface edge refinement for deformable mesh primitives."""
-    monkeypatch.setattr(mesh_spawner.schemas, "define_deformable_body_properties", lambda *a, **k: None)
-    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement, deformable_props=sim_utils.DeformableBodyPropertiesCfg())
+    from isaaclab.sim.schemas import OmniPhysicsDeformableBodyCfg
+
+    monkeypatch.setattr(mesh_spawner.schemas, "apply_volume_deformable_properties", lambda *a, **k: True)
+    cfg = cfg_type(**kwargs, edge_refinement=edge_refinement, volume_deformable_props=OmniPhysicsDeformableBodyCfg())
     root = cfg.func("/World/Refined", cfg)
     assert root.GetPrimTypeInfo().GetTypeName() == "Xform"
     prim = sim.stage.GetPrimAtPath("/World/Refined/geometry/mesh")
@@ -99,6 +101,7 @@ def test_spawn_mesh_with_edge_refinement(sim, monkeypatch, cfg_type, kwargs, edg
     ],
 )
 @pytest.mark.parametrize("fragments", [False, True])
+@pytest.mark.filterwarnings("ignore:DeformableBodyPropertiesCfg is deprecated:DeprecationWarning")
 def test_edge_refinement_sets_tetrahedralization_resolution(
     sim, monkeypatch, cfg_type, geometry_kwargs, refinement_kwargs, physics_material, expected_factor, fragments
 ):
@@ -173,6 +176,7 @@ def test_spawn_cone_with_all_rigid_props(sim):
         mass_props=sim_utils.MassCfg(mass=5.0),
         rigid_props=[usd_rigid_props, physx_rigid_props],
         collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        mesh_collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere"),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.75, 0.5)),
         physics_material=sim_utils.RigidBodyMaterialBaseCfg(),
     )
@@ -196,3 +200,4 @@ def test_spawn_cone_with_all_rigid_props(sim):
     # -- collision shape
     prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
+    assert prim.GetAttribute("physics:approximation").Get() == "boundingSphere"

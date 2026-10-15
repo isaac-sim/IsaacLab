@@ -25,9 +25,13 @@ import torch
 from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
+from isaaclab import cli
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg
+
 from isaaclab_rl.entrypoints import PlaybackRequest, SimpleAgentRequest, TrainingRequest, api, dispatch, simple_agents
 from isaaclab_rl.entrypoints.backends import play_rlinf, train_rlinf
-from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
+from isaaclab_rl.entrypoints.backends.cli_args_rsl_rl import checkpoint_load_cfg
+from isaaclab_rl.entrypoints.simple_agents import create_random_action_policy, create_zero_action_policy
 
 
 @pytest.mark.parametrize(
@@ -202,6 +206,7 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     )
     unwrapped = SimpleNamespace(
         action_manager=None,
+        cfg=DirectRLEnvCfg(),
         single_action_space=action_space,
         device="cpu",
         num_envs=2,
@@ -213,22 +218,43 @@ def test_zero_agent_supports_composite_direct_action_spaces() -> None:
     assert torch.equal(actions["discrete"], torch.zeros(2, 1, dtype=torch.int64))
 
 
-def test_zero_agent_supports_direct_multi_agent_action_spaces() -> None:
-    """Direct multi-agent environments receive a zero action for every agent."""
+@pytest.mark.parametrize("policy_name", ["zero", "random"])
+def test_simple_agents_support_direct_multi_agent_action_spaces(policy_name: simple_agents.PolicyName) -> None:
+    """Direct MARL playback receives batched actions for every agent from either policy."""
     unwrapped = SimpleNamespace(
+        cfg=DirectMARLEnvCfg(),
         action_manager=None,
         action_spaces={
             "robot": gym.spaces.Box(low=-1.0, high=1.0, shape=(2,), dtype=np.float32),
-            "object": gym.spaces.Discrete(2),
+            "object": (
+                gym.spaces.Discrete(2)
+                if policy_name == "zero"
+                else gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float32)
+            ),
         },
         device="cpu",
         num_envs=3,
     )
+    env = SimpleNamespace(unwrapped=unwrapped, action_space=unwrapped.action_spaces.__getitem__)
+    create_policy = create_zero_action_policy if policy_name == "zero" else create_random_action_policy
+    policy = create_policy(env)
+    actions = policy()
 
-    actions = create_zero_action_policy(SimpleNamespace(unwrapped=unwrapped))()
-
-    assert torch.equal(actions["robot"], torch.zeros(3, 2))
-    assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+    assert set(actions) == {"robot", "object"}
+    assert actions["robot"].shape == (3, 2)
+    assert actions["object"].shape == (3, 1)
+    if policy_name == "zero":
+        assert torch.equal(actions["robot"], torch.zeros(3, 2))
+        assert torch.equal(actions["object"], torch.zeros(3, 1, dtype=torch.int64))
+    else:
+        next_actions = policy()
+        for agent in actions:
+            for sample in (actions[agent], next_actions[agent]):
+                assert sample.shape == actions[agent].shape
+                assert sample.dtype == torch.float32
+                assert sample.device == torch.device("cpu")
+                assert torch.all((sample >= -1) & (sample <= 1))
+            assert not torch.equal(actions[agent], next_actions[agent])
 
 
 def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -238,7 +264,7 @@ def test_simple_agents_parse_device_and_default_to_no_visualizer(monkeypatch: py
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer is None
+    assert args.visualizer == []
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 
@@ -308,14 +334,12 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
 
 @pytest.mark.parametrize("interrupted_operation", ["reset", "step"])
 def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, interrupted_operation) -> None:
-    """An interrupt during setup or playback closes the env despite further Ctrl+C presses."""
-    closed = []
+    """An interrupt during setup or playback closes the environment."""
+    close_handlers = []
     previous_handler = signal.getsignal(signal.SIGINT)
 
     def close():
-        signal.raise_signal(signal.SIGINT)
-        signal.raise_signal(signal.SIGINT)
-        closed.append(True)
+        close_handlers.append(signal.getsignal(signal.SIGINT))
 
     cfg = SimpleNamespace(
         scene=SimpleNamespace(num_envs=1),
@@ -344,7 +368,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
     with pytest.raises(KeyboardInterrupt):
         simple_agents.run([], policy="random")
 
-    assert closed == [True]
+    assert close_handlers == [signal.SIG_DFL]
     assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
@@ -605,9 +629,14 @@ def test_export_dispatches_selected_backend(monkeypatch) -> None:
 
 
 def test_dispatch_uses_task_registered_default_backend(monkeypatch) -> None:
-    """A task registry default selects the backend when the CLI omits it."""
+    """Direct workers discover downstream tasks before selecting their registered default backend."""
     task_name = "Isaac-DefaultAgentDispatchTest"
-    gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    entry_point = SimpleNamespace(
+        load=lambda: gym.register(id=task_name, entry_point="dummy:Env", kwargs={"default_agent": "rsl_rl"})
+    )
+    monkeypatch.setattr(
+        cli.importlib.metadata, "entry_points", lambda *, group: [entry_point] if group == "isaaclab.tasks" else []
+    )
     monkeypatch.setitem(sys.modules, "isaaclab_tasks", types.ModuleType("isaaclab_tasks"))
     received: dict[str, object] = {}
     monkeypatch.setattr(
@@ -743,7 +772,14 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
     monkeypatch.setattr(
         sys,
         "argv",
-        ["train.py", "--task", task_name, "--external_callback", f"{callback_module_name}.register_task"],
+        [
+            "train.py",
+            "--task",
+            task_name,
+            "--external_callback",
+            f"{callback_module_name}.register_task",
+            "--no-resume_optimizer_state",
+        ],
     )
     gym.registry.pop(task_name, None)
 
@@ -753,6 +789,7 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
         gym.registry.pop(task_name, None)
 
     assert args.task == task_name
+    assert not args.resume_optimizer_state
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
@@ -845,3 +882,64 @@ def test_skrl_play_restores_jax_backend(monkeypatch) -> None:
         play_skrl.run([])
 
     assert not hasattr(skrl.config.jax, "backend")
+
+
+@pytest.mark.parametrize("resume_optimizer_state", [False, True])
+@pytest.mark.parametrize("runner_class", ["OnPolicyRunner", "DistillationRunner"])
+def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
+    tmp_path, resume_optimizer_state: bool, runner_class: str
+) -> None:
+    """Runner continuation restores models, iteration, and RND while optionally resetting the policy optimizer."""
+    pytest.importorskip("rsl_rl")
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+    from tensordict import TensorDict
+
+    distillation = runner_class == "DistillationRunner"
+    runner_type = DistillationRunner if distillation else OnPolicyRunner
+    model_names = ("student", "teacher") if distillation else ("actor", "critic")
+    obs = TensorDict({"obs": torch.ones(1, 2)}, batch_size=[1])
+    env = SimpleNamespace(
+        get_observations=lambda: obs, num_envs=1, num_actions=1, cfg={}, unwrapped=SimpleNamespace(step_dt=0.01)
+    )
+
+    def make_runner(learning_rate):
+        cfg = {
+            "num_steps_per_env": 15,
+            "obs_groups": {name: ["obs"] for name in (*model_names, "rnd_state")},
+            "algorithm": {"class_name": "Distillation" if distillation else "PPO", "learning_rate": learning_rate},
+            **{name: {"class_name": "MLPModel", "hidden_dims": [4]} for name in model_names},
+        }
+        if not distillation:
+            cfg["algorithm"]["rnd_cfg"] = {
+                "num_outputs": 2,
+                "predictor_hidden_dims": [4],
+                "target_hidden_dims": [4],
+                "weight": 1.0,
+                "learning_rate": learning_rate,
+            }
+        return runner_type(env, cfg, device="cpu")
+
+    source = make_runner(3e-4)
+    source.alg.get_policy()(obs).sum().backward()
+    source.alg.optimizer.step()
+    if not distillation:
+        source.alg.rnd.predictor(obs["obs"]).sum().backward()
+        source.alg.rnd.optimizer.step()
+    source.current_learning_iteration = 17
+    checkpoint = str(tmp_path / "model.pt")
+    source.save(checkpoint)
+    destination = make_runner(1e-5)
+    destination.load(checkpoint, load_cfg=checkpoint_load_cfg(resume_optimizer_state, runner_class=runner_class))
+
+    assert destination.current_learning_iteration == source.current_learning_iteration
+    if distillation:
+        assert destination.alg.teacher_loaded
+    source_state, destination_state = source.alg.save(), destination.alg.save()
+    for key in source_state:
+        if key != "optimizer_state_dict":
+            torch.testing.assert_close(destination_state[key], source_state[key])
+    assert destination.alg.optimizer.param_groups[0]["lr"] == (3e-4 if resume_optimizer_state else 1e-5)
+    if not resume_optimizer_state:
+        assert not destination.alg.optimizer.state
+    else:
+        torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])

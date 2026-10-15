@@ -270,6 +270,7 @@ def test_ovrtx_simple_shading_alone_uses_ldr_color(camera_spec, render_data, dat
     assert layer.ImportFromString(usd)
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rendermode").default == "Minimal"
     assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:mode").default == minimal_mode
+    assert layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:rt:ecoMode:enabled").default is False
     assert (
         layer.GetAttributeAtPath("/RenderCamera_0/RenderProduct.omni:rtx:minimal:castShadows").default == enable_shadows
     )
@@ -497,10 +498,11 @@ def test_export_stage_preserves_authored_scene(settings_path):
 
 
 def test_create_scene_partition_attributes_all_envs():
-    """Scene partition attributes are authored on every env root and camera."""
+    """Scene partition attributes survive repeated preparation after a hard reset."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
 
+    create_scene_partition_attributes(stage, num_envs)
     create_scene_partition_attributes(stage, num_envs)
 
     root_layer = stage.GetRootLayer()
