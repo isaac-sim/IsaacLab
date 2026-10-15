@@ -3,11 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Copyright (c) 2022-2026, Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 """Reflection contracts using layouts produced by the observation and action managers."""
 
 from types import SimpleNamespace
@@ -120,3 +115,26 @@ class _TwoChannelAction(ActionTerm):
 
     def apply_actions(self):
         pass
+
+
+@pytest.mark.parametrize("history_order", ["term", "time"])
+def test_manager_group_history_reflects_each_term(env, history_order):
+    """Polar and axial vectors retain different signs within every stored time step."""
+    group = ObservationGroupCfg(enable_corruption=False, history_length=2, history_order=history_order)
+    group.polar = MirrorObservationTermCfg(func=lambda env: env.vectors.clone(), mirror=mirror_vec3)
+    group.axial = MirrorObservationTermCfg(
+        func=lambda env: env.vectors.clone() + 3, mirror=mirror_vec3, mirror_params={"axial": True}
+    )
+    env.observation_manager = ObservationManager({"policy": group}, env)
+    env.observation_manager.compute(update_history=True)
+    env.vectors += 10
+    obs = TensorDict(env.observation_manager.compute(update_history=True), batch_size=[1])
+    reflection = MirrorAugmentation(env)
+    expected = (
+        [1, -2, 3, -4, 5, -6, 11, -12, 13, -14, 15, -16]
+        if history_order == "time"
+        else [1, -2, 3, 11, -12, 13, -4, 5, -6, -14, 15, -16]
+    )
+    torch.testing.assert_close(
+        reflection.mirror_observations(obs)["policy"], torch.tensor([expected], dtype=torch.float)
+    )
