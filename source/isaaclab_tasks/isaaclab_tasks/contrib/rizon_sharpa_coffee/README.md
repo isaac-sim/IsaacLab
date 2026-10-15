@@ -16,6 +16,7 @@ plain studio. Newton GL keeps its tabletop scene. `--visualizer none --headless`
 runs physics without presentation.
 Use `--help` for voxel, solver-rate and rendering options. Material properties,
 tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
+`--physics_hz 240` uses 60 Hz IK control and keeps rigid integration at 960 Hz.
 
 This is a demo: a complete visual showcase, like `teapot-fill`. Focused examples
 show an individual API or tuning method. This demo has no learning task or
