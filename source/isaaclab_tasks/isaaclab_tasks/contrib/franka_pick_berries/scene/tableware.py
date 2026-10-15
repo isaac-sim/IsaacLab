@@ -15,8 +15,6 @@ import numpy as np
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.schemas import define_rigid_body_properties
-from isaaclab.sim.spawners.from_files import spawn_from_usd
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -96,16 +94,6 @@ def tableware_solids(punnet: PunnetSpec) -> np.ndarray:
 def punnet_wall_contact(punnet: PunnetSpec) -> tuple[float, float, float]:
     """Return the outer corner radius [m] at the floor, thickness [m] and flare of the punnet's analytic wall."""
     return punnet.floor_outline[2] + punnet.wall, punnet.wall, punnet.flare
-
-
-def spawn_kinematic_usd(prim_path, cfg, translation=None, orientation=None, **kwargs):
-    """Spawn a USD asset and define a kinematic rigid body on its root prim.
-
-    The stock USD spawner only modifies rigid bodies that already exist, and the lab-table asset has none.
-    """
-    prim = spawn_from_usd(prim_path, cfg, translation, orientation, **kwargs)
-    define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True))
-    return prim
 
 
 def spawn_tableware(prim_path: str, cfg: TablewareCfg, translation=None, orientation=None, **kwargs) -> Usd.Prim:

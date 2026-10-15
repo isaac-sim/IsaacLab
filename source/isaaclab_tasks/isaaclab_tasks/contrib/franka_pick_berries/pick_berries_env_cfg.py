@@ -18,6 +18,7 @@ from isaaclab.managers import (
     TerminationTermCfg,
 )
 from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -33,7 +34,6 @@ from .scene.tableware import (
     TABLE_POSITION,
     TABLE_ROTATION,
     TablewareCfg,
-    spawn_kinematic_usd,
 )
 
 # Franka joint positions [rad] with the hand pointing down above the punnet.
@@ -56,7 +56,7 @@ class BerrySceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=TABLE_POSITION, rot=TABLE_ROTATION),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-            func=spawn_kinematic_usd,
+            rigid_props=UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
     plane = AssetBaseCfg(
@@ -111,6 +111,7 @@ class BerryTerminationsCfg:
 
 @configclass
 class BerryPickEnvCfg(ManagerBasedRLEnvCfg):
+    class_type: type | str = "{DIR}.pick_berries_env:BerryPickEnv"
     scene: BerrySceneCfg = BerrySceneCfg(num_envs=1, env_spacing=2.5)
     actions: BerryActionsCfg = BerryActionsCfg()
     observations: BerryObservationsCfg = BerryObservationsCfg()
