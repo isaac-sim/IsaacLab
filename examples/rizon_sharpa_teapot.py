@@ -709,7 +709,7 @@ class TeapotPourMotion:
         import mujoco
         from scipy.optimize import least_squares
 
-        if not 0.0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
+        if not 0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
             raise ValueError("Closure, pickup and sequence timings must be strictly ordered.")
         if not math.isclose(sim_dt, 1.0 / 800.0, rel_tol=1.0e-9):
             raise ValueError("The calibrated contact grasp requires an 800 Hz simulation timestep.")
