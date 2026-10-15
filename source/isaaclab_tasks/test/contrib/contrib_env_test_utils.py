@@ -47,6 +47,11 @@ _COVERED_TASKS = [
 
 def _skip_reason(task_name: str) -> str | None:
     """Return the documented reason for skipping a contributed environment."""
+    if task_name == "IsaacContrib-Shoelace-DualFranka":
+        from isaaclab_tasks.contrib.shoelace.shoelace_constants import SHOELACE_ASSETS
+
+        if not all(path.is_file() for path in SHOELACE_ASSETS):
+            return "Requires shoelace USD assets; hosting is pending core-team agreement."
     if task_name in _SKIPPED_TASKS:
         return _SKIPPED_TASKS[task_name]
     return next((reason for substring, reason in _SKIPPED_TASK_SUBSTRINGS.items() if substring in task_name), None)
@@ -106,6 +111,10 @@ def contrib_environment_params(runtime: Runtime) -> list:
 
 def num_envs(task_name: str) -> int:
     """Return how many environments the smoke test steps for a task."""
-    if task_name in ("IsaacContrib-Franka-Pour", "IsaacContrib-UR10-Particle-Push"):
+    if task_name in (
+        "IsaacContrib-Franka-Pour",
+        "IsaacContrib-UR10-Particle-Push",
+        "IsaacContrib-Pick-Berry-Franka-IK-Rel-Newton",
+    ):
         return 1
     return 3 if task_name == "IsaacContrib-Multitask-Manipulation" else 2

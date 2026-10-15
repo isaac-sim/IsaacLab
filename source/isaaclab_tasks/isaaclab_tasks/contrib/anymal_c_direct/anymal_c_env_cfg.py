@@ -16,6 +16,7 @@ from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass, replace
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Pre-defined configs
@@ -57,7 +58,7 @@ class AnymalCFlatSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         terrain_type="plane",
         collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
+        physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
@@ -83,14 +84,14 @@ class AnymalCRoughSceneCfg(AnymalCFlatSceneCfg):
         terrain_generator=ROUGH_TERRAINS_CFG,
         max_init_terrain_level=9,
         collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
+        physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,
             dynamic_friction=1.0,
         ),
         visual_material=sim_utils.MdlFileCfg(
-            mdl_path="{NVIDIA_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
+            mdl_path=f"{ISAAC_NUCLEUS_DIR}/Materials/Base/Architecture/Shingles_01.mdl",
             project_uvw=True,
         ),
         debug_vis=False,
@@ -120,7 +121,7 @@ class AnymalCFlatEnvCfg(DirectRLEnvCfg):
         dt=1 / 200,
         render_interval=decimation,
         physics=PhysxCfg(gpu_max_rigid_patch_count=2**20),
-        physics_material=sim_utils.RigidBodyMaterialCfg(
+        physics_material=sim_utils.PhysxRigidBodyMaterialCfg(
             friction_combine_mode="multiply",
             restitution_combine_mode="multiply",
             static_friction=1.0,

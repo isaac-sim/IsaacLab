@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from ..sensors.camera.camera_cfg import CameraCfg
 
@@ -26,7 +27,9 @@ class CameraRenderSpec:
         camera_prim_paths: Absolute paths of the authored camera prims. When the renderer
             clones environments internally, this may contain only the source camera path;
             the renderer resolves its logical per-environment paths during registration.
+            An empty tuple requests one renderer-owned perspective camera instead of a sensor camera.
         view_count: Number of logical camera instances in the sensor view.
+        render_settings: Optional per-product USD attributes, mapping names to (USD type name, value).
     """
 
     cfg: CameraCfg
@@ -34,3 +37,4 @@ class CameraRenderSpec:
     num_instances: int
     camera_prim_paths: tuple[str, ...]
     view_count: int
+    render_settings: dict[str, tuple[str, Any]] = field(default_factory=dict)

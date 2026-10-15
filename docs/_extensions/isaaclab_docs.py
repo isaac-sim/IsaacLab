@@ -20,11 +20,31 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
 from sphinx.application import Sphinx
+from sphinx.builders.html import StandaloneHTMLBuilder
 from sphinx.config import Config
 from sphinx.util.docutils import SphinxDirective, SphinxRole
 from sphinx.util.nodes import split_explicit_title
 
 _UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
+
+
+class IsaacLabHTMLBuilder(StandaloneHTMLBuilder):
+    """Reuse static images instead of shipping another copy under ``_images``."""
+
+    def post_process_images(self, doctree: nodes.Node) -> None:
+        original_images = {}
+        for image in doctree.findall(nodes.image):
+            for uri in image.get("candidates", {}).values():
+                if uri.startswith("source/_static/") and uri in self.env.images and uri not in original_images:
+                    original_images[uri] = self.env.images[uri]
+                    docnames, _ = self.env.images[uri]
+                    # Keep Sphinx's relative image paths and scaled-image links, pointing
+                    # them at the file already copied by html_static_path.
+                    self.env.images[uri] = (docnames, "../_static/" + uri.removeprefix("source/_static/"))
+        try:
+            super().post_process_images(doctree)
+        finally:
+            self.env.images.update(original_images)
 
 
 def _branch(config) -> str:
@@ -180,6 +200,7 @@ class IsaacLabUvIsaacSimWheelInstall(SphinxDirective):
    uv pip install "isaaclab[isaacsim]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --extra-index-url https://pypi.nvidia.com \\
+     --torch-backend cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -201,6 +222,7 @@ class IsaacLabUvImportersWheelInstall(SphinxDirective):
    uv pip install "isaaclab[importers]=={self.config.isaaclab_wheel_version}" \\
      --overrides "{overrides_url}" \\
      --index https://pypi.nvidia.com \\
+     --torch-backend cu130 \\
      --index-strategy unsafe-best-match
 """
         return _parse_rst(self, content)
@@ -269,8 +291,10 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
             doc, separator, anchor = route.partition("#")
             page = Path(app.builder.get_outfilename(doc))
             if not page.is_file():
+                if is_multiversion_build:
+                    continue
                 raise ValueError(f"Documentation redirect target was not built: {doc}")
-            sections[f"#{fragment}"] = [
+            sections[f"#{fragment}" if fragment else ""] = [
                 posixpath.relpath(page.as_posix(), output.parent.as_posix()), separator + anchor
             ]
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -288,6 +312,7 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
 
 def setup(app):
     """Register Isaac Lab documentation directives."""
+    app.add_builder(IsaacLabHTMLBuilder, override=True)
     app.add_config_value("isaaclab_doc_redirects", {}, "html")
     app.add_config_value("isaaclab_doc_redirect_fragments", {}, "html")
     app.connect("build-finished", _write_doc_redirects)
