@@ -594,15 +594,24 @@ class NewtonVisualizerBase(BaseVisualizer):
             provider.get_geometry_points(output=state.particle_q, offsets=backend.geometry_offsets)
         return state
 
+    @staticmethod
+    def _view_label(index: int, view) -> str:
+        """Name a view for the Camera View selector: a task view says what it follows or frames."""
+        if view.camera is not None:
+            return view.cfg.source
+        source = view.cfg.source
+        if source.track_path:
+            return f"Following {source.track_path} (env {source.env_index or 0})"
+        if source.env_index is not None:
+            return f"Environment {source.env_index}"
+        return f"Perspective {index + 1}"
+
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if not imgui.collapsing_header("Camera View"):
             return
-        labels = [
-            f"Perspective {i + 1}" if view.camera is None else view.cfg.source
-            for i, view in enumerate(self._image_views)
-        ]
+        labels = [self._view_label(i, view) for i, view in enumerate(self._image_views)]
         changed, index = imgui.combo("Camera", self._image_views.index(self.current_image_view), labels)
         if changed:
             self._select_camera(index)

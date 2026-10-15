@@ -111,3 +111,13 @@ def test_the_task_view_recording_picks_the_first_tied_view_and_reports_none():
     assert viz.render_task_view_rgb_array() == ("task", 3)
     with pytest.raises(RuntimeError, match="tied to an environment or an asset"):
         _visualizer([free]).render_task_view_rgb_array()
+
+
+def test_the_selector_names_what_a_task_view_follows_or_frames():
+    label = NewtonVisualizerBase._view_label
+    assert label(0, _view(PerspectiveCameraCfg())) == "Perspective 1"
+    assert label(1, _view(PerspectiveCameraCfg(env_index=2))) == "Environment 2"
+    assert label(1, _view(PerspectiveCameraCfg(track_path="robot/base"))) == "Following robot/base (env 0)"
+    assert label(2, SimpleNamespace(camera=object(), cfg=SimpleNamespace(source="/World/envs/env_0/cam"))) == (
+        "/World/envs/env_0/cam"
+    )
