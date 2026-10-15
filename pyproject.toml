@@ -177,9 +177,14 @@ isaacsim = [
     "PyJWT[crypto]>=2.15.1,<3",
 ]
 
-ov = ["ovphysx==0.6.4.72118723", "ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
-ovphysx = ["ovphysx==0.6.4.72118723", "ovstage==0.2.1.385922"]
-ovrtx = ["ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
+ov = [
+    "ovphysx==0.7.0.74035321",
+    "ovrtx==0.6.0.1791947691",
+    "ovstage==0.3.0.1791986420",
+    "physx-usd-schemas==25.11.2.72696984",
+]
+ovphysx = ["ovphysx==0.7.0.74035321", "ovstage==0.3.0.1791986420", "physx-usd-schemas==25.11.2.72696984"]
+ovrtx = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
 
 mimic = [
     "isaaclab-mimic",
@@ -226,9 +231,9 @@ isaacsim = "6.2.0.0"
 usd_exchange = "3.0.1"
 torch = "2.11.0"
 torchvision = "0.26.0"
-ovphysx = "0.6.4.72118723"
-ovrtx = "0.5.1.385782"
-ovstage = "0.2.1.385922"
+ovphysx = "0.7.0.74035321"
+ovrtx = "0.6.0.1791947691"
+ovstage = "0.3.0.1791986420"
 newton = "1.8.0.dev0"
 warp = "1.17.0"
 
@@ -439,6 +444,7 @@ omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
 ovrtx = { index = "pypi-public" }
 ovstage = { index = "pypi-public" }
+physx-usd-schemas = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }
