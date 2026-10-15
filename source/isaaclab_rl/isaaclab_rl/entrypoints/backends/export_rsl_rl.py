@@ -170,12 +170,7 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
             runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
-        # PPO inference does not use the critic, whose privileged observations may differ.
-        runner.load(
-            resume_path,
-            load_cfg={"actor": True} if agent_cfg.class_name == "OnPolicyRunner" else None,
-            map_location=agent_cfg.device,
-        )
+        runner.load(resume_path)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
         recurrent = is_actor_recurrent_policy(policy)
 
