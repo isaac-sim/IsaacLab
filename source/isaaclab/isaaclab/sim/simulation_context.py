@@ -20,6 +20,7 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
+from ..app.sim_launcher import _apply_visualizer_defaults
 from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
@@ -401,7 +402,7 @@ class SimulationContext:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
         resolved = list(self.cfg.visualizer_cfgs)
         for cfg in resolved:
-            cfg.apply_defaults(self.cfg.default_visualizer_cfg)
+            _apply_visualizer_defaults(cfg, self.cfg.default_visualizer_cfg)
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if (

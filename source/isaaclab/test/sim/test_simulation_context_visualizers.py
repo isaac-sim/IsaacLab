@@ -734,6 +734,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         ctx._scene_data_provider._num_envs = 4
         camera = SimpleNamespace(
             cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+            num_instances=4,
             _view=SimpleNamespace(
                 prims=[UsdGeom.Camera.Define(stage, f"/Scenes/world_{i}/Camera").GetPrim() for i in range(4)]
             ),

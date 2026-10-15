@@ -551,6 +551,10 @@ examples of both patterns.
 Configuration Operations
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
+Keep configuration classes declarative. Cross-config default merging and runtime wiring belong
+in launch preparation or construction code, not methods on config objects. Validation hooks may
+check a configuration's own fields.
+
 Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
 
 .. code-block:: python

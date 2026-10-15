@@ -19,6 +19,7 @@ import sys
 import traceback
 from collections.abc import Generator
 from contextlib import contextmanager
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -184,6 +185,20 @@ class Scan:
     visualizer_cfgs: list[VisualizerCfg] = field(default_factory=list)  # final display and recording producers
 
 
+def _apply_visualizer_defaults(visualizer: VisualizerCfg, defaults: VisualizerCfg | None) -> None:
+    """Copy non-default shared values into fields still at their backend defaults, including window fields."""
+    if defaults is None:
+        return
+    for source, target in ((defaults, visualizer), (defaults.window, visualizer.window)):
+        source_values, target_values = vars(source), vars(target)
+        target_defaults = vars(type(target)())
+        for name, default in vars(type(source)()).items():
+            if name in ("class_type", "visualizer_type", "window") or name not in target_defaults:
+                continue
+            if source_values[name] != default and target_values[name] == target_defaults[name]:
+                target_values[name] = deepcopy(source_values[name])
+
+
 def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  # noqa: C901
     """Walk *cfg* once, collecting all launch signals and applying ``--physics``.
 
@@ -326,14 +341,16 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
         cfg if cfg.visualizer_type in args["visualizer"] else cfg.replace(headless=True) for cfg in visualizer_cfgs
     ]
     for viewer_index, visualizer in enumerate(visualizer_cfgs):
-        visualizer.apply_defaults(sim_cfg.default_visualizer_cfg if sim_cfg is not None else None)
+        _apply_visualizer_defaults(visualizer, sim_cfg.default_visualizer_cfg if sim_cfg is not None else None)
         if visualizer.visualizer_type != "newton_rtx" or scene_cfg is None:
             continue
+        # Explicit views/lists select their sources; otherwise start with the default perspective.
         sources = (
             [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
                 PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
             ])
         )  # fmt: skip
+        # Legacy streaming settings also offer compatible scene sensors in the camera selector.
         if visualizer.view is None and visualizer.cameras is None and visualizer.streaming_view:
             if visualizer.streaming_sensor_prim_path is not None:
                 sources.insert(0, SceneCameraCfg(prim_path=visualizer.streaming_sensor_prim_path))
@@ -347,6 +364,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                         )
                         if supports_channels:
                             sources.append(SceneCameraCfg(prim_path=sensor.prim_path))
+        # Declare global cameras before scene construction; the scene owns spawning, capture, and cleanup.
         for camera_index, source in enumerate(sources):
             if not isinstance(source, PerspectiveCameraCfg):
                 continue
@@ -368,6 +386,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                 render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.render_settings},
             )  # fmt: skip
             vars(scene_cfg)[name] = camera
+            # Image views reference scene names; legacy camera lists reference prim paths.
             if visualizer.view is not None:
                 visualizer.view.source = name
             else:
