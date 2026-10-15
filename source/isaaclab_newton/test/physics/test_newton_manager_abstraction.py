@@ -1318,6 +1318,47 @@ def test_initialize_solver_populates_canonical_state(
         sim.step(render=False)
 
 
+def test_step_combines_pending_model_changes(monkeypatch, caplog):
+    """Queued property changes reach the solver together, once before the next step."""
+    sim_cfg = SimulationCfg(
+        device="cuda:0",
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        body = builder.add_link()
+        builder.add_shape_sphere(body, radius=0.05)
+        joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        builder.add_articulation([joint])
+        sim.reset()
+        solver = NewtonManager._solver
+        notify = solver.notify_model_changed
+        calls = []
+
+        def record_notification(flags):
+            calls.append(flags)
+            notify(flags)
+
+        monkeypatch.setattr(solver, "notify_model_changed", record_notification)
+        ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
+        monkeypatch.setattr(NewtonManager, "_ignored_model_changes", {ignored: "Test ignored model change"})
+        monkeypatch.setattr(NewtonManager, "_warned_model_changes", set())
+        flags = (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored)
+        for flag in flags:
+            NewtonManager.add_model_change(flag)
+        assert calls == []
+
+        with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager"):
+            sim.step(render=False)
+            sim.step(render=False)
+            assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES]
+            NewtonManager.add_model_change(ignored)
+            sim.step(render=False)
+
+        assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES, ignored]
+        assert sum(record.message == "Test ignored model change" for record in caplog.records) == 1
+
+
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     """Combining ``use_mujoco_contacts=True`` with a ``collision_cfg`` is rejected.
 
