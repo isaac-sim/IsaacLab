@@ -364,7 +364,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
         Use :attr:`max_force` instead. The cfg field is renamed so its snake_case name maps
         identity-style to the USD camelCase attribute (``maxForce`` on ``UsdPhysics.DriveAPI``).
         The alias is forwarded to :attr:`max_force` in :meth:`__post_init__` and will be removed
-        in 3.2.
+        in 4.0.
     """
 
     stiffness: float | None = None

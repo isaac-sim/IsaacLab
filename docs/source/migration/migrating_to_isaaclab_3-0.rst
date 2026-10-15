@@ -486,6 +486,12 @@ backend-specific fragment silently drops the inherited properties.
    * - ``NewtonDeformableBodyPropertiesCfg``
      - None: the class has no fields. Set the matching deformable slot to an empty list,
        for example ``volume_deformable_props=[]``
+   * - ``PhysxFixedTendonPropertiesCfg``, ``FixedTendonPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg`, in the spawner's
+       ``fixed_tendons_props`` slot
+   * - ``PhysxSpatialTendonPropertiesCfg``, ``SpatialTendonPropertiesCfg``
+     - :class:`~isaaclab_physx.sim.schemas.PhysxTendonAttachmentRootCfg`, in the spawner's
+       ``spatial_tendons_props`` slot
 
 .. note::
 
