@@ -71,13 +71,27 @@ def test_smoothing_lags_a_turn_but_not_the_first_sample_or_a_reset():
         cfg.heading_smoothing_time_constant = 0.5
         follower = CameraFollower(cfg, scene)
         follower.pose(0.0)
-        scene.robot.data.root_quat_w.torch[0] = torch.tensor(_quat_z(math.pi / 2))
-        scene.robot.data.root_pos_w.torch[0, 0] += jump  # an environment reset moves the asset
+        scene.robot.data.root_quat_w.torch[0] = torch.tensor(_quat_z(0.2))  # 2 rad/s
+        scene.robot.data.root_pos_w.torch[0, 0] += jump  # an environment reset also moves the asset
         return _eye(follower)
 
     smooth, reset = run(0.0), run(5.0)
-    assert smooth[1] > -2.0  # still mostly behind the old heading
-    torch.testing.assert_close(reset[1] - 0.0, torch.tensor(-3.0), atol=1e-4, rtol=0)  # the new heading at once
+    assert smooth[1] > -0.3  # filtered toward the new heading
+    torch.testing.assert_close(reset[1], torch.tensor(-3.0 * math.sin(0.2)), atol=1e-4, rtol=0)  # the new one at once
+
+
+def test_a_reset_in_place_with_a_new_heading_is_not_smoothed_but_a_real_turn_is():
+    def run(yaw: float) -> torch.Tensor:
+        scene = _Scene()
+        cfg = PerspectiveCameraCfg(track_path="robot", eye=(-3.0, 0.0, 1.0), follow_heading=True)
+        cfg.heading_smoothing_time_constant = 0.5
+        follower = CameraFollower(cfg, scene)
+        follower.pose(0.0)
+        scene.robot.data.root_quat_w.torch[0] = torch.tensor(_quat_z(yaw))  # the position does not change
+        return torch.tensor(follower.pose(0.02)[0])
+
+    torch.testing.assert_close(run(math.pi / 2)[1], torch.tensor(-3.0), atol=1e-4, rtol=0)  # 78 rad/s: a reset
+    assert run(0.05)[1] > -0.2  # 2.5 rad/s: a turn, filtered toward the new heading
 
 
 def test_a_view_waits_for_its_asset_and_rejects_bad_targets():

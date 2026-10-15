@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 _RESET_JUMP = 1.0
 """Distance [m] an asset moves between two updates only when its environment resets."""
 
+_RESET_YAW_RATE = 10.0
+"""Yaw rate [rad/s] no robot turns at, so a heading that changes faster means its environment reset."""
+
 
 class CameraFollower:
     """Turns a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` tied to an environment into world poses.
@@ -87,12 +90,15 @@ class CameraFollower:
     def _filtered_yaw(self, quat: list[float], position: list[float], dt: float) -> float:
         """Return the yaw of the xyzw *quat*, filtered along the shortest rotation.
 
-        The first sample, and the sample after an environment resets and moves the asset, is not filtered.
+        The first sample, and the sample after an environment resets, is not filtered.
         """
         x, y, z, w = quat
         yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
         last, self._last_position = self._last_position, position
         reset = self._yaw is None or last is None or math.dist(position, last) > _RESET_JUMP
+        if not reset and dt > 0.0:
+            # an environment can reset in place with a new heading
+            reset = abs(math.remainder(yaw - self._yaw, math.tau)) / dt > _RESET_YAW_RATE
         tau = self.cfg.heading_smoothing_time_constant
         if tau > 0.0 and not reset:
             yaw = self._yaw + -math.expm1(-dt / tau) * math.remainder(yaw - self._yaw, math.tau)
