@@ -5,8 +5,9 @@
 
 """Newton-actuator adapter shared by Newton, PhysX, and OVPhysX.
 
-Owns the actuator-state lifecycle, the pre-clamp computed-effort buffer,
-and the per-step ``step`` / ``reset`` / ``finalize`` calls. The
+Owns the actuator-state lifecycle, the supply batteries, the pre-clamp
+computed-effort buffer, and the per-step ``step`` / ``reset`` / ``finalize``
+calls. The
 :meth:`~NewtonActuatorAdapter.from_usd` classmethod parses
 ``NewtonActuator`` USD prims for PhysX and OVPhysX. Newton populates
 ``model.actuators`` itself.
@@ -19,7 +20,7 @@ from __future__ import annotations
 
 import warnings
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -28,7 +29,14 @@ import torch
 import warp as wp
 from newton import Model
 from newton._src.utils.selection import FrequencyLayout
-from newton.actuators import Actuator, ClampingBase, InputProcessorBase, InputProcessorDelay, parse_actuator_prim
+from newton.actuators import (
+    Actuator,
+    Battery,
+    ClampingBase,
+    InputProcessorBase,
+    InputProcessorDelay,
+    parse_actuator_prim,
+)
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
@@ -50,9 +58,9 @@ if TYPE_CHECKING:
 class NewtonActuatorAdapter:
     """Adapter that wraps a list of :class:`newton.actuators.Actuator`.
 
-    Owns the actuator-state lifecycle, DOF-to-actuator bookkeeping,
-    stepping, reset, and the pre-clamp computed-effort buffer the
-    in-graph telemetry kernel reads on the post-actuator hook.
+    Owns the actuator-state lifecycle, DOF-to-actuator bookkeeping, the
+    supply batteries, stepping, reset, and the pre-clamp computed-effort
+    buffer the in-graph telemetry kernel reads on the post-actuator hook.
     """
 
     @dataclass(frozen=True)
@@ -122,6 +130,91 @@ class NewtonActuatorAdapter:
         for act in actuators:
             act.control_computed_output_attr = "joint_computed_f"
 
+        self._battery: Battery | None = None
+        # First DOF of each battery, which locates its environment for masked resets.
+        self._battery_dofs: wp.array | None = None
+        self._battery_mask: wp.array | None = None
+        self._reset_callbacks: list[Callable[[wp.array | None], None]] = []
+
+    @property
+    def battery(self) -> Battery | None:
+        """Batteries passed to every actuator step, or None until :meth:`add_batteries` is called."""
+        return self._battery
+
+    def add_batteries(
+        self,
+        dof_indices: np.ndarray,
+        nominal_voltage: wp.array,
+        sag_gain: wp.array,
+        min_voltage: float,
+    ) -> int:
+        """Add one battery per environment, shared by the given DOFs of that environment.
+
+        Drives that use a battery, such as :class:`~newton.actuators.DriveBAM`, read its voltage
+        instead of their own supply voltage. :meth:`step` refreshes the batteries before the
+        actuators, and :meth:`reset` restores the batteries of the reset environments. Add
+        batteries before the first step: this reallocates the battery arrays.
+
+        Args:
+            dof_indices: DOF indices in the layout of the actuators' ``indices``, shape
+                ``(num_envs, n)``. Row ``e`` lists the DOFs powered by environment ``e``'s battery.
+            nominal_voltage: Unloaded voltage of each new battery [V], shape ``(num_envs,)``.
+            sag_gain: Voltage drop per unit of total motor torque [V/(N·m)], shape ``(num_envs,)``.
+            min_voltage: Lower bound of the sagged voltage [V].
+
+        Returns:
+            Index of environment 0's new battery; environment ``e``'s battery is at this index plus ``e``.
+
+        Raises:
+            ValueError: If the shapes do not match the environment count or a DOF already has a battery.
+        """
+        dof_indices = np.asarray(dof_indices, dtype=np.int64)
+        nominal = nominal_voltage.numpy()
+        gain = sag_gain.numpy()
+        if dof_indices.ndim != 2 or dof_indices.shape[0] != self._num_envs:
+            raise ValueError(f"dof_indices must have shape ({self._num_envs}, n), got {dof_indices.shape}")
+        if nominal.shape != (self._num_envs,) or gain.shape != (self._num_envs,):
+            raise ValueError(f"nominal_voltage and sag_gain must have shape ({self._num_envs},)")
+        if self._battery is None:
+            dof_battery = np.full(self._num_envs * self.num_joints, -1, dtype=np.int32)
+            arrays = [np.empty(0, dtype=np.float32) for _ in range(3)]
+            first_dofs = np.empty(0, dtype=np.uint32)
+        else:
+            battery = self._battery
+            dof_battery = battery.dof_battery.numpy()
+            arrays = [battery.nominal_voltage.numpy(), battery.sag_gain.numpy(), battery.min_voltage.numpy()]
+            first_dofs = self._battery_dofs.numpy()
+        if (dof_battery[dof_indices] >= 0).any():
+            raise ValueError("Each DOF can be powered by one battery only.")
+        offset = len(arrays[0])
+        dof_battery[dof_indices] = offset + np.arange(self._num_envs, dtype=np.int32)[:, None]
+        minimum = np.full(self._num_envs, min_voltage, dtype=np.float32)
+        nominal, gain, minimum = (
+            np.concatenate([old, added.astype(np.float32)]) for old, added in zip(arrays, (nominal, gain, minimum))
+        )
+        self._battery = Battery(
+            dof_battery=wp.array(dof_battery, dtype=wp.int32, device=self._device),
+            nominal_voltage=wp.array(nominal, dtype=wp.float32, device=self._device),
+            sag_gain=wp.array(gain, dtype=wp.float32, device=self._device),
+            min_voltage=wp.array(minimum, dtype=wp.float32, device=self._device),
+        )
+        first_dofs = np.concatenate([first_dofs, dof_indices[:, 0].astype(np.uint32)])
+        self._battery_dofs = wp.array(first_dofs, dtype=wp.uint32, device=self._device)
+        self._battery_mask = wp.zeros(len(first_dofs), dtype=wp.bool, device=self._device)
+        return offset
+
+    def register_reset_callback(self, callback: Callable[[wp.array | None], None]) -> None:
+        """Append a hook that :meth:`reset` calls after resetting the actuator states and batteries.
+
+        Hooks reset per-environment state kept outside the Newton actuators. They are called on
+        every reset of at least one environment, in registration order.
+
+        Args:
+            callback: Called with the per-environment boolean reset mask, shape ``(num_envs,)``, or
+                None when every environment is reset.
+        """
+        self._reset_callbacks.append(callback)
+
     def finalize(self, sim_control: Any) -> None:
         """Bind the pre-clamp computed-effort buffer onto ``sim_control``.
 
@@ -135,7 +228,7 @@ class NewtonActuatorAdapter:
         sim_control.joint_computed_f = self._computed_effort
 
     def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
-        """Zero actuated DOFs, step all actuators, and advance state buffers.
+        """Refresh the batteries, zero actuated DOFs, step all actuators, and advance state buffers.
 
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
@@ -151,6 +244,9 @@ class NewtonActuatorAdapter:
                 of an odd-length graph to copy the output back into the input buffers instead,
                 keeping their addresses stable across replays.
         """
+        # The supply voltage of this step follows from the torque drawn on the previous one.
+        if self._battery is not None:
+            self._battery.refresh()
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
         for act in self.actuators:
@@ -160,7 +256,7 @@ class NewtonActuatorAdapter:
                 inputs=[sim_control.joint_f, act.indices],
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            act.step(sim_state, sim_control, sa, sb, dt=dt)
+            act.step(sim_state, sim_control, sa, sb, dt=dt, battery=self._battery)
         if swap_state:
             self._swap_state_buffers()
         else:
@@ -173,7 +269,7 @@ class NewtonActuatorAdapter:
         self._states_a, self._states_b = self._states_b, self._states_a
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
-        """Reset actuator states for the given environments.
+        """Reset actuator states, batteries, and registered reset hooks for the given environments.
 
         Args:
             env_ids: Environment indices to reset. ``None`` (or
@@ -189,40 +285,54 @@ class NewtonActuatorAdapter:
         env mask before delegating to each state.
         """
         if env_ids is None or env_ids == slice(None):
+            env_mask = None
             for sa, sb in zip(self._states_a, self._states_b):
                 if sa is not None:
                     sa.reset(None)
                 if sb is not None:
                     sb.reset(None)
-            return
-
-        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        if num_envs == 0:
-            return
-        env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
-        if isinstance(env_ids, slice):
-            wp.to_torch(env_mask)[env_ids] = True
         else:
-            # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
-            indices = (
-                wp.from_torch(env_ids)
-                if isinstance(env_ids, torch.Tensor)
-                else wp.array(env_ids, dtype=wp.int32, device=self._device)
-            )
-            wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
+            num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+            if num_envs == 0:
+                return
+            env_mask = wp.zeros(self._num_envs, dtype=wp.bool, device=self._device)
+            if isinstance(env_ids, slice):
+                wp.to_torch(env_mask)[env_ids] = True
+            else:
+                # Torch indexed scalar assignment uploads True and synchronizes on CUDA.
+                indices = (
+                    wp.from_torch(env_ids)
+                    if isinstance(env_ids, torch.Tensor)
+                    else wp.array(env_ids, dtype=wp.int32, device=self._device)
+                )
+                wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
 
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
-            wp.launch(
-                build_per_dof_env_mask_kernel,
-                dim=act.indices.shape[0],
-                inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
-                device=self._device,
-            )
-            if sa is not None:
-                sa.reset(per_dof_mask)
-            if sb is not None:
-                sb.reset(per_dof_mask)
+            for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
+                per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
+                wp.launch(
+                    build_per_dof_env_mask_kernel,
+                    dim=act.indices.shape[0],
+                    inputs=[act.indices, env_mask, self._dof_offset, self.num_joints, per_dof_mask],
+                    device=self._device,
+                )
+                if sa is not None:
+                    sa.reset(per_dof_mask)
+                if sb is not None:
+                    sb.reset(per_dof_mask)
+
+        if self._battery is not None:
+            battery_mask = None
+            if env_mask is not None:
+                battery_mask = self._battery_mask
+                wp.launch(
+                    build_per_dof_env_mask_kernel,
+                    dim=len(battery_mask),
+                    inputs=[self._battery_dofs, env_mask, self._dof_offset, self.num_joints, battery_mask],
+                    device=self._device,
+                )
+            self._battery.reset(battery_mask)
+        for callback in self._reset_callbacks:
+            callback(env_mask)
 
     def bind_articulation(
         self,
