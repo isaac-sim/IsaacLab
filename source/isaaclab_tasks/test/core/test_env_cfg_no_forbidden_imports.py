@@ -193,8 +193,8 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
     )
 
 
-def test_stack_config_loads_without_teleop():
-    """Stack configs must not require the optional teleop package."""
+def test_stack_configs_load_without_teleop():
+    """Every registered stack config must load without the optional teleop package."""
     script = textwrap.dedent("""\
         import builtins
 
@@ -207,14 +207,19 @@ def test_stack_config_loads_without_teleop():
 
         builtins.__import__ = block_teleop
 
+        import gymnasium
         import isaaclab_tasks  # noqa: F401
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-        cfg = load_cfg_from_registry(
-            "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
-            "env_cfg_entry_point",
+        task_names = sorted(
+            task_name for task_name in gymnasium.registry if task_name.startswith("IsaacContrib-Stack")
         )
-        assert cfg.xr is None
+        assert task_names
+
+        for task_name in task_names:
+            cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            assert cfg.xr is None
+            assert cfg.isaac_teleop is None
     """)
     result = subprocess.run(
         [sys.executable, "-c", script],
