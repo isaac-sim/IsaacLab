@@ -341,8 +341,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         for name, group in self.bam_groups.items():
             friction = group.friction
             bridge = MjWarpActuatorBridge(solver, model, friction.dof_indices, self.device)
-            if self._bam_cfgs[name].stiff_frictionloss:
-                bridge.stiffen_friction_constraint()
 
             def update_budget(bridge: MjWarpActuatorBridge = bridge, friction: BamFriction = friction) -> None:
                 bridge.gather_external_torque(friction.external_torque)

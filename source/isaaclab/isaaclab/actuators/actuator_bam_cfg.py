@@ -14,6 +14,12 @@ from .actuator_base_cfg import ActuatorBaseCfg
 BAM_POSITION_BACKLASH_API = "IsaacLabPositionBacklashAPI"
 """USD API schema token of the backlash input processor that feeds back the play angle but not its velocity."""
 
+BAM_STIFF_SOLREF_FRICTION: tuple[float, float] = (-5.0e4, -2.0e2)
+"""Stiff ``(-stiffness, -damping)`` friction solref from the reference BAM implementation [N.m/rad, N.m.s/rad]."""
+
+BAM_STIFF_SOLIMP_FRICTION: tuple[float, float, float, float, float] = (0.99, 0.9999, 0.001, 0.5, 2.0)
+"""Friction-constraint impedance profile paired with :data:`BAM_STIFF_SOLREF_FRICTION` [-]."""
+
 BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
     "m1": {"stribeck": 0, "load_dependent": 0, "quadratic": 0},
     "m2": {"stribeck": 1, "load_dependent": 0, "quadratic": 0},
@@ -162,7 +168,11 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """
 
     stiff_frictionloss: bool = True
-    """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver."""
+    """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver.
+
+    Authored as the servo joints' ``mjc:solreffriction`` and ``mjc:solimpfriction``, which Newton's MuJoCo solver
+    imports.
+    """
 
     def validate_config(self) -> None:
         """Reject command-lag settings the lag sampler cannot draw from.
