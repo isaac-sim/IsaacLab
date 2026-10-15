@@ -34,12 +34,16 @@ def test_depth_display_bounds_reject_frame_with_no_finite_samples():
         capture_renderer_gallery.depth_display_bounds(depth)
 
 
-def test_gallery_capture_requires_scene():
+def test_gallery_capture_defaults_to_published_scene():
     parser = argparse.ArgumentParser()
     capture_renderer_gallery.add_gallery_arguments(parser)
 
-    with pytest.raises(SystemExit):
-        parser.parse_args(["--renderer-backend", "newton"])
+    args = parser.parse_args(["--renderer-backend", "newton"])
+
+    assert args.scene == (
+        "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Docs/"
+        "Renderers/renderer_gallery_scene.usda"
+    )
 
 
 def test_gallery_capture_writes_camera_channels(tmp_path, monkeypatch):
@@ -49,18 +53,7 @@ def test_gallery_capture_writes_camera_channels(tmp_path, monkeypatch):
 
     parser = argparse.ArgumentParser()
     capture_renderer_gallery.add_gallery_arguments(parser)
-    args = parser.parse_args(
-        [
-            "--renderer-backend",
-            "newton",
-            "--scene",
-            "omniverse://example.com/renderer-gallery-scene.usda",
-            "--frames",
-            "6",
-            "--output-dir",
-            str(tmp_path),
-        ]
-    )
+    args = parser.parse_args(["--renderer-backend", "newton", "--frames", "6", "--output-dir", str(tmp_path)])
     args.device = "cpu"
     outputs = {
         "rgb": torch.full((1, 2, 2, 3), 128, dtype=torch.uint8),
