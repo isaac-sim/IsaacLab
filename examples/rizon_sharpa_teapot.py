@@ -64,9 +64,9 @@ TILT_TIME = 4.0
 LIFT_DELAY = 2.5
 LIFT_TIME = 8.0
 LIFT_HEIGHT = 0.25
-POUR_HOLD_TIME = 5.5
-RECOVERY_TIME = 5.0
-SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + POUR_HOLD_TIME + RECOVERY_TIME + 0.45
+POUR_HOLD_TIME = 0.65
+RECOVERY_TIME = 3.5
+SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + POUR_HOLD_TIME + RECOVERY_TIME + 1.0
 _POUR_ANGLE = math.radians(42.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
@@ -709,8 +709,8 @@ class TeapotPourMotion:
         import mujoco
         from scipy.optimize import least_squares
 
-        if not 0.0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < duration:
-            raise ValueError("Closure and squeeze must finish before pickup and the end of the sequence.")
+        if not 0.0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
+            raise ValueError("Closure, pickup and sequence timings must be strictly ordered.")
         if not math.isclose(sim_dt, 1.0 / 800.0, rel_tol=1.0e-9):
             raise ValueError("The calibrated contact grasp requires an 800 Hz simulation timestep.")
         self._robot = robot
@@ -880,7 +880,9 @@ class TeapotPourMotion:
         )
         # Level gently as the base clears the table; ease the higher pickup gain before pouring.
         pickup_weight = 1.0 - self._blend((sim_time - self._pickup_end_time + 0.5) / 0.5)
-        feedback_weight = self._blend((sim_time - self._grasp_time) / 2.0)
+        feedback_weight = self._blend(
+            (sim_time - self._grasp_time) / (0.5 * (self._pickup_end_time - self._grasp_time))
+        )
         rotation_gain = (8.0 + 4.0 * pickup_weight) * feedback_weight
         command = np.asarray(twist) + error * np.array((10.0, 10.0, 10.0, rotation_gain, rotation_gain, rotation_gain))
         command[:3], command[3:] = np.clip(command[:3], -0.45, 0.45), np.clip(command[3:], -1.5, 1.5)

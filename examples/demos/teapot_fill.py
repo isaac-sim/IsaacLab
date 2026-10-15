@@ -832,6 +832,7 @@ def main() -> None:
         if ROBOT_ENABLED:
             from rizon_sharpa_teapot import (
                 GRASP_CLOSE_INTERVAL,
+                INITIAL_LIFT_TIME,
                 PICKUP_TIME,
                 POUR_PREFIX_TIME,
                 SEQUENCE_DURATION,
@@ -851,7 +852,7 @@ def main() -> None:
                 duration=SEQUENCE_DURATION,
                 approach_offset_at_time=approach_offset_at_time,
                 grasp_time=PICKUP_TIME,
-                pickup_end_time=POUR_PREFIX_TIME,
+                pickup_end_time=PICKUP_TIME + INITIAL_LIFT_TIME,
                 close_interval=GRASP_CLOSE_INTERVAL,
             )
             robot.write_joint_position_to_sim_index(position=robot_motion.initial_joint_positions)
