@@ -850,8 +850,9 @@ solver resolves static friction with the other constraints. The budget follows f
 the effort applied on the previous step, and the external load: the previous solve's bias and
 constraint forces without the servo's own friction. Applied body wrenches are not included. The
 viscous coefficient is applied once as passive joint damping and is visible through
-``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` uses a stiff friction-constraint
-reference to reduce creep, since MJWarp has no noslip solver.
+``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` authors a stiff friction-constraint
+reference on the servo joints (``mjc:solreffriction`` and ``mjc:solimpfriction``) to reduce creep,
+since MJWarp has no noslip solver.
 
 :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports the clamped motor torque and
 :attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` the unclamped one; neither includes

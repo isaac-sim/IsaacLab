@@ -20,6 +20,7 @@ from newton_test_utils import local_usd, spawn_assets
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
+from isaaclab.actuators.actuator_bam_cfg import BAM_STIFF_SOLIMP_FRICTION, BAM_STIFF_SOLREF_FRICTION
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -235,11 +236,11 @@ def test_each_group_keeps_its_own_configuration(native_sim, device, elbow_delay)
     for name, expected in (("shoulders", VIN), ("elbows", 6.5)):
         voltage = wp.to_torch(get_bam_group(robot, name).nominal_voltage)
         torch.testing.assert_close(voltage, torch.full_like(voltage, expected), atol=1e-6, rtol=0.0)
-    solref = NewtonManager.backend.model.mujoco.solreffriction.numpy()
-    stiff = np.asarray(MjWarpActuatorBridge.STIFF_SOLREF_FRICTION)
+    mujoco_attrs = NewtonManager.backend.model.mujoco
     for name, is_stiff in (("shoulders", True), ("elbows", False)):
         dofs = get_bam_group(robot, name).friction.dof_indices.numpy()
-        assert np.isclose(solref[dofs], stiff).all(axis=1).all() == is_stiff, name
+        assert np.isclose(mujoco_attrs.solreffriction.numpy()[dofs], BAM_STIFF_SOLREF_FRICTION).all() == is_stiff, name
+        assert np.isclose(mujoco_attrs.solimpfriction.numpy()[dofs], BAM_STIFF_SOLIMP_FRICTION).all() == is_stiff, name
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
