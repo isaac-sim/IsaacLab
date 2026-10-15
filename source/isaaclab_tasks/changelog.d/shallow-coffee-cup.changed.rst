@@ -11,4 +11,5 @@
   independently of the physics resolution.
 * Deepened the dissolved coffee's brown tint for the one-scoop dose.
 * Raised the loaded spoon 15 mm higher and 4 mm farther from the robot before
-  transferring, preserving the scoop and motion timing.
+  transferring, and kept the initial carry arc over the bowl to shed loose rim
+  grains without lengthening the motion.

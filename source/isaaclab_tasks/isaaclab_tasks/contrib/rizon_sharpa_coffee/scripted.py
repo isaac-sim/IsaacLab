@@ -104,19 +104,24 @@ class CoffeeScoopDemo:
             (6.35, (lift_x, scoop_y, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
             (7.75, (*lift_position, 0.0), (0.0, 0.0, 0.025, 0.0)),
         ]
-        # Continue the upward velocity into a low arc toward the cup; no
-        # separate high lift, settling stop, or descent over the cup is needed.
+        # Continue rising over the bowl so loose rim grains fall back before
+        # the loaded spoon crosses its edge. Keep one continuous carry arc.
         self._transfer_knots = [
             (0.0, self._scoop_knots[-1][1], self._scoop_knots[-1][2]),
             (
-                1.6,
+                0.6,
+                (lift_position[0] + 0.006, scoop_y + 0.004, source_z + 0.089, 0.0),
+                (0.015, 0.015, 0.020, 0.0),
+            ),
+            (
+                1.8,
                 (
                     lift_position[0] + 0.42 * (cup_x - lift_position[0]),
                     scoop_y + 0.42 * (pour_y - scoop_y),
-                    transfer_z,
+                    transfer_z + 0.008,
                     0.0,
                 ),
-                (0.035, 0.060, 0.0, 0.0),
+                (0.035, 0.080, 0.0, 0.0),
             ),
             (3.4, (cup_x, pour_y, pour_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
         ]
