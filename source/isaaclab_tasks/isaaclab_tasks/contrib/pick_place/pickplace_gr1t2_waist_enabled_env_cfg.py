@@ -5,12 +5,10 @@
 
 import tempfile
 
-from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
-from isaaclab_teleop.xr_cfg import XrCfg
-
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
+
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
@@ -61,22 +59,25 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.upper_body_ik.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.upper_body_ik.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # Isaac Capture-based teleoperation pipeline.
-        self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, 0.0),
-            anchor_rot=(0.0, 0.0, 0.0, 1.0),
-        )
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import GloveHapticFeedbackCfg, IsaacTeleopCfg, XrCfg
 
-        # Per-finger haptic glove feedback: vibrate each finger of the operator's
-        # glove in proportion to how tightly it grips the object. The session
-        # always requests the push-tensor extension the glove device needs, so
-        # this stays inert (no glove connected) rather than failing.
-        self.haptic_feedback = GloveHapticFeedbackCfg(
-            left_sensor_name="left_hand_contact",
-            right_sensor_name="right_hand_contact",
-        )
+            # Isaac Capture-based teleoperation pipeline.
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
+
+            # Per-finger haptic glove feedback: vibrate each finger of the operator's
+            # glove in proportion to how tightly it grips the object. The session
+            # always requests the push-tensor extension the glove device needs, so
+            # this stays inert (no glove connected) rather than failing.
+            self.haptic_feedback = GloveHapticFeedbackCfg(
+                left_sensor_name="left_hand_contact",
+                right_sensor_name="right_hand_contact",
+            )
