@@ -161,6 +161,12 @@ EXAMPLES = (
     ProgramSpec("multi-asset", "examples/multi_asset.py", "Spawn different assets across cloned environments."),
     ProgramSpec("newton-dominoes", "examples/newton_viewer_dominoes.py", "Interact with Newton XPBD dominoes."),
     ProgramSpec(
+        "rizon-sharpa-teapot",
+        "examples/rizon_sharpa_teapot.py",
+        "Explore physical Rizon--Sharpa grasping with one-way MPM fluid coupling.",
+        required_modules=("isaaclab_contrib",),
+    ),
+    ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",
         "Generate procedural terrain meshes.",

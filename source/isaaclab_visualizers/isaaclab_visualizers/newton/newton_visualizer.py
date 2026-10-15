@@ -1148,6 +1148,9 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         scene_data_provider = self._sim.get_scene_data_provider()
         scene = self._sim.get_or_create_backend(OvstageBackendCfg(viewer_id=id(self)))
         scene.populate(self._sim.stage, sim.get_clone_plan())
+        self._scene_stage = scene.stage
+        self._geometry_timestamp = -1
+        self._update_geometries()
         cfg = self.cfg
         settings = dict(cfg.render_settings)
         if cfg.background_color is not None:
@@ -1175,6 +1178,55 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         self._select_camera(0)
         self._is_initialized = True
 
+    def _update_geometries(self) -> None:
+        """Publish world-space SDP vertices to the authored scene before Newton renders it."""
+        import ovstage
+        from isaaclab_ov.stage import points_tensor_from_warp, xform_tensor_from_numpy
+
+        provider = self._sim.get_scene_data_provider()
+        points = provider.get_geometry_points()
+        timestamp = provider.backend.geometry_timestamp
+        if not points or timestamp == self._geometry_timestamp:
+            return
+        stage = self._scene_stage
+        device = wp.get_device(self._sim.device)
+        floor = stage.get_attribute_write_floor()
+        try:
+            ordinal = int(stage.fetch_ordinal(floor)) + 1
+        finally:
+            stage.release_ordinal_query(floor).wait()
+        with ovstage.PathDictionary(stage) as paths:
+            with paths.create_path_list_from_strings(list(points)) as path_list:
+                with stage.query_from_path_list(path_list) as query:
+                    if self._geometry_timestamp == -1:
+                        # Native vertices already include their environment and asset transforms.
+                        stage.write_attribute(
+                            query,
+                            "omni:resetXformStack",
+                            ordinal=ordinal,
+                            tensors=np.ones(len(points), dtype=np.bool_),
+                            is_array=False,
+                        ).wait()
+                        stage.write_attribute(
+                            query,
+                            "omni:xform",
+                            ordinal=ordinal,
+                            tensors=xform_tensor_from_numpy(np.tile(np.eye(4), (len(points), 1, 1))),
+                            is_array=False,
+                            semantic=ovstage.AttributeSemantic.MATRIX,
+                        ).wait()
+                    stage.write_attribute(
+                        query,
+                        "points",
+                        ordinal=ordinal,
+                        tensors=[points_tensor_from_warp(array) for array in points.values()],
+                        is_array=True,
+                        semantic=ovstage.AttributeSemantic.POINT,
+                        cuda_stream=(device.stream.cuda_stream or 1) if device.is_cuda else 0,
+                    ).wait()
+        stage.advance_write_floor(ordinal, ovstage.Scope.ALL).wait()
+        self._geometry_timestamp = timestamp
+
     def _render_frame(self) -> None:
         """Update controls and publish GPU poses or sensor pixels to Newton once per frame."""
         viewer = self._viewer
@@ -1185,6 +1237,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 self._log_streaming_image()
             else:
                 if not viewer.is_paused():
+                    self._update_geometries()
                     viewer.log_state(self._update_state())
                 if self.cfg.enable_markers:
                     render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
@@ -1200,6 +1253,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         previous = self.backend
         super().reset(soft)
         if self.backend is not previous:
+            self._geometry_timestamp = -1
             self._viewer.picking_enabled = False
             self._select_camera(self._image_views.index(self.current_image_view))
 
@@ -1212,4 +1266,5 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 self._viewer.close()
         finally:
             self._viewer = self.backend = None
+            self._scene_stage = None
             super().close()
