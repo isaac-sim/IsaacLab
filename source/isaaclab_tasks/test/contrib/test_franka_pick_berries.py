@@ -102,6 +102,10 @@ class _Joystick:
             self._fd = None
 
 
+# The gamepad reads Linux joystick devices, simulated here with a FIFO.
+linux_joystick = pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="Linux joystick devices need a POSIX FIFO")
+
+
 @pytest.fixture
 def gamepad_and_joystick(monkeypatch, tmp_path):
     monkeypatch.setattr(teleop_devices, "ioctl", _joystick_ioctl)
@@ -114,6 +118,7 @@ def gamepad_and_joystick(monkeypatch, tmp_path):
     gamepad.close()
 
 
+@linux_joystick
 def test_gamepad_moves_and_grips_only_while_lb_is_held(gamepad_and_joystick):
     """LB enables motion and the triggers; released, the command stops and the gripper holds its opening."""
     gamepad, joystick = gamepad_and_joystick
@@ -136,6 +141,7 @@ def test_gamepad_moves_and_grips_only_while_lb_is_held(gamepad_and_joystick):
     assert resets == [True]
 
 
+@linux_joystick
 def test_gamepad_ignores_lb_held_at_start_and_stops_when_unplugged(gamepad_and_joystick):
     """LB already down when the device opens must be pressed again; a lost device stops all motion."""
     gamepad, joystick = gamepad_and_joystick
