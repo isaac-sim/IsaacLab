@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import math
 from abc import abstractmethod
-from collections import Counter
+from collections import defaultdict
 from collections.abc import Callable
 
 import numpy as np
@@ -28,7 +28,7 @@ Readings = dict[tuple[str, str | None], dict[str, np.ndarray]]
 Joint entries hold the properties of :data:`JOINT_ATTRIBUTES`. Body entries hold ``mass``, ``com`` [m]
 and ``inertia`` [kg*m^2, row-major 3x3 about the COM in body axes]; rigid bodies outside articulations
 also hold the per-shape ``contact_offset`` and ``rest_offset`` [m] and ``material`` (static friction,
-dynamic friction, restitution). Multi-axis joint DOFs have a None axis.
+dynamic friction, restitution).
 """
 
 _DEGREES = 180.0 / math.pi
@@ -73,12 +73,9 @@ class PhysxUsdExporter(BaseUsdExporter):
         Returns:
             Edits in the PhysX USD dialect.
         """
-        edits, materials, multi_axis = [], {}, set()
+        edits, materials = [], {}
         for (path, axis), values in self._read_assets(stage).items():
             prim = stage.GetPrimAtPath(path)
-            if axis is None and "stiffness" in values:
-                multi_axis.add(path.rsplit(":", 1)[0])
-                continue
             if axis is not None:
                 # A joint without a USD drive and without gains is not driven; writing gains would add a drive.
                 driven = prim.HasAPI(UsdPhysics.DriveAPI, axis) or values["stiffness"] or values["damping"]
@@ -105,8 +102,6 @@ class PhysxUsdExporter(BaseUsdExporter):
                 materials.update(
                     {collider: dict(zip(MATERIAL_ATTRIBUTES, material.tolist())) for collider in colliders}
                 )
-        if multi_axis:
-            logger.warning(f"Multi-axis joints are not exported: {sorted(multi_axis)}.")
         edits = [edit for edit in edits if edit is not None] + self._material_edits(stage, materials)
         return edits + self._gravity_edits(stage, self.scene.sim.physics_manager.get_gravity())
 
@@ -142,11 +137,11 @@ class PhysxUsdExporter(BaseUsdExporter):
         exported = {path for path, _ in readings}
         missing = [
             str(prim.GetPath())
-            for prim in stage.Traverse()
+            for prim in stage.Traverse(Usd.TraverseInstanceProxies())
             if prim.HasAPI(UsdPhysics.RigidBodyAPI) and str(prim.GetPath()) not in exported
         ]
         if missing:
-            logger.warning(f"Rigid bodies outside the scene's assets keep their USD values: {missing}.")
+            logger.warning(f"Physics bodies outside the scene's assets keep their USD values: {missing}.")
         return readings
 
     def _read_articulation(self, stage: Usd.Stage, articulation) -> Readings:
@@ -168,19 +163,20 @@ class PhysxUsdExporter(BaseUsdExporter):
             "dynamic_friction": self._row(data.joint_dynamic_friction_coeff),
             "viscous_friction": self._row(data.joint_viscous_friction_coeff),
         }
-        readings, counts = {}, Counter(articulation.joint_names)
+        readings, unsupported = {}, set()
         for index, name in enumerate(articulation.joint_names):
-            path = joints.get(name)
-            prim = stage.GetPrimAtPath(path) if path and counts[name] == 1 else None
-            if prim and prim.IsA(UsdPhysics.RevoluteJoint):
-                key = (path, "angular")
-            elif prim and prim.IsA(UsdPhysics.PrismaticJoint):
-                key = (path, "linear")
+            path = self._unique(joints, name, scope)
+            prim = stage.GetPrimAtPath(path)
+            if prim.IsA(UsdPhysics.RevoluteJoint):
+                readings[path, "angular"] = {prop: values[index] for prop, values in dofs.items()}
+            elif prim.IsA(UsdPhysics.PrismaticJoint):
+                readings[path, "linear"] = {prop: values[index] for prop, values in dofs.items()}
             else:
-                key = (f"{scope.GetPath()}/{name}:{index}", None)
-            readings[key] = {prop: values[index] for prop, values in dofs.items()}
+                unsupported.add(path)
+        if unsupported:
+            logger.warning(f"Joints other than revolute and prismatic are not exported: {sorted(unsupported)}.")
         for index, name in enumerate(articulation.body_names):
-            readings[links[name], None] = self._body_values(data, index)
+            readings[self._unique(links, name, scope), None] = self._body_values(data, index)
         return readings
 
     def _body_values(self, data, index: int) -> dict[str, np.ndarray]:
@@ -217,13 +213,21 @@ class PhysxUsdExporter(BaseUsdExporter):
         raise RuntimeError(f"No rigid body below '{root.GetPath()}'.")
 
     @staticmethod
-    def _named(scope: Usd.Prim, predicate: Callable[[Usd.Prim], bool]) -> dict[str, str]:
-        """Paths of the prims below ``scope`` that satisfy ``predicate``, keyed by prim name."""
-        return {
-            prim.GetName(): str(prim.GetPath())
-            for prim in Usd.PrimRange(scope, Usd.TraverseInstanceProxies())
-            if predicate(prim)
-        }
+    def _named(scope: Usd.Prim, predicate: Callable[[Usd.Prim], bool]) -> dict[str, list[str]]:
+        """Paths of the prims below ``scope`` that satisfy ``predicate``, grouped by prim name."""
+        named = defaultdict(list)
+        for prim in Usd.PrimRange(scope, Usd.TraverseInstanceProxies()):
+            if predicate(prim):
+                named[prim.GetName()].append(str(prim.GetPath()))
+        return named
+
+    @staticmethod
+    def _unique(named: dict[str, list[str]], name: str, scope: Usd.Prim) -> str:
+        """The one prim an asset data name refers to; the data names prims without their paths."""
+        paths = named.get(name, [])
+        if len(paths) != 1:
+            raise RuntimeError(f"Expected one prim named '{name}' below '{scope.GetPath()}', found {paths}.")
+        return paths[0]
 
     @staticmethod
     def _colliders(stage: Usd.Stage, body: str) -> list[str]:
