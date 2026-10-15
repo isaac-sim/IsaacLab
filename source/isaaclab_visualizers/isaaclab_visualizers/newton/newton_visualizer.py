@@ -493,6 +493,12 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
 class NewtonVisualizerBase(BaseVisualizer):
     """Own Newton resource bindings, frame cadence, and camera selection for both renderers."""
 
+    def update_camera_tracking(self) -> None:
+        """Track the perspective camera only when it is the selected Newton view."""
+        if self.current_image_view is not None and self.current_image_view.camera is not None:
+            return
+        super().update_camera_tracking()
+
     def __init__(self, cfg):
         super().__init__(cfg)
         self._viewer = None

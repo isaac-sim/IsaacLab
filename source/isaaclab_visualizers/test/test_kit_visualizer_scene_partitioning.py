@@ -8,13 +8,14 @@
 import contextlib
 import signal
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
@@ -23,6 +24,7 @@ import omni
 from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.utils.warp import ProxyArray
 
 
 @pytest.fixture(autouse=True)
@@ -79,10 +81,25 @@ def test_reapply_origin_keeps_viewport_and_renderer_camera_aligned(monkeypatch):
     viewport.assert_called_once_with((12.0, 22.0, 2.0), (10.0, 20.0, 0.0))
     np.testing.assert_array_equal(renderer_camera.call_args.kwargs["eye"], [12.0, 22.0, 2.0])
     np.testing.assert_array_equal(renderer_camera.call_args.kwargs["target"], [10.0, 20.0, 0.0])
-    assert visualizer.viewer_origin == [10.0, 20.0, 0.0]
+    np.testing.assert_array_equal(visualizer.viewer_origin, [10.0, 20.0, 0.0])
 
-    scene.env_origins[1] = [1.0, 2.0, 3.0]
+    assert isinstance(visualizer.viewer_origin, torch.Tensor)
+    visualizer.cfg.origin_type = "asset"
+    visualizer.cfg.origin_track_path = "robot"
+    asset = SimpleNamespace(
+        is_initialized=True,
+        data=SimpleNamespace(
+            root_pos_w=ProxyArray(wp.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=wp.vec3, device="cpu"))
+        ),
+    )
+    scene.__getitem__.side_effect = {"robot": asset}.__getitem__
+    # Kit's sensor panel must not disable its independent perspective viewport.
+    sensor = MagicMock()
+    visualizer.current_image_view = SimpleNamespace(camera=sensor)
     visualizer.reapply_origin()
+    visualizer.update_camera_tracking()
+    sensor.set_world_poses.assert_not_called()
+    assert visualizer.viewer_origin.device == asset.data.root_pos_w.torch.device
 
     viewport.assert_called_with((3.0, 4.0, 5.0), (1.0, 2.0, 3.0))
     np.testing.assert_array_equal(renderer_camera.call_args.kwargs["eye"], [3.0, 4.0, 5.0])

@@ -61,7 +61,6 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
-        self._interactive_scene = None
         self._viewer_origin: list[float] | None = None
         self._tracking_asset = None
         self._tracking_body_id: int | None = None
@@ -173,7 +172,6 @@ class BaseVisualizer(ABC):
                 view.update_camera_pose = None
         self._image_views.clear()
         self._sim = None
-        self._interactive_scene = None
         self._tracking_asset = None
         self._viewer_origin = None
         self._is_closed = True
@@ -360,21 +358,29 @@ class BaseVisualizer(ABC):
         if self.cfg.origin_type == "world":
             self._viewer_origin = [0.0, 0.0, 0.0]
         elif self.cfg.origin_type in ("env", "asset"):
-            self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
-            if self._interactive_scene is None:
-                raise ValueError("Camera origin tracking requires an interactive scene.")
-            if not 0 <= self.cfg.origin_env_index < self._interactive_scene.num_envs:
+            scene = self._sim.get_scene_data_provider().get_interactive_scene()
+            if scene is None:
+                logger.warning("Camera origin tracking requires an interactive scene; using world origin.")
+                self._viewer_origin = [0.0, 0.0, 0.0]
+                if self.is_initialized:
+                    self._apply_viewer_origin_to_camera()
+                return
+            if not 0 <= self.cfg.origin_env_index < scene.num_envs:
                 raise ValueError("Camera origin_env_index is outside the scene's environment range.")
             if self.cfg.origin_type == "env":
-                self._viewer_origin = self._interactive_scene.env_origins[self.cfg.origin_env_index].tolist()
+                self._viewer_origin = scene.env_origins[self.cfg.origin_env_index].tolist()
             else:
                 if not self.cfg.origin_track_path:
                     raise ValueError("Camera origin_type='asset' requires origin_track_path.")
                 asset_name, _, _ = self.cfg.origin_track_path.partition("/")
-                self._tracking_asset = self._interactive_scene[asset_name]
+                try:
+                    self._tracking_asset = scene[asset_name]
+                except KeyError:
+                    return
                 return
         else:
-            raise ValueError(f"Unsupported camera origin_type: {self.cfg.origin_type!r}.")
+            logger.warning("Unknown camera origin_type %r; using world origin.", self.cfg.origin_type)
+            self._viewer_origin = [0.0, 0.0, 0.0]
         if self.is_initialized:
             self._apply_viewer_origin_to_camera()
 
@@ -387,8 +393,6 @@ class BaseVisualizer(ABC):
         Fixed world cameras incur no scene reads.
         """
         if not self.is_initialized or self.cfg.origin_type == "world":
-            return
-        if self.current_image_view is not None and self.current_image_view.camera is not None:
             return
         step = self._sim.get_physics_step_count()
         if self._camera_tracking_step == step:
@@ -410,8 +414,8 @@ class BaseVisualizer(ABC):
         if body_name:
             if self._tracking_body_id is None:
                 body_ids, _ = asset.find_bodies(body_name)
-                if len(body_ids) != 1:
-                    raise ValueError(f"Camera tracking body {body_name!r} must match exactly one body.")
+                if not body_ids:
+                    raise ValueError(f"Camera tracking body {body_name!r} did not match a body.")
                 self._tracking_body_id = body_ids[0]
             position = asset.data.body_pos_w.warp[env_index : env_index + 1, self._tracking_body_id]
         else:
@@ -440,6 +444,13 @@ class BaseVisualizer(ABC):
         if focal_length <= 0.0:
             raise ValueError("VisualizerCfg.focal_length must be positive.")
         return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
+
+    def invalidate_camera_tracking(self) -> None:
+        """Refresh the origin after poses change without advancing physics."""
+        self._camera_tracking_step = -1
+        for view in self._image_views:
+            if view.camera is None:
+                view.invalidate()
 
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state.

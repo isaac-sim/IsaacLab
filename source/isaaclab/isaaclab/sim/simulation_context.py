@@ -570,6 +570,8 @@ class SimulationContext:
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
+        for visualizer in self._visualizers:
+            visualizer.invalidate_camera_tracking()
 
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""

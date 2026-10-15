@@ -207,19 +207,19 @@ class VisualizerCfg:
     """
 
     origin_type: Literal["world", "env", "asset"] = "world"
-    """Perspective camera origin: world, environment origin, or tracked asset position.
+    """Perspective camera origin: ``world``, ``env``, or ``asset``.
 
     Asset tracking translates eye/lookat with the asset; it does not rotate the offsets.
     Scene-camera sensors retain their own poses.
     """
 
     origin_env_index: int = 0
-    """Environment containing the camera origin when origin_type is env or asset."""
+    """Environment containing the camera origin when ``origin_type`` is ``env`` or ``asset``."""
 
     origin_track_path: str | None = None
-    """Asset root ("robot") or body ("robot/torso_link") to track for an asset origin.
+    """Asset root (``"robot"``) or body (``"robot/torso_link"``) to track for an ``asset`` origin.
 
-    Names refer to the interactive scene. The body expression must match exactly one body.
+    Names refer to the interactive scene. The first body matching the expression is tracked.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────

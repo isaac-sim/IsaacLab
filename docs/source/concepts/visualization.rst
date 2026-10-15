@@ -737,7 +737,7 @@ Kit, Newton GL, and Newton RTX can follow a scene asset without updating ``eye``
 
 Use ``origin_track_path="robot/torso_link"`` to follow one body instead of the asset root.
 The path uses the scene asset name followed by an optional body expression that must
-match exactly one body. ``origin_env_index`` selects the environment instance.
+match a body; the first matching body is used. ``origin_env_index`` selects the environment instance.
 
 ``eye`` and ``lookat`` are offsets from the tracked position, expressed in world axes;
 they translate with the asset but do not rotate with it. Tracking applies to perspective

@@ -435,6 +435,13 @@ class KitVisualizer(BaseVisualizer):
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
+        # Both Kit perspective cameras consume the same resolved world-space pose.
+        try:
+            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view
+
+            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
+        except (ImportError, ModuleNotFoundError):
+            pass
 
     def reapply_origin(self) -> None:
         """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
@@ -451,14 +458,26 @@ class KitVisualizer(BaseVisualizer):
         self._setup_initial_camera_view()
 
     @property
-    def viewer_origin(self) -> list[float] | None:
+    def viewer_origin(self) -> torch.Tensor | None:
         """Current world-space origin offset applied to :attr:`~KitVisualizerCfg.eye` and
         :attr:`~KitVisualizerCfg.lookat` when computing the absolute camera position.
 
-        Returns CPU coordinates as a list, or ``None`` before :meth:`initialize` is called or when
+        Returns the legacy tensor view, or ``None`` before :meth:`initialize` is called or when
         no valid origin has been established yet (e.g. asset-tracking before the first :meth:`step`).
         """
-        return self._viewer_origin
+        if self._viewer_origin is None:
+            return None
+        # Preserve the public tensor contract without using Torch in camera updates.
+        if self._tracking_asset is not None:
+            data = self._tracking_asset.data
+            if self._tracking_body_id is not None:
+                return data.body_pos_w.torch[self.cfg.origin_env_index, self._tracking_body_id]
+            return data.root_pos_w.torch[self.cfg.origin_env_index]
+        if self.cfg.origin_type == "env":
+            scene = self._sim.get_scene_data_provider().get_interactive_scene()
+            if scene is not None:
+                return torch.as_tensor(scene.env_origins[self.cfg.origin_env_index])
+        return torch.tensor(self._viewer_origin)
 
     # ---- Viewport + camera ----------------------------------------------------------------
 
@@ -919,19 +938,3 @@ class KitVisualizer(BaseVisualizer):
             else:
                 inv_attr.Set(prev)
         self._point_instancer_invisible_ids_backup.clear()
-
-    def _apply_viewer_origin_to_camera(self) -> None:
-        """Compute absolute eye/target from :attr:`_viewer_origin` and push to the viewport."""
-        if self._viewer_origin is None:
-            return
-        origin = self._viewer_origin
-        eye = np.array(self.cfg.eye, dtype=float) + origin
-        target = np.array(self.cfg.lookat, dtype=float) + origin
-        super()._apply_viewer_origin_to_camera()
-        # Keep the Isaac RTX renderer camera in sync (no-op if isaaclab_physx is not installed).
-        try:
-            from isaaclab_physx.renderers.kit_viewport_utils import set_kit_renderer_camera_view  # noqa: PLC0415
-
-            set_kit_renderer_camera_view(eye=eye, target=target, camera_prim_path="/OmniverseKit_Persp")
-        except (ImportError, ModuleNotFoundError):
-            pass

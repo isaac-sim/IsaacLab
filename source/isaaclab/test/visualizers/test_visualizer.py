@@ -247,24 +247,28 @@ def test_perspective_capture_tracks_before_render_and_reset(tracking_scene):
     view.read(1)
     assert len(poses) == 1
     asset.data.root_pos_w.warp.numpy()[1] = [1.0, 2.0, 3.0]
-    viz.reset(soft=True)
-    view.invalidate()
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sim import SimulationContext
+
+    sim._visualizers = [viz]
+    sim.forward = lambda: SimulationContext.forward(sim)
+    env = SimpleNamespace(
+        recorder_manager=Mock(),
+        _reset_idx=Mock(),
+        scene=Mock(),
+        sim=sim,
+        has_rtx_sensors=False,
+        observation_manager=Mock(),
+        extras={},
+        cfg=SimpleNamespace(wait_for_textures=False),
+    )
+    ManagerBasedEnv.reset(env)
     view.read(1)
     assert poses[-1] == ((3.0, 4.0, 5.0), (1.0, 2.0, 3.0))
 
 
-def test_tracking_does_not_move_scene_camera_views(tracking_scene):
-    """Selecting a sensor view must not turn tracking into sensor navigation."""
-    sim, _ = tracking_scene
-    viz = _DummyVisualizer(VisualizerCfg(origin_type="asset", origin_track_path="robot"))
-    viz.initialize(sim, cameras=[])
-    viz.current_image_view = SimpleNamespace(camera=object())
-    viz.update_camera_tracking()
-    assert not hasattr(viz, "camera_pose")
-
-
-@pytest.mark.parametrize("env_index,path", [(2, "robot"), (0, None)])
-def test_camera_tracking_rejects_invalid_origin(tracking_scene, env_index, path):
+@pytest.mark.parametrize("env_index,path,message", [(2, "robot", "origin_env_index"), (0, None, "origin_track_path")])
+def test_camera_tracking_rejects_invalid_origin(tracking_scene, env_index, path, message):
     sim, _ = tracking_scene
     viz = _DummyVisualizer(
         VisualizerCfg(
@@ -273,5 +277,5 @@ def test_camera_tracking_rejects_invalid_origin(tracking_scene, env_index, path)
             origin_env_index=env_index,
         )
     )
-    with pytest.raises(ValueError, match="origin_env_index|origin_track_path"):
+    with pytest.raises(ValueError, match=message):
         viz.initialize(sim, cameras=[])
