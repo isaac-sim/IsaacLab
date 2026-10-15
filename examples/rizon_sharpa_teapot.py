@@ -57,15 +57,15 @@ BOWL_BASE_POS = (-0.144, 0.0, 0.900408217)
 ROBOT_BASE_POS = (-0.930, 0.0, 1.15041)
 PICKUP_TIME = 2.5
 GRASP_CLOSE_INTERVAL = (1.0, 1.7)
-INITIAL_LIFT_TIME = 5.0
+INITIAL_LIFT_TIME = 3.0
 POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
-HOLD_TIME = 0.55
+HOLD_TIME = 0.25
 TILT_TIME = 4.0
-POUR_HOLD_TIME = 4.0
-LIFT_TIME = 4.0
+LIFT_DELAY = 2.5
+LIFT_TIME = 7.0
 LIFT_HEIGHT = 0.25
 RECOVERY_TIME = 5.0
-SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + POUR_HOLD_TIME + LIFT_TIME + RECOVERY_TIME + 0.45
+SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + RECOVERY_TIME + 0.45
 _POUR_ANGLE = math.radians(42.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
@@ -94,11 +94,10 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
 
     time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
     tilt, tilt_derivative = _blend(time / TILT_TIME)
-    lift_start = TILT_TIME + POUR_HOLD_TIME
-    lift, lift_derivative = _blend((time - lift_start) / LIFT_TIME)
-    recovery_raw = (time - lift_start - LIFT_TIME) / RECOVERY_TIME
+    lift, lift_derivative = _blend((time - LIFT_DELAY) / LIFT_TIME)
+    recovery_raw = (time - LIFT_DELAY - LIFT_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
-    # Establish the pouring angle directly and hold it throughout the rise.
+    # Tilt directly to the pouring angle, then hold it until recovery.
     angle = _POUR_ANGLE * (tilt - recovery)
     angular_speed = _POUR_ANGLE * (tilt_derivative / TILT_TIME - recovery_derivative / RECOVERY_TIME)
     lift_speed = LIFT_HEIGHT * lift_derivative / LIFT_TIME
