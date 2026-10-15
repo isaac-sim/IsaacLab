@@ -29,11 +29,16 @@ class AssetConverterBase(abc.ABC):
     :meth:`_convert_asset` method to provide the actual conversion.
 
     The file conversion is lazy if the output directory (:obj:`AssetConverterBaseCfg.usd_dir`) is provided.
-    In the lazy conversion, the USD file is re-generated only if:
+    The most recent conversion in that directory is reused unless:
 
     * The asset file is modified.
     * The configuration parameters are modified.
-    * The USD file does not exist.
+    * The requested USD file name changes.
+    * The generated USD file does not exist.
+
+    The importer may generate a numbered file instead of the requested one. The cache records the generated path
+    so a later conversion cannot return an older file at the requested path. Old hash-only records are cache misses
+    because they do not identify the generated file.
 
     To override this behavior to force conversion, the flag :obj:`AssetConverterBaseCfg.force_usd_conversion`
     can be set to True.
@@ -45,9 +50,9 @@ class AssetConverterBase(abc.ABC):
     triggered conversions try to use the same directory for reading/writing the generated files.
 
     .. note::
-        Changes to the parameters :obj:`AssetConverterBaseCfg.asset_path`, :obj:`AssetConverterBaseCfg.usd_dir`, and
-        :obj:`AssetConverterBaseCfg.usd_file_name` are not considered as modifications in the configuration instance
-        that trigger the USD file re-generation.
+        The configuration hash excludes :obj:`AssetConverterBaseCfg.asset_path`,
+        :obj:`AssetConverterBaseCfg.usd_dir`, and :obj:`AssetConverterBaseCfg.usd_file_name`. The asset contents are
+        hashed, and the requested USD file name is checked separately.
 
     """
 
@@ -87,27 +92,40 @@ class AssetConverterBase(abc.ABC):
         self._usd_file_name = usd_file_name
 
         os.makedirs(self.usd_dir, exist_ok=True)
-        self._usd_file_exists = os.path.isfile(self.usd_path)
-        # the recorded hash tells whether the cached USD was generated from this asset and config
-        self._dest_hash_path = os.path.join(self.usd_dir, ".asset_hash")
-        self._asset_hash = self._config_to_hash(cfg)
+        record_path = os.path.join(self.usd_dir, ".asset_hash")
+        asset_hash = self._config_to_hash(cfg)
+        requested = pathlib.PurePath(self._usd_file_name).as_posix()
         try:
-            with open(self._dest_hash_path) as f:
-                self._is_same_asset = f.readline() == self._asset_hash
-        except FileNotFoundError:
-            self._is_same_asset = False
+            with open(record_path, encoding="utf-8") as f:
+                record = json.load(f)
+        except (FileNotFoundError, ValueError):
+            record = {}
+        if not isinstance(record, dict):
+            record = {}
+        generated = record.get("generated")
 
-        # convert the asset to USD if the hash is different or USD file does not exist
-        if cfg.force_usd_conversion or not self._usd_file_exists or not self._is_same_asset:
+        if (
+            not cfg.force_usd_conversion
+            and record.get("hash") == asset_hash
+            and record.get("requested") == requested
+            and isinstance(generated, str)
+            and not pathlib.PurePath(generated).is_absolute()
+            and ".." not in pathlib.PurePath(generated).parts
+            and os.path.isfile(os.path.join(self.usd_dir, generated))
+        ):
+            self._usd_file_name = generated
+        else:
             # convert the asset to USD
             self._convert_asset(cfg)
             # importers put the physics payloads behind a "Physics" variant set and disagree on
             # which variant to select, so settle it here
             self._select_physics_variant(cfg.physics_variant)
-            # record the hash only now: writing it earlier would let a conversion that raised
+            # record the generated path only now: writing it earlier would let a conversion that raised
             # still count as cached, so an identical retry would skip it and return the asset
-            with open(self._dest_hash_path, "w") as f:
-                f.write(self._asset_hash)
+            generated = pathlib.PurePath(self._usd_file_name).as_posix()
+            record = {"hash": asset_hash, "requested": requested, "generated": generated}
+            with open(record_path, "w", encoding="utf-8") as f:
+                json.dump(record, f)
             # dump the configuration next to the asset, stamped with the converter that produced it
             config_path = os.path.join(self.usd_dir, "config.yaml")
             dump_yaml(config_path, to_dict(cfg))

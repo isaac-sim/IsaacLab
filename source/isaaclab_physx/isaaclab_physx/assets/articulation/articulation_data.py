@@ -931,6 +931,21 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_vel_w_ta
 
     @property
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._body_joint_wrench.data is None and self.has_body_ordering:
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+        self._refresh_body_state_user(
+            self._body_joint_wrench,
+            lambda: self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf),
+        )
+        if self._body_joint_wrench_ta is None:
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf. In torch this resolves to

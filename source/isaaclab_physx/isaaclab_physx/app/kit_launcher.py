@@ -225,9 +225,9 @@ class KitLauncher(SimulationLauncher):
         signal.signal(signal.SIGINT, signal.default_int_handler)
 
     def close(self, exit_code: int = 0) -> None:
-        """Close the Kit app this launcher started; Kit fast shutdown exits with *exit_code*."""
+        """Close the Kit app this launcher started; another SIGINT forces exit."""
         if self._app is not None:
-            previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
             try:
                 # let callbacks queued by the closing simulation run before shutdown
                 self._app.update()
@@ -352,7 +352,7 @@ class KitLauncher(SimulationLauncher):
             "--visualizer",
             "--viz",
             type=parse_visualizer_csv,
-            default=None,
+            default=[],
             help=(
                 "Visualizer backends to run as CSV (e.g., kit,newton_gl,rerun,viser); none run without it. A"
                 " visualizer configured in the task's sim.visualizer_cfgs supplies the settings of its type."

@@ -159,6 +159,9 @@ class Articulation(BaseArticulation):
         """
         super().__init__(cfg)
 
+        if cfg.enable_joint_wrench:
+            SimulationManager.request_extended_state_attribute("body_parent_f")
+
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
         # Solver-built fixed-tendon adapter, held like ``_actuator_control``; None when the active
@@ -3551,6 +3554,9 @@ class Articulation(BaseArticulation):
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None
+
+        if self.cfg.enable_joint_wrench:
+            SimulationManager.request_extended_state_attribute("body_parent_f")
 
     """
     Internal helpers -- Actuators.

@@ -419,6 +419,10 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
                 bodies=["/World/envs/env_[^/]+/Robot/base"],
                 mode="staggered",
                 mass_scale=0.25,
+                proxy_relaxation=0.4,
+                proxy_relaxation_mode="aitken",
+                proxy_relaxation_min=0.2,
+                proxy_relaxation_max=0.8,
                 collide_interval=4,
                 collision_pipeline=custom_pipeline,
             ),
@@ -439,6 +443,10 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.iterations == 3
     assert solver.coupling.proxies[0].mode == "staggered"
     assert solver.coupling.proxies[0].mass_scale == pytest.approx(0.25)
+    assert solver.coupling.proxies[0].proxy_relaxation == pytest.approx(0.4)
+    assert solver.coupling.proxies[0].proxy_relaxation_mode == "aitken"
+    assert solver.coupling.proxies[0].proxy_relaxation_min == pytest.approx(0.2)
+    assert solver.coupling.proxies[0].proxy_relaxation_max == pytest.approx(0.8)
     assert solver.coupling.proxies[0].collide_interval == 4
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
@@ -545,7 +553,7 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
     """Prepare the shared builder once per selected solver, without unconditional VBD coloring."""
     events: list[tuple[str, object]] = []
     builder = ModelBuilder()
-    monkeypatch.setattr(builder, "color", lambda *, balance_colors: events.append(("color", balance_colors)))
+    monkeypatch.setattr(builder, "color", lambda *, balance_colors, **_: events.append(("color", balance_colors)))
     entries = [CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())]
     entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
     solver_cfg = CouplerProxyCfg(entries=entries)

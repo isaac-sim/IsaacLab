@@ -3,22 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the typed-preset CLI front-end.
+"""Task preset discovery, CLI help, and isolation from launcher arguments.
 
-:func:`setup_preset_cli` registers the preset-selection help description and
-runs ``parse_known_args``, returning the verbatim remainder. The
-``physics=``/``renderer=``/``presets=`` tokens are passed through unchanged;
-Hydra's :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly.
-
-Name validation, alias rewriting, typed-selector enforcement, and resolution
-all live in :mod:`isaaclab_tasks.utils.hydra` and have their own tests in
-``test_hydra.py``; this file does not re-cover them.
+Preset-name validation and task composition are covered in ``test_hydra.py``.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -30,7 +24,7 @@ def _make_parser() -> argparse.ArgumentParser:
 
 
 # ---------------------------------------------------------------------------
-# setup_preset_cli: parse-only, returns the pre-fold remainder verbatim
+# setup_preset_cli: pass task selectors through without changing launcher settings
 # ---------------------------------------------------------------------------
 
 
@@ -39,7 +33,7 @@ def test_setup_preset_cli_returns_remainder_only(monkeypatch):
     non-argparse tokens (Hydra path overrides, etc.)."""
     original = ["train.py", "--task=Foo-v0", "env.sim.dt=0.001"]
     monkeypatch.setattr("sys.argv", original)
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     args, remaining = setup_preset_cli(_make_parser())
     assert args.task == "Foo-v0"
@@ -63,7 +57,7 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
             "env.sim.dt=0.001",
         ],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     _, remaining = setup_preset_cli(_make_parser())
     assert remaining == [
@@ -86,7 +80,7 @@ def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
         "sys.argv",
         ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "renderer=newton_renderer", "presets=albedo"],
     )
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     args, _ = setup_preset_cli(_make_parser())
     for attr in ("physics", "renderer", "presets"):
@@ -95,16 +89,6 @@ def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
             " forwarding can then push it into SimulationApp config. Drop the argparse registration"
             " for preset selectors and use Hydra-style tokens instead."
         )
-
-
-# ---------------------------------------------------------------------------
-# External-callback intersection: typed selectors survive on the raw remainder
-#
-# rsl_rl/{train,play}.py intersect the parsed remainder with an
-# ``--external_callback`` return list before assigning ``sys.argv``. Because
-# nothing rewrites the tokens, both sides share the same vocabulary and a typed
-# selector present in both survives the intersection unchanged.
-# ---------------------------------------------------------------------------
 
 
 def test_intersection_preserves_typed_selection():
@@ -120,41 +104,7 @@ def test_intersection_preserves_typed_selection():
     assert intersected == ["physics=newton_mjwarp", "env.lr=3e-4"]
 
 
-# ---------------------------------------------------------------------------
-# Helpers: _ArgvHelper and _bucket_variants_by_target
-# ---------------------------------------------------------------------------
-
-
-def test_argv_helper_task_missing_returns_none():
-    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
-
-    argv = _ArgvHelper(["train.py", "physics=newton_mjwarp"])
-    assert argv.task_name is None
-    assert argv.help_requested is False
-
-
-def test_argv_helper_detects_help_flag():
-    """``--help`` and ``-h`` both flip ``help_requested``."""
-    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
-
-    assert _ArgvHelper(["train.py", "--help"]).help_requested is True
-    assert _ArgvHelper(["train.py", "-h"]).help_requested is True
-    assert _ArgvHelper(["train.py", "--task=Foo", "--help"]).help_requested is True
-    assert _ArgvHelper(["train.py", "env.sim.dt=0.001"]).help_requested is False
-
-
-def test_argv_helper_task_returns_last_value():
-    """argparse's ``store`` action uses the last ``--task``; the scanner
-    must match so ``--help`` shows variants for the task argparse will
-    actually use."""
-    from isaaclab_tasks.utils.preset_cli import _ArgvHelper
-
-    assert _ArgvHelper(["train.py", "--task=Old", "--task=New"]).task_name == "New"
-    assert _ArgvHelper(["train.py", "--task", "Old", "--task", "New"]).task_name == "New"
-    assert _ArgvHelper(["train.py", "--task=Old", "--task", "New"]).task_name == "New"
-
-
-def test_bucket_variants_routes_by_target_match():
+def test_enumerate_task_presets_routes_by_target_match(monkeypatch):
     """Variants bucket through :meth:`PresetTarget.matches`.
 
     PhysicsCfg subclass instances route to PHYSICS, RendererCfg subclass
@@ -166,8 +116,7 @@ def test_bucket_variants_routes_by_target_match():
     from isaaclab.sim import SimulationCfg
     from isaaclab.utils import configclass
 
-    from isaaclab_tasks.utils.preset_cli import _bucket_variants_by_target
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+    from isaaclab_tasks.utils.hydra import PresetTarget, enumerate_task_presets, preset
 
     @configclass
     class _PhysVariant(PhysicsCfg):
@@ -210,12 +159,16 @@ def test_bucket_variants_routes_by_target_match():
             "heavy": 2.0,
         },
     }
-    result = _bucket_variants_by_target(walked)
+    monkeypatch.setattr(
+        "isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry",
+        lambda *_: {path: preset(**fields) for path, fields in walked.items()},
+    )
+    result = enumerate_task_presets("Test")
     # All physics variants bucket to PHYSICS (including the wrapper-shaped ones).
-    assert {"physx", "newton_mjwarp", "newton_kamino", "simulation_physx"} <= result[PresetTarget.PHYSICS]
+    assert {"physx", "newton_mjwarp", "newton_kamino", "simulation_physx"} <= set(result[PresetTarget.PHYSICS])
     assert "newton_renderer" in result[PresetTarget.RENDERER]
     # Primitive-typed variants land in DOMAIN.
-    assert {"plain", "light", "heavy"} <= result[PresetTarget.DOMAIN]
+    assert {"plain", "light", "heavy"} <= set(result[PresetTarget.DOMAIN])
     # 'default' is filtered out everywhere -- it's the fallback, not a selectable name.
     for bucket in result.values():
         assert "default" not in bucket
@@ -231,8 +184,10 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
     once on the section description rather than repeated per-flag.
     """
     monkeypatch.setattr("sys.argv", ["train.py", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    from isaaclab_tasks.utils import hydra, setup_preset_cli
 
+    # Task preset parsing, categories, and resolution share one module.
+    assert not any(Path(hydra.__file__).with_name(module).exists() for module in ("preset_cli.py", "preset_target.py"))
     parser = argparse.ArgumentParser(prog="train.py")  # default add_help=True
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
@@ -265,14 +220,7 @@ def test_help_without_task_says_pass_task(monkeypatch, capsys):
     ],
 )
 def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phrases):
-    """Each branch of the description builder renders the documented strings
-    for its variant shape. Typed-bucketed names appear only under their typed
-    section; the DOMAIN bucket
-    (``presets:``) lists only variants that fell into the catch-all. The
-    parametrize id captures which branch each case locks; argparse line-
-    wrapping is normalized away before substring assertions so wording changes
-    are deliberate.
-    """
+    """Help uses the supplied argv's last task and lists variants in their typed sections."""
     from isaaclab.physics import PhysicsCfg
     from isaaclab.renderers.renderer_cfg import RendererCfg
     from isaaclab.utils import configclass
@@ -304,14 +252,23 @@ def test_help_text_branch_strings(monkeypatch, capsys, build_key, expected_phras
 
     import isaaclab_tasks.utils.parse_cfg as parse_cfg
 
-    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", lambda *_a, **_kw: builders[build_key]())
-    monkeypatch.setattr("sys.argv", ["train.py", "--task=Fake-v0", "--help"])
-    from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+    def load(task, entry):
+        assert task == "Fake-v0"
+        return builders[build_key]()
+
+    monkeypatch.setattr(parse_cfg, "load_cfg_from_registry", load)
+    monkeypatch.setattr("sys.argv", ["train.py", "--task=Unrelated-v0", "--help"])
+    argv = (
+        ["--task=Old-v0", "--task", "Fake-v0", "-h"]
+        if build_key == "empty"
+        else ["--task", "Old-v0", "--task=Fake-v0", "--help"]
+    )
+    from isaaclab_tasks.utils.hydra import setup_preset_cli
 
     parser = argparse.ArgumentParser(prog="train.py")
     parser.add_argument("--task", type=str, default=None)
     with pytest.raises(SystemExit):
-        setup_preset_cli(parser)
+        setup_preset_cli(parser, argv)
     # Collapse argparse line-wrapping so substring checks survive width changes.
     flat = " ".join(capsys.readouterr().out.split())
 
