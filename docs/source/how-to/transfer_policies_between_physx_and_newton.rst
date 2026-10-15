@@ -294,25 +294,20 @@ generic commands above.
 Transfer demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-These animations demonstrate PhysX-trained policies running in Newton MJWarp without retraining.
+These videos demonstrate PhysX-trained policies running in Newton MJWarp without retraining.
 They do not represent full PP/PN/NN/NP validation. The backends are shown side by side.
 
 **ANYmal-D rough-terrain locomotion** (``Isaac-Velocity-Rough-AnymalD``)
 
-The green and blue arrows show commanded and measured linear velocity, respectively.
-This Newton replay uses a base capsule radius of 0.10 m and a shape margin of 0.005 m.
+.. raw:: html
 
-.. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer.gif
-   :alt: PhysX and Newton MJWarp ANYmal-D locomotion, both with velocity arrows.
-   :width: 960px
+   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
-**Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro-Direct``, PhysX-to-Newton direction only)
+**Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
 
-This Newton replay uses aligned joint ordering, identified drive and contact parameters, and eight solver substeps.
+.. raw:: html
 
-.. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer.gif
-   :alt: PhysX and Newton MJWarp Allegro hand cube reorientation.
-   :width: 960px
+   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 .. tip::
 
