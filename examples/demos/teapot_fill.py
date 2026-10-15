@@ -212,10 +212,10 @@ if ROBOT_ENABLED:
     CAMERA_EYE = (0.55, -1.5, 1.72)
     CAMERA_TARGET = (-0.28, 0.0, 1.22)
 
-# Resolve individual droplets and keep their density peaks above the extraction
-# threshold, including the sparse falling stream and splashes in the bowl.
-SURFACE_VOXEL_SIZE = 0.5 * FILL_SPACING
-SURFACE_KERNEL_RADIUS = 3.0 * FILL_SPACING
+# Use tighter kernels than the open-tank dam-break preset so the reconstructed
+# surface stays inside narrow features such as the teapot spout.
+SURFACE_VOXEL_SIZE = 0.5 * VOXEL_SIZE
+SURFACE_KERNEL_RADIUS = max(3.0 * FILL_SPACING, 1.5 * SURFACE_VOXEL_SIZE)
 SURFACE_MAX_GRID_CELLS = 4_000_000
 SURFACE_PATH = "/fluid_surface"
 
@@ -251,7 +251,15 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
         kernel_radius=SURFACE_KERNEL_RADIUS,
         threshold=0.4,
         smooth_lambda=0.0,
-        kernel_scale=0.25,
+        anisotropic=True,
+        kernel_scale=0.5,
+        anisotropy_ratio=16.0,
+        anisotropy_scale=1.0,
+        anisotropy_min_neighbors=4,
+        anisotropy_binning=True,
+        anisotropy_strength=0.95,
+        field_smooth_iterations=0,
+        mesh_smooth_iterations=1,
         device=model.device,
     )
     return ParticleSurfaceRenderer(
