@@ -18,7 +18,7 @@ from rendering_test_utils import (
     rendering_test_lift_kuka,
 )
 
-pytestmark = [pytest.mark.arm_ci, pytest.mark.kitless]
+pytestmark = [pytest.mark.arm_ci, pytest.mark.kitless, pytest.mark.ov]
 
 _RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params_lift())
 _COMPARISON_SCORES: list[dict] = []

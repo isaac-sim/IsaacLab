@@ -14,6 +14,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 import tomllib
@@ -1830,10 +1831,16 @@ def pytest_sessionstart(session):
         marker_token = f"pytest.mark.{ci_marker}"
         new_test_files = []
         for test_file in test_files:
+            # A folder's conftest.py can mark every test below it.
+            folder = os.path.dirname(os.path.abspath(test_file))
+            marking_files = [test_file]
+            while folder.startswith(workspace_root) and folder != workspace_root:
+                if os.path.isfile(os.path.join(folder, "conftest.py")):
+                    marking_files.append(os.path.join(folder, "conftest.py"))
+                folder = os.path.dirname(folder)
             try:
-                with open(test_file) as f:
-                    if marker_token in f.read():
-                        new_test_files.append(test_file)
+                if any(marker_token in Path(path).read_text() for path in marking_files):
+                    new_test_files.append(test_file)
             except OSError as exc:
                 raise RuntimeError(
                     f"ci_marker post-scan could not read {test_file}; refusing to"

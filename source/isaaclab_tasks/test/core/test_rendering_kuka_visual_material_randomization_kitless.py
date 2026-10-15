@@ -21,6 +21,7 @@ pytestmark = [
     pytest.mark.integration,
     pytest.mark.rendering,
     pytest.mark.kitless,
+    pytest.mark.ov,
 ]
 
 _RENDERING_PARAMS = make_kitless_visual_material_rendering_params()

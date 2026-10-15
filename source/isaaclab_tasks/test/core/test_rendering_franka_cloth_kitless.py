@@ -18,7 +18,7 @@ from rendering_test_utils import (
     rendering_test_franka_cloth,
 )
 
-pytestmark = pytest.mark.kitless
+pytestmark = [pytest.mark.kitless, pytest.mark.ov]
 
 _RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params_franka())
 _COMPARISON_SCORES: list[dict] = []
