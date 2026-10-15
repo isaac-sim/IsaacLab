@@ -13,6 +13,7 @@ state machine run inside the physics CUDA graph. This is scripted manipulation, 
 
     uv run isaaclab example tablecloth --device cuda:0
     uv run isaaclab example tablecloth --device cuda:0 --backdrop_usd /path/to/tablecloth_cantina.usdc
+    uv run --extra isaacsim isaaclab example tablecloth --device cuda:0 --visualizer kit
 """
 
 from __future__ import annotations
@@ -1295,7 +1296,7 @@ def main() -> None:
         rigid_body_contact_buffer_size=256,
         rigid_body_particle_contact_buffer_size=8192,
     )
-    camera_distance = max(5.0, 1.16 * len(speeds))
+    camera_distance = max(4.6, 1.16 * len(speeds))
     sim_cfg = sim_utils.SimulationCfg(
         dt=step_dt / substeps,
         render_interval=substeps,
@@ -1312,7 +1313,9 @@ def main() -> None:
             solver_cfg=solver_cfg,
         ),
         default_visualizer_cfg=VisualizerCfg(
-            eye=(camera_distance, -1.4, 2.4), lookat=(-0.35, 0.0, 1.35), focal_length=20.0
+            eye=(camera_distance, -1.5, 2.1),
+            lookat=(-0.25, 0.0, 0.95),
+            focal_length=27.0 if len(speeds) <= 3 else 20.0,
         ),
     )
     with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):

@@ -169,6 +169,14 @@ Focused examples
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0 --backdrop_usd /path/to/tablecloth_cantina.usdc
 
+      Newton GL is the default. For the Isaac Sim RTX viewport inside Isaac Lab,
+      install the ``isaacsim`` extra and select ``--visualizer kit``. This changes
+      the visualizer while keeping the same camera, Newton VBD physics, and manipulation.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example tablecloth --device cuda:0 --visualizer kit --backdrop_usd /path/to/tablecloth_cantina.usdc
+
       Kit videos: `five-speed overview
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
       and `wider-side grasp and pull
