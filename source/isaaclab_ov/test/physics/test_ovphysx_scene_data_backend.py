@@ -427,8 +427,11 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     monkeypatch.setattr(PhysicsManager, "_callbacks", {})
     monkeypatch.setattr(PhysicsManager, "views", {})
     monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: events.append("close_views"))
-    with pytest.raises(RuntimeError, match="native teardown failed"):
+    with pytest.raises(RuntimeError, match="native teardown failed") as error:
         OvPhysxManager.close()
+    if modern:
+        assert isinstance(error.value.__context__, RuntimeError)
+        assert str(error.value.__context__) == "detach task failed"
 
     assert PhysicsManager._sim is None
     assert sim._backend_registry == [(cfg, backend)]

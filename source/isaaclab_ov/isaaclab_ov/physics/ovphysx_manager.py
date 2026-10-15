@@ -787,7 +787,7 @@ class OvPhysxManager(PhysicsManager):
             cls._clone_recipes,
             full_stage,
             plan,
-            friction_replacements=getattr(sim.cfg.physics, "legacy_joint_friction_replacements", None),
+            friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
         )
         cls._stage_usda = stage_usda
 

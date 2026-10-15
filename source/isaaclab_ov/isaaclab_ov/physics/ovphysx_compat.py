@@ -158,12 +158,7 @@ def physx_schema_paths(ovphysx: Any) -> list[Path]:
     """Locate the selected runtime's schemas without importing the external USD plugin provider."""
     if not OVPHYSX_USES_TASKS:
         return list(ovphysx.codeless_schema_paths())
-    try:
-        package = importlib.metadata.distribution("physx-usd-schemas")
-    except importlib.metadata.PackageNotFoundError as exc:
-        raise FileNotFoundError(
-            "OVPhysX 0.7 requires physx-usd-schemas>=25.11.2. Install it before starting simulation."
-        ) from exc
+    package = importlib.metadata.distribution("physx-usd-schemas")
     paths = [
         Path(package.locate_file(f"physx_usd_schemas/{module}/resources"))
         for module in ("PhysxSchema", "OmniUsdPhysicsDeformableSchema")

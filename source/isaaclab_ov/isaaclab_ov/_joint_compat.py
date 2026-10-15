@@ -26,9 +26,13 @@ def convert_legacy_joint_properties(
     replacements = []
     for pattern, values in (friction_replacements or {}).items():
         if len(values) != 3 or not all(math.isfinite(value) and value >= 0 for value in values):
-            raise ValueError(f"Invalid joint friction replacement for {pattern}: expected three finite nonnegative values.")
+            raise ValueError(
+                f"Invalid joint friction replacement for {pattern}: expected three finite nonnegative values."
+            )
         if values[0] < values[1]:
-            raise ValueError(f"Invalid joint friction replacement for {pattern}: static effort must be >= dynamic effort.")
+            raise ValueError(
+                f"Invalid joint friction replacement for {pattern}: static effort must be >= dynamic effort."
+            )
         replacements.append((re.compile(pattern), values))
     paths = []
     layer.Traverse(Sdf.Path.absoluteRootPath, paths.append)
@@ -37,7 +41,9 @@ def convert_legacy_joint_properties(
         if prim is None:
             continue
         friction = prim.attributes.get("physxJoint:jointFriction")
-        if friction is not None and (friction.default not in (None, 0.0, Sdf.ValueBlock()) or layer.ListTimeSamplesForPath(friction.path)):
+        if friction is not None and (
+            friction.default not in (None, 0.0, Sdf.ValueBlock()) or layer.ListTimeSamplesForPath(friction.path)
+        ):
             matches = [values for pattern, values in replacements if pattern.fullmatch(prim.name)]
             if len(matches) > 1:
                 raise ValueError(f"Multiple joint friction replacements match {path}.")
@@ -53,14 +59,14 @@ def convert_legacy_joint_properties(
             dynamic_name = f"physxJointAxis:{axis}:dynamicFrictionEffort"
             # Keep existing modern opinions, including explicit zeros. Migration supplies only
             # missing properties; the native parser owns Newton/per-axis precedence.
-            modern_names = ("newton:friction", static_name, dynamic_name)
             schemas = list(prim.GetInfo("apiSchemas").GetAppliedItems()) if prim.HasInfo("apiSchemas") else []
             schema = f"PhysxJointAxisAPI:{axis}"
             if schema not in schemas:
                 prim.SetInfo("apiSchemas", Sdf.TokenListOp.CreateExplicit([*schemas, schema]))
-            if not any(name in prim.attributes for name in modern_names):
+            if "newton:friction" not in prim.attributes:
                 for name, value in zip((static_name, dynamic_name), matches[0][:2], strict=True):
-                    Sdf.AttributeSpec(prim, name, Sdf.ValueTypeNames.Float).default = value
+                    if name not in prim.attributes:
+                        Sdf.AttributeSpec(prim, name, Sdf.ValueTypeNames.Float).default = value
             viscous_name = f"physxJointAxis:{axis}:viscousFrictionCoefficient"
             if "newton:damping" not in prim.attributes and viscous_name not in prim.attributes:
                 # Angular USD damping is effort*s/degree; runtime coefficients use radians.
@@ -78,10 +84,17 @@ def convert_legacy_joint_properties(
             if modern is not None and (modern.HasDefaultValue() or layer.ListTimeSamplesForPath(modern.path)):
                 continue
             if layer.ListTimeSamplesForPath(old.path):
-                raise ValueError(f"OVPhysX 0.7 cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}.")
+                raise ValueError(
+                    f"OVPhysX 0.7 cannot preserve time-sampled {old_name} on {path}; migrate to {new_name}."
+                )
             if not old.HasDefaultValue() or old.default == Sdf.ValueBlock():
                 continue
-            if prim.typeName not in ("PhysicsRevoluteJoint", "PhysicsPrismaticJoint", "PhysicsSphericalJoint", "PhysicsJoint"):
+            if prim.typeName not in (
+                "PhysicsRevoluteJoint",
+                "PhysicsPrismaticJoint",
+                "PhysicsSphericalJoint",
+                "PhysicsJoint",
+            ):
                 if old.default != default:
                     raise ValueError(f"OVPhysX 0.7 cannot preserve {old_name} on {prim.typeName} at {path}.")
                 continue

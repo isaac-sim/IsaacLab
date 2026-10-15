@@ -147,5 +147,5 @@ def test_external_schema_resources_are_checked_without_importing_provider(monkey
     with pytest.raises(FileNotFoundError, match="Incomplete physx-usd-schemas"):
         compat.physx_schema_paths(None)
     monkeypatch.setattr(importlib.metadata, "distribution", _missing_distribution)
-    with pytest.raises(FileNotFoundError, match="requires physx-usd-schemas"):
+    with pytest.raises(importlib.metadata.PackageNotFoundError):
         compat.physx_schema_paths(None)

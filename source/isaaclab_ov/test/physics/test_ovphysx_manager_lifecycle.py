@@ -727,7 +727,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     sim.stage = stage
     sim.cfg = SimpleNamespace(
         physics_prim_path="/World/PhysicsScene",
-        physics=SimpleNamespace(cooked_collider_cache_dir=None),
+        physics=SimpleNamespace(cooked_collider_cache_dir=None, legacy_joint_friction_replacements={}),
         dt=1.0 / 60.0,
         enable_scene_query_support=False,
     )
