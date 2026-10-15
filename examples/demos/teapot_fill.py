@@ -548,9 +548,13 @@ def create_sim_cfg():
         solver_cfg.air_drag = 1.0
         solver_cfg.strain_basis = "P1d"
         solver_cfg.transfer_scheme = "pic"
+        # Quadratic velocity interpolation avoids grid-aligned flow at bowl impact.
+        solver_cfg.velocity_basis = "B2"
+        solver_cfg.max_iterations = 25
+        solver_cfg.max_active_cell_count = 1 << 15
         # Use particle-based contacts for pouring and bowl impact.
         solver_cfg.collider_basis = "pic27"
-        solver_cfg.solver = "gauss-seidel"
+        solver_cfg.solver = "auto"
         cfg.physics = NewtonCfg(
             solver_cfg=make_solver_cfg(solver_cfg),
             num_substeps=MPM_SUBSTEPS,
