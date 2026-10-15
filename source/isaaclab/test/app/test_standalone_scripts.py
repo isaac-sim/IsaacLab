@@ -19,18 +19,22 @@ run the corresponding backend-runtime group.
 launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 """
 
+import argparse
 import ast
 import os
 import re
 import runpy
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 from standalone_script_cases import (
     OVERRIDES,
     SmokeResult,
@@ -206,6 +210,57 @@ def test_every_packaged_script_is_registered_for_cli_launch():
     """Every executable script in the root examples tree must have one CLI entry."""
     packaged_specs = [spec for spec in SPECS if spec.path.is_relative_to(script_cases.EXAMPLE_ROOT)]
     assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides"),
+    [
+        ((), NewtonCfg(), ["newton_gl"], ["presets=platforms"]),
+        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        (("--viz", "none"), NewtonCfg(), [], ["presets=platforms"]),
+    ],
+    ids=("newton-default", "physx-default", "explicit-none"),
+)
+def test_g1_terrain_forwards_visualizer_selection(
+    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides
+):
+    """The G1 example must choose its backend default without overriding explicit visualizer intent."""
+    script = script_cases.ROOT / "examples" / "g1_terrain.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics_cfg),
+        policy=SimpleNamespace(checkpoint="checkpoint.pt"),
+        camera_eye=(4.0, -4.0, 3.0),
+        camera_target=(0.0, 0.0, 0.0),
+        camera_vfov=45.0,
+    )
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return cfg, None
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = (
+            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
+        )
+        raise LaunchReached
+        yield
+
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), "--task", "platforms", *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    assert captured == {"overrides": expected_overrides, "visualizers": expected_visualizers}
 
 
 def test_demo_browser_documents_options_for_each_demo():

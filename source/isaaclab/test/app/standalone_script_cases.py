@@ -235,7 +235,8 @@ OVERRIDES = {
     "examples/g1_terrain.py": ScriptOverride(
         args=("--task", "platforms"),
         skip_reason="downloads a published depth policy",
-        visualizers=("kit",),
+        fixed_physics_backend="newton_mjwarp",
+        visualizers=(None, "kit", "newton_gl", "newton_rtx", "rerun", "viser"),
     ),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"

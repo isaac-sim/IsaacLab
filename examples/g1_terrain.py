@@ -16,19 +16,22 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
-from isaaclab.app import launch_simulation
-from isaaclab.visualizers import WindowCfg
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES
+from isaaclab.physics import PhysxAutoCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
-from isaaclab_tasks.utils.hydra import resolve_task_config
+from isaaclab_tasks.utils.hydra import resolve_task_config, setup_preset_cli
 
 
 def main() -> None:
-    """Run the pretrained policy in simulation time and optionally record RTX frames."""
+    """Run the pretrained policy in simulation time and optionally record visualizer frames."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", choices=("platforms", "ramps"), required=True)
     parser.add_argument("--checkpoint", help="Override the pretrained TorchScript checkpoint path or URL")
@@ -38,7 +41,9 @@ def main() -> None:
     parser.add_argument("--max_steps", type=int, help="Stop after at most this many control steps")
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
-    args, overrides = parser.parse_known_args()
+    add_launcher_args(parser)
+    parser.set_defaults(device=None, visualizer=None)
+    args, overrides = setup_preset_cli(parser)
     if args.seconds is not None and (not math.isfinite(args.seconds) or args.seconds <= 0):
         parser.error("--seconds must be finite and positive")
     if args.max_steps is not None and args.max_steps <= 0:
@@ -50,26 +55,43 @@ def main() -> None:
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     if args.checkpoint is not None:
         cfg.policy.checkpoint = args.checkpoint
+    if args.visualizer is None:
+        args.visualizer = ["kit" if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else "newton_gl"]
+    if args.video and not any(name in CAPTURE_VISUALIZER_TYPES for name in args.visualizer):
+        parser.error("--video requires --viz kit, --viz newton_gl, or --viz newton_rtx")
+    aperture = 20.955 * args.height / args.width
+    cfg.sim.default_visualizer_cfg = VisualizerCfg(
+        window=WindowCfg(size=(args.width, args.height)),
+        eye=cfg.camera_eye,
+        lookat=cfg.camera_target,
+        focal_length=aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2)),
+        enable_markers=False,
+        enable_live_plots=False,
+    )
     cfg.sim.visualizer_cfgs = [
         KitVisualizerCfg(
-            headless=False,
             window=WindowCfg(size=(args.width, args.height)),
-            eye=cfg.camera_eye,
-            lookat=cfg.camera_target,
-            streaming_view=False,
-            enable_markers=False,
-            enable_live_plots=False,
         )
     ]
     torch.set_num_threads(1)
-    with launch_simulation(cfg, {"visualizer": ["kit"], "enable_cameras": True}):
+    with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped
         writer = None
         try:
             env.reset()
             robot = env.scene["robot"]
-            visualizer = env.sim.visualizers[0]
-            env.prepare_view(visualizer)
+            kit_visualizer = next(
+                (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.visualizer_type == "kit"), None
+            )
+            recording_visualizer = next(
+                (
+                    visualizer
+                    for visualizer in env.sim.visualizers
+                    if visualizer.cfg.visualizer_type in CAPTURE_VISUALIZER_TYPES
+                ),
+                None,
+            )
+            env.prepare_view(kit_visualizer)
             from isaaclab_tasks.contrib.g1_terrain.agents.depth_policy import DepthStudentPolicy  # noqa: PLC0415
 
             policy = DepthStudentPolicy(cfg.policy)
@@ -78,6 +100,8 @@ def main() -> None:
             if args.video:
                 import imageio.v2 as imageio  # noqa: PLC0415
 
+                if recording_visualizer is None:
+                    raise RuntimeError("No capture-capable visualizer was initialized for --video.")
                 args.output.mkdir(parents=True, exist_ok=True)
                 writer = imageio.get_writer(
                     str(args.output / "video.mp4"),
@@ -120,8 +144,8 @@ def main() -> None:
                         flush=True,
                     )
                     last_log = now
-                if writer:
-                    writer.append_data(visualizer.render_rgb_array()[..., :3])
+                if writer and recording_visualizer is not None:
+                    writer.append_data(recording_visualizer.render_rgb_array()[..., :3])
                 env.step(action)
         finally:
             if writer:
