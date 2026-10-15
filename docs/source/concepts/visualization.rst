@@ -801,6 +801,29 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 
+.. _visualization-partial-visualization:
+
+Partial Visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualizers can be configured to visualize just a subset of environments.
+This is called partial visualization.
+
+There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
+- ``max_visible_envs`` caps how many envs are shown.
+- ``visible_env_indices`` explicitly selects the envs to visualize, in the order given. It takes precedence over
+  ``randomly_sample_visible_envs`` and is also capped by ``max_visible_envs``.
+- ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs``
+  is set, enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
+
+Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
+
+.. note::
+
+   By default, selected envs keep their simulated positions, so a random sample or the first envs of a large grid can lie
+   outside the camera view. Choose indices near the camera target, or move ``eye`` and ``lookat``.
+
 Scene Background
 ~~~~~~~~~~~~~~~~
 
@@ -836,7 +859,7 @@ Performance
      - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
-       environments.
+       environments (see :ref:`visualization-partial-visualization`).
    * - Newton RTX
      - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
        Environment selection limits sensor display tiles; the perspective view shows the full scene.
@@ -844,7 +867,7 @@ Performance
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
      - Highest overhead of the five visualizers; reduce ``window.size``
-       or use ``--max_visible_envs``.
+       or use ``--max_visible_envs`` (see :ref:`visualization-partial-visualization`).
 
 
 Limitations

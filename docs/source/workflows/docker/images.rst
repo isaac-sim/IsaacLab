@@ -25,6 +25,25 @@ Choosing an image
      - Ubuntu 24.04, Python 3.12, Newton and OVPhysX physics, OVRTX rendering, four RL libraries
      - You are training with Newton and want the smallest image; also the only one with no Isaac Sim EULA
 
+Building an image
+-----------------
+
+Every image builds with the same command; only the profile name changes. From the repository root,
+build the image for a profile from the table above, for example ``kitless``:
+
+.. code:: bash
+
+    ./docker/container.py build kitless
+
+``./docker/container.py start kitless`` also builds the image before starting the container. Without
+Compose, build the profile's Dockerfile directly; it uses the same default paths:
+
+.. code:: bash
+
+    docker build --pull --file docker/Dockerfile.kitless --tag isaac-lab-kitless .
+
+Release images are also published pre-built, so building is optional; see :ref:`docker-ngc-images`.
+
 Base image
 ----------
 
@@ -32,12 +51,6 @@ Base image
 Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it builds against is set
 by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
 container.
-
-Direct builds use the same default paths as Compose:
-
-.. code:: bash
-
-    docker build --pull --file docker/Dockerfile.base --tag isaac-lab-base .
 
 Dependencies are installed from ``uv.lock`` with frozen resolution. To update the development
 container after pulling repository changes, rebuild it and recreate the service:
@@ -135,11 +148,11 @@ Replay in a browser with:
 Viser is reachable through the host network without forwarding a desktop display. Stop playback
 with ``Ctrl+C`` without stopping the container. Copy the logs to the host with
 ``docker cp isaac-lab-kitless:/workspace/isaaclab/logs ./logs``.
-To build the image from the checkout instead of
-pulling it, run ``docker build --file docker/Dockerfile.kitless --tag isaac-lab-kitless .``.
 
 Check which architectures a tag publishes with ``docker buildx imagetools inspect <image:tag>``
 before choosing a host.
+
+.. _docker-ngc-images:
 
 Pre-built image from NGC
 ------------------------
