@@ -26,6 +26,7 @@ from functools import partial
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 logger = logging.getLogger("isaaclab.examples.tablecloth")
 
@@ -45,7 +46,8 @@ parser.add_argument(
 )
 parser.add_argument(
     "--backdrop_usd",
-    help="Local path or hosted URL of a visual-only USD backdrop, such as the Cloth Pull Challenge cantina.",
+    default=f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc",
+    help="Visual backdrop USD. Defaults to the Cloth Pull Challenge cantina; an empty string uses the plain scene.",
 )
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])

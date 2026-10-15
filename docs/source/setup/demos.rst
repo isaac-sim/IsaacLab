@@ -148,7 +148,7 @@ Focused examples
 
       .. image:: ../_static/examples/tablecloth_h2.jpg
          :width: 100%
-         :alt: Three H2 Plus robots comparing cloth pulls in the optional Cloth Pull Challenge cantina.
+         :alt: Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina.
 
       Three H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
       different speeds using GPU-captured Newton VBD and scripted Newton IK.
@@ -159,10 +159,12 @@ Focused examples
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
 
-      Add a visual-only restaurant USD with ``--backdrop_usd``; local paths and
-      hosted asset URLs are supported. The cantina USD is supplied separately.
+      The Cloth Pull Challenge cantina loads from the configured Isaac Lab asset
+      root at ``Environments/TableClothPull/tablecloth_cantina.usdc``.
       The backdrop keeps the original robot scale, manipulation, cloth physics,
       and tableware, while hiding the duplicate ground graphic.
+      Override it with ``--backdrop_usd``; local paths and hosted asset URLs are
+      supported. Use ``--backdrop_usd ""`` for the original plain scene.
       Use ``--speeds 4.0 2.0 1.5 0.75 0.5`` for the original five-trial comparison.
 
       .. code-block:: bash
@@ -175,7 +177,7 @@ Focused examples
 
       .. code-block:: bash
 
-         uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example tablecloth --device cuda:0 --visualizer kit --backdrop_usd /path/to/tablecloth_cantina.usdc
+         uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example tablecloth --device cuda:0 --visualizer kit
 
       Kit videos: `five-speed overview
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
