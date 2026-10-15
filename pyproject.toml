@@ -177,7 +177,10 @@ rerun = [
     "pyarrow==23.0.1",
 ]
 
-isaacsim = ["isaacsim[all,extscache]==6.2.0.0"]
+isaacsim = [
+    "isaacsim[all,extscache]==6.2.0.0",
+    "PyJWT[crypto]>=2.15.1,<3",
+]
 
 ov = ["ovphysx==0.6.4.72118723", "ovrtx==0.5.1.385782", "ovstage==0.2.1.385922"]
 ovphysx = ["ovphysx==0.6.4.72118723", "ovstage==0.2.1.385922"]
@@ -201,6 +204,7 @@ teleop = [
 ]
 rlinf = [
     "ray[default]>=2.47.0",
+    "virtualenv>=21.7.13",
     "av>=12.3.0",
     "numpydantic>=1.7.0",
     "albumentations>=1.4.18",
