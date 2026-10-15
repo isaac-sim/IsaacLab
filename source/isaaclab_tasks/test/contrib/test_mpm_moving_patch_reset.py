@@ -9,6 +9,7 @@ import gymnasium as gym
 import pytest
 import torch
 import warp as wp
+from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
 
 from isaaclab.app import launch_simulation
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -70,12 +71,18 @@ def test_g1_terrain_reset_uses_current_ranges(device):
             # Shift one patch after graph replay has started, then replay again.
             patch = raw.moving_patch_particle
             before_centers = wp.to_torch(patch.patch_centers).clone()
+            graph = NewtonManager._graph
+            assert graph is not None
             term.params["pose_range"] = {"x": (1.1, 1.1)}
             particle_env_ids = wp.to_torch(patch.model.particle_world)
             dynamic_mass_before = wp.to_torch(patch.particle_dynamic_mass).clone()
-            raw.event_manager.get_term_cfg("mpm_material").params["parameter_ranges"] = {"density": (2400.0, 2400.0)}
+            raw.event_manager.get_term_cfg("mpm_material").params["parameter_ranges"] = {
+                "density": (2400.0, 2400.0),
+                "friction": (0.45, 0.45),
+            }
             raw.reset(env_ids=torch.tensor([1], device=device))
             observations, rewards, _, _, _ = env.step(actions)
+            assert NewtonManager._graph is graph
             dynamic_mass = wp.to_torch(patch.particle_dynamic_mass)
             torch.testing.assert_close(dynamic_mass[particle_env_ids == 0], dynamic_mass_before[particle_env_ids == 0])
             radius = wp.to_torch(patch.model.particle_radius)[particle_env_ids == 1]
@@ -90,6 +97,13 @@ def test_g1_terrain_reset_uses_current_ranges(device):
                 wp.to_torch(patch.solver._mpm_model.particle_density),
                 wp.to_torch(patch.model.particle_mass) / wp.to_torch(patch.solver._mpm_model.particle_volume),
             )
+
+            # Enabling viscosity changes a captured solver path and must trigger recapture.
+            NewtonMPMManager.set_particle_material_parameters({"viscosity": 1.0})
+            observations, rewards, _, _, _ = env.step(actions)
+            assert NewtonManager._graph is not graph
+            assert torch.isfinite(rewards).all()
+            assert all(torch.isfinite(value).all() for value in observations.values())
 
             # Graph replay must not discard a terrain-query error between substeps.
             patch.terrain_query_miss_count.fill_(1)
