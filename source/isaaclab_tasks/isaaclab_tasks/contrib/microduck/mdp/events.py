@@ -10,9 +10,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
+from isaaclab_newton.actuators import get_bam_group
 
 from isaaclab.actuators import BamActuatorCfg
-from isaaclab.actuators.newton import read_group_parameter, write_group_parameter
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -45,12 +46,5 @@ def randomize_bam_friction(
     for name, actuator_cfg in asset.cfg.actuators.items():
         if not isinstance(actuator_cfg, BamActuatorCfg):
             continue
-        num_group_joints = read_group_parameter(asset.actuators, name, "drive", "friction_scale").shape[1]
-        write_group_parameter(
-            asset.actuators,
-            name,
-            "drive",
-            "friction_scale",
-            values=scales.expand(len(env_ids), num_group_joints),
-            env_ids=env_ids,
-        )
+        friction_scale = wp.to_torch(get_bam_group(asset, name).friction_scale)
+        friction_scale[env_ids] = scales.expand(len(env_ids), friction_scale.shape[1])

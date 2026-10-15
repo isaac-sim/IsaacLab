@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Per-step MuJoCo Warp DOF channel for Newton actuator drives.
+"""Per-step MuJoCo Warp DOF channel for actuated DOFs.
 
-Drives that publish a per-step dry-friction budget or read the generalized load on a DOF go
-through :class:`MjWarpActuatorBridge`, which reads and writes
+Actuator models that publish a per-step dry-friction budget or read the generalized load on a DOF,
+such as BAM's gearbox friction, go through :class:`MjWarpActuatorBridge`, which reads and writes
 :attr:`~newton.solvers.SolverMuJoCo.mjw_model` and ``mjw_data`` directly. The pinned Newton can
 publish per-step joint friction through ``ModelFlags.JOINT_DOF_FORCE_PROPERTIES``; moving the
 friction publication onto it is a follow-up. Newton has no API for the generalized load on a
@@ -37,7 +37,7 @@ from .mjwarp_actuator_bridge_kernels import (
 
 
 class MjWarpActuatorBridge:
-    """Per-step MuJoCo Warp DOF channel for one Newton actuator."""
+    """Per-step MuJoCo Warp DOF channel for a set of actuated DOFs."""
 
     STIFF_SOLREF_FRICTION: ClassVar[tuple[float, float]] = (-5.0e4, -2.0e2)
     """Stiff ``(-stiffness, -damping)`` friction solref from the reference BAM implementation [N.m/rad, N.m.s/rad]."""
@@ -60,7 +60,7 @@ class MjWarpActuatorBridge:
         Args:
             solver: The active MuJoCo Warp solver.
             model: The Newton model the solver was built from.
-            dof_indices: Global Newton DOF index of each actuator slot, shape ``(N,)``.
+            dof_indices: Global Newton DOF index of each slot, shape ``(N,)``.
             device: Warp device the actuator arrays live on.
 
         Raises:
@@ -85,7 +85,7 @@ class MjWarpActuatorBridge:
         self._dof_indices = dof_indices
         self._model = model
 
-        # Newton DOF -> actuator slot, -1 for DOFs this actuator does not drive.
+        # Newton DOF -> slot, -1 for DOFs outside the set.
         slots = np.full(model.joint_dof_count, -1, dtype=np.int32)
         indices = dof_indices.numpy().astype(np.int64)
         slots[indices] = np.arange(len(indices), dtype=np.int32)
