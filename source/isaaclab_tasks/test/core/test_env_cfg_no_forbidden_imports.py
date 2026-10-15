@@ -219,10 +219,11 @@ def test_teleop_configs_load_without_teleop():
         import isaaclab_tasks  # noqa: F401
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
+        locomanip_package = "isaaclab_tasks.contrib.locomanip_pick_place."
         teleop_task_packages = (
             "isaaclab_tasks.contrib.stack.",
             "isaaclab_tasks.contrib.pick_place.",
-            "isaaclab_tasks.contrib.locomanip_pick_place.",
+            locomanip_package,
         )
         task_names = []
         covered_packages = set()
@@ -244,6 +245,11 @@ def test_teleop_configs_load_without_teleop():
             cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
             assert cfg.xr is None
             assert cfg.isaac_teleop is None
+            entry_point = gymnasium.registry[task_name].kwargs["env_cfg_entry_point"]
+            if entry_point.startswith(locomanip_package):
+                assert cfg.scene.left_hand_contact is not None
+                assert cfg.scene.right_hand_contact is not None
+                assert cfg.scene.robot.spawn.activate_contact_sensors
     """)
     result = subprocess.run(
         [sys.executable, "-c", script],

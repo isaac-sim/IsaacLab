@@ -457,6 +457,10 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
 
         self.image_obs_list = ["robot_pov_cam"]
 
+        # The scene always contains hand contact sensors, so their target bodies must have the
+        # contact reporter API even when the optional teleop package is unavailable.
+        self.scene.robot.spawn.activate_contact_sensors = True
+
         if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import (
                 ControllerHapticFeedbackCfg,
@@ -491,9 +495,7 @@ class LocomanipulationG1EnvCfg(ManagerBasedRLEnvCfg):
                 ],
             )
 
-            # Enable contact reporting on the robot so the per-hand ContactSensors
-            # report finger forces, and drive controller haptics from them.
-            self.scene.robot.spawn.activate_contact_sensors = True
+            # Drive controller haptics from the per-hand contact sensors.
             self.haptic_feedback = ControllerHapticFeedbackCfg(
                 left_sensor_name="left_hand_contact",
                 right_sensor_name="right_hand_contact",
