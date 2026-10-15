@@ -396,7 +396,7 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
             self.gui._render_scalar_plots = lambda: None
 
     def begin_frame(self, time: float) -> None:
-        """Select this viewer's OpenGL context before updating frame resources."""
+        """Update mesh VAOs in their owning context because VAOs are not shared between viewers."""
         self.renderer.window.switch_to()
         super().begin_frame(time)
 
@@ -414,7 +414,12 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         finally:
             self._fullscreen_image_active = False
         if self._close_requested:
-            self.renderer.close()
+            self.close()
+
+    def close(self) -> None:
+        """Release context-local GL resources before closing their owning window."""
+        self.renderer.window.switch_to()
+        super().close()
 
     def log_image(self, name: str, image: wp.array | np.ndarray, *, fullscreen: bool = False) -> None:
         """Track whether the current frame replaces the perspective scene with an image."""

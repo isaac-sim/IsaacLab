@@ -32,23 +32,24 @@ def test_dynamic_mesh_moves_after_growth_between_viewers(device: str) -> None:
             primary, surface = viewers
             centers = []
             for frame, x in enumerate((-0.65, 0.65, -0.65)):
-                if frame:
-                    primary.begin_frame(frame / 60.0)
-                    primary.end_frame()
-                    primary.get_frame()
-                # Grow topology after the first frame to exercise context-local VAO replacement.
+                # Grow both meshes so closing one viewer must preserve the other's replacement VAO.
                 points = np.array(((x - 0.25, 0.0, -0.3), (x + 0.25, 0.0, -0.3), (x, 0.0, 0.3)))
                 points = np.tile(points, (1 if frame == 0 else 2, 1))
-                surface.begin_frame(frame / 60.0)
-                surface.log_mesh(
-                    "/surface",
-                    wp.array(points, dtype=wp.vec3),
-                    wp.array(np.arange(len(points)), dtype=wp.int32),
-                    color=(0.05, 0.2, 1.0),
-                    backface_culling=False,
-                    dynamic=True,
-                )
-                surface.end_frame()
+                if frame == 2:
+                    primary.close()
+                    primary.close()
+                    viewers.remove(primary)
+                for viewer in viewers:
+                    viewer.begin_frame(frame / 60.0)
+                    viewer.log_mesh(
+                        "/surface",
+                        wp.array(points, dtype=wp.vec3),
+                        wp.array(np.arange(len(points)), dtype=wp.int32),
+                        color=(0.05, 0.2, 1.0),
+                        backface_culling=False,
+                        dynamic=True,
+                    )
+                    viewer.end_frame()
                 pixels = surface.get_frame().numpy().astype(np.int16)
                 blue = (pixels[..., 2] > 3 * pixels[..., 1]) & (pixels[..., 2] > 70)
                 assert blue.any(), "The dynamic surface disappeared"
@@ -57,5 +58,4 @@ def test_dynamic_mesh_moves_after_growth_between_viewers(device: str) -> None:
             assert abs(centers[2] - centers[0]) < 2.0, "The replacement surface stopped updating"
         finally:
             for viewer in viewers:
-                viewer.renderer.window.switch_to()
                 viewer.close()
