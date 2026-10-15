@@ -546,6 +546,10 @@ def create_sim_cfg():
         solver_cfg = cfg.physics.solver_cfg
         solver_cfg.air_drag = 1.0
         solver_cfg.strain_basis = "P1d"
+        # Quadratic velocity interpolation reduces grid-aligned flow in the bowl.
+        solver_cfg.velocity_basis = "B2"
+        solver_cfg.max_iterations = 25
+        solver_cfg.max_active_cell_count = 1 << 15
         # Cover dense cells during bowl impact; pic27 can omit wall contacts.
         solver_cfg.collider_basis = "pic512"
         cfg.physics = NewtonCfg(
