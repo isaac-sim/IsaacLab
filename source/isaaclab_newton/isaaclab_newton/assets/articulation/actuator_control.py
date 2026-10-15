@@ -340,6 +340,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             # Start-up sampling already checked that the groups sharing this actuator agree.
             cfg = self._bam_cfgs[names[0]]
             if drive.has_backlash:
+                if cfg.backlash_joint_template is None:
+                    raise ValueError(
+                        f"BAM groups {names} drive USD actuators that model gearbox backlash; set"
+                        " 'backlash_joint_template' to the name of each servo's play hinge."
+                    )
                 self._bind_bam_backlash(actuator, cfg.backlash_joint_template)
             bridge = MjWarpActuatorBridge(solver, model, actuator.indices, self.device)
             drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)

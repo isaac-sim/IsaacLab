@@ -713,7 +713,7 @@ staging.
       - ``NewtonPDControlAPI`` + ``NewtonPositionBasedClampingAPI`` + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
-      - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
+      - ``NewtonNeuralControlAPI`` + ``NewtonDCMotorClampingAPI``
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
       - ``NewtonBamDriveAPI`` (Newton only; see :ref:`actuators-bam-paths`)
 
@@ -729,7 +729,8 @@ config is authored onto that prim:
   or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
 * The config type decides the actuator's components. Clamping and delay schemas that the type does
   not model are removed, a type that authors another clamp swaps it, and ``max_delay=0`` removes a
-  delay.
+  delay. A component the prim does not provide, such as a swapped-in clamp, gets the same defaults
+  as on a new prim: an unset ``actuator_effort_limit`` becomes the joint's USD drive limit.
 * A value the actuator needs, such as a DC motor's ``saturation_effort``, must come from the config
   or the asset. Otherwise authoring raises before it edits the stage.
 
@@ -738,8 +739,8 @@ config is authored onto that prim:
     # The asset ships delayed PD actuators on the legs: retune the gains, keep its limits and delay.
     "legs": DelayedPDActuatorCfg(joint_names_expr=[".*_leg_.*"], stiffness=40.0, damping=None)
 
-When the joint has no actuator prim, several, or one with another drive, the existing prims are
-deactivated and a new prim is defined from the config, with defaults such as zero gains for unset
+When the joint has no actuator prim, several, one with another drive, or one with schemas the config
+cannot keep, the existing prims are deactivated and a new prim is defined from the config, with defaults such as zero gains for unset
 values. A warning names the replaced joints.
 
 .. warning::
@@ -836,7 +837,10 @@ Like other explicit actuators, BAM is authored onto the joints' existing BAM act
 
     "servos": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=150.0, motor=BamMotorCfg(friction_base=0.006))
 
-A joint without a BAM actuator gets a new one, which needs the motor fit, ``kp_fw``, and ``vin``.
+A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
+``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``;
+authoring raises before it edits the stage if one is missing. On an asset that models gearbox
+backlash, also set ``backlash_joint_template``.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -917,12 +921,13 @@ and :func:`~isaaclab.actuators.newton.write_group_parameter`:
       - -- (defaults to 1)
     * - ``kp_scale``
       - Firmware gain multiplier [-]
-      - --
+      - -- (defaults to 1)
     * - ``kd_scale``
       - Multiplier of the velocity the motor sees [-]
-      - --
+      - -- (defaults to 1)
 
-Start-up ranges are sampled once per environment and kept across resets. To resample friction every
+Start-up ranges are sampled once per environment and kept across resets. A field without a range
+starts from the value authored on the joint's USD BAM actuator, or from its default on a new actuator. To resample friction every
 episode, add a reset event:
 
 .. code-block:: python

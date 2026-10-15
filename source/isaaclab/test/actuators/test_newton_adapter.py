@@ -380,7 +380,12 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
 
 def test_configuration_overrides_only_the_values_it_sets(tmp_path):
     """Unset gains and joints a mapping does not match keep the asset's actuator values."""
-    stage = _make_asset_stage(tmp_path)
+    asset = _make_actuator_stage()
+    # Newton drives only an actuator's first target, so dc_a's actuator is not a second pd_b actuator.
+    asset.GetPrimAtPath("/World/Robot/dc_a_dc_a_actuator").GetRelationship("newton:targets").AddTarget(
+        "/World/Robot/pd_b"
+    )
+    stage = _make_asset_stage(tmp_path, asset)
     cfg = DelayedPDActuatorCfg(joint_names_expr=["pd_.*"], stiffness={"pd_a": 99.0}, damping=None)
 
     # Authoring again overlays the same prims, so the result does not change.
@@ -412,12 +417,19 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path):
             {"kp": 11.0, "kd": 1.5},
             {ClampingMaxEffort: {"max_effort": 21.0}},
         ),
-        # A DC motor swaps the asset's max-effort clamp for its own.
+        # A DC motor swaps the asset's max-effort clamp for its own, capped at the joint's drive limit.
         (
             "pd_a",
             DCMotorCfg(joint_names_expr=["pd_a"], stiffness=None, damping=None, saturation_effort=5.0),
             {"kp": 11.0, "kd": 1.5},
-            {ClampingDCMotor: {"saturation_effort": 5.0}},
+            {ClampingDCMotor: {"saturation_effort": 5.0, "max_motor_effort": 80.0}},
+        ),
+        # Swapping the DC motor for a max-effort clamp also falls back to the joint's drive limit.
+        (
+            "dc_a",
+            IdealPDActuatorCfg(joint_names_expr=["dc_a"], stiffness=None, damping=None),
+            {"kp": 33.0, "kd": 3.5},
+            {ClampingMaxEffort: {"max_effort": 80.0}},
         ),
         # A DC motor without a saturation effort keeps the asset's motor curve.
         (
@@ -433,6 +445,8 @@ def test_configuration_type_decides_the_actuator_components(
 ):
     """The config type keeps, swaps, or removes the asset's clamping and delay schemas."""
     stage = _make_asset_stage(tmp_path)
+    # A kept clamp inherits the asset's limit; a component the asset lacks uses the joint's drive limit.
+    UsdPhysics.DriveAPI.Apply(stage.GetPrimAtPath(f"/World/Robot/{joint_name}"), "angular").CreateMaxForceAttr(80.0)
 
     author_actuator_prims(stage, "/World/Robot", {"group": cfg})
 
@@ -452,23 +466,24 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     stage = _make_asset_stage(tmp_path, asset)
     cfg = IdealPDActuatorCfg(joint_names_expr=["pd_.*"], stiffness=7.0, damping=None)
 
+    # The group name makes pd_a's new prim path that of the replaced asset prim.
     with caplog.at_level(logging.WARNING):
-        author_actuator_prims(stage, "/World/Robot", {"legs": cfg})
+        author_actuator_prims(stage, "/World/Robot", {"pd_a": cfg})
 
     for joint_name in ("pd_a", "pd_b"):
         actuator = _parsed_actuator(stage, joint_name)
         assert actuator.drive_class is DrivePD
         assert actuator.drive_kwargs == {"kp": 7.0, "kd": 0.0}
         assert actuator.component_specs == []
-        assert stage.GetPrimAtPath(f"/World/Robot/legs_{joint_name}_actuator").IsActive()
     for path in ("pd_a_pd_a_actuator", "pd_b_pd_b_actuator", "pd_b_copy"):
         assert not stage.GetPrimAtPath(f"/World/Robot/{path}").IsActive()
     assert "['pd_a']" in caplog.text and "['pd_b']" in caplog.text
 
 
-def test_missing_required_value_leaves_the_stage_untouched(tmp_path):
+@pytest.mark.parametrize("with_usd_actuators", [True, False], ids=["overlay", "new_prim"])
+def test_missing_required_value_leaves_the_stage_untouched(tmp_path, with_usd_actuators):
     """A DC motor needs a saturation effort from the config or the USD actuator, checked before any edit."""
-    stage = _make_asset_stage(tmp_path)
+    stage = _make_asset_stage(tmp_path) if with_usd_actuators else _make_robot_stage()
     before = stage.GetRootLayer().ExportToString()
     cfgs = {
         "legs": DelayedPDActuatorCfg(joint_names_expr=["pd_.*"], stiffness=1.0, damping=1.0),

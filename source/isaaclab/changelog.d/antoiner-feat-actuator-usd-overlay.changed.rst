@@ -10,8 +10,9 @@
   saturation effort of a USD DC motor actuator on the Newton path.
 * **Breaking:** Changed the :class:`~isaaclab.actuators.BamActuatorCfg` and
   :class:`~isaaclab.actuators.BamMotorCfg` fit and deployment fields to default to None, which keeps the
-  USD BAM actuator's value, so a task can override one setting of a fitted servo. BAM authoring no longer
-  resets the ``kp_scale``, ``kd_scale``, ``friction_scale``, ``sag_gain``, and ``delay_seed`` values of an
-  existing BAM actuator. A joint without a BAM actuator still needs the full fit.
-* Changed Newton-native actuator authoring to stop writing ``newton:maxDelay``, which is not a Newton
-  schema attribute.
+  USD BAM actuator's value, so a task can override one setting of a fitted servo. BAM authoring also stopped
+  resetting the ``kp_scale``, ``kd_scale``, ``friction_scale``, ``sag_gain``, and ``delay_seed`` values of an
+  existing BAM actuator. Set these fields explicitly, or author or randomize the runtime values, to keep the
+  previous result. A joint without a BAM actuator still needs the motor fit, ``kp_fw``, and ``vin``.
+* Changed Newton-native authoring of delayed PD actuators to stop writing ``newton:maxDelay``, which is not
+  a ``NewtonActuatorDelayAPI`` attribute.

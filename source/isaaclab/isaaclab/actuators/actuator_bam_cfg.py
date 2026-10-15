@@ -26,8 +26,8 @@ class BamMotorCfg:
     """Identified BAM motor and gearbox fit, shared by all joints of an actuator group.
 
     A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator, on a
-    joint without one, uses the default given in the field's description; fields without a default are
-    then required by the drive.
+    joint without one, uses the default given in the field's description; the fields without one,
+    except :attr:`friction_viscous`, are then required.
     """
 
     model: Literal["m1", "m2", "m5", "m6"] | None = None
@@ -134,7 +134,7 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Range of the per-environment supply sag gain [V/(N.m)], sampled once and held across resets.
 
     The sagged supply is ``vin - gain * sum_j |tau_j|``, floored at :attr:`vin_min` and 0 V. None
-    disables sag.
+    keeps the USD actuator's sag gain, which is 0 (no sag) for a new actuator.
     """
 
     vin_min: float | None = None
