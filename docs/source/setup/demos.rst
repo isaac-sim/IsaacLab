@@ -163,13 +163,7 @@ Focused examples
       root at ``Environments/TableClothPull/tablecloth_cantina.usdc``.
       The backdrop keeps the original robot scale, manipulation, cloth physics,
       and tableware, while hiding the duplicate ground graphic.
-      Override it with ``--backdrop_usd``; local paths and hosted asset URLs are
-      supported. Use ``--backdrop_usd ""`` for the original plain scene.
       Use ``--speeds 4.0 2.0 1.5 0.75 0.5`` for the original five-trial comparison.
-
-      .. code-block:: bash
-
-         uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0 --backdrop_usd /path/to/tablecloth_cantina.usdc
 
       Newton GL is the default. For the Isaac Sim RTX viewport inside Isaac Lab,
       install the ``isaacsim`` extra and select ``--visualizer kit``. This changes

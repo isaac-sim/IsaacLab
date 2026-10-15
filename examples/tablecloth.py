@@ -12,7 +12,6 @@ state machine run inside the physics CUDA graph. This is scripted manipulation, 
 .. code-block:: bash
 
     uv run isaaclab example tablecloth --device cuda:0
-    uv run isaaclab example tablecloth --device cuda:0 --backdrop_usd /path/to/tablecloth_cantina.usdc
     uv run --extra isaacsim isaaclab example tablecloth --device cuda:0 --visualizer kit
 """
 
@@ -26,7 +25,6 @@ from functools import partial
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 logger = logging.getLogger("isaaclab.examples.tablecloth")
 
@@ -43,11 +41,6 @@ parser.add_argument(
     type=int,
     default=0,
     help="Frame limit; zero completes all pulls and a final hold, negative runs forever.",
-)
-parser.add_argument(
-    "--backdrop_usd",
-    default=f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc",
-    help="Visual backdrop USD. Defaults to the Cloth Pull Challenge cantina; an empty string uses the plain scene.",
 )
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -94,7 +87,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import clone, configclass, instantiate
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -679,21 +672,20 @@ TABLECLOTH_ASSETS = {
     ),
     "ground": AssetBaseCfg(
         prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(visible=False),
         collision_group=-1,
     ),
     "light": AssetBaseCfg(
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
     ),
-}
-
-if args_cli.backdrop_usd:
-    TABLECLOTH_ASSETS["backdrop"] = AssetBaseCfg(
+    "backdrop": AssetBaseCfg(
         prim_path="/World/Backdrop",
-        spawn=sim_utils.UsdFileCfg(usd_path=args_cli.backdrop_usd),
-    )
-    TABLECLOTH_ASSETS["ground"].spawn.visible = False
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc"
+        ),
+    ),
+}
 
 
 # Scripted GPU manipulation and physical grasp monitoring.
