@@ -142,7 +142,12 @@ def run(argv: list[str]) -> None:
             # configure_seed must run after runner construction so torch determinism does not disturb its initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)
-            runner.load(resume_path)
+            # PPO inference does not use the critic, whose privileged observations may differ.
+            runner.load(
+                resume_path,
+                load_cfg={"actor": True} if agent_cfg.class_name == "OnPolicyRunner" else None,
+                map_location=agent_cfg.device,
+            )
             policy = runner.get_inference_policy(device=env.unwrapped.device)
 
             export_model_dir = os.path.join(log_dir, "exported")
