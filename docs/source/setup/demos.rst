@@ -111,7 +111,7 @@ Command Builder
                data-demo-visualizers="newton_gl,kit,newton_rtx,rerun,viser"
                data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
                data-demo-visualizers-newton-mjwarp="newton_gl,kit,newton_rtx,rerun,viser"
-               data-demo-description="Run G1 over deformable gravel and sand with released SONIC policies, with optional video recording.">
+               data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
          <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
          <span>SONIC</span>
        </button>
