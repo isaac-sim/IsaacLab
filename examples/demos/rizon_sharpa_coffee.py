@@ -109,7 +109,7 @@ def _parse_args():
     parser.add_argument(
         "--physics_hz",
         type=int,
-        choices=(100, 120, 200, 240, 400, 800),
+        choices=(100, 120, 200, 400, 800),
         default=None,
         help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm scripts, otherwise 800 Hz.",
     )
@@ -136,11 +136,11 @@ def _parse_args():
     if args.physics_hz is None:
         fast_script = (not args.water and args.voxel_size == 0.002) or (args.water and args.voxel_size >= 0.003)
         args.physics_hz = 400 if fast_script else 800
-    args.control_hz = 60 if args.physics_hz in (120, 240) else 100
+    args.control_hz = 60 if args.physics_hz == 120 else 100
     if args.video_fps is None:
-        args.video_fps = 30 if args.control_hz == 60 else 25
+        args.video_fps = 30 if args.physics_hz == 120 else 25
     if args.control_hz % args.video_fps:
-        parser.error("--video_fps must divide the control rate (60 Hz at 120/240 Hz physics, otherwise 100 Hz).")
+        parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
     if any(name not in ("newton_gl", "newton_rtx", "kit") for name in args.visualizer):
@@ -164,7 +164,8 @@ def _make_env_cfg(args, video_stride):
     cfg.decimation = args.physics_hz // args.control_hz
     cfg.sim.render_interval = 2 * cfg.decimation
     # The robot and material keep independent integration rates.
-    cfg.sim.physics.solver_cfg.entries[0].substeps = math.ceil(800 / args.physics_hz)
+    rigid_hz = 840 if args.physics_hz == 120 else 800
+    cfg.sim.physics.solver_cfg.entries[0].substeps = rigid_hz // args.physics_hz
     cfg.sim.physics.use_cuda_graph = not args.disable_cuda_graph
     media = cfg.sim.physics.solver_cfg.entries[1].solver_cfg
     if not args.water and cfg.voxel_size == 0.002:
