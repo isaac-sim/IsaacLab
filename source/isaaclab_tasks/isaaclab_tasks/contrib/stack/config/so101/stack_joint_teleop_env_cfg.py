@@ -8,8 +8,8 @@ from dataclasses import MISSING
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
-from isaaclab_tasks.contrib.stack.stack_env_cfg import ISAACLAB_TELEOP_AVAILABLE
 
 from . import stack_joint_pos_env_cfg
 

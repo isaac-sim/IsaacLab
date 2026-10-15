@@ -7,7 +7,7 @@ from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils import configclass, replace
 
-from isaaclab_tasks.contrib.stack.stack_env_cfg import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
 from . import stack_joint_pos_env_cfg
 

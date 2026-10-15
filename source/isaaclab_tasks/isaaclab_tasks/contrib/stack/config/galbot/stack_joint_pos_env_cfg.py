@@ -20,10 +20,10 @@ from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
-    ISAACLAB_TELEOP_AVAILABLE,
     ObservationsCfg,
     StackEnvCfg,
     raise_if_surface_gripper_on_gpu,
