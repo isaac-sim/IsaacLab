@@ -10,13 +10,16 @@ from __future__ import annotations
 import contextlib
 import logging
 import sys
+from typing import Any
 
 import torch
 import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
+import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.fabric_xform_selection import FabricXformSelection
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
@@ -25,6 +28,30 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
+
+
+def _publish_physics_poses(fabric_hierarchy: Any | None) -> None:
+    """Have the physics backend write pending body poses to Fabric.
+
+    Continuous Fabric transform updates only run while something renders continuously, so Fabric
+    otherwise keeps the body poses of its last update, and so do the world matrices of prims attached
+    to those bodies, such as cameras on a robot link. The backend updates Fabric at most once per pose
+    change.
+
+    Args:
+        fabric_hierarchy: The stage's Fabric Hierarchy, or ``None`` if its bindings are unavailable.
+    """
+    sim = sim_utils.SimulationContext.instance()
+    # On CPU, PhysX would move the bodies again by the pose change of a Fabric update made before the timeline
+    # plays, so the view does not refresh Fabric while the simulation is stopped.
+    if sim is None or sim.is_stopped():
+        return
+    backend = sim.get_scene_data_provider().backend
+    if SceneDataFormat.FabricMatrix44 in backend.native_transform_formats and backend.transform_count:
+        backend.get_transforms(SceneDataFormat.FabricMatrix44)
+        # On CPU, PhysX does not bring the world matrices of prims attached to the bodies up to date.
+        if sim.device == "cpu" and fabric_hierarchy is not None:
+            fabric_hierarchy.update_world_xforms()
 
 
 def _to_float32_2d(a: wp.array | torch.Tensor) -> wp.array | torch.Tensor:
@@ -68,6 +95,15 @@ class FabricFrameView(BaseFrameView):
       transforms to child prims.  If a managed prim has children whose world
       matrices depend on the parent, those children must be updated via a
       separate view, a physics step, or ``IFabricHierarchy.update_world_xforms``.
+    * **Current body poses.**  While the simulation plays, world-pose reads and
+      writer scopes first have PhysX write pending body poses to Fabric, so prims
+      attached to moving bodies (e.g. a camera on a robot link) follow them even
+      when continuous Fabric transform updates are off.  On CPU, PhysX writes them
+      only if continuous updates were on when the simulation started
+      (:class:`~isaaclab.sensors.camera.Camera` turns them on there), and the view
+      then brings the world matrices of the attached prims up to date through the
+      Fabric Hierarchy.  The view does not refresh Fabric while the simulation is
+      stopped.
     * **No write-back to USD.**  Fabric writes update only
       ``omni:fabric:worldMatrix`` / ``omni:fabric:localMatrix``; the prim's
       USD ``xformOp:*`` attributes are unchanged.  Downstream consumers that
@@ -289,7 +325,7 @@ class FabricFrameView(BaseFrameView):
         return _FabricLocalSpaceWriter(self)
 
     # ------------------------------------------------------------------
-    # Getter hooks -- read directly from Fabric (no lazy sync)
+    # Getter hooks -- read from Fabric (world poses are refreshed from PhysX first)
     # ------------------------------------------------------------------
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         if not self._use_fabric:
@@ -297,6 +333,9 @@ class FabricFrameView(BaseFrameView):
 
         if not self._fabric_initialized:
             self._initialize_fabric()
+        # A writer scope publishes on entry; publishing again could overwrite its pending writes.
+        if self._active_writer is None:
+            _publish_physics_poses(self._fabric_sel.fabric_hierarchy)
 
         indices_wp = self._resolve_indices_wp(indices)
         count = indices_wp.shape[0]
@@ -659,6 +698,8 @@ class _FabricWriterMixin:
         view: FabricFrameView = self._view  # type: ignore[assignment]
         if not view._fabric_initialized:
             view._initialize_fabric()
+        # The opposite space is derived from the parents' world matrices, so they must be current.
+        _publish_physics_poses(view._fabric_sel.fabric_hierarchy)
         self._wrote_anything = False
         h = view._fabric_sel.fabric_hierarchy
         self._was_tracking_local = h is not None and h.tracking_local_xform_changes
