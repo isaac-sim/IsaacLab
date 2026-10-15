@@ -91,12 +91,11 @@ def test_uv_run_exposes_centralized_feature_extras(source_checkout_root: Path):
     assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
-    # ``ov`` installs both Omniverse backends and ``ovstage``, which both backends need.
-    # The single-backend ``ovphysx`` / ``ovrtx`` extras are checked against the pinned versions below.
+    # ``ov`` installs the Omniverse backends and ``ovstage``, which they need; OvPhysX is left out until OvPhysX 0.7,
+    # the first to accept OVStage 0.3, is on PyPI. The ``ovrtx`` extra is checked against the pinned versions below.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("jax[cuda13]") for dep in optional_dependencies["skrl-jax"])
     assert any(dep.startswith("skrl[jax]") for dep in optional_dependencies["skrl-jax"])
-    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
     assert any(dep.startswith("ovstage") for dep in optional_dependencies["ov"])
 
@@ -164,9 +163,9 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
         value = versions[package]
         return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
 
-    assert spec("ovphysx") in optional["ovphysx"]
+    # The ``ovphysx`` extra is empty until OvPhysX 0.7 is on PyPI.
+    assert optional["ovphysx"] == []
     assert spec("ovrtx") in optional["ovrtx"]
-    assert spec("ovstage") in optional["ovphysx"]
     assert spec("ovstage") in optional["ovrtx"]
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install

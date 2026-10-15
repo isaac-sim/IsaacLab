@@ -87,6 +87,14 @@ parser.add_argument("--height", type=int, default=720, help="Image height [px]")
 parser.add_argument(
     "--samples_per_pixel", type=int, help="Path-tracing samples per pixel (the renderer's default if omitted)"
 )
+parser.add_argument(
+    "--stochastic_gaussian_rendering",
+    action="store_true",
+    help=(
+        "Shade the berries with their own material, which turns their colour with the tissue and tints bruises, at the"
+        " cost of sampling noise between frames (by default, the renderer's built-in material, without the noise)"
+    ),
+)
 parser.add_argument("--f_stop", type=float, help="scripted_camera: camera f-number of the close shots' depth of field")
 parser.add_argument("--gamepad_device", help="Linux joystick path, e.g. /dev/input/js0")
 add_launcher_args(parser)
@@ -153,6 +161,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
         camera=args.camera,
         f_stop=args.f_stop,
         bowl_material=args.bowl_material,
+        stochastic_gaussian_rendering=args.stochastic_gaussian_rendering,
     )
     resources.callback(viewer.close)
 

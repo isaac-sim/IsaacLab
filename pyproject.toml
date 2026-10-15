@@ -176,9 +176,10 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.2.0.0"]
 
-ov = ["ovphysx==0.7.0.72321904", "ovrtx==0.6.0.1791455901", "ovstage==0.3.0.378911"]
-ovphysx = ["ovphysx==0.7.0.72321904", "ovstage==0.3.0.378911"]
-ovrtx = ["ovrtx==0.6.0.1791455901", "ovstage==0.3.0.378911"]
+# OvPhysX is left out until OvPhysX 0.7, the first to accept OVStage 0.3 (which OVRTX 0.6 needs), is on PyPI.
+ov = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
+ovphysx = []
+ovrtx = ["ovrtx==0.6.0.1791947691", "ovstage==0.3.0.1791986420"]
 
 mimic = [
     "isaaclab-mimic",
@@ -222,12 +223,12 @@ all = [
 [tool.isaaclab.versions]
 isaacsim = "6.2.0.0"
 usd_exchange = "3.0.1"
-torch = "2.12.0"
-torchvision = "0.27.0"
-torchaudio = "2.11.0"
-ovphysx = "0.7.0.72321904"
-ovrtx = "0.6.0.1791455901"
-ovstage = "0.3.0.378911"
+torch = "2.11.0"
+torchvision = "0.26.0"
+ovphysx = "0.6.4.72118723"
+ovrtx = "0.6.0.1791947691"
+ovstage = "0.3.0.1791986420"
+newton = "1.8.0.dev0"
 warp = "1.17.0"
 
 [tool.ruff]
@@ -382,13 +383,6 @@ name = "pypi-public"
 url = "https://pypi.org/simple"
 explicit = true
 
-# OVRTX 0.6, which live Gaussian deformation needs, and the matching OVStage 0.3 and OvPhysX 0.7 are not yet
-# published on PyPI.
-[[tool.uv.index]]
-name = "nvidia-omniverse"
-url = "https://artifactory.nvidia.com/artifactory/api/pypi/ct-omniverse-pypi/simple"
-explicit = true
-
 [[tool.uv.index]]
 name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
@@ -441,9 +435,9 @@ egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
 
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
-ovphysx = { index = "nvidia-omniverse" }
-ovrtx = { index = "nvidia-omniverse" }
-ovstage = { index = "nvidia-omniverse" }
+ovphysx = { index = "pypi-public" }
+ovrtx = { index = "pypi-public" }
+ovstage = { index = "pypi-public" }
 isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-assets" = { path = "source/isaaclab_assets", editable = true }
 "isaaclab-contrib" = { path = "source/isaaclab_contrib", editable = true }

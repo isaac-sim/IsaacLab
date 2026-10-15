@@ -9,8 +9,8 @@ The berry's Gaussians are authored once in the render stage, from its asset. On 
 :meth:`GaussianRenderDelegate.deform` deforms and shades them from the tissue particles (:mod:`.mpm_binding`), or
 from the nodes of the tissue's tetrahedral mesh with the VBD solver (:mod:`.vbd_binding`), and
 :meth:`GaussianRenderDelegate.publish` hands the renderer the resulting GPU arrays, which it reads in place. Only the
-per-frame attributes change: positions, scales, orientations and the shading quaternion; opacities and spherical
-harmonics stay as authored.
+per-frame attributes change: positions, scales, orientations and, with the berry's own material, the shading
+quaternion; opacities and spherical harmonics stay as authored.
 """
 
 import numpy as np
@@ -58,12 +58,18 @@ class GaussianRenderDelegate:
     Args:
         tissue: The berry's tissue (:class:`~..physics.tissue.BerryTissue`).
         root_path: Render-stage path under which the berry's Gaussians and material are authored.
+        builtin_material: Shade the Gaussians with the renderer's built-in ParticleFieldEmissive material instead of the
+            berry's own, which turns their colour with the tissue and tints bruises from the shading quaternion.
     """
 
-    def __init__(self, tissue, root_path: str):
+    def __init__(self, tissue, root_path: str, builtin_material: bool = False):
         self.tissue = tissue
         self.root_path = root_path
         self.path = f"{root_path}/Gaussians/Field"
+        self.shader_path = f"{root_path}/Materials/Radiance/Shader"
+        self.builtin_material = builtin_material
+        # The built-in material ignores the shading quaternion, which is then not published.
+        self._dynamic = [(name, lanes) for name, lanes in _DYNAMIC if not (builtin_material and name == SHADING)]
         self._bindings = {}
         gaussians = tissue.gaussians
         device = tissue.device
@@ -82,15 +88,8 @@ class GaussianRenderDelegate:
             self._extent = wp.empty((2, 3), dtype=float)
             # The renderer reads the published arrays in place, after the write returns. Two sets alternate: a set is
             # refilled only after the frame that read it has finished rendering.
-            self._buffers = [
-                {
-                    "positions": wp.empty(count, dtype=wp.vec3),
-                    "scales": wp.empty(count, dtype=wp.vec3),
-                    "orientations": wp.empty(count, dtype=wp.quat),
-                    SHADING: wp.empty(count, dtype=wp.vec4),
-                }
-                for _ in range(2)
-            ]
+            dtypes = {"positions": wp.vec3, "scales": wp.vec3, "orientations": wp.quat, SHADING: wp.vec4}
+            self._buffers = [{name: wp.empty(count, dtype=dtypes[name]) for name, _ in self._dynamic} for _ in range(2)]
         self._frame = 0
 
     def author_in_stage(self, stage: Usd.Stage) -> None:
@@ -138,6 +137,10 @@ class GaussianRenderDelegate:
         UsdShade.MaterialBindingAPI.Apply(prim).Bind(
             UsdShade.Material.Get(stage, f"{self.root_path}/Materials/Radiance")
         )
+        if self.builtin_material:
+            shader = UsdShade.Shader.Get(stage, self.shader_path)
+            shader.SetSourceAsset(Sdf.AssetPath("ParticleFieldEmissive.mdl"), "mdl")
+            shader.SetSourceAssetSubIdentifier("ParticleFieldEmissive", "mdl")
 
     def bind_to_renderer(self, rtx) -> None:
         """Bind the per-frame attributes to the running renderer."""
@@ -150,7 +153,7 @@ class GaussianRenderDelegate:
             name: rtx.bind_array_attribute(
                 [self.path], name, dtype="float32", shape=(lanes,), flags=BindingFlag.OPTIMIZE
             )
-            for name, lanes in _DYNAMIC
+            for name, lanes in self._dynamic
         }
 
     def deform(self) -> tuple[np.ndarray, dict]:
@@ -175,7 +178,8 @@ class GaussianRenderDelegate:
                 outputs=[out["positions"], out["scales"]],
             )
             wp.copy(out["orientations"], binding.orientations)
-            wp.copy(out[SHADING], binding.shading)
+            if SHADING in out:
+                wp.copy(out[SHADING], binding.shading)
         # Row-vector convention: scale, then translate back to the deformed center and to the berry's place.
         transform = np.eye(4)
         transform[:3, :3] *= factor

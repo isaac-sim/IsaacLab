@@ -23,9 +23,8 @@ Linux or Windows with an NVIDIA RTX GPU, and [uv](https://docs.astral.sh/uv/). N
 each command below runs with `uv run --extra ovrtx`, which creates and syncs the `.venv` with Isaac Lab and its OVRTX
 renderer before running. Keep `--extra ovrtx` on every run; without it, uv syncs the renderer out of the environment.
 
-Live Gaussian deformation needs OVRTX 0.6, which Isaac Lab pins from the NVIDIA Omniverse package index (NVIDIA
-network access required until it is published on PyPI). The first run takes several minutes more: it downloads the
-packages and the assets, which are then cached, and compiles the renderer's shaders.
+Live Gaussian deformation needs OVRTX 0.6, which the `ovrtx` extra installs. The first run takes several minutes
+more: it downloads the packages and the assets, which are then cached, and compiles the renderer's shaders.
 
 ## Run the demo
 
@@ -88,6 +87,7 @@ throughout: an arm command that leads the arm's lag keeps it from waiting, and t
 | `--bowl_material {glass,porcelain}` | `porcelain` | Material of the receiving bowl |
 | `--repeat` | | Scripted demo: start again when it ends |
 | `--save_frames DIR` | | Scripted demo: render offscreen, save one PNG per 1/30 s, then exit |
+| `--stochastic_gaussian_rendering` | | The berries' own material, which turns their colour and tints bruises, with sampling noise (default: the renderer's built-in material, without it) |
 | `--width`, `--height`, `--samples_per_pixel`, `--f_stop` | 1280 × 720 | Image size, path-tracing samples, depth of field (film) |
 | `--gamepad_device PATH` | first `/dev/input/js*` | Linux joystick to teleoperate with (`teleop_gamepad`) |
 
@@ -134,6 +134,6 @@ fetched from Isaac Lab's Nucleus asset root on first use and cached (`assets/ass
 
 ### Known limitations
 
-- OVRTX 0.6, which live Gaussian deformation needs (0.5 can lose the updates), is not yet on PyPI: Isaac Lab pins an
-  internal build.
-- The Gaussians are stochastically composited, so the berries show slight sampling noise between frames.
+- By default, the Gaussians use the renderer's built-in material, which composites them without sampling noise but
+  neither turns their colour with the tissue nor tints bruises. `--stochastic_gaussian_rendering` restores the
+  berries' own material, which does both, with slight sampling noise between frames.

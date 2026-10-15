@@ -40,11 +40,22 @@ class BerryViewer(ViewerRTX):
         camera: Initial camera view, one of :data:`CAMERA_VIEWS`.
         f_stop: Camera f-number for depth of field in a scripted camera's close shots; None keeps everything sharp.
         bowl_material: Material of the receiving bowl, ``glass`` or ``porcelain``.
+        stochastic_gaussian_rendering: Shade the berries with their own material, which turns their colour with the
+            tissue and tints bruises, but is stochastically composited, with visible sampling noise between frames.
+            Otherwise the Gaussians use the renderer's built-in ParticleFieldEmissive material, composited
+            deterministically for camera rays.
         **kwargs: Arguments of :class:`newton.viewer.ViewerRTX`, such as ``width``, ``height`` and ``headless``.
     """
 
     def __init__(
-        self, env, samples_per_pixel=None, camera="punnet_and_bowl", f_stop=None, bowl_material="porcelain", **kwargs
+        self,
+        env,
+        samples_per_pixel=None,
+        camera="punnet_and_bowl",
+        f_stop=None,
+        bowl_material="porcelain",
+        stochastic_gaussian_rendering=False,
+        **kwargs,
     ):
         if camera not in CAMERA_VIEWS:
             raise ValueError(f"Unknown camera view {camera!r}; expected one of {CAMERA_VIEWS}")
@@ -53,6 +64,7 @@ class BerryViewer(ViewerRTX):
         self.samples_per_pixel = samples_per_pixel
         self.f_stop = f_stop
         self.bowl_material = bowl_material
+        self.stochastic_gaussian_rendering = stochastic_gaussian_rendering
         # Keyboard teleoperation's commanded aperture [m].
         self.keyboard_aperture = 0.08
         self.pending_frame = None
@@ -68,9 +80,13 @@ class BerryViewer(ViewerRTX):
         self.status_text = None
         self.last_center = self.handled_berry.positions().mean(0)
         self.render_delegates = [
-            GaussianRenderDelegate(berry, f"/World/Berries/{name}") for name, berry in env.berries.items()
+            GaussianRenderDelegate(berry, f"/World/Berries/{name}", builtin_material=not stochastic_gaussian_rendering)
+            for name, berry in env.berries.items()
         ]
         super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
+        # Let OVRTX load the stage itself, as the Gaussians' delegates write to the renderer: Newton's OVStage scene
+        # path passes ``time_code`` to ``ovstage.population.open_usd``, which OVStage 0.3 names ``time``.
+        self._use_ovstage = False
         self.set_model(NewtonManager.get_model())
         # The berries appear as their Gaussians only, not as the VBD solver's tetrahedral mesh.
         self.show_triangles = False
@@ -216,10 +232,8 @@ class BerryViewer(ViewerRTX):
         for delegate in self.render_delegates:
             delegate.author_in_stage(self.stage)
         add_tableware_visuals(self.stage, self.bowl_material)
-        add_room_scan(
-            self.stage,
-            UsdShade.Shader.Get(self.stage, f"{self.render_delegates[0].root_path}/Materials/Radiance/Shader"),
-        )
+        # The room scan shares the berries' material, so it is also composited non-stochastically with the built-in one.
+        add_room_scan(self.stage, UsdShade.Shader.Get(self.stage, self.render_delegates[0].shader_path))
         super()._init_ovrtx()
         for delegate in self.render_delegates:
             delegate.bind_to_renderer(self._rtx)
@@ -260,6 +274,8 @@ class BerryViewer(ViewerRTX):
         product.RemoveProperty("omni:rtx:waitForEvents")
         if self.samples_per_pixel is not None:
             product.CreateAttribute("omni:rtx:rtpt:spp", Sdf.ValueTypeNames.Int).Set(self.samples_per_pixel)
+        if not self.stochastic_gaussian_rendering:
+            product.CreateAttribute("omni:rtx:rtpt:gaussian:nonStochastic:enabled", Sdf.ValueTypeNames.Bool).Set(True)
         # Rays through the glass bowl can cross both walls and its solid base.
         product.CreateAttribute("omni:rtx:rtpt:maxBounces", Sdf.ValueTypeNames.Int).Set(8)
         product.CreateAttribute("omni:rtx:rtpt:maxSpecularAndTransmissionBounces", Sdf.ValueTypeNames.Int).Set(8)
@@ -276,6 +292,9 @@ class BerryViewer(ViewerRTX):
                     pixels = wp.from_dlpack(mapping, dtype=wp.vec4ub)
                     self._blit_to_window(pixels)
                     mapping.unmap(stream=pixels.device.stream.cuda_stream)
+            # The blit only fills the presentation texture; drawing it, with the UI, swaps the window's buffers.
+            frame = self._displayed_frame
+            self._present(frame.texture or None, frame.width, frame.height)
         self.pending_frame = self._rtx.step_async(render_products={self._render_product_path}, delta_time=1 / 30)
 
     def _color_outputs(self):

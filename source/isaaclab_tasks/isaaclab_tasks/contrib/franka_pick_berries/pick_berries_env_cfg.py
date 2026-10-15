@@ -22,7 +22,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
+from isaaclab_assets.robots.franka import FRANKA_PANDA_LEGACY_HIGH_PD_CFG
 
 from .assets.asset_paths import raspberry_asset_path
 from .mdp.actions import GripperApertureActionCfg, WorkspaceIKAction
@@ -44,7 +44,7 @@ _READY_JOINTS = (0.00785503, 0.30280935, -0.00700201, -2.45886405, 0.00562982, 2
 class BerrySceneCfg(InteractiveSceneCfg):
     """The Franka, the lab table and the tableware; the environment adds the berries' tissue."""
 
-    robot: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(
+    robot: ArticulationCfg = FRANKA_PANDA_LEGACY_HIGH_PD_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={**{f"panda_joint{i}": q for i, q in enumerate(_READY_JOINTS, 1)}, "panda_finger_joint.*": 0.04}
