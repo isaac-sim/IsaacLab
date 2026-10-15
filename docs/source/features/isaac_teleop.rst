@@ -433,7 +433,23 @@ Prerequisites
 
   Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
   names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
-  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
+  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the commands below.
+
+  On Linux, serial devices are owned by the ``dialout`` group, so the plugin fails with
+  ``Permission denied`` unless your user can access the port. Add your user to the group once, then
+  log out and back in for it to take effect:
+
+  .. code-block:: bash
+
+     sudo usermod -aG dialout $USER
+
+  Alternatively, grant access for the current session only (this resets when the arm is unplugged):
+
+  .. code-block:: bash
+
+     sudo chmod 666 /dev/ttyACM0
+
+  Then run the calibration:
 
   .. code-block:: bash
 

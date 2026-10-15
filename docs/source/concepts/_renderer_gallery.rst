@@ -1,223 +1,103 @@
-.. tab-set::
-
-   .. tab-item:: Newton Warp
-
-      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
-         :align: center
-         :width: 90%
-         :alt: Six material spheres falling onto a table in Newton Warp RGB output.
-
-         RGB animation
-
-      .. grid:: 1 2 3 3
-         :gutter: 2
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-albedo.png
-               :width: 100%
-               :alt: Newton Warp albedo output for six material spheres.
-
-               Albedo
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-depth.png
-               :width: 100%
-               :alt: Color-mapped Newton Warp depth output for six material spheres.
-
-               Depth. Turbo colors progress from near (purple) to far (red).
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-normals.png
-               :width: 100%
-               :alt: Newton Warp surface-normal output for six material spheres.
-
-               Normals
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-semantic-segmentation.png
-               :width: 100%
-               :alt: Color-mapped Newton Warp semantic-segmentation output for six material spheres.
-
-               Semantic segmentation
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-newton-instance-segmentation.png
-               :width: 100%
-               :alt: Color-mapped Newton Warp instance-segmentation output for six material spheres.
-
-               Instance segmentation
-
-   .. tab-item:: OVRTX
-
-      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
-         :align: center
-         :width: 90%
-         :alt: Six material spheres falling onto a table in OVRTX RGB output.
-
-         RGB animation
-
-      .. grid:: 1 2 3 3
-         :gutter: 2
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-albedo.png
-               :width: 100%
-               :alt: OVRTX albedo output for six material spheres.
-
-               Albedo
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-depth.png
-               :width: 100%
-               :alt: Color-mapped OVRTX depth output for six material spheres.
-
-               Depth. Turbo colors progress from near (purple) to far (red).
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-normals.png
-               :width: 100%
-               :alt: OVRTX surface-normal output for six material spheres.
-
-               Normals
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-semantic-segmentation.png
-               :width: 100%
-               :alt: Color-mapped OVRTX semantic-segmentation output for six material spheres.
-
-               Semantic segmentation
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-instance-segmentation.png
-               :width: 100%
-               :alt: Color-mapped OVRTX instance-segmentation output for six material spheres.
-
-               Instance segmentation
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-motion-vectors.png
-               :width: 100%
-               :alt: Color-mapped OVRTX motion-vector output for six falling material spheres.
-
-               Motion vectors. Color encodes direction and relative magnitude; arrows show sampled
-               image-space motion.
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-constant-diffuse.png
-               :width: 100%
-               :alt: OVRTX constant-diffuse simple-shading output for six material spheres.
-
-               Constant diffuse shading
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
-               :width: 100%
-               :alt: OVRTX diffuse-MDL simple-shading output for six material spheres.
-
-               Diffuse MDL shading
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-full-mdl.png
-               :width: 100%
-               :alt: OVRTX full-MDL simple-shading output for six material spheres.
-
-               Full MDL shading
-
-   .. tab-item:: Isaac RTX
-
-      .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
-         :align: center
-         :width: 90%
-         :alt: Six material spheres falling onto a table in Isaac RTX RGB output.
-
-         RGB animation
-
-      .. grid:: 1 2 3 3
-         :gutter: 2
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-albedo.png
-               :width: 100%
-               :alt: Isaac RTX albedo output for six material spheres.
-
-               Albedo
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-depth.png
-               :width: 100%
-               :alt: Color-mapped Isaac RTX depth output for six material spheres.
-
-               Depth. Turbo colors progress from near (purple) to far (red).
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-normals.png
-               :width: 100%
-               :alt: Isaac RTX surface-normal output for six material spheres.
-
-               Normals
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-semantic-segmentation.png
-               :width: 100%
-               :alt: Color-mapped Isaac RTX semantic-segmentation output for six material spheres.
-
-               Semantic segmentation
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-instance-segmentation.png
-               :width: 100%
-               :alt: Color-mapped Isaac RTX instance-segmentation output for six material spheres.
-
-               Instance segmentation
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-motion-vectors.png
-               :width: 100%
-               :alt: Color-mapped Isaac RTX motion-vector output for six falling material spheres.
-
-               Motion vectors. Color encodes direction and relative magnitude; arrows show sampled
-               image-space motion.
-
-         .. grid-item::
-
-            .. figure:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-constant-diffuse.png
-               :width: 100%
-               :alt: Isaac RTX constant-diffuse simple-shading output for six material spheres.
-
-               Constant diffuse shading
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
-               :width: 100%
-               :alt: Isaac RTX diffuse-MDL simple-shading output for six material spheres.
-
-               Diffuse MDL shading
-
-         .. grid-item::
-
-            .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
-               :width: 100%
-               :alt: Isaac RTX full-MDL simple-shading output for six material spheres.
-
-               Full MDL shading
+.. list-table::
+   :header-rows: 1
+   :stub-columns: 1
+   :width: 100%
+   :widths: 16 28 28 28
+   :class: renderer-matrix
+
+   * - Output
+     - Newton Warp
+     - OVRTX
+     - Isaac RTX (legacy)
+   * - RGB
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton.webp
+          :alt: Newton Warp RGB animation of six material spheres falling onto a table.
+          :width: 100%
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx.webp
+          :alt: OVRTX RTPT RGB animation of six material spheres falling onto a table.
+          :width: 100%
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
+          :alt: Isaac RTX RTPT RGB animation of six material spheres falling onto a table.
+          :width: 100%
+   * - Minimal, constant diffuse
+     - Not supported
+     - .. image:: ../_static/overview/sensors/camera-renderer-ovrtx-simple-shading-constant-diffuse.png
+          :alt: OVRTX RTX Minimal constant-diffuse output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-isaac-rtx-simple-shading-constant-diffuse.png
+          :alt: Isaac RTX RTX Minimal constant-diffuse output for six material spheres.
+          :width: 100%
+   * - Minimal, diffuse MDL
+     - Not supported
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-diffuse-mdl.png
+          :alt: OVRTX RTX Minimal textured-diffuse output for six material spheres.
+          :width: 100%
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-diffuse-mdl.png
+          :alt: Isaac RTX RTX Minimal textured-diffuse output for six material spheres.
+          :width: 100%
+   * - Minimal, full MDL
+     - Not supported
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-simple-shading-full-mdl.png
+          :alt: OVRTX RTX Minimal full-material output for six material spheres.
+          :width: 100%
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-simple-shading-full-mdl.png
+          :alt: Isaac RTX RTX Minimal full-material output for six material spheres.
+          :width: 100%
+   * - Albedo
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-newton-albedo.png
+          :alt: Newton Warp albedo output for six material spheres.
+          :width: 100%
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-ovrtx-albedo.png
+          :alt: OVRTX albedo output for six material spheres.
+          :width: 100%
+     - .. image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx-albedo.png
+          :alt: Isaac RTX albedo output for six material spheres.
+          :width: 100%
+   * - Depth
+     - .. image:: ../_static/overview/sensors/camera-renderer-newton-depth.png
+          :alt: Color-mapped Newton Warp depth output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-ovrtx-depth.png
+          :alt: Color-mapped OVRTX depth output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-isaac-rtx-depth.png
+          :alt: Color-mapped Isaac RTX depth output for six material spheres.
+          :width: 100%
+   * - Normals
+     - .. image:: ../_static/overview/sensors/camera-renderer-newton-normals.png
+          :alt: Newton Warp surface-normal output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-ovrtx-normals.png
+          :alt: OVRTX surface-normal output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-isaac-rtx-normals.png
+          :alt: Isaac RTX surface-normal output for six material spheres.
+          :width: 100%
+   * - Semantic segmentation
+     - .. image:: ../_static/overview/sensors/camera-renderer-newton-semantic-segmentation.png
+          :alt: Color-mapped Newton Warp semantic-segmentation output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-ovrtx-semantic-segmentation.png
+          :alt: Color-mapped OVRTX semantic-segmentation output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-isaac-rtx-semantic-segmentation.png
+          :alt: Color-mapped Isaac RTX semantic-segmentation output for six material spheres.
+          :width: 100%
+   * - Instance segmentation
+     - .. image:: ../_static/overview/sensors/camera-renderer-newton-instance-segmentation.png
+          :alt: Color-mapped Newton Warp instance-segmentation output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-ovrtx-instance-segmentation.png
+          :alt: Color-mapped OVRTX instance-segmentation output for six material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-isaac-rtx-instance-segmentation.png
+          :alt: Color-mapped Isaac RTX instance-segmentation output for six material spheres.
+          :width: 100%
+   * - Motion vectors
+     - Not supported
+     - .. image:: ../_static/overview/sensors/camera-renderer-ovrtx-motion-vectors.png
+          :alt: Color-mapped OVRTX motion-vector output for six falling material spheres.
+          :width: 100%
+     - .. image:: ../_static/overview/sensors/camera-renderer-isaac-rtx-motion-vectors.png
+          :alt: Color-mapped Isaac RTX motion-vector output for six falling material spheres.
+          :width: 100%
