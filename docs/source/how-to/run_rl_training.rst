@@ -100,9 +100,9 @@ Rendering can still be active for sensor/camera data capture when enabled by the
 Headless execution with off-screen render
 """""""""""""""""""""""""""""""""""""""""
 
-Since the above command does not open an interactive visualizer, it is not possible to monitor behavior
-live in a viewport window. To capture visual output during training, enable camera/sensor rendering
-in the workflow and pass ``--video`` to record the agent behavior.
+To inspect behavior from a training run without an interactive window, pass ``--video``.
+By default, it records the scene from a headless Newton GL visualizer. See
+:doc:`/source/how-to/record_video` to choose a different visualizer or a camera-sensor output.
 
 .. tab-set::
 

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..renderers.renderer_cfg import RendererCfg
+    from ..sim import SimulationContext
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +69,7 @@ class FactoryBase:
         logger.info(f"Registered backend {name!r} for factory {cls.__name__}.")
 
     @classmethod
-    def _get_backend(cls, *args, **kwargs) -> str:
+    def _get_backend(cls, *args, sim: SimulationContext | None = None, **kwargs) -> str:
         """Return active backend name for this factory.
 
         Falls back to ``"newton"`` when no simulation context is initialized yet.
@@ -76,7 +77,7 @@ class FactoryBase:
         # Import lazily to avoid import cycles at module load time.
         from ..sim.simulation_context import SimulationContext
 
-        sim_context = SimulationContext.instance()
+        sim_context = sim if sim is not None else SimulationContext.instance()
         if sim_context is None:
             return "newton"
 

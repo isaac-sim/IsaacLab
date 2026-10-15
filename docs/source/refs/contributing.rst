@@ -138,6 +138,28 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
+Browser-demo deployment bundles are hosted as Isaac Lab GitHub release assets. The docs workflow downloads
+the pinned archive, verifies its SHA-256, and stages it under ``docs/_build/demos/`` before publishing
+the Pages artifact. The source tree contains the staging script, documentation links, and small thumbnails.
+When publishing a new bundle, retain earlier version directories and update the archive URL and checksum
+together in ``.github/actions/_lib/stage-browser-demos.sh``. Run the staging step from the repository root:
+
+.. code-block:: bash
+
+   bash .github/actions/_lib/stage-browser-demos.sh
+
+The staging step also resolves demo links relative to each documentation version. To preview the
+complete site locally, serve ``docs/_build`` over HTTP:
+
+.. code-block:: bash
+
+   uv run --no-project python -m http.server 8000 --directory docs/_build
+
+Open ``http://localhost:8000/current/index.html`` for the docs or
+``http://localhost:8000/demos/v3/`` for the demos. Downloaded ``docs-html`` artifacts include
+``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
+The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
@@ -311,26 +333,39 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
+  Use argparse's parsing and formatting for CLI help instead of private argv-scanner or help-builder classes.
 * Place shared operations in the existing module that owns their contract before adding a new file.
   Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.
   Prefer direct control flow and early returns when they remove unnecessary nesting.
 * Use predicates or optional lookup results for expected incompatibility, such as filtering available
   camera channels. Do not raise and catch exceptions for routine selection or capability checks.
+* Let missing optional dependencies raise Python's original ``ModuleNotFoundError``. Do not wrap import
+  failures merely to add installation hints or relabel them as configuration errors.
 * Inline simple expressions and operations when a helper would only add indirection. Do not extract
   a one-line helper merely to rename an obvious operation. Introduce a helper when it removes meaningful
   duplication or gives a coherent, non-trivial operation a useful name; its benefit should outweigh the
   need to jump to another definition to understand the caller.
   When retiring a workflow, remove its unused helper chains and tests that only preserve those helpers.
+  Name nontrivial predicates when that makes a branch easier to read, keeping the operation inline.
+  Avoid aliases such as ``cfg = visualizer.cfg`` that only shorten direct attribute access.
 * Prefer direct attribute access and assignment (``obj.value`` and ``obj.value = value``). Use ``getattr``
   and ``setattr`` only when dynamic attribute access is required, such as when the attribute name is
   determined at runtime. Do not use them for known attributes or use default values to hide a missing
   required attribute; express optional fields explicitly in the interface.
+  Use concrete defaults for known empty selections. Reserve ``None`` for a distinct policy or lifecycle
+  state, such as choosing an environment's frame rate or waiting for a client to connect.
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
+  Keep a single representation of the active selection alongside its available choices. Detach borrowed
+  callbacks when their producer closes; Python-owned arrays do not require a separate backend teardown.
+  Launch owns visualizer selection, including producers retained for recording. Return the final list
+  from the config scan; do not maintain a second producer list for a later resolution pass. Image
+  processing belongs in ``utils.images`` and must not depend on ``envs.utils``. Bind scene references
+  in simulation initialization; core simulation must not depend on environment camera adapters.
   Before adding a parameter record and preparation helper for one consumer, check which values already
   exist in its configuration or array metadata. Keep the remaining setup with that owner and cache only
   the buffers or calculations that need reuse.
@@ -345,7 +380,7 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
-  finalization. See :doc:`/source/developer-tools/scene_data_providers` for geometry ownership and
+  finalization. See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
   clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
