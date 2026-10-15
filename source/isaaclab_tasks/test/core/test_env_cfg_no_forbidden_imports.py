@@ -193,8 +193,8 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
     )
 
 
-def test_stack_configs_load_without_teleop():
-    """Every registered stack config must load without the optional teleop package."""
+def test_teleop_configs_load_without_teleop():
+    """Configs with optional Isaac Teleop integrations must load without the package."""
     script = textwrap.dedent("""\
         import builtins
 
@@ -211,10 +211,26 @@ def test_stack_configs_load_without_teleop():
         import isaaclab_tasks  # noqa: F401
         from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
-        task_names = sorted(
-            task_name for task_name in gymnasium.registry if task_name.startswith("IsaacContrib-Stack")
+        teleop_task_packages = (
+            "isaaclab_tasks.contrib.stack.",
+            "isaaclab_tasks.contrib.pick_place.",
+            "isaaclab_tasks.contrib.locomanip_pick_place.",
         )
+        task_names = []
+        covered_packages = set()
+        for task_name, task_spec in gymnasium.registry.items():
+            entry_point = task_spec.kwargs.get("env_cfg_entry_point")
+            if not isinstance(entry_point, str):
+                continue
+            for package in teleop_task_packages:
+                if entry_point.startswith(package):
+                    task_names.append(task_name)
+                    covered_packages.add(package)
+                    break
+
+        task_names.sort()
         assert task_names
+        assert covered_packages == set(teleop_task_packages)
 
         for task_name in task_names:
             cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
