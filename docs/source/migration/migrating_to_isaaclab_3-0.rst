@@ -1182,6 +1182,17 @@ its canonical replacement are present in the same group, use only the canonical 
 values warn and select the canonical value, whereas conflicting values raise :class:`ValueError`.
 
 
+.. rubric:: Explicit actuator configs and USD-authored Newton actuators
+
+With :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` enabled, an explicit actuator config is
+authored onto a joint's USD-authored ``NewtonActuator`` prim when the drive matches, instead of
+replacing it. Values the config leaves as ``None`` now keep the asset's value rather than code
+defaults such as zero gains. :attr:`~isaaclab.actuators.DelayedPDActuatorCfg.max_delay` defaults to
+``None``, which keeps a USD delay; set ``max_delay=0`` to remove it. ``DCMotorCfg.saturation_effort``
+and the :class:`~isaaclab.actuators.BamActuatorCfg` fit fields may also be left as ``None`` to keep
+the asset's values. Set a value explicitly to keep the previous result. See
+:ref:`Existing USD actuators <actuators-usd-overlay>`.
+
 .. rubric:: Actuator API Moves to ``ActuatorCollection``
 
 In Isaac Lab 3.x, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a

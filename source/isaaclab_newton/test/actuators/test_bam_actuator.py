@@ -28,6 +28,7 @@ from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrappe
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, define_actuator_properties
 from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 
@@ -70,12 +71,9 @@ def make_cfg(goldens: dict[str, np.ndarray], **overrides) -> BamActuatorCfg:
     return BamActuatorCfg(**{"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW, **overrides})
 
 
-def make_stage(servo_usd: str, cfg: BamActuatorCfg | None = None) -> Usd.Stage:
-    """Open a fresh fixture layer, optionally authoring its actuators from *cfg*."""
-    stage = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
-    if cfg is not None:
-        author_actuator_prims(stage, "/Robot", {"servo": cfg})
-    return stage
+def make_stage(servo_usd: str) -> Usd.Stage:
+    """Open a fresh fixture layer."""
+    return Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
 
 
 def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides: float | int) -> SimpleNamespace:
@@ -160,18 +158,20 @@ def make_bare_stage(servo_usd: str) -> Usd.Stage:
     return stage
 
 
-@pytest.mark.parametrize("unset", ["kp_fw", "motor.max_current", "motor.model"])
-def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd, unset):
+@pytest.mark.parametrize(
+    "edit, match",
+    [
+        (lambda cfg: replace(cfg, kp_fw=None), "does not set 'kp_fw'"),
+        (lambda cfg: replace(cfg, motor=replace(cfg.motor, max_current=None)), "does not set 'motor.max_current'"),
+        (lambda cfg: replace(cfg, motor=replace(cfg.motor, model=None)), "does not set 'motor.model'"),
+        (lambda cfg: replace(cfg, motor=replace(cfg.motor, model="m3")), "Unsupported BAM model"),
+    ],
+    ids=["no_kp_fw", "no_max_current", "no_model", "unsupported_model"],
+)
+def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd, edit, match):
     """A new actuator needs the complete fit, and an unsupported model would author another friction law."""
-    cfg = make_cfg(goldens)
-    owner, _, name = unset.rpartition(".")
-    setattr(cfg.motor if owner else cfg, name, None)
-    with pytest.raises(ValueError, match=rf"does not set '{unset}'"):
-        author_actuator_prims(make_bare_stage(servo_usd), "/Robot", {"servo": cfg})
-    cfg = make_cfg(goldens)
-    cfg.motor.model = "m3"
-    with pytest.raises(ValueError, match="model"):
-        author_actuator_prims(make_stage(servo_usd), "/Robot", {"servo": cfg})
+    with pytest.raises(ValueError, match=match):
+        author_actuator_prims(make_bare_stage(servo_usd), "/Robot", {"servo": edit(make_cfg(goldens))})
 
 
 @pytest.mark.parametrize(

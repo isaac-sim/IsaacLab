@@ -740,8 +740,8 @@ config is authored onto that prim:
     "legs": DelayedPDActuatorCfg(joint_names_expr=[".*_leg_.*"], stiffness=40.0, damping=None)
 
 When the joint has no actuator prim, several, one with another drive, or one with schemas the config
-cannot keep, the existing prims are deactivated and a new prim is defined from the config, with defaults such as zero gains for unset
-values. A warning names the replaced joints.
+cannot keep, the existing prims are deactivated and a new prim is defined from the config, with
+defaults such as zero gains for unset values. A warning names the replaced joints.
 
 .. warning::
 
@@ -927,8 +927,8 @@ and :func:`~isaaclab.actuators.newton.write_group_parameter`:
       - -- (defaults to 1)
 
 Start-up ranges are sampled once per environment and kept across resets. A field without a range
-starts from the value authored on the joint's USD BAM actuator, or from its default on a new actuator. To resample friction every
-episode, add a reset event:
+starts from the value authored on the joint's USD BAM actuator, or from its default on a new
+actuator. To resample friction every episode, add a reset event:
 
 .. code-block:: python
 

@@ -303,63 +303,6 @@ def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, 
         assert actuator_prim.GetAttribute("newton:maxEffort").Get() == pytest.approx(expected_limit)
 
 
-@pytest.mark.parametrize(
-    "configured_limit",
-    [
-        {"pd_.*": 5.0, "pd_a": 7.0},
-        {"missing_joint": 5.0},
-    ],
-)
-def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit):
-    stage = _make_actuator_stage()
-    cfg = DelayedPDActuatorCfg(
-        joint_names_expr=["pd_.*"],
-        stiffness=1.0,
-        damping=0.0,
-        actuator_effort_limit=configured_limit,
-        max_delay=0,
-    )
-
-    before = stage.GetRootLayer().ExportToString()
-
-    with pytest.raises(ValueError):
-        author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
-
-    assert stage.GetRootLayer().ExportToString() == before
-
-
-@pytest.mark.parametrize(
-    ("group_name", "cfg"),
-    [
-        (
-            "unsupported",
-            ActuatorBaseCfg(class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0),
-        ),
-        (
-            "custom_dc",
-            DCMotorCfg(
-                class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
-                joint_names_expr=["pd_a"],
-                stiffness=0.0,
-                damping=0.0,
-                actuator_effort_limit=1.0,
-                actuator_velocity_limit=1.0,
-                saturation_effort=1.0,
-            ),
-        ),
-    ],
-)
-def test_schema_authoring_rejects_unsupported_explicit_cfg_before_removal(group_name, cfg):
-    """Leave existing actuator prims intact when native authoring rejects a config."""
-    stage = _make_actuator_stage()
-    actuator_path = "/World/Robot/pd_a_pd_a_actuator"
-
-    with pytest.raises(ValueError, match=rf"{group_name}.*{type(cfg).__name__}.*use_newton_actuators"):
-        author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
-
-    assert stage.GetPrimAtPath(actuator_path).IsActive()
-
-
 def test_schema_authoring_accepts_supported_public_actuator_alias():
     """Accept a public import path that resolves to a supported actuator class."""
     stage = _make_robot_stage()
@@ -480,17 +423,72 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     assert "['pd_a']" in caplog.text and "['pd_b']" in caplog.text
 
 
-@pytest.mark.parametrize("with_usd_actuators", [True, False], ids=["overlay", "new_prim"])
-def test_missing_required_value_leaves_the_stage_untouched(tmp_path, with_usd_actuators):
-    """A DC motor needs a saturation effort from the config or the USD actuator, checked before any edit."""
-    stage = _make_asset_stage(tmp_path) if with_usd_actuators else _make_robot_stage()
-    before = stage.GetRootLayer().ExportToString()
-    cfgs = {
-        "legs": DelayedPDActuatorCfg(joint_names_expr=["pd_.*"], stiffness=1.0, damping=1.0),
-        "wrist": DCMotorCfg(joint_names_expr=["remote_a"], stiffness=1.0, damping=1.0),
-    }
+def _asset_stage_without_dc_saturation(tmp_path: Path) -> Usd.Stage:
+    """Reference the actuator asset with dc_a's saturation effort blocked, so its kept DC clamp lacks one."""
+    stage = _make_asset_stage(tmp_path)
+    stage.GetPrimAtPath("/World/Robot/dc_a_dc_a_actuator").GetAttribute("newton:saturationEffort").Block()
+    return stage
 
-    with pytest.raises(ValueError, match="saturation_effort.*remote_a"):
+
+_DC_WITHOUT_SATURATION = DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)
+
+
+@pytest.mark.parametrize(
+    ("make_stage", "cfg", "match"),
+    [
+        (
+            _make_asset_stage,
+            DelayedPDActuatorCfg(
+                joint_names_expr=["pd_.*"],
+                stiffness=1.0,
+                damping=0.0,
+                actuator_effort_limit={"pd_.*": 5.0, "pd_a": 7.0},
+            ),
+            None,
+        ),
+        (
+            _make_asset_stage,
+            DelayedPDActuatorCfg(
+                joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit={"missing_joint": 5.0}
+            ),
+            None,
+        ),
+        (
+            _make_asset_stage,
+            ActuatorBaseCfg(class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0),
+            "ActuatorBaseCfg.*use_newton_actuators",
+        ),
+        (
+            _make_asset_stage,
+            DCMotorCfg(
+                class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
+                joint_names_expr=["pd_a"],
+                stiffness=0.0,
+                damping=0.0,
+                saturation_effort=1.0,
+            ),
+            "DCMotorCfg.*use_newton_actuators",
+        ),
+        (_asset_stage_without_dc_saturation, _DC_WITHOUT_SATURATION, "saturation_effort.*dc_a"),
+        (lambda tmp_path: _make_robot_stage(), _DC_WITHOUT_SATURATION, "saturation_effort.*dc_a"),
+    ],
+    ids=[
+        "overlapping_effort_limits",
+        "unmatched_effort_limit",
+        "unsupported_cfg",
+        "unsupported_class",
+        "kept_clamp_without_saturation",
+        "new_prim_without_saturation",
+    ],
+)
+def test_rejected_config_leaves_the_stage_untouched(tmp_path, make_stage, cfg, match):
+    """A config Newton cannot author, or one that leaves a required value unset, raises before any stage edit."""
+    stage = make_stage(tmp_path)
+    before = stage.GetRootLayer().ExportToString()
+    # A valid group is planned first, so its edits must not land either.
+    cfgs = {"legs": DelayedPDActuatorCfg(joint_names_expr=["pd_b"], stiffness=1.0, damping=1.0), "group": cfg}
+
+    with pytest.raises(ValueError, match=match):
         author_actuator_prims(stage, "/World/Robot", cfgs)
 
     assert stage.GetRootLayer().ExportToString() == before

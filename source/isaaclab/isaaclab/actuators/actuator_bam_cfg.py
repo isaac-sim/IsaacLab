@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -20,14 +21,32 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
 }
 """Drive flags of the friction terms each BAM model enables."""
 
+BAM_NEW_ACTUATOR_DEFAULTS: dict[str, float | int] = {
+    "max_pwm": 1.0,
+    "friction_stribeck": 0.0,
+    "dtheta_stribeck": 1.0,
+    "alpha": 1.0,
+    "load_friction_motor": 0.0,
+    "load_friction_external": 0.0,
+    "load_friction_motor_stribeck": 0.0,
+    "load_friction_external_stribeck": 0.0,
+    "load_friction_motor_quad": 0.0,
+    "load_friction_external_quad": 0.0,
+    "vin_min": -math.inf,
+    "delay_hold_prob": 0.0,
+    "min_delay": 0,
+    "max_delay": 0,
+    "delay_update_period": 0,
+}
+"""Values a new BAM actuator takes for fields its configuration leaves as None."""
+
 
 @configclass
 class BamMotorCfg:
     """Identified BAM motor and gearbox fit, shared by all joints of an actuator group.
 
-    A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator, on a
-    joint without one, uses the default given in the field's description; the fields without one,
-    except :attr:`friction_viscous`, are then required.
+    A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator takes
+    :data:`BAM_NEW_ACTUATOR_DEFAULTS`; the other fields, except :attr:`friction_viscous`, are then required.
     """
 
     model: Literal["m1", "m2", "m5", "m6"] | None = None
@@ -43,7 +62,7 @@ class BamMotorCfg:
     """Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]."""
 
     max_pwm: float | None = None
-    """Maximum duty-cycle magnitude [-]. Defaults to 1.0."""
+    """Maximum duty-cycle magnitude [-]."""
 
     max_current: float | None = None
     """Firmware current limit [A]. Zero disables current limiting."""
@@ -52,37 +71,34 @@ class BamMotorCfg:
     """Coulomb friction [N.m]."""
 
     friction_viscous: float | None = None
-    """Viscous friction coefficient [N.m.s/rad], applied as passive joint damping.
-
-    None keeps the joint's own viscous friction coefficient.
-    """
+    """Viscous friction coefficient [N.m.s/rad], applied as passive joint damping; None keeps the joint's own."""
 
     friction_stribeck: float | None = None
-    """Additional near-rest friction [N.m]. Defaults to 0.0."""
+    """Additional near-rest friction [N.m]."""
 
     dtheta_stribeck: float | None = None
-    """Stribeck decay velocity [rad/s]. Defaults to 1.0."""
+    """Stribeck decay velocity [rad/s]."""
 
     alpha: float | None = None
-    """Stribeck decay exponent [-]. Defaults to 1.0."""
+    """Stribeck decay exponent [-]."""
 
     load_friction_motor: float | None = None
-    """Motor-side load-dependent friction coefficient [-]. Defaults to 0.0."""
+    """Motor-side load-dependent friction coefficient [-]."""
 
     load_friction_external: float | None = None
-    """External-side load-dependent friction coefficient [-]. Defaults to 0.0."""
+    """External-side load-dependent friction coefficient [-]."""
 
     load_friction_motor_stribeck: float | None = None
-    """Motor-side near-rest load-dependent friction coefficient [-]. Defaults to 0.0."""
+    """Motor-side near-rest load-dependent friction coefficient [-]."""
 
     load_friction_external_stribeck: float | None = None
-    """External-side near-rest load-dependent friction coefficient [-]. Defaults to 0.0."""
+    """External-side near-rest load-dependent friction coefficient [-]."""
 
     load_friction_motor_quad: float | None = None
-    """Motor-side quadratic load-coupling coefficient [1/(N.m)]. Defaults to 0.0."""
+    """Motor-side quadratic load-coupling coefficient [1/(N.m)]."""
 
     load_friction_external_quad: float | None = None
-    """External-side quadratic load-coupling coefficient [1/(N.m)]. Defaults to 0.0."""
+    """External-side quadratic load-coupling coefficient [1/(N.m)]."""
 
     def validate_config(self) -> None:
         """Reject friction variants the BAM drive does not implement.
@@ -118,8 +134,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     damping: dict[str, float] | float | None = None
     """Unused. Damping is the motor's back-EMF."""
 
-    motor: BamMotorCfg | None = None
-    """Identified motor and gearbox fit. None keeps the USD actuator's fit."""
+    motor: BamMotorCfg = BamMotorCfg()
+    """Identified motor and gearbox fit."""
 
     kp_fw: float | None = None
     """Firmware proportional gain [-]."""
@@ -138,28 +154,26 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """
 
     vin_min: float | None = None
-    """Lower bound on the sagged supply voltage [V]. Defaults to -inf, which keeps only the 0 V floor."""
+    """Lower bound on the sagged supply voltage [V]; -inf keeps only the 0 V floor."""
 
     min_delay: int | None = None
-    """Minimum command delay [physics steps]. Defaults to 0."""
+    """Minimum command delay [physics steps]."""
 
     max_delay: int | None = None
-    """Maximum command delay [physics steps]. Zero disables the delay. Defaults to 0."""
+    """Maximum command delay [physics steps]; zero disables the delay."""
 
     delay_hold_prob: float | None = None
-    """Probability of keeping the current lag instead of resampling it [-]. Defaults to 0.0."""
+    """Probability of keeping the current lag instead of resampling it [-]."""
 
     delay_update_period: int | None = None
-    """Physics steps between lag resamples, with a random per-environment phase. Zero resamples every step.
-
-    Defaults to 0.
-    """
+    """Physics steps between lag resamples, with a random per-environment phase; zero resamples every step."""
 
     backlash_joint_template: str | None = None
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
 
     For example ``"passive_{}_backlash"``. When set, the firmware reads servo plus play angle, while back-EMF,
-    friction, and applied torque stay on the servo joint. None disables backlash.
+    friction, and applied torque stay on the servo joint. None keeps the USD actuator's backlash flag, which is
+    off for a new actuator.
     """
 
     stiff_frictionloss: bool = True

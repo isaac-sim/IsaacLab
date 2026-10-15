@@ -87,7 +87,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         # BAM's viscous friction is constant, so it lives in the joint model and survives property resyncs.
         # A fit that leaves it unset keeps the joint's own coefficient.
         for name, cfg in self._bam_cfgs.items():
-            if cfg.motor is None or cfg.motor.friction_viscous is None:
+            if cfg.motor.friction_viscous is None:
                 continue
             articulation.write_joint_viscous_friction_coefficient_to_sim_index(
                 joint_viscous_friction_coeff=cfg.motor.friction_viscous,

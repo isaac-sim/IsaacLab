@@ -42,10 +42,9 @@ class ActuatorBaseCfg:
     The actuator's rated force/torque reflected at the joint. Explicit actuator models
     clip their computed effort with it; implicit actuators use it as the model-facing
     limit for effort telemetry. If None, it defaults to the authored/USD joint effort
-    limit (explicit) or tracks the live solver limit (implicit). On the Newton actuator
-    path, an explicit actuator instead keeps the limit of the joint's compatible USD
-    ``NewtonActuator`` prim when that prim has one. It is not a solver limit; that is
-    :attr:`joint_effort_limit`.
+    limit (explicit) or tracks the live solver limit (implicit); explicit actuators on the
+    Newton path keep the asset's actuator limit instead (see :ref:`actuators-usd-overlay`).
+    It is not a solver limit; that is :attr:`joint_effort_limit`.
 
     :class:`~isaaclab.actuators.RemotizedPDActuator` instead uses the
     angle-dependent limits in its ``joint_parameter_lookup``.
@@ -106,9 +105,8 @@ class ActuatorBaseCfg:
     the stiffness gets set into the physics engine directly. For explicit actuators, the stiffness is used
     by the actuator model to compute the joint efforts.
 
-    If None, the stiffness is set to the value from the USD joint prim. On the Newton actuator path, an
-    explicit actuator instead keeps the ``newton:kp`` of the joint's compatible USD ``NewtonActuator``
-    prim, or uses 0 when a new prim is defined.
+    If None, the stiffness is set to the value from the USD joint prim; explicit actuators on the Newton path
+    keep the asset's actuator value instead (see :ref:`actuators-usd-overlay`).
     """
 
     damping: dict[str, float] | float | None = MISSING
@@ -118,9 +116,8 @@ class ActuatorBaseCfg:
     the damping gets set into the physics engine directly. For explicit actuators, the damping gain is used
     by the actuator model to compute the joint efforts.
 
-    If None, the damping is set to the value from the USD joint prim. On the Newton actuator path, an
-    explicit actuator instead keeps the ``newton:kd`` of the joint's compatible USD ``NewtonActuator``
-    prim, or uses 0 when a new prim is defined.
+    If None, the damping is set to the value from the USD joint prim; explicit actuators on the Newton path
+    keep the asset's actuator value instead (see :ref:`actuators-usd-overlay`).
     """
 
     armature: dict[str, float] | float | None = None
