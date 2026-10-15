@@ -289,9 +289,6 @@ class NewtonMPMManager(NewtonManager):
                 device=model.device,
             )
         NewtonManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
-        if NewtonManager._graph is not None:
-            NewtonManager._graph = None
-            NewtonManager._graph_capture_pending = True
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -416,6 +413,36 @@ class NewtonMPMManager(NewtonManager):
             return
         for solver in cls._implicit_mpm_solvers():
             solver.check_sparse_grid_rebuild_status()
+
+    @classmethod
+    def _get_cuda_graph_model_signature(cls) -> tuple:
+        """Track MPM material buffers and host-side branches recorded by CUDA capture."""
+        signatures = []
+        for solver in cls._implicit_mpm_solvers():
+            model = solver._mpm_model
+            arrays = (
+                model.particle_radius,
+                model.particle_volume,
+                model.particle_density,
+                model.particle_flags,
+                model.material_particle_flags,
+                model.material_particle_volume,
+                *(
+                    getattr(model.material_parameters, name)
+                    for name in cls._material_parameter_names
+                    if name != "density"
+                ),
+            )
+            signatures.append(
+                (
+                    tuple((array.ptr, array.shape) for array in arrays),
+                    model.has_compliant_particles,
+                    model.has_hardening,
+                    model.has_viscosity,
+                    model.has_dilatancy,
+                )
+            )
+        return tuple(signatures)
 
     @classmethod
     def _implicit_mpm_solvers(cls) -> tuple[SolverImplicitMPM, ...]:
