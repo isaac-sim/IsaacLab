@@ -451,10 +451,12 @@ class DelayedPDActuator(IdealPDActuator):
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
+        # None means no delay for the Isaac Lab model; only Newton authoring inherits a USD delay.
+        self._max_delay = 0 if cfg.max_delay is None else cfg.max_delay
         # instantiate the delay buffers
-        self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
+        self.positions_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self.velocities_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
+        self.efforts_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
     def reset(self, env_ids: Sequence[int]):
@@ -466,7 +468,7 @@ class DelayedPDActuator(IdealPDActuator):
         # set a new random delay for environments in env_ids
         time_lags = torch.randint(
             low=self.cfg.min_delay,
-            high=self.cfg.max_delay + 1,
+            high=self._max_delay + 1,
             size=(num_envs,),
             dtype=torch.int,
             device=self._device,

@@ -107,8 +107,10 @@ class SimulationCfg:
     them in its solver. PhysX and OVPhysX execute them through a shared host
     adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-    Config values take precedence over existing USD actuators for covered joints.
-    Joints without a config keep their USD-authored actuators. Implicit actuators
+    For covered joints, configs are authored onto existing USD actuators with a
+    matching drive, so values a config leaves unset keep the asset's value; other
+    USD actuators are replaced. Joints without a config keep their USD-authored
+    actuators. Implicit actuators
     are unchanged: the solver applies their drive gains. Set this flag to ``False``
     to use the deprecated Isaac Lab actuator execution path.
     """

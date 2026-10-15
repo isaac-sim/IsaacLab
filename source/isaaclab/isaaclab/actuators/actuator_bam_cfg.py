@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
-from dataclasses import MISSING
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -25,66 +23,74 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
 
 @configclass
 class BamMotorCfg:
-    """Identified BAM motor and gearbox fit, shared by all joints of an actuator group."""
+    """Identified BAM motor and gearbox fit, shared by all joints of an actuator group.
 
-    model: Literal["m1", "m2", "m5", "m6"] = MISSING
+    A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator, on a
+    joint without one, uses the default given in the field's description; fields without a default are
+    then required by the drive.
+    """
+
+    model: Literal["m1", "m2", "m5", "m6"] | None = None
     """Friction variant: Coulomb, Stribeck, directional load-dependent, or quadratic."""
 
-    kt: float = MISSING
+    kt: float | None = None
     """Motor torque/back-EMF constant [N.m/A or V.s/rad]."""
 
-    resistance: float = MISSING
+    resistance: float | None = None
     """Winding resistance [Ohm]."""
 
-    error_gain: float = MISSING
+    error_gain: float | None = None
     """Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]."""
 
-    max_pwm: float = 1.0
-    """Maximum duty-cycle magnitude [-]."""
+    max_pwm: float | None = None
+    """Maximum duty-cycle magnitude [-]. Defaults to 1.0."""
 
-    max_current: float = MISSING
+    max_current: float | None = None
     """Firmware current limit [A]. Zero disables current limiting."""
 
-    friction_base: float = MISSING
+    friction_base: float | None = None
     """Coulomb friction [N.m]."""
 
-    friction_viscous: float = MISSING
-    """Viscous friction coefficient [N.m.s/rad], applied as passive joint damping."""
+    friction_viscous: float | None = None
+    """Viscous friction coefficient [N.m.s/rad], applied as passive joint damping.
 
-    friction_stribeck: float = 0.0
-    """Additional near-rest friction [N.m]."""
+    None keeps the joint's own viscous friction coefficient.
+    """
 
-    dtheta_stribeck: float = 1.0
-    """Stribeck decay velocity [rad/s]."""
+    friction_stribeck: float | None = None
+    """Additional near-rest friction [N.m]. Defaults to 0.0."""
 
-    alpha: float = 1.0
-    """Stribeck decay exponent [-]."""
+    dtheta_stribeck: float | None = None
+    """Stribeck decay velocity [rad/s]. Defaults to 1.0."""
 
-    load_friction_motor: float = 0.0
-    """Motor-side load-dependent friction coefficient [-]."""
+    alpha: float | None = None
+    """Stribeck decay exponent [-]. Defaults to 1.0."""
 
-    load_friction_external: float = 0.0
-    """External-side load-dependent friction coefficient [-]."""
+    load_friction_motor: float | None = None
+    """Motor-side load-dependent friction coefficient [-]. Defaults to 0.0."""
 
-    load_friction_motor_stribeck: float = 0.0
-    """Motor-side near-rest load-dependent friction coefficient [-]."""
+    load_friction_external: float | None = None
+    """External-side load-dependent friction coefficient [-]. Defaults to 0.0."""
 
-    load_friction_external_stribeck: float = 0.0
-    """External-side near-rest load-dependent friction coefficient [-]."""
+    load_friction_motor_stribeck: float | None = None
+    """Motor-side near-rest load-dependent friction coefficient [-]. Defaults to 0.0."""
 
-    load_friction_motor_quad: float = 0.0
-    """Motor-side quadratic load-coupling coefficient [1/(N.m)]."""
+    load_friction_external_stribeck: float | None = None
+    """External-side near-rest load-dependent friction coefficient [-]. Defaults to 0.0."""
 
-    load_friction_external_quad: float = 0.0
-    """External-side quadratic load-coupling coefficient [1/(N.m)]."""
+    load_friction_motor_quad: float | None = None
+    """Motor-side quadratic load-coupling coefficient [1/(N.m)]. Defaults to 0.0."""
+
+    load_friction_external_quad: float | None = None
+    """External-side quadratic load-coupling coefficient [1/(N.m)]. Defaults to 0.0."""
 
     def validate_config(self) -> None:
         """Reject friction variants the BAM drive does not implement.
 
         Raises:
-            ValueError: If the model is not m1, m2, m5, or m6.
+            ValueError: If the model is set and is not m1, m2, m5, or m6.
         """
-        if self.model not in BAM_MODEL_FLAGS:
+        if self.model is not None and self.model not in BAM_MODEL_FLAGS:
             raise ValueError(f"Unsupported BAM model {self.model!r}; expected m1, m2, m5, or m6.")
 
 
@@ -93,11 +99,14 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
     Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Like other explicit
-    actuators, it replaces existing USD actuators on the selected joints.
+    actuators, it is authored onto the selected joints' USD BAM actuators: a drive value left as
+    None, here or in :attr:`motor`, keeps the asset's value. Joints without a BAM actuator get a
+    new one, which needs the motor fit, :attr:`kp_fw` and :attr:`vin`.
 
     If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
     limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using
-    :attr:`vin` when :attr:`vin_range` is unset.
+    :attr:`vin` when :attr:`vin_range` is unset. When the configuration does not set the
+    torque constant, resistance and voltage, the USD actuator's limit applies.
     """
 
     class_type: type | None = None
@@ -109,13 +118,13 @@ class BamActuatorCfg(ActuatorBaseCfg):
     damping: dict[str, float] | float | None = None
     """Unused. Damping is the motor's back-EMF."""
 
-    motor: BamMotorCfg = MISSING
-    """Identified motor and gearbox fit."""
+    motor: BamMotorCfg | None = None
+    """Identified motor and gearbox fit. None keeps the USD actuator's fit."""
 
-    kp_fw: float = MISSING
+    kp_fw: float | None = None
     """Firmware proportional gain [-]."""
 
-    vin: float = MISSING
+    vin: float | None = None
     """Nominal supply voltage [V]. Overridden by :attr:`vin_range` when set."""
 
     vin_range: tuple[float, float] | None = None
@@ -128,20 +137,23 @@ class BamActuatorCfg(ActuatorBaseCfg):
     disables sag.
     """
 
-    vin_min: float = -math.inf
-    """Lower bound on the sagged supply voltage [V]. The default keeps only the 0 V floor."""
+    vin_min: float | None = None
+    """Lower bound on the sagged supply voltage [V]. Defaults to -inf, which keeps only the 0 V floor."""
 
-    min_delay: int = 0
-    """Minimum command delay [physics steps]."""
+    min_delay: int | None = None
+    """Minimum command delay [physics steps]. Defaults to 0."""
 
-    max_delay: int = 0
-    """Maximum command delay [physics steps]. Zero disables the delay."""
+    max_delay: int | None = None
+    """Maximum command delay [physics steps]. Zero disables the delay. Defaults to 0."""
 
-    delay_hold_prob: float = 0.0
-    """Probability of keeping the current lag instead of resampling it [-]."""
+    delay_hold_prob: float | None = None
+    """Probability of keeping the current lag instead of resampling it [-]. Defaults to 0.0."""
 
-    delay_update_period: int = 0
-    """Physics steps between lag resamples, with a random per-environment phase. Zero resamples every step."""
+    delay_update_period: int | None = None
+    """Physics steps between lag resamples, with a random per-environment phase. Zero resamples every step.
+
+    Defaults to 0.
+    """
 
     backlash_joint_template: str | None = None
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.

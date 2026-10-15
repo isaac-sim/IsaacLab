@@ -104,7 +104,9 @@ class ActuatorBaseCfg:
     the stiffness gets set into the physics engine directly. For explicit actuators, the stiffness is used
     by the actuator model to compute the joint efforts.
 
-    If None, the stiffness is set to the value from the USD joint prim.
+    If None, the stiffness is set to the value from the USD joint prim. On the Newton actuator path, an
+    explicit actuator instead keeps the ``newton:kp`` of the joint's USD ``NewtonActuator`` prim, or
+    uses 0 when it has none.
     """
 
     damping: dict[str, float] | float | None = MISSING
@@ -114,7 +116,9 @@ class ActuatorBaseCfg:
     the damping gets set into the physics engine directly. For explicit actuators, the damping gain is used
     by the actuator model to compute the joint efforts.
 
-    If None, the damping is set to the value from the USD joint prim.
+    If None, the damping is set to the value from the USD joint prim. On the Newton actuator path, an
+    explicit actuator instead keeps the ``newton:kd`` of the joint's USD ``NewtonActuator`` prim, or
+    uses 0 when it has none.
     """
 
     armature: dict[str, float] | float | None = None

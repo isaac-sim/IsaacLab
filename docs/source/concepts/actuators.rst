@@ -636,6 +636,10 @@ Gains and limits can come from the USD joint-drive prim or the actuator config. 
 ``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
 schema supplies joint and body ordering, not actuator parameters.
 
+On the native path, an explicit actuator's parameters (gains, actuator limits, delay) come from the
+joint's ``NewtonActuator`` prim when the asset ships one: a ``None`` field keeps that prim's value.
+See :ref:`Existing USD actuators <actuators-usd-overlay>`.
+
 Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
 log the USD, configuration, and applied values for every joint when the sources differ or the
 configuration leaves a value unspecified. Unspecified values appear as ``Not Specified``. See
@@ -706,17 +710,37 @@ staging.
     * - :class:`~isaaclab.actuators.DelayedPDActuatorCfg`
       - ideal PD + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.RemotizedPDActuatorCfg`
-      - delayed PD + ``NewtonPositionBasedClampingAPI``
+      - ``NewtonPDControlAPI`` + ``NewtonPositionBasedClampingAPI`` + ``NewtonActuatorDelayAPI``
     * - :class:`~isaaclab.actuators.ActuatorNetMLPCfg` /
         :class:`~isaaclab.actuators.ActuatorNetLSTMCfg`
       - ``NewtonNeuralControlAPI`` (+ ``NewtonDCMotorClampingAPI``)
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
       - ``NewtonBamDriveAPI`` (Newton only; see :ref:`actuators-bam-paths`)
 
-**Existing USD actuators.** For joints covered by an explicit Lab actuator config, the config
-replaces any existing ``NewtonActuator`` prim. Joints not covered by a Lab config keep their
-USD-authored actuators. USD-authored and Lab-configured actuators can therefore coexist on different
-joints.
+.. _actuators-usd-overlay:
+
+**Existing USD actuators.** An asset can ship its actuators as ``NewtonActuator`` prims, for example
+an identified servo fit. Joints not covered by an explicit Lab actuator config keep them unchanged.
+For a covered joint whose actuator prim has the config's drive schema (``NewtonPDControlAPI`` for
+the PD models, ``NewtonNeuralControlAPI`` for neural models, ``NewtonBamDriveAPI`` for BAM), the
+config is authored onto that prim:
+
+* Only the values the config sets are written, in the stage's edit target. A value left as ``None``,
+  or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
+* The config type decides the actuator's components. Clamping and delay schemas that the type does
+  not model are removed, a type that authors another clamp swaps it, and ``max_delay=0`` removes a
+  delay.
+* A value the actuator needs, such as a DC motor's ``saturation_effort``, must come from the config
+  or the asset. Otherwise authoring raises before it edits the stage.
+
+.. code-block:: python
+
+    # The asset ships delayed PD actuators on the legs: retune the gains, keep its limits and delay.
+    "legs": DelayedPDActuatorCfg(joint_names_expr=[".*_leg_.*"], stiffness=40.0, damping=None)
+
+When the joint has no actuator prim, several, or one with another drive, the existing prims are
+deactivated and a new prim is defined from the config, with defaults such as zero gains for unset
+values. A warning names the replaced joints.
 
 .. warning::
 
@@ -801,9 +825,18 @@ When the USD models gearbox play as a passive revolute hinge in series with each
 ``backlash_joint_template`` to the hinge name pattern, e.g. ``"passive_{}_backlash"``. The firmware
 then reads servo angle plus play angle; missing or non-revolute pairs raise before stepping.
 
-``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
-actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
+``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. One motor fit applies to
 every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.
+
+Like other explicit actuators, BAM is authored onto the joints' existing BAM actuator prims (see
+:ref:`Existing USD actuators <actuators-usd-overlay>`). A field left as ``None``, here or in
+``motor``, keeps the asset's value, so a task can change one setting of a fitted servo asset:
+
+.. code-block:: python
+
+    "servos": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=150.0, motor=BamMotorCfg(friction_base=0.006))
+
+A joint without a BAM actuator gets a new one, which needs the motor fit, ``kp_fw``, and ``vin``.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -815,13 +848,17 @@ every joint in a group. Set the reflected rotor inertia through ``armature`` or 
      - ``m1`` (Coulomb), ``m2`` (adds Stribeck), ``m5`` (adds directional load dependence), or
        ``m6`` (adds quadratic load coupling).
    * - ``kt``, ``resistance``
-     - Torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
+     - Torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required for a new
+       actuator.
    * - ``error_gain``
-     - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required.
+     - Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]. Required for a new
+       actuator.
    * - ``max_pwm``, ``max_current``
-     - Maximum duty cycle [-], default 1, and current limit [A], required; 0 disables it.
+     - Maximum duty cycle [-], default 1, and current limit [A], required for a new actuator; 0
+       disables it.
    * - ``friction_base``, ``friction_viscous``
-     - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
+     - Coulomb friction [N.m], required for a new actuator, and viscous coefficient [N.m.s/rad]. None
+       keeps the joint's viscous friction.
    * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
      - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Defaults: 0, 1, and 1.
    * - ``load_friction_motor``, ``load_friction_external``
@@ -832,7 +869,8 @@ every joint in a group. Set the reflected rotor inertia through ``armature`` or 
      - Quadratic load-coupling coefficients [1/(N.m)]. Defaults: 0.
 
 Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
-``max(vin_range) * motor.kt / motor.resistance``. ``joint_effort_limit`` is unchanged; keep it at
+``max(vin_range) * motor.kt / motor.resistance``; if the config does not set the fit and voltage, the
+asset's cap applies. ``joint_effort_limit`` is unchanged; keep it at
 least as large as the actuator cap.
 
 .. _actuators-bam-paths:
