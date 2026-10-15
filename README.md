@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-yellow.svg)](https://opensource.org/license/apache-2-0)
 
 
-This branch targets Isaac Sim 6.2. For installation instructions, see the
+For workflows that use Isaac Sim, this branch targets Isaac Sim 6.2. For installation instructions, see the
 [Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html).
 
 Note that this branch is currently under active development and may experience breaking changes or error messages.
@@ -22,9 +22,10 @@ Performance issues and regressions may also be observed in some use cases.
 
 
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
-such as reinforcement learning, imitation learning, and motion planning. Built on [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html),
-it combines fast and accurate physics and sensor simulation, making it an ideal choice for sim-to-real
-transfer in robotics.
+such as reinforcement learning, imitation learning, and motion planning. It is a multi-backend framework supporting
+physics and rendering through Newton, OVRTX, OVPhysX, and
+[NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html). These backends provide fast and
+accurate physics and sensor simulation for sim-to-real transfer in robotics.
 
 Isaac Lab provides developers with a range of essential features for accurate sensor simulation, such as RTX-based
 cameras, LIDAR, or contact sensors. The framework's GPU acceleration enables users to run complex simulations and
@@ -62,11 +63,11 @@ The **[Isaac Lab Performance Dashboard](https://nvidia.github.io/omniperf/)** pr
 charts showing preset comparison results, performance history, and environment scaling data from
 our internal CI/CD benchmarks.
 
-## Isaac Sim Version Dependency
+## Isaac Sim Compatibility
 
-Isaac Lab is built on top of Isaac Sim and requires specific versions of Isaac Sim that are compatible with each
-release of Isaac Lab. Below, we outline the recent Isaac Lab releases and GitHub branches and their corresponding
-dependency versions for Isaac Sim.
+Isaac Lab supports multiple backends and does not require Isaac Sim for every workflow. Workflows that use Isaac Sim
+require a compatible version. Below, we outline recent Isaac Lab releases and GitHub branches and their corresponding
+Isaac Sim versions.
 
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
