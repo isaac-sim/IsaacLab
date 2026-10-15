@@ -494,6 +494,21 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
+        if not self._runtime_headless:
+            # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
+            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
+        with wp.ScopedDevice(sim.device):
+            self._viewer = NewtonViewerGL(
+                width=self.cfg.window.size[0], height=self.cfg.window.size[1], headless=self._runtime_headless,
+                metadata={
+                    "num_envs": sim.get_scene_data_provider().num_envs,
+                    "physics_backend": self.physics_backend,
+                    "gravity": sim.cfg.gravity,
+                },
+                window_cfg=self.cfg.window,
+            )  # fmt: skip
+        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
 
     def log_mesh(
         self,
@@ -543,17 +558,6 @@ class NewtonVisualizerBase(BaseVisualizer):
             roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
         )  # fmt: skip
 
-    def _update_state(self) -> newton.State:
-        """Bind current scene arrays without reading any camera sensors."""
-        backend, provider = self.backend, self._sim.get_scene_data_provider()
-        state = backend.state_0
-        poses = SceneDataFormat.Transform()
-        if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
-            state.body_q = poses.transforms
-        if backend.geometry_offsets:
-            provider.get_geometry_points(output=state.particle_q, offsets=backend.geometry_offsets)
-        return state
-
     def _draw_streaming_view_controls(self, imgui) -> None:
         """Choose one declared display source without reading the other sensors."""
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
@@ -575,12 +579,9 @@ class NewtonVisualizerBase(BaseVisualizer):
         camera = self.current_image_view.cfg.source
         self.current_image_view.invalidate()
         if isinstance(camera, PerspectiveCameraCfg):
-            if (
-                self.current_image_view.render is not None
-                and self.current_image_view.render != self._capture_perspective
-            ):
+            if self.current_image_view.render is not None and self.current_image_view.render != self._capture_frame:
                 raise ValueError("A perspective image view must have exactly one rendering owner.")
-            self.current_image_view.render = self._capture_perspective
+            self.current_image_view.render = self._capture_frame
             self.set_camera_view(camera.eye, camera.lookat)
             self.cfg.focal_length = camera.focal_length
             self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
@@ -664,7 +665,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
         for view in self._image_views:
-            if view.render == self._capture_perspective:
+            if view.render == self._capture_frame:
                 view.render = None
                 view.invalidate()
         super().close()
@@ -705,34 +706,26 @@ class NewtonVisualizerBase(BaseVisualizer):
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
 
-    def _log_pending_meshes(self) -> None:
-        """Submit the latest mesh updates inside the viewer's active frame."""
-        for name, arguments in self._pending_mesh_submissions.items():
-            self._viewer.log_mesh(name, **arguments)
-        self._pending_mesh_submissions.clear()
-
-    def _capture_perspective(self, output: wp.array | None) -> wp.array:
+    def _capture_frame(self, output: wp.array | None) -> wp.array:
         """Read the frame already displayed, or render once when capture is the only consumer."""
-        if self._last_render_step != self._sim.get_physics_step_count():
-            if not self._sim.is_rendering:
-                self._sim.forward()
-                if self.supports_markers():
-                    self._sim.vis_marker_registry.dispatch_callbacks()
-            self._render_frame()
-        return self._viewer.get_frame(output)
-
-    def render_rgb_array(self) -> np.ndarray:
-        """Download the selected shared view for legacy capture callers."""
-        if self.current_image_view is None:
-            raise RuntimeError("The visualizer must be initialized before capturing an image.")
-        if self.current_image_view.camera is not None and (
-            self._last_render_step != self._sim.get_physics_step_count() or self.current_image_view.frame.timestamp < 0
+        if self._last_render_step != self._sim.get_physics_step_count() or (
+            self.current_image_view.camera is not None and self.current_image_view.frame.timestamp < 0
         ):
             if not self._sim.is_rendering:
                 self._sim.forward()
                 if self.supports_markers():
                     self._sim.vis_marker_registry.dispatch_callbacks()
             self._render_frame()
+        if self.current_image_view.camera is None:
+            return self._viewer.get_frame(output)
+        return self.current_image_view.frame.data
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Download the selected shared view for legacy capture callers."""
+        if self.current_image_view is None:
+            raise RuntimeError("The visualizer must be initialized before capturing an image.")
+        if self.current_image_view.camera is not None:
+            self._capture_frame(None)
         frame = self.current_image_view.frame
         frame_id = (
             frame.timestamp
@@ -831,17 +824,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             )
 
         self._picking_enabled = self.cfg.enable_picking and picking_supported and not self._runtime_headless
-        if not self._runtime_headless:
-            # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
-            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
-        self._viewer = NewtonViewerGL(
-            width=self.cfg.window.size[0],
-            height=self.cfg.window.size[1],
-            headless=self._runtime_headless,
-            metadata={"num_envs": num_envs, "physics_backend": self.physics_backend, "gravity": sim.cfg.gravity},
-            window_cfg=self.cfg.window,
-        )
-        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.set_model(self.backend.model)
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
@@ -852,7 +834,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._viewer.picking_enabled = self._picking_enabled
         self._configure_viewer()
 
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(0)
 
         num_visualized_envs = len(self._env_ids) if self._env_ids is not None else num_envs
@@ -894,21 +875,26 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             if self.current_image_view.camera is not None:
                 self._navigate_scene_camera()
                 self._log_streaming_image()
-            else:
-                if not viewer.is_paused():
-                    state = self._update_state()
-                    if state.body_q is None or len(state.body_q):
-                        viewer.log_state(state)
-                        contacts = NewtonManager.get_contacts()
-                        if contacts is not None:
-                            viewer.log_contacts(contacts, state)
-                        else:
-                            self._log_scene_contact_sensor_arrows()
-                        if self.cfg.enable_markers:
-                            render_newton_visualization_markers(
-                                viewer, self._env_ids, num_envs=self.backend.model.num_envs
-                            )
-            self._log_pending_meshes()
+            elif not viewer.is_paused():
+                state = self.backend.state_0
+                provider = self._sim.get_scene_data_provider()
+                poses = SceneDataFormat.Transform()
+                if provider.get_transforms(poses, mapping=self._transform_mapping, count=self.backend.model.body_count):
+                    state.body_q = poses.transforms
+                if self.backend.geometry_offsets:
+                    provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
+                if state.body_q is None or len(state.body_q):
+                    viewer.log_state(state)
+                    contacts = NewtonManager.get_contacts()
+                    if contacts is not None:
+                        viewer.log_contacts(contacts, state)
+                    else:
+                        self._log_scene_contact_sensor_arrows()
+                    if self.cfg.enable_markers:
+                        render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+            for name, arguments in self._pending_mesh_submissions.items():
+                viewer.log_mesh(name, **arguments)
+            self._pending_mesh_submissions.clear()
             if not viewer.is_paused():
                 self._render_live_plots()
         finally:
@@ -1152,28 +1138,16 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
             raise RuntimeError(
                 "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
             )
-        super().initialize(sim, cameras=cameras)
-        if any(view.camera is None for view in self._image_views):
+        if any(isinstance(camera, PerspectiveCameraCfg) for camera in cameras) or (
+            self.cfg.view is not None and isinstance(self.cfg.view.source, PerspectiveCameraCfg)
+        ):
             raise ValueError(
                 "RTX perspective cameras must be declared before scene construction. Pass the environment config "
                 "to launch_simulation, or spawn Camera(CameraCfg(...)) and select it with SceneCameraCfg."
             )
-        with wp.ScopedDevice(sim.device):
-            self._viewer = NewtonViewerGL(
-                width=self.cfg.window.size[0],
-                height=self.cfg.window.size[1],
-                headless=self._runtime_headless,
-                metadata={
-                    "num_envs": sim.get_scene_data_provider().num_envs,
-                    "physics_backend": self.physics_backend,
-                    "gravity": sim.cfg.gravity,
-                },
-                window_cfg=self.cfg.window,
-            )
+        super().initialize(sim, cameras=cameras)
         self._viewer.renderer.set_title("Isaac Lab RTX")
         self._viewer.picking_enabled = False
-        self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
-        self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(0)
         self._is_initialized = True
 

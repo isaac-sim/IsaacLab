@@ -654,7 +654,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     from isaaclab.visualizers import ImageView, ImageViewCfg
 
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
-    view.render = visualizer._capture_perspective
+    view.render = visualizer._capture_frame
     visualizer.current_image_view, visualizer._image_views = view, [view]
     if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
@@ -1043,6 +1043,8 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
     viewer.events.clear()
     for dt in (0.0, 10.0, 0.1, 0.0):
         visualizer.step(dt)
+    assert viewer.events == ["begin_frame", "log_state", "end_frame"] * 2
+    visualizer.render_rgb_array()
     assert viewer.events == ["begin_frame", "log_state", "end_frame"] * 2
 
     visualizer._runtime_headless = True

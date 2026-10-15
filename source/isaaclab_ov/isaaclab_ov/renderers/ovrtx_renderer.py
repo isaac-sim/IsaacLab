@@ -914,29 +914,6 @@ class OVRTXRenderer(BaseRenderer):
                     " Camera.cfg.data_types when isp_cfg is set."
                 )
 
-    def _update_camera_legacy(
-        self,
-        render_data: OVRTXCameraRenderData,
-        positions: ProxyArray,
-        orientations: ProxyArray,
-        intrinsics: ProxyArray,
-    ) -> None:
-        """Update camera transforms in OVRTX binding."""
-        if render_data.camera_xform_binding is None:
-            return
-        stream = self._warp_device.stream
-        converted, matrices = render_data.camera_writes.acquire(stream)
-        convert_camera_frame_orientation_convention_wp(orientations, converted, "world", "opengl", device=self._device)
-        wp.launch(
-            create_camera_transforms_kernel,
-            len(matrices),
-            inputs=[positions, converted, matrices],
-            device=self._device,
-        )
-        operation = render_data.camera_writes.submit(render_data.camera_xform_binding, matrices, stream)
-        if not self.cfg.async_rendering:
-            operation.wait()
-
     def prepare_capture(self, render_data: OVRTXCameraRenderData, camera_data: CameraData, frame: ProxyArray) -> None:
         """Snapshot delayed-image metadata without changing live camera state."""
         if self.cfg.async_rendering and not self._use_ovstage:
@@ -1532,10 +1509,26 @@ class OVRTXRenderer(BaseRenderer):
         intrinsics: ProxyArray,
     ) -> None:
         """Update camera transforms in OVRTX."""
+        binding = render_data.camera_xform_query if self._use_ovstage else render_data.camera_xform_binding
+        if binding is None:
+            return
+        stream = self._warp_device.stream
         if self._use_ovstage:
-            self._update_camera_ovstage(render_data, positions, orientations, intrinsics)
+            converted = wp.empty(len(positions), dtype=wp.quatf, device=self._device)
+            matrices = wp.empty(len(positions), dtype=wp.mat44d, device=self._device)
         else:
-            self._update_camera_legacy(render_data, positions, orientations, intrinsics)
+            converted, matrices = render_data.camera_writes.acquire(stream)
+        convert_camera_frame_orientation_convention_wp(orientations, converted, "world", "opengl", device=self._device)
+        wp.launch(create_camera_transforms_kernel, len(matrices), [positions, converted, matrices], device=self._device)
+        if self._use_ovstage:
+            self.backend.stage.write_attribute(
+                binding, "omni:xform", ordinal=self._current_ordinal, tensors=xform_tensor_from_warp(matrices),
+                is_array=False, semantic=ovstage.AttributeSemantic.MATRIX, cuda_stream=stream.cuda_stream or 1,
+            ).wait()  # fmt: skip
+        else:
+            operation = render_data.camera_writes.submit(binding, matrices, stream)
+            if not self.cfg.async_rendering:
+                operation.wait()
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
         """Publish calibration columns from GPU memory into the renderer-owned scene."""
@@ -1824,41 +1817,6 @@ class OVRTXRenderer(BaseRenderer):
             is_array=False,
             semantic=ovstage.AttributeSemantic.MATRIX,
         ).wait()
-
-    def _update_camera_ovstage(
-        self,
-        render_data: OVRTXCameraRenderData,
-        positions: ProxyArray,
-        orientations: ProxyArray,
-        intrinsics: ProxyArray,
-    ) -> None:
-        num_envs = positions.shape[0]
-        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
-        convert_camera_frame_orientation_convention_wp(
-            src=orientations.warp,
-            dst=converted_wp,
-            origin="world",
-            target="opengl",
-            device=self._device,
-        )
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
-        wp.launch(
-            kernel=create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[positions, converted_wp, camera_transforms],
-            device=self._device,
-        )
-        if render_data.camera_xform_query is not None:
-            # Stream-ordered zero-copy handoff, as for the object transforms above.
-            self.backend.stage.write_attribute(
-                render_data.camera_xform_query,
-                "omni:xform",
-                ordinal=self._current_ordinal,
-                tensors=xform_tensor_from_warp(camera_transforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=self._warp_device.stream.cuda_stream or 1,
-            ).wait()
 
     def _render_ovstage(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         if not self._initialized_scene:
