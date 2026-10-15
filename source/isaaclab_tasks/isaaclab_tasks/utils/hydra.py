@@ -563,9 +563,22 @@ def register_task(
             for path, fields in presets.items()
         }
         known_names = {name for fields in available.values() for name in fields}
-        unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
-        typed_names = {name for names in requested_targets.values() for name in names}
-        if unknown - typed_names:
+        normalized_names = {name: _normalize_preset_name(name, known_names) for name in unknown_presets}
+        unknown = set(normalized_names.values()) - known_names
+        unavailable_typed_names = {
+            normalized_names[name]
+            for target, names in requested_targets.items()
+            if not any(
+                target.matches(value)
+                for fields in available.values()
+                for preset_name, value in fields.items()
+                if preset_name != "default"
+            )
+            for name in names
+            if name in normalized_names
+        }
+        unknown -= unavailable_typed_names
+        if unknown:
             lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
             for name in sorted(unknown & _LEGACY_PRESET_ALIASES.keys()):
                 lines.append(f"'{name}' was renamed to '{_LEGACY_PRESET_ALIASES[name]}'; this task declares neither.")

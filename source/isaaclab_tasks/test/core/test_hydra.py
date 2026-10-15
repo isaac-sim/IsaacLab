@@ -1306,6 +1306,9 @@ def test_register_task_validates_physics_selector(monkeypatch, typed):
     if typed:
         cfg, _, _ = hydra_mod.register_task("test", "", overrides=["physics=newton_mjwarp"])
         assert isinstance(cfg.physics, _NewtonPhysicsCfg) and cfg.armature == 0.01
+        with pytest.raises(ValueError, match="Unknown preset\\(s\\): does_not_exist") as error:
+            hydra_mod.register_task("test", "", overrides=["physics=does_not_exist"])
+        assert "newton_mjwarp" in str(error.value)
     else:
         with pytest.raises(ValueError, match="physics=newton_mjwarp"):
             hydra_mod.register_task("test", "", overrides=["physics=newton_mjwarp"])
