@@ -126,15 +126,11 @@ class PhysicsManager(ABC):
 
         from ..sim.schemas.schemas import create_world_fixed_joint  # noqa: PLC0415
         from ..sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
-        from ..sim.utils.queries import _is_world_fixed_joint  # noqa: PLC0415
 
         if stage is None:
             stage = get_current_stage()
         root_path = articulation_prim.GetPath().pathString
-        if _is_world_fixed_joint(articulation_prim):
-            joint = UsdPhysics.Joint(articulation_prim)
-        else:
-            joint = find_global_fixed_joint_prim(root_path, stage=stage)
+        joint = find_global_fixed_joint_prim(root_path, stage=stage)
         if joint is not None:
             joint.GetJointEnabledAttr().Set(True)
             return articulation_prim

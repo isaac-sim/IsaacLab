@@ -477,7 +477,8 @@ def test_fix_root_link_rejects_non_world_fixed_joint_root(setup_simulation, body
     ids=["asset_prim_body0-fragments", "empty_body0-legacy"],
 )
 def test_fix_root_link_false_warns_for_fixed_world_joint_root(setup_simulation, caplog, body0, legacy_writer):
-    """``fix_root_link=False`` warns that it is not supported for an articulation rooted at its fixed world joint."""
+    """``fix_root_link=False`` warns that it is not supported for an articulation rooted at its fixed world joint
+    and leaves that joint enabled."""
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/Robot", prim_type="Xform")
     UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
@@ -496,6 +497,7 @@ def test_fix_root_link_false_warns_for_fixed_world_joint_root(setup_simulation, 
             schemas.apply_articulation_root_properties("/World/Robot/root_joint", [], fix_root_link=False)
 
     assert "fix_root_link=False is not supported for articulation '/World/Robot/root_joint'" in caplog.text
+    assert joint.GetJointEnabledAttr().Get() is True
 
 
 @pytest.mark.isaacsim_ci
