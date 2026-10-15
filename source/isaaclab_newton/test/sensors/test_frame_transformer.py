@@ -32,6 +32,8 @@ from isaaclab.utils import configclass, replace
 ##
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort:skip
 
+pytestmark = pytest.mark.kitless
+
 
 def quat_from_euler_rpy(roll, pitch, yaw, degrees=False):
     """Converts Euler XYZ to Quaternion (x, y, z, w)."""

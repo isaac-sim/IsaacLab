@@ -41,6 +41,8 @@ from isaaclab_ov.sim.views.ovphysx_view import (  # noqa: E402
 )
 from ovphysx.types import TensorType  # noqa: E402
 
+pytestmark = pytest.mark.kitless
+
 wp.init()
 wp.set_device("cpu")
 _HAS_CUDA = wp.get_cuda_device_count() > 0

@@ -36,6 +36,8 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retri
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
+pytestmark = pytest.mark.kitless
+
 
 def _make_single_joint_articulation_cfg() -> ArticulationCfg:
     """Single-joint revolute test articulation (root ``CenterPivot`` + arm ``Arm``)."""

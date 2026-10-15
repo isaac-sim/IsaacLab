@@ -19,7 +19,7 @@ from rendering_test_utils import (
     rendering_test_shadow_hand,
 )
 
-pytestmark = pytest.mark.arm_ci
+pytestmark = [pytest.mark.kitless, pytest.mark.arm_ci]
 
 _RENDERING_PARAMS = group_rendering_params(
     make_kitless_rendering_params(MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
