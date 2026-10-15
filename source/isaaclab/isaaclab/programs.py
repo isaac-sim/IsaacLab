@@ -87,9 +87,9 @@ DEMOS = (
     ProgramSpec(
         "sonic",
         "examples/demos/sonic.py",
-        "Record SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
-        extras=("isaacsim", "video"),
-        required_modules=("isaacsim", "imageio", "imageio_ffmpeg"),
+        "Run SONIC walking over gravel and sand with Newton MPM or PhysX PBD.",
+        extras=("isaacsim",),
+        required_modules=("huggingface_hub", "onnxruntime"),
         newton_gl_args=None,
     ),
     ProgramSpec(

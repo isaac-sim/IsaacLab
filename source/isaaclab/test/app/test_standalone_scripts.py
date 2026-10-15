@@ -28,7 +28,7 @@ import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -261,6 +261,79 @@ def test_g1_terrain_forwards_visualizer_selection(
         main()
 
     assert captured == {"overrides": expected_overrides, "visualizers": expected_visualizers}
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    [
+        ((), NewtonCfg(), ["newton_gl"], ["presets=granular"], None),
+        (("--viz", "none"), NewtonCfg(), [], ["presets=granular"], None),
+        (("--viz", "rerun", "--video"), NewtonCfg(), ["rerun"], ["presets=granular"], "viz"),
+        (
+            ("--physics", "isaacsim_physx", "--video"),
+            PhysxCfg(),
+            ["kit"],
+            ["presets=granular", "physics=isaacsim_physx"],
+            "viz:kit",
+        ),
+    ],
+    ids=("newton-default", "explicit-none", "streaming-viz-video", "physx-default-video"),
+)
+def test_sonic_forwards_visualizer_and_only_configures_requested_video(
+    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides, expected_video_source
+):
+    """SONIC must keep visualizer selection independent from its opt-in video recorder."""
+    script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics_cfg, dt=0.005, visualizer_cfgs=[]),
+        video_recorders=[],
+        policy_repo="nvidia/GEAR-SONIC",
+        policy_revision="revision",
+        duration=1.0,
+        decimation=4,
+        camera_eye=(4.0, -4.0, 3.0),
+        camera_target=(0.0, 0.0, 0.0),
+        camera_vfov=45.0,
+    )
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return cfg, None
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = (
+            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
+        )
+        captured["launch_physics"] = getattr(launcher_args, "physics", None)
+        captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
+        raise LaunchReached
+        yield
+
+    huggingface_hub = ModuleType("huggingface_hub")
+    huggingface_hub.snapshot_download = lambda **_kwargs: "models"
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_hub)
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    expected_video_sources = [] if expected_video_source is None else [expected_video_source]
+    assert captured == {
+        "overrides": expected_overrides,
+        "visualizers": expected_visualizers,
+        "launch_physics": None,
+        "video_sources": expected_video_sources,
+    }
 
 
 def test_demo_browser_documents_options_for_each_demo():
