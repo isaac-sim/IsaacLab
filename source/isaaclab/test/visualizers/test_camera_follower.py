@@ -40,8 +40,8 @@ class _Scene:
         return self.robot
 
 
-def _eye(follower: CameraFollower) -> torch.Tensor:
-    return torch.tensor(follower.pose(0.1)[0])
+def _eye(follower: CameraFollower, time: float = 0.1) -> torch.Tensor:
+    return torch.tensor(follower.pose(time)[0])
 
 
 def test_a_view_with_an_environment_stays_fixed_relative_to_its_origin():
@@ -70,7 +70,7 @@ def test_smoothing_lags_a_turn_but_not_the_first_sample_or_a_reset():
         cfg = PerspectiveCameraCfg(track_path="robot", eye=(-3.0, 0.0, 1.0), follow_heading=True)
         cfg.heading_smoothing_time_constant = 0.5
         follower = CameraFollower(cfg, scene)
-        follower.pose(0.1)
+        follower.pose(0.0)
         scene.robot.data.root_quat_w.torch[0] = torch.tensor(_quat_z(math.pi / 2))
         scene.robot.data.root_pos_w.torch[0, 0] += jump  # an environment reset moves the asset
         return _eye(follower)
@@ -97,5 +97,7 @@ def test_task_views_get_a_free_view_beside_them():
     assert len(with_free_view([task], *args)) == 2
     assert with_free_view([free, task], *args) == [free, task]
     assert with_free_view([SceneCameraCfg(prim_path="/cam")], *args) == [SceneCameraCfg(prim_path="/cam")]
-    # a task view first does not replace the visualizer's own pose
-    assert VisualizerCfg(eye=(7.0, 0.0, 0.0), cameras=[task]).eye == (7.0, 0.0, 0.0)
+    # a task view first does not replace the visualizer's own pose or its streaming choice
+    cfg = VisualizerCfg(eye=(7.0, 0.0, 0.0), streaming_view=True, cameras=[task])
+    assert cfg.eye == (7.0, 0.0, 0.0) and cfg.streaming_view
+    assert not VisualizerCfg(streaming_view=True, cameras=[free]).streaming_view

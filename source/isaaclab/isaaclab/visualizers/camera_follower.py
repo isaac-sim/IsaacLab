@@ -44,13 +44,14 @@ class CameraFollower:
             except KeyError as exc:
                 raise ValueError(f"track_path refers to an unknown scene asset: {asset_name!r}.") from exc
         self._yaw: float | None = None
-        self._last_position: torch.Tensor | None = None
+        self._last_position: list[float] | None = None
+        self._time: float | None = None
 
-    def pose(self, dt: float) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
-        """Return the world eye and look-at target after *dt* [s] of simulation, or None until the asset is ready.
+    def pose(self, time: float) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
+        """Return the world eye and look-at target at simulation *time*, or None until the asset is ready.
 
         Args:
-            dt: Simulation time since the previous call [s]; only the heading filter uses it.
+            time: Simulation time [s]. Only the heading filter uses it, through the time since the previous call.
         """
         cfg = self.cfg
         origin = self._scene.env_origins[self._env]
@@ -75,6 +76,7 @@ class CameraFollower:
         if cfg.follow_heading:
             # one device-to-host copy per frame
             state = torch.cat((position, quat)).tolist()
+            dt, self._time = (0.0 if self._time is None else max(time - self._time, 0.0)), time
             yaw = self._filtered_yaw(state[3:], state[:3], dt)
             cos, sin = math.cos(yaw), math.sin(yaw)
             rotation = torch.tensor(((cos, -sin, 0.0), (sin, cos, 0.0), (0.0, 0.0, 1.0)), device=offsets.device)

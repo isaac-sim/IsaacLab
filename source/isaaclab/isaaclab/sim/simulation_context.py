@@ -506,7 +506,7 @@ class SimulationContext:
                             f"Declare a CameraCfg in the scene; available paths: {available_paths}."
                         )
                     cameras[index] = camera
-            # scene cameras follow the free view, and task views come last
+            # task views come last, after the free view and the scene cameras
             cameras.sort(key=lambda camera: isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view)
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)

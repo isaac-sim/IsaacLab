@@ -17,6 +17,7 @@ from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizerBase
 from pyglet.math import Vec3
 
 from isaaclab.visualizers import PerspectiveCameraCfg
+from isaaclab.visualizers.camera_follower import CameraFollower
 
 
 class _Camera:
@@ -34,11 +35,14 @@ class _Scene:
     num_envs = 2
     env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]])
 
+    def __getitem__(self, name):
+        return SimpleNamespace(is_initialized=False)
+
 
 def _visualizer(views) -> NewtonVisualizerBase:
     viz = NewtonVisualizerBase.__new__(NewtonVisualizerBase)
     viz.cfg = SimpleNamespace(focal_length=12.0, eye=(4.0, -4.0, 3.0), lookat=(0.0, 0.0, 0.0))
-    viz._followers, viz._follow_time, viz._last_render_step = {}, 0.0, 5
+    viz._followers, viz._last_render_step = {}, 5
     camera = _Camera()
 
     def set_camera(pos, pitch, yaw):
@@ -51,6 +55,7 @@ def _visualizer(views) -> NewtonVisualizerBase:
         get_physics_dt=lambda: 0.1,
     )
     viz._image_views = list(views)
+    viz._followers = {view: CameraFollower(view.cfg.source, _Scene()) for view in views if view.cfg.source.is_task_view}
     viz.current_image_view = viz._image_views[0]
     return viz
 

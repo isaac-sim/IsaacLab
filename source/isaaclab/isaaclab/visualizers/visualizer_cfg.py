@@ -119,7 +119,7 @@ def with_free_view(cameras: list, eye: tuple, lookat: tuple, focal_length: float
     available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``.
     """
     perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
-    if any(camera.is_task_view for camera in perspective) and all(camera.is_task_view for camera in perspective):
+    if perspective and all(camera.is_task_view for camera in perspective):
         return [PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length), *cameras]
     return cameras
 
@@ -351,6 +351,8 @@ class VisualizerCfg:
         if self.cameras is not None:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
-            self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
+            # task views only add to the cameras the visualizer finds, so they leave the streaming choice alone
+            if not all(isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view for camera in self.cameras):
+                self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not camera.is_task_view:
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length

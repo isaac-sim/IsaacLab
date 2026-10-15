@@ -503,15 +503,29 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_render_step = -1
         self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
         self._followers: dict[object, CameraFollower] = {}
-        self._follow_time = 0.0
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind scene data and the Newton model shared with the simulation."""
         super().initialize(sim, cameras=cameras)
         # each perspective view renders itself, so a recorder can capture one the window does not show
+        scene = self._sim.get_scene_data_provider().get_interactive_scene()
         for view in self._image_views:
-            if view.camera is None:
-                view.render = partial(self._capture_view, view)
+            if view.camera is not None:
+                continue
+            if view.render is not None:
+                raise ValueError("A perspective image view must have exactly one rendering owner.")
+            view.render = partial(self._capture_view, view)
+            source = view.cfg.source
+            if source.is_task_view and scene is not None:
+                # fail at initialization, not on a frame: a bad env_index or track_path raises here
+                self._followers[view] = CameraFollower(source, scene)
+                if self._env_ids is not None and (source.env_index or 0) not in self._env_ids:
+                    logger.warning(
+                        "[NewtonVisualizer] A task view frames environment %d, which is not among the visible "
+                        "environments %s, so it will show an empty scene.",
+                        source.env_index or 0,
+                        list(self._env_ids),
+                    )
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = self._sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(
@@ -630,26 +644,15 @@ class NewtonVisualizerBase(BaseVisualizer):
         self.current_image_view.invalidate()
 
     def _apply_view_pose(self, view) -> bool:
-        """Point the viewer camera where a perspective *view* looks, leaving the configured poses untouched.
+        """Point the viewer camera where a task *view* looks, leaving the configured poses untouched.
 
         Returns:
             Whether the view had a pose yet; a view that follows an asset has none until the asset is ready.
         """
         source = view.cfg.source
-        if source.is_task_view:
-            follower = self._followers.get(view)
-            if follower is None:
-                scene = self._sim.get_scene_data_provider().get_interactive_scene()
-                if scene is None:
-                    return False
-                follower = self._followers[view] = CameraFollower(source, scene)
-            sim_time = self._sim.get_physics_step_count() * self._sim.get_physics_dt()
-            pose = follower.pose(max(sim_time - self._follow_time, 0.0))
-            self._follow_time = sim_time
-            if pose is None:
-                return False
-        else:
-            pose = (source.eye, source.lookat)
+        pose = self._followers[view].pose(self._sim.get_physics_step_count() * self._sim.get_physics_dt())
+        if pose is None:
+            return False
         camera = self._viewer.camera
         camera.pos = PygletVec3(*pose[0])
         camera.look_at(pose[1])
@@ -723,7 +726,8 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Detach perspective producers before releasing the visualizer's borrowed views."""
         self._pending_mesh_submissions.clear()
         for view in self._image_views:
-            if view.camera is None:
+            owned = isinstance(view.render, partial) and view.render.func == self._capture_view
+            if owned or view.render == self._capture_perspective:
                 view.render = None
                 view.invalidate()
         self._followers.clear()
