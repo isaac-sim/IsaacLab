@@ -1309,3 +1309,45 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_rtx_multi_image_presentation_and_latest_capture(device, monkeypatch):
+    """Present intermediate DLSS images in order and capture an owned copy of the latest image."""
+    from contextlib import contextmanager
+
+    from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerRTX
+
+    images = [
+        wp.full((2, 2), wp.vec4ub(value, value, value, 255), dtype=wp.vec4ub, device=device) for value in (1, 2, 3)
+    ]
+
+    @contextmanager
+    def mapping(image, **kwargs):
+        yield SimpleNamespace(pixels=image, unmap=lambda **kwargs: None)
+
+    frames = [SimpleNamespace(map=lambda image=image, **kwargs: mapping(image)) for image in images]
+    monkeypatch.setattr(wp, "from_dlpack", lambda mapped, **kwargs: mapped.pixels)
+    viewer = object.__new__(NewtonViewerRTX)
+    viewer._headless = False
+    viewer._window = SimpleNamespace(context=object())
+    viewer._image_logger = SimpleNamespace(_fullscreen_name=None)
+    viewer._get_ldr_color_render_var = lambda frame: frame
+    viewer._displayed_frame = SimpleNamespace(texture=1, width=2, height=2)
+    viewer.gui = SimpleNamespace(_frame_prepared=True, _update_fps=Mock())
+    blits, presentations = [], []
+    viewer._blit_to_window = lambda pixels: blits.append(pixels.numpy().copy())
+
+    def present(*args):
+        assert viewer.gui._frame_prepared
+        presentations.append(blits[-1])
+        viewer.gui._frame_prepared = False
+
+    viewer._present = present
+    viewer._accept_render({"perspective": SimpleNamespace(frames=frames)})
+    assert [int(pixels[0, 0, 0]) for pixels in blits] == [1, 2, 3]
+    assert [int(pixels[0, 0, 0]) for pixels in presentations] == [1, 2]
+    assert viewer.gui._frame_prepared
+    captured = viewer.get_frame()
+    images[-1].zero_()
+    assert np.all(captured.numpy()[..., :3] == 3)

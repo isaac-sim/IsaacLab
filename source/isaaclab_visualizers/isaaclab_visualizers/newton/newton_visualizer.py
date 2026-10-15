@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -53,6 +53,9 @@ from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg
+
+if TYPE_CHECKING:
+    from ovrtx import ProductOutput
 
 logger = logging.getLogger(__name__)
 
@@ -362,7 +365,7 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
         super()._init_window()
         self._patch_viewer_panel()
 
-    def _accept_render(self, products) -> None:
+    def _accept_render(self, products: dict[str, ProductOutput]) -> None:
         """Present generated intermediate images and retain the latest RTX image.
 
         Newton's single-image acceptance path returns after the first frame, dropping
@@ -410,7 +413,11 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
             self.close()
 
     def get_frame(self, target_image: wp.array | None = None) -> wp.array:
-        """Copy the completed RTX image into owned device storage before releasing its mapping."""
+        """Copy the latest completed RTX image into owned device storage.
+
+        When a render returns multiple frames, capture the most recent color image
+        before releasing its mapping.
+        """
         from ovrtx import Device
 
         products = self._render_products
