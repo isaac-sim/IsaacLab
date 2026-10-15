@@ -301,17 +301,13 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 
 .. raw:: html
 
-   <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
-   </video>
+   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 **Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
 
 .. raw:: html
 
-   <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer_trimmed.mp4" type="video/mp4">
-   </video>
+   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 .. tip::
 
