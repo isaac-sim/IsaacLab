@@ -216,7 +216,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     goal_position_offset: tuple[float, float, float] = GOAL_POSITION_OFFSET
     """Shared goal offset in each hand's local root frame [m], resolved once at initialization."""
     randomize_start_hand: bool = True
-    """Start each episode with the ball in a random hand, the first goal at the other; otherwise always right to left."""
+    """Start each episode with the object in a random hand, the first goal at the other; else always right to left."""
     # reward-related scales
     dist_reward_scale = 20.0
     action_rate_penalty_scale: float = 1e-3

@@ -289,7 +289,8 @@ class HandoverEnv(DirectMARLEnv):
         # the hands are a half turn apart about the vertical axis through their midpoint, so the same pose
         # relative to the left hand is the right-hand pose mirrored through that axis
         hands_xy = (
-            self.right_hand.data.default_root_pose.torch[env_ids, :2] + self.left_hand.data.default_root_pose.torch[env_ids, :2]
+            self.right_hand.data.default_root_pose.torch[env_ids, :2]
+            + self.left_hand.data.default_root_pose.torch[env_ids, :2]
         )
         object_default_pose[:, :2] = torch.where(
             goal_left.unsqueeze(-1), object_default_pose[:, :2], hands_xy - object_default_pose[:, :2]
