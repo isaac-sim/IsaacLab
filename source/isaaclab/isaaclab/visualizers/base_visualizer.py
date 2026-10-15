@@ -416,7 +416,7 @@ class BaseVisualizer(ABC):
             position = asset.data.body_pos_w.warp[env_index : env_index + 1, self._tracking_body_id]
         else:
             position = asset.data.root_pos_w.warp[env_index : env_index + 1]
-        self._viewer_origin = position.numpy()[0].tolist()
+        self._viewer_origin = position.numpy().squeeze(axis=0).tolist()
         self._apply_viewer_origin_to_camera()
 
     def _apply_viewer_origin_to_camera(self) -> None:
