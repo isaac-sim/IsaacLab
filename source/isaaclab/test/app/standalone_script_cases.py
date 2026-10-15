@@ -94,8 +94,8 @@ class ScriptSpec:
 
     @property
     def finite(self) -> bool:
-        """Return whether the script can stop itself after a bounded number of steps."""
-        return "--max_steps" in self.options
+        """Return whether CLI discovery or an explicit override bounds the script's steps."""
+        return "--max_steps" in self.options or "--max_steps" in self.args
 
     @property
     def relative_path(self) -> str:
@@ -192,6 +192,13 @@ OVERRIDES = {
         fixed_physics_backend="newton_mjwarp",
         visualizers=(None, "newton_gl", "newton_rtx"),
     ),
+    "examples/sharpa_rj45.py": ScriptOverride(
+        args=("--max_steps", "1800"),
+        startup_timeout=600.0,
+        fixed_physics_backend="newton_coupler",
+        visualizers=("newton_gl", "newton_rtx", "kit"),
+        required_modules=("isaaclab_contrib",),
+    ),
     "examples/haply_teleoperation.py": ScriptOverride(
         skip_reason="requires a physical Haply device and its WebSocket service"
     ),
@@ -221,10 +228,27 @@ OVERRIDES = {
     ),
     # Smoke launches retain every robot family and MPM solver path with smaller scenes.
     "examples/demos/zoo.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=600.0),
+    "examples/demos/sonic.py": ScriptOverride(
+        skip_reason="downloads released ONNX policy models and builds the full granular scene",
+        visualizers=("kit",),
+    ),
+    "examples/g1_terrain.py": ScriptOverride(
+        args=("--task", "platforms"),
+        skip_reason="downloads a published depth policy",
+        visualizers=("kit",),
+    ),
     "examples/demos/snowball_smash.py": ScriptOverride(
         args=("--voxel_size", "0.1"), fixed_physics_backend="newton_mpm"
     ),
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
+    "examples/rizon_sharpa_teapot.py": ScriptOverride(
+        args=("--max_steps", "10"),
+        skip_reason="requires a licensed Rizon--Sharpa bundle",
+    ),
+    "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+    ),
     "scripts/tutorials/08_mpm/material_parameters.py": ScriptOverride(
         args=("--max_steps", "2", "--variant_index", "0", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_mpm",
