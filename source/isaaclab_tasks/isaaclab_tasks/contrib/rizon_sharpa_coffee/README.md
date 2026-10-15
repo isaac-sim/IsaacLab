@@ -42,7 +42,8 @@ preserves the source volume instead of multiplying passive rendering grains.
 Water sampling follows half the solver grid spacing. Both materials share the
 same APIC MPM grid.
 Liquid rendering uses the native particle surface with visual cells at most
-1 mm wide, independently of the physics grid.
+1 mm wide, independently of the physics grid. Spatial field smoothing and mild
+anisotropy suppress sampling ridges while preserving the larger stirring waves.
 
 ## Code layout
 
