@@ -26,8 +26,14 @@ runtime packages installed by their `uv run --extra` commands.
 ## Renderer gallery
 
 The renderer gallery compares Newton Warp, OVRTX, and Isaac RTX camera outputs.
-Pass a local scene path or an accessible Nucleus URI when regenerating all RGB
+It uses the published S3 stage by default when regenerating all RGB
 animations and still output modes:
+
+```bash
+OMNI_KIT_ACCEPT_EULA=Y tools/docs/media/generate_renderer_gallery.sh
+```
+
+Pass a local path or another accessible URI to override the default stage:
 
 ```bash
 OMNI_KIT_ACCEPT_EULA=Y tools/docs/media/generate_renderer_gallery.sh \
