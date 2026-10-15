@@ -617,8 +617,11 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     sim.reset()
     assert articulation.is_initialized
 
-    assert tuple(articulation.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
-    assert tuple(articulation.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    # Isaac Sim PhysX visits sibling links in authored joint-prim order; "physx" resolves the OVPhysX order.
+    assert tuple(articulation.backend_joint_names) == ("right_shoulder", "left_shoulder", "right_elbow", "left_elbow")
+    assert tuple(articulation.backend_body_names) == ("base", "right_upper", "left_upper", "right_tip", "left_tip")
+    assert get_articulation_name_ordering(articulation, "physx", "joint") == BRANCHING_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(articulation, "physx", "body") == BRANCHING_PHYSX_BODY_NAMES
     assert get_articulation_name_ordering(articulation, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
     assert get_articulation_name_ordering(articulation, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
     assert tuple(articulation.joint_names) == BRANCHING_MJWARP_JOINT_NAMES
