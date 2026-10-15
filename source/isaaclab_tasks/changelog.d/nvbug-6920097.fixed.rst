@@ -1,0 +1,1 @@
+* Fixed the Spot velocity environment's advertised Newton presets by removing the nonfunctional Kamino option.
