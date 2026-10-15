@@ -55,17 +55,18 @@ TABLETOP_CONTAINER_POS = (-0.355, 0.0, 0.90041)
 CONTAINER_BASE_POS = (-0.340, 0.0, 1.020)
 BOWL_BASE_POS = (-0.144, 0.0, 0.900408217)
 ROBOT_BASE_POS = (-0.930, 0.0, 1.15041)
-PICKUP_TIME = 2.5
-GRASP_CLOSE_INTERVAL = (1.0, 1.7)
-INITIAL_LIFT_TIME = 3.0
-POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
-HOLD_TIME = 0.25
+PICKUP_TIME = 2.0
+GRASP_CLOSE_INTERVAL = (0.6, 1.3)
+INITIAL_LIFT_TIME = 2.0
+POUR_PREFIX_TIME = PICKUP_TIME + 0.35
+HOLD_TIME = 0.0
 TILT_TIME = 4.0
 LIFT_DELAY = 2.5
-LIFT_TIME = 7.0
+LIFT_TIME = 8.0
 LIFT_HEIGHT = 0.25
+POUR_HOLD_TIME = 5.5
 RECOVERY_TIME = 5.0
-SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + RECOVERY_TIME + 0.45
+SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + LIFT_DELAY + LIFT_TIME + POUR_HOLD_TIME + RECOVERY_TIME + 0.45
 _POUR_ANGLE = math.radians(42.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
@@ -83,26 +84,23 @@ def _blend(raw: float) -> tuple[float, float]:
 
 def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...], tuple[float, ...]]:
     """Return the teapot root position [m], XYZW quaternion and linear/angular twist [m/s, rad/s]."""
-    if sim_time < POUR_PREFIX_TIME:
-        progress, derivative = _blend((sim_time - PICKUP_TIME) / INITIAL_LIFT_TIME)
-        displacement = tuple(b - a for a, b in zip(TABLETOP_CONTAINER_POS, CONTAINER_BASE_POS, strict=True))
-        return (
-            tuple(a + progress * delta for a, delta in zip(TABLETOP_CONTAINER_POS, displacement, strict=True)),
-            (0.0, 0.0, 0.0, 1.0),
-            (*tuple(derivative * delta / INITIAL_LIFT_TIME for delta in displacement), 0.0, 0.0, 0.0),
-        )
+    # Begin tilting while the initial lift is still clearing the table.
+    progress, derivative = _blend((sim_time - PICKUP_TIME) / INITIAL_LIFT_TIME)
+    displacement = tuple(b - a for a, b in zip(TABLETOP_CONTAINER_POS, CONTAINER_BASE_POS, strict=True))
+    base_position = tuple(a + progress * delta for a, delta in zip(TABLETOP_CONTAINER_POS, displacement, strict=True))
+    base_velocity = tuple(derivative * delta / INITIAL_LIFT_TIME for delta in displacement)
 
     time = sim_time - POUR_PREFIX_TIME - HOLD_TIME
     tilt, tilt_derivative = _blend(time / TILT_TIME)
     lift, lift_derivative = _blend((time - LIFT_DELAY) / LIFT_TIME)
-    recovery_raw = (time - LIFT_DELAY - LIFT_TIME) / RECOVERY_TIME
+    recovery_raw = (time - LIFT_DELAY - LIFT_TIME - POUR_HOLD_TIME) / RECOVERY_TIME
     recovery, recovery_derivative = _blend(recovery_raw)
     # Tilt directly to the pouring angle, then hold it until recovery.
     angle = _POUR_ANGLE * (tilt - recovery)
     angular_speed = _POUR_ANGLE * (tilt_derivative / TILT_TIME - recovery_derivative / RECOVERY_TIME)
     lift_speed = LIFT_HEIGHT * lift_derivative / LIFT_TIME
 
-    # Lower the outlet over the bowl before tilting, preserving the calibrated path.
+    # Blend the ongoing pickup into the calibrated outlet alignment.
     alignment, alignment_derivative = _blend(angle / _SPOUT_LOWERING_ANGLE)
     alignment_speed = alignment_derivative * angular_speed / _SPOUT_LOWERING_ANGLE
     x, y, z = _SPOUT_LOCAL_POS
@@ -110,12 +108,13 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
     rotated_spout = (x * cosine + z * sine, y, -x * sine + z * cosine)
     displacement = tuple(
         target - outlet - origin
-        for target, outlet, origin in zip(_SPOUT_POUR_POS, rotated_spout, CONTAINER_BASE_POS, strict=True)
+        for target, outlet, origin in zip(_SPOUT_POUR_POS, rotated_spout, base_position, strict=True)
     )
-    position = tuple(a + alignment * delta for a, delta in zip(CONTAINER_BASE_POS, displacement, strict=True))
+    position = tuple(a + alignment * delta for a, delta in zip(base_position, displacement, strict=True))
     target_velocity = (angular_speed * (x * sine - z * cosine), 0.0, angular_speed * (x * cosine + z * sine))
     velocity = tuple(
-        alignment_speed * delta + alignment * speed for delta, speed in zip(displacement, target_velocity, strict=True)
+        (1.0 - alignment) * base_speed + alignment_speed * delta + alignment * speed
+        for base_speed, delta, speed in zip(base_velocity, displacement, target_velocity, strict=True)
     )
 
     # Compensate for the longer falling stream, then ease forward for the final drips.
@@ -137,8 +136,8 @@ def pose_at_time(sim_time: float) -> tuple[tuple[float, ...], tuple[float, ...],
 
 def approach_offset_at_time(sim_time: float) -> tuple[float, ...]:
     """Insert the index finger from beside the handle after a brief settling interval [m]."""
-    progress, _ = _blend((sim_time - 0.2) / (GRASP_CLOSE_INTERVAL[0] - 0.2))
-    return (0.0, -0.08 * (1.0 - progress), 0.0)
+    progress, _ = _blend((sim_time - 0.1) / (GRASP_CLOSE_INTERVAL[0] - 0.1))
+    return (0.0, -0.035 * (1.0 - progress), 0.0)
 
 
 def main() -> None:
