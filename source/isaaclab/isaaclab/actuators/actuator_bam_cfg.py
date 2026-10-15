@@ -11,8 +11,8 @@ from isaaclab.utils.configclass import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
 
-BAM_DRIVE_API = "NewtonBamDriveAPI"
-"""USD API schema token of the BAM drive."""
+BAM_POSITION_BACKLASH_API = "IsaacLabPositionBacklashAPI"
+"""USD API schema token of the backlash input processor that feeds back the play angle but not its velocity."""
 
 BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
     "m1": {"stribeck": 0, "load_dependent": 0, "quadratic": 0},
@@ -20,7 +20,7 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
     "m5": {"stribeck": 1, "load_dependent": 1, "quadratic": 0},
     "m6": {"stribeck": 1, "load_dependent": 1, "quadratic": 1},
 }
-"""Drive flags of the friction terms each BAM model enables."""
+"""Gearbox friction terms each BAM model enables."""
 
 
 @configclass
@@ -93,7 +93,10 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
     Requires ``use_newton_actuators=True`` with Newton's MJWarp solver. Like other explicit
-    actuators, it replaces existing USD actuators on the selected joints.
+    actuators, it replaces existing USD actuators on the selected joints. Newton runs the firmware
+    and motor (:class:`~newton.actuators.DriveBAM`), the supply (:class:`~newton.actuators.Battery`),
+    the command delay and the effort clamp; Isaac Lab adds the random command lag and the gearbox
+    friction.
 
     If :attr:`~isaaclab.actuators.ActuatorBaseCfg.actuator_effort_limit` is None, the torque
     limit is the stall torque ``max(vin_range) * motor.kt / motor.resistance``, using
@@ -124,8 +127,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     vin_drop_gain_range: tuple[float, float] | None = None
     """Range of the per-environment supply sag gain [V/(N.m)], sampled once and held across resets.
 
-    The sagged supply is ``vin - gain * sum_j |tau_j|``, floored at :attr:`vin_min` and 0 V. None
-    disables sag.
+    Each environment's group joints share one battery. Its voltage is ``vin - gain * sum_j |tau_j|``
+    from the previous step's torques, floored at :attr:`vin_min` and 0 V. None disables sag.
     """
 
     vin_min: float = -math.inf
@@ -146,8 +149,16 @@ class BamActuatorCfg(ActuatorBaseCfg):
     backlash_joint_template: str | None = None
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.
 
-    For example ``"passive_{}_backlash"``. When set, the firmware reads servo plus play angle, while back-EMF,
-    friction, and applied torque stay on the servo joint. None disables backlash.
+    For example ``"passive_{}_backlash"``. The hinge must be a revolute sibling of the servo joint. When set, the
+    firmware reads servo plus play angle, while back-EMF, friction, and applied torque stay on the servo joint.
+    None disables backlash.
+    """
+
+    backlash_velocity_feedback: bool = False
+    """Whether the firmware and back-EMF also read the play-hinge velocity.
+
+    True uses Newton's ``NewtonActuatorBacklashAPI``, which reads servo plus play velocity. False, the default,
+    keeps the servo velocity as the BAM reference does. Only used with :attr:`backlash_joint_template`.
     """
 
     stiff_frictionloss: bool = True
