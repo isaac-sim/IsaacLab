@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Physically grasp the Utah teapot and pour MPM water during a 70 cm rise.
+"""Physically grasp the Utah teapot and pour MPM water during a 25 cm rise.
 
 Run with ``uv run isaaclab example rizon-sharpa-teapot``. This experimental
 example uses a fixed index grasp and motion.
@@ -61,14 +61,14 @@ INITIAL_LIFT_TIME = 5.0
 POUR_PREFIX_TIME = PICKUP_TIME + INITIAL_LIFT_TIME
 HOLD_TIME = 0.55
 TILT_TIME = 8.0
-LIFT_TIME = 10.0
-LIFT_HEIGHT = 0.70
+LIFT_TIME = 4.0
+LIFT_HEIGHT = 0.25
 RECOVERY_TIME = 5.0
 SEQUENCE_DURATION = POUR_PREFIX_TIME + HOLD_TIME + TILT_TIME + LIFT_TIME + RECOVERY_TIME + 0.45
 _DRAIN_ANGLE = math.radians(28.0)
 _DRAIN_TILT_TIME = 4.0
 _POUR_ANGLE = math.radians(42.0)
-_UPPER_ANGLE = math.radians(49.0)
+_UPPER_ANGLE = math.radians(46.0)
 _SPOUT_LOWERING_ANGLE = math.radians(35.0)
 _SPOUT_LOCAL_POS = (0.111, 0.0, 0.0805)
 _SPOUT_POUR_POS = (-0.169, 0.0, 0.9937642035)

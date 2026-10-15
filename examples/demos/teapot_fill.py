@@ -16,7 +16,7 @@ The teapot is a hollow, double-walled shell, so the fluid is seeded in its enclo
     uvx isaaclab demo teapot-fill --visualizer newton_gl --fluid_render_mode both
     # Newton RTX path-traced visualizer:
     uvx --from 'isaaclab[ovrtx]' isaaclab demo teapot-fill --device cuda:0 --visualizer newton_rtx
-    # Isaac Sim Kit visualizer (particles only):
+    # Isaac Sim Kit visualizer:
     uvx --from 'isaaclab[isaacsim]' isaaclab demo teapot-fill --device cuda:0 --visualizer kit
     # Fuller / coarser (faster) fill:
     uvx isaaclab demo teapot-fill --fill_level 1.0 --fill_spacing 0.003
@@ -853,7 +853,7 @@ def main() -> None:
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = (
             create_surface_renderer(sim)
-            if SHOW_FLUID_SURFACE and any(v in (args_cli.visualizer or []) for v in ("newton_gl", "newton_rtx"))
+            if SHOW_FLUID_SURFACE and any(v in (args_cli.visualizer or []) for v in ("kit", "newton_gl", "newton_rtx"))
             else None
         )
         surface_triangle_count = surface_renderer.update() if surface_renderer is not None else 0
