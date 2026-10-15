@@ -285,7 +285,7 @@ class _FakeNewtonActuator:
 
     def __init__(self, drive, indices):
         self.drive = drive
-        self.delay = None
+        self.input_processors = []
         self.clamping = []
         self.indices = indices
 
