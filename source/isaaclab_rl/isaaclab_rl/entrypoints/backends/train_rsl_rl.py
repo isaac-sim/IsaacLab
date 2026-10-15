@@ -28,7 +28,13 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
 from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
-from ...utils.wandb import announce_new_run, is_wandb_checkpoint, resolve_wandb_checkpoint, resolve_wandb_entity
+from ...utils.wandb import (
+    announce_new_run,
+    get_model_checkpoint,
+    is_wandb_checkpoint,
+    resolve_wandb_checkpoint,
+    resolve_wandb_entity,
+)
 from ..common import (
     CHECKPOINT_SELECTORS,
     add_common_train_args,
@@ -36,7 +42,6 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
-    download_wandb_checkpoint,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
@@ -74,33 +79,10 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         default=True,
         help="Restore the policy optimizer; disable to keep a fresh optimizer and configured learning rate.",
     )
-    parser.add_argument(
-        "--wandb_run",
-        type=str,
-        default=None,
-        help=(
-            "Weights & Biases run id to download the checkpoint from for training or distillation."
-            " Cannot be combined with --checkpoint."
-        ),
-    )
-    parser.add_argument(
-        "--wandb_entity",
-        type=str,
-        default=None,
-        help="Weights & Biases entity owning --wandb_run. Defaults to the entity of the local W&B login.",
-    )
-    parser.add_argument(
-        "--wandb_project",
-        type=str,
-        default=None,
-        help="Weights & Biases project holding --wandb_run. Defaults to the agent configuration's 'wandb_project'.",
-    )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
     remaining_args_env_registration = cli_args.register_external_tasks(argv)
     args_cli, remaining_args = setup_preset_cli(parser, argv)
-    if args_cli.wandb_run is not None and args_cli.checkpoint:
-        raise ValueError("--wandb_run cannot be combined with --checkpoint.")
     enable_cameras_for_video(args_cli)
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli
@@ -109,12 +91,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunnerCfg, log_root_path: str) -> str | None:
     """Resolve the checkpoint to resume from, or None when training starts from scratch."""
     if args_cli.wandb_run is not None:
-        return download_wandb_checkpoint(
-            log_root_path,
-            args_cli.wandb_project if args_cli.wandb_project is not None else agent_cfg.wandb_project,
-            args_cli.wandb_run,
-            args_cli.wandb_entity,
-            agent_cfg.load_checkpoint,
+        return get_model_checkpoint(
+            run_id=args_cli.wandb_run,
+            project=args_cli.wandb_project if args_cli.wandb_project is not None else agent_cfg.wandb_project,
+            wandb_entity=args_cli.wandb_entity,
+            download_dir=os.path.join(log_root_path, "wandb"),
+            checkpoint_pattern=agent_cfg.load_checkpoint,
         )
     if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
         return resolve_wandb_checkpoint(args_cli.checkpoint)

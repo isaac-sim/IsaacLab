@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import importlib
 import os
@@ -771,8 +772,9 @@ def test_rsl_parses_wandb_checkpoint_source(backend_name, checkpoint, monkeypatc
         argv.extend(["--checkpoint", checkpoint])
     monkeypatch.setattr(sys, "argv", ["train.py", *argv])
     if checkpoint is not None:
-        with pytest.raises(ValueError, match="cannot be combined with --checkpoint"):
+        with pytest.raises(SystemExit) as exc:
             backend._parse_args(argv)
+        assert exc.value.code == 2
     else:
         args = backend._parse_args(argv)
         assert args.wandb_run == "abc123"
@@ -972,3 +974,20 @@ def test_rsl_rl_checkpoint_preserves_selected_optimizer_state(
         assert not destination.alg.optimizer.state
     else:
         torch.testing.assert_close(destination_state["optimizer_state_dict"], source_state["optimizer_state_dict"])
+
+
+def test_rsl_logging_project_does_not_change_checkpoint_source(monkeypatch, tmp_path):
+    """Fine-tuning logs to a new project while loading from the configured source project."""
+    from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl, train_rsl_rl
+
+    parser = argparse.ArgumentParser()
+    cli_args_rsl_rl.add_rsl_rl_args(parser)
+    args = parser.parse_args(["--wandb_run", "source-run", "--logger", "wandb", "--log_project_name", "destination"])
+    args.device = "cpu"
+    cfg = SimpleNamespace(wandb_project="source", load_checkpoint=r"model_.*\.pt")
+    cfg = cli_args_rsl_rl.update_rsl_rl_cfg(cfg, args)
+    calls = []
+    monkeypatch.setattr(train_rsl_rl, "get_model_checkpoint", lambda **kwargs: calls.append(kwargs) or "checkpoint.pt")
+    assert train_rsl_rl._resolve_checkpoint(args, cfg, str(tmp_path)) == "checkpoint.pt"
+    assert cfg.wandb_project == "destination"
+    assert calls[0]["project"] == "source"

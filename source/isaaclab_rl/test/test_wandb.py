@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -29,7 +30,7 @@ def _stub_wandb_run(monkeypatch: pytest.MonkeyPatch, file_names: list[str]):
     ]
     run = SimpleNamespace(files=lambda: files)
     api = SimpleNamespace(run=lambda path: requested_runs.append(path) or run)
-    monkeypatch.setattr(wandb_utils, "wandb", SimpleNamespace(Api=lambda: api), raising=False)
+    monkeypatch.setitem(sys.modules, "wandb", SimpleNamespace(Api=lambda: api))
     return requested_runs, downloads
 
 
@@ -130,14 +131,21 @@ def test_get_model_checkpoint_reports_missing_models(file_names, checkpoint, mes
         )
 
 
-def test_get_model_checkpoint_validates_dependencies_and_entity(monkeypatch: pytest.MonkeyPatch):
-    """Validate required local configuration before contacting wandb."""
-    monkeypatch.delattr(wandb_utils, "wandb", raising=False)
-    with pytest.raises(ImportError, match="wandb"):
-        wandb_utils.get_model_checkpoint(run_id="run-id", project="project", wandb_entity="entity")
+def test_get_model_checkpoint_preserves_missing_dependency(monkeypatch):
+    """Expose the original missing optional module rather than wrapping it."""
+    monkeypatch.setitem(sys.modules, "wandb", None)
+    with pytest.raises(ModuleNotFoundError, match="wandb"):
+        wandb_utils.get_model_checkpoint(run_id="run-id", project="project")
 
-    monkeypatch.setattr(wandb_utils, "wandb", SimpleNamespace(), raising=False)
+
+def test_get_model_checkpoint_uses_pattern_and_default_login(monkeypatch, tmp_path):
+    """An explicit pattern selects run files while an omitted entity uses the local login."""
+    requested, downloads = _stub_wandb_run(monkeypatch, ["policy_9.pt", "policy_10.pt", "model_100.pt"])
     monkeypatch.delenv("WANDB_ENTITY", raising=False)
     monkeypatch.delenv("WANDB_USERNAME", raising=False)
-    with pytest.raises(ValueError, match="wandb entity is required"):
-        wandb_utils.get_model_checkpoint(run_id="run-id", project="project")
+    result = wandb_utils.get_model_checkpoint(
+        run_id="run-id", project="project", download_dir=str(tmp_path), checkpoint_pattern=r"policy_.*\.pt"
+    )
+    assert requested == ["project/run-id"]
+    assert downloads == [("policy_10.pt", str(tmp_path / "project" / "run-id"), True)]
+    assert result == str(tmp_path / "project" / "run-id" / "policy_10.pt")
