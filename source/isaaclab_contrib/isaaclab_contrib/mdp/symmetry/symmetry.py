@@ -53,6 +53,7 @@ def mirror_vec3(data: torch.Tensor, axial: bool = False) -> torch.Tensor:
 def mirror_quat(data: torch.Tensor) -> torch.Tensor:
     """Reflect XYZW orientations across the XZ plane, preserving quaternion sign.
 
+    Uses Isaac Lab develop's XYZW convention, including ``root_quat_w``.
     The corresponding rotation matrix transforms as ``S @ R @ S``, where
     ``S = diag(1, -1, 1)``. Arbitrary leading batch or history dimensions are supported.
     """
@@ -74,7 +75,12 @@ def mirror_joints(data: torch.Tensor, permutation: Sequence[int], signs: Sequenc
     Returns:
         Mirrored joint values with the same shape as the input.
     """
-    count = data.shape[-1]
+    _validate_joint_mapping(data.shape[-1], permutation, signs)
+    result = data[..., list(permutation)]
+    return result if signs is None else result * data.new_tensor(signs)
+
+
+def _validate_joint_mapping(count: int, permutation: Sequence[int], signs: Sequence[float] | None) -> None:
     if len(permutation) != count or sorted(permutation) != list(range(count)):
         raise ValueError("Joint permutation must contain each input index exactly once.")
     if any(permutation[permutation[i]] != i for i in range(count)):
@@ -84,8 +90,6 @@ def mirror_joints(data: torch.Tensor, permutation: Sequence[int], signs: Sequenc
             raise ValueError("Joint signs must contain one +1 or -1 per joint.")
         if any(signs[i] != signs[permutation[i]] for i in range(count)):
             raise ValueError("Paired joints must have equal mirror signs.")
-    result = data[..., list(permutation)]
-    return result if signs is None else result * data.new_tensor(signs)
 
 
 def compute_mirrored_states(
@@ -119,6 +123,25 @@ class MirrorAugmentation:
             (name, env.action_manager.get_term(name).cfg, size)
             for name, size in zip(env.action_manager.active_terms, env.action_manager.action_term_dim)
         ]
+        self._joint_mappings: dict[int, tuple[torch.Tensor, torch.Tensor | None]] = {}
+        terms = [(cfg, size) for _, cfg, size in self._action_terms]
+        for group_name, names in self._observation_manager.active_terms.items():
+            group_cfg = _get_cfg(self._observation_manager.cfg, group_name)
+            for name, shape in zip(names, self._observation_manager.group_obs_term_dim[group_name]):
+                cfg = _get_cfg(group_cfg, name)
+                count = shape[-1]
+                if cfg.history_length > 0 and cfg.flatten_history_dim:
+                    count //= cfg.history_length
+                terms.append((cfg, count))
+        for cfg, count in terms:
+            if getattr(cfg, "mirror", None) is mirror_joints:
+                permutation = cfg.mirror_params["permutation"]
+                signs = cfg.mirror_params.get("signs")
+                _validate_joint_mapping(count, permutation, signs)
+                self._joint_mappings[id(cfg)] = (
+                    torch.tensor(permutation, dtype=torch.long, device=env.device),
+                    None if signs is None else torch.tensor(signs, dtype=torch.int8, device=env.device),
+                )
 
     @torch.no_grad()
     def __call__(
@@ -132,7 +155,7 @@ class MirrorAugmentation:
     def mirror_observations(self, obs: TensorDict) -> TensorDict:
         """Reflect each supplied group using its active manager terms and shapes."""
         manager = self._observation_manager
-        result = obs.clone()
+        result = TensorDict({}, batch_size=obs.batch_size)
         for group_name in obs.keys():
             if group_name not in manager.active_terms:
                 raise ValueError(f"Unknown observation group {group_name!r}.")
@@ -140,6 +163,14 @@ class MirrorAugmentation:
             names = manager.active_terms[group_name]
             shapes = manager.group_obs_term_dim[group_name]
             concatenate = manager.group_obs_concatenate[group_name]
+            time_major = (
+                concatenate
+                and group_cfg.history_order == "time"
+                and group_cfg.history_length is not None
+                and group_cfg.history_length > 0
+                and group_cfg.flatten_history_dim
+                and group_cfg.concatenate_dim == -1
+            )
             if concatenate:
                 rank = len(shapes[0])
                 axis = group_cfg.concatenate_dim % rank
@@ -148,26 +179,33 @@ class MirrorAugmentation:
                 sizes = [shape[axis] for shape in shapes]
                 if value.shape[dim] != sum(sizes):
                     raise ValueError(f"Observation group {group_name!r} does not match its manager layout.")
+                if time_major:
+                    value = value.reshape(*obs.batch_size, group_cfg.history_length, -1)
+                    sizes = [size // group_cfg.history_length for size in sizes]
+                    dim = -1
                 terms = torch.split(value, sizes, dim=dim)
             else:
                 if set(obs[group_name].keys()) != set(names):
                     raise ValueError(f"Observation group {group_name!r} must contain all its active terms.")
                 terms = [obs[group_name][name] for name in names]
+                result[group_name] = TensorDict({}, batch_size=obs.batch_size)
             mirrored = []
             for name, shape, value in zip(names, shapes, terms):
-                if tuple(value.shape[obs.batch_dims :]) != tuple(shape):
+                if not time_major and tuple(value.shape[obs.batch_dims :]) != tuple(shape):
                     raise ValueError(f"Observation {group_name}/{name} has shape inconsistent with its manager.")
                 cfg = _get_cfg(group_cfg, name)
                 original_shape = value.shape
                 if cfg.history_length > 0 and cfg.flatten_history_dim:
                     value = value.reshape(*obs.batch_size, cfg.history_length, -1)
-                value = _mirror(value, cfg, f"{group_name}/{name}").reshape(original_shape)
+                value = _mirror(value, cfg, f"{group_name}/{name}", self._joint_mappings.get(id(cfg))).reshape(
+                    original_shape
+                )
                 if concatenate:
                     mirrored.append(value)
                 else:
                     result[group_name][name] = value
             if concatenate:
-                result[group_name] = torch.cat(mirrored, dim=dim)
+                result[group_name] = torch.cat(mirrored, dim=dim).reshape(obs[group_name].shape)
         return result
 
     def mirror_actions(self, actions: torch.Tensor) -> torch.Tensor:
@@ -177,7 +215,11 @@ class MirrorAugmentation:
             raise ValueError("Action shape does not match the action manager layout.")
         values = torch.split(actions, sizes, dim=-1)
         return torch.cat(
-            [_mirror(value, cfg, name) for (name, cfg, _), value in zip(self._action_terms, values)], dim=-1
+            [
+                _mirror(value, cfg, name, self._joint_mappings.get(id(cfg)))
+                for (name, cfg, _), value in zip(self._action_terms, values)
+            ],
+            dim=-1,
         )
 
 
@@ -185,11 +227,24 @@ def _get_cfg(cfg: Any, name: str) -> Any:
     return cfg[name] if isinstance(cfg, dict) else getattr(cfg, name)
 
 
-def _mirror(data: torch.Tensor, cfg: ObservationTermCfg | ActionTermCfg, name: str) -> torch.Tensor:
+def _mirror(
+    data: torch.Tensor,
+    cfg: ObservationTermCfg | ActionTermCfg,
+    name: str,
+    joint_mapping: tuple[torch.Tensor, torch.Tensor | None] | None = None,
+) -> torch.Tensor:
     function = getattr(cfg, "mirror", None)
     if not callable(function):
         raise ValueError(f"Term {name!r} requires a callable mirror; use mirror_identity for invariant terms.")
-    result = function(data.clone(), **getattr(cfg, "mirror_params", {}))
+    if joint_mapping is not None:
+        indices, signs = joint_mapping
+        result = data.index_select(-1, indices)
+        if signs is not None:
+            result = result * signs
+    else:
+        # Built-in rules allocate their outputs; only arbitrary user callbacks need isolation.
+        value = data if function in (mirror_identity, mirror_vec3, mirror_quat) else data.clone()
+        result = function(value, **getattr(cfg, "mirror_params", {}))
     if not isinstance(result, torch.Tensor) or result.shape != data.shape:
         raise ValueError(f"Mirror for {name!r} must preserve the tensor shape {tuple(data.shape)}.")
     if result.dtype != data.dtype or result.device != data.device:
