@@ -52,10 +52,13 @@ def test_fixed_bed_contacts_and_partial_reset(device):
             assert augmented_actions.shape == (4, raw.action_manager.total_action_dim)
             assert all(augmented[k].shape == (4, *v.shape[1:]) for k, v in obs.items())
             forces = []
-            for _ in range(24):
+            for step in range(24):
                 obs, reward, _, _, _ = env.step(actions)
                 assert all(torch.isfinite(v).all() for v in obs.values())
                 assert torch.isfinite(reward).all()
+                assert torch.isfinite(wp.to_torch(NewtonManager.get_state_0().particle_q)).all(), (
+                    f"MPM particle positions became non-finite after step {step + 1}"
+                )
                 forces.append(raw.foot_contact_force[..., 2].sum(dim=1).clone())
             assert (torch.stack(forces).amax(dim=0) > 100.0).all()
             model = NewtonManager.get_model()

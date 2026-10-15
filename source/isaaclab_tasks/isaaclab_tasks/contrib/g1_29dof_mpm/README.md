@@ -11,7 +11,13 @@ uv run --with wandb isaaclab play --rl_library rsl_rl --task IsaacContrib-Veloci
 
 The environment configuration is `g1_mpm_env_cfg.py`. Scene geometry and particle material defaults are in `env_cfg/scene_cfg.py`; material sampling ranges are in `env_cfg/event_cfg.py`. The robot's initial position is on the rigid approach platform.
 
-Coupled material updates require Newton's particle-material synchronization fix. Multi-environment MPM requires the Warp multi-environment cell-lookup fix. Until compatible upstream dependency pins are available, use the dependency versions described in the draft PR validation notes.
+Multi-environment MPM requires Warp's NanoVDB cell-lookup fix. This branch pins
+`warp-lang==1.19.0.dev20261008`, which includes that fix; Warp 1.17.0 and 1.18.0
+can produce non-finite particle positions with multiple environments. Run
+`uv sync --extra rsl-rl` to install the pinned version.
+
+Coupled material updates also require Newton's particle-material synchronization
+fix ([Newton #4607](https://github.com/newton-physics/newton/pull/4607)).
 
 ### Tilting testbed
 
