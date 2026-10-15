@@ -456,7 +456,7 @@ class InteractiveScene:
             rigid_object_collection.reset(env_ids)
         # -- sensors
         for sensor in self._sensors.values():
-            sensor.reset(env_ids)
+            sensor.reset(env_ids if cloner.path.match(sensor.cfg.prim_path, self._env_fmt) is not None else None)
 
     def write_data_to_sim(self):
         """Writes the data of the scene entities to the simulation."""

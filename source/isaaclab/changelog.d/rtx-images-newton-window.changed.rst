@@ -1,1 +1,2 @@
-* Removed the Newton-model construction requirement for RTX visualizers; their scene updates used the shared camera renderer.
+* Expanded RTX perspective declarations into ordinary scene cameras during launch configuration. Scripts without a scene configuration must spawn ``Camera`` and select it with ``SceneCameraCfg``. Removed the Newton-model requirement for RTX visualization.
+* Supported global cameras outside replicated environments, including partial scene resets and direct camera discovery. Added ``CameraCfg.render_settings`` for per-camera OVRTX product attributes.

@@ -302,7 +302,7 @@ class OVRTXBackend:
 
 
 class OVRTXCameraRenderData:
-    """Owns one sensor or perspective view's native resources and Warp output buffers."""
+    """Owns one camera sensor's native resources and borrowed output buffers."""
 
     def __init__(self, spec: CameraRenderSpec, device, render_scope_name: str):
         """Create render data for a camera in its assigned render scope.
@@ -314,17 +314,14 @@ class OVRTXCameraRenderData:
         """
         self.render_scope_name = render_scope_name
         self.render_product_path = f"/{render_scope_name}/RenderProduct"
-        if spec.camera_prim_paths:
-            source = spec.camera_prim_paths[0]
-            prefix = "/World/envs/env_0/"
-            if not source.startswith(prefix) or source == prefix:
-                raise ValueError(f"OVRTX cameras must be under {prefix}, got {source!r}.")
-            # The renderer creates these clones after loading the prototype scene.
-            self.camera_paths = [f"/World/envs/env_{i}/{source[len(prefix) :]}" for i in range(spec.num_instances)]
-        else:
-            if spec.num_instances != 1:
-                raise ValueError("A renderer-owned perspective camera requires exactly one view.")
-            self.camera_paths = [f"/{render_scope_name}/Camera"]
+        source = spec.camera_prim_paths[0]
+        prefix = "/World/envs/env_0/"
+        # The renderer creates these clones after loading the prototype scene.
+        self.camera_paths = (
+            [f"/World/envs/env_{i}/{source[len(prefix) :]}" for i in range(spec.num_instances)]
+            if source.startswith(prefix)
+            else list(spec.camera_prim_paths)
+        )
         self.render_var_keys: dict[str, str] = (
             {source: f"/{render_scope_name}/Vars/{name}" for source, name in _RENDER_VAR_PRIM_NAMES.items()}
             if uses_prim_path_render_vars(OVRTX_VERSION)
@@ -340,8 +337,6 @@ class OVRTXCameraRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
-        self.view_matrix: np.ndarray | None = None
-        self.vertical_fov: float | None = None
         self.meshes: dict[str, OVRTXMesh] = {}
         self.markers: dict[Any, OVRTXMarkers] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
@@ -380,7 +375,6 @@ class OVRTXCameraRenderData:
             self.camera_xform_query = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
-            self.view_matrix = self.vertical_fov = None
             self.meshes.clear()
             self.markers.clear()
             self.renderer_info.clear()
@@ -473,9 +467,9 @@ class OVRTXRenderer(BaseRenderer):
         except ModuleNotFoundError as exc:
             _raise_missing_ppisp_error(exc)
 
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        camera_prim_path = spec.camera_prim_paths[0]
         spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
+        if spec.cfg.isp_cfg is None:
             return
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
@@ -531,18 +525,19 @@ class OVRTXRenderer(BaseRenderer):
 
         xform_cache = UsdGeom.XformCache()
         plan = self._clone_plan
-        sources = cloner_path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        destinations = {}
-        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
-            ids = world_ids[world_starts[group] : world_starts[group + 1]]
-            if len(ids):
-                for index in range(start, end):
-                    destinations.setdefault(sources[plan.topology.world_prototypes[index]], []).append(
-                        (templates[index], ids)
-                    )
+        destinations = {"/": []} if plan is None else {}
+        if plan is not None:
+            sources = cloner_path.get_asset_prototype_paths(plan)
+            templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
+            for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+                ids = world_ids[world_starts[group] : world_starts[group + 1]]
+                if len(ids):
+                    for index in range(start, end):
+                        destinations.setdefault(sources[plan.topology.world_prototypes[index]], []).append(
+                            (templates[index], ids)
+                        )
         for root, targets in destinations.items():
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
@@ -609,9 +604,11 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("OVRTX loaded USD from string successfully")
 
         camera_paths = render_data.camera_paths
-        if len(self._clone_plan.topology.world_prototype_layout) > 1:
+        if self._clone_plan is not None and len(self._clone_plan.topology.world_prototype_layout) > 1:
             self._clone_sources()
-            self._update_scene_partitions_after_clone(camera_paths if spec.camera_prim_paths else ())
+            self._update_scene_partitions_after_clone(
+                [path for path in camera_paths if cloner_path.match(path, self._clone_plan.env_template) is not None]
+            )
         # References drop external camera targets; restore them after all cameras have been cloned.
         self.backend.renderer.write_array_attribute(
             prim_paths=[render_product_path],
@@ -791,11 +788,6 @@ class OVRTXRenderer(BaseRenderer):
                     )
                     render_data.resources.callback(binding.unbind)
                     render_data.intrinsic_bindings.append(binding)
-            if not spec.camera_prim_paths:
-                data = CameraData.allocate(
-                    spec.cfg.data_types, spec.cfg.height, spec.cfg.width, 1, self._device, self.supported_output_types()
-                )
-                self.set_outputs(render_data, data.output)
         except Exception:
             render_data.cleanup()
             raise
@@ -813,6 +805,10 @@ class OVRTXRenderer(BaseRenderer):
         camera_paths = render_data.camera_paths
         scope = render_data.render_scope_name
         product_path = render_data.render_product_path
+        env_camera = (
+            self._clone_plan is not None
+            and cloner_path.match(camera_paths[0], self._clone_plan.env_template) is not None
+        )
         usd = build_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
@@ -846,7 +842,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=np.full(spec.num_instances, True, dtype=np.bool_),
                 is_array=False,
             ).wait()
-            if spec.camera_prim_paths:
+            if env_camera:
                 self.backend.stage.write_attribute(
                     render_data.camera_xform_query,
                     "omni:scenePartition",
@@ -878,7 +874,7 @@ class OVRTXRenderer(BaseRenderer):
                 attribute_name="omni:resetXformStack",
                 tensor=np.full(spec.num_instances, True, dtype=np.bool_),
             )
-            if spec.camera_prim_paths:
+            if env_camera:
                 self.backend.renderer.write_attribute(
                     camera_paths,
                     "omni:scenePartition",
@@ -886,27 +882,6 @@ class OVRTXRenderer(BaseRenderer):
                     semantic=Semantic.TOKEN_STRING,
                 )
         self._render_product_paths.append(product_path)
-
-    def resize_render_product(self, render_data: OVRTXCameraRenderData, *, width: int, height: int) -> None:
-        """Resize one perspective product while preserving its camera and native bindings."""
-        if render_data.camera_paths != [f"/{render_data.render_scope_name}/Camera"] or width < 1 or height < 1:
-            raise ValueError("Only renderer-owned perspective products support resizing to positive dimensions.")
-        self.reset(render_data)
-        resolution = np.array([[width, height]], dtype=np.int32)
-        if self._use_ovstage:
-            paths = self.backend.paths.create_path_list_from_strings([render_data.render_product_path])
-            try:
-                with self.backend.stage.query_from_path_list(paths) as query:
-                    self.backend.stage.write_attribute(
-                        query, "resolution", ordinal=self._current_ordinal, tensors=resolution, is_array=False
-                    ).wait()
-            finally:
-                self.backend.paths.destroy_path_list(paths)
-        else:
-            self.backend.renderer.write_attribute(
-                [render_data.render_product_path], "resolution", resolution, prim_mode=PrimMode.MUST_EXIST
-            )
-        render_data.width, render_data.height = width, height
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
         """Register pre-allocated warp output buffers for rendering.
@@ -1427,7 +1402,6 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
         render_data.capture = {}
-        render_data.view_matrix = render_data.vertical_fov = None
         if errors:
             raise ExceptionGroup("OVRTX renders failed during camera reset", errors)
 
@@ -1595,60 +1569,6 @@ class OVRTXRenderer(BaseRenderer):
         """Submit one camera capture; :meth:`read_output` publishes the available image."""
         self.render_batch((render_data,))
 
-    def render_perspective(
-        self, render_data: OVRTXCameraRenderData, view_matrix: np.ndarray, vertical_fov: float
-    ) -> wp.array:
-        """Render from a world-to-camera OpenGL matrix and vertical field of view [deg] into stable RGBA storage.
-
-        The product owns its image and calibration state. Host navigation updates are copied only
-        when changed; scene synchronization, rendering, and image extraction use the shared GPU path.
-
-        Args:
-            render_data: Perspective product returned by :meth:`create_render_data`.
-            view_matrix: World-to-camera transform, shape (4, 4), with translation in its last column [m].
-            vertical_fov: Vertical field of view [deg].
-
-        Returns:
-            Product-owned uint8 RGBA image, shape (H, W, 4), on the rendering device.
-        """
-        pose_changed = render_data.view_matrix is None or not np.array_equal(view_matrix, render_data.view_matrix)
-        projection_changed = vertical_fov != render_data.vertical_fov
-        if pose_changed or projection_changed:
-            errors = self.drain_pending_renders((render_data,))
-            if errors:
-                raise ExceptionGroup("OVRTX renders failed before perspective camera update", errors)
-        if pose_changed:
-            transform = np.ascontiguousarray(np.linalg.inv(view_matrix).T[None], dtype=np.float64)
-            if self._use_ovstage:
-                self.backend.stage.write_attribute(
-                    render_data.camera_xform_query, "omni:xform", tensors=xform_tensor_from_numpy(transform),
-                    ordinal=self._current_ordinal, is_array=False, semantic=ovstage.AttributeSemantic.MATRIX,
-                ).wait()  # fmt: skip
-            else:
-                render_data.camera_xform_binding.write(transform)
-            render_data.view_matrix = view_matrix.copy()
-        if projection_changed:
-            vertical = 48.0 * math.tan(math.radians(vertical_fov) / 2)
-            apertures = np.array([[vertical * render_data.width / render_data.height], [vertical]], np.float32)
-            if self._use_ovstage:
-                self.backend.stage.write_attributes(
-                    render_data.camera_xform_query,
-                    [
-                        ovstage.WriteDesc(attribute=name, tensors=value, is_array=False)
-                        for name, value in zip(_CAMERA_INTRINSIC_ATTRIBUTES[1:3], apertures, strict=True)
-                    ],
-                    ordinal=self._current_ordinal,
-                ).wait()
-            else:
-                for binding, value in zip(render_data.intrinsic_bindings[1:3], apertures, strict=True):
-                    binding.write(value)
-            render_data.vertical_fov = vertical_fov
-        self.update_transforms()
-        self.update_geometries()
-        self.render(render_data)
-        self.read_output(render_data)
-        return render_data.warp_buffers["rgba"][0]
-
     def update_debug_geometry(
         self, render_data: OVRTXCameraRenderData, meshes: dict[str, dict[str, Any]], markers: Iterable,
         *, env_ids: list[int] | None,
@@ -1801,9 +1721,11 @@ class OVRTXRenderer(BaseRenderer):
         ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
 
         camera_paths = render_data.camera_paths
-        if len(self._clone_plan.topology.world_prototype_layout) > 1:
+        if self._clone_plan is not None and len(self._clone_plan.topology.world_prototype_layout) > 1:
             self._clone_sources()
-            self._update_scene_partitions_after_clone(camera_paths if spec.camera_prim_paths else ())
+            self._update_scene_partitions_after_clone(
+                [path for path in camera_paths if cloner_path.match(path, self._clone_plan.env_template) is not None]
+            )
 
         self._initialized_scene = True
 

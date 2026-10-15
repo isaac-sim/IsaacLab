@@ -40,9 +40,8 @@ from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
-from isaaclab.renderers import CameraRenderSpec
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sensors.camera import Camera
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.backend_utils import FactoryBase
 from isaaclab.utils.math import quat_apply, quat_from_matrix, quat_mul
@@ -371,6 +370,12 @@ class NewtonViewerGL(ViewerGL):
         self.renderer.window.switch_to()
         super().begin_frame(time)
 
+    def is_running(self) -> bool:
+        """Track this window, independently of another window closing Pyglet's shared event loop."""
+        return self.renderer.window.context is not None and (
+            not self._headless or self.num_frames is None or self._frame_count < self.num_frames
+        )
+
     def get_frame(self, target_image: wp.array | None = None, render_ui: bool = False) -> wp.array:
         """Reuse device capture storage while the native framebuffer size remains unchanged."""
         shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
@@ -579,6 +584,11 @@ class NewtonVisualizerBase(BaseVisualizer):
             self.set_camera_view(camera.eye, camera.lookat)
             self.cfg.focal_length = camera.focal_length
             self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+        else:
+            sensor = self.current_image_view.camera
+            intrinsics = sensor._data.intrinsic_matrices.torch[0]
+            self._viewer.camera.fov = math.degrees(2 * math.atan(sensor.cfg.height / (2 * float(intrinsics[1, 1]))))
+        self._navigation_fov = self._viewer.camera.fov
         if self._viewer.picking is not None:
             # Release an existing drag without replacing any graph-captured picking buffers.
             self._viewer.picking.release()
@@ -587,8 +597,17 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def _navigate_scene_camera(self) -> None:
         camera, viewer = self.current_image_view.camera, self._viewer
-        if self._runtime_headless or viewer.is_paused():
+        if viewer.is_paused():
             return
+        if viewer.camera.fov != self._navigation_fov:
+            height, width = camera.image_shape
+            focal = height / (2 * math.tan(math.radians(viewer.camera.fov) / 2))
+            intrinsics = torch.tensor(
+                [[focal, 0, width / 2], [0, focal, height / 2], [0, 0, 1]], device=camera.device
+            ).expand(camera.num_instances, -1, -1)
+            camera.set_intrinsic_matrices(intrinsics)
+            self._navigation_fov = viewer.camera.fov
+            self.current_image_view.invalidate()
         current = viewer.camera.get_view_matrix().reshape(4, 4).T
         previous, self._navigation_view = self._navigation_view, current.copy()
         if np.array_equal(previous, current):
@@ -609,11 +628,17 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._last_render_step = -1
         if self.current_image_view is not None:
             self.current_image_view.invalidate()
+            camera = self.current_image_view.camera
+            if camera is not None:
+                eyes = torch.tensor([self.cfg.eye], device=camera.device).expand(camera.num_instances, -1)
+                targets = torch.tensor([self.cfg.lookat], device=camera.device).expand(camera.num_instances, -1)
+                camera.set_world_poses_from_view(eyes, targets)
         if self._viewer is not None:
             self._viewer.camera.pos = PygletVec3(*self.cfg.eye)
             self._viewer.camera.look_at(self.cfg.lookat)
             camera = self._viewer.camera
             self._viewer.set_camera(camera.pos, camera.pitch, camera.yaw)
+            self._navigation_view = camera.get_view_matrix().reshape(4, 4).T.copy()
 
     def step(self, dt: float) -> None:
         """Advance the display at the configured cadence; headless consumers capture on demand."""
@@ -621,9 +646,8 @@ class NewtonVisualizerBase(BaseVisualizer):
             return
         self._sim_time += dt
         if self._runtime_headless:
-            if self.current_image_view.camera is None:
-                self.current_image_view.invalidate()
-                self._last_render_step = -1
+            self.current_image_view.invalidate()
+            self._last_render_step = -1
             return
         now = time.monotonic()
         if now - self._last_present_time < 1.0 / self.cfg.window.fps:
@@ -676,7 +700,7 @@ class NewtonVisualizerBase(BaseVisualizer):
     def _log_streaming_image(self) -> None:
         """Present sensor pixels directly; paused rendering retains the last displayed image."""
         composite = self.current_image_view.frame.data
-        if composite is None or self.current_image_view.frame.timestamp < 0 or not self._viewer.is_paused():
+        if composite is None or not self._viewer.is_paused():
             composite = self.current_image_view.read(self._sim.get_physics_step_count())
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
@@ -701,7 +725,21 @@ class NewtonVisualizerBase(BaseVisualizer):
         """Download the selected shared view for legacy capture callers."""
         if self.current_image_view is None:
             raise RuntimeError("The visualizer must be initialized before capturing an image.")
-        return self.current_image_view.read_rgb(self._sim.get_physics_step_count())
+        if self.current_image_view.camera is not None and (
+            self._last_render_step != self._sim.get_physics_step_count() or self.current_image_view.frame.timestamp < 0
+        ):
+            if not self._sim.is_rendering:
+                self._sim.forward()
+                if self.supports_markers():
+                    self._sim.vis_marker_registry.dispatch_callbacks()
+            self._render_frame()
+        frame = self.current_image_view.frame
+        frame_id = (
+            frame.timestamp
+            if self._viewer.is_paused() and frame.data is not None
+            else self._sim.get_physics_step_count()
+        )
+        return self.current_image_view.read_rgb(frame_id)
 
 
 class NewtonGLVisualizer(NewtonVisualizerBase):
@@ -1106,12 +1144,8 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
     only scales presentation; sensor and perspective output storage keeps its initial resolution.
     """
 
-    def __init__(self, cfg):
-        super().__init__(cfg)
-        self._renderer = self._render_data = None
-
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
-        """Create one private camera product on the simulation's shared renderer."""
+        """Bind existing scene cameras to the window; cameras retain renderer ownership."""
         if self._is_initialized:
             return
         if FactoryBase._get_backend(sim=sim) == "physx":
@@ -1119,6 +1153,11 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 "Newton RTX is kitless and cannot share a process with Kit physics; use Newton or OVPhysX."
             )
         super().initialize(sim, cameras=cameras)
+        if any(view.camera is None for view in self._image_views):
+            raise ValueError(
+                "RTX perspective cameras must be declared before scene construction. Pass the environment config "
+                "to launch_simulation, or spawn Camera(CameraCfg(...)) and select it with SceneCameraCfg."
+            )
         with wp.ScopedDevice(sim.device):
             self._viewer = NewtonViewerGL(
                 width=self.cfg.window.size[0],
@@ -1136,70 +1175,35 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         self._select_camera(0)
-        if any(view.camera is None for view in self._image_views):
-            self._renderer = sim.get_or_create_backend(self.cfg.renderer_cfg)
-            sim.render_context.ensure_prepare_stage(sim.stage, sim.get_scene_data_provider().num_envs)
-            width, height = self.cfg.window.size
-            camera_cfg = CameraCfg(
-                prim_path="/Render/Perspective",
-                width=width,
-                height=height,
-                data_types=["rgba"],
-                background_color=self.cfg.background_color,
-                renderer_cfg=self.cfg.renderer_cfg,
-            )
-            spec = CameraRenderSpec(
-                camera_cfg, sim.device, num_instances=1, camera_prim_paths=(), view_count=1,
-                render_settings={"omni:rtx:quality": ("Int", 0), **self.cfg.render_settings},
-            )  # fmt: skip
-            self._render_data = self._renderer.create_render_data(spec)
         self._is_initialized = True
 
-    def _capture_perspective(self, output: wp.array | None) -> wp.array:
-        """Apply window navigation and capture the renderer-owned perspective product."""
-        if self._viewer.is_paused() and output is not None:
-            return output
-        if not self._sim.is_rendering:
-            self._sim.forward()
-            if self.supports_markers():
-                self._sim.vis_marker_registry.dispatch_callbacks()
-        self._renderer.update_debug_geometry(
-            self._render_data, self._pending_mesh_submissions,
-            self._viewer.marker_groups if self.cfg.enable_markers else (), env_ids=self._env_ids,
-        )  # fmt: skip
-        self._pending_mesh_submissions.clear()
-        return self._renderer.render_perspective(
-            self._render_data, self._viewer.camera.get_view_matrix().reshape(4, 4).T, self._viewer.camera.fov
-        )
-
     def _render_frame(self) -> None:
-        """Present the selected GPU image; the window owns no RTX resources."""
+        """Update navigation and scene overlays, then display the selected camera's GPU image."""
         self._viewer.begin_frame(self._sim_time)
         try:
-            if self.current_image_view.camera is not None:
+            if not self._viewer.is_paused():
                 self._navigate_scene_camera()
-            elif not self._viewer.is_paused():
+                camera = self.current_image_view.camera
+                if camera.cfg.renderer_cfg.renderer_type == "ovrtx":
+                    camera._renderer.update_debug_geometry(
+                        camera._render_data, self._pending_mesh_submissions,
+                        self._viewer.marker_groups if self.cfg.enable_markers else (), env_ids=self._env_ids,
+                    )  # fmt: skip
+                    self._pending_mesh_submissions.clear()
+                camera.update(0.0)
                 self.current_image_view.invalidate()
             self._log_streaming_image()
+            self._last_render_step = self._sim.get_physics_step_count()
         finally:
             self._viewer.end_frame()
 
-    def reset(self, soft: bool = False) -> None:
-        """Reset this camera's capture state without resetting the shared renderer."""
-        super().reset(soft)
-        if self._render_data is not None:
-            self._renderer.reset(self._render_data)
-
     def close(self) -> None:
-        """Release only this view's product and window; sensors retain the renderer."""
+        """Close the window; scene cameras retain their render products and shared renderer."""
         if self._is_closed:
             return
         try:
-            with contextlib.ExitStack() as resources:
-                if self._viewer is not None:
-                    resources.callback(self._viewer.close)
-                if self._render_data is not None:
-                    resources.callback(self._renderer.cleanup, self._render_data)
+            if self._viewer is not None:
+                self._viewer.close()
         finally:
-            self._viewer = self._renderer = self._render_data = None
+            self._viewer = None
             super().close()

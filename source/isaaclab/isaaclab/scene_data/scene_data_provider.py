@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
-from weakref import ref
+from weakref import WeakValueDictionary, ref
 
 import numpy as np
 import warp as wp
@@ -66,6 +66,8 @@ class SceneDataProvider:
         self.backend = backend
         self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
+        self.cameras: WeakValueDictionary[str, camera.Camera] = WeakValueDictionary()
+        """Borrowed cameras by prim expression, including cameras spawned without an InteractiveScene."""
         self._cache: dict[Any, TimestampedBuffer] = {}
         self._transform_mappings: dict[tuple, wp.array | None] = {}
 
@@ -173,14 +175,14 @@ class SceneDataProvider:
         return self._interactive_scene
 
     def get_camera_sensors(self) -> dict[str, camera.Camera]:
-        """Return Isaac Lab camera sensors keyed by scene sensor name."""
-        if self._interactive_scene is None:
-            return {}
-        return {
-            name: sensor
-            for name, sensor in self._interactive_scene.sensors.items()
-            if isinstance(sensor, camera.Camera)
-        }
+        """Return cameras by scene name, or by prim expression for directly spawned cameras."""
+        cameras = dict(self.cameras)
+        if self._interactive_scene is not None:
+            for name, sensor in self._interactive_scene.sensors.items():
+                if isinstance(sensor, camera.Camera):
+                    cameras.pop(sensor.cfg.prim_path, None)
+                    cameras[name] = sensor
+        return cameras
 
     def get_contact_sensors(self) -> dict[str, contact_sensor.BaseContactSensor]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""

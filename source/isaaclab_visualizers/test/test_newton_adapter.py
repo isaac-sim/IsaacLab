@@ -241,6 +241,7 @@ def test_visualizers_borrow_scene_camera_outputs(monkeypatch):
     pixels = torch.arange(4, dtype=torch.uint8).reshape(4, 1, 1, 1).expand(4, 2, 3, 3).clone()
     camera = SimpleNamespace(
         _view=None,
+        num_instances=4,
         cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgba"]),
         data=SimpleNamespace(
             output={
@@ -307,7 +308,6 @@ def test_newton_visualizer_render_rgb_array_returns_viewer_frame(monkeypatch, co
 
 
 def test_newton_visualizer_render_rgb_array_requires_initialized_viewer():
-    assert NewtonRTXVisualizer.render_rgb_array is NewtonGLVisualizer.render_rgb_array
     visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg())
 
     with pytest.raises(RuntimeError, match="must be initialized"):
@@ -837,7 +837,10 @@ def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
     visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(cameras=cameras, enable_markers=False))
     image = wp.full((4, 6, 4), 127, dtype=wp.uint8, device="cpu")
     visualizer.current_image_view.cfg.source = "/Camera"
-    visualizer.current_image_view.camera = Mock()
+    visualizer.current_image_view.camera = Mock(
+        cfg=SimpleNamespace(height=4),
+        _data=SimpleNamespace(intrinsic_matrices=SimpleNamespace(torch=torch.eye(3)[None])),
+    )
     visualizer._select_camera(0)
     visualizer.current_image_view.frame.data = image
     visualizer.current_image_view.frame.timestamp = 0.0
@@ -949,6 +952,7 @@ def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypat
 
             # Supply a known mouse/keyboard delta; sensors, body motion, and camera writes remain real.
             viewer = _Viewer()
+            viewer.camera.fov = visualizer._navigation_fov
             delta = np.asarray([[0, -1, 0, 0.25], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
             after = np.linalg.inv(delta).T.ravel()
             viewer.camera.get_view_matrix = Mock(return_value=after)

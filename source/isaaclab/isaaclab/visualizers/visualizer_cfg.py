@@ -10,7 +10,8 @@ from __future__ import annotations
 import argparse
 import math
 import warnings
-from dataclasses import MISSING
+from copy import deepcopy
+from dataclasses import MISSING, fields
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
@@ -60,7 +61,10 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
 
 @configclass
 class PerspectiveCameraCfg:
-    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+    """Initial pose and optics for an interactive perspective camera.
+
+    Newton RTX launch preparation expands this declaration into a scene CameraCfg. Newton GL
+    uses its native viewer camera."""
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye position in world coordinates [m]."""
@@ -95,7 +99,7 @@ class ImageViewCfg:
     """Runtime image selection and composition."""
 
     source: str | PerspectiveCameraCfg = MISSING
-    """Scene sensor name, or the initial camera for a visualizer-owned perspective render product."""
+    """Scene sensor name, or an interactive perspective camera declaration."""
 
     envs: tuple[int, ...] = (0,)
     """Sensor rows to display, in the requested order."""
@@ -281,6 +285,27 @@ class VisualizerCfg:
     # Internal
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
+
+    def apply_defaults(self, default_cfg: VisualizerCfg | None) -> None:
+        """Apply shared default visualizer settings to a backend-specific config.
+
+        Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
+        (i.e. differ from its own class defaults) and are still at the target cfg's
+        class defaults. Backend-specific defaults, such as the streaming renderer,
+        do not transfer between visualizer types.
+        """
+        if default_cfg is None:
+            return
+        for source, target in ((default_cfg, self), (default_cfg.window, self.window)):
+            source_defaults, target_defaults = type(source)(), type(target)()
+            for field in fields(source):
+                if field.name in ("class_type", "visualizer_type", "window") or not hasattr(target, field.name):
+                    continue
+                default_val = getattr(source, field.name)
+                if default_val == getattr(source_defaults, field.name):
+                    continue
+                if getattr(target, field.name) == getattr(target_defaults, field.name):
+                    setattr(target, field.name, deepcopy(default_val))
 
     def validate_config(self) -> None:
         """Reject ambiguous sources and unsupported native-window configurations."""

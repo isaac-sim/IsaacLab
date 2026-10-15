@@ -105,6 +105,55 @@ def test_newton_rtx_mpm_points_follow_world_state():
         assert centers[1] < centers[0] - 5.0, "The rendered particle cloud did not move upward"
 
 
+def test_directly_spawned_camera_drives_rtx_window():
+    """A script needs no InteractiveScene or clone plan to display its ordinary Camera."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_ov.renderers import OVRTXRendererCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.app import launch_simulation
+    from isaaclab.sensors import Camera, CameraCfg
+
+    camera_cfg = CameraCfg(
+        prim_path="/World/Camera", width=96, height=64, data_types=["rgba", "distance_to_image_plane"],
+        spawn=sim_utils.PinholeCameraCfg(), renderer_cfg=OVRTXRendererCfg(),
+        offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), convention="opengl"),
+        render_settings={"omni:rtx:quality": ("Int", 0)},
+    )  # fmt: skip
+    sim_cfg = sim_utils.SimulationCfg(
+        physics=OvPhysxCfg(),
+        visualizer_cfgs=[NewtonRTXVisualizerCfg(
+            headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64))
+        )],
+    )  # fmt: skip
+    with launch_simulation(sim_cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
+        sim = sim_utils.SimulationContext(sim_cfg)
+        target = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
+        target.func("/World/Target", target)
+        light = sim_utils.DomeLightCfg(intensity=1000.0)
+        light.func("/World/Light", light)
+        camera = Camera(camera_cfg)
+        sim.reset()
+        visualizer = sim.visualizers[0]
+        assert visualizer.current_image_view.camera is camera
+        assert visualizer.render_rgb_array().shape == (64, 96, 3)
+        assert np.ptp(camera.data.output["rgba"].warp.numpy()[..., :3]) > 20
+        focal = float(camera._data.intrinsic_matrices.torch[0, 0, 0])
+        output_ptr = camera.data.output["rgba"].warp.ptr
+        depth = camera.data.output["distance_to_image_plane"].torch[0, 32, :, 0]
+        assert depth[48].item() == pytest.approx(4.5, abs=0.02)
+        initial_width = ((depth > 4.4) & (depth < 4.6)).sum().item()
+        visualizer._viewer.camera.fov *= 0.5
+        visualizer.step(0.0)
+        visualizer.render_rgb_array()
+        assert float(camera._data.intrinsic_matrices.torch[0, 0, 0]) > 1.5 * focal
+        assert camera.data.output["rgba"].warp.ptr == output_ptr
+        assert ((depth > 4.4) & (depth < 4.6)).sum().item() > 1.8 * initial_width
+        visualizer.close()
+        camera.update(sim_cfg.dt)
+        assert np.ptp(camera.data.output["rgba"].warp.numpy()[..., :3]) > 20
+
+
 @pytest.mark.arm_ci
 def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, monkeypatch) -> None:
     """RTX preserves motion, pause controls, markers, and device-updated surface meshes."""
@@ -143,8 +192,7 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, m
             with monkeypatch.context() as gpu_update:
                 gpu_update.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Geometry readback")))
                 visualizer.log_mesh("surface", points, indices, dynamic=True)
-                visualizer.current_image_view.invalidate()
-                visualizer.current_image_view.read(env.sim.get_physics_step_count())
+                visualizer._render_frame()
             _viz_utils._warm_newton_viewer(visualizer)
             updated_mesh = visualizer.render_rgb_array()
             blue_rows = []
@@ -228,12 +276,13 @@ def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lig
             visualizer = env.unwrapped.sim.visualizers[0]
             camera = env.unwrapped.scene["camera"]
             viewer = visualizer._viewer
-            renderer = visualizer._renderer
+            renderer = visualizer.current_image_view.camera._renderer
             native_renderer = renderer.backend.renderer
             if lighting:
                 assert renderer is camera._renderer
-            assert visualizer.current_image_view.camera is None
-            assert len(env.unwrapped.scene.sensors) == 1
+            assert len(renderer._camera_render_data) == (2 if lighting else 1)
+            assert visualizer.current_image_view.camera.num_instances == 1
+            assert len(env.unwrapped.scene.sensors) == 2
             origin = env.unwrapped.scene.env_origins[0].cpu().numpy()
             visualizer.set_camera_view(origin + (0.0, -6.0, 2.0), origin + (0.0, -2.0, 2.0))
             for _ in range(40):

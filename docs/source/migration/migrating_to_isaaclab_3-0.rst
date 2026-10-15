@@ -2795,6 +2795,13 @@ scene stays unlit. ``background_color=None`` preserves the scene background; an 
 changes only the visible background. Use Newton GL for model overlays, live plots, and rigid-body
 dragging; RTX retains visualization markers and camera controls.
 
+Newton RTX perspective declarations now become ordinary ``CameraCfg`` entries during
+``launch_simulation(env_cfg, ...)``, before scene construction. Pass the configuration containing
+both ``sim`` and ``scene`` to the launcher. Scripts without ``SceneCfg`` must spawn a ``Camera``
+and select its prim path with ``SceneCameraCfg``; the visualizer no longer creates cameras or
+render products. See the standalone example in :doc:`/source/how-to/visualizer_streaming_camera_view`.
+Per-camera RTX product attributes can be declared in ``CameraCfg.render_settings``.
+
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
 resolution follows its framebuffer. For windows and recorders sharing one image selection, use

@@ -119,6 +119,41 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     assert calls == ["register", "storage", "user"]
 
 
+@pytest.mark.parametrize("channels,legacy_viewer", [(("rgb",), False), (("rgb", "depth"), True)])
+def test_rtx_perspective_configuration_declares_scene_cameras(channels, legacy_viewer):
+    """Launch preparation owns camera declarations; visualizers only receive scene references."""
+    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+
+    from isaaclab.envs.common import ViewerCfg
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+
+    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(0.0, -5.0, 0.0), lookat=(0.0, 0.0, 0.0)))
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(
+            physics=sim_launcher.NewtonCfg(),
+            default_visualizer_cfg=None if legacy_viewer else VisualizerCfg(window=WindowCfg(size=(160, 120))),
+            visualizer_cfgs=[NewtonRTXVisualizerCfg(streaming_gt_types=channels), NewtonRTXVisualizerCfg(view=view)],
+        ),
+        scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
+        viewer=ViewerCfg(eye=(1.0, 2.0, 3.0), resolution=(160, 120)),
+    )
+    prepared = sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
+    cameras = [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)]
+    assert len(cameras) == 2
+    assert prepared.visualizer_cfgs[0].cameras == [SceneCameraCfg(prim_path=cameras[0].prim_path)]
+    assert vars(cfg.scene)[view.source] is cameras[1]
+    assert cameras[1].offset.pos == (0.0, -5.0, 0.0)
+    assert cameras[1].offset.rot == pytest.approx((2**-0.5, 0.0, 0.0, 2**-0.5))
+    assert cameras[0].offset.pos == ((1.0, 2.0, 3.0) if legacy_viewer else NewtonRTXVisualizerCfg().eye)
+    assert cameras[0].data_types == (["rgba", "depth"] if legacy_viewer else ["rgba"])
+    assert all((camera.width, camera.height) == (160, 120) for camera in cameras)
+    assert all(camera.renderer_cfg == prepared.visualizer_cfgs[0].renderer_cfg for camera in cameras)
+    sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
+    assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
+
+
 @pytest.mark.parametrize("interrupt", [False, True])
 def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
     """A config-selected launcher closes on success or interruption with the correct exit status."""

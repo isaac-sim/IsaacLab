@@ -131,7 +131,8 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
 class NewtonRTXVisualizerCfg(VisualizerCfg):
     """Simulation-owned OVRTX rendering displayed in a Newton GL window.
 
-    Perspective sources use a private fixed-resolution render product; scene sources borrow sensor output.
+    Launch preparation expands perspective sources into ordinary scene CameraCfg entries.
+    All views borrow camera output; scripts without a SceneCfg spawn Camera and use SceneCameraCfg.
     Window resizing scales the displayed image without changing either source's resolution.
     Scene USD owns lighting, materials, and environment placement. Newton-model overlays,
     rigid-body dragging, and viewer-only lighting or world offsets are not supported.
@@ -154,7 +155,7 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
     renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
     """Shared scene renderer. Use the same configuration as scene cameras to share their instance.
 
-    With no OVRTX sensors, the simulation creates this renderer for the perspective view alone.
+    Used when declaring perspective CameraCfg entries. SceneCameraCfg retains its sensor's renderer.
     """
 
     streaming_view: bool = True

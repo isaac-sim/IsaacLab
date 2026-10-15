@@ -95,6 +95,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._geometry_writes = _AsyncWriteBuffers()
     renderer._geometry_offsets = {}
     renderer._use_ovstage = False
+    renderer._clone_plan = types.SimpleNamespace(env_template="/World/envs/env_{}")
     return renderer
 
 
@@ -393,33 +394,6 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 torch.testing.assert_close(
                     torch.linalg.vector_norm(normals, dim=-1), torch.ones(2, device="cuda:0"), atol=0.02, rtol=0
                 )
-
-        if geometry == "rigid":
-            # A perspective product owns its pixels without requiring a window or sensor pose buffers.
-            cfg = _make_camera_cfg(["rgb", "distance_to_image_plane"])
-            cfg.height, cfg.width = 64, 96
-            perspective = renderer.create_render_data(CameraRenderSpec(cfg, "cuda:0", 1, (), 1))
-            view = np.eye(4, dtype=np.float64)
-            view[2, 3] = -5.0
-            image = renderer.render_perspective(perspective, view, 60.0)
-            assert image.shape == (64, 96, 4) and image.device.is_cuda
-            output_ptr = image.ptr
-            widths = []
-            for fov in (60.0, 30.0):
-                image = renderer.render_perspective(perspective, view, fov)
-                depth = wp.to_torch(perspective.warp_buffers["distance_to_image_plane"])[0, 32, :, 0]
-                torch.testing.assert_close(depth[48], torch.tensor(4.5, device=depth.device), atol=0.02, rtol=0)
-                widths.append(((depth > 4.4) & (depth < 4.6)).sum().item())
-                assert image.ptr == output_ptr
-            assert widths[1] > 1.8 * widths[0], "Narrowing FOV must enlarge the object without reallocating pixels."
-            view[:3, 3] = (-2.0, 0.0, -7.0)
-            renderer.render_perspective(perspective, view, 30.0)
-            depth = wp.to_torch(perspective.warp_buffers["distance_to_image_plane"])[0, 32, 48, 0]
-            torch.testing.assert_close(depth, torch.tensor(5.5, device=depth.device), atol=0.02, rtol=0)
-            for index, (rd, data) in enumerate(cameras):
-                check_depth(rd, data, 4.5 - index)
-            renderer.cleanup(perspective)
-            assert not camera_scope_exists(perspective)
 
         # Move only cam1 farther away. cam0 must retain its original depth.
         positions = ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0"))
@@ -958,39 +932,9 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert renderer._initialized_scene is True
 
 
-@pytest.mark.parametrize(
-    "camera_path",
-    [
-        "/World/Camera",
-        "/World/envs/env_1/Camera",
-        "/World/envs/env_00/Camera",
-        "/World/envs/env_0",
-        "/World/envs/env_0/",
-    ],
-)
-def test_create_render_data_rejects_cameras_outside_source_environment(camera_path):
-    """Camera registration requires a source camera beneath env_0 before touching the backend."""
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer.backend.renderer = MagicMock()
-    spec = CameraRenderSpec(
-        cfg=_make_camera_cfg(["depth"]),
-        device="cpu",
-        num_instances=2,
-        camera_prim_paths=(camera_path,),
-        view_count=2,
-    )
-
-    with pytest.raises(ValueError, match="/World/envs/env_0/"):
-        renderer.create_render_data(spec)
-
-    assert not renderer.backend.renderer.mock_calls
-
-
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
-    """Distinct cameras, including a prototype-only wrist camera, bind every environment independently."""
+    """Replicated and global cameras bind their own paths and retain independent calibration."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
@@ -1009,17 +953,18 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     paths = [
         [f"/World/envs/env_{i}/{name}" for i in range(2)] for name in ("CameraA", "Robot/ee_link/palm_link/CameraB")
     ]
+    paths.append(["/World/PerspectiveCamera"])
     cameras = [
         renderer.create_render_data(
             CameraRenderSpec(
                 cfg=_make_camera_cfg(["depth"]),
                 device="cpu",
-                num_instances=2,
-                view_count=2,
+                num_instances=len(paths[index]),
+                view_count=len(paths[index]),
                 camera_prim_paths=camera_paths,
             )
         )
-        for camera_paths in (paths[0], paths[1][:1])
+        for index, camera_paths in enumerate((paths[0], paths[1][:1], paths[2]))
     ]
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
@@ -1027,11 +972,15 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     if use_ovstage:
         assert renderer.backend.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_query
         bound_paths = [call.args[0] for call in renderer.backend.paths.create_path_list_from_strings.call_args_list]
-        assert bound_paths == [[cameras[0].render_product_path], paths[0], [cameras[1].render_product_path], paths[1]]
+        assert bound_paths == [
+            entry
+            for camera, targets in zip(cameras, paths, strict=True)
+            for entry in ([camera.render_product_path], targets)
+        ]
     else:
         bound_paths = [call.kwargs["prim_paths"] for call in renderer.backend.renderer.bind_attribute.call_args_list]
         binding_count = 1 + len(ovrtx_renderer_module._CAMERA_INTRINSIC_ATTRIBUTES)
-        assert bound_paths == [paths[0]] * binding_count + [paths[1]] * binding_count
+        assert bound_paths == [targets for targets in paths for _ in range(binding_count)]
         assert all(not binding.write_async.called for binding in cameras[0].intrinsic_bindings)
         for row, binding in enumerate(cameras[1].intrinsic_bindings):
             assert binding.write_async.call_args.args[0].ptr == parameters[row].ptr
@@ -1040,26 +989,6 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         cameras[1].cleanup()
         assert all(binding.unbind.call_count == 1 for binding in bindings)
         assert all(not binding.unbind.called for binding in cameras[0].intrinsic_bindings)
-
-    sensor_shape = (cameras[0].height, cameras[0].width)
-    with pytest.raises(ValueError, match="renderer-owned perspective"):
-        renderer.resize_render_product(cameras[0], width=64, height=32)
-    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, (), 1)
-    perspective = OVRTXCameraRenderData(spec, "cpu", "Perspective")
-    renderer.backend.renderer.write_attribute.reset_mock()
-    renderer.backend.stage.write_attribute.reset_mock()
-    renderer.resize_render_product(perspective, width=64, height=32)
-    assert (perspective.height, perspective.width) == (32, 64)
-    assert (cameras[0].height, cameras[0].width) == sensor_shape
-    if use_ovstage:
-        renderer.backend.paths.create_path_list_from_strings.assert_called_with([perspective.render_product_path])
-        calls = renderer.backend.stage.write_attribute.call_args_list
-        values = {call.args[1]: call.kwargs["tensors"] for call in calls}
-    else:
-        calls = renderer.backend.renderer.write_attribute.call_args_list
-        assert all(call.args[0] == [perspective.render_product_path] for call in calls)
-        values = {call.args[1]: call.args[2] for call in calls}
-    np.testing.assert_array_equal(values["resolution"], [[64, 32]])
 
 
 class _RecordingBinding:

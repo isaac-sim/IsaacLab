@@ -671,6 +671,8 @@ class Camera(SensorBase):
         if self._renderer is None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
 
+        sim_ctx.get_scene_data_provider().cameras[self.cfg.prim_path] = self
+
         # Build the render spec early — both the wrapper ISP (which delegates
         # any renderer-side per-camera setup) and ``create_render_data`` consume
         # it, and the prims are already authored at this point.
@@ -691,7 +693,7 @@ class Camera(SensorBase):
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
-        sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
+        sim_ctx.render_context.ensure_prepare_stage(self.stage, sim_ctx.get_scene_data_provider().num_envs)
 
         self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct

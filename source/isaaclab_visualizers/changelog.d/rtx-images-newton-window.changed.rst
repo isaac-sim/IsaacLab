@@ -1,2 +1,2 @@
-* Changed ``newton_rtx`` to display simulation-owned OVRTX images in a Newton GL window, eliminating its separate renderer and stage. Preserved fixed-resolution capture, scene-camera selection, markers, and runtime surface meshes.
-* Added ``NewtonRTXVisualizerCfg.renderer_cfg``. Match camera sensors' ``OVRTXRendererCfg`` to share their renderer; default configurations share automatically.
+* Changed ``newton_rtx`` to display scene-camera output in a Newton GL window, eliminating its separate renderer and stage. Preserved fixed-resolution capture, camera selection, markers, and runtime surface meshes.
+* Added ``NewtonRTXVisualizerCfg.renderer_cfg`` for generated perspective camera declarations. Match camera sensors' ``OVRTXRendererCfg`` to share their renderer; default configurations share automatically. Standalone scripts without a scene configuration must spawn a camera and select it with ``SceneCameraCfg``.

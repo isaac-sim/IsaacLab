@@ -48,7 +48,7 @@ selection. Reading the shared view twice in one physics step reuses its frame an
 Changing the view's selection rebuilds composition state; captured composition graphs must then be
 recreated. This does not resize the sensor's render product.
 
-A perspective source uses a visualizer's renderer without creating a scene camera sensor:
+For Newton RTX, a perspective declaration is expanded into an ordinary scene camera before launch:
 
 .. code-block:: python
 
@@ -151,7 +151,9 @@ Use ``cameras`` to declare a list of selectable views; the first starts active:
 The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene
 camera for their image panel; Newton GL and RTX provide the source dropdown shown above.
 ``SceneCameraCfg`` selects an existing sensor; ``PerspectiveCameraCfg`` configures the viewer's
-own interactive camera. Neither creates a camera sensor. Newton RTX keeps its perspective
+interactive camera. For Newton RTX, ``launch_simulation(env_cfg, ...)`` adds a ``CameraCfg``
+to the scene before any scene objects are constructed and selects it through ``SceneCameraCfg``.
+Newton GL retains its native perspective camera. Newton RTX keeps its perspective
 render resolution fixed at the initial ``WindowCfg.size``; resizing
 its window scales the displayed image. Sensor resolution remains controlled by ``CameraCfg``.
 Window resizing does not reallocate sensor or RTX perspective image buffers. Newton GL perspective
@@ -160,21 +162,47 @@ Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in w
 Changing the simulation timestep does not change that limit. Headless on-demand capture is
 independent of the window update rate; Kit uses its application's update cadence.
 
-Newton RTX uses the simulation's ``OVRTXRenderer`` for its perspective product and Newton GL
-for GPU image presentation and window controls. Equal ``OVRTXRendererCfg`` configurations share
-one renderer and its scene. Set ``NewtonRTXVisualizerCfg.renderer_cfg`` to the same configuration
-as your camera sensors when customizing renderer settings. If there are no OVRTX sensors, the
-simulation creates the renderer for the perspective view. Newton's ``ViewerRTX`` and its
-borrowed-stage interface are not used.
+Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXRendererCfg``
+configurations share one renderer and its scene. ``NewtonRTXVisualizerCfg.renderer_cfg`` selects
+the renderer for generated perspective cameras; explicitly selected scene cameras retain their
+own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
 
-``PerspectiveCameraCfg`` supplies initial navigation settings. The window sends its current view
-matrix and field of view to the renderer. The render product owns calibration state and image buffers;
-the renderer updates the scene and captures the image. A perspective view does not create a scene camera sensor.
+The camera owns pose, calibration, image buffers, capture, and cleanup. Window navigation calls
+``Camera.set_world_poses`` and ``Camera.set_intrinsic_matrices``; image reads use ``Camera.data``.
+There is no separate perspective rendering entry point. No default lights are added: scenes
+without authored lights remain unlit. Closing a window leaves its scene camera and renderer alive.
 
-No default lights are added: scenes without authored lights remain unlit. Scene-camera selections
-use their sensor's renderer, including Newton Warp, and skip perspective rendering. Closing the
-window removes its private product and debug geometry, leaving the shared renderer and sensors
-alive. Debug markers and runtime surface meshes occupy a viewer partition, outside sensor views.
+Scripts without an ``InteractiveSceneCfg`` declare and spawn the camera explicitly:
+
+.. code-block:: python
+
+   from isaaclab.app import launch_simulation
+   from isaaclab.sensors import Camera, CameraCfg
+   from isaaclab.sim import PinholeCameraCfg, SimulationCfg, SimulationContext
+   from isaaclab.visualizers import SceneCameraCfg
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+   from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+
+   camera_cfg = CameraCfg(
+       prim_path="/World/PerspectiveCamera", width=960, height=540,
+       spawn=PinholeCameraCfg(focal_length=12.0), renderer_cfg=OVRTXRendererCfg(),
+       offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), convention="opengl"),
+       render_settings={"omni:rtx:quality": ("Int", 0)},
+   )
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=[NewtonRTXVisualizerCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+   )
+   with launch_simulation(sim_cfg, {"physics": "ovphysx", "visualizer": ["newton_rtx"]}):
+       sim = SimulationContext(sim_cfg)
+       # Spawn lights and objects here, using the script's ordinary scene setup.
+       camera = Camera(camera_cfg)
+       sim.reset()
+       while sim.is_running():
+           sim.step()
+           camera.update(sim.get_physics_dt())
+
+The script retains the camera and advances its sensor timing, just as it does for other directly
+spawned sensors. ``SceneCameraCfg`` discovers it by prim path without an ``InteractiveScene``.
 
 Display layout and channel mappings are compiled when the source, selection, resolution, or
 color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton

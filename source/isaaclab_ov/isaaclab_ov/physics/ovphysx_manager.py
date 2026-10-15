@@ -30,12 +30,14 @@ from pxr import Sdf, Usd, UsdPhysics
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
+    deformable_entry,
     deformable_geometry_batches,
     deformable_prototypes,
     expand_deformable_entries,
 )
 from isaaclab.sim.schemas.schemas import _setup_omniphysics_deformable_body
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.sim.utils.queries import has_deformable_body_api
 from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
@@ -785,8 +787,14 @@ class OvPhysxManager(PhysicsManager):
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
         plan = sim.get_clone_plan()
-        entries = None
-        if plan is not None:
+        if plan is None:
+            # Directly spawned scenes have no prototype plan; every authored body is an instance.
+            entries = [
+                entry
+                for prim in Usd.PrimRange(sim.stage.GetPseudoRoot(), Usd.TraverseInstanceProxies())
+                if has_deformable_body_api(prim) and (entry := deformable_entry(prim)) is not None
+            ]
+        else:
             env_ids = np.arange(len(plan.topology.world_prototype_layout))
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 

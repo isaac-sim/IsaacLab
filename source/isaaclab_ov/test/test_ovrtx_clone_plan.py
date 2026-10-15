@@ -344,8 +344,8 @@ def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path:
     assert "uint[] deviceIds = [1]" in combined_text
 
 
-@pytest.mark.parametrize("perspective", [False, True])
-def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning(perspective):
+@pytest.mark.parametrize("global_camera", [False, True])
+def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning(global_camera):
     """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
     num_envs = 4
     renderer = _make_ovrtx_renderer_without_backend()
@@ -362,7 +362,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
 
     renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
     renderer._clone_sources = lambda: call_order.append("clone")
-    renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
+    renderer._update_scene_partitions_after_clone = Mock(side_effect=lambda _: call_order.append("partitions"))
 
     def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
         call_order.append("rewrite_cameras")
@@ -374,18 +374,21 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     renderer._setup_xform_bindings_legacy = lambda: None
     renderer._setup_geometry_bindings_legacy = lambda: None
 
-    spec = _make_camera_render_spec(num_envs=1 if perspective else num_envs)
-    if perspective:
-        spec = replace(spec, camera_prim_paths=())
+    spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
+    if global_camera:
+        spec = replace(spec, camera_prim_paths=("/World/Camera",))
     render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
     renderer._initialize_camera_render_data_from_spec(spec, render_data)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
+    renderer._update_scene_partitions_after_clone.assert_called_once_with(
+        [] if global_camera else render_data.camera_paths
+    )
     assert write_array_calls == [
         (
             [render_data.render_product_path],
             "camera",
-            [["/RenderCamera_0/Camera"] if perspective else [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]],
+            [["/World/Camera"] if global_camera else [f"/World/envs/env_{i}/Camera" for i in range(num_envs)]],
         )
     ]
 
