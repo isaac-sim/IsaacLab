@@ -161,8 +161,8 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         # resolve the environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # reset the bias term
-        self._bias[env_ids] = self._bias_noise_cfg.func(self._bias[env_ids], self._bias_noise_cfg)
+        # sample a fresh bias; applying the noise to the previous bias would accumulate it for the "add" operation
+        self._bias[env_ids] = self._bias_noise_cfg.func(torch.zeros_like(self._bias[env_ids]), self._bias_noise_cfg)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply bias noise to the data.
