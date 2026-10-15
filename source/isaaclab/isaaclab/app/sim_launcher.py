@@ -30,7 +30,6 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from ..envs.common import ViewerCfg, _apply_deprecated_viewer_cfg
 from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
@@ -272,8 +271,6 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
             sim_cfg = sim_cfg or node
         elif isinstance(node, InteractiveSceneCfg):
             scene_cfg = node
-        elif isinstance(node, ViewerCfg):
-            _apply_deprecated_viewer_cfg(parent)
         elif isinstance(node, RendererCfg) and node.renderer_type == "ovrtx":
             has_ovrtx = True
         elif isinstance(node, CameraCfg):
@@ -350,20 +347,6 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                 PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
             ])
         )  # fmt: skip
-        # Legacy streaming settings also offer compatible scene sensors in the camera selector.
-        if visualizer.view is None and visualizer.cameras is None and visualizer.streaming_view:
-            if visualizer.streaming_sensor_prim_path is not None:
-                sources.insert(0, SceneCameraCfg(prim_path=visualizer.streaming_sensor_prim_path))
-            else:
-                for sensor in vars(scene_cfg).values():
-                    if isinstance(sensor, CameraCfg):
-                        available = frozenset(sensor.data_types)
-                        supports_channels = all(
-                            sensor_key_for_gt_type(channel, available, required=False) is not None
-                            for channel in visualizer.streaming_gt_types
-                        )
-                        if supports_channels:
-                            sources.append(SceneCameraCfg(prim_path=sensor.prim_path))
         # Declare global cameras before scene construction; the scene owns spawning, capture, and cleanup.
         for camera_index, source in enumerate(sources):
             if not isinstance(source, PerspectiveCameraCfg):
@@ -386,7 +369,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                 render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.render_settings},
             )  # fmt: skip
             vars(scene_cfg)[name] = camera
-            # Image views reference scene names; legacy camera lists reference prim paths.
+            # Image views reference scene names; camera lists reference prim paths.
             if visualizer.view is not None:
                 visualizer.view.source = name
             else:

@@ -124,13 +124,16 @@ for dual monitoring.
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
 
-Without an explicit ``cameras`` list, the viewer starts in perspective and offers scene cameras
+Without an explicit ``cameras`` list, Newton GL starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. An explicit
 ``streaming_sensor_prim_path`` starts with that scene camera selected. For example, set
 ``streaming_gt_types=("depth",)`` to offer depth-only cameras. The RGB view accepts RGB or RGBA
 outputs; the display uses opaque alpha. No images are captured to
 build the selector. Explicitly configured scene-camera choices must support the requested channels;
 incompatible choices raise a configuration error during initialization, including inactive choices.
+
+Newton RTX displays only the sources declared in ``view`` or ``cameras``. With neither set, launch
+preparation declares one perspective camera. Scene sensors are never added to its selector automatically.
 
 Use ``cameras`` to declare a list of selectable views; the first starts active:
 
@@ -318,10 +321,12 @@ Configuration
 Declare camera resolution, pose, renderer, and output types on ``CameraCfg`` in the scene.
 Then choose what to display in ``VisualizerCfg``:
 
-* ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
+* ``cameras=[SceneCameraCfg(prim_path=...)]`` selects a scene camera; ``view=ImageViewCfg(source="name")``
+  selects a named sensor and its image layout. Newton RTX uses these explicit declarations.
+* For other viewers, ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
   prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
-  If omitted, Newton GL and RTX start in perspective mode and offer compatible scene cameras
-  in the Camera View dropdown. Other viewers select the first compatible scene camera;
+  If omitted, Newton GL starts in perspective mode and offers compatible scene cameras
+  in the Camera View dropdown. Kit and web viewers select the first compatible scene camera;
   without one, their panel stays empty.
 * ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
   sample that many environments, or a ``list[int]`` to pin specific environment indices.
@@ -352,8 +357,8 @@ stream. Without ``--viz``, capture runs on demand without opening a window. Addi
 displays the visualizer; it is not required to advance recorded frames. A new physics step refreshes
 the image, while repeated captures within the same step reuse it.
 
-* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and set
-  ``streaming_sensor_prim_path`` to its prim path.
+* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and select it
+  with ``cameras=[SceneCameraCfg(prim_path=...)]`` or ``view=ImageViewCfg(source="name")``.
 * Each ``streaming_gt_types`` entry must have a corresponding output in the selected
   camera's ``data_types``; ``rgba`` also satisfies an ``rgb`` request. Automatically offered
   cameras support every requested channel. Explicitly selecting an incompatible camera raises an error.
@@ -370,7 +375,7 @@ Visualizers no longer create or destroy camera sensors. Replace
 ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
 with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
 ``offset``, and supply ``renderer_cfg`` there. Select that camera through
-``streaming_sensor_prim_path``, or ``cameras=[SceneCameraCfg(...)]``. This puts the camera
+``cameras=[SceneCameraCfg(...)]``. This puts the camera
 in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 The full option mapping is in the
 :doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>`.

@@ -36,7 +36,7 @@ pytestmark = [
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData, OVRTXRenderer  # noqa: E402
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
 
     from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade  # noqa: E402
 else:
@@ -277,8 +277,8 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     assert (output_dir / _OVRTX_STAGE_FILE).exists() is False
 
 
-def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_path: Path):
-    """_initialize_camera_render_data_from_spec writes the combined stage when temp_usd_dir is set."""
+def test_create_render_data_writes_combined_stage_on_the_spec_device(tmp_path: Path, monkeypatch):
+    """The debug stage retains the scene and camera product, pinned to the requested rendering device."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
     scene = _make_multi_env_stage(1)
@@ -292,11 +292,18 @@ def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_
     reference_calls = []
     renderer.backend.renderer.add_usd_reference_from_string = lambda usd, path: reference_calls.append((usd, path))
     renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = lambda **kwargs: None
+    renderer.backend.renderer.write_attribute = lambda *args, **kwargs: None
 
-    spec = _make_camera_render_spec(num_envs=1)
-    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
-    renderer._initialize_camera_render_data_from_spec(spec, render_data)
+    class Device:
+        ordinal = 1
+
+        def __str__(self):
+            return "cuda:1"
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda device: Device())
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", Mock())
+    spec = _make_camera_render_spec(num_envs=1, device="cuda:1")
+    render_data = renderer.create_render_data(spec)
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -306,6 +313,7 @@ def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_
     assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
     assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
     assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
+    assert combined_layer.GetAttributeAtPath(render_data.render_product_path + ".deviceIds").default == [1]
     assert open_calls == [scene_usd]
     reference_text, reference_path = reference_calls[0]
     assert reference_path == "/RenderCamera_0"
@@ -316,36 +324,8 @@ def test_initialize_camera_render_data_from_spec_writes_combined_stage_dump(tmp_
     assert renderer._exported_usd_string is None
 
 
-def test_create_render_data_pins_the_render_product_to_the_spec_device(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """The render product is pinned to the CUDA device whose Warp kernels read its render vars.
-
-    Without this, OVRTX picks the device itself and hands back buffers on ``cuda:0`` while the tile
-    extraction kernels launch on the simulation device.
-    """
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer.cfg.temp_usd_dir = str(tmp_path)
-    renderer._exported_usd_string = "#usda 1.0\n"
-
-    renderer.backend.renderer.open_usd_from_string = lambda _usd_string: None
-    renderer.backend.renderer.bind_attribute = lambda **kwargs: SimpleNamespace(unbind=lambda: None)
-    renderer.backend.renderer.write_attribute = lambda **kwargs: None
-
-    class _FakeWarpDevice:
-        ordinal = 1
-
-        def __str__(self) -> str:
-            return "cuda:1"
-
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda device: _FakeWarpDevice())
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", Mock())
-    renderer.create_render_data(_make_camera_render_spec(num_envs=1, device="cuda:1"))
-
-    combined_text = (tmp_path / _OVRTX_STAGE_FILE).read_text(encoding="utf-8")
-    assert "uint[] deviceIds = [1]" in combined_text
-
-
 @pytest.mark.parametrize("global_camera", [False, True])
-def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_after_cloning(global_camera):
+def test_create_render_data_binds_camera_after_cloning(global_camera):
     """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
     num_envs = 4
     renderer = _make_ovrtx_renderer_without_backend()
@@ -362,28 +342,24 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
 
     renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
     renderer._clone_sources = lambda: call_order.append("clone")
-    renderer._update_scene_partitions_after_clone = Mock(side_effect=lambda _: call_order.append("partitions"))
+    renderer._update_scene_partitions_after_clone = lambda: call_order.append("partitions")
 
     def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
         call_order.append("rewrite_cameras")
         write_array_calls.append((prim_paths, attribute_name, tensors))
 
     renderer.backend.renderer.write_array_attribute = _write_array_attribute
-    renderer.backend.renderer.bind_attribute = lambda **_kwargs: object()
-    renderer.backend.renderer.write_attribute = lambda **_kwargs: None
+    renderer.backend.renderer.bind_attribute = lambda **_kwargs: SimpleNamespace(unbind=lambda: None)
+    renderer.backend.renderer.write_attribute = lambda *args, **kwargs: None
     renderer._setup_xform_bindings_legacy = lambda: None
     renderer._setup_geometry_bindings_legacy = lambda: None
 
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
     if global_camera:
         spec = replace(spec, camera_prim_paths=("/World/Camera",))
-    render_data = OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
-    renderer._initialize_camera_render_data_from_spec(spec, render_data)
+    render_data = renderer.create_render_data(spec)
 
     assert call_order == ["open", "clone", "partitions", "rewrite_cameras"]
-    renderer._update_scene_partitions_after_clone.assert_called_once_with(
-        [] if global_camera else render_data.camera_paths
-    )
     assert write_array_calls == [
         (
             [render_data.render_product_path],

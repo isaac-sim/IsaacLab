@@ -554,6 +554,8 @@ Configuration Operations
 Keep configuration classes declarative. Cross-config default merging and runtime wiring belong
 in launch preparation or construction code, not methods on config objects. Validation hooks may
 check a configuration's own fields.
+When changing ownership, use explicit declarations; do not add deprecated-selector translation
+or discover unselected scene entities to preserve earlier routing.
 
 Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
 

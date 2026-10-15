@@ -159,4 +159,4 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
     """
 
     streaming_view: bool = True
-    """Offer compatible scene sensors alongside the interactive RTX perspective camera."""
+    """Display the cameras declared by :attr:`view` or :attr:`cameras`; default to a perspective camera."""

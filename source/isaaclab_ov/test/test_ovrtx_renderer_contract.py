@@ -631,7 +631,8 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
 
     monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version(version))
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._initialized_scene = False
+    renderer._initialized_scene = True
+    renderer._device = "cpu"
     renderer._next_camera_id = 0
     renderer._render_product_paths = []
     renderer._use_ovstage = use_ovstage
@@ -658,16 +659,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         return usd
 
     monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", capture_render_product)
-
-    def initialize_first_camera(spec, render_data):
-        capture_render_product(spec, render_data)
-        renderer._render_product_paths.append(render_data.render_product_path)
-        renderer._camera_xform_binding = MagicMock()
-        renderer._camera_paths_list = object()
-        renderer._camera_xform_query = contextlib.nullcontext(object())
-        renderer._initialized_scene = True
-
-    monkeypatch.setattr(renderer, "_initialize_camera_render_data_from_spec", initialize_first_camera)
 
     @contextlib.contextmanager
     def fake_map(self, render_var):
@@ -936,7 +927,11 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
 def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     """Replicated and global cameras bind their own paths and retain independent calibration."""
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._initialized_scene = True
+    renderer._exported_usd_string = "#usda 1.0\n"
+    renderer._clone_plan = None
+    renderer._sdp = types.SimpleNamespace(
+        backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
+    )
     renderer._device = "cpu"
     renderer._next_camera_id = 0
     renderer._render_product_paths = []
@@ -948,7 +943,7 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     renderer.backend.paths = MagicMock()
     renderer.backend.paths.create_path_list_from_strings.side_effect = tuple
     renderer.backend.stage.query_from_path_list.side_effect = lambda paths: contextlib.nullcontext(object())
-    for name in ("add_usd_reference_from_string", "apply_usd_changes", "remove_usd"):
+    for name in ("open_usd_from_string", "add_usd_reference_from_string", "apply_usd_changes", "remove_usd"):
         monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, name, MagicMock())
     paths = [
         [f"/World/envs/env_{i}/{name}" for i in range(2)] for name in ("CameraA", "Robot/ee_link/palm_link/CameraB")
@@ -966,6 +961,11 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         )
         for index, camera_paths in enumerate((paths[0], paths[1][:1], paths[2]))
     ]
+    assert not vars(renderer).keys() & {"_camera_xform_binding", "_camera_xform_query", "_camera_paths_list"}
+    if use_ovstage:
+        renderer.backend.renderer.attach_ovstage.assert_called_once_with(renderer.backend.stage)
+    else:
+        renderer.backend.renderer.open_usd_from_string.assert_called_once_with("#usda 1.0\n")
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
@@ -1015,7 +1015,6 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     render_data.resources.callback(render_data.camera_xform_binding.unbind)
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
-    renderer._camera_xform_binding = None
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._geometry_points_binding = _RecordingBinding(events, "geometry")
     renderer.backend.renderer = Backend()
@@ -1061,8 +1060,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     render_data.resources.callback(lambda: renderer.backend.stage.release_query("camera").wait())
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
-    renderer._camera_xform_query = None
-    renderer._camera_paths_list = None
     renderer._object_xform_query = "object"
     renderer._object_paths_list = "object"
     renderer._geometry_points_query = "geometry"

@@ -2802,6 +2802,11 @@ and select its prim path with ``SceneCameraCfg``; the visualizer no longer creat
 render products. See the standalone example in :doc:`/source/how-to/visualizer_streaming_camera_view`.
 Per-camera RTX product attributes can be declared in ``CameraCfg.render_settings``.
 
+Newton RTX no longer automatically offers scene sensors or reads ``streaming_sensor_prim_path``.
+Select them explicitly with ``cameras=[SceneCameraCfg(prim_path=...)]`` or
+``view=ImageViewCfg(source="scene_sensor_name")``; otherwise it declares one perspective camera.
+Set its initial pose and window size on the visualizer configuration, rather than deprecated ``env_cfg.viewer``.
+
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
 resolution follows its framebuffer. For windows and recorders sharing one image selection, use
