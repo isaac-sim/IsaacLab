@@ -273,7 +273,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -302,7 +302,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -331,7 +331,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -359,7 +359,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -387,7 +387,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -415,7 +415,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -447,7 +447,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -482,7 +482,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -514,7 +514,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -539,7 +539,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -563,7 +563,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -588,7 +588,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -613,7 +613,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -638,7 +638,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -662,7 +662,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -686,7 +686,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -711,7 +711,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -741,7 +741,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -786,7 +786,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -828,7 +828,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -861,7 +861,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -885,7 +885,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -930,7 +930,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -978,7 +978,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -1304,7 +1304,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -1349,7 +1349,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
-        ci-marker: ${{ inputs.marker }}
+        ci-marker: ${{ inputs.marker || 'kitless' }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
