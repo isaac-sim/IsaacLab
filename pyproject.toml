@@ -47,7 +47,8 @@ dependencies = [
     "pyglet>=2.1.6,<3",
     "transformers==5.10.4",
     "einops",
-    "warp-lang==1.17.0",
+    # Multi-environment MPM needs the NanoVDB cell-lookup fix.
+    "warp-lang==1.19.0.dev20261008",
     "matplotlib>=3.10.3",
     # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
     # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
@@ -232,7 +233,7 @@ ovphysx = "0.6.4.72118723"
 ovrtx = "0.5.1.385782"
 ovstage = "0.2.1.385922"
 newton = "1.8.0.dev0"
-warp = "1.17.0"
+warp = "1.19.0.dev20261008"
 
 [tool.ruff]
 line-length = 120

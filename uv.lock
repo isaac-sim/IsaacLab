@@ -2120,7 +2120,7 @@ requires-dist = [
     { name = "virtualenv", marker = "extra == 'rlinf'", specifier = ">=21.7.13" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
-    { name = "warp-lang", specifier = "==1.17.0" },
+    { name = "warp-lang", specifier = "==1.19.0.dev20261008" },
 ]
 provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "sb3", "skrl", "skrl-jax", "rl-games", "wandb", "rsl-rl", "torchrl", "viser", "rerun", "isaacsim", "ov", "ovphysx", "ovrtx", "mimic", "teleop", "rlinf", "leapp", "all"]
 
@@ -6118,15 +6118,15 @@ wheels = [
 
 [[package]]
 name = "warp-lang"
-version = "1.17.0"
+version = "1.19.0.dev20261008"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "numpy" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:47cd93636828dd16e55eeb4e77a0e3547b5fb0f383000a3d228629df68f28fd8" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:5051271048da956a8b94e2db9771ce60ce9591a3ac5bb49037f3d6812d1eea00" },
-    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.17.0-py3-none-win_amd64.whl", hash = "sha256:ca35c82242a7553046f09023bbe56750b5c3d9af72625bd1a905a56d3189771d" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.19.0.dev20261008-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:b7590185a346838a43d26a431f6b968ad7bbda5a73cdf9c8814d35c24239a825" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.19.0.dev20261008-py3-none-manylinux_2_34_aarch64.whl", hash = "sha256:610590bda1125cbc5113650d1983fc92d5d1eb5a508e1bdb3663c8b4ef6910f4" },
+    { url = "https://pypi.nvidia.com/warp-lang/warp_lang-1.19.0.dev20261008-py3-none-win_amd64.whl", hash = "sha256:a14c4ab5d4f6f5e1175e61667250146f28fec8c9b5eda62b4b83c1ca650a1753" },
 ]
 
 [[package]]
