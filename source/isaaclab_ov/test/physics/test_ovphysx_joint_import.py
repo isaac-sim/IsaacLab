@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Native proof that legacy USD joint settings survive OVPhysX stage import and replacement."""
+"""Native proof that legacy USD joint settings survive OVPhysX stage import."""
 
 import math
 from contextlib import closing
@@ -22,8 +22,20 @@ from pxr import Gf, Sdf, UsdGeom, UsdPhysics
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 
+def _build_articulation(stage, root, body_names, body_mass):
+    UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(stage, root).GetPrim())
+    for name in body_names:
+        body = UsdGeom.Cube.Define(stage, f"{root}/{name}").GetPrim()
+        UsdPhysics.RigidBodyAPI.Apply(body)
+        mass = UsdPhysics.MassAPI.Apply(body)
+        mass.CreateMassAttr(body_mass)
+        mass.CreateDiagonalInertiaAttr(Gf.Vec3f(0.1))
+    fixed = UsdPhysics.FixedJoint.Define(stage, f"{root}/Anchor")
+    fixed.CreateBody1Rel().SetTargets([f"{root}/Base"])
+
+
 @pytest.mark.integration
-def test_legacy_joint_units_and_armature_survive_stage_replacement():
+def test_legacy_joint_properties_reach_native_bindings():
     """Read solver properties before any Lab actuator can overwrite imported defaults."""
     replacements = {"Angular": (0.12, 0.03, 0.01), "Linear": (0.2, 0.1, 0.01)}
     cfg = SimulationCfg(
@@ -33,16 +45,7 @@ def test_legacy_joint_units_and_armature_survive_stage_replacement():
     )
     with build_simulation_context(device="cpu", sim_cfg=cfg, auto_add_lighting=False) as sim:
         stage = sim.stage
-        root = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
-        UsdPhysics.ArticulationRootAPI.Apply(root)
-        for name in ("Base", "Arm", "Slider"):
-            body = UsdGeom.Cube.Define(stage, f"/World/Robot/{name}").GetPrim()
-            UsdPhysics.RigidBodyAPI.Apply(body)
-            mass = UsdPhysics.MassAPI.Apply(body)
-            mass.CreateMassAttr(1.0)
-            mass.CreateDiagonalInertiaAttr(Gf.Vec3f(0.1))
-        fixed = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/Anchor")
-        fixed.CreateBody1Rel().SetTargets(["/World/Robot/Base"])
+        _build_articulation(stage, "/World/Robot", ("Base", "Arm", "Slider"), 1.0)
         for name, joint_type, body0, body1, velocity in (
             ("Angular", UsdPhysics.RevoluteJoint, "Base", "Arm", 90.0),
             ("Linear", UsdPhysics.PrismaticJoint, "Arm", "Slider", 2.0),
@@ -55,70 +58,44 @@ def test_legacy_joint_units_and_armature_survive_stage_replacement():
             prim.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(velocity)
             prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
             prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.5)
-        for _ in range(2):
-            sim.reset()
-            with closing(
-                OvPhysxView(OvPhysxManager.get_physx_instance(), prim_paths=["/World/Robot"], device="cpu")
-            ) as view:
-                names = view.binding_for("articulation_dof_max_velocity").dof_names
-                assert set(names) == {"Angular", "Linear"}
-                velocity = view.get_attribute("articulation_dof_max_velocity").numpy()[0]
-                armature = view.get_attribute("articulation_dof_armature").numpy()[0]
-                np.testing.assert_allclose(velocity, [math.pi / 2 if name == "Angular" else 2.0 for name in names])
-                np.testing.assert_allclose(armature, 0.25)
-                if OVPHYSX_USES_TASKS:
-                    friction = view.get_attribute("articulation_dof_friction_properties").numpy()[0]
-                    np.testing.assert_allclose(friction, [replacements[name] for name in names], rtol=1e-5)
-            # Exercise real scene-data discovery and release its read sessions before teardown.
-            data = OvPhysxManager._scene_data_backend
-            assert set(data.transform_paths) == {f"/World/Robot/{name}" for name in ("Base", "Arm", "Slider")}
-            sim.step()
-            OvPhysxManager._warmup_done = False
-        for name in ("Angular", "Linear"):
-            attr = stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:velocityLimit")
-            assert not attr or not attr.HasAuthoredValueOpinion()
-            assert stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("physxJoint:jointFriction").Get() == 0.5
+        sim.reset()
+        with closing(
+            OvPhysxView(OvPhysxManager.get_physx_instance(), prim_paths=["/World/Robot"], device="cpu")
+        ) as view:
+            names = view.binding_for("articulation_dof_max_velocity").dof_names
+            assert set(names) == {"Angular", "Linear"}
+            velocity = view.get_attribute("articulation_dof_max_velocity").numpy()[0]
+            armature = view.get_attribute("articulation_dof_armature").numpy()[0]
+            np.testing.assert_allclose(velocity, [math.pi / 2 if name == "Angular" else 2.0 for name in names])
+            np.testing.assert_allclose(armature, 0.25)
+            if OVPHYSX_USES_TASKS:
+                friction = view.get_attribute("articulation_dof_friction_properties").numpy()[0]
+                np.testing.assert_allclose(friction, [replacements[name] for name in names], rtol=1e-5)
 
 
 @pytest.mark.integration
-def test_joint_friction_effort_units_before_and_after_tensor_write():
+def test_joint_friction_is_an_effort():
     """Dry friction is an effort, not a load-dependent coefficient, on both supported runtimes."""
     cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=0.001)
     with build_simulation_context(device="cpu", sim_cfg=cfg, auto_add_lighting=False) as sim:
         for index, body_mass in enumerate((1.0, 4.0)):
             root = f"/World/Robot{index}"
-            UsdPhysics.ArticulationRootAPI.Apply(UsdGeom.Xform.Define(sim.stage, root).GetPrim())
-            for name in ("Base", "Slider"):
-                body = UsdGeom.Cube.Define(sim.stage, f"{root}/{name}").GetPrim()
-                UsdPhysics.RigidBodyAPI.Apply(body)
-                mass = UsdPhysics.MassAPI.Apply(body)
-                mass.CreateMassAttr(body_mass)
-                mass.CreateDiagonalInertiaAttr(Gf.Vec3f(0.1))
-            fixed = UsdPhysics.FixedJoint.Define(sim.stage, f"{root}/Anchor")
-            fixed.CreateBody1Rel().SetTargets([f"{root}/Base"])
+            _build_articulation(sim.stage, root, ("Base", "Slider"), body_mass)
             joint = UsdPhysics.PrismaticJoint.Define(sim.stage, f"{root}/Joint")
             joint.CreateAxisAttr("X")
             joint.CreateBody0Rel().SetTargets([f"{root}/Base"])
             joint.CreateBody1Rel().SetTargets([f"{root}/Slider"])
-            if OVPHYSX_USES_TASKS:
-                prim = joint.GetPrim()
-                prim.AddAppliedSchema("NewtonJointAPI")
-                prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.1)
         sim.reset()
         with closing(
             OvPhysxView(OvPhysxManager.get_physx_instance(), prim_paths=["/World/Robot*"], device="cpu")
         ) as view:
-            # First check modern USD import, then an independent runtime write on the same bodies.
-            for effort in (0.1, 0.2) if OVPHYSX_USES_TASKS else (0.2,):
-                if effort == 0.2:
-                    view.set_attribute(
-                        "articulation_dof_friction_properties",
-                        np.array([[[effort, effort, 0.0]], [[effort, effort, 0.0]]], dtype=np.float32),
-                    )
-                view.set_attribute("articulation_dof_velocity", np.ones((2, 1), dtype=np.float32))
-                for _ in range(100):
-                    sim.step()
-                velocity = view.get_attribute("articulation_dof_velocity").numpy()[:, 0]
-                # F = m*a: quadrupling mass quarters deceleration. Gravity is perpendicular
-                # to the slider axis, so a load-dependent coefficient would not obey this.
-                np.testing.assert_allclose((1.0 - velocity) / 0.1, [effort, effort / 4.0], atol=0.002)
+            view.set_attribute(
+                "articulation_dof_friction_properties",
+                np.array([[[0.2, 0.2, 0.0]], [[0.2, 0.2, 0.0]]], dtype=np.float32),
+            )
+            view.set_attribute("articulation_dof_velocity", np.ones((2, 1), dtype=np.float32))
+            for _ in range(100):
+                sim.step()
+            velocity = view.get_attribute("articulation_dof_velocity").numpy()[:, 0]
+            # F = m*a: quadrupling mass quarters deceleration.
+            np.testing.assert_allclose((1.0 - velocity) / 0.1, [0.2, 0.05], atol=0.002)

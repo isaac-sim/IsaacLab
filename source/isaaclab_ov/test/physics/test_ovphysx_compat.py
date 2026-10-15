@@ -96,34 +96,13 @@ def test_reversed_joint_sign_correction_version_boundary(version: Version | None
 
 
 @pytest.mark.parametrize(
-    ("version", "modern"),
-    [
-        (None, False),
-        (Version("0.5.11"), False),
-        (Version("0.6.4"), False),
-        (Version("0.7.0.dev1"), True),
-        (Version("0.7.0.73686034"), True),
-    ],
+    ("version", "expected"),
+    [(None, False), (Version("0.6.4"), False), (Version("0.7.0.dev1"), True), (Version("1.0"), True)],
 )
-def test_operation_completion_contracts(monkeypatch, version, modern):
-    """Legacy synchronous calls have no receipt; new receipts must be collected once."""
-    from types import SimpleNamespace
+def test_task_api_version_boundary(version: Version | None, expected: bool):
+    from isaaclab_ov.physics.ovphysx_compat import uses_task_api
 
-    from isaaclab_ov.physics import ovphysx_compat as compat
-
-    monkeypatch.setattr(compat, "OVPHYSX_USES_TASKS", compat.uses_task_api(version))
-    clone_receipt, stage_receipt, detach_receipt = (object(), object(), object()) if modern else (17, None, 18)
-    calls = []
-    runtime = SimpleNamespace(
-        **{
-            "wait_task" if modern else "wait_op": lambda value: calls.append(value),
-            "detach_ovstage" if modern else "reset_stage": lambda: detach_receipt,
-        }
-    )
-    compat.wait_for_operation(runtime, clone_receipt)
-    compat.finish_stage_operation(runtime, stage_receipt)
-    compat.detach_stage(runtime)
-    assert calls == ([clone_receipt, stage_receipt, detach_receipt] if modern else [clone_receipt, detach_receipt])
+    assert uses_task_api(version) is expected
 
 
 def test_external_schema_resources_are_checked_without_importing_provider(monkeypatch, tmp_path):

@@ -380,6 +380,10 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
         )
         prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
         prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.035)
+    fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed").GetPrim()
+    fixed.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(100.0)
+    fixed.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
+    fixed.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.5)
     linear = stage.GetPrimAtPath("/Robot/Linear")
     linear.AddAppliedSchema("NewtonJointAPI")
     linear.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.75)
@@ -399,6 +403,9 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
     layer.ImportFromString(serialized)
     exported = Usd.Stage.Open(layer)
     for root in ("/Robot", "/Instance"):
+        fixed = exported.GetPrimAtPath(f"{root}/Fixed")
+        assert fixed.GetAttribute("physxJoint:maxJointVelocity").Get() == 100.0
+        assert not fixed.GetAttribute("newton:velocityLimit").HasAuthoredValueOpinion()
         for name, velocity in (("Angular", 90.0), ("Linear", 2.0)):
             prim = exported.GetPrimAtPath(f"{root}/{name}")
             attr = prim.GetAttribute("newton:velocityLimit")
@@ -426,20 +433,27 @@ def test_export_translates_legacy_joint_properties_without_editing_instances(mon
 
 
 @pytest.mark.parametrize(
-    ("property_name", "value", "joint_type", "message"),
+    ("property_name", "value", "joint_type", "message", "static_effort"),
     [
-        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "friction"),
-        ("physxJoint:armature", 0.25, "PhysicsFixedJoint", "armature"),
+        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "friction", None),
+        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "static effort", 0.05),
+        ("physxJoint:armature", 0.25, "Xform", "armature", None),
     ],
 )
-def test_export_rejects_unrepresentable_legacy_joint_properties(monkeypatch, property_name, value, joint_type, message):
+def test_export_rejects_unrepresentable_legacy_joint_properties(
+    monkeypatch, property_name, value, joint_type, message, static_effort
+):
     from isaaclab_ov.physics import ovphysx_compat
 
     monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", True)
     stage = Usd.Stage.CreateInMemory()
     prim = stage.DefinePrim("/Robot/Joint", joint_type)
     prim.CreateAttribute(property_name, Sdf.ValueTypeNames.Float).Set(value)
+    replacements = None
+    if static_effort is not None:
+        prim.CreateAttribute("physxJointAxis:angular:staticFrictionEffort", Sdf.ValueTypeNames.Float).Set(static_effort)
+        replacements = {"Joint": (0.2, 0.1, 0.01)}
     before = stage.GetRootLayer().ExportToString()
     with pytest.raises(ValueError, match=f"{message}.*(/Robot/Joint)|(/Robot/Joint).*{message}"):
-        _serialize_stage(stage, [], full_stage=True)
+        _serialize_stage(stage, [], full_stage=True, friction_replacements=replacements)
     assert stage.GetRootLayer().ExportToString() == before

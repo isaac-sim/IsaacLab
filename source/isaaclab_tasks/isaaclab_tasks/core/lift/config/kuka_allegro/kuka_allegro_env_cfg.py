@@ -12,7 +12,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
 
-from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
+from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG, KUKA_ALLEGRO_FRICTION_REPLACEMENTS
 
 from ... import lift_env_cfg as lift
 from ... import mdp
@@ -103,6 +103,14 @@ class KukaAllegroReorientRewardCfg(lift.RewardsCfg):
 
 
 @configclass
+class KukaAllegroPhysicsCfg(lift.PhysicsCfg):
+    """Lift physics presets with the Kuka-Allegro asset's friction migration profile."""
+
+    ovphysx = replace(lift.PhysicsCfg().ovphysx, legacy_joint_friction_replacements=KUKA_ALLEGRO_FRICTION_REPLACEMENTS)
+    physx = replace(lift.PhysicsCfg().physx, ovphysx=ovphysx)
+
+
+@configclass
 class KukaAllegroMixinCfg:
     """Kuka-Allegro specific scene, observation, action and reward terms, mixed into the task configurations."""
 
@@ -113,10 +121,7 @@ class KukaAllegroMixinCfg:
 
     def __post_init__(self):
         super().__post_init__()
-        # Seed the private 0.7 export with the existing hand actuator efforts. The
-        # Kit/0.6 paths keep their source opinions and runtime actuator settings.
-        for physics in (self.sim.physics.ovphysx, self.sim.physics.physx.ovphysx):
-            physics.legacy_joint_friction_replacements = {"(index|middle|ring|thumb)_joint_[0-3]": (0.01, 0.0, 0.0)}
+        self.sim.physics = KukaAllegroPhysicsCfg()
         self.commands.object_pose.body_name = "palm_link"
         events = self.events.conditional_reset.params["terms"]
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")

@@ -2034,7 +2034,7 @@ class Articulation(BaseArticulation):
         r"""Mask variant of :meth:`write_joint_friction_coefficient_to_sim_index`.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s`. Full data,
+            joint_friction_coeff: Static friction effort [N or N·m, depending on joint type]. Full data,
                 shape ``(num_instances, num_joints)``.  May be a scalar :class:`float`.
             joint_dynamic_friction_coeff: Dynamic friction.  ``None`` to preserve.
             joint_viscous_friction_coeff: Viscous friction.  ``None`` to preserve.

@@ -132,28 +132,6 @@ def detach_stage(physx: Any) -> None:
     wait_for_operation(physx, operation)
 
 
-def rigid_body_paths(physx: Any) -> list[str]:
-    """Resolve rigid body and articulation-link paths while their read sessions are alive."""
-    from ovphysx.types import SimObjectType
-
-    kinds = (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK)
-    body_paths = []
-    if OVPHYSX_USES_TASKS:
-        for kind in kinds:
-            with physx.read_sync(kind, ["mass"]) as bodies:
-                for group in bodies.groups:
-                    body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
-    else:
-        from ovstage import PathDictionary
-
-        with PathDictionary() as paths:
-            for kind in kinds:
-                with physx.read(kind, ["mass"]) as bodies:
-                    for group in bodies.groups:
-                        body_paths.extend(paths.get_path_strings(group.prim_list))
-    return body_paths
-
-
 def physx_schema_paths(ovphysx: Any) -> list[Path]:
     """Locate the selected runtime's schemas without importing the external USD plugin provider."""
     if not OVPHYSX_USES_TASKS:

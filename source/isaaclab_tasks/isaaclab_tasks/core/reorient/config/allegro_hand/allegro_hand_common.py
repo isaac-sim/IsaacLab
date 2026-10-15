@@ -23,7 +23,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
+from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG, ALLEGRO_HAND_FRICTION_REPLACEMENTS
 
 ALLEGRO_HAND_ROBOT_CFG = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
@@ -88,7 +88,7 @@ class PhysicsCfg(PresetCfg):
     )
     ovphysx = OvPhysxCfg(
         # Match the measured 0.6 runtime actuator efforts, not the USD coefficient (0.035).
-        legacy_joint_friction_replacements={"(index|middle|ring|thumb)_joint_[0-3]": (0.01, 0.0, 0.0)},
+        legacy_joint_friction_replacements=ALLEGRO_HAND_FRICTION_REPLACEMENTS,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp

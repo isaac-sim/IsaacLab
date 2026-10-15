@@ -26,7 +26,11 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG, SHADOW_HAND_PHYSX_CFG
+from isaaclab_assets.robots.shadow_hand import (
+    SHADOW_HAND_FRICTION_REPLACEMENTS,
+    SHADOW_HAND_NEWTON_CFG,
+    SHADOW_HAND_PHYSX_CFG,
+)
 
 from ... import mdp
 
@@ -237,7 +241,7 @@ class PhysicsCfg(PresetCfg):
     )
     ovphysx = OvPhysxCfg(
         # Both driven and tendon joints use these measured 0.6 runtime efforts.
-        legacy_joint_friction_replacements={"rh_(WR|FF|MF|RF|LF|TH)J[1-5]": (0.01, 0.0, 0.0)},
+        legacy_joint_friction_replacements=SHADOW_HAND_FRICTION_REPLACEMENTS,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp

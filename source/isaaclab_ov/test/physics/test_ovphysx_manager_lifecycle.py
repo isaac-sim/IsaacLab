@@ -107,29 +107,34 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths", "schema_root", "has_registration_api"),
+    ("registered_names", "expected_paths", "schema_root", "has_registration_api", "modern"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True),
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True, False),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True, False),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True, False),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False, False),
         pytest.param(
             ["physxSchema"],
             ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
             "/schemas",
             None,
+            False,
             id="ovstage-import-unavailable",
         ),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], None, True, True),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api
+    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api, modern
 ):
+    monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     manager = manager_module.OvPhysxManager
     schema_paths = [
         Path("/schemas/PhysxSchema/resources"),
         Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
     ]
+    if modern:
+        monkeypatch.setattr(manager_module.ovphysx_compat, "physx_schema_paths", lambda _: schema_paths)
     host_registrations = []
     ovstage_registrations = []
 
@@ -164,7 +169,9 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
 
     expected_ovstage_registrations = []
     if has_registration_api:
-        if schema_root is not None:
+        if modern:
+            expected_ovstage_registrations.append([str(path) for path in schema_paths])
+        elif schema_root is not None:
             expected_ovstage_registrations.append(schema_root)
         expected_ovstage_registrations.append(newton_schema_root)
     assert ovstage_registrations == expected_ovstage_registrations

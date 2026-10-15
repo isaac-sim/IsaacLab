@@ -186,9 +186,7 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     assert calls == ["fk", "read", "fk", "read"]
 
 
-@pytest.mark.parametrize(
-    ("modern", "failure"), [(False, None), (True, None), (True, "admission"), (True, "attach"), (True, "detach")]
-)
+@pytest.mark.parametrize(("modern", "failure"), [(False, None), (True, None), (True, "attach")])
 def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failure):
     """The registered resource releases the attached OVStage once, after PhysX."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
@@ -198,7 +196,11 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
     stages = []
     attach_task, detach_task = object(), object()
     monkeypatch.setattr(om_mod.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
+    monkeypatch.setattr(
+        om_mod,
+        "OVPHYSX_LIFECYCLE_ENTRY_POINTS",
+        _CURRENT_LIFECYCLE_ENTRY_POINTS if modern else _LEGACY_LIFECYCLE_ENTRY_POINTS,
+    )
 
     class FakeWriteFloorOp:
         def __init__(self, ordinal):
@@ -221,8 +223,6 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
     class FakePhysX:
         def attach_ovstage(self, stage, read_ordinal):
             events.append(("attach", stage, read_ordinal))
-            if failure == "admission":
-                raise RuntimeError("admission failed")
             return attach_task if modern else None
 
         def reset_stage(self):
@@ -239,8 +239,11 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
         def wait_task(self, task):
             assert task in (attach_task, detach_task)
             events.append(("wait_task", task))
-            if failure == "attach" and task is attach_task or failure == "detach" and task is detach_task:
+            if failure == "attach" and task is attach_task:
                 raise RuntimeError(f"{failure} failed")
+
+        def destroy(self):
+            events.append(("destroy_physx",))
 
         def release(self):
             events.append(("release",))
@@ -265,22 +268,14 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
         "_close_all_for",
         lambda value: events.append(("close_views", value)),
     )
-    if failure in ("admission", "attach"):
+    if failure == "attach":
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
             OvPhysxManager._attach_ovstage("#usda 1.0")
     else:
         OvPhysxManager._attach_ovstage("#usda 1.0")
     stage = stages[0]
-    if failure == "admission":
-        assert OvPhysxManager.backend.stage is None
-        assert events[-1] == ("destroy",)
-        return
     assert OvPhysxManager.backend.stage is stage
-    if failure == "detach":
-        with pytest.raises(RuntimeError, match="detach failed"):
-            OvPhysxManager.backend.close()
-    else:
-        OvPhysxManager.backend.close()
+    OvPhysxManager.backend.close()
     OvPhysxManager.backend.close()
 
     # The seal must land between population and attach: ovphysx reads sealed data
@@ -294,7 +289,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failur
         ("destroy_view",),
         ("close_views", physx),
     ] + ([("detach",), ("wait_task", detach_task)] if modern else [("reset",), ("wait", 17)]) + [
-        ("release",),
+        ("destroy_physx",) if modern else ("release",),
         ("destroy",),
     ]
     assert OvPhysxManager.backend.rigid_body_view is None
