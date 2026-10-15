@@ -423,8 +423,11 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
     assert scene.reordered.root_view.prim_paths[0] == "/World/Reordered/Env_0/Robot/base"
 
     ordered, floating = scene.ordered, scene.floating
-    assert tuple(ordered.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
-    assert tuple(ordered.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    # Isaac Sim PhysX visits sibling links in authored joint-prim order; "physx" resolves the OVPhysX order.
+    assert tuple(ordered.backend_joint_names) == ("right_shoulder", "left_shoulder", "right_elbow", "left_elbow")
+    assert tuple(ordered.backend_body_names) == ("base", "right_upper", "left_upper", "right_tip", "left_tip")
+    assert get_articulation_name_ordering(ordered, "physx", "joint") == BRANCHING_PHYSX_JOINT_NAMES
+    assert get_articulation_name_ordering(ordered, "physx", "body") == BRANCHING_PHYSX_BODY_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
     assert get_articulation_name_ordering(ordered, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
     assert tuple(ordered.joint_names) == BRANCHING_MJWARP_JOINT_NAMES
