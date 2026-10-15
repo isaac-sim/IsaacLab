@@ -59,7 +59,9 @@ def test_manager_history_and_action_reflection(env):
     """Preserve history order while reflecting polar/axial vectors, orientations, and raw actions."""
     env.observation_manager.compute(update_history=True)
     env.vectors += 10
-    obs = TensorDict(env.observation_manager.compute(update_history=True), batch_size=[1])
+    obs = TensorDict(
+        env.observation_manager.compute(update_history=True), batch_size=[1], device=env.device, names=["env"]
+    )
     original = obs.clone()
     actions = torch.tensor([[2.0, 3.0]])
     augmented, augmented_actions = compute_mirrored_states(env, obs, actions)
@@ -69,7 +71,10 @@ def test_manager_history_and_action_reflection(env):
     torch.testing.assert_close(augmented["critic", "angular_velocity"][1], torch.tensor([-11.0, 12.0, -13.0]))
     torch.testing.assert_close(augmented_actions, torch.tensor([[2.0, 3.0], [-3.0, -2.0]]))
     reflection = MirrorAugmentation(env)
-    restored = reflection.mirror_observations(reflection.mirror_observations(obs))
+    reflected = reflection.mirror_observations(obs)
+    assert reflected.device == obs.device
+    assert reflected.names == obs.names
+    restored = reflection.mirror_observations(reflected)
     for key in obs.keys(include_nested=True, leaves_only=True):
         torch.testing.assert_close(obs[key], original[key])
         torch.testing.assert_close(augmented[key][:1], original[key])

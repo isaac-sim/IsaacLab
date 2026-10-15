@@ -155,7 +155,7 @@ class MirrorAugmentation:
     def mirror_observations(self, obs: TensorDict) -> TensorDict:
         """Reflect each supplied group using its active manager terms and shapes."""
         manager = self._observation_manager
-        result = TensorDict({}, batch_size=obs.batch_size)
+        result = obs.empty(recurse=True)
         for group_name in obs.keys():
             if group_name not in manager.active_terms:
                 raise ValueError(f"Unknown observation group {group_name!r}.")
@@ -188,7 +188,6 @@ class MirrorAugmentation:
                 if set(obs[group_name].keys()) != set(names):
                     raise ValueError(f"Observation group {group_name!r} must contain all its active terms.")
                 terms = [obs[group_name][name] for name in names]
-                result[group_name] = TensorDict({}, batch_size=obs.batch_size)
             mirrored = []
             for name, shape, value in zip(names, shapes, terms):
                 if not time_major and tuple(value.shape[obs.batch_dims :]) != tuple(shape):
