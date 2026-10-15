@@ -742,6 +742,9 @@ class NewtonVisualizerBase(BaseVisualizer):
 class NewtonGLVisualizer(NewtonVisualizerBase):
     """Newton model rendering, picking, and contact overlays used by the GL visualizer."""
 
+    _viewer_class: type[NewtonViewerGL] = NewtonViewerGL
+    """Native viewer implementation; subclasses may extend particle logging."""
+
     @property
     def visual_material_writer(self):
         """Return the shared Newton model color-writer factory."""
@@ -828,7 +831,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if not self._runtime_headless:
             # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
             write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
-        self._viewer = NewtonViewerGL(
+        self._viewer = self._viewer_class(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
             headless=self._runtime_headless,

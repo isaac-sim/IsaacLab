@@ -1,0 +1,1 @@
+* Added G1 moving-patch MPM locomotion on generated rough terrain with material randomization, density-consistent particle recycling, recovery-aware standing rewards, and OpenGL/RTX particle visualization.

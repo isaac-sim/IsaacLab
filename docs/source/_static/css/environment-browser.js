@@ -82,6 +82,7 @@
             ["IsaacContrib-Forge-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Forge-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
             ["IsaacContrib-Franka-Pour", "rsl_rl", "", "", "", "environment-previews/franka_pour.jpg"],
+            ["IsaacContrib-G1-Terrain", "", "isaacsim_physx,newton_mjwarp", "", "granular,platforms,ramps", "", true, {}, {}, "", null, ["||", "||granular", "||platforms", "||ramps", "isaacsim_physx||", "isaacsim_physx||granular", "isaacsim_physx||platforms", "isaacsim_physx||ramps", "newton_mjwarp||", "newton_mjwarp||granular", "newton_mjwarp||platforms", "newton_mjwarp||ramps"]],
             ["IsaacContrib-Humanoid-AMP-Dance-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Run-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Walk-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
@@ -151,6 +152,8 @@
             ["IsaacContrib-Velocity-Rough-MicroDuck", "rsl_rl", "", "", "backlash", "environment-previews/microduck_flat.jpg", false, {}, {}, "", null, ["||", "||backlash"]],
             ["IsaacContrib-Velocity-Rough-UnitreeA1", "rsl_rl,skrl,sb3", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/a1_rough.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
             ["IsaacContrib-Velocity-Rough-UnitreeGo1", "rsl_rl,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/locomotion/go1_rough.jpg", false, {}, {}, "", null, ["||", "isaacsim_physx||", "newton_kamino||", "newton_mjwarp||", "ovphysx||"]],
+            ["IsaacContrib-Velocity-Sand-G1-29dof-MPM-MovingPatch", "rsl_rl", "mjwarp_mpm_proxy", "", "", "", false, {}, {}, "", null, ["||", "mjwarp_mpm_proxy||"]],
+            ["IsaacContrib-Velocity-Sand-G1-29dof-MPM-MovingPatch-Play", "rsl_rl", "mjwarp_mpm_proxy", "", "", "", false, {}, {}, "", null, ["||", "mjwarp_mpm_proxy||"]],
         ];
         // END-AUTO-GENERATED: environment-browser-task-rows
 
