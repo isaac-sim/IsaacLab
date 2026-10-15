@@ -24,13 +24,6 @@ import signal
 import sys
 from typing import Literal
 
-try:
-    import isaacsim  # noqa: F401
-except ModuleNotFoundError:
-    isaacsim = None
-
-SimulationApp = getattr(isaacsim, "SimulationApp", None)
-
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager
@@ -38,6 +31,28 @@ from isaaclab.app.sim_launcher import SimulationLauncher, _parse_visualizer_csv,
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+
+SimulationApp: type | None = None
+_isaac_sim_import_attempted = False
+
+
+def _load_simulation_app() -> type | None:
+    """Import and return Isaac Sim's ``SimulationApp`` only when Kit is requested."""
+    global SimulationApp, _isaac_sim_import_attempted
+
+    if SimulationApp is not None or _isaac_sim_import_attempted:
+        return SimulationApp
+
+    try:
+        import isaacsim
+    except ModuleNotFoundError:
+        _isaac_sim_import_attempted = True
+        return None
+
+    _isaac_sim_import_attempted = True
+    SimulationApp = getattr(isaacsim, "SimulationApp", None)
+    return SimulationApp
+
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -265,7 +280,7 @@ class KitLauncher(SimulationLauncher):
         full Isaac Sim installation, before and after Kit starts. Use
         :func:`~isaaclab.utils.version.has_kit` to check whether Kit is currently running.
         """
-        return SimulationApp is not None
+        return _load_simulation_app() is not None
 
     @staticmethod
     def add_launcher_args(parser: argparse.ArgumentParser) -> None:
