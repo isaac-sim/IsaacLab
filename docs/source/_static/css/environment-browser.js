@@ -82,6 +82,7 @@
             ["IsaacContrib-Forge-NutThread-Direct", "rl_games", "", "", "", "environment-previews/nut_thread.jpg"],
             ["IsaacContrib-Forge-PegInsert-Direct", "rl_games", "", "", "", "environment-previews/peg_insert.jpg"],
             ["IsaacContrib-Franka-Pour", "rsl_rl", "", "", "", "environment-previews/franka_pour.jpg"],
+            ["IsaacContrib-G1-Terrain", "", "isaacsim_physx,newton_mjwarp", "", "granular,platforms,ramps", "", true, {}, {}, "", null, ["||", "||granular", "||platforms", "||ramps", "isaacsim_physx||", "isaacsim_physx||granular", "isaacsim_physx||platforms", "isaacsim_physx||ramps", "newton_mjwarp||", "newton_mjwarp||granular", "newton_mjwarp||platforms", "newton_mjwarp||ramps"]],
             ["IsaacContrib-Humanoid-AMP-Dance-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Run-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
             ["IsaacContrib-Humanoid-AMP-Walk-Direct", "skrl", "", "", "", "environment-previews/humanoid_amp.jpg"],
