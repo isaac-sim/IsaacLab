@@ -169,6 +169,60 @@ Command Builder
      </div>
    </div>
 
+.. _demo-sonic:
+
+SONIC on gravel and sand
+------------------------
+
+The SONIC demo runs a G1 robot over gravel and sand with Newton MJWarp and MPM,
+or Isaac Sim PhysX and PBD. It requires an NVIDIA GPU. Newton defaults to Newton GL;
+PhysX defaults to Kit. Pass ``--viz`` to select another compatible visualizer or
+``--viz none`` to run without an interactive viewer.
+
+From the repository root, install the additional packages used to download and run
+the released ONNX models:
+
+.. code-block:: bash
+
+   uv sync
+   uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
+
+The demo downloads the planner and tracker from
+`nvidia/GEAR-SONIC <https://huggingface.co/nvidia/GEAR-SONIC>`_ at a pinned revision.
+The robot USD is downloaded from the public Isaac asset server.
+
+Run either backend without recording:
+
+.. code-block:: bash
+
+   uv run isaaclab demo sonic --physics newton_mjwarp --viz newton_gl
+
+   uv run --extra isaacsim isaaclab demo sonic --physics isaacsim_physx --viz kit
+
+Recording is opt-in. Add the ``video`` dependency extra and pass ``--video``:
+
+.. code-block:: bash
+
+   uv run --extra video isaaclab demo sonic --physics newton_mjwarp \
+     --viz newton_gl --video --output logs/sonic_newton
+
+   uv run --extra isaacsim --extra video isaaclab demo sonic --physics isaacsim_physx \
+     --viz kit --video --output logs/sonic_physx
+
+Capture-capable visualizers are recorded directly. With Rerun, Viser, or ``--viz none``,
+the recorder adds a backend-compatible headless capture visualizer without changing the
+interactive selection. Clips are saved as ``sonic_0000.mp4`` in the selected output
+directory. Recording advances in simulation time, so the full MPM scene can take
+substantially longer than the video duration. Pass ``--seconds`` to change the simulation
+duration.
+
+Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC
+inference. PhysX keeps state buffers on the CPU for USD readback while particle
+simulation uses the selected GPU.
+
+``uv run`` preserves the manually installed packages. If you run ``uv sync`` again,
+repeat the ``uv pip install`` command before launching SONIC.
+
 .. _tablecloth-example:
 
 Focused examples
