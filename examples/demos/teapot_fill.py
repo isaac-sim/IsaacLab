@@ -205,7 +205,7 @@ CAMERA_TARGET = (0.0, 0.0, TABLE_TOP_Z + 0.10)
 if ROBOT_ENABLED:
     # The optional robot example lives outside the curated demos.
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from rizon_sharpa_teapot import BOWL_BASE_POS, ROBOT_BASE_POS, pose_at_time
+    from rizon_sharpa_teapot import BOWL_BASE_POS, HOLD_TIME, ROBOT_BASE_POS, pose_at_time
 
     BOWL_WORLD_TOP_Z = BOWL_BASE_POS[2] + BOWL_SCALE * BOWL_LOCAL_Z_MAX
 
