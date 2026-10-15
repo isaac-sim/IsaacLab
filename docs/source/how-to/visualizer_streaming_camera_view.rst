@@ -169,6 +169,8 @@ Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXR
 configurations share one renderer and its scene. ``NewtonRTXVisualizerCfg.renderer_cfg`` selects
 the renderer for generated perspective cameras; explicitly selected scene cameras retain their
 own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
+``isaaclab_ov.stage.OvstageBackend`` remains available for downstream consumers that need an
+independent native stage. Its ``populate(stage, plan)`` method imports and clones a declared scene.
 
 The camera owns pose, calibration, image buffers, capture, and cleanup. Window navigation calls
 ``Camera.set_world_poses`` and ``Camera.set_intrinsic_matrices``; image reads use ``Camera.data``.

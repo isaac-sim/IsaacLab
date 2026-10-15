@@ -17,10 +17,15 @@ import numpy as np
 import ovstage
 import warp as wp
 
+from pxr import Usd
+
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner.clone_plan import path as cloner_path
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
 
 from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
+from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
 
 logger = logging.getLogger(__name__)
 
@@ -175,3 +180,39 @@ def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) ->
                 ).wait()
         finally:
             paths.destroy_path_list(env_paths)
+
+
+@configclass
+class OvstageBackendCfg(BackendCfg):
+    """Identify a simulation-owned native stage for consumers that borrow scene data."""
+
+    class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
+    viewer_id: int = 0
+
+
+class OvstageBackend:
+    """Own a native stage independently of a renderer or window."""
+
+    def __init__(self, cfg: OvstageBackendCfg):
+        """Create an empty stage for the configured consumer."""
+        self.stage = create_ovstage("isaaclab.viewer")
+        self._populated = False
+
+    def populate(self, stage: Usd.Stage, plan: ClonePlan) -> None:
+        """Export and clone the declared scene before consumers attach to it."""
+        if self._populated:
+            return
+        num_envs = len(plan.topology.world_prototype_layout)
+        sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
+        usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
+        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
+        if num_envs > 1:
+            ovstage_replicate(self.stage, plan, ordinal=1)
+        self.stage.advance_write_floor(1).wait()
+        self._populated = True
+
+    def close(self) -> None:
+        """Release the stage after its consumers have detached."""
+        if self.stage is not None:
+            self.stage.destroy()
+            self.stage = None
