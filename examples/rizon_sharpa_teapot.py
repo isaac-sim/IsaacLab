@@ -9,9 +9,9 @@ Run with ``uv run isaaclab example rizon-sharpa-teapot``. This experimental
 example uses a fixed index grasp and motion.
 
 
-Keep ``rizon4s_sharpa_no_spheres_generated.usd`` beside ``textures/`` and set
-``ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`` to that directory. The example checks
-the USD and its textures against the pinned bundle digest before launching.
+The pinned robot USD and textures are downloaded and verified on first use.
+Set ``ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT`` to an existing bundle directory
+to use it without downloading.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import json
 import math
 import os
 import runpy
+import shutil
 import sys
 import tempfile
 from collections.abc import Callable
@@ -183,6 +184,15 @@ ASSET_REVISION = "d0dbd1ddaefc4996db546949a7dfb37e39afcbeb"
 ASSET_BUNDLE_SHA256 = "ae5d22792b44fb6d29a7691d4276bc061a5529132f01e7a0eb5795a482595d63"
 ASSET_USD_NAME = "rizon4s_sharpa_no_spheres_generated.usd"
 ASSET_ROOT_ENV = "ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT"
+_ASSET_RELATIVE_PATHS = (
+    ASSET_USD_NAME,
+    "textures/t_Rizon4s_EmissiveMask.1001.png",
+    "textures/t_Rizon4s_EmissiveMask.1002.png",
+    *[f"textures/t_Rizon4s_{channel}.{tile}.png" for channel in ("alb", "nor", "orm") for tile in (1001, 1002, 1003)],
+    "textures/t_Sharpa_alb.png",
+    "textures/t_Sharpa_nor.png",
+    "textures/t_Sharpa_orm.png",
+)
 PALM_BODY_NAME = "r_palm_ctrl"
 """Canonical palm: +X toward the knuckles, +Z out of the palm."""
 
@@ -263,7 +273,7 @@ _THUMB_CONTACT_NORMAL = np.array((-0.320969277, 0.308200555, 0.895539581))
 
 
 def configured_asset_path() -> Path:
-    """Resolve and verify the pinned licensed robot bundle in the user's cache."""
+    """Download the pinned robot bundle or verify an explicitly configured local copy."""
     configured = os.environ.get(ASSET_ROOT_ENV)
     root = (
         Path(configured).expanduser()
@@ -272,6 +282,31 @@ def configured_asset_path() -> Path:
     )
     if root.suffix.lower() in (".usd", ".usda", ".usdc"):
         root = root.parent
+    if not configured:
+        from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, read_file
+
+        source = f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaRJ45/Robots/Rizon4sSharpa"
+        root.parent.mkdir(parents=True, exist_ok=True)
+        with FileLock(f"{root}.lock"):
+            missing = [relative for relative in _ASSET_RELATIVE_PATHS if not (root / relative).is_file()]
+            if missing:
+                with tempfile.TemporaryDirectory(dir=root.parent) as temporary:
+                    staging = Path(temporary)
+                    for relative in _ASSET_RELATIVE_PATHS:
+                        target = staging / relative
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        if (root / relative).is_file():
+                            shutil.copyfile(root / relative, target)
+                        else:
+                            target.write_bytes(read_file(f"{source}/{relative}").getbuffer())
+                    _verify_asset_bundle(staging.resolve())
+                    if not root.exists():
+                        staging.rename(root)
+                    else:
+                        for relative in missing:
+                            target = root / relative
+                            target.parent.mkdir(parents=True, exist_ok=True)
+                            (staging / relative).replace(target)
     path = root / ASSET_USD_NAME
     _verify_asset_bundle(root.resolve())
     return path
@@ -528,23 +563,14 @@ def _prepared_robot_path(source: Path) -> Path:
 
 @lru_cache(maxsize=4)
 def _verify_asset_bundle(root: Path) -> None:
-    """Verify the pinned robot bundle without copying licensed assets."""
-    texture_names = [
-        "t_Rizon4s_EmissiveMask.1001.png",
-        "t_Rizon4s_EmissiveMask.1002.png",
-        *[f"t_Rizon4s_{channel}.{tile}.png" for channel in ("alb", "nor", "orm") for tile in (1001, 1002, 1003)],
-        "t_Sharpa_alb.png",
-        "t_Sharpa_nor.png",
-        "t_Sharpa_orm.png",
-    ]
+    """Verify the pinned robot USD and textures without modifying them."""
     digest = hashlib.sha256()
-    for relative_path in [ASSET_USD_NAME, *[f"textures/{name}" for name in texture_names]]:
+    for relative_path in _ASSET_RELATIVE_PATHS:
         path = root / relative_path
         if not path.is_file():
             raise FileNotFoundError(
                 f"Missing Rizon/Sharpa asset: {path}. Set {ASSET_ROOT_ENV} to the licensed bundle directory "
-                f"containing {ASSET_USD_NAME} and textures/. See the prerequisites in "
-                "examples/rizon_sharpa_teapot.py."
+                f"containing {ASSET_USD_NAME} and textures/."
             )
         with path.open("rb") as stream:
             file_digest = hashlib.file_digest(stream, "sha256").hexdigest()
