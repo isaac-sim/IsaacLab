@@ -545,10 +545,12 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton G
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
-views.
+views. In **Newton GL** a perspective view can also be a *task view* that follows a robot or frames an
+environment, rendered by the viewer itself, so the interactive view stays free; select it in **Camera View**
+or record it with ``--video viz:newton_gl:tracking``.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
-sources, troubleshooting, migration from generated cameras, and step-by-step examples.
+sources, task views that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
 
 
 Visualization Markers
@@ -725,6 +727,7 @@ step, running with ``--viz kit``:
 
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
+    # Kit moves its interactive viewport itself; Newton GL offers a separate task view instead.
     sim_cfg.visualizer_cfgs = [
         KitVisualizerCfg(
             origin_type="asset",

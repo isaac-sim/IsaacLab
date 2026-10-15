@@ -8,8 +8,8 @@ Streaming a camera view in a visualizer
 .. currentmodule:: isaaclab
 
 This guide shows how to show ground-truth camera frames from many environments in one live
-panel of a visualizer. For how the view works and which visualizers support it, see
-:ref:`visualization-streaming-camera-view`.
+panel of a visualizer, and how to add a view that follows a robot (see :ref:`how-to-visualizer-task-views`).
+For how the view works and which visualizers support it, see :ref:`visualization-streaming-camera-view`.
 
 
 Sharing a view with recording
@@ -123,6 +123,8 @@ for dual monitoring.
 **Newton GL and Newton RTX** have a **Camera View** selector in the sidebar. Selecting a scene camera displays
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
+A perspective entry that follows a robot or frames an environment is a task view and is named for what it does,
+such as ``Following robot (env 0)`` or ``Environment 0``; see :ref:`how-to-visualizer-task-views`.
 
 Without an explicit ``cameras`` list, the viewer starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. An explicit
