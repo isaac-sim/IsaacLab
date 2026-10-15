@@ -31,9 +31,14 @@ from typing import Any
 
 import torch
 
-from pxr import Sdf, Usd, UsdPhysics
+from pxr import Sdf, Usd, UsdPhysics, Vt
 
-from ...actuators.actuator_bam_cfg import BAM_POSITION_BACKLASH_API, BamActuatorCfg
+from ...actuators.actuator_bam_cfg import (
+    BAM_POSITION_BACKLASH_API,
+    BAM_STIFF_SOLIMP_FRICTION,
+    BAM_STIFF_SOLREF_FRICTION,
+    BamActuatorCfg,
+)
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
@@ -346,10 +351,15 @@ def author_actuator_prims(
             elif is_bam:
                 schemas.append("NewtonBAMControlAPI")
                 attrs.update(bam_attrs)
+                joint_prim = stage.GetPrimAtPath(joint_prim_path)
                 # Allocate the friction constraint; Isaac Lab overwrites this seed before each solve.
-                stage.GetPrimAtPath(joint_prim_path).CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(
-                    1.0
-                )
+                joint_prim.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(1.0)
+                if cfg.stiff_frictionloss:
+                    for name, value in (
+                        ("mjc:solreffriction", BAM_STIFF_SOLREF_FRICTION),
+                        ("mjc:solimpfriction", BAM_STIFF_SOLIMP_FRICTION),
+                    ):
+                        joint_prim.CreateAttribute(name, Sdf.ValueTypeNames.DoubleArray).Set(Vt.DoubleArray(value))
             else:
                 schemas.append("NewtonPDControlAPI")
                 attrs["kp"] = stiffness_map.get(jname, 0.0)
