@@ -106,6 +106,7 @@ class HandoverEnv(DirectMARLEnv):
         self._goal = HandoverGoal(
             torch.stack((self.right_hand.data.default_root_pose.torch, self.left_hand.data.default_root_pose.torch)),
             self.cfg.goal_position_offset,
+            randomize_start=self.cfg.randomize_start_hand,
         )
         self.goal_pos = self._goal.position
         self._goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
@@ -115,6 +116,13 @@ class HandoverEnv(DirectMARLEnv):
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
+        prev = getattr(self, "actions", None)
+        self._action_rate = {
+            agent: torch.zeros(self.num_envs, device=self.device)
+            if prev is None
+            else torch.sum(torch.square(act - prev[agent]), dim=-1)
+            for agent, act in actions.items()
+        }
         self.actions = actions
 
     def _apply_action(self) -> None:
@@ -235,7 +243,8 @@ class HandoverEnv(DirectMARLEnv):
         self._visualize_goal()
         self.extras["log"]["Diagnostics/success_steps"] = self._goal.success_steps.float().mean()
 
-        return {"right_hand": rew_dist, "left_hand": rew_dist}
+        scale = self.cfg.action_rate_penalty_scale
+        return {agent: rew_dist - scale * self._action_rate[agent] for agent in ("right_hand", "left_hand")}
 
     def _visualize_goal(self) -> None:
         """Draw the current goals."""
@@ -268,14 +277,23 @@ class HandoverEnv(DirectMARLEnv):
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
 
-        # reset goals
+        # reset goals; the ball starts in the hand opposite the first goal
         self._reset_target_pose(env_ids)
+        goal_left = self._goal.left[env_ids]
 
         # reset object
         object_default_pose = self.object.data.default_root_pose.torch.clone()[env_ids]
         object_default_vel = self.object.data.default_root_vel.torch.clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
 
+        # the hands are a half turn apart about the vertical axis through their midpoint, so the same pose
+        # relative to the left hand is the right-hand pose mirrored through that axis
+        hands_xy = (
+            self.right_hand.data.default_root_pose.torch[env_ids, :2] + self.left_hand.data.default_root_pose.torch[env_ids, :2]
+        )
+        object_default_pose[:, :2] = torch.where(
+            goal_left.unsqueeze(-1), object_default_pose[:, :2], hands_xy - object_default_pose[:, :2]
+        )
         object_default_pose[:, 0:3] = (
             object_default_pose[:, 0:3] + self.cfg.reset_position_noise * pos_noise + self.scene.env_origins[env_ids]
         )

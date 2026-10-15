@@ -215,5 +215,9 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     """Cumulative steps inside the success distance required to switch goals; must be positive."""
     goal_position_offset: tuple[float, float, float] = GOAL_POSITION_OFFSET
     """Shared goal offset in each hand's local root frame [m], resolved once at initialization."""
+    randomize_start_hand: bool = True
+    """Start each episode with the ball in a random hand, the first goal at the other; otherwise always right to left."""
     # reward-related scales
     dist_reward_scale = 20.0
+    action_rate_penalty_scale: float = 1e-3
+    """Per-hand penalty on the squared change of its actions between policy steps."""

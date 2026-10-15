@@ -57,8 +57,14 @@ on this template; configclass deep-copies defaults, so sharing the instance is s
 class HandoverGoal:
     """Track alternating goal positions and cumulative success steps for both workflows."""
 
-    def __init__(self, hand_root_poses: torch.Tensor, position_offset: tuple[float, float, float]):
-        """Initialize from right/left hand poses of shape (2, num_envs, 7), in environment frames."""
+    def __init__(
+        self, hand_root_poses: torch.Tensor, position_offset: tuple[float, float, float], randomize_start: bool = False
+    ):
+        """Initialize from right/left hand poses of shape (2, num_envs, 7), in environment frames.
+
+        With ``randomize_start``, each episode's first goal is at a random hand instead of the left hand.
+        """
+        self._randomize_start = randomize_start
         num_envs = hand_root_poses.shape[1]
         device = hand_root_poses.device
         offset = torch.tensor(position_offset, device=device).expand(2, num_envs, 3)
@@ -84,9 +90,18 @@ class HandoverGoal:
         torch.where(self._left.unsqueeze(-1), self._positions[1], self._positions[0], out=self.position)
         return switched
 
+    @property
+    def left(self) -> torch.Tensor:
+        """Whether each environment's current goal is at the left hand."""
+        return self._left
+
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
-        """Start a new episode with the left-hand goal and no success steps or transfers."""
+        """Start a new episode with no success steps or transfers, its first goal at the left or a random hand."""
         index_fill_(self._left, env_ids, True)
+        if self._randomize_start:
+            self._left[env_ids] = torch.rand(self._left[env_ids].shape, device=self._left.device) < 0.5
         index_fill_(self.success_steps, env_ids, 0)
-        self.position[env_ids] = self._positions[1, env_ids]
+        self.position[env_ids] = torch.where(
+            self._left[env_ids].unsqueeze(-1), self._positions[1, env_ids], self._positions[0, env_ids]
+        )
         self.success.clear(env_ids, skip_next_update=torch.zeros_like(self.success_steps[env_ids], dtype=torch.bool))

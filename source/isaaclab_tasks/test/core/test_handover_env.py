@@ -39,6 +39,25 @@ def test_handover_goal_update_does_not_synchronize(device):
     torch.testing.assert_close(goal.position.cpu(), torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_handover_goal_random_start_places_first_goal_at_either_hand(device):
+    """With a random start, reset draws each episode's first goal side and the goal position follows it."""
+    num_envs = 64
+    # Right hand at the origin and left hand 1 m along x, both unrotated.
+    poses = torch.zeros((2, num_envs, 7), device=device)
+    poses[1, :, 0] = 1.0
+    poses[..., 6] = 1.0
+    goal = HandoverGoal(poses, (0.0, 0.0, 0.0), randomize_start=True)
+    torch.manual_seed(0)
+    goal.reset(slice(None))
+    assert 0 < int(goal.left.sum()) < num_envs
+    torch.testing.assert_close(goal.position[:, 0], goal.left.float())
+
+    fixed = HandoverGoal(poses, (0.0, 0.0, 0.0))
+    fixed.reset(slice(None))
+    assert bool(fixed.left.all())
+
+
 @pytest.mark.parametrize("task_name", ("Isaac-Shadow-Handover-Direct", "Isaac-Shadow-Handover"))
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_handover_alternates_after_cumulative_success_steps_and_resets_one_episode(task_name, device):
@@ -48,6 +67,8 @@ def test_handover_alternates_after_cumulative_success_steps_and_resets_one_episo
     goal_cfg = cfg if direct else cfg.commands.object_pose
     goal_cfg.success_steps_required = 3
     if direct:
+        # the assertions below follow the fixed right-to-left first transfer
+        cfg.randomize_start_hand = False
         cfg.reset_position_noise = 0.0
         cfg.reset_dof_pos_noise = 0.0
     else:
