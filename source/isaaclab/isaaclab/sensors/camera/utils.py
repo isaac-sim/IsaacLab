@@ -105,7 +105,7 @@ def create_pointcloud_from_depth(
         intrinsic_matrix: A (3, 3) array providing camera's calibration matrix.
         depth: An array of shape (H, W) with values encoding the depth measurement.
         keep_invalid: Whether to keep invalid points in the cloud or not. Invalid points
-            correspond to pixels with depth values 0.0 or NaN. Defaults to False.
+            correspond to pixels with depth values 0.0, NaN or infinity. Defaults to False.
         position: The position of the camera in a target frame. Defaults to None.
         orientation: The orientation (x, y, z, w) of the camera in a target frame. Defaults to None.
         device: The device for torch where the computation should be executed.
@@ -143,8 +143,7 @@ def create_pointcloud_from_depth(
 
     # keep only valid entries if flag is set
     if not keep_invalid:
-        pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(depth_cloud), ~torch.isinf(depth_cloud)), dim=1)
-        depth_cloud = depth_cloud[pts_idx_to_keep, ...]
+        depth_cloud = depth_cloud[_valid_points_mask(depth_cloud, depth), ...]
 
     # return everything according to input type
     if is_numpy:
@@ -166,7 +165,8 @@ def create_pointcloud_from_rgbd(
     """Creates pointcloud from input depth image and camera transformation matrix.
 
     This function provides the same functionality as :meth:`create_pointcloud_from_depth` but also allows
-    to provide the RGB values for each point.
+    to provide the RGB values for each point. Invalid points, i.e. pixels with depth values 0.0, NaN or
+    infinity, are removed together with their colors.
 
     The ``rgb`` attribute is used to resolve the corresponding point's color:
 
@@ -216,8 +216,7 @@ def create_pointcloud_from_rgbd(
     if device is None and is_numpy:
         device = torch.device("cpu")
     # convert depth to torch tensor
-    if is_numpy:
-        depth = torch.from_numpy(depth).to(device=device)
+    depth = convert_to_torch(depth, dtype=torch.float32, device=device)
     # retrieve XYZ pointcloud
     points_xyz = create_pointcloud_from_depth(intrinsic_matrix, depth, True, position, orientation, device=device)
     device = points_xyz.device
@@ -248,7 +247,7 @@ def create_pointcloud_from_rgbd(
         points_rgb = points_rgb.float() / 255
 
     # remove invalid points
-    pts_idx_to_keep = torch.all(torch.logical_and(~torch.isnan(points_xyz), ~torch.isinf(points_xyz)), dim=1)
+    pts_idx_to_keep = _valid_points_mask(points_xyz, depth)
     points_rgb = points_rgb[pts_idx_to_keep, ...]
     points_xyz = points_xyz[pts_idx_to_keep, ...]
 
@@ -261,6 +260,28 @@ def create_pointcloud_from_rgbd(
         return points_xyz.cpu().numpy(), points_rgb.cpu().numpy()
     else:
         return points_xyz, points_rgb
+
+
+def _valid_points_mask(points: torch.Tensor, depth: torch.Tensor) -> torch.Tensor:
+    """Returns a mask of the points unprojected from valid depth measurements.
+
+    A point is invalid if its pixel has a depth value of 0.0, which marks a missing measurement, or if any of
+    its coordinates is not finite, which happens for NaN or infinite depth values. The zero check uses the input
+    depth instead of the point coordinates because a zero-depth pixel maps to the camera position, which is a
+    finite point in the target frame.
+
+    Args:
+        points: The points unprojected from the depth image by :func:`~isaaclab.utils.math.unproject_depth`,
+            optionally transformed to a target frame. Shape is (H x W, 3).
+        depth: The depth image. Shape is (H, W) or (H, W, 1).
+
+    Returns:
+        A boolean mask of the valid points. Shape is (H x W,).
+    """
+    im_height, im_width = depth.shape[:2]
+    # flatten the depth image in the (u, v) pixel order used by unproject_depth
+    has_depth = (depth.reshape(im_height, im_width) != 0).transpose(0, 1).reshape(-1)
+    return has_depth & torch.isfinite(points).all(dim=1)
 
 
 def save_images_to_file(images: torch.Tensor, file_path: str):
