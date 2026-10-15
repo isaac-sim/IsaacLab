@@ -460,6 +460,44 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         assert not errs, "\n".join(errs)
 
 
+# Sensor registration is host-side bookkeeping, identical on every device.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_sensors_with_identical_expressions(device: str):
+    """Sensors with the same body expression all report contacts, also after a hard reset.
+
+    The sensors differ only in the update period and history length, which Isaac Lab applies itself.
+    """
+    gravity_magnitude = 9.81
+    sim_cfg = make_sim_cfg(use_mujoco_contacts=False, device=device, gravity=(0.0, 0.0, -gravity_magnitude))
+
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+
+        scene_cfg = ContactSensorTestSceneCfg(num_envs=1, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.object_a = create_shape_cfg(
+            ShapeType.BOX,
+            "{ENV_REGEX_NS}/Object",
+            pos=(0.0, 0.0, get_shape_height(ShapeType.BOX) / 2),
+            disable_gravity=False,
+        )
+        scene_cfg.contact_sensor_a = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Object", history_length=1)
+        scene_cfg.contact_sensor_b = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object", update_period=4 * SIM_DT, history_length=3
+        )
+        scene = InteractiveScene(scene_cfg)
+        sensors: list[ContactSensor] = [scene["contact_sensor_a"], scene["contact_sensor_b"]]
+
+        # The second reset finalizes a new Newton model, for which the sensors register again.
+        for _ in range(2):
+            sim.reset()
+            scene.reset()
+            for _ in range(40):
+                perform_sim_step(sim, scene, SIM_DT)
+            # One row per sensor: the 1 kg box rests on the ground.
+            force_z = torch.stack([sensor.data.net_normal_forces_w.torch[..., 2] for sensor in sensors])
+            torch.testing.assert_close(force_z, torch.full_like(force_z, gravity_magnitude), rtol=0.02, atol=0.0)
+
+
 # ===================================================================
 # Priority 3: Filtering
 # ===================================================================
