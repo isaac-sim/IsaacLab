@@ -931,6 +931,23 @@ MicroDuck biped to walk on flat ground and on rough terrain, with its 14 servos 
 Newton MJWarp. Add ``presets=backlash`` to either task to train the robot variant with a passive play
 hinge in series with each servo, bound through ``backlash_joint_template``.
 
+Add ``presets=agile_combined`` to select the AGILE-inspired combined walking recipe. It tracks
+horizontal root-link velocity in the heading frame with a tolerance of 0.15 m/s and world-frame
+yaw rate with a tolerance of 0.35 rad/s, each with reward weight 4.0. The nominal joint-posture
+reward applies only to standing commands, and the action-rate penalty increases from -0.1 to -1.0
+between training iterations 3,000 and 7,000. The actor and critic retain their 61 and 76 inputs,
+respectively, and use normalized MLPs with hidden layers ``[512, 256, 128]`` and ELU activation.
+
+For example, train AGILE combined walking on rough terrain with backlash:
+
+.. code-block:: bash
+
+    uv run isaaclab train --task IsaacContrib-Velocity-Rough-MicroDuck \
+        --rl_library rsl_rl presets=agile_combined,backlash
+
+Use ``IsaacContrib-Velocity-Flat-MicroDuck`` for flat ground, or omit ``backlash`` for the regular
+robot. Without ``agile_combined``, the original walking rewards and curricula apply.
+
 
 Backend submission
 ------------------
