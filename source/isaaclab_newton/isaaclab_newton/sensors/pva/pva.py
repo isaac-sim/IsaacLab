@@ -167,6 +167,9 @@ class Pva(BasePva):
                 "Access sensor data only after sim.reset() has been called."
             )
         state = NewtonManager.backend.state_0
+        if not state.body_q.device.is_capturing:
+            # Resolve FK deferred by state writes, such as push events, before reading body poses and velocities.
+            NewtonManager.forward()
 
         wp.launch(
             pva_update_kernel,

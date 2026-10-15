@@ -1260,6 +1260,9 @@ class NewtonManager(PhysicsManager):
         # Isaac Lab resets local environments only, so that slot remains false.
         NewtonManager._world_reset_mask = wp.zeros(cls.backend.model.world_count + 1, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls.backend.model.articulation_count, dtype=wp.bool, device=device)
+        # Pending FK and recorded graphs belong to the discarded model; initialize_solver() runs FK for this one.
+        NewtonManager.kinematics_dirty = False
+        NewtonManager.transforms_may_change_on_graph_replay = False
 
         cls._scene_data_backend.initialize_geometry()
         logger.info("Dispatching PHYSICS_READY callbacks")

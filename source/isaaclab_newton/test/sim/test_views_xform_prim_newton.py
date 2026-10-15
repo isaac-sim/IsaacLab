@@ -26,6 +26,7 @@ from frame_view_contract_utils import *  # noqa: F401, F403 — import all contr
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle, _wp_vec3f, _wp_vec4f
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
 from pxr import Sdf, UsdPhysics
@@ -34,6 +35,7 @@ import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
 
@@ -359,3 +361,62 @@ def test_frame_below_non_body_articulation_root_is_static(device):
         torch.testing.assert_close(root_view.get_world_poses()[0].torch, origins, atol=1e-5, rtol=0)
         expected = origins + torch.tensor(CHILD_OFFSET, device=device)
         torch.testing.assert_close(mount_view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
+
+
+# ==================================================================
+# Newton edge case: body state written without a physics step
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_body_frame_follows_root_pose_write_before_step(device):
+    """Pose reads and writes of a body-local frame use the body pose just written to the sim.
+
+    Reset events write root and joint state and observations read right away, without a physics step or
+    ``sim.forward()`` in between. A camera on the body reads its live pose through such a view, also with
+    ``update_latest_camera_pose=False``. A read recorded into a caller's graph leaves the pending FK to later reads.
+    """
+    num_envs = 2
+    with _sim_context(device, num_envs=num_envs) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=num_envs, env_spacing=2.0)
+        scene_cfg.camera = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Cube/Camera",
+            offset=CameraCfg.OffsetCfg(pos=CHILD_OFFSET, convention="world"),
+            spawn=sim_utils.PinholeCameraCfg(),
+            width=8,
+            height=8,
+            data_types=["distance_to_image_plane"],
+            update_latest_camera_pose=False,
+            renderer_cfg=NewtonWarpRendererCfg(),
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
+        view = FrameView("/World/envs/env_[^/]+/Cube/CameraMount", device=device)
+        sim.reset()
+        cube = scene["cube"]
+        offset = torch.tensor(CHILD_OFFSET, device=device)
+
+        root_pose = cube.data.root_pose_w.torch.clone()
+        root_pose[:, 0] += 1.0
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        camera_pos_w = scene["camera"].get_world_poses()[0]
+        torch.testing.assert_close(camera_pos_w, root_pose[:, :3] + offset, atol=1e-5, rtol=0)
+        root_pose[:, 0] += 1.0
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        torch.testing.assert_close(view.get_world_poses()[0].torch, root_pose[:, :3] + offset, atol=1e-5, rtol=0)
+
+        root_pose[:, 0] += 1.0
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        with wp.ScopedCapture(device=device):
+            view.get_world_poses()
+        torch.testing.assert_close(cube.data.body_link_pose_w.torch[:, 0, :3], root_pose[:, :3], atol=1e-5, rtol=0)
+
+        # A world-pose write converts to the body frame, so it must use the new body pose as well.
+        root_pose[:, 1] += 1.0
+        cube.write_root_pose_to_sim_index(root_pose=root_pose)
+        frame_pos = root_pose[:, :3] + 2.0 * offset
+        frame_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * num_envs, device=device)
+        view.set_world_poses(wp.from_torch(frame_pos, dtype=wp.vec3f), wp.from_torch(frame_quat, dtype=wp.vec4f))
+        sim.forward()
+        torch.testing.assert_close(view.get_world_poses()[0].torch, frame_pos, atol=1e-5, rtol=0)

@@ -658,6 +658,10 @@ class NewtonSiteFrameView(BaseFrameView):
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations."""
         state = NewtonManager.get_state_0()
+        if not state.body_q.device.is_capturing:
+            # Resolve FK deferred by state writes, such as resets inside ``env.step()``. A caller's graph capture
+            # would only record it, so the pending FK is left to the next read outside the capture.
+            NewtonManager.forward()
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         pos_buf = self._pos_buf if indices is None else wp.zeros(n, dtype=wp.vec3f, device=self._device)
@@ -685,6 +689,8 @@ class NewtonSiteFrameView(BaseFrameView):
             return
 
         state = NewtonManager.get_state_0()
+        if not state.body_q.device.is_capturing:
+            NewtonManager.forward()
         if positions is None or orientations is None:
             cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
             if positions is None:
