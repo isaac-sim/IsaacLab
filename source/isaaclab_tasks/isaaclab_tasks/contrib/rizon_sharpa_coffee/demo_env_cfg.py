@@ -30,7 +30,7 @@ from isaaclab.utils import configclass
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
 
-from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
+from .assets import BOWL_POSITION, COFFEE_ASSET_DIR, CUP_HEIGHT, CUP_INNER_RADIUS, CUP_POSITION, coffee_cavity_radius
 from .robot import (
     ARM_JOINT_NAMES,
     DEFAULT_SPOON_OFFSET_POS,
@@ -43,13 +43,15 @@ from .robot import (
 
 @configclass
 class CoffeeMPMSolverCfg(MPMSolverCfg):
-    """Native MPM with optional passive rendering grains, disabled for training."""
+    """Native MPM with optional passive rendering grains."""
 
     class_type: str = "isaaclab_tasks.contrib.rizon_sharpa_coffee.physics:CoffeeMPMManager"
     solver: str | tuple[str, ...] | None = None
     """Pressure solver; ``None`` selects the final wet or dry task profile."""
     max_iterations: int | None = None
     """Pressure budget; ``None`` selects the final wet or dry task profile."""
+    collider_basis: str | None = None
+    """Contact basis; ``None`` reserves particle-site capacity from the sampling density."""
     grains_per_particle: int = 0
     """Number of visual samples per physical particle; zero disables their allocation."""
 
@@ -79,7 +81,6 @@ def make_physics_cfg(voxel_size: float) -> NewtonCfg:
                         # Resolve contacts at particle sites and pressure within
                         # each cell. Hard projection can permanently collapse
                         # powder onto the concave tool's surface.
-                        collider_basis="pic27",
                         strain_basis="P1d",
                         collider_velocity_mode="backward",
                         # Native background-air regularization bounds nearly empty grid nodes.
@@ -181,18 +182,22 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
     events: CoffeeEventsCfg = CoffeeEventsCfg()
 
     voxel_size: float = 0.004
-    spoon_margin_voxels: float = 1.2
+    spoon_margin_voxels: float = 0.48
     """Spoon collision expansion in grid cells, separate from the container margins."""
-    spoon_rim_margin_scale: float = 0.0
+    spoon_rim_margin_scale: float = 1.0 / 6.0
     """Rim margin relative to the broad faces; zero keeps the lip at the actual mesh."""
     water_enabled: bool = False
     coffee_wetting_time: float = 0.02
     """Accumulated contact with water before soluble coffee becomes liquid [s]."""
     grains_per_particle: int = 0
-    bowl_scale: float = 0.4
-    """Horizontal scale of the bowl and its coffee fill (at least 0.4); depth stays unchanged."""
-    coffee_fill_height: float = 0.065
-    water_fill_height: float = 0.075
+    bowl_scale: float = 0.65
+    """Horizontal scale of the bowl (at least 0.4); depth stays unchanged."""
+    coffee_fill_scale: float = 0.65
+    """Horizontal scale of the initial coffee pile, independent of the bowl size."""
+    coffee_particle_spacing: float = 0.0015
+    """Maximum coffee sampling distance [m], independent of passive rendering grains."""
+    coffee_fill_height: float = 0.055
+    water_fill_height: float = 0.0535
     """Initial water seed height [m]; gravity spreads the fill to a lower free surface."""
     min_delivered_fraction: float = 0.005
     """Minimum cup fraction required for the scripted demo to report completion."""
@@ -221,10 +226,14 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("spoon_rim_margin_scale must be between zero and one.")
     if not math.isfinite(cfg.bowl_scale) or cfg.bowl_scale < 0.4:
         raise ValueError("bowl_scale must be finite and at least 0.4.")
+    if not math.isfinite(cfg.coffee_fill_scale) or not 0.0 < cfg.coffee_fill_scale <= cfg.bowl_scale:
+        raise ValueError("coffee_fill_scale must be positive and no larger than bowl_scale.")
+    if not math.isfinite(cfg.coffee_particle_spacing) or cfg.coffee_particle_spacing <= 0.0:
+        raise ValueError("coffee_particle_spacing must be finite and positive.")
     if not 0.009 <= cfg.coffee_fill_height <= 0.075:
         raise ValueError("coffee_fill_height must be between 9 and 75 mm.")
-    if not 0.012 <= cfg.water_fill_height <= 0.079:
-        raise ValueError("water_fill_height must be between 12 and 79 mm.")
+    if not 0.012 <= cfg.water_fill_height <= CUP_HEIGHT - 0.002:
+        raise ValueError("water_fill_height must be between 12 mm and 2 mm below the cup rim.")
     if not 0.0 < cfg.min_delivered_fraction <= 1.0:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
     if not math.isfinite(cfg.min_delivered_mass) or cfg.min_delivered_mass <= 0.0:
@@ -244,7 +253,7 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     )
     cfg.scene.cup = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Cup",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup.usda"),
+        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/cup_shallow.usda"),
         init_state=AssetBaseCfg.InitialStateCfg(pos=CUP_POSITION),
     )
     cfg.scene.spoon = RigidObjectCfg(
@@ -257,7 +266,13 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     )
     spacing = cfg.voxel_size / 2.0
     cfg.scene.coffee = _particle_cfg(
-        "Coffee", BOWL_POSITION, 0.060 * cfg.bowl_scale, cfg.coffee_fill_height, spacing, False, cfg.bowl_scale
+        "Coffee",
+        BOWL_POSITION,
+        0.060 * cfg.coffee_fill_scale,
+        cfg.coffee_fill_height,
+        min(spacing, cfg.coffee_particle_spacing),
+        False,
+        cfg.coffee_fill_scale,
     )
     cfg.scene.water = (
         _particle_cfg("Water", CUP_POSITION, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True)
@@ -277,6 +292,10 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         solver.max_iterations = 500 if cfg.water_enabled else 100
     solver.voxel_size = cfg.voxel_size
     solver.grains_per_particle = cfg.grains_per_particle
+    if solver.collider_basis is None:
+        sample_ratio = math.ceil(cfg.voxel_size / min(spacing, cfg.coffee_particle_spacing))
+        contact_capacity = 2 * sample_ratio**3
+        solver.collider_basis = f"pic{max(128, 1 << (contact_capacity - 1).bit_length())}"
     # The rebuildable grid allocates at most one active voxel per physical particle.
     # Its capacity also sizes solver launches, so avoid padding small fills excessively.
     particle_count = sum(
@@ -304,15 +323,18 @@ def _particle_cfg(
     axis = np.arange(-radius + spacing / 2.0, radius, spacing)
     z = np.arange(0.007 + spacing / 2.0, height, spacing)
     points = np.stack(np.meshgrid(axis, axis, z, indexing="ij"), axis=-1).reshape(-1, 3)
-    points = points[np.linalg.norm(points[:, :2], axis=1) < radius - spacing]
+    # Keep the coffee seed volume fixed when changing its sampling density.
+    edge_clearance = spacing if water else 0.002
+    points = points[np.linalg.norm(points[:, :2], axis=1) < radius - edge_clearance]
     if not water:
         points = points[
-            np.linalg.norm(points[:, :2], axis=1) < radial_scale * coffee_cavity_radius(points[:, 2]) - 2.0 * spacing
+            np.linalg.norm(points[:, :2], axis=1) < radial_scale * coffee_cavity_radius(points[:, 2]) - 0.004
         ]
     if not len(points):
         raise ValueError(f"{name} fill is empty at spacing={spacing:g} m and height={height:g} m.")
     rng = np.random.default_rng(7)
-    points += rng.uniform(-0.15 * spacing, 0.15 * spacing, points.shape)
+    jitter = (0.15 if water else 0.35) * spacing
+    points += rng.uniform(-jitter, jitter, points.shape)
     density = 1000.0 if water else 450.0
     color = (0.65, 0.82, 0.88) if water else (0.075, 0.023, 0.009)
     material = (

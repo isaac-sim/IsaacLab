@@ -210,14 +210,15 @@ class CoffeeRendering:
             self._diffusion_support = wp.empty_like(self._dye_mass)
             self._hash_grid = wp.HashGrid(64, 64, 64, device=device)
             self._hash_grid.reserve(self._liquid_ids.size)
-            # Coarser physics should not coarsen the visible liquid mesh.
-            surface_voxel_size = min(0.3 * voxel_size, 0.0015)
+            # Resolve surface detail independently of the physics grid while
+            # keeping enough kernel overlap for a connected liquid surface.
+            surface_voxel_size = min(0.3 * voxel_size, 0.001)
             self._surface = ParticleSurface(
                 voxel_size=surface_voxel_size,
-                # Reuse native storage alongside captured physics. Increase
-                # capacity for render grids finer than the 4 mm demo profile.
+                # Reuse native storage alongside captured physics, scaling
+                # capacity with the visual grid resolution.
                 max_grid_cells=math.ceil(1048576 * max(1.0, (0.0012 / surface_voxel_size) ** 3)),
-                kernel_radius=2.0 * voxel_size,
+                kernel_radius=1.5 * voxel_size,
                 threshold=0.4,
                 smooth_lambda=0.4,
                 anisotropic=True,

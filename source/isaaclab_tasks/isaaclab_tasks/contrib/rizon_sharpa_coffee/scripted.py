@@ -52,18 +52,20 @@ class CoffeeScoopDemo:
         """Restart from the current physical spoon pose after an environment reset."""
         initial = self._env.spoon_pose()
         source_x, source_y, source_z = BOWL_POSITION
-        # Center the level spoon in a compact bowl while retaining the steep
-        # entry and short forward draw used by the full-size presentation.
-        scoop_x = source_x + min(0.015, 0.030 * (1.0 - self._env.cfg.bowl_scale))
-        scoop_y = source_y - 0.010 * self._env.cfg.bowl_scale
+        # Follow the coffee pile independently of the surrounding bowl size.
+        scoop_x = source_x + min(0.015, 0.030 * (1.0 - self._env.cfg.coffee_fill_scale))
+        scoop_y = source_y - 0.010 * self._env.cfg.coffee_fill_scale
+        entry_x = scoop_x - 0.031
+        lift_x = scoop_x - 0.016
         cup_x, cup_y, cup_z = CUP_POSITION
         level = (0.0, 0.0, 0.0, 1.0)
+        steep = (0.0, math.sin(math.pi / 6.0), 0.0, math.cos(math.pi / 6.0))
         tipped = (math.sin(math.pi / 4.0), 0.0, 0.0, math.cos(math.pi / 4.0))
         # Curl upward while leveling so the original flat handle clears the
         # ceramic rim before the loaded spoon lifts out of the powder.
-        scoop_z = source_z + 0.0365
-        transfer_z = max(source_z + 0.22, cup_z + CUP_HEIGHT + 0.135)
-        pour_z = cup_z + CUP_HEIGHT + 0.030
+        scoop_z = source_z + 0.0335
+        transfer_z = max(source_z + 0.090, cup_z + CUP_HEIGHT + 0.030)
+        pour_z = cup_z + CUP_HEIGHT + 0.025
         # Positive X-axis roll releases over the -Y lip. Center that lip over
         # the mouth rather than centering the unrotated spoon cavity.
         pour_y = cup_y + SPOON_BOWL_WIDTH * 0.40
@@ -79,53 +81,63 @@ class CoffeeScoopDemo:
         # the long handle clear of the containers during the large wrist turn.
         clearance = initial.clone()
         clearance[:, 2] = torch.maximum(clearance[:, 2], torch.full_like(clearance[:, 2], transfer_z + 0.08))
-        approach = pose((source_x - 0.012, source_y, transfer_z))
+        approach = pose((entry_x, scoop_y, source_z + 0.090), steep)
         # Enter steeply, then curl level inside the powder during a short
         # forward draw. Keep the lateral position fixed until the level lift.
         # Nonzero interior velocities keep the motion continuous;
         # zero knot accelerations make the quintic segments C2 continuous.
         # Coordinates are X/Y/Z and pitch, followed by derivatives per s.
         self._scoop_knots = [
-            (0.0, (scoop_x - 0.030, scoop_y, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
-            (2.5, (scoop_x - 0.030, scoop_y, source_z + 0.070, math.radians(60)), (0.0, 0.0, -0.015, 0.0)),
+            (0.0, (entry_x, scoop_y, source_z + 0.090, math.radians(60)), (0.0, 0.0, 0.0, 0.0)),
+            (0.65, (entry_x, scoop_y, source_z + 0.070, math.radians(60)), (0.0, 0.0, -0.015, 0.0)),
             (
-                3.8,
-                (scoop_x - 0.030, scoop_y, source_z + 0.030, math.radians(60)),
+                1.95,
+                (entry_x, scoop_y, source_z + 0.030, math.radians(60)),
                 (0.001, 0.0, -0.002, math.radians(-5)),
             ),
             (
-                5.2,
-                (scoop_x - 0.025, scoop_y, source_z + 0.030, math.radians(40)),
+                3.35,
+                (scoop_x - 0.026, scoop_y, source_z + 0.030, math.radians(40)),
                 (0.0025, 0.0, 0.001, math.radians(-12)),
             ),
-            (8.2, (scoop_x - 0.015, scoop_y, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
-            (9.2, (scoop_x - 0.014, scoop_y, scoop_z + 0.012, 0.0), (0.001, 0.0, 0.024, 0.0)),
-            (10.4, (scoop_x - 0.014, scoop_y, source_z + 0.105, 0.0), (0.0, 0.0, 0.055, 0.0)),
-            (11.7, (scoop_x - 0.014, scoop_y, source_z + 0.165, 0.0), (0.0, 0.0, 0.045, 0.0)),
-            (13.2, (scoop_x - 0.014, scoop_y, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
+            (6.35, (lift_x, scoop_y, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
+            (7.75, (lift_x + 0.001, scoop_y, source_z + 0.060, 0.0), (0.0, 0.0, 0.025, 0.0)),
+        ]
+        # Continue the upward velocity into a low arc toward the cup; no
+        # separate high lift, settling stop, or descent over the cup is needed.
+        self._transfer_knots = [
+            (0.0, self._scoop_knots[-1][1], self._scoop_knots[-1][2]),
+            (
+                1.6,
+                (
+                    lift_x + 0.001 + 0.42 * (cup_x - lift_x - 0.001),
+                    scoop_y + 0.42 * (pour_y - scoop_y),
+                    transfer_z,
+                    0.0,
+                ),
+                (0.035, 0.060, 0.0, 0.0),
+            ),
+            (3.4, (cup_x, pour_y, pour_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
         ]
         ready_distance = torch.linalg.vector_norm(initial[:, :3] - approach[:, :3], dim=-1)
         ready_angle = math_utils.quat_error_magnitude(initial[:, 3:], approach[:, 3:])
         already_ready = bool(((ready_distance <= 0.007) & (ready_angle <= math.radians(6.0))).all())
-        self._phases = [("settle", 0.7, initial, 0.010)]
+        self._phases = [("settle", 0.45, initial, 0.010)]
         if not already_ready:
             self._phases += [
                 ("clearance", 1.4, clearance, 0.010),
                 ("approach", 2.5, approach, 0.007),
             ]
         self._phases += [
-            ("approach_1", 1.4, pose((scoop_x - 0.031, scoop_y, transfer_z)), 0.007),
             (
                 "scoop_1",
                 self._scoop_knots[-1][0],
-                pose((scoop_x - 0.014, scoop_y, transfer_z)),
+                pose((lift_x + 0.001, scoop_y, source_z + 0.060)),
                 0.007,
             ),
-            ("transfer_1", 4.5, pose((cup_x, pour_y, transfer_z)), 0.007),
-            ("pour_height_1", 1.4, pose((cup_x, pour_y, pour_z)), 0.006),
-            ("tip_1", 2.4, pose((cup_x, pour_y, pour_z), tipped), 0.006),
-            ("empty_1", 1.3, pose((cup_x, pour_y, pour_z), tipped), 0.006),
-            ("recover_1", 3.0, pose((cup_x, pour_y, transfer_z)), 0.007),
+            ("transfer_1", self._transfer_knots[-1][0], pose((cup_x, pour_y, pour_z)), 0.006),
+            ("tip_1", 1.4, pose((cup_x, pour_y, pour_z), tipped), 0.006),
+            ("empty_1", 0.45, pose((cup_x, pour_y, pour_z), tipped), 0.006),
         ]
         if self._env.cfg.water_enabled:
             # An inclined spoon keeps the original flat handle above the cup
@@ -139,19 +151,18 @@ class CoffeeScoopDemo:
                 math.sin(yaw / 2.0) * math.cos(pitch / 2.0),
                 math.cos(yaw / 2.0) * math.cos(pitch / 2.0),
             )
-            stir_clearance_z = cup_z + 0.150
+            stir_clearance_z = pour_z
             self._stir_center = (cup_x, cup_y, cup_z + 0.031)
             self._stir_radius = 0.009
-            self._stir_turns = 3
+            self._stir_turns = 2
             start = (cup_x + self._stir_radius, cup_y, self._stir_center[2])
             self._phases += [
-                ("stir_align", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
-                ("stir_lower", 2.5, pose(start, stirring), 0.004),
-                ("stir", 8.0, pose(start, stirring), 0.004),
-                ("stir_raise", 2.5, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
-                ("stir_upright", 2.5, pose((start[0], start[1], transfer_z)), 0.007),
+                ("stir_align", 2.4, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
+                ("stir_lower", 1.25, pose(start, stirring), 0.004),
+                ("stir", 5.0, pose(start, stirring), 0.004),
+                ("stir_raise", 1.25, pose((start[0], start[1], stir_clearance_z), stirring), 0.006),
             ]
-        self._phases.append(("retreat", 2.0, pose((cup_x + 0.015, pour_y, transfer_z + 0.04)), 0.010))
+        self._phases.append(("retreat", 1.5, pose((cup_x + 0.015, pour_y, transfer_z + 0.04)), 0.010))
         self._phase_index = 0
         self._elapsed = 0.0
         self._start_pose = initial.clone()
@@ -172,8 +183,9 @@ class CoffeeScoopDemo:
             self._elapsed += self._env.step_dt
             progress = min(self._elapsed / duration, 1.0)
             blend = progress * progress * progress * (10.0 + progress * (-15.0 + 6.0 * progress))
-            if name == "scoop_1":
-                self._command_pose[:] = self._scoop_pose(self._elapsed)
+            if name in ("scoop_1", "transfer_1"):
+                knots = self._scoop_knots if name == "scoop_1" else self._transfer_knots
+                self._command_pose[:] = self._curve_pose(knots, self._elapsed)
             elif name == "stir":
                 self._command_pose[:] = endpoint
                 angle = 2.0 * math.pi * self._stir_turns * blend
@@ -197,13 +209,12 @@ class CoffeeScoopDemo:
                     )
         return self._palm_action(self._command_pose)
 
-    def _scoop_pose(self, elapsed: float) -> torch.Tensor:
-        """Evaluate one local entry and level the scoop before lifting."""
-        elapsed = min(elapsed, self._scoop_knots[-1][0])
-        # Converge to the common transfer X only after leveling in the mound.
-        lift_progress = min(max((elapsed - 9.2) / (10.4 - 9.2), 0.0), 1.0)
-        lane_blend = 1.0 - lift_progress**3 * (10.0 + lift_progress * (-15.0 + 6.0 * lift_progress))
-        for start, end in zip(self._scoop_knots[:-1], self._scoop_knots[1:]):
+    def _curve_pose(
+        self, knots: list[tuple[float, tuple[float, ...], tuple[float, ...]]], elapsed: float
+    ) -> torch.Tensor:
+        """Evaluate a C2 continuous position/pitch curve in the environment frame."""
+        elapsed = min(elapsed, knots[-1][0])
+        for start, end in zip(knots[:-1], knots[1:]):
             if elapsed <= end[0]:
                 duration = end[0] - start[0]
                 fraction = max(0.0, (elapsed - start[0]) / duration)
@@ -218,10 +229,9 @@ class CoffeeScoopDemo:
                     weights[0] * p0 + weights[1] * duration * v0 + weights[2] * p1 + weights[3] * duration * v1
                     for p0, v0, p1, v1 in zip(start[1], start[2], end[1], end[2])
                 ]
-                coordinates[0] -= 0.001 * lane_blend
                 pose = (*coordinates[:3], 0.0, math.sin(coordinates[3] / 2.0), 0.0, math.cos(coordinates[3] / 2.0))
                 return torch.tensor(pose, dtype=torch.float32, device=self._env.device).expand(self._env.num_envs, -1)
-        raise RuntimeError("The coffee scoop path has no endpoint.")
+        raise RuntimeError("The coffee motion curve has no endpoint.")
 
     def _palm_action(self, spoon_pose: torch.Tensor) -> torch.Tensor:
         # T_world_palm = T_world_spoon * inverse(T_palm_spoon).

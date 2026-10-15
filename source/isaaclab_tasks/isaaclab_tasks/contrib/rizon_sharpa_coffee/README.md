@@ -7,7 +7,7 @@ into a cup, and optionally stir using scripted IK.
 uv run isaaclab demo rizon-sharpa-coffee
 ```
 
-The default is a dry Newton GL scene with a 4 mm grid and five visual grains
+The default is a dry Newton GL scene with a 4 mm grid and one visual grain
 per physical particle. Add `--water` for a filled cup, physical coffee-to-liquid
 conversion, conservative colour diffusion and stirring. Kit and Newton RTX
 load the same full kitchen presentation; use `--water --visualizer kit` or
@@ -22,12 +22,24 @@ This is a demo: a complete visual showcase, like `teapot-fill`. Focused examples
 show an individual API or tuning method. This demo has no learning task or
 policy registration.
 
-The source bowl is approximately 68 × 63 mm, with its original 40 mm depth.
-`--bowl_scale` scales the hosted bowl and coffee fill together in the horizontal
-plane; `--bowl_scale 1` restores the original size. The scoop recenters within
-the smaller bowl. Completion requires at least 1 g of coffee in the cup as well
-as the configured delivery fraction, so reducing the fill does not lower the
-minimum successful dose.
+The source bowl is approximately 110 × 103 mm, with its original 40 mm depth.
+`--bowl_scale` scales the hosted bowl horizontally; `--bowl_scale 1` restores
+its original size. The powder fill is capped independently, so enlarging the
+bowl adds room without adding particles. Smaller bowls reduce the fill to fit.
+The scoop follows the powder pile. Completion requires at least 1 g of coffee
+in the cup as well as the configured delivery fraction, so reducing the fill
+does not lower the minimum successful dose.
+The script starts near the powder, curls the spoon level inside it, and follows
+a low arc to the nearby cup before pouring and moving directly into stirring.
+
+The shallow cup is 56 mm tall with a circular side handle. Its water seed is
+chosen to settle near 80% full. Coffee uses physical sampling at up to 1.5 mm,
+with deterministic position jitter of ±35% of that spacing. Denser sampling
+preserves the source volume instead of multiplying passive rendering grains.
+Water sampling follows half the solver grid spacing. Both materials share the
+same APIC MPM grid.
+Liquid rendering uses the native particle surface with visual cells at most
+1 mm wide, independently of the physics grid.
 
 ## Code layout
 
@@ -62,11 +74,13 @@ Use Isaac Lab's uv environment, Newton and a CUDA-capable NVIDIA GPU. Standalone
 RTX needs the `ovrtx` extra; Kit needs an Isaac Sim runtime. Assets are loaded
 through the existing USD spawner and asset resolver.
 
-The fixed bowl, cup, spoon, table and prepared kitchen are supplied at
+The fixed bowl, shallow cup, spoon, table and prepared kitchen are supplied at
 `{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaCoffee`. The bundle includes
 `walnut.png`, `CoffeeWater.mdl`, `kitchen.usda`, the collected kitchen geometry,
 materials and textures in `Kitchen/`, the prepared robot in `Robot/`, licenses
 and checksum manifests.
+The shallow cup is supplied as `cup_shallow.usda`; its visible shell and exact
+triangle collider share the same geometry.
 Props are authored in metres with Z up; their default
 prim is `/Asset`. The exact concave spoon triangles and material groups are
 required for MPM contact. Assets load without runtime generation.
