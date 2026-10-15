@@ -56,8 +56,8 @@ class ImageView:
         # Perspective pixels come from the visualizer callback, not a scene sensor.
         self.camera = camera
         self.render: Callable[[wp.array | None], wp.array] | None = None
-        self.before_render: Callable[[], None] | None = None
-        """Optional perspective-camera preparation, run only when a new frame is needed."""
+        self.update_camera_pose: Callable[[], None] | None = None
+        """Optional perspective-camera pose update, run only when a new frame is needed."""
         self.aspect = 1.0
         self.frame = TimestampedBuffer()
         self._host_frame: np.ndarray | None = None
@@ -86,8 +86,8 @@ class ImageView:
         if camera is None:
             if self.render is None:
                 raise RuntimeError("Bind a perspective image view to a visualizer before reading or recording it.")
-            if self.before_render is not None:
-                self.before_render()
+            if self.update_camera_pose is not None:
+                self.update_camera_pose()
             self.frame.data = self.render(self.frame.data)
         else:
             outputs = camera.data.output

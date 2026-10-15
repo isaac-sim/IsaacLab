@@ -111,7 +111,7 @@ class BaseVisualizer(ABC):
                 camera = scene_data_provider.get_camera_sensors().get(self.cfg.view.source)
             self.current_image_view = sim.get_or_create_backend(self.cfg.view, camera=camera)
             if camera is None:
-                self.current_image_view.before_render = self.update_camera_tracking
+                self.current_image_view.update_camera_pose = self.update_camera_tracking
             self._image_views.append(self.current_image_view)
             return
         env_ids = []
@@ -127,7 +127,7 @@ class BaseVisualizer(ABC):
                 if self.cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
-                view.before_render = self.update_camera_tracking
+                view.update_camera_pose = self.update_camera_tracking
             else:
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=tuple(map(int, env_ids)),
@@ -169,8 +169,8 @@ class BaseVisualizer(ABC):
         """
         self.current_image_view = None
         for view in self._image_views:
-            if view.before_render == self.update_camera_tracking:
-                view.before_render = None
+            if view.update_camera_pose == self.update_camera_tracking:
+                view.update_camera_pose = None
         self._image_views.clear()
         self._sim = None
         self._interactive_scene = None
