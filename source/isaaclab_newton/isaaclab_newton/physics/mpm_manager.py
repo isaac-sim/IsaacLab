@@ -10,7 +10,8 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Iterable, Sequence
-from typing import TYPE_CHECKING, Any
+from functools import cache
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
 from newton import (
@@ -188,7 +189,7 @@ class NewtonMPMManager(NewtonManager):
     _implicit_mpm_solver_root: object | None = None
     _implicit_mpm_solver_cache: tuple[SolverImplicitMPM, ...] = ()
 
-    _material_parameter_names = (
+    _material_parameter_names: ClassVar[tuple[str, ...]] = (
         "density",
         "young_modulus",
         "poisson_ratio",
@@ -203,6 +204,13 @@ class NewtonMPMManager(NewtonManager):
         "hardening_rate",
         "softening_rate",
     )
+
+    @classmethod
+    def initialize(cls, sim_context: SimulationContext) -> None:
+        """Initialize Newton and author the MPM solver configuration in USD."""
+        super().initialize(sim_context)
+        scene_prim = sim_context.stage.GetPrimAtPath(sim_context.cfg.physics_prim_path)
+        _author_mpm_scene_config(scene_prim, sim_context.cfg.physics.solver_cfg)
 
     @classmethod
     def get_particle_material_parameters(
@@ -228,17 +236,17 @@ class NewtonMPMManager(NewtonManager):
             RuntimeError: No implicit MPM solver is initialized.
         """
         parameter_names = cls._material_parameter_names if parameters is None else parameters
-        model, particle_indices = cls._material_model_and_selection(particle_ids, parameter_names)
+        model, particle_indices, start, stride, count = cls._material_model_and_selection(particle_ids, parameter_names)
         invalid_indices = wp.zeros(1, dtype=wp.int32, device=model.device)
         material_parameters = {}
         for parameter_name in parameter_names:
             is_density = parameter_name == "density"
             source = model.particle_mass if is_density else getattr(model.mpm, parameter_name)
-            parameter_values = wp.empty(particle_indices.shape[0], dtype=wp.float32, device=model.device)
+            parameter_values = wp.empty(count, dtype=wp.float32, device=model.device)
             wp.launch(
-                _read_particle_material,
-                dim=particle_indices.shape[0],
-                inputs=[source, model.particle_radius, particle_indices, is_density],
+                _read_particle_material(is_density, particle_indices.size > 0),
+                dim=count,
+                inputs=[source, model.particle_radius, particle_indices, start, stride],
                 outputs=[parameter_values, invalid_indices],
                 device=model.device,
             )
@@ -265,7 +273,8 @@ class NewtonMPMManager(NewtonManager):
 
         This updates the shared Newton model. Coupled solvers must support particle-property
         synchronization through ``MODEL_PROPERTIES``. Particle deformation history is preserved.
-        All parameters are validated before any model array is written.
+        All parameters are validated before any model array is written. Repeated indices are
+        rejected for writes; inputs that overlap model destinations are snapshotted first.
 
         Raises:
             ValueError: A parameter name, array shape, device, dtype, or material value is invalid.
@@ -274,28 +283,25 @@ class NewtonMPMManager(NewtonManager):
         """
         if not material_parameters:
             return
-        model, particle_indices = cls._material_model_and_selection(particle_ids, material_parameters)
-        material_parameters = cls._prepare_material_parameters(model, particle_indices, material_parameters)
-        if particle_indices.shape[0] == 0:
+        model, particle_indices, start, stride, count = cls._material_model_and_selection(
+            particle_ids, material_parameters
+        )
+        material_parameters = cls._prepare_material_parameters(
+            model, particle_indices, start, stride, count, material_parameters
+        )
+        if count == 0:
             return
         for parameter_name, parameter_values in material_parameters.items():
             is_density = parameter_name == "density"
             destination = model.particle_mass if is_density else getattr(model.mpm, parameter_name)
             wp.launch(
-                _write_particle_material,
-                dim=particle_indices.shape[0],
-                inputs=[parameter_values, particle_indices, model.particle_radius, is_density],
+                _write_particle_material(is_density, particle_indices.size > 0),
+                dim=count,
+                inputs=[parameter_values, particle_indices, start, stride, model.particle_radius],
                 outputs=[destination, model.particle_inv_mass],
                 device=model.device,
             )
         NewtonManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
-
-    @classmethod
-    def initialize(cls, sim_context: SimulationContext) -> None:
-        """Initialize Newton and author the MPM solver configuration in USD."""
-        super().initialize(sim_context)
-        scene_prim = sim_context.stage.GetPrimAtPath(sim_context.cfg.physics_prim_path)
-        _author_mpm_scene_config(scene_prim, sim_context.cfg.physics.solver_cfg)
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
@@ -567,7 +573,7 @@ class NewtonMPMManager(NewtonManager):
     @classmethod
     def _material_model_and_selection(
         cls, particle_ids: Sequence[int] | wp.array | slice | None, parameter_names: Iterable[str]
-    ) -> tuple[Model, wp.array]:
+    ) -> tuple[Model, wp.array, int, int, int]:
         """Resolve the shared Newton model and particle indices for both material accessors."""
         if NewtonManager.backend is None or not cls._implicit_mpm_solvers():
             raise RuntimeError("An implicit MPM solver must be initialized before accessing particle materials.")
@@ -580,7 +586,14 @@ class NewtonMPMManager(NewtonManager):
         if isinstance(particle_ids, slice):
             if particle_ids.step is not None and particle_ids.step <= 0:
                 raise ValueError("Particle slices must have a positive step.")
-            particle_ids = range(model.particle_count)[particle_ids]
+            selection = range(model.particle_count)[particle_ids]
+            return (
+                model,
+                wp.empty(0, dtype=wp.int32, device=model.device),
+                selection.start,
+                selection.step,
+                len(selection),
+            )
         if not isinstance(particle_ids, wp.array):
             particle_ids = wp.array(particle_ids, dtype=wp.int32, device=model.device)
         if (
@@ -589,15 +602,32 @@ class NewtonMPMManager(NewtonManager):
             or particle_ids.device != model.device
         ):
             raise ValueError("particle_ids must be a one-dimensional Warp int32/int64 array on the simulation device.")
-        return model, particle_ids
+        return model, particle_ids, 0, 1, particle_ids.size
 
     @classmethod
     def _prepare_material_parameters(
-        cls, model: Model, particle_indices: wp.array, material_parameters: dict[str, float | wp.array]
+        cls,
+        model: Model,
+        particle_indices: wp.array,
+        start: int,
+        stride: int,
+        count: int,
+        material_parameters: dict[str, float | wp.array],
     ) -> dict[str, wp.array]:
         """Normalize inputs and validate the whole batch before writing, with one device readback."""
         prepared_parameters = {}
-        invalid_parameters = wp.zeros(len(material_parameters), dtype=wp.int32, device=model.device)
+        invalid_parameters = wp.zeros(len(material_parameters) + 1, dtype=wp.int32, device=model.device)
+        if particle_indices.size:
+            wp.launch(
+                _validate_unique_particle_indices,
+                dim=count,
+                inputs=[particle_indices, model.particle_count],
+                outputs=[wp.zeros(model.particle_count, dtype=wp.int32, device=model.device), invalid_parameters],
+                device=model.device,
+            )
+        destinations = [model.particle_mass, model.particle_inv_mass] + [
+            getattr(model.mpm, name) for name in material_parameters if name != "density"
+        ]
         for parameter_index, (parameter_name, parameter_values) in enumerate(material_parameters.items()):
             if isinstance(parameter_values, (float, int)):
                 parameter_values = wp.full(1, float(parameter_values), dtype=wp.float32, device=model.device)
@@ -605,33 +635,48 @@ class NewtonMPMManager(NewtonManager):
                 not isinstance(parameter_values, wp.array)
                 or parameter_values.dtype != wp.float32
                 or parameter_values.device != model.device
-                or parameter_values.shape != particle_indices.shape
+                or parameter_values.shape != (count,)
             ):
                 raise ValueError(
-                    f"{parameter_name} must be a scalar or Warp float32 array with shape"
-                    f" {particle_indices.shape} on {model.device}."
+                    f"{parameter_name} must be a scalar or Warp float32 array with shape {(count,)} on {model.device}."
                 )
+            if parameter_values.size and any(
+                parameter_values.ptr < dest.ptr + dest.size * 4
+                and dest.ptr < parameter_values.ptr + (parameter_values.size - 1) * parameter_values.strides[0] + 4
+                for dest in destinations
+            ):
+                parameter_values = wp.clone(parameter_values)
             lower_bound = -1.0 if parameter_name == "poisson_ratio" else 0.0
             upper_bound = {"poisson_ratio": 0.5, "tensile_yield_ratio": 1.0}.get(parameter_name, float("inf"))
             wp.launch(
-                _validate_particle_material,
-                dim=particle_indices.shape[0],
+                _validate_particle_material(
+                    parameter_name == "density",
+                    particle_indices.size > 0,
+                    parameter_name in ("young_modulus", "poisson_ratio"),
+                    parameter_name == "poisson_ratio",
+                ),
+                dim=count,
                 inputs=[
                     parameter_values,
                     particle_indices,
+                    start,
+                    stride,
                     model.particle_radius,
+                    model.particle_mass,
                     lower_bound,
                     upper_bound,
-                    parameter_name in ("density", "young_modulus", "poisson_ratio"),
-                    parameter_name == "poisson_ratio",
-                    parameter_name == "density",
                     parameter_index,
                 ],
                 outputs=[invalid_parameters],
                 device=model.device,
             )
             prepared_parameters[parameter_name] = parameter_values
-        for parameter_name, error in zip(prepared_parameters, invalid_parameters.numpy(), strict=True):
+        errors = invalid_parameters.numpy()
+        if errors[-1] == 2:
+            raise IndexError("particle_ids contains indices outside the Newton model's particle arrays.")
+        if errors[-1]:
+            raise ValueError("particle_ids must not contain repeated indices for material updates.")
+        for parameter_name, error in zip(prepared_parameters, errors[:-1], strict=True):
             if error == 2:
                 raise IndexError("particle_ids contains indices outside the Newton model's particle arrays.")
             if error:
@@ -639,128 +684,125 @@ class NewtonMPMManager(NewtonManager):
         return prepared_parameters
 
 
-@wp.kernel
-def _read_particle_material(
-    source: wp.array[float],
-    particle_radius: wp.array[float],
-    particle_indices: wp.array(dtype=Any),
-    is_density: bool,
-    material_values: wp.array[float],
-    invalid_indices: wp.array[int],
-):
-    """Gather one material parameter in the requested particle order.
+@cache
+def _read_particle_material(is_density: bool, indexed: bool) -> wp.Kernel:
+    """Compile the material operation for fixed selection and parameter modes."""
 
-    Launch one thread per selected particle. Density is computed from particle mass
-    and represented volume, ``8 * radius**3``. The source arrays are not modified.
+    @wp.kernel
+    def kernel(
+        source: wp.array[float],
+        particle_radius: wp.array[float],
+        particle_indices: wp.array(dtype=Any),
+        start: int,
+        stride: int,
+        material_values: wp.array[float],
+        invalid_indices: wp.array[int],
+    ):
+        """Gather snapshots, converting mass to density for the density specialization."""
+        selection_index = wp.tid()
+        particle_index = wp.int64(start) + wp.int64(stride) * wp.int64(selection_index)
+        if wp.static(indexed):
+            particle_index = wp.int64(particle_indices[selection_index])
+        if particle_index < 0 or particle_index >= source.shape[0]:
+            wp.atomic_max(invalid_indices, 0, 1)
+            return
+        material_value = source[particle_index]
+        if wp.static(is_density):
+            radius = particle_radius[particle_index]
+            material_value /= 8.0 * radius * radius * radius
+        material_values[selection_index] = material_value
 
-    Args:
-        source: Model-wide parameter values, or particle masses [kg] when reading density.
-        particle_radius: Model-wide particle radii [m].
-        particle_indices: Global particle indices in the requested output order.
-        is_density: Whether to convert particle mass to density [kg/m^3].
-        material_values: Output values, one per selected particle.
-        invalid_indices: Zero-initialized, single-element status array. Set to 1 if any
-            index is out of bounds; the corresponding output value is left unwritten.
-    """
-    selection_index = wp.tid()
-    particle_index = particle_indices[selection_index]
-    if particle_index < 0 or particle_index >= source.shape[0]:
-        wp.atomic_max(invalid_indices, 0, 1)
-        return
-    material_value = source[particle_index]
-    if is_density:
-        radius = particle_radius[particle_index]
-        material_value /= 8.0 * radius * radius * radius
-    material_values[selection_index] = material_value
+    return kernel
 
 
-@wp.kernel
+@cache
 def _validate_particle_material(
-    material_values: wp.array[float],
-    particle_indices: wp.array(dtype=Any),
-    particle_radius: wp.array[float],
-    lower_bound: float,
-    upper_bound: float,
-    exclude_lower_bound: bool,
-    exclude_upper_bound: bool,
-    is_density: bool,
-    parameter_index: int,
-    invalid_parameters: wp.array[int],
-):
-    """Validate one parameter of a material-update batch without modifying the model.
+    is_density: bool, indexed: bool, exclude_lower_bound: bool, exclude_upper_bound: bool
+) -> wp.Kernel:
+    """Compile the material operation for fixed selection and parameter modes."""
 
-    Launch one thread per selected particle. Values must be finite and within the
-    specified bounds. Density must also produce a finite, positive particle mass.
-
-    Args:
-        material_values: One value to broadcast, or one value per selected particle.
-        particle_indices: Global particle indices to validate.
-        particle_radius: Model-wide particle radii [m], used to validate density-derived mass.
-        lower_bound: Minimum allowed value, in the parameter's units.
-        upper_bound: Maximum allowed value, in the parameter's units.
-        exclude_lower_bound: Whether equality with the lower bound is invalid.
-        exclude_upper_bound: Whether equality with the upper bound is invalid.
-        is_density: Whether values represent density [kg/m^3].
-        parameter_index: Slot for this parameter in the batch status array.
-        invalid_parameters: Zero-initialized status array, one element per parameter.
-            Records 1 for invalid values or 2 for invalid particle indices, with 2 taking priority.
-    """
-    selection_index = wp.tid()
-    particle_index = particle_indices[selection_index]
-    if particle_index < 0 or particle_index >= particle_radius.shape[0]:
-        wp.atomic_max(invalid_parameters, parameter_index, 2)
-        return
-    value_index = wp.where(material_values.shape[0] == 1, 0, selection_index)
-    material_value = material_values[value_index]
-    valid = wp.isfinite(material_value) and material_value >= lower_bound and material_value <= upper_bound
-    if exclude_lower_bound:
-        valid = valid and material_value > lower_bound
-    if exclude_upper_bound:
-        valid = valid and material_value < upper_bound
-    if is_density:
-        radius = particle_radius[particle_index]
-        particle_mass = material_value * (8.0 * radius * radius * radius)
-        valid = valid and wp.isfinite(particle_mass) and particle_mass > 0.0
-    if not valid:
-        wp.atomic_max(invalid_parameters, parameter_index, 1)
-
-
-@wp.kernel
-def _write_particle_material(
-    material_values: wp.array[float],
-    particle_indices: wp.array(dtype=Any),
-    particle_radius: wp.array[float],
-    is_density: bool,
-    destination: wp.array[float],
-    particle_inv_mass: wp.array[float],
-):
-    """Scatter validated material values into the shared Newton model.
-
-    Launch one thread per selected particle after the entire batch passes validation.
-    Density writes update mass and inverse mass while preserving zero-mass particles.
-
-    Args:
-        material_values: One value to broadcast, or one value per selected particle.
-        particle_indices: Validated global particle indices to update.
-        particle_radius: Model-wide particle radii [m].
-        is_density: Whether values represent density [kg/m^3] rather than a direct parameter.
-        destination: Model-wide parameter array to update, or particle masses [kg] for
-            density writes. Existing mass determines whether each particle remains kinematic.
-        particle_inv_mass: Model-wide inverse masses [1/kg], updated only for density writes.
-            Zero-mass particles retain zero mass and receive zero inverse mass.
-    """
-    selection_index = wp.tid()
-    particle_index = particle_indices[selection_index]
-    value_index = wp.where(material_values.shape[0] == 1, 0, selection_index)
-    material_value = material_values[value_index]
-    if is_density:
-        # Zero simulation mass identifies kinematic particles; preserve that classification.
-        if destination[particle_index] > 0.0:
+    @wp.kernel
+    def kernel(
+        material_values: wp.array[float],
+        particle_indices: wp.array(dtype=Any),
+        start: int,
+        stride: int,
+        particle_radius: wp.array[float],
+        existing_mass: wp.array[float],
+        lower_bound: float,
+        upper_bound: float,
+        parameter_index: int,
+        invalid_parameters: wp.array[int],
+    ):
+        """Validate a whole material batch before any model writes."""
+        selection_index = wp.tid()
+        particle_index = wp.int64(start) + wp.int64(stride) * wp.int64(selection_index)
+        if wp.static(indexed):
+            particle_index = wp.int64(particle_indices[selection_index])
+        if particle_index < 0 or particle_index >= particle_radius.shape[0]:
+            wp.atomic_max(invalid_parameters, parameter_index, 2)
+            return
+        value_index = wp.where(material_values.shape[0] == 1, 0, selection_index)
+        material_value = material_values[value_index]
+        valid = wp.isfinite(material_value) and material_value >= lower_bound and material_value <= upper_bound
+        if wp.static(exclude_lower_bound):
+            valid = valid and material_value > lower_bound
+        if wp.static(exclude_upper_bound):
+            valid = valid and material_value < upper_bound
+        if wp.static(is_density):
             radius = particle_radius[particle_index]
             particle_mass = material_value * (8.0 * radius * radius * radius)
-            destination[particle_index] = particle_mass
-            particle_inv_mass[particle_index] = 1.0 / particle_mass
+            if existing_mass[particle_index] > 0.0:
+                valid = valid and wp.isfinite(particle_mass) and particle_mass > 0.0
+        if not valid:
+            wp.atomic_max(invalid_parameters, parameter_index, 1)
+
+    return kernel
+
+
+@cache
+def _write_particle_material(is_density: bool, indexed: bool) -> wp.Kernel:
+    """Compile the material operation for fixed selection and parameter modes."""
+
+    @wp.kernel
+    def kernel(
+        material_values: wp.array[float],
+        particle_indices: wp.array(dtype=Any),
+        start: int,
+        stride: int,
+        particle_radius: wp.array[float],
+        destination: wp.array[float],
+        particle_inv_mass: wp.array[float],
+    ):
+        """Write selected values, preserving kinematic mass in the density specialization."""
+        selection_index = wp.tid()
+        particle_index = wp.int64(start) + wp.int64(stride) * wp.int64(selection_index)
+        if wp.static(indexed):
+            particle_index = wp.int64(particle_indices[selection_index])
+        value_index = wp.where(material_values.shape[0] == 1, 0, selection_index)
+        material_value = material_values[value_index]
+        if wp.static(is_density):
+            # Zero simulation mass identifies kinematic particles; preserve that classification.
+            if destination[particle_index] > 0.0:
+                radius = particle_radius[particle_index]
+                particle_mass = material_value * (8.0 * radius * radius * radius)
+                destination[particle_index] = particle_mass
+                particle_inv_mass[particle_index] = 1.0 / particle_mass
+            else:
+                particle_inv_mass[particle_index] = 0.0
         else:
-            particle_inv_mass[particle_index] = 0.0
-    else:
-        destination[particle_index] = material_value
+            destination[particle_index] = material_value
+
+    return kernel
+
+
+@wp.kernel
+def _validate_unique_particle_indices(
+    indices: wp.array(dtype=Any), particle_count: int, seen: wp.array[int], errors: wp.array[int]
+):
+    """Reject invalid and repeated scatter destinations before material writes."""
+    index = indices[wp.tid()]
+    if index < 0 or index >= particle_count:
+        wp.atomic_max(errors, errors.shape[0] - 1, 2)
+    elif wp.atomic_add(seen, index, 1) > 0:
+        wp.atomic_max(errors, errors.shape[0] - 1, 1)
