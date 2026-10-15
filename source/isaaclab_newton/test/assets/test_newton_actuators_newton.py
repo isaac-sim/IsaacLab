@@ -39,6 +39,7 @@ from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg
 from newton import JointTargetMode, JointType, ModelBuilder
+from newton.actuators import Actuator, InputProcessorDelay
 from newton.solvers import SolverMuJoCo
 from newton_test_utils import NUM_ENVS, local_usd, newton_sim_cfg, spawn_assets
 
@@ -83,6 +84,13 @@ pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 NUM_STEPS = 10
 DT = 1.0 / 120.0
 TARGET_OFFSET = 0.1  # [rad] added to initial joint positions
+
+
+def _delay_state(state: Actuator.State | None) -> InputProcessorDelay.State | None:
+    """Return the delay-buffer state of a composed actuator state, or None without a delay."""
+    if state is None:
+        return None
+    return next((s for s in state.input_processor_states or () if isinstance(s, InputProcessorDelay.State)), None)
 
 
 def _solver_cfg() -> MJWarpSolverCfg:
@@ -376,7 +384,7 @@ def _run(
                             "group": group_name,
                             "drive_type": type(act.drive).__name__,
                             "clamping_types": sorted(type(c).__name__ for c in (act.clamping or [])),
-                            "has_delay": act.delay is not None,
+                            "has_delay": any(isinstance(p, InputProcessorDelay) for p in act.input_processors),
                         }
                     )
         results[name]["actuator_info"] = actuator_info
@@ -957,14 +965,14 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
         group_actuators = articulation.actuators[group_name]
         own_actuators.extend(group_actuators if isinstance(group_actuators, tuple) else (group_actuators,))
     stateful_pairs = [
-        (act, st)
+        (act, _delay_state(st))
         for act, st in zip(adapter.actuators, adapter._states_a)
-        if any(act is own for own in own_actuators) and st is not None and st.delay_state is not None
+        if any(act is own for own in own_actuators) and _delay_state(st) is not None
     ]
-    assert len(stateful_pairs) > 0, "expected at least one DelayedPD actuator with delay_state"
+    assert len(stateful_pairs) > 0, "expected at least one DelayedPD actuator with a delay state"
 
     for act, state in stateful_pairs:
-        pushes_before = state.delay_state.num_pushes.numpy()
+        pushes_before = state.num_pushes.numpy()
         assert (pushes_before > 0).all(), "expected non-zero num_pushes for all DOFs after warmup"
 
     articulation.reset(env_ids=torch.tensor([0], device=articulation.device, dtype=torch.long))
@@ -973,7 +981,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     # model-wide (includes free-joint DOFs on floating-base articulations), so ``adapter.num_joints`` is the
     # stride.
     for act, state in stateful_pairs:
-        pushes_after = state.delay_state.num_pushes.numpy()
+        pushes_after = state.num_pushes.numpy()
         indices_np = act.indices.numpy()
         for i, global_dof in enumerate(indices_np):
             env = int(global_dof) // adapter.num_joints

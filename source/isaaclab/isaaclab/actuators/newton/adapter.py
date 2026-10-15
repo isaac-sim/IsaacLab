@@ -28,7 +28,7 @@ import torch
 import warp as wp
 from newton import Model
 from newton._src.utils.selection import FrequencyLayout
-from newton.actuators import Actuator, ClampingBase, Delay, parse_actuator_prim
+from newton.actuators import Actuator, ClampingBase, InputProcessorBase, InputProcessorDelay, parse_actuator_prim
 from newton.selection import ArticulationView
 
 from ...utils import index_fill_
@@ -455,7 +455,7 @@ def resolve_actuator_component(actuator: Actuator, component: str, attr: str) ->
     if component == "drive":
         owner = actuator.drive
     elif component == "delay":
-        owner = getattr(actuator, "delay", None)
+        owner = next((p for p in actuator.input_processors if isinstance(p, InputProcessorDelay)), None)
     elif component == "clamping":
         matches = [entry for entry in (getattr(actuator, "clamping", None) or []) if hasattr(entry, attr)]
         if len(matches) > 1:
@@ -549,15 +549,15 @@ def _actuator_signature(
         shared_names = getattr(component_class, "SHARED_PARAMS", set())
         return tuple(sorted((name, make_hashable(resolved[name])) for name in shared_names if name in resolved))
 
+    processor_key: list[tuple] = []
     clamping_key: list[tuple] = []
-    has_delay = False
     for comp_cls, resolved in component_arguments:
-        if issubclass(comp_cls, Delay):
-            has_delay = True
+        if issubclass(comp_cls, InputProcessorBase):
+            processor_key.append((comp_cls, shared_key(comp_cls, resolved)))
         elif issubclass(comp_cls, ClampingBase):
             clamping_key.append((comp_cls, shared_key(comp_cls, resolved)))
 
-    return (drive_class, has_delay, tuple(clamping_key), shared_key(drive_class, drive_arguments))
+    return (drive_class, tuple(processor_key), tuple(clamping_key), shared_key(drive_class, drive_arguments))
 
 
 def _tile_per_dof_arguments(
@@ -663,25 +663,31 @@ def _create_actuators_from_usd(
             **drive_shared,
         )
 
-        # Components (delay + clampings)
+        # Components (input processors + clampings)
         clamping_components = [
             [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, ClampingBase)]
             for components in resolved_components
         ]
-        delay_arguments = [
-            resolved
+        processor_components = [
+            [(comp_cls, resolved) for comp_cls, resolved in components if issubclass(comp_cls, InputProcessorBase)]
             for components in resolved_components
-            for comp_cls, resolved in components
-            if issubclass(comp_cls, Delay)
         ]
 
-        delay = None
-        if delay_arguments:
+        input_processors = []
+        for component_index, (comp_cls, _) in enumerate(processor_components[0]):
+            if comp_cls is not InputProcessorDelay:
+                raise ValueError(
+                    f"Input processor {comp_cls.__name__} is not supported without a Newton model; only"
+                    " InputProcessorDelay is."
+                )
+            delay_arguments = [components[component_index][1] for components in processor_components]
             max_delay = max(int(arguments["delay_steps"]) for arguments in delay_arguments)
             if max_delay > 0:
-                delay = Delay(
-                    **_tile_per_dof_arguments(delay_arguments, num_envs, wp.int32, wp_device),
-                    max_delay=max_delay,
+                input_processors.append(
+                    InputProcessorDelay(
+                        **_tile_per_dof_arguments(delay_arguments, num_envs, wp.int32, wp_device),
+                        max_delay=max_delay,
+                    )
                 )
 
         clampings = []
@@ -703,7 +709,7 @@ def _create_actuators_from_usd(
         actuator = Actuator(
             indices=indices,
             drive=drive,
-            delay=delay,
+            input_processors=input_processors,
             clamping=clampings if clampings else None,
             control_target_pos_attr="joint_target_pos",
             control_target_vel_attr="joint_target_vel",

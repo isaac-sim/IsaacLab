@@ -14,7 +14,7 @@ import pytest
 import torch
 import warp as wp
 from newton._src.actuators.utils import load_checkpoint
-from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
+from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD, InputProcessorDelay
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -184,12 +184,14 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     np.testing.assert_allclose(pd.drive.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
     np.testing.assert_allclose(pd.drive.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
     np.testing.assert_allclose(pd.clamping[0].max_effort.numpy(), [21.0, 32.0, 21.0, 32.0])
-    np.testing.assert_array_equal(pd.delay.delay_steps.numpy(), [2, 4, 2, 4])
-    assert pd.delay.buf_depth == 4
+    (delay,) = pd.input_processors
+    assert type(delay) is InputProcessorDelay
+    np.testing.assert_array_equal(delay.delay_steps.numpy(), [2, 4, 2, 4])
+    assert delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
     assert type(dc.drive) is DrivePD
-    assert dc.delay is None
+    assert dc.input_processors == []
     np.testing.assert_array_equal(dc.indices.numpy(), [2, 3, 8, 9])
     np.testing.assert_allclose(dc.drive.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
     np.testing.assert_allclose(dc.drive.kd.numpy(), [3.5, 4.5, 3.5, 4.5])
