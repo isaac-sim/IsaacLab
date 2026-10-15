@@ -84,8 +84,11 @@ standard asset loader; the demo does not generate replacements.
 The prepared Rizon/Sharpa robot reuses the licensed Fabrics-Sim USD and textures
 from the RJ45 insertion scene, with two malformed visual normals arrays blocked
 in a separate USD layer. It loads from `Robot/` under the selected bundle root.
-`ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` can select a separate robot folder.
-That folder must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
+`Robot/` must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
+`ISAACLAB_COFFEE_ASSET_ROOT` selects the entire bundle, including the robot.
+The teapot/RJ45 override `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` does not apply
+to coffee. To migrate an existing coffee override, place the prepared robot in
+`Robot/` under the selected coffee bundle.
 The source revision is `d0dbd1ddaefc4996db546949a7dfb37e39afcbeb`; its manifest
 records the source fingerprint and file checksums. The robot retains its original
 licensing and access restrictions and is not part of the BSD-licensed coffee
