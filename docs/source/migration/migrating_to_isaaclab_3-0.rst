@@ -1171,9 +1171,11 @@ same resolution semantics as a standalone function:
 The backend articulation methods ``write_actuator_stiffness_to_sim`` and
 ``write_actuator_damping_to_sim`` are deprecated. Use
 :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it
-updates actuator-owned gains, implicit solver drives, or native-controller parameters as
-appropriate. For direct writes to a Newton-executed group's controller, use
-:func:`~isaaclab.actuators.newton.write_group_parameter`.
+updates actuator-owned gains, implicit solver drives, or native drive parameters as
+appropriate. For direct writes to a Newton-executed group's drive, use
+:func:`~isaaclab.actuators.newton.write_group_parameter` with the ``"drive"`` component. It was renamed
+from ``"controller"`` to follow the Newton 1.6 drive API. ``"controller"`` remains a deprecated alias that
+warns and will be removed in 3.2.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and
 its canonical replacement are present in the same group, use only the canonical name; equivalent
