@@ -83,6 +83,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = SimpleNamespace()
     renderer.backend.renderer = SimpleNamespace(
+        open_usd_from_string=Mock(),
         add_usd_reference_from_string=lambda *args, **kwargs: 1,
         remove_usd=lambda reference: None,
         clone_usd=lambda *args, **kwargs: None,
@@ -92,13 +93,11 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._clone_plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 1, positions=np.zeros((1, 3), dtype=np.float32)
     )
-    renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
-    # create_render_data resolves this from the spec; tests that bypass it get the default.
+    renderer._device = "cpu"
     renderer._warp_device = SimpleNamespace(ordinal=0)
     renderer._render_product_paths = []
     renderer._camera_render_data = []
     renderer._next_camera_id = 0
-    renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
     renderer._sdp = SimpleNamespace(backend=SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {})
@@ -274,18 +273,17 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     assert output_dir.exists() is dump_enabled
     if dump_enabled:
         assert (output_dir / _PRE_OVRTX_STAGE_FILE).read_text(encoding="utf-8") == expected_pre_export
-    assert (output_dir / _OVRTX_STAGE_FILE).exists() is False
+    assert (output_dir / _OVRTX_STAGE_FILE).exists() is dump_enabled
 
 
-def test_create_render_data_writes_combined_stage_on_the_spec_device(tmp_path: Path, monkeypatch):
+def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_path: Path, monkeypatch):
     """The debug stage retains the scene and camera product, pinned to the requested rendering device."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.cfg.temp_usd_dir = str(tmp_path)
     scene = _make_multi_env_stage(1)
     scene.SetDefaultPrim(scene.GetPrimAtPath("/World"))
     scene.SetMetadata("metersPerUnit", 1.0)
-    scene_usd = scene.GetRootLayer().ExportToString()
-    renderer._exported_usd_string = scene_usd
+    _patch_simulation_context(monkeypatch, renderer._clone_plan)
 
     open_calls: list[str] = []
     renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
@@ -300,10 +298,16 @@ def test_create_render_data_writes_combined_stage_on_the_spec_device(tmp_path: P
         def __str__(self):
             return "cuda:1"
 
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", lambda device: Device())
+    monkeypatch.setattr(
+        ovrtx_renderer_module.wp, "get_device", lambda device: Device() if device == "cuda:1" else device
+    )
     monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", Mock())
+    renderer._warp_device = Device()
+    renderer._device = "cuda:1"
+    renderer.prepare_stage(scene, 1)
     spec = _make_camera_render_spec(num_envs=1, device="cuda:1")
     render_data = renderer.create_render_data(spec)
+    second_camera = renderer.create_render_data(spec)
 
     combined_path = tmp_path / _OVRTX_STAGE_FILE
     combined_text = combined_path.read_text(encoding="utf-8")
@@ -313,19 +317,21 @@ def test_create_render_data_writes_combined_stage_on_the_spec_device(tmp_path: P
     assert combined_layer.pseudoRoot.GetInfo("metersPerUnit") == 1.0
     assert combined_layer.GetPrimAtPath(spec.camera_prim_paths[0])
     assert combined_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
+    assert combined_layer.GetPrimAtPath(second_camera.render_product_path).typeName == "RenderProduct"
     assert combined_layer.GetAttributeAtPath(render_data.render_product_path + ".deviceIds").default == [1]
-    assert open_calls == [scene_usd]
+    assert len(open_calls) == 1
     reference_text, reference_path = reference_calls[0]
     assert reference_path == "/RenderCamera_0"
     reference_layer = Sdf.Layer.CreateAnonymous("reference.usda")
     assert reference_layer.ImportFromString(reference_text)
     assert reference_layer.defaultPrim == render_data.render_scope_name
     assert reference_layer.GetPrimAtPath(render_data.render_product_path).typeName == "RenderProduct"
-    assert renderer._exported_usd_string is None
+    with pytest.raises(ValueError, match="simulation device"):
+        renderer.create_render_data(replace(spec, device="cpu"))
 
 
 @pytest.mark.parametrize("global_camera", [False, True])
-def test_create_render_data_binds_camera_after_cloning(global_camera):
+def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camera):
     """Multi-environment initialization rewrites the RenderProduct cameras after cloning."""
     num_envs = 4
     renderer = _make_ovrtx_renderer_without_backend()
@@ -335,7 +341,7 @@ def test_create_render_data_binds_camera_after_cloning(global_camera):
         num_envs,
         positions=np.zeros((num_envs, 3), dtype=np.float32),
     )
-    renderer._exported_usd_string = "#usda 1.0\n"
+    _patch_simulation_context(monkeypatch, renderer._clone_plan)
 
     call_order: list[str] = []
     write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
@@ -354,6 +360,7 @@ def test_create_render_data_binds_camera_after_cloning(global_camera):
     renderer._setup_xform_bindings_legacy = lambda: None
     renderer._setup_geometry_bindings_legacy = lambda: None
 
+    renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
     if global_camera:
         spec = replace(spec, camera_prim_paths=("/World/Camera",))
@@ -386,7 +393,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.prepare_stage(stage, 3)
     exported = Usd.Stage.CreateInMemory()
-    assert exported.GetRootLayer().ImportFromString(renderer._exported_usd_string)
+    assert exported.GetRootLayer().ImportFromString(renderer.backend.renderer.open_usd_from_string.call_args.args[0])
     binding = UsdShade.MaterialBindingAPI(exported.GetPrimAtPath(f"{source}/Body")).GetDirectBindingRel()
     assert binding.GetTargets() == [Sdf.Path(f"{source}/warm")]
     assert exported.GetPrimAtPath(f"{source}/warm")

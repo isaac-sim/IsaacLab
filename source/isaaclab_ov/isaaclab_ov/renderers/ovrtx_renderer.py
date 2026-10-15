@@ -246,12 +246,11 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
         logger.info("Wrote USD file: %s", output_path)
 
 
-def _write_combined_stage(output_dir: Path, scene_usd: str, render_product_usd: str) -> None:
+def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
     """Write the scene and render product prims in one debug layer, preserving scene metadata."""
     from pxr import Sdf
 
-    scene_layer = Sdf.Layer.CreateAnonymous("scene.usda")
-    scene_layer.ImportFromString(scene_usd)
+    scene_layer = Sdf.Layer.OpenAsAnonymous(str(output_dir / "ovrtx_renderer_stage.usda"))
     render_layer = Sdf.Layer.CreateAnonymous("render_product.usda")
     render_layer.ImportFromString(render_product_usd)
     for prim in render_layer.rootPrims:
@@ -304,12 +303,11 @@ class OVRTXBackend:
 class OVRTXCameraRenderData:
     """Owns one camera sensor's native resources and borrowed output buffers."""
 
-    def __init__(self, spec: CameraRenderSpec, device, render_scope_name: str):
+    def __init__(self, spec: CameraRenderSpec, render_scope_name: str):
         """Create render data for a camera in its assigned render scope.
 
         Args:
             spec: Camera render specification.
-            device: Rendering device.
             render_scope_name: Root scope containing this camera's render product and RenderVars.
         """
         self.render_scope_name = render_scope_name
@@ -397,10 +395,8 @@ class OVRTXRenderer(BaseRenderer):
 
     def __init__(self, cfg: OVRTXRendererCfg):
         self.cfg = cfg
-        self._device = "cuda:0"  # default; overridden by create_render_data(spec)
-        # Resolved by create_render_data(spec); every render-product device id and CUDA sync stream
-        # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
-        self._warp_device: wp.Device | None = None
+        self._warp_device = wp.get_device(SimulationContext.instance().device)
+        self._device = str(self._warp_device)
         self._render_product_paths = []
         self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._next_camera_id = 0
@@ -414,7 +410,6 @@ class OVRTXRenderer(BaseRenderer):
         self._geometry_writes = _AsyncWriteBuffers()
         self._geometry_timestamp = -1
         self._initialized_scene = False
-        self._exported_usd_string: str | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
@@ -479,14 +474,7 @@ class OVRTXRenderer(BaseRenderer):
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
-
-        Adds scene partition attributes and exports the stage to a string held on the renderer until
-        :meth:`create_render_data` is called.
-        """
-        if stage is None:
-            return
-
+        """Load, clone, and bind the shared scene before any camera products are registered."""
         self._clone_plan = SimulationContext.instance().get_clone_plan()
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
@@ -506,9 +494,29 @@ class OVRTXRenderer(BaseRenderer):
         )
         templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
         keep_env_roots = self._clone_plan.env_template not in templates
-        self._exported_usd_string = export_stage_to_string(
-            stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
-        )
+        usd = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots)
+        if self.cfg.temp_usd_dir is not None:
+            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
+        if self._use_ovstage:
+            self._current_ordinal = 1
+            ovstage.population.open_usd_from_string(
+                self.backend.stage, usd, ordinal=self._current_ordinal, domains=ovstage.PopulationDomain.RENDERING
+            )
+        else:
+            self.backend.renderer.open_usd_from_string(usd)
+        if num_envs > 1:
+            self._clone_sources()
+            self._update_scene_partitions_after_clone()
+        if self._use_ovstage:
+            self._setup_xform_bindings_ovstage()
+            self._setup_geometry_bindings_ovstage()
+            self.backend.stage.advance_write_floor(ordinal=self._current_ordinal).wait()
+            self.backend.renderer.attach_ovstage(self.backend.stage)
+            self._current_ordinal += 1
+        else:
+            self._setup_xform_bindings_legacy()
+            self._setup_geometry_bindings_legacy()
+        self._initialized_scene = True
 
     def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the plan's prototypes and shared roots before export.
@@ -669,16 +677,11 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Failed to create OVRTX geometry point bindings")
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
-        """Load the shared scene once and register each camera's product and bindings with its owner."""
-        warp_device = wp.get_device(spec.device)
-        if self._initialized_scene and str(warp_device) != self._device:
-            raise ValueError("Cameras sharing an OVRTX renderer must use the same device.")
-        self._warp_device, self._device = warp_device, str(warp_device)
-        render_data = OVRTXCameraRenderData(
-            spec, self._device, render_scope_name=f"RenderCamera_{self._next_camera_id}"
-        )
+        """Register a camera's product and bindings in the prepared scene."""
+        if str(wp.get_device(spec.device)) != self._device:
+            raise ValueError("Cameras sharing an OVRTX renderer must use the simulation device.")
+        render_data = OVRTXCameraRenderData(spec, f"RenderCamera_{self._next_camera_id}")
         camera_paths = render_data.camera_paths
-        scope, product_path = render_data.render_scope_name, render_data.render_product_path
         env_camera = cloner_path.match(camera_paths[0], self._clone_plan.env_template) is not None
         usd = build_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
@@ -688,34 +691,15 @@ class OVRTXRenderer(BaseRenderer):
             errors = self.drain_pending_renders()
             if errors:
                 raise ExceptionGroup("OVRTX renders failed before camera registration", errors)
-            if not self._initialized_scene:
-                if self.cfg.temp_usd_dir is not None:
-                    _write_combined_stage(Path(self.cfg.temp_usd_dir), self._exported_usd_string, usd)
-                if self._use_ovstage:
-                    self._current_ordinal = 1
-                    ovstage.population.open_usd_from_string(
-                        self.backend.stage, self._exported_usd_string, ordinal=self._current_ordinal,
-                        domains=ovstage.PopulationDomain.RENDERING,
-                    )  # fmt: skip
-                else:
-                    self.backend.renderer.open_usd_from_string(self._exported_usd_string)
-                self._exported_usd_string = None
-                if len(self._clone_plan.topology.world_prototype_layout) > 1:
-                    self._clone_sources()
-                    self._update_scene_partitions_after_clone()
-                if self._use_ovstage:
-                    self._setup_xform_bindings_ovstage()
-                    self._setup_geometry_bindings_ovstage()
-                else:
-                    self._setup_xform_bindings_legacy()
-                    self._setup_geometry_bindings_legacy()
-
-            # The first camera owns exactly the same resources as every subsequent camera.
+            if self.cfg.temp_usd_dir is not None:
+                _write_combined_stage(Path(self.cfg.temp_usd_dir), usd)
             if self._use_ovstage:
-                reference = ovstage.population.add_usd_reference_from_string(self.backend.stage, usd, f"/{scope}")
+                reference = ovstage.population.add_usd_reference_from_string(
+                    self.backend.stage, usd, f"/{render_data.render_scope_name}"
+                )
                 render_data.resources.callback(self._remove_usd_reference, reference)
                 ovstage.population.apply_usd_changes(self.backend.stage, ordinal=self._current_ordinal)
-                product_paths = self.backend.paths.create_path_list_from_strings([product_path])
+                product_paths = self.backend.paths.create_path_list_from_strings([render_data.render_product_path])
                 try:
                     with self.backend.stage.query_from_path_list(product_paths) as query:
                         # USD references drop external camera targets; author the relationship in Fabric.
@@ -736,22 +720,19 @@ class OVRTXRenderer(BaseRenderer):
                     tensors=np.full(spec.num_instances, True, dtype=np.bool_), is_array=False,
                 ).wait()  # fmt: skip
                 if env_camera:
+                    partition_ids = [self.backend.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)]
                     self.backend.stage.write_attribute(
-                        render_data.camera_xform_query,
-                        "omni:scenePartition",
-                        ordinal=self._current_ordinal,
-                        tensors=np.array(
-                            [self.backend.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)],
-                            dtype=np.uint64,
-                        ),
-                        is_array=False,
-                        semantic=ovstage.AttributeSemantic.TOKEN_ID,
-                    ).wait()
+                        render_data.camera_xform_query, "omni:scenePartition", ordinal=self._current_ordinal,
+                        tensors=np.array(partition_ids, np.uint64),
+                        is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
+                    ).wait()  # fmt: skip
             else:
-                reference = self.backend.renderer.add_usd_reference_from_string(usd, f"/{scope}")
+                reference = self.backend.renderer.add_usd_reference_from_string(
+                    usd, f"/{render_data.render_scope_name}"
+                )
                 render_data.resources.callback(self.backend.renderer.remove_usd, reference)
                 self.backend.renderer.write_array_attribute(
-                    prim_paths=[product_path], attribute_name="camera", tensors=[camera_paths]
+                    prim_paths=[render_data.render_product_path], attribute_name="camera", tensors=[camera_paths]
                 )
                 render_data.camera_xform_binding = self.backend.renderer.bind_attribute(
                     prim_paths=camera_paths, attribute_name="omni:xform",
@@ -778,17 +759,10 @@ class OVRTXRenderer(BaseRenderer):
                     )  # fmt: skip
                     render_data.resources.callback(binding.unbind)
                     render_data.intrinsic_bindings.append(binding)
-            if not self._initialized_scene:
-                if self._use_ovstage:
-                    # Attach only after scene, bindings, and the initial product are ready.
-                    self.backend.stage.advance_write_floor(ordinal=self._current_ordinal).wait()
-                    self.backend.renderer.attach_ovstage(self.backend.stage)
-                    self._current_ordinal += 1
-                self._initialized_scene = True
         except Exception:
             render_data.cleanup()
             raise
-        self._render_product_paths.append(product_path)
+        self._render_product_paths.append(render_data.render_product_path)
         self._next_camera_id += 1
         self._camera_render_data.append(render_data)
         return render_data

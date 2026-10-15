@@ -1,2 +1,3 @@
 * Used ordinary camera sensors for interactive RTX views, including global cameras declared through ``ReplicateSession`` in standalone scenes. Removed the separate perspective creation, capture, and resize paths; camera buffers retained their fixed resolution. Unified camera registration so each product owned its resources from creation, removing the separate first-camera setup and handle transfers.
 * Preserved runtime mesh and marker projection through the shared renderer and removed the unused viewer-only OVStage owner.
+* Completed scene import, cloning, and bindings during stage preparation, before registering camera products. Selected the rendering device from the simulation and accumulated all camera products in the optional USD debug dump.

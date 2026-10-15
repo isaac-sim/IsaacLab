@@ -249,7 +249,7 @@ def test_legacy_render_profile_scope_warns_and_preserves_import():
 
 
 @pytest.mark.parametrize("fail_writer", [False, True])
-def test_context_close_only_releases_writers_and_resets_bookkeeping(sim, fail_writer):
+def test_context_close_releases_writers_and_preserves_prepared_renderers(sim, fail_writer):
     cfg = RendererCfg(class_type=_renderer, cloning_contexts=("example:CloneContext",))
     renderer = sim.get_or_create_backend(cfg)
     context = sim.render_context
@@ -274,9 +274,10 @@ def test_context_close_only_releases_writers_and_resets_bookkeeping(sim, fail_wr
     assert not context.clone_contexts
 
     context.ensure_initialize()
-    context.ensure_prepare_stage(None, 8)
+    context.ensure_prepare_stage(None, 4)
     context.update_scene_state(1)
-    assert renderer.initialize.call_count == renderer.prepare_stage.call_count == 2
+    assert renderer.initialize.call_count == 2
+    renderer.prepare_stage.assert_called_once_with(None, 4)
     assert renderer.update_transforms.call_count == renderer.update_geometries.call_count == 2
 
 

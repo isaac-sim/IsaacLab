@@ -362,6 +362,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Complete shared resource initialization at its lifecycle boundary; registering the first consumer
+  should not initialize the shared resource or transfer its handles.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
   Keep a single representation of the active selection alongside its available choices. Detach borrowed

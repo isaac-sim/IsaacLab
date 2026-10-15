@@ -368,7 +368,9 @@ class RenderContext:
         self._prepared_num_envs = None
 
     def close(self) -> None:
-        """Release material writers and lifecycle bookkeeping, not registry-owned renderers.
+        """Release material writers and physics bookkeeping, not registry-owned renderers.
+
+        Stage preparation remains valid for the renderer's lifetime across physics resets.
 
         Raises:
             RuntimeError: If a material writer failed to close.
@@ -381,8 +383,6 @@ class RenderContext:
                 logger.error("Error closing visual-material writer: %s", exc)
                 errors.append(exc)
         self.clone_contexts.clear()
-        self._prepared_renderer_ids.clear()
-        self._prepared_num_envs = None
         self._physics_initialized = False
         self._visual_materials.clear()
         self._visual_material_batches = ()

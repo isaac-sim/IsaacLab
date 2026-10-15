@@ -77,7 +77,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
     spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
-    return OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
+    return OVRTXCameraRenderData(spec, render_scope_name="RenderCamera_0")
 
 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
@@ -90,6 +90,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
     renderer._initialized_scene = False
+    renderer._device = "cpu"
+    renderer._warp_device = wp.get_device("cpu")
     renderer._next_camera_id = 0
     renderer._transform_writes = _AsyncWriteBuffers()
     renderer._geometry_writes = _AsyncWriteBuffers()
@@ -271,8 +273,6 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
 )
 def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
     """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
-    from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
-
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.cloner import make_clone_plan
@@ -292,6 +292,11 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     if not use_ovstage:
         UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+    # RTX clips deforming meshes to initial partition bounds; this off-camera wall encloses their motion.
+    # https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html#limitations
+    wall = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Wall")
+    wall.CreateSizeAttr(8.0)
+    wall.AddTranslateOp().Set(Gf.Vec3d(10, 0, 3))
     batches, initial_points = [], []
     for index, x in enumerate((0.0, 2.0)):
         camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
@@ -334,10 +339,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
     )
     renderer._sdp = SceneDataProvider(publication)
-    renderer._exported_usd_string = export_stage_to_string(stage, 2, source_paths=("/World/envs/env_0",))
-    renderer._clone_plan = make_clone_plan(
+    plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
+    SimulationContext.instance().get_clone_plan = lambda: plan
     cameras = []
 
     def camera_scope_exists(rd):
@@ -361,6 +366,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         )
 
     try:
+        renderer.prepare_stage(stage, 2)
+        assert renderer.visual_material_writer is not None
         for index, (height, width) in enumerate(((480, 640), (384, 512))):
             cfg = _make_camera_cfg(
                 ["rgb", "distance_to_image_plane"] if index == 0 else ["rgb", "distance_to_image_plane", "normals"]
@@ -927,11 +934,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
 def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     """Replicated and global cameras bind their own paths and retain independent calibration."""
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._exported_usd_string = "#usda 1.0\n"
-    renderer._clone_plan.topology = types.SimpleNamespace(world_prototype_layout=np.zeros(1, dtype=np.int32))
-    renderer._sdp = types.SimpleNamespace(
-        backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
-    )
+    renderer._initialized_scene = True
     renderer._device = "cpu"
     renderer._next_camera_id = 0
     renderer._render_product_paths = []
@@ -962,10 +965,6 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         for index, camera_paths in enumerate((paths[0], paths[1][:1], paths[2]))
     ]
     assert not vars(renderer).keys() & {"_camera_xform_binding", "_camera_xform_query", "_camera_paths_list"}
-    if use_ovstage:
-        renderer.backend.renderer.attach_ovstage.assert_called_once_with(renderer.backend.stage)
-    else:
-        renderer.backend.renderer.open_usd_from_string.assert_called_once_with("#usda 1.0\n")
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
