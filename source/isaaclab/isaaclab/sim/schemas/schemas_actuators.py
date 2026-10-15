@@ -421,10 +421,15 @@ def _bam_play_hinge_path(stage: Usd.Stage, servo_path: str, hinge_name: str) -> 
     Raises:
         ValueError: If the servo or its play hinge is missing or not revolute.
     """
-    if stage.GetPrimAtPath(servo_path).GetTypeName() != "PhysicsRevoluteJoint":
+
+    def is_revolute(path: str) -> bool:
+        prim = stage.GetPrimAtPath(path)
+        return prim.IsValid() and prim.GetTypeName() == "PhysicsRevoluteJoint"
+
+    if not is_revolute(servo_path):
         raise ValueError(f"BAM backlash requires a revolute servo joint: {servo_path}")
     hinge_path = f"{servo_path.rsplit('/', 1)[0]}/{hinge_name}"
-    if stage.GetPrimAtPath(hinge_path).GetTypeName() != "PhysicsRevoluteJoint":
+    if not is_revolute(hinge_path):
         raise ValueError(f"BAM backlash requires a revolute sibling play hinge: {hinge_path}")
     return hinge_path
 
