@@ -13,13 +13,17 @@ import logging
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ov.physics import OvPhysxManager
 
 from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation(NewtonCfg(solver_cfg=MJWarpSolverCfg()), visualizer=["newton_rtx"])
+# This process exercises both physics backends; register schemas before the first native USD population.
+OvPhysxManager._prepare_stage_creation()
 
 
 import numpy as np  # noqa: E402
@@ -50,8 +54,9 @@ def test_newton_rtx_mpm_points_follow_world_state():
     from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
     import isaaclab.sim as sim_utils
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.app import launch_simulation
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, SimulationContext
     from isaaclab.utils import configclass
     from isaaclab.visualizers import PerspectiveCameraCfg
 
@@ -84,8 +89,10 @@ def test_newton_rtx_mpm_points_follow_world_state():
             )
         ],
     )
-    with build_simulation_context(sim_cfg=cfg) as sim:
-        scene = InteractiveScene(ParticleSceneCfg(num_envs=1, env_spacing=0.0))
+    scene_cfg = ParticleSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation(SimpleNamespace(sim=cfg, scene=scene_cfg), {"visualizer": ["newton_rtx"]}):
+        sim = SimulationContext(cfg)
+        scene = instantiate(scene_cfg)
         sim.reset()
         fluid, visualizer = scene["fluid"], sim.visualizers[0]
         _viz_utils._warm_newton_viewer(visualizer)

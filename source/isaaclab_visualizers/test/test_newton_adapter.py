@@ -612,13 +612,9 @@ class _ContactSensor:
 class _SceneDataProvider:
     def __init__(self, contact_sensors=None):
         self._contact_sensors = contact_sensors or {}
-        self.backend = SimpleNamespace(geometry_timestamp=0)
 
     def get_contact_sensors(self):
         return self._contact_sensors
-
-    def get_geometry_points(self):
-        return {}
 
     def create_mapping(self, paths):
         return None

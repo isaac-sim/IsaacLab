@@ -1,0 +1,1 @@
+* Updated the coffee demo to publish grains and liquid materials through the scene camera's shared RTX renderer. Authored its backdrop before camera initialization and removed its Newton RTX viewer subclass.
