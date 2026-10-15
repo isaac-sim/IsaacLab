@@ -546,6 +546,7 @@ def create_sim_cfg():
         solver_cfg = cfg.physics.solver_cfg
         solver_cfg.air_drag = 1.0
         solver_cfg.strain_basis = "P1d"
+        solver_cfg.transfer_scheme = "pic"
         # Quadratic velocity interpolation reduces grid-aligned flow in the bowl.
         solver_cfg.velocity_basis = "B2"
         solver_cfg.max_iterations = 25
