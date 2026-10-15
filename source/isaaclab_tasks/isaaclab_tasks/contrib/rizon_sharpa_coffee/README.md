@@ -21,6 +21,13 @@ This is a demo: a complete visual showcase, like `teapot-fill`. Focused examples
 show an individual API or tuning method. This demo has no learning task or
 policy registration.
 
+The source bowl is approximately 68 × 63 mm, with its original 40 mm depth.
+`--bowl_scale` scales the hosted bowl and coffee fill together in the horizontal
+plane; `--bowl_scale 1` restores the original size. The scoop recenters within
+the smaller bowl. Completion requires at least 1 g of coffee in the cup as well
+as the configured delivery fraction, so reducing the fill does not lower the
+minimum successful dose.
+
 ## Code layout
 
 | Files | Responsibility |

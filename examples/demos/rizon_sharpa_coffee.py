@@ -82,7 +82,9 @@ def main() -> None:
                 if not env.is_state_finite().all():
                     raise RuntimeError("Coffee rollout produced nonfinite robot or material positions.")
                 if controller.finished:
-                    if env.delivered_fraction()[0] < cfg.min_delivered_fraction:
+                    fraction = env.delivered_fraction()[0]
+                    delivered_mass = fraction * len(cfg.scene.coffee.spawn.positions) * cfg.scene.coffee.spawn.mass
+                    if fraction < cfg.min_delivered_fraction or delivered_mass < cfg.min_delivered_mass:
                         raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
                     if not args.keep_open:
                         break
@@ -98,6 +100,12 @@ def _parse_args():
         help="Fill the cup, dissolve wet coffee into liquid, diffuse its colour and stir.",
     )
     parser.add_argument("--voxel_size", type=float, default=0.004)
+    parser.add_argument(
+        "--bowl_scale",
+        type=float,
+        default=0.4,
+        help="Horizontal scale of the source bowl and its coffee fill (>= 0.4).",
+    )
     parser.add_argument(
         "--physics_hz",
         type=int,
@@ -150,6 +158,7 @@ def _make_env_cfg(args, video_stride):
     cfg = CoffeeDemoEnvCfg(water_enabled=args.water)
     cfg.seed = 7
     cfg.voxel_size = args.voxel_size
+    cfg.bowl_scale = args.bowl_scale
     cfg.sim.dt = 1.0 / args.physics_hz
     cfg.decimation = args.physics_hz // args.control_hz
     cfg.sim.render_interval = 2 * cfg.decimation

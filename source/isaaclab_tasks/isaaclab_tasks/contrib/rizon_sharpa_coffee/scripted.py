@@ -52,6 +52,10 @@ class CoffeeScoopDemo:
         """Restart from the current physical spoon pose after an environment reset."""
         initial = self._env.spoon_pose()
         source_x, source_y, source_z = BOWL_POSITION
+        # Center the level spoon in a compact bowl while retaining the steep
+        # entry and short forward draw used by the full-size presentation.
+        scoop_x = source_x + min(0.015, 0.030 * (1.0 - self._env.cfg.bowl_scale))
+        scoop_y = source_y - 0.010 * self._env.cfg.bowl_scale
         cup_x, cup_y, cup_z = CUP_POSITION
         level = (0.0, 0.0, 0.0, 1.0)
         tipped = (math.sin(math.pi / 4.0), 0.0, 0.0, math.cos(math.pi / 4.0))
@@ -82,23 +86,23 @@ class CoffeeScoopDemo:
         # zero knot accelerations make the quintic segments C2 continuous.
         # Coordinates are X/Y/Z and pitch, followed by derivatives per s.
         self._scoop_knots = [
-            (0.0, (source_x - 0.030, source_y - 0.010, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
-            (2.5, (source_x - 0.030, source_y - 0.010, source_z + 0.070, math.radians(60)), (0.0, 0.0, -0.015, 0.0)),
+            (0.0, (scoop_x - 0.030, scoop_y, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
+            (2.5, (scoop_x - 0.030, scoop_y, source_z + 0.070, math.radians(60)), (0.0, 0.0, -0.015, 0.0)),
             (
                 3.8,
-                (source_x - 0.030, source_y - 0.010, source_z + 0.030, math.radians(60)),
+                (scoop_x - 0.030, scoop_y, source_z + 0.030, math.radians(60)),
                 (0.001, 0.0, -0.002, math.radians(-5)),
             ),
             (
                 5.2,
-                (source_x - 0.025, source_y - 0.010, source_z + 0.030, math.radians(40)),
+                (scoop_x - 0.025, scoop_y, source_z + 0.030, math.radians(40)),
                 (0.0025, 0.0, 0.001, math.radians(-12)),
             ),
-            (8.2, (source_x - 0.015, source_y - 0.010, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
-            (9.2, (source_x - 0.014, source_y - 0.010, scoop_z + 0.012, 0.0), (0.001, 0.0, 0.024, 0.0)),
-            (10.4, (source_x - 0.014, source_y - 0.010, source_z + 0.105, 0.0), (0.0, 0.0, 0.055, 0.0)),
-            (11.7, (source_x - 0.014, source_y - 0.010, source_z + 0.165, 0.0), (0.0, 0.0, 0.045, 0.0)),
-            (13.2, (source_x - 0.014, source_y - 0.010, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
+            (8.2, (scoop_x - 0.015, scoop_y, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
+            (9.2, (scoop_x - 0.014, scoop_y, scoop_z + 0.012, 0.0), (0.001, 0.0, 0.024, 0.0)),
+            (10.4, (scoop_x - 0.014, scoop_y, source_z + 0.105, 0.0), (0.0, 0.0, 0.055, 0.0)),
+            (11.7, (scoop_x - 0.014, scoop_y, source_z + 0.165, 0.0), (0.0, 0.0, 0.045, 0.0)),
+            (13.2, (scoop_x - 0.014, scoop_y, transfer_z, 0.0), (0.0, 0.0, 0.0, 0.0)),
         ]
         ready_distance = torch.linalg.vector_norm(initial[:, :3] - approach[:, :3], dim=-1)
         ready_angle = math_utils.quat_error_magnitude(initial[:, 3:], approach[:, 3:])
@@ -110,11 +114,11 @@ class CoffeeScoopDemo:
                 ("approach", 2.5, approach, 0.007),
             ]
         self._phases += [
-            ("approach_1", 1.4, pose((source_x - 0.031, source_y - 0.010, transfer_z)), 0.007),
+            ("approach_1", 1.4, pose((scoop_x - 0.031, scoop_y, transfer_z)), 0.007),
             (
                 "scoop_1",
                 self._scoop_knots[-1][0],
-                pose((source_x - 0.014, source_y - 0.010, transfer_z)),
+                pose((scoop_x - 0.014, scoop_y, transfer_z)),
                 0.007,
             ),
             ("transfer_1", 4.5, pose((cup_x, pour_y, transfer_z)), 0.007),

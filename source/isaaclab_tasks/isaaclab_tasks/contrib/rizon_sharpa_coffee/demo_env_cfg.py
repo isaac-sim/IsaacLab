@@ -189,11 +189,15 @@ class CoffeeDemoEnvCfg(ManagerBasedEnvCfg):
     coffee_wetting_time: float = 0.02
     """Accumulated contact with water before soluble coffee becomes liquid [s]."""
     grains_per_particle: int = 0
+    bowl_scale: float = 0.4
+    """Horizontal scale of the bowl and its coffee fill (at least 0.4); depth stays unchanged."""
     coffee_fill_height: float = 0.065
     water_fill_height: float = 0.075
     """Initial water seed height [m]; gravity spreads the fill to a lower free surface."""
     min_delivered_fraction: float = 0.005
     """Minimum cup fraction required for the scripted demo to report completion."""
+    min_delivered_mass: float = 0.001
+    """Minimum coffee mass in the cup [kg], independent of the source fill size."""
     spoon_offset_pos: tuple[float, float, float] = DEFAULT_SPOON_OFFSET_POS
     spoon_offset_rot: tuple[float, float, float, float] = DEFAULT_SPOON_OFFSET_ROT
 
@@ -215,12 +219,16 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         raise ValueError("spoon_margin_voxels must be finite and nonnegative.")
     if not math.isfinite(cfg.spoon_rim_margin_scale) or not 0.0 <= cfg.spoon_rim_margin_scale <= 1.0:
         raise ValueError("spoon_rim_margin_scale must be between zero and one.")
+    if not math.isfinite(cfg.bowl_scale) or cfg.bowl_scale < 0.4:
+        raise ValueError("bowl_scale must be finite and at least 0.4.")
     if not 0.009 <= cfg.coffee_fill_height <= 0.075:
         raise ValueError("coffee_fill_height must be between 9 and 75 mm.")
     if not 0.012 <= cfg.water_fill_height <= 0.079:
         raise ValueError("water_fill_height must be between 12 and 79 mm.")
     if not 0.0 < cfg.min_delivered_fraction <= 1.0:
         raise ValueError("min_delivered_fraction must be in (0, 1].")
+    if not math.isfinite(cfg.min_delivered_mass) or cfg.min_delivered_mass <= 0.0:
+        raise ValueError("min_delivered_mass must be finite and positive.")
     cfg.scene.robot = get_robot_cfg()
     cfg.scene.table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
@@ -229,7 +237,9 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     )
     cfg.scene.bowl = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Bowl",
-        spawn=sim_utils.UsdFileCfg(usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda"),
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{COFFEE_ASSET_DIR}/bowl.usda", scale=(cfg.bowl_scale, cfg.bowl_scale, 1.0)
+        ),
         init_state=AssetBaseCfg.InitialStateCfg(pos=BOWL_POSITION),
     )
     cfg.scene.cup = AssetBaseCfg(
@@ -246,7 +256,9 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.45, -0.12, 0.15)),
     )
     spacing = cfg.voxel_size / 2.0
-    cfg.scene.coffee = _particle_cfg("Coffee", BOWL_POSITION, 0.060, cfg.coffee_fill_height, spacing, False)
+    cfg.scene.coffee = _particle_cfg(
+        "Coffee", BOWL_POSITION, 0.060 * cfg.bowl_scale, cfg.coffee_fill_height, spacing, False, cfg.bowl_scale
+    )
     cfg.scene.water = (
         _particle_cfg("Water", CUP_POSITION, CUP_INNER_RADIUS - 0.002, cfg.water_fill_height, spacing, True)
         if cfg.water_enabled
@@ -286,6 +298,7 @@ def _particle_cfg(
     height: float,
     spacing: float,
     water: bool,
+    radial_scale: float = 1.0,
 ) -> MPMObjectCfg:
     """Seed a deterministic fill and bind its granular or liquid material."""
     axis = np.arange(-radius + spacing / 2.0, radius, spacing)
@@ -293,7 +306,9 @@ def _particle_cfg(
     points = np.stack(np.meshgrid(axis, axis, z, indexing="ij"), axis=-1).reshape(-1, 3)
     points = points[np.linalg.norm(points[:, :2], axis=1) < radius - spacing]
     if not water:
-        points = points[np.linalg.norm(points[:, :2], axis=1) < coffee_cavity_radius(points[:, 2]) - 2.0 * spacing]
+        points = points[
+            np.linalg.norm(points[:, :2], axis=1) < radial_scale * coffee_cavity_radius(points[:, 2]) - 2.0 * spacing
+        ]
     if not len(points):
         raise ValueError(f"{name} fill is empty at spacing={spacing:g} m and height={height:g} m.")
     rng = np.random.default_rng(7)
