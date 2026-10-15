@@ -22,8 +22,11 @@ _CURRENT_LIFECYCLE_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 @pytest.fixture(autouse=True)
 def _native_backend(monkeypatch):
+    from isaaclab_ov.physics import ovphysx_compat
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxBackend, OvPhysxManager, OvPhysxSceneDataBackend
 
+    # These fixtures model the legacy API, regardless of the locally installed wheel.
+    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", False)
     backend = OvPhysxBackend.__new__(OvPhysxBackend)
     backend.physx = None
     backend.stage = None
@@ -183,13 +186,21 @@ def test_transforms_finish_dirty_kinematics_before_native_reads(monkeypatch):
     assert calls == ["fk", "read", "fk", "read"]
 
 
-def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
+@pytest.mark.parametrize(("modern", "failure"), [(False, None), (True, None), (True, "attach")])
+def test_manager_attaches_and_releases_owned_ovstage(monkeypatch, modern, failure):
     """The registered resource releases the attached OVStage once, after PhysX."""
     import isaaclab_ov.physics.ovphysx_manager as om_mod
     from isaaclab_ov.physics import OvPhysxManager
 
     events = []
-    monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", _LEGACY_LIFECYCLE_ENTRY_POINTS)
+    stages = []
+    attach_task, detach_task = object(), object()
+    monkeypatch.setattr(om_mod.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
+    monkeypatch.setattr(
+        om_mod,
+        "OVPHYSX_LIFECYCLE_ENTRY_POINTS",
+        _CURRENT_LIFECYCLE_ENTRY_POINTS if modern else _LEGACY_LIFECYCLE_ENTRY_POINTS,
+    )
 
     class FakeWriteFloorOp:
         def __init__(self, ordinal):
@@ -200,6 +211,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
     class FakeStage:
         def __init__(self, name):
+            stages.append(self)
             events.append(("stage", name))
 
         def advance_write_floor(self, ordinal):
@@ -211,6 +223,7 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
     class FakePhysX:
         def attach_ovstage(self, stage, read_ordinal):
             events.append(("attach", stage, read_ordinal))
+            return attach_task if modern else None
 
         def reset_stage(self):
             events.append(("reset",))
@@ -218,6 +231,19 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
 
         def wait_op(self, op):
             events.append(("wait", op))
+
+        def detach_ovstage(self):
+            events.append(("detach",))
+            return detach_task
+
+        def wait_task(self, task):
+            assert task in (attach_task, detach_task)
+            events.append(("wait_task", task))
+            if failure == "attach" and task is attach_task:
+                raise RuntimeError(f"{failure} failed")
+
+        def destroy(self):
+            events.append(("destroy_physx",))
 
         def release(self):
             events.append(("release",))
@@ -242,8 +268,13 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         "_close_all_for",
         lambda value: events.append(("close_views", value)),
     )
-    OvPhysxManager._attach_ovstage("#usda 1.0")
-    stage = OvPhysxManager.backend.stage
+    if failure == "attach":
+        with pytest.raises(RuntimeError, match=f"{failure} failed"):
+            OvPhysxManager._attach_ovstage("#usda 1.0")
+    else:
+        OvPhysxManager._attach_ovstage("#usda 1.0")
+    stage = stages[0]
+    assert OvPhysxManager.backend.stage is stage
     OvPhysxManager.backend.close()
     OvPhysxManager.backend.close()
 
@@ -254,11 +285,11 @@ def test_manager_attaches_and_releases_owned_ovstage(monkeypatch):
         ("populate", stage, "#usda 1.0", 1, "all"),
         ("seal", 1),
         ("attach", stage, 1),
+    ] + ([("wait_task", attach_task)] if modern else []) + [
         ("destroy_view",),
         ("close_views", physx),
-        ("reset",),
-        ("wait", 17),
-        ("release",),
+    ] + ([("detach",), ("wait_task", detach_task)] if modern else [("reset",), ("wait", 17)]) + [
+        ("destroy_physx",) if modern else ("release",),
         ("destroy",),
     ]
     assert OvPhysxManager.backend.rigid_body_view is None
@@ -311,14 +342,15 @@ def test_manager_rejects_missing_lifecycle_api(monkeypatch, operation):
 
 
 @pytest.mark.parametrize(
-    ("entry_points", "retryable"),
+    ("entry_points", "retryable", "modern"),
     [
-        pytest.param(_LEGACY_LIFECYCLE_ENTRY_POINTS, False, id="legacy-release-error"),
-        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, False, id="terminal-destroy-error"),
-        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, True, id="retryable-destroy-error"),
+        pytest.param(_LEGACY_LIFECYCLE_ENTRY_POINTS, False, False, id="legacy-release-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, False, False, id="terminal-destroy-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, True, False, id="retryable-destroy-error"),
+        pytest.param(_CURRENT_LIFECYCLE_ENTRY_POINTS, True, True, id="task-detach-and-retryable-destroy-error"),
     ],
 )
-def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry_points, retryable):
+def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry_points, retryable, modern):
     """Terminal errors free native owners; pre-teardown errors retain them for the next close."""
     from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
     from isaaclab_ov.physics import ovphysx_manager as om_mod
@@ -327,6 +359,7 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     from isaaclab.sim import SimulationContext
 
     events = []
+    monkeypatch.setattr(om_mod.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     monkeypatch.setattr(om_mod, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", entry_points)
 
     class FakePhysX:
@@ -356,7 +389,22 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
             events.append("release")
             raise RuntimeError("native teardown failed")
 
-    physx = FakePhysX()
+    class TaskPhysX(FakePhysX):
+        fail_detach = True
+
+        def detach_ovstage(self):
+            events.append("reset")
+            return receipt
+
+        def wait_task(self, task):
+            assert task is receipt
+            events.append(("wait", receipt))
+            if self.fail_detach:
+                self.fail_detach = False
+                raise RuntimeError("detach task failed")
+
+    receipt = object() if modern else 23
+    physx = TaskPhysX() if modern else FakePhysX()
     stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
     OvPhysxManager.backend.physx = physx
     OvPhysxManager.backend.stage = stage
@@ -374,15 +422,18 @@ def test_manager_close_preserves_only_retryable_native_owners(monkeypatch, entry
     monkeypatch.setattr(PhysicsManager, "_callbacks", {})
     monkeypatch.setattr(PhysicsManager, "views", {})
     monkeypatch.setattr(om_mod.OvPhysxView, "_close_all_for", lambda value: events.append("close_views"))
-    with pytest.raises(RuntimeError, match="native teardown failed"):
+    with pytest.raises(RuntimeError, match="native teardown failed") as error:
         OvPhysxManager.close()
+    if modern:
+        assert isinstance(error.value.__context__, RuntimeError)
+        assert str(error.value.__context__) == "detach task failed"
 
     assert PhysicsManager._sim is None
     assert sim._backend_registry == [(cfg, backend)]
     assert backend.physx is (physx if retryable else None)
     assert backend.stage is (stage if retryable else None)
 
-    teardown = ["close_views", "reset", ("wait", 23), entry_points["destroy"]]
+    teardown = ["close_views", "reset", ("wait", receipt), entry_points["destroy"]]
     assert events == teardown + ([] if retryable else ["destroy_stage"])
 
     physx.fail_destroy = False
@@ -484,26 +535,51 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     assert SimulationContext.instance() is None
 
 
-def test_scene_data_binding_is_deferred_until_requested():
-    """Headless reset defers renderer-only native reads and tensor binding."""
-    from contextlib import nullcontext
+@pytest.mark.parametrize("modern", [False, True])
+def test_scene_data_binding_is_deferred_until_requested(monkeypatch, modern):
+    """Resolve nonempty rigid/link sessions in native order, once, before their dictionaries expire."""
+    from contextlib import contextmanager, nullcontext
 
+    import ovstage
+    from isaaclab_ov.physics import ovphysx_compat
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+    from ovphysx.types import SimObjectType
 
+    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     calls = []
+    active = False
+    expected_paths = ["/World/Body", "/World/Robot/Link"]
 
-    class FakePhysX:
-        def read(self, kind, fields):
-            calls.append((kind, fields))
-            return nullcontext(SimpleNamespace(groups=[]))
+    def get_paths(kind):
+        assert active, "path dictionary used after session exit"
+        return [expected_paths[0 if kind == SimObjectType.RIGID_BODY else 1]]
 
-    native = SimpleNamespace(physx=FakePhysX(), rigid_body_view=None)
+    dictionary = SimpleNamespace(get_path_strings=get_paths)
+    monkeypatch.setattr(ovstage, "PathDictionary", lambda: nullcontext(dictionary))
+
+    @contextmanager
+    def read(kind, fields):
+        nonlocal active
+        calls.append((kind, fields))
+        active = True
+        try:
+            yield SimpleNamespace(groups=[SimpleNamespace(prim_list=kind)], dictionary=dictionary)
+        finally:
+            active = False
+
+    def bind(*, prim_paths):
+        assert prim_paths == expected_paths
+        return SimpleNamespace(count=2, prim_paths=prim_paths)
+
+    runtime = SimpleNamespace(create_tensor_binding=bind, **{"read_sync" if modern else "read": read})
+    native = SimpleNamespace(physx=runtime, rigid_body_view=None)
     backend = OvPhysxSceneDataBackend()
     backend._defer_setup(native, "cpu", ())
     assert calls == []
-    assert backend.transform_count == 0
+    assert backend.transform_count == 2
+    assert backend.transform_paths == expected_paths
     assert len(calls) == 2
-    assert backend.transform_count == 0
+    assert backend.transform_count == 2
     assert len(calls) == 2
 
 
