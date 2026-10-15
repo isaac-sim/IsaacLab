@@ -1697,13 +1697,6 @@ def _collect_test_node_ids_by_file(workspace_root: str) -> dict[str, list[str]]:
     return grouped
 
 
-def _registered_markers(workspace_root: str) -> set[str]:
-    """Names of the markers registered in the root ``pyproject.toml``."""
-    with open(os.path.join(workspace_root, "pyproject.toml"), "rb") as stream:
-        entries = tomllib.load(stream)["tool"]["pytest"]["ini_options"]["markers"]
-    return {entry.split(":", 1)[0].strip() for entry in entries}
-
-
 def _write_empty_report():
     """Write an empty JUnit XML report so downstream CI steps find a valid file."""
     os.makedirs("tests", exist_ok=True)
@@ -1767,7 +1760,8 @@ def pytest_sessionstart(session):
     ci_marker = os.environ.get("CI_MARKER", "")
     # The file scan below matches a single marker name, and a job with no marked file passes empty,
     # so an expression or a misspelt name would pass every job without running anything.
-    if ci_marker and ci_marker not in _registered_markers(workspace_root):
+    registered_markers = {entry.split(":", 1)[0].strip() for entry in session.config.getini("markers")}
+    if ci_marker and ci_marker not in registered_markers:
         pytest.exit(f"CI_MARKER {ci_marker!r} is not a single marker registered in pyproject.toml", returncode=1)
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
 
