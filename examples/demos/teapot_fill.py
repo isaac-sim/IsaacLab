@@ -545,8 +545,8 @@ def create_sim_cfg():
 
         solver_cfg = cfg.physics.solver_cfg
         solver_cfg.air_drag = 1.0
-        # Use particle-based contacts for pouring and bowl impact.
-        solver_cfg.collider_basis = "pic27"
+        # Cover dense cells during bowl impact; pic27 can omit wall contacts.
+        solver_cfg.collider_basis = "pic512"
         cfg.physics = NewtonCfg(
             solver_cfg=make_solver_cfg(solver_cfg),
             num_substeps=MPM_SUBSTEPS,
