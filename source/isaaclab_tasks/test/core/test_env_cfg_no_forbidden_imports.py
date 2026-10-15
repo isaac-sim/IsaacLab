@@ -193,8 +193,8 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
     )
 
 
-def test_teleop_configs_load_without_teleop():
-    """Configs with optional Isaac Teleop integrations must load without the package."""
+def test_teleop_configs_resolve_and_validate_without_teleop():
+    """Configs with optional Isaac Teleop integrations must resolve and validate without the package."""
     script = textwrap.dedent("""\
         import builtins
         import importlib.util
@@ -217,7 +217,8 @@ def test_teleop_configs_load_without_teleop():
 
         import gymnasium
         import isaaclab_tasks  # noqa: F401
-        from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+        from isaaclab.utils import validate
+        from isaaclab_tasks.utils import resolve_task_config
 
         locomanip_package = "isaaclab_tasks.contrib.locomanip_pick_place."
         teleop_task_packages = (
@@ -242,7 +243,8 @@ def test_teleop_configs_load_without_teleop():
         assert covered_packages == set(teleop_task_packages)
 
         for task_name in task_names:
-            cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            cfg, _ = resolve_task_config(task_name, "")
+            validate(cfg)
             assert cfg.xr is None
             assert cfg.isaac_teleop is None
             entry_point = gymnasium.registry[task_name].kwargs["env_cfg_entry_point"]

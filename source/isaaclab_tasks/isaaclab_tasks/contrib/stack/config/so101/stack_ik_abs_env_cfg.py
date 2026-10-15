@@ -10,8 +10,8 @@ import numpy as np
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.utils import configclass, replace
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
-from isaaclab_tasks.contrib.stack.stack_env_cfg import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.utils import preset
 
 from . import stack_joint_pos_env_cfg
