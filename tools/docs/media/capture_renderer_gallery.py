@@ -41,7 +41,6 @@ _RTX_ONLY_MODES = (
 _RENDERER_SLUGS = {"newton": "newton", "ovrtx": "ovrtx", "isaac_rtx": "isaac-rtx"}
 _SIMPLE_SHADING_MODES = tuple(mode.output_name for mode in _RTX_ONLY_MODES if mode.output_name.startswith("simple_"))
 _OVRTX_AMBIENT_LIGHT_SETTING = "float omni:rtx:rt:ambientLight:intensity = 1.0"
-_DEFAULT_GALLERY_SCENE = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Docs/Renderers/renderer_gallery_scene.usda"
 
 
 def gallery_modes(renderer: str) -> tuple[GalleryMode, ...]:
@@ -186,7 +185,7 @@ def add_gallery_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--renderer-backend", choices=tuple(_RENDERER_SLUGS), required=True)
     parser.add_argument("--capture-group", choices=("standard", *_SIMPLE_SHADING_MODES), default="standard")
     parser.add_argument("--newton-shadows", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--scene", type=resolve_gallery_scene, default=_DEFAULT_GALLERY_SCENE)
+    parser.add_argument("--scene", type=resolve_gallery_scene, required=True)
     parser.add_argument(
         "--output-dir",
         type=Path,
