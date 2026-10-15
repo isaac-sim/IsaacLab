@@ -962,11 +962,14 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
+        from isaaclab.visualizers import PerspectiveCameraCfg
+
+        # the viewport starts on the first view, framing environment 0; a free view follows it
         self.sim.default_visualizer_cfg = KitVisualizerCfg(
-            eye=(1.7, 1.5, 1.0),
-            lookat=(0.55, 0.0, 0.0),
-            origin_type="env",
-            origin_env_index=0,
+            cameras=[
+                PerspectiveCameraCfg(env_index=0, eye=(1.7, 1.5, 1.0), lookat=(0.55, 0.0, 0.0)),
+                PerspectiveCameraCfg(),
+            ]
         )
         self.sim.physics = NewtonCfg(
             solver_cfg=CouplerProxyCfg(

@@ -545,9 +545,10 @@ task's wrist-mounted and ego cameras. The view is supported in the Kit, Newton G
 Rerun, and Viser visualizers. **Kit** opens it as a separate **Streaming View** viewport, which can
 sit side by side with the default viewport for dual monitoring. **Newton GL** and **Newton RTX**
 provide a **Camera View** selector in the sidebar for switching between perspective and scene-camera
-views. In **Newton GL** a perspective view can also be a *task view* that follows a robot or frames an
-environment, rendered by the viewer itself, so the interactive view stays free; select it in **Camera View**
-or record it with ``--video viz:newton_gl:tracking``.
+views. A perspective view can also be a *task view* that follows a robot or frames an environment. **Newton GL**
+renders it as its own view, so the interactive view stays free; select it in **Camera View** or record it with
+``--video viz:newton_gl:tracking``. **Viser** follows it when you toggle it, and **Kit** follows it with its
+viewport.
 
 See :doc:`/source/how-to/visualizer_streaming_camera_view` for the ``VisualizerCfg`` options, display
 sources, task views that follow a robot, troubleshooting, migration from generated cameras, and step-by-step examples.
@@ -718,21 +719,27 @@ Watch training live in Kit while recording from a separate headless Newton GL an
 ``--viz kit --video viz:newton_gl`` and giving each visualizer its own camera. See
 :ref:`Recording from an independent camera angle <how_to_record_video_angle>` for the configuration.
 
-**Following a moving robot (Kit)**
+**Following a moving robot**
 
-Lock the Kit camera to a moving asset instead of updating ``eye``/``lookat`` yourself every
-step, running with ``--viz kit``:
+Declare a *task view* instead of updating ``eye``/``lookat`` yourself every step. Newton GL renders it
+as a separate view, Kit follows with its viewport, and Viser follows when you toggle it; see
+:ref:`how-to-visualizer-task-views`:
 
 .. code-block:: python
 
+    from isaaclab.visualizers import PerspectiveCameraCfg
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    # Kit moves its interactive viewport itself; Newton GL offers a separate task view instead.
+    # the first view starts active, so Kit's viewport starts on the task view; a free view follows it
     sim_cfg.visualizer_cfgs = [
         KitVisualizerCfg(
-            origin_type="asset",
-            origin_track_path="robot",  # or "robot/panda_hand" to track a specific body
-            eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
+            cameras=[
+                PerspectiveCameraCfg(
+                    track_path="robot",  # or "robot/panda_hand" to track a specific body
+                    eye=(4.0, 4.0, 2.0),  # offset from the tracked asset
+                ),
+                PerspectiveCameraCfg(),
+            ]
         )
     ]
 

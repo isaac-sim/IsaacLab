@@ -196,10 +196,21 @@ viewport's markers and shadows. Tasks declare one in ``sim.default_visualizer_cf
   ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.
 
 The interactive view stays free: a free perspective view at the visualizer's own ``eye`` and ``lookat`` is
-added before the task view, and the **Camera View** selector switches between them. While a task view is
-selected the window follows the robot, and selecting the free view hands the camera back. Record a task view,
-whichever view the window shows, with ``--video viz:newton_gl:tracking``. Newton GL supports task views and their recording.
-Newton RTX shares the same view code but is untested, and Kit, Rerun, and Viser ignore task views.
+added before the task view, and the first view starts active. Each visualizer offers the task view its own way:
+
+* **Newton GL:** the **Camera View** selector lists it, named for what it does (``Following robot (env 0)`` or
+  ``Environment 0``), and an **Environment** field beside the selector picks the environment it follows. While it
+  is selected the window follows the robot, and selecting the free view hands the camera back. Record it,
+  whichever view the window shows, with ``--video viz:newton_gl:tracking``.
+* **Viser:** a **Camera View** folder in the sidebar has a **Follow task view** checkbox, off by default, and an
+  **Environment** field, 0 unless the view declares another. While it is on, the browser camera follows the robot;
+  turning it off leaves the camera where it is, free to move. Viser cannot be recorded.
+* **Kit:** the viewport starts on the task view when it is declared first, and follows the environment or the
+  asset until the **Follow Mode** control in the environment window or ``KitVisualizer.unfollow()`` hands it back.
+  The **Camera Eye** and **Camera Target** controls then edit the offsets. This replaces the ``origin_type``,
+  ``origin_env_index``, and ``origin_track_path`` fields of ``KitVisualizerCfg``.
+
+Newton RTX shares the Newton GL view code but is untested, and Rerun ignores task views.
 
 Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
 authored scene and clone placements. Newton owns its perspective renderer, window, and debug

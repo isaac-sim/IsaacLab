@@ -37,6 +37,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
+from isaaclab.visualizers import PerspectiveCameraCfg
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
@@ -590,11 +591,12 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1.0 / 120.0
         self.sim.render_interval = self.decimation
         self.sim.use_newton_actuators = True
+        # the viewport starts on the first view, framing environment 0; a free view follows it
         self.sim.default_visualizer_cfg = KitVisualizerCfg(
-            eye=(1.4, 1.4, 0.9),
-            lookat=(0.5, 0.0, 0.1),
-            origin_type="env",
-            origin_env_index=0,
+            cameras=[
+                PerspectiveCameraCfg(env_index=0, eye=(1.4, 1.4, 0.9), lookat=(0.5, 0.0, 0.1)),
+                PerspectiveCameraCfg(),
+            ]
         )
 
         self.sim.physics = NewtonCfg(

@@ -34,9 +34,11 @@ class CameraFollower:
     def __init__(self, cfg: PerspectiveCameraCfg, scene: InteractiveScene) -> None:
         self.cfg = cfg
         self._scene = scene
-        self._env = cfg.env_index or 0
-        if not 0 <= self._env < scene.num_envs:
-            raise ValueError(f"env_index {self._env} is outside the {scene.num_envs} environments of the scene.")
+        self._env = 0
+        self._yaw: float | None = None
+        self._last_position: list[float] | None = None
+        self._time: float | None = None
+        self.set_env(cfg.env_index or 0)
         self._asset = None
         self._body_index: int | None = None
         self._body_name = ""
@@ -46,9 +48,22 @@ class CameraFollower:
                 self._asset = scene[asset_name]
             except KeyError as exc:
                 raise ValueError(f"track_path refers to an unknown scene asset: {asset_name!r}.") from exc
-        self._yaw: float | None = None
-        self._last_position: list[float] | None = None
-        self._time: float | None = None
+
+    @property
+    def env(self) -> int:
+        """Environment whose origin or asset the view follows."""
+        return self._env
+
+    def set_env(self, index: int) -> None:
+        """Follow environment *index* from now on, with the heading filter starting afresh.
+
+        Raises:
+            ValueError: If *index* is outside the scene's environments.
+        """
+        if not 0 <= index < self._scene.num_envs:
+            raise ValueError(f"env_index {index} is outside the {self._scene.num_envs} environments of the scene.")
+        self._env = int(index)
+        self._yaw = self._last_position = self._time = None
 
     def pose(self, time: float) -> tuple[tuple[float, float, float], tuple[float, float, float]] | None:
         """Return the world eye and look-at target at simulation *time*, or None until the asset is ready.

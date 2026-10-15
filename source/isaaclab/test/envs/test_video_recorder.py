@@ -317,9 +317,12 @@ def test_apply_deprecated_viewer_preserves_pose_and_tracking(origin_type, expect
     _apply_deprecated_viewer_cfg(env_cfg)
     cfg = env_cfg.sim.default_visualizer_cfg
     assert cfg is not None
-    assert cfg.eye == (1.0, 2.0, 3.0)
-    assert cfg.origin_type == ("asset" if expected_path else "world")
-    assert cfg.origin_track_path == expected_path
+    if expected_path is None:
+        assert cfg.eye == (1.0, 2.0, 3.0)
+        return
+    # a followed asset becomes a task view that comes first, so the viewport starts on it
+    assert cfg.cameras[0].track_path == expected_path and cfg.cameras[0].eye == (1.0, 2.0, 3.0)
+    assert not cfg.cameras[1].is_task_view
 
 
 def test_apply_deprecated_viewer_noop_when_defaults():

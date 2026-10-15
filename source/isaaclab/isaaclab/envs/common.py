@@ -103,9 +103,11 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
     Mapping from deprecated :class:`ViewerCfg` fields to :class:`~isaaclab_visualizers.kit.KitVisualizerCfg`:
 
     * ``eye`` / ``lookat``            → ``eye`` / ``lookat``
-    * ``env_index``                   → ``origin_env_index``
-    * ``origin_type="asset_root"``    → ``origin_type="asset"``, ``origin_track_path="<asset_name>"``
-    * ``origin_type="asset_body"``    → ``origin_type="asset"``, ``origin_track_path="<asset_name>/<body_name>"``
+    * ``origin_type="env"``           → a :class:`~isaaclab.visualizers.PerspectiveCameraCfg` with ``env_index``
+    * ``origin_type="asset_root"``    → the same view with ``track_path="<asset_name>"``
+    * ``origin_type="asset_body"``    → the same view with ``track_path="<asset_name>/<body_name>"``
+
+    The view comes first, so the viewport starts on it, followed by a free view.
 
     Must be called before :class:`~isaaclab.sim.SimulationContext` is constructed so
     that the translated cfg is visible to the context.
@@ -155,32 +157,35 @@ def _apply_deprecated_viewer_cfg(env_cfg: object) -> None:
         )
         return
 
-    # Map deprecated origin_type values to the new KitVisualizerCfg fields.
-    new_origin_type = viewer.origin_type
-    origin_track_path = None
-    if viewer.origin_type in ("asset_root", "asset_body"):
-        new_origin_type = "asset"
-        if getattr(viewer, "asset_name", None) is not None:
-            body_name = getattr(viewer, "body_name", None)
-            if viewer.origin_type == "asset_body" and body_name is not None:
-                origin_track_path = f"{viewer.asset_name}/{body_name}"
-            else:
-                origin_track_path = viewer.asset_name
+    # Map deprecated origin_type values to a task view, which starts the viewport following.
+    track_path = None
+    if viewer.origin_type in ("asset_root", "asset_body") and getattr(viewer, "asset_name", None) is not None:
+        body_name = getattr(viewer, "body_name", None)
+        track_path = (
+            f"{viewer.asset_name}/{body_name}"
+            if viewer.origin_type == "asset_body" and body_name is not None
+            else viewer.asset_name
+        )
+    tied = viewer.origin_type == "env" or track_path is not None
 
     try:
         from isaaclab_visualizers.kit import KitVisualizerCfg
 
-        from ..visualizers import WindowCfg
+        from ..visualizers import PerspectiveCameraCfg, WindowCfg
 
         resolution = getattr(viewer, "resolution", None)
-        sim_cfg.default_visualizer_cfg = KitVisualizerCfg(
-            eye=tuple(viewer.eye),
-            lookat=tuple(viewer.lookat),
-            origin_type=new_origin_type,
-            origin_env_index=getattr(viewer, "env_index", 0),
-            origin_track_path=origin_track_path,
-            **({"window": WindowCfg(size=tuple(resolution))} if resolution is not None else {}),
-        )
+        options = {"window": WindowCfg(size=tuple(resolution))} if resolution is not None else {}
+        if tied:
+            view = PerspectiveCameraCfg(
+                env_index=getattr(viewer, "env_index", 0),
+                track_path=track_path,
+                eye=tuple(viewer.eye),
+                lookat=tuple(viewer.lookat),
+            )
+            options["cameras"] = [view, PerspectiveCameraCfg()]
+        else:
+            options.update(eye=tuple(viewer.eye), lookat=tuple(viewer.lookat))
+        sim_cfg.default_visualizer_cfg = KitVisualizerCfg(**options)
     except ImportError:
         from ..visualizers import VisualizerCfg
 

@@ -59,14 +59,14 @@ def kit_timeline(monkeypatch):
 
 @pytest.mark.parametrize("headless", [False, True])
 def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, kit_app, headless):
-    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
+    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
     visualizer._sim = sim = MagicMock(render_generation=12)
     provider = sim.get_scene_data_provider.return_value
     monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
     tracking = MagicMock()
-    monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
+    monkeypatch.setattr(visualizer, "_update_follow_camera", tracking)
     monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
     settings = MagicMock()
     settings.get.return_value = None
@@ -343,3 +343,62 @@ def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
     )
 
     assert not primvar.GetAttr().HasAuthoredValueOpinion()
+
+
+class _FollowScene:
+    num_envs = 3
+    env_origins = torch.tensor([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [20.0, 0.0, 0.0]])
+
+    def __getitem__(self, name):
+        asset = MagicMock(is_initialized=True)
+        asset.data.root_pos_w.torch = torch.tensor([[0.0, 0.0, 0.5], [10.0, 0.0, 0.5], [20.0, 0.0, 0.5]])
+        asset.data.root_quat_w.torch = torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 3)
+        return asset
+
+
+def _following_visualizer(monkeypatch, cameras):
+    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer._sim = MagicMock()
+    visualizer._sim.get_scene_data_provider.return_value.get_interactive_scene.return_value = _FollowScene()
+    visualizer._sim.get_physics_step_count.return_value = 5
+    visualizer._sim.get_physics_dt.return_value = 0.1
+    visualizer._start_cameras = cameras
+    poses = []
+    monkeypatch.setattr(visualizer, "set_camera_view", lambda eye, target: poses.append((eye, target)))
+    return visualizer, poses
+
+
+def test_the_viewport_starts_free_unless_the_first_view_is_a_task_view(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    task = PerspectiveCameraCfg(env_index=1, eye=(1.0, 2.0, 3.0), lookat=(0.0, 0.0, 1.0))
+    free, poses = _following_visualizer(monkeypatch, [PerspectiveCameraCfg(), task])
+    free._setup_initial_camera_view()
+    assert not free.following and poses == []
+
+    visualizer, poses = _following_visualizer(monkeypatch, [task, PerspectiveCameraCfg()])
+    visualizer._setup_initial_camera_view()
+    assert visualizer.following and visualizer.follow_env_index == 1
+    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)  # offsets while following
+    assert poses == [((11.0, 2.0, 3.0), (10.0, 0.0, 1.0))]
+
+
+def test_follow_unfollow_and_the_environment_selection(monkeypatch):
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    visualizer, poses = _following_visualizer(monkeypatch, [PerspectiveCameraCfg()])
+    visualizer._setup_initial_camera_view()
+    visualizer.cfg.eye, visualizer.cfg.lookat = (0.0, 0.0, 1.0), (1.0, 0.0, 0.0)
+
+    visualizer.set_follow_env(2)  # free: only remembered
+    assert not visualizer.following and visualizer.follow_env_index == 2 and poses == []
+    visualizer.follow("robot")
+    assert poses[-1] == ((20.0, 0.0, 1.5), (21.0, 0.0, 0.5))  # offsets from the asset in env 2
+    visualizer.set_follow_env(0)
+    assert poses[-1][0] == (0.0, 0.0, 1.5)
+    visualizer.set_view_offsets((0.0, 0.0, 2.0), (1.0, 0.0, 0.0))
+    assert poses[-1][0] == (0.0, 0.0, 2.5) and visualizer.cfg.eye == (0.0, 0.0, 2.0)
+
+    visualizer.unfollow()
+    visualizer.set_view_offsets((4.0, 4.0, 4.0), (0.0, 0.0, 0.0))
+    assert not visualizer.following and poses[-1] == ((4.0, 4.0, 4.0), (0.0, 0.0, 0.0))

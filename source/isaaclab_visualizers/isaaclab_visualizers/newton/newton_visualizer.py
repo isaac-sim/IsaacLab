@@ -600,15 +600,22 @@ class NewtonVisualizerBase(BaseVisualizer):
         return isinstance(view.cfg.source, PerspectiveCameraCfg) and view.cfg.source.is_task_view
 
     @staticmethod
-    def _view_label(index: int, view) -> str:
-        """Name a view for the Camera View selector: a task view says what it follows or frames."""
+    def _view_label(index: int, view, env: int | None = None) -> str:
+        """Name a view for the Camera View selector: a task view says what it follows or frames.
+
+        Args:
+            index: Position of the view in the selector.
+            view: The view to name.
+            env: Environment the view currently follows; None uses the one its configuration declares.
+        """
         if view.camera is not None:
             return view.cfg.source
         source = view.cfg.source
+        env = (source.env_index or 0) if env is None else env
         if source.track_path:
-            return f"Following {source.track_path} (env {source.env_index or 0})"
+            return f"Following {source.track_path} (env {env})"
         if source.env_index is not None:
-            return f"Environment {source.env_index}"
+            return f"Environment {env}"
         return f"Perspective {index + 1}"
 
     def _draw_streaming_view_controls(self, imgui) -> None:
@@ -616,10 +623,22 @@ class NewtonVisualizerBase(BaseVisualizer):
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if not imgui.collapsing_header("Camera View"):
             return
-        labels = [self._view_label(i, view) for i, view in enumerate(self._image_views)]
+        labels = [
+            self._view_label(i, view, follower.env if (follower := self._followers.get(view)) else None)
+            for i, view in enumerate(self._image_views)
+        ]
         changed, index = imgui.combo("Camera", self._image_views.index(self.current_image_view), labels)
         if changed:
             self._select_camera(index)
+        follower = self._followers.get(self.current_image_view)
+        if follower is not None:
+            # which environment a task view follows, next to the view selector
+            changed, env = imgui.input_int("Environment", follower.env)
+            num_envs = self._sim.get_scene_data_provider().num_envs
+            if changed and 0 <= env < num_envs:
+                follower.set_env(env)
+                self.current_image_view.invalidate()
+                self._last_render_step = -1
         if imgui.is_item_hovered():
             imgui.set_tooltip(labels[self._image_views.index(self.current_image_view)])
 
