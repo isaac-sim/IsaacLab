@@ -425,6 +425,7 @@ def _get_names_from_newton_usd_builder(
     *,
     joint_ordering: Literal["bfs", "dfs"],
     bodies_follow_joint_ordering: bool,
+    physx_tree_order: bool = False,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view and return its articulation names."""
     cfg = articulation.cfg
@@ -437,7 +438,7 @@ def _get_names_from_newton_usd_builder(
 
         from pxr import UsdGeom, UsdPhysics  # noqa: PLC0415
 
-        from ...sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
+        from ...sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source  # noqa: PLC0415
         from ...sim.utils.stage import get_current_stage  # noqa: PLC0415
     except ModuleNotFoundError as exc:
         missing_module = exc.name or ""
@@ -456,7 +457,7 @@ def _get_names_from_newton_usd_builder(
 
     articulation_root_prim_path = cfg.articulation_root_prim_path
     if articulation_root_prim_path is not None:
-        source_articulation_path = source_asset_path + articulation_root_prim_path
+        source_articulation_path = path_expr_to_glob(source_asset_path + articulation_root_prim_path)
     else:
 
         def has_articulation_root_api(prim) -> bool:
@@ -489,16 +490,81 @@ def _get_names_from_newton_usd_builder(
         verbose=False,
         exclude_joint_types=[JointType.FREE, JointType.FIXED],
     )
-    return {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)}
+    if not physx_tree_order:
+        return {"joint": tuple(view.joint_dof_names), "body": tuple(view.link_names)}
+
+    # Newton's "bfs" starts at the joint-direction root and visits child links by joint prim path. PhysX roots the
+    # tree at the root-API body, else at the body jointed to the world, else at the graph center, and visits the
+    # links next to each link by joint type, then joint prim path. The center is not emulated for ties, nested
+    # bodies or loops.
+    rank = {JointType.FIXED: 0, JointType.REVOLUTE: 1, JointType.PRISMATIC: 2, JointType.BALL: 3}
+    parent, child, joint_type = (a.numpy().tolist() for a in (model.joint_parent, model.joint_child, model.joint_type))
+    index = int(view.articulation_ids.numpy().flat[0])
+    start, end = (int(a.numpy()[index]) for a in (model.articulation_start, model.articulation_end))
+    joints = sorted(
+        (joint for joint in range(start, end) if joint_type[joint] != JointType.FREE),
+        key=lambda joint: (rank.get(joint_type[joint], len(rank)), model.joint_label[joint]),
+    )
+    world_joints = {child[joint]: joint for joint in joints if parent[joint] < 0}
+    links: dict[int, list[tuple[int, int]]] = {}
+    for joint in joints:
+        if parent[joint] >= 0:
+            links.setdefault(parent[joint], []).append((joint, child[joint]))
+            links.setdefault(child[joint], []).append((joint, parent[joint]))
+
+    def breadth_first(root: int) -> list[tuple[int, int, int | None]]:
+        """Return ``(body, depth, joint to its parent)`` in PhysX visit order."""
+        visits, visited = [(root, 0, world_joints.get(root))], {root}
+        for body, depth, _ in visits:
+            for joint, other in links.get(body, ()):
+                if other not in visited:
+                    visited.add(other)
+                    visits.append((other, depth + 1, joint))
+        return visits
+
+    def unsupported(reason: str) -> NotImplementedError:
+        return NotImplementedError(
+            f"Cannot resolve the \"physx\" order of '{source_articulation_path}' on this backend: {reason}, which"
+            " the OVPhysX emulation does not cover. Set joint_ordering and body_ordering to explicit name lists"
+            " instead."
+        )
+
+    if model.articulation_label[index] in model.body_label:
+        root = model.body_label.index(model.articulation_label[index])
+    elif world_joints:
+        root = next(iter(world_joints))
+    else:
+        bodies = list(dict.fromkeys(b for joint in joints for b in (parent[joint], child[joint]) if b >= 0))
+        radius = {body: breadth_first(body)[-1][1] for body in bodies or [child[start]]}
+        centers = [body for body in radius if radius[body] == min(radius.values())]
+        labels = [model.body_label[body] for body in radius]
+        if len(centers) > 1:
+            raise unsupported("two bodies tie as its graph center")
+        if any(other.startswith(f"{label}/") for label in labels for other in labels):
+            raise unsupported("its bodies are nested in each other")
+        if any(parent[j] in radius and child[j] in radius for j in range(len(parent)) if not start <= j < end):
+            raise unsupported("it has loop-closing joints")
+        root = centers[0]
+    visits = breadth_first(root)
+    joint_rank = {model.joint_label[j].rsplit("/", 1)[-1]: i for i, (_, _, j) in enumerate(visits) if j is not None}
+    body_rank = {model.body_label[body].rsplit("/", 1)[-1]: i for i, (body, _, _) in enumerate(visits)}
+    # Sort the active backend's own names: PhysX numbers a multi-axis joint's DoFs by axis, Newton in sequence.
+    joint_names, body_names = articulation.backend_joint_names, articulation.backend_body_names
+    if {name.split(":")[0] for name in joint_names} - joint_rank.keys() or set(body_names) - body_rank.keys():
+        raise unsupported("some of its joints or bodies are not reached from its root")
+    return {
+        "joint": tuple(sorted(joint_names, key=lambda name: joint_rank[name.split(":")[0]])),
+        "body": tuple(sorted(body_names, key=body_rank.__getitem__)),
+    }
 
 
 def _get_physx_names_from_newton_usd_builder(
     articulation: BaseArticulation,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with PhysX-style articulation names."""
-    # NOTE: "bfs" assumes Newton's breadth-first USD traversal reproduces
-    # PhysX's native articulation-view order. Unlike the MJWarp constants
-    # below, this is not coupled to isaaclab_newton's NewtonManager: a live
+    # NOTE: physx_tree_order re-walks Newton's breadth-first view the way
+    # OVPhysX walks the tree. Unlike the MJWarp constants below, this is not
+    # coupled to isaaclab_newton's NewtonManager: a live
     # PhysX/OVPhysX backend never goes through Newton's ModelBuilder.add_usd,
     # so there is no analogous "active backend already matches these
     # arguments" identity path to keep in sync.
@@ -506,6 +572,7 @@ def _get_physx_names_from_newton_usd_builder(
         articulation,
         joint_ordering="bfs",
         bodies_follow_joint_ordering=True,
+        physx_tree_order=True,
     )
 
 
@@ -697,10 +764,11 @@ def get_articulation_name_ordering(
 
     The supported conventions are:
 
-    * ``"physx"`` -- PhysX or OVPhysX articulation-view order. PhysX and OVPhysX
-      articulations return active-backend names without discovery; other backends
-      discover the order from a temporary Newton USD view using breadth-first
-      joint ordering.
+    * ``"physx"`` -- OVPhysX articulation-view order. OVPhysX articulations return
+      active-backend names without discovery; other backends, Isaac Sim PhysX
+      included, discover the order from a temporary Newton USD view, walked
+      breadth-first from the root PhysX elects with child links ordered by joint
+      type, then joint prim path.
     * ``"mjwarp"`` -- Newton or MJWarp articulation-view order. Newton
       articulations return active-backend names without discovery; other backends
       discover the order from a temporary Newton USD view using depth-first joint
