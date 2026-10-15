@@ -152,7 +152,7 @@ def main() -> None:
         "--robot",
         "rizon_sharpa",
         "--fill_level",
-        "0.70",
+        "0.40",
         "--fluid_render_mode",
         "particles",
         "--max_steps",

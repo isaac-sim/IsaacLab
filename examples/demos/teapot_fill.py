@@ -212,10 +212,10 @@ if ROBOT_ENABLED:
     CAMERA_EYE = (0.55, -1.5, 1.72)
     CAMERA_TARGET = (-0.28, 0.0, 1.22)
 
-# Use tighter kernels than the open-tank dam-break preset so the reconstructed
-# surface stays inside narrow features such as the teapot spout.
-SURFACE_VOXEL_SIZE = 0.5 * VOXEL_SIZE
-SURFACE_KERNEL_RADIUS = max(3.0 * FILL_SPACING, 1.5 * SURFACE_VOXEL_SIZE)
+# Resolve individual droplets and keep their density peaks above the extraction
+# threshold, including the sparse falling stream and splashes in the bowl.
+SURFACE_VOXEL_SIZE = 0.5 * FILL_SPACING
+SURFACE_KERNEL_RADIUS = 3.0 * FILL_SPACING
 SURFACE_MAX_GRID_CELLS = 4_000_000
 SURFACE_PATH = "/fluid_surface"
 
@@ -251,15 +251,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
         kernel_radius=SURFACE_KERNEL_RADIUS,
         threshold=0.4,
         smooth_lambda=0.0,
-        anisotropic=True,
-        kernel_scale=0.5,
-        anisotropy_ratio=16.0,
-        anisotropy_scale=1.0,
-        anisotropy_min_neighbors=4,
-        anisotropy_binning=True,
-        anisotropy_strength=0.95,
-        field_smooth_iterations=0,
-        mesh_smooth_iterations=1,
+        kernel_scale=0.25,
         device=model.device,
     )
     return ParticleSurfaceRenderer(
@@ -544,9 +536,13 @@ def create_sim_cfg():
         from rizon_sharpa_teapot import make_solver_cfg
 
         solver_cfg = cfg.physics.solver_cfg
+        # Resolve pressure through the thin spout with particle-based, low-friction contacts.
         solver_cfg.air_drag = 1.0
-        # Cover dense cells during bowl impact; pic27 can omit wall contacts.
-        solver_cfg.collider_basis = "pic512"
+        solver_cfg.strain_basis = "P1d"
+        solver_cfg.transfer_scheme = "pic"
+        # Use particle-based contacts for pouring and bowl impact.
+        solver_cfg.collider_basis = "pic27"
+        solver_cfg.solver = "gauss-seidel"
         cfg.physics = NewtonCfg(
             solver_cfg=make_solver_cfg(solver_cfg),
             num_substeps=MPM_SUBSTEPS,
