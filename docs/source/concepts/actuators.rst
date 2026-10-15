@@ -367,7 +367,7 @@ stiction and drag, not to stabilize a controller.
 
     Friction conventions depend on the backend. PhysX uses dimensionless static and dynamic
     coefficients in Isaac Sim 4.5, and effort values [N or N·m, depending on joint type] in 5.0
-    and later. OVPhysX uses dimensionless static and dynamic coefficients. Newton uses a dry-friction
+    and later. OVPhysX uses static and dynamic effort values [N or N·m, depending on joint type]. Newton uses a dry-friction
     effort and has no separate dynamic-friction value. All three use viscous damping
     [N·s/m or N·m·s/rad, depending on joint type].
 

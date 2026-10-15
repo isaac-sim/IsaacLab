@@ -1973,9 +1973,9 @@ class Articulation(BaseArticulation):
             mask method must be used.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s` [dimensionless].
-            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient
-                :math:`\mu_d`.  If ``None``, the dynamic component is preserved.
+            joint_friction_coeff: Static friction effort [N or N*m, depending on joint type].
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N*m, depending on joint type].
+                If ``None``, the dynamic component is preserved.
             joint_viscous_friction_coeff: Viscous friction coefficient :math:`c_v`.
                 If ``None``, the viscous component is preserved.
             joint_ids: Joint indices. Defaults to None (all joints).
@@ -2034,7 +2034,7 @@ class Articulation(BaseArticulation):
         r"""Mask variant of :meth:`write_joint_friction_coefficient_to_sim_index`.
 
         Args:
-            joint_friction_coeff: Static friction coefficient :math:`\mu_s`. Full data,
+            joint_friction_coeff: Static friction effort [N or N·m, depending on joint type]. Full data,
                 shape ``(num_instances, num_joints)``.  May be a scalar :class:`float`.
             joint_dynamic_friction_coeff: Dynamic friction.  ``None`` to preserve.
             joint_viscous_friction_coeff: Viscous friction.  ``None`` to preserve.
@@ -2104,8 +2104,8 @@ class Articulation(BaseArticulation):
             mask method must be used.
 
         Args:
-            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient
-                :math:`\mu_d` [dimensionless]. Shape is ``(len(env_ids), len(joint_ids))``
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N*m, depending on joint type].
+                Shape is ``(len(env_ids), len(joint_ids))``
                 with dtype wp.float32, or a scalar that is broadcast.
             joint_ids: Joint indices. Defaults to None (all joints).
             env_ids: Environment indices. Defaults to None (all environments).
@@ -2155,8 +2155,7 @@ class Articulation(BaseArticulation):
         ``(N, J, 3)`` binding; the static and viscous components are preserved.
 
         Args:
-            joint_dynamic_friction_coeff: Dynamic (Coulomb) friction coefficient
-                :math:`\mu_d` [dimensionless]. Full data, shape
+            joint_dynamic_friction_coeff: Dynamic friction effort [N or N*m, depending on joint type]. Full data, shape
                 ``(num_instances, num_joints)``.  May be a scalar :class:`float`.
             joint_mask: Joint mask. If None, all joints are updated.
             env_mask: Environment mask. If None, all instances are updated.

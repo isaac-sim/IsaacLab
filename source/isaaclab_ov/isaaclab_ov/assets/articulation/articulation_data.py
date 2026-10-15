@@ -470,7 +470,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_friction_coeff(self) -> ProxyArray:
-        """Joint static friction coefficient [dimensionless].
+        """Joint static friction effort [N or N*m, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         Component ``[..., 0]`` of the ``DOF_FRICTION_PROPERTIES`` binding.
@@ -485,7 +485,7 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def joint_dynamic_friction_coeff(self) -> ProxyArray:
-        """Joint dynamic friction coefficient [dimensionless].
+        """Joint dynamic friction effort [N or N*m, depending on joint type].
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         Component ``[..., 1]`` of the ``DOF_FRICTION_PROPERTIES`` binding.

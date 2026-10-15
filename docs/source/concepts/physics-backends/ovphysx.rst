@@ -132,6 +132,60 @@ with this runtime combination. The legacy
 Isaac Lab installer also supports ``./isaaclab.sh -i 'ov[ovphysx]'`` and
 ``./isaaclab.sh -i 'ov[all]'``.
 
+Opt-in OVPhysX 0.7 support
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The default dependency pins remain on OVPhysX 0.6.4. The backend also accepts
+OVPhysX 0.7, including development builds. It selects task completion, stage
+teardown, scene reads and schema discovery from the installed runtime version.
+Tensor and contact bindings remain in use on both versions.
+
+OVPhysX 0.7 no longer bundles PhysX USD schemas. Install ``physx-usd-schemas>=25.11.2``
+into the simulation environment before startup. Use ``uv run --no-sync`` with an
+opt-in environment to avoid restoring the project's default dependency pins.
+Isaac Lab locates
+both PhysX and deformable schema directories without importing the provider,
+then registers them before USD population. The already-installed Newton schemas
+are also registered. Do not suppress schema-registration errors: late registration
+requires a fresh process and cannot recover settings lost during population.
+
+Legacy joint USD
+~~~~~~~~~~~~~~~~
+
+OVPhysX 0.7 no longer consumes ``PhysxJointAPI``. In the temporary physics export,
+Isaac Lab translates authored ``physxJoint:maxJointVelocity`` and
+``physxJoint:armature`` to ``NewtonJointAPI`` values. Angular velocity stays in
+USD degrees per second; linear velocity and armature retain their USD units.
+Authored modern values take precedence, and existing per-axis PhysX overrides
+remain intact. Source assets and the live stage are not edited, so other physics
+backends and older OVPhysX runtimes keep their previous behavior.
+
+Unmigrated nonzero legacy ``physxJoint:jointFriction`` is rejected with the joint path.
+The dimensionless coefficient has no exact conversion to the new effort-based
+friction model. Remove it and retune ``newton:friction`` / ``newton:damping`` or
+``PhysxJointAxisAPI`` friction efforts explicitly. Unsupported joint types and
+time-sampled legacy settings that cannot be represented also require migration.
+This compatibility layer does not promise identical trajectories across PhysX
+engine versions.
+
+For scene-time migration without republishing assets, set
+``OvPhysxCfg.legacy_joint_friction_replacements`` to a mapping from joint-name
+regular expressions to ``(static effort, dynamic effort, viscous coefficient)``.
+The values use SI force/torque and viscous units. Only matching revolute and
+prismatic joints with nonzero legacy friction are migrated in the private 0.7
+export: the legacy property is removed and modern ``PhysxJointAxisAPI`` values
+are authored. Existing modern friction opinions take precedence. Other runtimes,
+source USD files, and the live stage remain unchanged.
+
+The Allegro reorientation, Kuka-Allegro lift/reorientation, Shadow reorientation,
+and Shadow handover presets supply replacements for their affected hand joints.
+The profile is ``(0.01, 0.0, 0.0)``: 0.01 N*m static effort, zero dynamic effort,
+and zero viscous coefficient. These values match measured OVPhysX 0.6.4 runtime
+actuator settings, including the Shadow tendon joints; they are not a numeric
+conversion of the legacy asset coefficients. Actuator initialization and runtime
+friction randomization continue using effort-valued tensor properties. Merely
+copying a legacy coefficient into a modern effort property is not a valid migration.
+
 Testing the Installation
 ------------------------
 
