@@ -160,6 +160,45 @@ Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in w
 Changing the simulation timestep does not change that limit. Headless on-demand capture is
 independent of the window update rate; Kit uses its application's update cadence.
 
+.. _how-to-visualizer-task-views:
+
+Task views that follow a robot
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A ``PerspectiveCameraCfg`` with ``env_index`` or ``track_path`` is a *task view*: it is placed relative to an
+environment or an asset, so it frames a robot wherever the scene puts it. The viewer renders it from its own
+camera, so nothing is created in the scene, nothing depends on the number of environments, and the view has the
+viewport's markers and shadows. Tasks declare one in ``sim.default_visualizer_cfg``:
+
+.. code-block:: python
+
+   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
+
+   self.sim.default_visualizer_cfg = VisualizerCfg(
+       cameras=[
+           PerspectiveCameraCfg(
+               eye=(1.8, -3.0, 1.1),
+               lookat=(0.15, 0.0, 0.0),
+               track_path="robot",
+               follow_heading=True,
+               heading_smoothing_time_constant=0.2,
+           )
+       ],
+   )
+
+* ``eye`` and ``lookat`` are offsets [m] from the tracked asset, or from the origin of ``env_index``
+  when ``track_path`` is None, which keeps the view fixed in that environment.
+* ``track_path`` names a scene asset (``"robot"``) or one of its bodies (``"robot/base"``) in environment
+  ``env_index``, which defaults to 0.
+* ``follow_heading`` rotates the offsets with the asset's yaw, keeping the horizon level.
+  ``heading_smoothing_time_constant`` [s] damps rapid turns; zero follows immediately.
+
+The interactive view stays free: a free perspective view at the visualizer's own ``eye`` and ``lookat`` is
+added before the task view, and the **Camera View** selector switches between them. While a task view is
+selected the window follows the robot, and selecting the free view hands the camera back. Record a task view,
+whichever view the window shows, with ``--video viz:newton_gl:tracking``. Newton GL supports task views; the
+other visualizers ignore them.
+
 Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
 authored scene and clone placements. Newton owns its perspective renderer, window, and debug
 markers; scene cameras retain their own renderer and resources. No default lights are added:
