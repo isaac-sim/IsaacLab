@@ -1312,6 +1312,19 @@ def test_register_task_validates_physics_selector(monkeypatch, typed):
         assert cfg.armature == 0.01
 
 
+def test_register_task_explains_unavailable_physics_selector(monkeypatch):
+    """A defaults-only task should explain how to use its registered physics configuration."""
+
+    @configclass
+    class Cfg:
+        physics: _PhysxPhysicsCfg = _PhysxPhysicsCfg()
+
+    monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", lambda *_: Cfg())
+    with pytest.raises(ValueError, match="does not expose selectable physics presets") as error:
+        hydra_mod.register_task("test", "", overrides=["physics=isaacsim_physx"])
+    assert "Remove 'physics=isaacsim_physx'" in str(error.value)
+
+
 # =============================================================================
 # Tests: play-mode overrides
 # =============================================================================

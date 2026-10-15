@@ -565,6 +565,27 @@ def register_task(
         known_names = {name for fields in available.values() for name in fields}
         unknown = {_normalize_preset_name(name, known_names) for name in unknown_presets} - known_names
         if unknown:
+            unavailable_target = next(
+                (
+                    target
+                    for target in requested_targets
+                    if not any(
+                        target.matches(value)
+                        for fields in available.values()
+                        for name, value in fields.items()
+                        if name != "default"
+                    )
+                ),
+                None,
+            )
+            if unavailable_target is not None:
+                selectors = ", ".join(
+                    f"'{unavailable_target.value}={name}'" for name in sorted(requested_targets[unavailable_target])
+                )
+                raise ValueError(
+                    f"Task '{task_name}' does not expose selectable {unavailable_target.value} presets. "
+                    f"Remove {selectors} to use its registered default configuration."
+                )
             lines = [f"Unknown preset(s): {', '.join(sorted(unknown))}"]
             for name in sorted(unknown & _LEGACY_PRESET_ALIASES.keys()):
                 lines.append(f"'{name}' was renamed to '{_LEGACY_PRESET_ALIASES[name]}'; this task declares neither.")
