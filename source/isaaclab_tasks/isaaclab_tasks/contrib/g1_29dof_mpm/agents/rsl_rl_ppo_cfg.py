@@ -16,6 +16,8 @@ class G1MPMPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 20_000
     save_interval = 500
     obs_groups = {
+        # "actor": ["policy"],
+        # "critic": ["critic", "privileged"],
         "actor": ["policy", "command"],
         "critic": ["critic", "command", "privileged"],
     }
@@ -48,7 +50,5 @@ class G1MPMPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     logger = "wandb"
     # wandb_project = "g1_29dof_mpm"
     # experiment_name = "g1_29dof_mpm"
-    # wandb_project = "g1_29dof_soft_vanilla_ppo"
-    # experiment_name = "g1_29dof_soft_vanilla_ppo"
     wandb_project = "g1_29dof_soft_flat_ppo"
     experiment_name = "g1_29dof_soft_flat_ppo"

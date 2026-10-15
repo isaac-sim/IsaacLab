@@ -43,6 +43,11 @@ class PolicyCfg(ObsGroup):
         mirror=mirror_vec3,
         noise=Unoise(n_min=-0.05, n_max=0.05),
     )
+    # velocity_commands = ObsTerm(
+    #     func=mdp.generated_commands,
+    #     mirror=symmetry.mirror_velocity_heading,
+    #     params={"command_name": "base_velocity"},
+    # )
     joint_pos = ObsTerm(
         func=mdp.joint_pos_rel,
         mirror=symmetry.mirror_g1_joints,
@@ -96,6 +101,11 @@ class CriticCfg(ObsGroup):
         mirror=mirror_quat,
         params={"make_quat_unique": True},
     )
+    # velocity_commands = ObsTerm(
+    #     func=mdp.generated_commands,
+    #     mirror=symmetry.mirror_velocity_heading,
+    #     params={"command_name": "base_velocity"},
+    # )
     joint_pos = ObsTerm(
         func=mdp.joint_pos_rel,
         mirror=symmetry.mirror_g1_joints,

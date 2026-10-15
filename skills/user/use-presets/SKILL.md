@@ -51,7 +51,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst`, `source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py`, `source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py`, `source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py`, the environment catalog, and maintained preset examples under `source/isaaclab_tasks/isaaclab_tasks/`. If preset selector behavior changes, update the source docs or examples first and keep this skill as a routing checklist.
+Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst`, `source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py`, the environment catalog, and maintained preset examples under `source/isaaclab_tasks/isaaclab_tasks/`. If preset selector behavior changes, update the source docs or examples first and keep this skill as a routing checklist.
 
 ## References
 
@@ -60,7 +60,5 @@ Keep this skill synchronized with `docs/source/concepts/backends_and_presets.rst
 - [Evaluations](evaluations.md)
 - [Backends and presets](../../../docs/source/concepts/backends_and_presets.rst)
 - [Preset utility source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py)
-- [Preset CLI source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py)
-- [Preset targets source](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_target.py)
 - [Environment browser](../../../docs/source/setup/environments.rst)
 - [Quickstart](../../../docs/source/setup/quickstart.rst)

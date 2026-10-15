@@ -32,3 +32,25 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1MPMPPORunnerCfg",
     },
 )
+
+for suffix, cfg_name in (("", "G1RoughMPMEnvCfg"), ("-Play", "G1RoughMPMEnvCfg_PLAY")):
+    gym.register(
+        id=f"IsaacContrib-Velocity-Sand-Rough-G1-29dof-MPM{suffix}",
+        entry_point=f"{__name__}.g1_mpm_env:G1MPMEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.g1_mpm_env_cfg:{cfg_name}",
+            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1MPMPPORunnerCfg",
+        },
+    )
+
+for suffix, cfg_name in (("", "G1TiltingMPMEnvCfg"), ("-Play", "G1TiltingMPMEnvCfg_PLAY")):
+    gym.register(
+        id=f"IsaacContrib-Balance-Sand-G1-29dof-MPM-Tilting{suffix}",
+        entry_point=f"{__name__}.g1_mpm_env:G1TiltingMPMEnv",
+        disable_env_checker=True,
+        kwargs={
+            "env_cfg_entry_point": f"{__name__}.g1_mpm_env_cfg:{cfg_name}",
+            "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:G1MPMPPORunnerCfg",
+        },
+    )

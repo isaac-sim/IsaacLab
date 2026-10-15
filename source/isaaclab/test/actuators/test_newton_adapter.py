@@ -29,23 +29,8 @@ from isaaclab.sim.schemas.schemas_actuators import (
 )
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.test.utils.actuator_equivalence import make_dummy_lstm_checkpoint, make_dummy_mlp_checkpoint
-from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
-
-
-@configclass
-class UnsupportedNewtonActuatorCfg(ActuatorBaseCfg):
-    """Explicit actuator config intentionally unsupported by Newton authoring."""
-
-    class_type: str = "unsupported:ExplicitActuator"
-
-
-@configclass
-class CustomDCMotorCfg(DCMotorCfg):
-    """DC motor config that selects a custom Lab actuator implementation."""
-
-    class_type: str = "unsupported:CustomDCMotor"
 
 
 class MisleadingImplicitActuatorDCMotor(DCMotor):
@@ -304,21 +289,13 @@ def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit
 @pytest.mark.parametrize(
     ("group_name", "cfg"),
     [
-        ("unsupported", UnsupportedNewtonActuatorCfg(joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0)),
         (
-            "custom_dc",
-            CustomDCMotorCfg(
-                joint_names_expr=["pd_a"],
-                stiffness=0.0,
-                damping=0.0,
-                actuator_effort_limit=1.0,
-                actuator_velocity_limit=1.0,
-                saturation_effort=1.0,
-            ),
+            "unsupported",
+            ActuatorBaseCfg(class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0),
         ),
         (
-            "misleading_name",
-            CustomDCMotorCfg(
+            "custom_dc",
+            DCMotorCfg(
                 class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
                 joint_names_expr=["pd_a"],
                 stiffness=0.0,

@@ -11,22 +11,16 @@ from typing import TYPE_CHECKING
 
 import torch
 
-if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
-from typing import TYPE_CHECKING
-
 from isaaclab.assets import Articulation
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
 from isaaclab.managers.manager_term_cfg import TerminationTermCfg
+from isaaclab.utils.math import quat_apply_inverse
+
+from ..env_cfg.scene_cfg import SAND_BED_SIZE, WALKABLE_XY_BOUNDS
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
-from typing import TYPE_CHECKING
-
-from ..env_cfg.scene_cfg import WALKABLE_XY_BOUNDS
-
-if TYPE_CHECKING:
     from ..g1_mpm_env import G1MPMEnv
 
 
@@ -181,3 +175,16 @@ class ExtremeJointPositionAction(ManagerTermBase):
         too_high = target > q_max + self._margin
         too_low = target < q_min - self._margin
         return (too_high | too_low).any(dim=1)
+
+
+def root_outside_testbed(env: G1MPMEnv, margin: float = 0.3) -> torch.Tensor:
+    """Terminate outside the sand tray's interior, measured in the moving tray frame."""
+    tray = env.scene["testbed"]
+    tray_id = env.testbed_tray_body_id
+    position = quat_apply_inverse(
+        tray.data.body_quat_w.torch[:, tray_id],
+        env.scene["robot"].data.root_pos_w.torch - tray.data.body_pos_w.torch[:, tray_id],
+    )
+    return (position[:, 0].abs() > SAND_BED_SIZE[0] / 2 - margin) | (
+        position[:, 1].abs() > SAND_BED_SIZE[1] / 2 - margin
+    )

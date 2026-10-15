@@ -83,3 +83,64 @@ def test_fixed_bed_contacts_and_partial_reset(device):
             assert torch.stack(forces).max() > 100.0
         finally:
             env.close()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("variant", ["rough", "tilting"])
+def test_generated_and_tilting_bed_support(device, variant):
+    """Generated support geometry and a moving tray both transfer particle forces to G1."""
+    from isaaclab_tasks.contrib.g1_29dof_mpm.g1_mpm_env_cfg import (
+        G1RoughMPMEnvCfg_PLAY,
+        G1TiltingMPMEnvCfg_PLAY,
+    )
+    from isaaclab_tasks.contrib.g1_29dof_mpm.terrain import generate_terrain_particles
+
+    if variant == "rough":
+        cfg = G1RoughMPMEnvCfg_PLAY()
+        task = "IsaacContrib-Velocity-Sand-Rough-G1-29dof-MPM-Play"
+        positions, _, _, _, surface = generate_terrain_particles(cfg.scene.sand.spawn)
+        # The default planar ramp rises by 0.4 m per metre along X. Particle depths
+        # remain within the configured layer even with nonzero XY jitter.
+        surface_z = surface.bounds[0, 2] + 0.4 * (positions[:, 0] - surface.bounds[0, 0])
+        depth = positions[:, 2] - surface_z
+        assert (depth <= 0.0).all()
+        assert (depth >= cfg.scene.sand.spawn.lower[2]).all()
+        center_z = float(surface.bounds[:, 2].mean())
+        cfg.scene.robot.init_state.pos = (0.0, 0.0, center_z + 0.76)
+    else:
+        cfg = G1TiltingMPMEnvCfg_PLAY()
+        task = "IsaacContrib-Balance-Sand-G1-29dof-MPM-Tilting-Play"
+        cfg.testbed_motion.settling_time = 0.0
+        cfg.testbed_motion.ramp_time = 0.2
+        cfg.testbed_motion.debug_vis = False
+    cfg.scene.num_envs = 1
+    cfg.sim.device = device
+    cfg.sim.visualizer_cfgs = []
+    cfg.sim.default_visualizer_cfg = None
+    cfg.video_recorders = []
+    cfg.events.reset_base.params["pose_range"] = {}
+    cfg.events.reset_base.params["velocity_range"] = {}
+    with launch_simulation(cfg.sim, launcher_args={"headless": True}):
+        env = gym.make(task, cfg=cfg)
+        try:
+            raw = env.unwrapped
+            env.reset()
+            actions = torch.zeros((1, raw.action_manager.total_action_dim), device=device)
+            forces = []
+            for _ in range(45):
+                obs, reward, terminated, _, _ = env.step(actions)
+                assert all(torch.isfinite(value).all() for value in obs.values())
+                assert torch.isfinite(reward).all()
+                # A zero-action robot may fall on the steep ramp; this tests contact, not policy balance.
+                if variant == "tilting":
+                    assert not terminated.any()
+                forces.append(wp.to_torch(raw._coupling_forces)[raw._foot_body_ids[0], 2].sum().clone())
+            assert torch.stack(forces).max() > 100.0
+            if variant == "tilting":
+                tray = raw.scene["testbed"]
+                assert tray.data.joint_pos.torch.abs().max() > 0.01
+                env.reset()
+                torch.testing.assert_close(tray.data.joint_pos.torch, torch.zeros_like(tray.data.joint_pos.torch))
+                assert not raw.foot_contact.any()
+        finally:
+            env.close()

@@ -10,5 +10,5 @@ from .event_cfg import G1EventCfg
 from .observation_cfg import G1ObservationsCfg
 from .physics_cfg import g1_mpm_physics_cfg
 from .reward_cfg import G1RewardsCfg
-from .scene_cfg import G1MPMSceneCfg
+from .scene_cfg import G1RoughMPMSceneCfg, G1MPMSceneCfg, G1TiltingMPMSceneCfg
 from .termination_cfg import G1TerminationsCfg

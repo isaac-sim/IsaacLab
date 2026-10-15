@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
 from isaaclab_newton.physics import (
     MJWarpSolverCfg,
     MPMSolverCfg,
@@ -47,11 +48,12 @@ SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD = 1
 SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT = 1 << 5
 
 
-def g1_mpm_physics_cfg(proxy_mass_scale: float = DEFAULT_PROXY_MASS_SCALE) -> NewtonCfg:
+def g1_mpm_physics_cfg(proxy_mass_scale: float = DEFAULT_PROXY_MASS_SCALE, *, rough_terrain: bool = False) -> NewtonCfg:
     """Build the coupled MJWarp/MPM physics configuration.
 
     Args:
         proxy_mass_scale: Effective-mass scale of the foot proxies seen by the MPM solver.
+        rough_terrain: Select the terrain spawner's MPM support body instead of flat retaining boxes.
 
     Returns:
         The Newton physics configuration.
@@ -95,7 +97,9 @@ def g1_mpm_physics_cfg(proxy_mass_scale: float = DEFAULT_PROXY_MASS_SCALE) -> Ne
                         separate_worlds=True,
                         project_outside_colliders=False,
                     ),
-                    bodies=[
+                    bodies=[r"/World/envs/env_.*/Sand/MPMBedFloor"]
+                    if rough_terrain
+                    else [
                         r"/World/envs/env_.*/MPMBedFloor",
                         r"/World/envs/env_.*/MPMBedWallFront",
                         r"/World/envs/env_.*/MPMApproachBank",
@@ -152,7 +156,11 @@ def get_mpm_solver_cfg(cfg: G1MPMEnvCfg) -> MPMSolverCfg:
 
 
 def configure_sparse_mpm_capacities(cfg: G1MPMEnvCfg) -> None:
-    """Scale the rebuildable sparse-grid capacities with the final world count.
+    """Size sparse storage from the final particle grid and world count.
+
+    With no explicit cell limit, reserve one cell per particle, with leaf capacity
+    as a minimum. The unpadded index grid inserts one voxel per particle and
+    deduplicates occupied voxels, so this bounds cell use even if particles separate.
 
     Command-line ``--num_envs`` overrides are applied after config construction, so the
     environment calls this once more just before simulation creation.
@@ -171,8 +179,19 @@ def configure_sparse_mpm_capacities(cfg: G1MPMEnvCfg) -> None:
         "upper nodes": cfg.mpm_upper_node_count_per_world,
     }
     for name, capacity in per_world.items():
+        if name == "active cells" and capacity is None:
+            continue
         if isinstance(capacity, bool) or not isinstance(capacity, int) or capacity <= 0:
             raise ValueError(f"Sparse MPM {name} capacity per world must be a positive integer, got {capacity!r}.")
+    if per_world["active cells"] is None:
+        spawn = cfg.scene.sand.spawn
+        # Match MPMGridCfg sampling, including optional boundary endpoints.
+        extent = np.asarray(spawn.upper) - np.asarray(spawn.lower)
+        dimensions = np.maximum(np.ceil(spawn.particles_per_cell * extent / spawn.voxel_size), 1).astype(np.int64)
+        if spawn.particle_placement == "boundary":
+            dimensions += 1
+        per_world["active cells"] = max(int(np.prod(dimensions)), per_world["leaf nodes"])
+
     if not (
         per_world["upper nodes"] <= per_world["lower nodes"] <= per_world["leaf nodes"] <= per_world["active cells"]
     ):
