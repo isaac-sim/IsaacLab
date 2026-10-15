@@ -291,8 +291,10 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
     # Robot rigid body properties
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+    rigid_props=PhysxRigidBodyCfg(
         disable_gravity=True,                    # Robot is mounted, no gravity
         max_depenetration_velocity=5.0,          # Control interpenetration resolution
         linear_damping=0.0,                      # No artificial damping
@@ -309,17 +311,19 @@ Contact-rich manipulation requires careful solver tuning. These parameters were 
 
 .. code-block:: python
 
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg
+
     # Articulation properties
-    articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+    articulation_props=PhysxArticulationCfg(
         enabled_self_collisions=False,
         solver_position_iteration_count=4,
         solver_velocity_iteration_count=1,
     ),
 
     # Contact properties
-    collision_props=sim_utils.CollisionPropertiesCfg(
-        contact_offset=0.005,                    # 5mm contact detection distance
-        rest_offset=0.0,                         # Objects touch at 0 distance
+    collision_props=PhysxCollisionCfg(
+        contact_offset=0.005,                # 5mm contact detection distance
+        rest_offset=0.0,                     # Objects touch at 0 distance
     ),
 
 Actuator Modeling
@@ -873,12 +877,12 @@ CUDA Out of Memory
 
    .. code-block:: python
 
-       rigid_props=sim_utils.RigidBodyPropertiesCfg(
+       rigid_props=PhysxRigidBodyCfg(
            solver_position_iteration_count=4,  # Use default value
            # ... other parameters
        ),
 
-       articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+       articulation_props=PhysxArticulationCfg(
            solver_position_iteration_count=4,  # Use default value
            # ... other parameters
        ),

@@ -43,6 +43,11 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 The platform is also designed so that you can add your own robots! Please refer to the
 :ref:`how-to` section for details.
 
+.. tip::
+
+   Working with a coding agent? Isaac Lab ships a library of agent skills for installation, environment
+   creation, RL training, migration, and more. See :doc:`source/developer-tools/agent_skills`.
+
 For more information about the framework, please refer to the `technical report <https://arxiv.org/abs/2511.04831>`_
 :cite:`mittal2025isaaclab`. For clarifications on NVIDIA Isaac ecosystem, please check out the
 :ref:`isaac-lab-ecosystem` section.
@@ -94,6 +99,7 @@ Table of Contents
    source/setup/quickstart
    source/setup/tutorial
    source/setup/demos
+   source/setup/interactive_demos
    source/how-to/index
    source/workflows/index
    source/migration/migrating_to_isaaclab_3-0
@@ -104,7 +110,6 @@ Table of Contents
    :caption: Concepts
 
    source/concepts/backends_and_presets
-   source/concepts/backend_architecture
    source/concepts/physics_backends
    source/concepts/solver_differences
    source/concepts/native-physics-api/index
@@ -125,15 +130,10 @@ Table of Contents
    :maxdepth: 2
    :caption: Features
 
-   source/features/imitation-learning/index
    source/features/isaac_teleop
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   source/features/reproducibility
-   source/features/draw_markers
-   source/features/record_video
-   source/features/visualizer_tiled_camera
 
 
 .. toctree::
@@ -144,7 +144,6 @@ Table of Contents
    source/developer-tools/template_generator
    source/developer-tools/add_physics_backend
    source/developer-tools/extending_newton_solvers
-   source/developer-tools/scene_data_providers
    source/developer-tools/agent_skills
    source/developer-tools/benchmarking/index
 
@@ -157,6 +156,7 @@ Table of Contents
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
+   source/features/imitation-learning/index
 
 .. toctree::
    :maxdepth: 1

@@ -542,12 +542,12 @@ def create_isaaclab_env(
 
 
 def close_env(env: gym.Env) -> None:
-    """Close the outermost environment wrapper without interrupting its teardown.
+    """Close the outermost environment wrapper; another SIGINT forces exit.
 
     Args:
         env: Environment to close on the entrypoint's main thread.
     """
-    previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
     try:
         env.close()
     finally:
