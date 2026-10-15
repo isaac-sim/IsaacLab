@@ -7,8 +7,8 @@
 
 set -euo pipefail
 
-if [[ "$#" -gt 1 ]]; then
-    echo "Usage: $0 [renderer-gallery-scene-path-or-uri]" >&2
+if [[ "$#" -ne 1 ]]; then
+    echo "Usage: $0 <renderer-gallery-scene-path-or-uri>" >&2
     exit 1
 fi
 
@@ -22,16 +22,13 @@ SIMPLE_SHADING_MODES=(
     simple_shading_full_mdl
 )
 COMMON_ARGS=(
+    --scene "$1"
     --output-dir "${OUTPUT_DIR}"
     --width 640
     --height 360
     --frames 37
     --warmup-steps 24
 )
-
-if [[ "$#" -eq 1 ]]; then
-    COMMON_ARGS+=(--scene "$1")
-fi
 
 if ! command -v uv >/dev/null 2>&1; then
     echo "Error: uv is required to generate the renderer gallery." >&2

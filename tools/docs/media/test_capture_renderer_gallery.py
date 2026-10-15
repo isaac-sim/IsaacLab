@@ -31,15 +31,12 @@ def test_depth_display_bounds_reject_frame_with_no_finite_samples():
         capture_renderer_gallery.depth_display_bounds(depth)
 
 
-def test_gallery_capture_defaults_to_published_scene():
+def test_gallery_capture_requires_scene():
     parser = argparse.ArgumentParser()
     capture_renderer_gallery.add_gallery_arguments(parser)
 
-    args = parser.parse_args(["--renderer-backend", "newton"])
-
-    assert args.scene == (
-        "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Docs/Renderers/renderer_gallery_scene.usda"
-    )
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--renderer-backend", "newton"])
 
 
 def test_gallery_scene_preserves_nucleus_uri():
