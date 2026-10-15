@@ -385,6 +385,8 @@ class ContactSensor(BaseContactSensor):
             # Read pose into [num_envs * num_sensors, 7] float32.
             assert self._root_view is not None
             assert self._poses_flat_buf is not None
+            # Complete pending articulation writes so child links report their current pose.
+            OvPhysxManager.update_kinematics()
             self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:

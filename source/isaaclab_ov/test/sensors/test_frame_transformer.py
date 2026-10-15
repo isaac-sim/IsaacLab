@@ -667,3 +667,34 @@ def test_frame_transformer_nested_rigid_bodies(device):
         torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
         torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
         torch.testing.assert_close(frame_data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_frame_transformer_reads_link_pose_after_joint_write(device):
+    """A read right after a joint write reports the child link at its written pose.
+
+    Environments reset inside ``step()`` and read observations before the next physics step, while the
+    GPU pipeline defers the child-link pose update of articulation writes.
+    """
+    with _ovphysx_sim_context(device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0)
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_SHANK")],
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        sim.step()
+        scene.update(sim.get_physics_dt())
+
+        robot = scene.articulations["robot"]
+        # Reset the scene, then write a new joint state as reset events do.
+        scene.reset()
+        robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch + 0.5)
+        # Read the sensor before any asset body getter, which would update the kinematics itself.
+        frame_data = scene.sensors["frame_transformer"].data
+        target_pose_w = torch.cat([frame_data.target_pos_w.torch[:, 0], frame_data.target_quat_w.torch[:, 0]], dim=-1)
+
+        shank = robot.find_bodies("LF_SHANK")[0][0]
+        torch.testing.assert_close(target_pose_w, robot.data.body_link_pose_w.torch[:, shank])

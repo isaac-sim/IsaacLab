@@ -110,6 +110,8 @@ class _PhysXRayCasterMixin:
         """Return tracked sensor-frame transforms as ``wp.transformf``."""
         if self._physx_body_view is None:
             return self._static_view_transforms_wp
+        # Complete pending articulation writes so child links report their current pose.
+        PhysxManager.update_kinematics()
         transforms = self._physx_body_view.get_transforms()
         if isinstance(transforms, wp.array):
             return transforms.view(wp.transformf)
@@ -145,6 +147,8 @@ class _PhysXRayCasterMixin:
                 mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
+            # Tracked targets can be articulation links with pending writes.
+            PhysxManager.update_kinematics()
             transforms = view.get_transforms()
             transforms_wp = (
                 transforms.view(wp.transformf)
@@ -205,6 +209,8 @@ class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
                 self._raw_transforms = self._static_view_transforms_wp
             return self._raw_transforms
 
+        # Complete pending articulation writes so child links report their current pose.
+        PhysxManager.update_kinematics()
         transforms = self._physx_body_view.get_transforms()
         if self._raw_transforms is None:
             if isinstance(transforms, wp.array):

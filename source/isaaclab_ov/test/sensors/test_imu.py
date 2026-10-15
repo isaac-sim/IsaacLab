@@ -20,7 +20,8 @@ is not loaded under the direct uv run python runner.
 
 Process-global wheel state: like the rigid-object test, this file mixes
 procedural USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
-``test_attachment_validity``) with a Nucleus asset (``test_offset_calculation``). ``omni.client``
+``test_attachment_validity``) with a Nucleus asset (``test_offset_calculation``,
+``test_reads_link_state_after_joint_write``). ``omni.client``
 must be loaded before the first OVPhysX scene is torn down; otherwise a later
 first import can fail native symbol resolution after ``ovphysx.reset()``.
 """
@@ -62,6 +63,7 @@ from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
@@ -483,6 +485,34 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
     post_reset_ang_vel = sensor.data.ang_vel_b.torch
     torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
     torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_reads_link_state_after_joint_write(sim_ctx, device):
+    """A read right after a joint write reports the child link at its written state.
+
+    State writes outside a reset, such as velocity pushes of interval events, land between the physics step and
+    the observation read, while the GPU pipeline defers the child-link update of articulation writes.
+    """
+    _spawn_envs(NUM_ENVS)
+    robot = _spawn_anymal(NUM_ENVS)
+    imu = _make_imu("/World/env_[^/]+/robot/LF_SHANK")
+    sim_ctx.reset()
+    dt = sim_ctx.get_physics_dt()
+    sim_ctx.step()
+    robot.update(dt)
+    imu.update(dt)
+
+    joint_pos = robot.data.default_joint_pos.torch + 0.5
+    robot.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.full_like(joint_pos, 2.0))
+    # Read the sensor before any asset body getter, which would update the kinematics itself.
+    ang_vel_b = imu.data.ang_vel_b.torch
+
+    shank = robot.find_bodies("LF_SHANK")[0][0]
+    expected = math_utils.quat_apply_inverse(
+        robot.data.body_link_quat_w.torch[:, shank], robot.data.body_link_ang_vel_w.torch[:, shank]
+    )
+    torch.testing.assert_close(ang_vel_b, expected)
 
 
 # ===========================================================================

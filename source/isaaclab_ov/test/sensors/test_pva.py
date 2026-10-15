@@ -45,12 +45,16 @@ import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
+from pxr import Gf, UsdPhysics  # noqa: E402
+
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
-from isaaclab.assets import RigidObject, RigidObjectCfg  # noqa: E402
+from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
+from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
 
 wp.init()
@@ -143,6 +147,37 @@ def _make_pva(prim_path: str, offset: PvaCfg.OffsetCfg | None = None) -> Pva:
     if offset is not None:
         cfg.offset = offset
     return Pva(cfg)
+
+
+def _spawn_arms(num_envs: int) -> Articulation:
+    """Spawn a floating two-link articulation at ``/World/env_<i>/arm`` for each env.
+
+    A ``tip`` cube is attached 0.3 m along x of a ``base`` cube by a revolute joint about the Y axis.
+    """
+    stage = sim_utils.get_current_stage()
+    link_cfg = sim_utils.CuboidCfg(
+        size=(0.1, 0.1, 0.1),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.5),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    )
+    for i in range(num_envs):
+        arm_path = f"/World/env_{i}/arm"
+        UsdPhysics.ArticulationRootAPI.Apply(sim_utils.create_prim(arm_path, "Xform", translation=(0.0, 0.0, 1.0)))
+        link_cfg.func(f"{arm_path}/base", link_cfg)
+        link_cfg.func(f"{arm_path}/tip", link_cfg, translation=(0.3, 0.0, 0.0))
+        joint = UsdPhysics.RevoluteJoint.Define(stage, f"{arm_path}/joint")
+        joint.CreateBody0Rel().SetTargets([f"{arm_path}/base"])
+        joint.CreateBody1Rel().SetTargets([f"{arm_path}/tip"])
+        joint.CreateAxisAttr("Y")
+        joint.CreateLocalPos0Attr(Gf.Vec3f(0.15, 0.0, 0.0))
+        joint.CreateLocalPos1Attr(Gf.Vec3f(-0.15, 0.0, 0.0))
+    return Articulation(
+        ArticulationCfg(
+            prim_path="/World/env_[^/]+/arm",
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=0.0, damping=0.0)},
+        )
+    )
 
 
 @configclass
@@ -544,6 +579,37 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
     torch.testing.assert_close(post_reset_ang_acc, torch.zeros_like(post_reset_ang_acc))
     torch.testing.assert_close(post_reset_lin_vel, torch.zeros_like(post_reset_lin_vel))
     torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_reads_link_state_after_joint_write(sim_ctx, device):
+    """A read right after a joint write reports the child link at its written state.
+
+    State writes outside a reset, such as velocity pushes of interval events, land between the physics step and
+    the observation read, while the GPU pipeline defers the child-link update of articulation writes.
+    """
+    _spawn_envs(NUM_ENVS)
+    arm = _spawn_arms(NUM_ENVS)
+    pva = _make_pva("/World/env_[^/]+/arm/tip")
+    sim_ctx.reset()
+    dt = sim_ctx.get_physics_dt()
+    sim_ctx.step()
+    arm.update(dt)
+    pva.update(dt)
+
+    joint_pos = torch.full_like(arm.data.joint_pos.torch, 0.5)
+    arm.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.full_like(joint_pos, 2.0))
+    # Read the sensor before any asset body getter, which would update the kinematics itself.
+    data = pva.data
+    pose_w = torch.cat([data.pos_w.torch, data.quat_w.torch], dim=-1)
+    ang_vel_b = data.ang_vel_b.torch
+
+    tip = arm.find_bodies("tip")[0][0]
+    torch.testing.assert_close(pose_w, arm.data.body_link_pose_w.torch[:, tip])
+    expected_ang_vel_b = math_utils.quat_apply_inverse(
+        arm.data.body_link_quat_w.torch[:, tip], arm.data.body_link_ang_vel_w.torch[:, tip]
+    )
+    torch.testing.assert_close(ang_vel_b, expected_ang_vel_b)
 
 
 # ===========================================================================

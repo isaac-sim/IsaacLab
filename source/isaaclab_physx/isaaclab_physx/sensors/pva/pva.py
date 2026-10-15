@@ -209,6 +209,8 @@ class Pva(BasePva):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
         self._refresh_gravity_vec()
+        # Complete pending articulation writes so child links report their current pose and velocity.
+        SimulationManager.update_kinematics()
 
         # Refresh the PhysX buffers every update, but create their typed Warp views only once:
         # the getters lazily allocate their output buffers and refresh the same memory in place
