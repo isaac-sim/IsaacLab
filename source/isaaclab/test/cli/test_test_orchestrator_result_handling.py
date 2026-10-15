@@ -718,3 +718,14 @@ def test_external_git_asset_tests_receive_extended_startup_deadline():
 
     assert startup_deadline == orchestrator.test_settings.GIT_ASSET_STARTUP_TIMEOUT
     assert orchestrator._resolve_startup_deadline("test_sample.py", timeout=10000, is_cold_cache_test=False) == 120
+
+
+def test_ci_marker_must_be_a_registered_marker_name():
+    """A marker run matches files by name, so an expression or a misspelling must not reach selection."""
+    orchestrator = _load_orchestrator_module()
+
+    registered = orchestrator._registered_markers(str(TOOLS_DIR.parent))
+
+    assert {"kitless", "arm_ci", "isaacsim_ci"} <= registered
+    assert "kitless and not rendering" not in registered
+    assert "kitles" not in registered
