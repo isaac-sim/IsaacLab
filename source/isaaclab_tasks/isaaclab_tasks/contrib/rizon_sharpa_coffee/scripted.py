@@ -64,6 +64,7 @@ class CoffeeScoopDemo:
         # Curl upward while leveling so the original flat handle clears the
         # ceramic rim before the loaded spoon lifts out of the powder.
         scoop_z = source_z + 0.0335
+        lift_position = (lift_x + 0.005, scoop_y, source_z + 0.075)
         transfer_z = max(source_z + 0.090, cup_z + CUP_HEIGHT + 0.030)
         pour_z = cup_z + CUP_HEIGHT + 0.025
         # Positive X-axis roll releases over the -Y lip. Center that lip over
@@ -101,7 +102,7 @@ class CoffeeScoopDemo:
                 (0.0025, 0.0, 0.001, math.radians(-12)),
             ),
             (6.35, (lift_x, scoop_y, scoop_z, 0.0), (0.001, 0.0, 0.0, 0.0)),
-            (7.75, (lift_x + 0.001, scoop_y, source_z + 0.060, 0.0), (0.0, 0.0, 0.025, 0.0)),
+            (7.75, (*lift_position, 0.0), (0.0, 0.0, 0.025, 0.0)),
         ]
         # Continue the upward velocity into a low arc toward the cup; no
         # separate high lift, settling stop, or descent over the cup is needed.
@@ -110,7 +111,7 @@ class CoffeeScoopDemo:
             (
                 1.6,
                 (
-                    lift_x + 0.001 + 0.42 * (cup_x - lift_x - 0.001),
+                    lift_position[0] + 0.42 * (cup_x - lift_position[0]),
                     scoop_y + 0.42 * (pour_y - scoop_y),
                     transfer_z,
                     0.0,
@@ -132,7 +133,7 @@ class CoffeeScoopDemo:
             (
                 "scoop_1",
                 self._scoop_knots[-1][0],
-                pose((lift_x + 0.001, scoop_y, source_z + 0.060)),
+                pose(lift_position),
                 0.007,
             ),
             ("transfer_1", self._transfer_knots[-1][0], pose((cup_x, pour_y, pour_z)), 0.006),

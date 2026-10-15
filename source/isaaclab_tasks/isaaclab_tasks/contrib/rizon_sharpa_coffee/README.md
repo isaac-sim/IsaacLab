@@ -29,8 +29,9 @@ bowl adds room without adding particles. Smaller bowls reduce the fill to fit.
 The scoop follows the powder pile. Completion requires at least 1 g of coffee
 in the cup as well as the configured delivery fraction, so reducing the fill
 does not lower the minimum successful dose.
-The script starts near the powder, curls the spoon level inside it, and follows
-a low arc to the nearby cup before pouring and moving directly into stirring.
+The script starts near the powder, curls the spoon level inside it, lifts clear
+away from the arm, and follows a low arc to the nearby cup before pouring and
+moving directly into stirring.
 
 The shallow cup is 56 mm tall with a circular side handle. Its water seed is
 chosen to settle near 80% full. Coffee uses physical sampling at up to 1.5 mm,

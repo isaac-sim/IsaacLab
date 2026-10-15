@@ -135,7 +135,7 @@ class CoffeeRendering:
         env: ManagerBasedEnv,
         *,
         voxel_size: float = 0.0025,
-        color_mass_scale: float = 0.0015,
+        color_mass_scale: float = 0.0005,
         diffusion_rate: float = 18.0,
     ):
         if env.num_envs != 1:

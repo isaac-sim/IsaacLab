@@ -9,3 +9,6 @@
   continuous low transfer to a closer cup, and direct pouring-to-stirring motion.
 * Refined the native liquid surface grid and narrowed its reconstruction kernel
   independently of the physics resolution.
+* Deepened the dissolved coffee's brown tint for the one-scoop dose.
+* Raised the loaded spoon 15 mm higher and 4 mm farther from the robot before
+  transferring, preserving the scoop and motion timing.
