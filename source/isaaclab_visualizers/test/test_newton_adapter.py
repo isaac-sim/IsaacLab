@@ -347,6 +347,7 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
     viewer.camera = Camera(width=64, height=64, up_axis="Z")
     viewer._camera_speed = 1.0
+    viewer._paused = False
     viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
 
     gui = ViewerGui.__new__(ViewerGui)
@@ -613,9 +614,13 @@ class _ContactSensor:
 class _SceneDataProvider:
     def __init__(self, contact_sensors=None):
         self._contact_sensors = contact_sensors or {}
+        self.backend = SimpleNamespace(geometry_timestamp=0)
 
     def get_contact_sensors(self):
         return self._contact_sensors
+
+    def get_geometry_points(self):
+        return {}
 
     def create_mapping(self, paths):
         return None

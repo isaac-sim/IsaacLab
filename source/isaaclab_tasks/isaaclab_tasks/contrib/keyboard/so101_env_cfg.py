@@ -166,7 +166,7 @@ class CommandsCfg:
             buffer_size=8192,
             normal_weight=0.1,
             pre_solve_reset=EventTerm(
-                func=mdp.reset_root_state_uniform,
+                func=mdp.reset_keyboard_root_state_uniform,
                 mode="reset",
                 params={
                     "pose_range": {
@@ -177,7 +177,6 @@ class CommandsCfg:
                         "roll": [0.0, 0.75],
                     },
                     "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-                    "asset_cfg": SceneEntityCfg("keyboard"),
                 },
             ),
         ),
@@ -237,7 +236,7 @@ class EventCfg:
     """Reset-mode events (shared by all physics backends)."""
 
     reset_keyboard = EventTerm(
-        func=mdp.reset_root_state_uniform,
+        func=mdp.reset_keyboard_root_state_uniform,
         mode="reset",
         params={
             "pose_range": {
@@ -248,7 +247,6 @@ class EventCfg:
                 "roll": [0.0, 0.75],
             },
             "velocity_range": {"x": [-0.0, 0.0], "y": [-0.0, 0.0], "z": [-0.0, 0.0]},
-            "asset_cfg": SceneEntityCfg("keyboard"),
         },
     )
 

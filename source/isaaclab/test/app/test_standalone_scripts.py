@@ -22,9 +22,12 @@ launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 import ast
 import os
 import re
+import runpy
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
@@ -231,6 +234,56 @@ def test_demo_browser_documents_options_for_each_demo():
         assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
         )
+
+
+@pytest.fixture(scope="module")
+def nist_demo():
+    return runpy.run_path(str(script_cases.ROOT / "examples/demos/nist.py"))
+
+
+def test_nist_demo_does_not_depend_on_training_packages():
+    """The demo keeps one composition root and leaves episode resets to the RL environment."""
+    path = script_cases.ROOT / "examples/demos/nist.py"
+    nodes = list(ast.walk(ast.parse(path.read_text(encoding="utf-8"))))
+    imports = []
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports.append(node.module or "")
+    assert not any(name.startswith(("isaaclab_tasks", "isaaclab_rl", "rsl_rl")) for name in imports)
+    assert not any(isinstance(node, ast.Attribute) and node.attr == "_reset_idx" for node in nodes)
+
+
+def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
+    """Partial resets place separated parts across a square in their own environment."""
+    demo = nist_demo
+    torch = demo["torch"]
+    assemblies = demo["ASSEMBLIES"][:10]
+    num_envs, env_ids = 64, torch.arange(1, 64, 2)
+
+    class Scene(dict):
+        env_origins = torch.arange(num_envs)[:, None].expand(-1, 3) * 2.0
+
+    names = {"nistboard", *(f"fixed_{part.socket}" for part in assemblies), *(f"held_{slot:02d}" for slot in range(10))}
+    scene = Scene({name: Mock() for name in names | {"robot"}})
+    for name in names:
+        scene[name].data.default_root_pose.torch = torch.tensor([0.0, 0, 0, 0, 0, 0, 1]).repeat(num_envs, 1)
+    scene["robot"].data.default_joint_pos.torch = torch.zeros((num_envs, 9))
+    board_pose = torch.tensor([0.452824, 0.19145, 0.0206, 0, 1, 0, 0])
+    scene["nistboard"].data.default_root_pose.torch = board_pose.repeat(num_envs, 1)
+    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
+    torch.manual_seed(1701)
+    demo["reset_parts"](env, slice(1, None, 2), assemblies)
+    writes = [scene[f"held_{slot:02d}"].write_root_link_pose_to_sim_index.call_args.kwargs for slot in range(10)]
+    assert all(torch.equal(write["env_ids"], env_ids) for write in writes)
+    positions = torch.stack([write["root_pose"][:, :3] for write in writes], dim=1) - scene.env_origins[env_ids, None]
+    assert (positions >= torch.tensor([0.15, -0.35, 0.12]) - 1e-5).all()
+    assert (positions <= torch.tensor([0.85, 0.35, 0.14]) + 1e-5).all()
+    assert (positions[..., 1].abs() < 0.2).any()
+    distances = torch.cdist(positions[..., :2], positions[..., :2])
+    distances[:, torch.arange(10), torch.arange(10)] = float("inf")
+    assert distances.min() >= 0.1 - 1e-5
 
 
 # Launch matrix selection.

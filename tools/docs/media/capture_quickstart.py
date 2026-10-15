@@ -27,14 +27,14 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_env_cfg import KukaAllegroLiftEnvCfg
-from isaaclab_tasks.core.velocity.config.g1.flat_env_cfg import G1FlatEnvCfg
+from isaaclab_tasks.core.velocity.config.g1.rough_env_cfg import G1RoughEnvCfg
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 _TASK_CONFIGS = {
     "Isaac-Cartpole": "capture_quickstart:CartpoleCaptureCfg",
     "Isaac-Lift-KukaAllegro": "capture_quickstart:KukaAllegroCaptureCfg",
     "Isaac-Open-Drawer-Franka": "capture_quickstart:FrankaCabinetCaptureCfg",
-    "Isaac-Velocity-Flat-G1": "capture_quickstart:G1FlatCaptureCfg",
+    "Isaac-Velocity-Rough-G1": "capture_quickstart:G1RoughCaptureCfg",
 }
 
 _FRANKA_EYE = (-1.6, 1.7, 1.6)
@@ -53,8 +53,8 @@ class CartpoleCaptureCfg(CartpoleEnvCfg):
 
 
 @configclass
-class G1FlatCaptureCfg(G1FlatEnvCfg):
-    """G1 flat-terrain configuration with a compact OVRTX recording viewport."""
+class G1RoughCaptureCfg(G1RoughEnvCfg):
+    """G1 rough-terrain configuration with a following OVRTX recording viewport."""
 
     def __post_init__(self):
         super().__post_init__()
@@ -104,7 +104,7 @@ def main():
     parser.add_argument("--policy", choices=("zero", "random"), required=True)
     parser.add_argument("--task", required=True)
     parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--video-length", type=int, default=300)
+    parser.add_argument("--video-length", type=int, default=360)
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton_rtx"])
     args, hydra_args = setup_preset_cli(parser)
@@ -184,9 +184,9 @@ def _configure_resolved_sim(
 
 
 def _follow_g1_camera(env: ManagerBasedRLEnv, env_ids: torch.Tensor | None) -> None:
-    """Follow G1 horizontally while keeping the camera height steady through each gait."""
+    """Follow G1 while tracking its height on uneven terrain."""
     position = env.scene["robot"].data.root_pos_w[0]
-    target = (float(position[0]), float(position[1]), _G1_TARGET_HEIGHT)
+    target = (float(position[0]), float(position[1]), float(position[2]))
     eye = tuple(target[axis] + _G1_EYE_OFFSET[axis] for axis in range(3))
     env.sim.set_camera_view(eye, target)
 
