@@ -736,19 +736,20 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
             ),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(*ROBOT_BASE_POS[:2], 0.5 * ROBOT_BASE_POS[2])),
         )
-        cfg.room = AssetBaseCfg(
-            prim_path="/World/Room",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=(
-                    f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaTeapot/Environment/enclosed_simple_room_v2.usda"
+        if {"kit", "newton_gl", "newton_rtx"}.intersection(args_cli.visualizer or []):
+            cfg.room = AssetBaseCfg(
+                prim_path="/World/Room",
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=(
+                        f"{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaTeapot/Environment/enclosed_simple_room_v2.usda"
+                    ),
+                    make_uninstanceable=True,
+                    rigid_props=disable_asset_rigid_bodies,
+                    collision_props=disable_asset_colliders,
                 ),
-                make_uninstanceable=True,
-                rigid_props=disable_asset_rigid_bodies,
-                collision_props=disable_asset_colliders,
-            ),
-            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.65, 0.7685705931503188), rot=(0.0, 0.0, 1.0, 0.0)),
-        )
-        cfg.ground.spawn.visible = False
+                init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -0.65, 0.7685705931503188), rot=(0.0, 0.0, 1.0, 0.0)),
+            )
+            cfg.ground.spawn.visible = False
     return cfg
 
 
