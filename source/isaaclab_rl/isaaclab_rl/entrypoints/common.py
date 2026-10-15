@@ -659,6 +659,7 @@ def resolve_checkpoint_selector(
     checkpoint_pattern: str,
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
+    latest_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
     recursive: bool = False,
 ) -> str:
@@ -676,6 +677,8 @@ def resolve_checkpoint_selector(
         checkpoint_pattern: Regular expression matching checkpoint filenames.
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
+        latest_checkpoint_pattern: Regular expression for the backend's periodic checkpoints. ``latest`` prefers
+            them when the best checkpoint's name would otherwise sort last.
         metadata: Additional manifest metadata required for compatibility.
         recursive: Whether to search recursively below each matching run directory.
 
@@ -701,6 +704,9 @@ def resolve_checkpoint_selector(
         if selector == "best" and preferred_checkpoint_pattern is not None:
             preferred = [path for path in checkpoints if re.fullmatch(preferred_checkpoint_pattern, path.name)]
             checkpoints = preferred or checkpoints
+        if selector == "latest" and latest_checkpoint_pattern is not None:
+            periodic = [path for path in checkpoints if re.fullmatch(latest_checkpoint_pattern, path.name)]
+            checkpoints = periodic or checkpoints
         checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 

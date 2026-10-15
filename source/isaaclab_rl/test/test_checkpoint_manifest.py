@@ -94,6 +94,33 @@ def test_best_prefers_final_checkpoint(tmp_path: Path) -> None:
     assert checkpoint == str(expected.resolve())
 
 
+def test_latest_prefers_periodic_checkpoint_over_best_name(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / "nn").mkdir(parents=True)
+    write_run_manifest(str(run_dir), library="rl_games", task="Isaac-Reach-Franka")
+    # rl_games writes the best checkpoint as "<name>.pth", which sorts after "last_*" for names such as this one
+    best = run_dir / "nn" / "reach_franka.pth"
+    best.touch()
+
+    def latest() -> str:
+        return resolve_checkpoint_selector(
+            str(tmp_path),
+            "latest",
+            library="rl_games",
+            task="Isaac-Reach-Franka",
+            checkpoint_pattern=r".*\.pth",
+            other_dirs=["nn"],
+            preferred_checkpoint_pattern=r"reach_franka\.pth",
+            latest_checkpoint_pattern=r"last_.*\.pth",
+        )
+
+    assert latest() == str(best.resolve())
+    (run_dir / "nn" / "last_reach_franka_ep_100_rew_2.0.pth").touch()
+    expected = run_dir / "nn" / "last_reach_franka_ep_200_rew_1.0.pth"
+    expected.touch()
+    assert latest() == str(expected.resolve())
+
+
 def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path, monkeypatch) -> None:
     """RLinf accepts selectors and paths, but never guesses between checkpoint files."""
     from isaaclab_rl.entrypoints.backends.cli_args_rlinf import resolve_rlinf_checkpoint
