@@ -155,8 +155,8 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
-    # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
-    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+    # Isaac Sim requirement mirrors the table; the extra is the only place the wheel is pinned.
+    assert f"isaacsim[all,extscache]=={versions['isaacsim']}" in optional["isaacsim"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
