@@ -250,6 +250,11 @@ class NewtonCouplerManager(NewtonVBDManager):
         )
 
     @classmethod
+    def _get_cuda_graph_model_signature(cls) -> tuple:
+        """Include material-dependent capture state from implicit-MPM entries."""
+        return NewtonMPMManager._get_cuda_graph_model_signature()
+
+    @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Promote a selected single MPM world to the solver's full-reset path."""
         backend = NewtonManager.backend
