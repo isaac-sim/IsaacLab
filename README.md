@@ -17,12 +17,8 @@
 For workflows that use Isaac Sim, this branch targets Isaac Sim 6.2. For installation instructions, see the
 [Isaac Lab documentation](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html).
 
-Note that this branch is currently under active development and may experience breaking changes or error messages.
-Performance issues and regressions may also be observed in some use cases.
-
-
 **Isaac Lab** is a GPU-accelerated, open-source framework designed to unify and simplify robotics research workflows,
-such as reinforcement learning, imitation learning, and motion planning. It is a multi-backend framework supporting
+such as reinforcement learning, imitation learning, and post-training. It is a multi-backend framework supporting
 physics and rendering through Newton, OVRTX, OVPhysX, and
 [NVIDIA Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html). These backends provide fast and
 accurate physics and sensor simulation for sim-to-real transfer in robotics.
@@ -53,15 +49,10 @@ detailed tutorials and step-by-step guides. Follow these links to learn more abo
 
 - [Installation steps](https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/index.html)
 - [Reinforcement learning](https://isaac-sim.github.io/IsaacLab/develop/source/concepts/reinforcement_learning.html)
-- [Tutorials and how-to guides](https://isaac-sim.github.io/IsaacLab/develop/source/how-to/index.html)
+- [Getting started tutorial](https://isaac-sim.github.io/IsaacLab/develop/source/setup/tutorial.html)
+- [How-to guides](https://isaac-sim.github.io/IsaacLab/develop/source/how-to/index.html)
 - [Available environments](https://isaac-sim.github.io/IsaacLab/develop/source/setup/environments.html)
 
-## Performance Dashboard
-
-We continuously benchmark Isaac Lab across different physics backends, renderers, and data types.
-The **[Isaac Lab Performance Dashboard](https://nvidia.github.io/omniperf/)** provides interactive
-charts showing preset comparison results, performance history, and environment scaling data from
-our internal CI/CD benchmarks.
 
 ## Isaac Sim Compatibility
 
@@ -133,9 +124,10 @@ The Isaac Lab framework is released under [BSD-3 License](LICENSE). The `isaacla
 corresponding standalone scripts are released under [Apache 2.0](LICENSE-mimic). The license files of its
 dependencies and assets are present in the [`docs/licenses`](docs/licenses) directory.
 
-Note that full-featured workflows (PhysX, RTX rendering, ROS, URDF/MJCF importers) require
-[Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html), which includes
+Note that for some workflows that require [Isaac Sim](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html), it includes
 components under proprietary licensing terms. Kit-less Newton workflows do not require Isaac Sim.
+Assets not explicitly listed in the [`docs/licenses`](docs/licenses) directory also fall under the
+terms of the Isaac Sim License.
 Please see the [Isaac Sim license](docs/licenses/dependencies/isaacsim-license.txt) for details.
 
 Note that the `isaaclab_mimic` extension requires cuRobo, which has proprietary licensing terms that can be found in [`docs/licenses/dependencies/cuRobo-license.txt`](docs/licenses/dependencies/cuRobo-license.txt).
