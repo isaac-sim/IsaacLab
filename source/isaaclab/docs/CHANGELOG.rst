@@ -3,6 +3,94 @@ Changelog
 
 .. towncrier release notes start
 
+37.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the GPU-controlled ``tablecloth`` five-speed comparison with H2 Plus / SHARPA hands to the Isaac Lab example catalog and standalone launch smoke coverage.
+* Added the packaged ``mpm-g1-coupling`` example for comparing one-way and two-way G1--MPM interaction.
+
+Changed
+^^^^^^^
+
+* Updated Isaac Lab to use Isaac Sim 6.2, including the pip wheel, standalone importer,
+  container image, and China storage profile.
+* Raised the ``aiohttp`` and ``urllib3`` dependency floors to versions that address
+  GHSA-cq5v-8q36-5273 and GHSA-vxq7-64xx-v4gw.
+* Raised the ``GitPython`` security floor to 3.1.60 and refreshed the locked ``fsspec``
+  and ``hydra-core`` releases used by the default environment.
+
+Fixed
+^^^^^
+
+* Fixed multi-minute stalls on Windows in the first CUDA graph capture after the renderer's first frame,
+  seen with Newton physics under OVRTX and under Kit. :class:`~isaaclab.sim.SimulationContext` now reserves
+  CUDA graph memory when it is created, before the CUDA driver's address placement can be blocked.
+* Fixed lazy MJCF and URDF conversion returning an older USD after the importer wrote a changed asset to a numbered
+  folder. The cache now records the generated file and reuses only the most recent matching conversion. Old
+  hash-only cache records cause one conversion because they do not identify the generated file.
+* Fixed aggregate wheel uploads to PyPI by keeping the PyTorch dependencies index-resolvable while preserving
+  CUDA PyTorch selection for direct ``uvx`` use, generated projects, and standalone installations.
+
+
+37.1.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed ``isaaclab.cli.load_external_tasks()`` for launchers to discover installed downstream task registrations.
+
+Fixed
+^^^^^
+
+* Fixed Ctrl+C being lost when Kit dispatched a Python event callback during a visualizer update.
+* Fixed manual joint-velocity termination to detect non-finite values.
+* Fixed manual demonstration success evaluation by keeping inert termination terms
+  registered for dependent rewards, while preserving curricula needed by reset events.
+* Fixed explicit rendering deadlocking while a visualizer had paused training.
+* Documented preservation of compliant-contact stiffness during material randomization on PhysX and OVPhysX.
+
+
+37.0.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added ``ImageViewCfg`` support to ``VideoRecorderCfg.source`` to share a view with visualizer windows.
+  Pass the shared declaration as ``VideoRecorderCfg(source=view)``.
+  Recording reused the composed device frame and host readback, replacing duplicate CPU colorization.
+  Existing ``sensor:<name>`` and ``viz:<type>[:streaming_view]`` source strings remained supported.
+* Selected display and recording producers together during launch. Headless recording retained the
+  configured perspective producer, including when multiple viewers used the same backend.
+* **Breaking:** Invalid recording sources and channel selections raised errors during recorder
+  construction instead of silently disabling recording. Configure a declared sensor or a capture-capable
+  visualizer with the requested outputs. Empty warmup frames continued to be skipped.
+* Detected physics configuration subclasses by type during launch, preserving runtime compatibility
+  checks independently of the configuration class name.
+* Preserved automatic recording frame rates for non-Gym environments and used shared image composition
+  for renderer gallery captures after removing the CPU colorizer.
+* Bound recorder capture functions after the initial simulation reset, removing deferred source discovery
+  from frame capture while preserving recordings that followed the window's camera selection.
+* **Breaking:** Propagated original import errors from ``string_to_callable`` and visualizer loading. Code handling
+  missing modules should catch ``ModuleNotFoundError`` instead of the former ``ValueError`` wrapper.
+* Added shared ``ImageViewCfg`` selections for scene cameras and perspective renders.
+  Windows reused one composed device image and retained native sensor dimensions.
+  Configurations used ``NewtonGLVisualizerCfg(view=view, window=WindowCfg(...))`` or the RTX equivalent;
+  legacy camera configurations remained supported. The existing simulation resource registry owned views.
+  Rejected mismatched channel batches, resolutions, and devices before GPU composition.
+* Bound camera references during simulation initialization and removed unused environment camera helpers.
+  Kept image composition and channel selection in the shared image utilities.
+
+Fixed
+^^^^^
+
+* Fixed LEAPP export of EMA joint position actions by preserving the previous target as feedback state.
+
+
 36.0.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~~
 
