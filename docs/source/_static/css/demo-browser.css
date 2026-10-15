@@ -37,8 +37,37 @@
     color: var(--environment-muted);
 }
 
+.demo-command-options {
+    margin-top: 0.5rem;
+}
+
+.demo-command-options[hidden] {
+    display: none;
+}
+
+.demo-command-option {
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    margin: 0;
+    font-weight: 600;
+}
+
+.demo-command-option[hidden] {
+    display: none;
+}
+
 .demo-command-note {
     margin: 1rem 0 0;
+}
+
+.demo-command-note pre {
+    margin: 0.75rem 0;
+    padding: 0.75rem;
+    overflow-x: auto;
+    border: 1px solid var(--environment-border);
+    border-radius: 6px;
+    background: var(--pst-color-on-background);
 }
 
 .demo-command-note[hidden],
