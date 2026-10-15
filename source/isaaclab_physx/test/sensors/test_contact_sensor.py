@@ -21,6 +21,7 @@ from isaaclab_physx.sensors.contact_sensor import contact_sensor as contact_sens
 from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from omni.physics.tensors.api import RigidContactView
 from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -328,13 +329,17 @@ def test_contact_sensor_invalidation_drops_cached_graph_state(monkeypatch):
         "_body_physx_view",
         "_contact_view",
         "_compute_graph",
-        "_net_forces_flat",
-        "_force_matrix_flat",
+        "_net_normal_forces_flat",
+        "_net_friction_forces_flat",
+        "_normal_force_matrix_flat",
+        "_friction_force_matrix_flat",
         "_poses_flat",
         "_contact_points_flat",
         "_friction_forces_flat",
         "_friction_counts",
         "_friction_start_indices",
+        "_contact_counts",
+        "_contact_start_indices",
     ]
     for attr in cached_attrs:
         setattr(sensor, attr, object())
@@ -804,59 +809,62 @@ def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
 
 
 @pytest.mark.isaacsim_ci
-def test_friction_reporting(setup_simulation):
-    """
-    Test friction force reporting for contact sensors.
-
-    This test places a contact sensor enabled cube onto a ground plane under a mostly horizontal gravity.
-    The friction force on the cube must oppose the gravity-driven slide.
-    """
-    # minor gravity force in -z to ensure object stays on ground plane
-    grav_dir = (-10.0, 0.0, -0.1)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_friction_reporting(setup_simulation, device):
+    """Sliding contact reports aggregate friction and total forces without detailed-contact data."""
+    if not hasattr(RigidContactView, "get_net_friction_contact_forces"):
+        pytest.skip("Aggregate PhysX friction reporting requires Isaac Sim 6.2 or later.")
+    grav_dir = (-10.0, 0.0, -9.81)
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", True)
-    device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
 
-        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
+        scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
-        scene_cfg.shape = CUBE_CFG
-
-        filter_prim_paths_expr = [scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"]
-
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.shape.spawn.mass_props = sim_utils.MassCfg(mass=1.0)
+        scene_cfg.shape.spawn.rigid_props = PhysxRigidBodyCfg(linear_damping=0.0, angular_damping=0.0)
+        scene_cfg.shape.init_state.pos = (0.0, 0.0, CUBE_CFG.spawn.size[2] / 2.0)
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
-            track_pose=True,
-            debug_vis=False,
-            update_period=0.0,
-            track_air_time=True,
-            history_length=3,
             track_friction_forces=True,
-            filter_prim_paths_expr=filter_prim_paths_expr,
+            max_contact_data_count_per_prim=0,
         )
-
+        scene_cfg.contact_sensor_2 = ContactSensorCfg(
+            prim_path=scene_cfg.shape.prim_path,
+            max_contact_data_count_per_prim=0,
+            track_friction_forces=False,
+            filter_prim_paths_expr=[scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"],
+        )
         scene = InteractiveScene(scene_cfg)
-
         sim.reset()
+        scene.reset()
+        sensor: ContactSensor = scene["contact_sensor"]
+        total_sensor: ContactSensor = scene["contact_sensor_2"]
+        shape: RigidObject = scene["shape"]
+        for _ in range(20):
+            _perform_sim_step(sim, scene, sim_dt)
 
-        scene["contact_sensor"].reset()
-        scene["shape"].write_root_pose_to_sim_index(
-            root_pose=torch.tensor([0, 0.0, CUBE_CFG.spawn.size[2] / 2.0, 1, 0, 0, 0], device=device).unsqueeze(0)
-        )
-
-        # step sim once to compute friction forces
+        velocity_before = shape.data.root_lin_vel_w.torch.clone()
         _perform_sim_step(sim, scene, sim_dt)
+        gravity = torch.tensor(grav_dir, device=device)
+        # Unit mass and zero damping leave contact and gravity as the only forces.
+        expected_total = (shape.data.root_lin_vel_w.torch - velocity_before) / sim_dt - gravity
+        data = sensor.data
+        friction = data.net_friction_forces_w.torch
+        assert torch.all((friction[..., :2] * gravity[:2]).sum(-1) < 0)
+        torch.testing.assert_close(data.net_forces_w.torch, data.net_normal_forces_w.torch + friction)
+        torch.testing.assert_close(data.net_forces_w.torch[:, 0], expected_total, atol=0.1, rtol=0.01)
+        torch.testing.assert_close(data.friction_forces_w.torch, friction)
+        assert data.force_matrix_w is None
 
-        # check that the friction force on the cube opposes the gravity direction (signed, so a flip is caught)
-        reported_friction = scene["contact_sensor"].data.friction_force_matrix_w.torch[0, 0, :]
-        grav = torch.tensor(grav_dir, device=device)
-        norm_reported_friction = reported_friction / reported_friction.norm()
-        norm_gravity = grav / grav.norm()
-        dot = torch.dot(norm_reported_friction[0], norm_gravity)
-
-        torch.testing.assert_close(dot, torch.tensor(-1.0, device=device), atol=1e-4, rtol=1e-3)
+        total_data = total_sensor.data
+        assert total_data.net_friction_forces_w is None
+        assert total_data.friction_force_matrix_w is None
+        torch.testing.assert_close(total_data.net_forces_w.torch[:, 0], expected_total, atol=0.1, rtol=0.01)
+        torch.testing.assert_close(total_data.force_matrix_w.torch[:, :, 0], total_data.net_forces_w.torch)
 
 
 @pytest.mark.isaacsim_ci
@@ -869,7 +877,7 @@ def test_friction_reporting(setup_simulation):
     ids=["empty_filter", "zero_max_contact_data"],
 )
 def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_data_count_per_prim, match):
-    """Tracking friction forces requires a filter pattern and a positive contact data budget."""
+    """Tracking contact points requires a filter pattern and a positive contact data budget."""
     sim_dt, _, settings = setup_simulation
     settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
@@ -889,7 +897,7 @@ def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_d
             update_period=0.0,
             track_air_time=True,
             history_length=3,
-            track_friction_forces=True,
+            track_contact_points=True,
             filter_prim_paths_expr=filter_prim_paths_expr if use_filter else [],
             max_contact_data_count_per_prim=max_contact_data_count_per_prim,
         )
@@ -1061,9 +1069,11 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
     # compare friction forces
     if mode == ContactTestMode.IN_CONTACT:
         assert torch.any(torch.abs(friction_torch) > 1e-5).item()
-        friction_forces, _, buffer_count, buffer_start_indices = sensor.contact_view.get_friction_data(
-            dt=sensor._sim_physics_dt
-        )
+        if hasattr(sensor.contact_view, "get_friction_contact_data"):
+            contact_data = sensor.contact_view.get_friction_contact_data(dt=sensor._sim_physics_dt)
+        else:
+            contact_data = sensor.contact_view.get_friction_data(dt=sensor._sim_physics_dt)
+        friction_forces, _, buffer_count, buffer_start_indices = contact_data
         friction_forces_t = wp.to_torch(friction_forces)
         buffer_count_t = wp.to_torch(buffer_count).to(torch.int32)
         buffer_start_t = wp.to_torch(buffer_start_indices).to(torch.int32)

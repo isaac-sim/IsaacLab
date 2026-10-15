@@ -8,6 +8,7 @@ import math
 
 from isaaclab.utils import configclass
 
+from .env_cfg import ROUGH_TERRAINS_DIFFICULT_CFG
 from .env_cfg.mixed_scene_cfg import G1MixedTerrainSceneCfg
 from .env_cfg.physics_cfg import MPM_ENTRY, G1PhysicsProxyCfg
 from .env_cfg.scene_cfg import FOOT_CONTACT_MARGIN
@@ -46,6 +47,11 @@ class G1MixedTerrainEnvCfg(G1MovingPatchEnvCfg):
             if term is not None:
                 term.func = randomize_mpm_material
 
+        self.curriculum.command_vel.params["velocity_stages"] = [
+            {"step": 0, "lin_vel_x": (-1.0, 1.0), "ang_vel_z": (-0.5, 0.5)},
+            {"step": 10000 * 24, "lin_vel_x": (-1.0, 1.5), "ang_vel_z": (-1.0, 1.0)},
+        ]
+
     def validate_config(self) -> None:
         if self.foot_contact_margin_range is not None:
             raise ValueError(
@@ -80,6 +86,9 @@ class G1MixedTerrainEnvCfg_PLAY(G1MixedTerrainEnvCfg):
         for visualizer_cfg in self.sim.visualizer_cfgs:
             visualizer_cfg.headless = False
 
+        self.scene.terrain.terrain_generator = ROUGH_TERRAINS_DIFFICULT_CFG.copy()
+        self.scene.terrain.moving_patch_terrain.particle_depth = 0.35
+
         self.events.mpm_material_log = None
         self.events.mpm_material = None
 
@@ -95,7 +104,7 @@ class G1MixedTerrainEnvCfg_PLAY(G1MixedTerrainEnvCfg):
             MovingPatchGLVisualizerCfg(
                 eye=(-2.0, -0.0, 0.5),
                 lookat=(0.0, 0.0, 0.0),
-                # follow_body_path="/World/envs/env_0/Robot/Geometry/pelvis",
+                follow_body_path="/World/envs/env_0/Robot/Geometry/pelvis",
             ),
             MovingPatchRTXVisualizerCfg(
                 eye=(-2.0, -0.0, 0.5),

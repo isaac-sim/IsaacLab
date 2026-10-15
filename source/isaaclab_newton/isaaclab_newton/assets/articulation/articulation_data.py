@@ -807,6 +807,54 @@ class ArticulationData(BaseArticulationData):
         return self._body_com_vel_w_ta
 
     @property
+    @capture_unsafe(_LAZY_CAPTURE_REASON)
+    def body_joint_wrench(self) -> ProxyArray:
+        """Incoming joint reaction wrenches in public body order; see the base data contract."""
+        if self._sim_bind_body_parent_f is None:
+            raise RuntimeError("Set ArticulationCfg.enable_joint_wrench=True before simulation startup.")
+        if self._body_joint_wrench.data is None:
+            model = SimulationManager.get_model()
+            articulation_ids = self._root_view.articulation_ids.numpy()[:, 0]
+            starts = model.articulation_start.numpy()[articulation_ids]
+            end = model.articulation_end.numpy()[articulation_ids[0]]
+            tree_joints = np.arange(starts[0], end)
+            children = model.joint_child.numpy()
+            body_ids = np.unique(children[tree_joints])
+            joint_types = model.joint_type.numpy()[tree_joints]
+            parents = model.joint_parent.numpy()[tree_joints]
+            report_joint = (joint_types != JointType.FREE) & ((joint_types != JointType.FIXED) | (parents != -1))
+            report_body = np.zeros(self._num_bodies, dtype=bool)
+            body_indices = np.searchsorted(body_ids, children[tree_joints[report_joint]])
+            report_body[body_indices] = True
+            joint_ids = starts[:, None] + (tree_joints[report_joint] - starts[0])
+            joint_poses = np.zeros((self._num_instances, self._num_bodies, 7), dtype=np.float32)
+            joint_poses[:, body_indices] = model.joint_X_c.numpy()[joint_ids]
+            self._wrench_body_joint_pose = wp.array(joint_poses, dtype=wp.transformf, device=self.device)
+            self._wrench_report_body = wp.array(report_body, dtype=wp.bool, device=self.device)
+            self._body_joint_wrench.data = wp.empty(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_joint_wrench_ta = ProxyArray(self._body_joint_wrench.data)
+        if self._body_joint_wrench.timestamp < self._sim_timestamp:
+            self._read_launch_cache.launch(
+                "body_joint_wrench",
+                articulation_kernels.update_body_joint_wrench,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[
+                    self._sim_bind_body_parent_f,
+                    self._sim_bind_body_link_pose_w,
+                    self._sim_bind_body_com_pos_b,
+                    self._wrench_body_joint_pose,
+                    self._wrench_report_body,
+                    self.body_ordering.user_to_backend if self.has_body_ordering else None,
+                    self.has_body_ordering,
+                ],
+                outputs=[self._body_joint_wrench.data],
+            )
+            self._body_joint_wrench.timestamp = self._sim_timestamp
+        return self._body_joint_wrench_ta
+
+    @property
     def body_com_acc_w(self) -> ProxyArray:
         """Acceleration of all bodies center of mass ``[lin_acc, ang_acc]``.
 

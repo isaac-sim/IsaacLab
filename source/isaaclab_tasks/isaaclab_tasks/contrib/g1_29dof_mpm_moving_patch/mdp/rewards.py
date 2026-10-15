@@ -112,6 +112,69 @@ def feet_air_time_positive_biped(
     return reward * commanded
 
 
+def _compute_standing_contact_penalty(
+    foot_contact: torch.Tensor,
+    velocity_command: torch.Tensor,
+    base_lin_vel_b: torch.Tensor,
+    base_ang_vel_b: torch.Tensor,
+    projected_gravity_b: torch.Tensor,
+    command_threshold: float = 0.05,
+    recovery_linear_velocity: float = 0.2,
+    recovery_angular_velocity: float = 0.5,
+    recovery_tilt: float = 0.2,
+) -> torch.Tensor:
+    """Compute a standing contact penalty from tensors, without accessing the environment.
+
+    This is a helper for reward terms, not a reward-manager term itself.
+    ``velocity_command`` contains at least ``(vx, vy, wz)`` per environment.
+    Base linear/angular velocities and projected gravity have shape ``(num_envs, 3)``
+    and are expressed in the robot base frame.
+
+    ``foot_contact`` has shape ``(num_envs, num_feet)`` and uses true/nonzero for contact.
+    Linear and yaw commands must each be below ``command_threshold`` to enable the term.
+    The penalty fades exponentially with measured base linear speed [m/s], angular
+    speed [rad/s], and tilt from upright [rad], using the positive recovery scales.
+    This permits recovery steps at a reduced cost; it does not guarantee push recovery.
+    """
+    if min(recovery_linear_velocity, recovery_angular_velocity, recovery_tilt) <= 0.0:
+        raise ValueError("Standing contact penalty recovery scales must be positive.")
+    standing = (torch.linalg.vector_norm(velocity_command[:, :2], dim=-1) < command_threshold) & (
+        velocity_command[:, 2].abs() < command_threshold
+    )
+    base_tilt = torch.atan2(torch.linalg.vector_norm(projected_gravity_b[:, :2], dim=-1), -projected_gravity_b[:, 2])
+    recovery = (
+        torch.sum(base_lin_vel_b.square(), dim=-1) / recovery_linear_velocity**2
+        + torch.sum(base_ang_vel_b.square(), dim=-1) / recovery_angular_velocity**2
+        + (base_tilt / recovery_tilt).square()
+    )
+    unsupported_feet = (~foot_contact.bool()).sum(dim=-1)
+    return unsupported_feet * standing * torch.exp(-recovery)
+
+
+def break_contact_penalty(
+    env: G1MovingPatchEnv,
+    command_name: str,
+    command_threshold: float = 0.05,
+    recovery_linear_velocity: float = 0.2,
+    recovery_angular_velocity: float = 0.5,
+    recovery_tilt: float = 0.2,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Penalize unsupported feet while standing on sand or rigid ground, allowing recovery."""
+    asset = env.scene[asset_cfg.name]
+    return _compute_standing_contact_penalty(
+        foot_contact=env.foot_contact,
+        velocity_command=env.command_manager.get_command(command_name),
+        base_lin_vel_b=asset.data.root_lin_vel_b.torch,
+        base_ang_vel_b=asset.data.root_ang_vel_b.torch,
+        projected_gravity_b=asset.data.projected_gravity_b.torch,
+        command_threshold=command_threshold,
+        recovery_linear_velocity=recovery_linear_velocity,
+        recovery_angular_velocity=recovery_angular_velocity,
+        recovery_tilt=recovery_tilt,
+    )
+
+
 def no_fly(
     env: G1MovingPatchEnv,
     command_name: str,

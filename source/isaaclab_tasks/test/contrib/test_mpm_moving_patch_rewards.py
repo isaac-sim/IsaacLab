@@ -231,3 +231,26 @@ def test_foot_clearance_offsets_only_sand_environments():
     cfg = G1RewardsCfg().foot_clearance
     cfg.params["ground_height_offset"] = 0.25
     torch.testing.assert_close(cfg.func(env, **cfg.params), torch.full((4,), math.exp(-0.025)))
+
+
+def test_standing_contact_penalty_allows_recovery():
+    """Commands disable the standing term; measured motion reduces the cost of recovery steps."""
+    cfg = G1RewardsCfg().break_contact
+    contact = torch.tensor([[True, True], [True, False], [False, False], [False, False], [False, False]])
+    velocity = torch.zeros(5, 3)
+    velocity[4, 0] = cfg.params["recovery_linear_velocity"]
+    commands = torch.zeros(5, 7)
+    commands[3, 2] = 1.0
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            root_lin_vel_b=SimpleNamespace(torch=velocity),
+            root_ang_vel_b=SimpleNamespace(torch=torch.zeros(5, 3)),
+            projected_gravity_b=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, -1.0]] * 5)),
+        )
+    )
+    env = SimpleNamespace(
+        scene={"robot": robot},
+        foot_contact=contact,
+        command_manager=SimpleNamespace(get_command=lambda _: commands),
+    )
+    torch.testing.assert_close(cfg.func(env, **cfg.params), torch.tensor([0.0, 1.0, 2.0, 0.0, 2.0 / math.e]))

@@ -6,12 +6,14 @@
 """G1 terrain resets honor current ranges and preserve unselected robots."""
 
 import gymnasium as gym
+import numpy as np
 import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import NewtonManager
 
 from isaaclab.app import launch_simulation
+from isaaclab.terrains import FlatPatchSamplingCfg, HfPyramidSlopedTerrainCfg, TerrainGeneratorCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
 from isaaclab_tasks.contrib.g1_29dof_mpm_moving_patch.env_cfg.event_cfg import G1EventCfg
@@ -21,6 +23,7 @@ from isaaclab_tasks.contrib.g1_29dof_mpm_moving_patch.mixed_env_cfg import (
     G1MixedTerrainEnvCfg_PLAY,
 )
 from isaaclab_tasks.contrib.g1_29dof_mpm_moving_patch.mpm_env_cfg import G1MovingPatchEnvCfg_PLAY
+from isaaclab_tasks.contrib.g1_29dof_mpm_moving_patch.util.terrain import PairedTerrainGenerator, split_contact_surfaces
 from isaaclab_tasks.utils.hydra import resolve_presets
 
 
@@ -109,6 +112,7 @@ def test_mixed_terrain_fixed_foot_margins(device):
     """Both solver models use constant per-terrain foot margins across resets."""
     cfg = resolve_presets(G1MixedTerrainEnvCfg_PLAY(), [])
     cfg.scene.num_envs = 4
+    cfg.scene.terrain.terrain_generator = FLAT_TERRAINS_CFG.replace(num_rows=1, num_cols=3, border_width=1.0)
     cfg.mpm_contact_margin = 0.02
     cfg.rigid_contact_margin = 0.0
     cfg.sim.device = device
@@ -164,3 +168,41 @@ def test_mixed_terrain_fixed_foot_margins(device):
                 torch.testing.assert_close(wp.to_torch(model.shape_margin), previous)
         finally:
             env.close()
+
+
+def test_paired_terrain_preserves_geometry_and_spawn_locations():
+    """Both contact groups receive identical sampled heights and spawn points, even with three columns."""
+    cfg = TerrainGeneratorCfg(
+        seed=42,
+        size=(4.0, 4.0),
+        num_rows=2,
+        num_cols=3,
+        border_width=0.0,
+        use_cache=False,
+        curriculum=True,
+        sub_terrains={
+            "flat": HfPyramidSlopedTerrainCfg(
+                proportion=1.0,
+                slope_range=(0.1, 0.5),
+                platform_width=1.0,
+                flat_patch_sampling={
+                    "spawn": FlatPatchSamplingCfg(
+                        num_patches=2, patch_radius=0.1, max_height_diff=0.01, x_range=(-0.3, 0.3), y_range=(-0.3, 0.3)
+                    )
+                },
+            ),
+        },
+    )
+    terrain = PairedTerrainGenerator(cfg, device="cpu")
+    assert cfg.num_cols == 3
+    assert terrain.terrain_origins.shape == (2, 6, 3)
+    translation = np.array([0.0, 12.0, 0.0])
+    np.testing.assert_allclose(terrain.terrain_origins[:, 3:] - translation, terrain.terrain_origins[:, :3])
+    assert np.ptp(terrain.terrain_origins[..., 2]) > 0.1
+    patches = terrain.flat_patches["spawn"]
+    torch.testing.assert_close(patches[:, 3:] - torch.tensor(translation, dtype=patches.dtype), patches[:, :3])
+    sand_floor, rigid_surface = split_contact_surfaces(terrain.terrain_mesh, particle_depth=0.25)
+    # Compare world-space geometry after accounting for only the group translation and sand depth.
+    sand_vertices = np.unique(np.round(sand_floor.vertices, 6), axis=0)
+    rigid_vertices = np.unique(np.round(rigid_surface.vertices - translation - [0.0, 0.0, 0.25], 6), axis=0)
+    np.testing.assert_allclose(sand_vertices, rigid_vertices, atol=1e-6)

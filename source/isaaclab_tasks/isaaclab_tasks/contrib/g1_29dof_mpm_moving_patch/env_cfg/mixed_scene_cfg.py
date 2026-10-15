@@ -8,9 +8,9 @@ from isaaclab.cloner import CloneCfg, InclusionSet
 from isaaclab.utils import configclass
 
 from ..mixed_env import MixedMPMObject
-from ..util.terrain import MixedTerrainImporter
+from ..util.terrain import MixedTerrainImporter, PairedTerrainGenerator
 from .scene_cfg import G1MovingPatchSceneCfg
-from .terrain_cfg import FLAT_TERRAINS_CFG
+from .terrain_cfg import ROUGH_TERRAINS_CFG
 
 
 @configclass
@@ -18,15 +18,14 @@ class G1MixedTerrainSceneCfg(G1MovingPatchSceneCfg):
     """Use generator origins, terrain-type columns, and difficulty rows for both ground models."""
 
     def __post_init__(self) -> None:
-        # Replace this generator with ROUGH_TERRAINS_CFG.copy(), as in the MPM task.
-        self.terrain.terrain_generator = FLAT_TERRAINS_CFG.replace(num_rows=1, num_cols=2)
+        self.terrain.terrain_generator = ROUGH_TERRAINS_CFG.copy()
         self.terrain.class_type = MixedTerrainImporter
         self.terrain.use_terrain_origins = True
         self.clone_cfg = CloneCfg(clone_combinations=[InclusionSet(assets=["sand"]), InclusionSet(assets=[])])
         super().__post_init__()
 
     def configure_terrain(self) -> None:
-        # At least two columns are required to separate the two contact regions.
-        self.terrain.terrain_generator.num_cols = max(2, self.terrain.terrain_generator.num_cols)
+        # Preserve the configured grid; the generator creates one copy per contact model.
+        self.terrain.terrain_generator.class_type = PairedTerrainGenerator
         super().configure_terrain()
         self.sand.class_type = MixedMPMObject

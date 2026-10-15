@@ -113,8 +113,8 @@ initialize the profile first:
 
 To return to the primary service, clear ``ISAACSIM_ASSET_ROOT`` and select the ``us`` profile.
 
-The ``china`` profile publishes an
-`asset availability manifest <https://assets.simready.cn/manifests/isaac/6.1/asset-availability.csv>`__.
+The latest published China mirror inventory is the
+`6.1 asset availability manifest <https://assets.simready.cn/manifests/isaac/6.1/asset-availability.csv>`__.
 The ``isaac_version`` field identifies the asset release. Each ``asset_path`` is the full path to a
 file relative to the versioned asset root's ``Isaac`` directory. A ``status`` value of ``available``
 reports that the file is mirrored, ``reason_code`` explains other statuses when provided, and
