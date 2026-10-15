@@ -727,6 +727,7 @@ class NewtonManager(PhysicsManager):
 
         # Notify solver of model changes
         if cls._model_changes:
+            graph_signature = cls._get_cuda_graph_model_signature() if cls._graph is not None else None
             with wp.ScopedDevice(PhysicsManager._device):
                 for change in cls._model_changes:
                     if change in cls._ignored_model_changes and change not in cls._warned_model_changes:
@@ -734,6 +735,8 @@ class NewtonManager(PhysicsManager):
                         cls._warned_model_changes.add(change)
                     cls._solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
+            if graph_signature is not None and graph_signature != cls._get_cuda_graph_model_signature():
+                cls._invalidate_graph()
 
         # Reset-authored state and persistent solver resources must be ready before capture.
         # forward() also resets solver internals for the worlds flagged since the last boundary.
@@ -1646,6 +1649,15 @@ class NewtonManager(PhysicsManager):
         cls._mark_transforms_changed()
 
         cls._invalidate_graph()
+
+    @classmethod
+    def _get_cuda_graph_model_signature(cls) -> tuple:
+        """Return resources and solver branches that model notifications can change.
+
+        Backends whose notifications replace captured arrays or change Python-side
+        solver branches override this hook. In-place value updates preserve the graph.
+        """
+        return ()
 
     @classmethod
     def _invalidate_graph(cls) -> None:
