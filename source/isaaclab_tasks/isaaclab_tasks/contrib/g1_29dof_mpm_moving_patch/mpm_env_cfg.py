@@ -15,7 +15,7 @@ from isaaclab.visualizers import VisualizerCfg
 
 from .env_cfg import (
     DEFAULT_PROXY_MASS_SCALE,
-    FLAT_TERRAINS_CFG,
+    ROUGH_TERRAINS_DIFFICULT_CFG,
     G1ActionsCfg,
     G1CommandsCfg,
     G1CurriculumCfg,
@@ -102,7 +102,9 @@ class G1MovingPatchEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.visualizer_cfgs = [
             MovingPatchGLVisualizerCfg(eye=(-20.0, 0.0, 6.0), lookat=(0.0, 0.0, 0.0), show_particles=True),
             MovingPatchRTXVisualizerCfg(
-                eye=(-50.0, -15.0, 5.0), lookat=(-10.0, 0.0, 0.0), show_particles=True, headless=True
+                eye=(-50.0, -15.0, 5.0),
+                lookat=(-10.0, 0.0, 0.0),
+                show_particles=True,
             ),
         ]
         self.video_recorders = [
@@ -121,10 +123,10 @@ class G1MovingPatchEnvCfg_PLAY(G1MovingPatchEnvCfg):
         super().__post_init__()
         self.observations.policy.enable_corruption = False
 
-        # generator = ROUGH_TERRAINS_DIFFICULT_CFG
+        generator = ROUGH_TERRAINS_DIFFICULT_CFG
         # generator = SLOPE_TERRAINS_CFG
         # generator = WAVE_TERRAINS_CFG
-        generator = FLAT_TERRAINS_CFG
+        # generator = FLAT_TERRAINS_CFG
 
         self.scene.terrain.terrain_generator = generator
         self.scene.terrain.moving_patch_terrain.particle_depth = 0.35
@@ -136,15 +138,15 @@ class G1MovingPatchEnvCfg_PLAY(G1MovingPatchEnvCfg):
             "velocity_range": {key: (0.0, 0.0) for key in ("x", "y", "z", "roll", "pitch", "yaw")},
         }
         self.events.reset_robot_joints.params["position_range"] = (1.0, 1.0)
-        self.events.mpm_material_log = None
-        self.events.mpm_material = None
+        # self.events.mpm_material_log = None
+        # self.events.mpm_material = None
 
         # override command ranges for the PLAY configuration
         self.curriculum.command_vel = None  # type: ignore
         for name in ("track_lin_vel", "track_ang_vel", "track_heading", "track_lin_vel_weight"):
             setattr(self.curriculum, name, None)
 
-        self.commands.base_velocity.ranges.lin_vel_x = (-1, 1)
+        self.commands.base_velocity.ranges.lin_vel_x = (1.0, 1.0)
         self.commands.base_velocity.ranges.lin_vel_y = (0.0, 0.0)
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
         self.commands.base_velocity.rel_standing_envs = 0.0
@@ -161,7 +163,7 @@ class G1MovingPatchEnvCfg_PLAY(G1MovingPatchEnvCfg):
             MovingPatchRTXVisualizerCfg(
                 eye=(-2.0, -0.0, 0.5),
                 lookat=(0.0, 0.0, 0.0),
-                # follow_body_path="/World/envs/env_0/Robot/Geometry/pelvis",
+                follow_body_path="/World/envs/env_0/Robot/Geometry/pelvis",
             ),
         ]
         self.video_recorders = [

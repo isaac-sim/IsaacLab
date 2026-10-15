@@ -35,6 +35,7 @@ from ..materials import PreviewSurfaceCfg, SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
 from ..materials.visual_materials import _author_material_inputs
 from ..utils import (
+    apply_mesh_collision_props,
     apply_schema_props,
     bare_fragments,
     fragment_mapping,
@@ -366,7 +367,7 @@ def _body_family_targeting(value, prim_path: str, api_type) -> tuple[dict | None
 
 
 def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -> None:
-    """Author the rigid-body, collision, and mass schema families on the spawned asset.
+    """Author the rigid-body, collision, mesh-collision, and mass schema families on the spawned asset.
 
     Fragment mappings apply one writer call per entry, in insertion order (later entries override
     earlier ones per attribute); legacy single cfgs route to the legacy nested writers.
@@ -401,6 +402,9 @@ def _apply_body_schema_properties(prim_path: str, cfg: from_files_cfg.FileCfg) -
                 )
         else:
             schemas.modify_collision_properties(prim_path, cfg.collision_props)
+    # modify mesh-collision properties on the colliders, including any created by collision_props above
+    if cfg.mesh_collision_props is not None:
+        apply_mesh_collision_props(cfg.mesh_collision_props, prim_path, "(/.*)?", get_current_stage())
     # modify mass properties
     if cfg.mass_props is not None:
         mass_props_mapping, mass_props_create = _body_family_targeting(cfg.mass_props, prim_path, UsdPhysics.MassAPI)
@@ -609,13 +613,7 @@ def _spawn_mesh_data(
             stage,
         )
         if cfg.mesh_collision_props is not None:
-            if bare_fragments(cfg.mesh_collision_props):
-                fragments = cfg.mesh_collision_props
-                if not isinstance(fragments, (list, tuple)):
-                    fragments = [fragments]
-                schemas.apply_mesh_collision_properties(mesh_prim_path, fragments, stage=stage)
-            else:
-                schemas.define_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
+            apply_mesh_collision_props(cfg.mesh_collision_props, mesh_prim_path, "", stage)
 
     if cfg.visual_material is not None:
         material_path = (
@@ -677,7 +675,12 @@ def spawn_from_usd_file(
 
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
+        ValueError: If deformable properties are used with mesh-collision properties.
     """
+    # deformable bodies collide through their simulation mesh, which the mesh-collision slot would cook
+    deformable_values = (cfg.deformable_props, cfg.volume_deformable_props, cfg.surface_deformable_props)
+    if cfg.mesh_collision_props is not None and any(value is not None for value in deformable_values):
+        raise ValueError("Deformable bodies collide through their simulation mesh and take no 'mesh_collision_props'.")
     # In distributed training, serialize asset download and USD stage composition
     # across ranks to prevent file I/O races. Concurrent mmap reads/writes on
     # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.

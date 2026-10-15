@@ -17,6 +17,7 @@ from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.velocity.config.anymal_d.flat_env_cfg import AnymalDFlatEnvCfg
@@ -81,10 +82,8 @@ def _configure_resolved_sim(sim_cfg: SimulationCfg):
             eye=(2.3, 2.0, 1.5),
             lookat=(0.0, 0.0, 0.45),
             focal_length=40.0,
-            window_width=480,
-            window_height=270,
+            window=WindowCfg(size=(480, 270)),
             headless=True,
-            rtx_environment="studio",
         )
     ]
 

@@ -40,7 +40,11 @@ class MovingPatchParticleRendering:
         body_position = state.body_q[self._follow_body_index : self._follow_body_index + 1].numpy()[0, :3]
         eye = tuple(body_position + np.asarray(visualizer.cfg.eye))
         target = tuple(body_position + np.asarray(visualizer.cfg.lookat))
-        visualizer._apply_camera_pose((eye, target))
+        eye_offset, target_offset = visualizer.cfg.eye, visualizer.cfg.lookat
+        try:
+            visualizer.set_camera_view(eye, target)
+        finally:
+            visualizer.cfg.eye, visualizer.cfg.lookat = eye_offset, target_offset
 
     def _log_particles(self, state):
         patch = getattr(self.moving_patch_visualizer, "moving_patch_particle", None)
@@ -135,16 +139,12 @@ class MovingPatchGLVisualizer(NewtonGLVisualizer):
 
     moving_patch_particle: MovingPatchParticles | None = None
 
-    def _create_viewer(self, runtime_headless: bool, metadata: dict) -> MovingPatchViewerGL:
-        viewer = MovingPatchViewerGL(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
-            headless=runtime_headless,
-            metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
-        )
-        viewer.moving_patch_visualizer = self
-        return viewer
+    _viewer_class = MovingPatchViewerGL
+
+    def initialize(self, sim, *, cameras) -> None:
+        """Bind the native viewer to the moving particle patch after initialization."""
+        super().initialize(sim, cameras=cameras)
+        self._viewer.moving_patch_visualizer = self
 
 
 class MovingPatchRTXVisualizer(NewtonRTXVisualizer):
@@ -152,20 +152,12 @@ class MovingPatchRTXVisualizer(NewtonRTXVisualizer):
 
     moving_patch_particle: MovingPatchParticles | None = None
 
-    def _create_viewer(self, runtime_headless: bool, metadata: dict) -> MovingPatchViewerRTX:
-        viewer = MovingPatchViewerRTX(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
-            headless=runtime_headless,
-            up_axis="Z",
-            metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
-            environment=self.cfg.rtx_environment,
-            background_color=self.cfg.background_color,
-            render_settings=self.cfg.render_settings,
-        )
-        viewer.moving_patch_visualizer = self
-        return viewer
+    _viewer_class = MovingPatchViewerRTX
+
+    def initialize(self, sim, *, cameras) -> None:
+        """Bind the native viewer to the moving particle patch after initialization."""
+        super().initialize(sim, cameras=cameras)
+        self._viewer.moving_patch_visualizer = self
 
 
 @configclass

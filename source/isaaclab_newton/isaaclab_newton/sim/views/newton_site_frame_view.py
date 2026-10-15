@@ -230,7 +230,8 @@ class NewtonSiteFrameView(BaseFrameView):
         """Initialize the Newton site frame view.
 
         Args:
-            prim_path: User-facing frame path pattern, or list of patterns.
+            prim_path: User-facing frame path pattern, or list of patterns. Patterns retain their input
+                order; cloned matches within each pattern follow environment ID, then source-frame order.
             device: Warp device for GPU arrays.
             validate_xform_ops: Whether to validate source USD xform ops.
             stage: USD stage that contains the source prims.
@@ -275,8 +276,8 @@ class NewtonSiteFrameView(BaseFrameView):
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )
 
-    def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
-        """Resolve source prims into frame specs."""
+    def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[tuple[int, _SiteSpec]]:
+        """Resolve source prims into frame specs paired with their input expression index."""
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         groups = ()
         if plan is not None:
@@ -289,9 +290,9 @@ class NewtonSiteFrameView(BaseFrameView):
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         shape_flags = None
-        specs: list[_SiteSpec] = []
+        specs: list[tuple[int, _SiteSpec]] = []
 
-        for path_expr in self._prim_paths:
+        for expression_index, path_expr in enumerate(self._prim_paths):
             if resolve_matching_names(path_expr, body_labels, raise_when_no_match=False)[1]:
                 raise ValueError(
                     f"FrameView prim '{path_expr}' is a Newton physics body. "
@@ -333,14 +334,14 @@ class NewtonSiteFrameView(BaseFrameView):
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{root + suffix}'.")
                     ids = tuple(map(int, env_ids))
                     source_args = validate_xform_ops, root, template, ids, stage
-                    specs.extend(self._resolve_source_prim(prim, *source_args) for prim in prims)
+                    specs.extend((expression_index, self._resolve_source_prim(prim, *source_args)) for prim in prims)
                 continue
 
             prims = sim_utils.find_matching_prims(path_expr, stage)
             if not prims:
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
             source_args = validate_xform_ops, None, None, None, stage
-            specs.extend(self._resolve_source_prim(prim, *source_args) for prim in prims)
+            specs.extend((expression_index, self._resolve_source_prim(prim, *source_args)) for prim in prims)
 
         return specs
 
@@ -437,8 +438,10 @@ class NewtonSiteFrameView(BaseFrameView):
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
         site_prim_paths: list[str] | None = []
+        site_order: list[tuple[int, int]] = []
 
-        for body_patterns, xform, scale, per_world, env_ids, spec_paths in self._site_specs:
+        for expression_index, spec in self._site_specs:
+            body_patterns, xform, scale, per_world, env_ids, spec_paths = spec
             if body_patterns is None:
                 if per_world:
                     if NewtonManager._world_xforms is None:
@@ -449,11 +452,13 @@ class NewtonSiteFrameView(BaseFrameView):
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
+                        site_order.append((expression_index, world_id))
                     site_prim_paths = _extend_prim_paths(site_prim_paths, spec_paths, len(world_ids))
                 else:
                     site_bodies.append(WORLD_BODY_INDEX)
                     site_locals.append([float(v) for v in xform])
                     site_scales.append(scale)
+                    site_order.append((expression_index, 0))
                     site_prim_paths = _extend_prim_paths(site_prim_paths, spec_paths, 1)
                 continue
 
@@ -472,10 +477,20 @@ class NewtonSiteFrameView(BaseFrameView):
                     site_bodies.append(body_idx)
                     site_locals.append([float(v) for v in xform])
                     site_scales.append(scale)
+                    site_order.append((expression_index, env_ids[index] if env_ids is not None else 0))
                 spec_path = None if spec_paths is None else (spec_paths[index],)
                 site_prim_paths = _extend_prim_paths(site_prim_paths, spec_path, len(matched_indices))
 
-        self._create_buffers(site_bodies, site_locals, site_scales, site_prim_paths)
+        # Clone-plan traversal groups worlds by prototype. Restore environment order within each
+        # expression while keeping each frame's body, transform, scale, and renderer destination paired.
+        # Stable sorting retains source-frame order within a world and non-cloned USD traversal order.
+        order = sorted(range(len(site_bodies)), key=site_order.__getitem__)
+        self._create_buffers(
+            [site_bodies[i] for i in order],
+            [site_locals[i] for i in order],
+            [site_scales[i] for i in order],
+            [site_prim_paths[i] for i in order] if site_prim_paths is not None else None,
+        )
 
     def _create_buffers(
         self,
