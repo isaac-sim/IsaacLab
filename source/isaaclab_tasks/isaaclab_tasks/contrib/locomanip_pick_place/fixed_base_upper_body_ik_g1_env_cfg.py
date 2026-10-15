@@ -17,7 +17,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.contrib._teleop import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg

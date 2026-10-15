@@ -24,7 +24,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-from isaaclab_tasks.contrib._teleop import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
 from . import mdp
 

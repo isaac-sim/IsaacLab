@@ -7,7 +7,7 @@ from isaaclab.controllers.pink_ik import DampingTaskCfg, FrameTaskCfg, NullSpace
 from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.contrib._teleop import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.pick_place.nutpour_gr1t2_base_env_cfg import NutPourGR1T2BaseEnvCfg
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
     build_gr1t2_pickplace_pipeline,

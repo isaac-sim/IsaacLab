@@ -30,7 +30,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
-from .._teleop import ISAACLAB_TELEOP_AVAILABLE
+from .. import ISAACLAB_TELEOP_AVAILABLE
 from . import mdp
 from .mdp import stack_events
 

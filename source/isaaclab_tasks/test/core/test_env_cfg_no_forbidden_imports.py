@@ -197,15 +197,23 @@ def test_teleop_configs_load_without_teleop():
     """Configs with optional Isaac Teleop integrations must load without the package."""
     script = textwrap.dedent("""\
         import builtins
+        import importlib.util
 
         original_import = builtins.__import__
+        original_find_spec = importlib.util.find_spec
 
         def block_teleop(name, *args, **kwargs):
             if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
                 raise ModuleNotFoundError("No module named 'isaaclab_teleop'", name="isaaclab_teleop")
             return original_import(name, *args, **kwargs)
 
+        def hide_teleop(name, *args, **kwargs):
+            if name == "isaaclab_teleop" or name.startswith("isaaclab_teleop."):
+                return None
+            return original_find_spec(name, *args, **kwargs)
+
         builtins.__import__ = block_teleop
+        importlib.util.find_spec = hide_teleop
 
         import gymnasium
         import isaaclab_tasks  # noqa: F401

@@ -8,7 +8,7 @@ import tempfile
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.contrib._teleop import ISAACLAB_TELEOP_AVAILABLE
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
