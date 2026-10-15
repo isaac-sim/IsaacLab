@@ -30,6 +30,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
 
+from .._teleop import ISAACLAB_TELEOP_AVAILABLE
 from . import mdp
 from .mdp import stack_events
 
@@ -51,12 +52,11 @@ _CUBE_PROPERTIES = [
 
 def _make_default_xr_cfg() -> XrCfg | None:
     """Create the default stack XR configuration when Isaac Lab Teleop is installed."""
-    try:
-        from isaaclab_teleop import XrCfg
-    except ModuleNotFoundError as exc:
-        if exc.name != "isaaclab_teleop":
-            raise
+    if not ISAACLAB_TELEOP_AVAILABLE:
         return None
+
+    from isaaclab_teleop import XrCfg
+
     return XrCfg(
         anchor_pos=(-0.1, -0.5, -1.05),
         anchor_rot=(0, 0, -0.5, 0.866),

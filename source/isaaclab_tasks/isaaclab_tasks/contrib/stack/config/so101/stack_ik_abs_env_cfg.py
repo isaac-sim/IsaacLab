@@ -11,6 +11,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.contrib.stack.stack_env_cfg import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.utils import preset
 
 from . import stack_joint_pos_env_cfg
@@ -22,10 +23,6 @@ from .stack_joint_pos_env_cfg import SO101_GRIPPER_CLOSE, SO101_GRIPPER_OPEN
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.so101 import SO101_HIGH_PD_CFG  # isort: skip
-
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
 
 # Analog-gripper action affine: ``joint = offset + scale * closedness`` maps the retargeter's
 # closedness ``c in [0, 1]`` to a ``gripper`` joint target [rad]. ``offset == OPEN`` (so ``c=0``
@@ -287,13 +284,12 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         )
 
         # Isaac Capture-based teleoperation pipeline
-        if self.xr is not None:
+        if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import IsaacTeleopCfg
 
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=_build_so101_stack_pipeline,
                 sim_device=self.sim.device,
-                xr_cfg=self.xr,
                 # Rebase all teleop output poses into the robot base frame: the device reads this
                 # prim's world transform each frame and left-multiplies its inverse onto the XR
                 # anchor (``base_T_world @ world_T_anchor``), so the clutch retargeter works
@@ -302,4 +298,5 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 # provides the engage seed, so no live end-effector feed is needed. Teleop runs a
                 # single env (env_0).
                 target_frame_prim_path="/World/envs/env_0/Robot/base",
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
             )

@@ -23,15 +23,12 @@ from isaaclab.visualizers import VisualizerCfg
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
+    ISAACLAB_TELEOP_AVAILABLE,
     ObservationsCfg,
     StackEnvCfg,
     raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
-
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
 
 ##
 # Pre-defined configs
@@ -334,13 +331,13 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # Isaac Capture-based teleoperation pipeline (left hand)
-        if self.xr is not None:
+        if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import IsaacTeleopCfg
 
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
                 sim_device=self.sim.device,
-                xr_cfg=self.xr,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
             )
 
 
@@ -386,11 +383,11 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
         # Isaac Capture-based teleoperation pipeline (right hand)
-        if self.xr is not None:
+        if ISAACLAB_TELEOP_AVAILABLE:
             from isaaclab_teleop import IsaacTeleopCfg
 
             self.isaac_teleop = IsaacTeleopCfg(
                 pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
                 sim_device=self.sim.device,
-                xr_cfg=self.xr,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
             )

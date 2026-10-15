@@ -1,1 +1,2 @@
-* Allowed all registered stack environments to run without the optional ``isaaclab_teleop`` package.
+* Allowed stack, pick-place, and locomanipulation environments to load without the optional
+  ``isaaclab_teleop`` package while preserving non-XR Isaac Teleop pipelines when it is installed.
