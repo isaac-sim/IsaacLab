@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import numpy as np
-import torch
 import warp as wp
 
 from ..utils import validate
@@ -63,7 +62,7 @@ class BaseVisualizer(ABC):
         self._reset_requested: bool = False
         self._sim_time = 0.0
         self._interactive_scene = None
-        self._viewer_origin: torch.Tensor | None = None
+        self._viewer_origin: list[float] | None = None
         self._tracking_asset = None
         self._tracking_body_id: int | None = None
         self._camera_origin_applied = False
@@ -359,7 +358,7 @@ class BaseVisualizer(ABC):
         self._camera_tracking_step = -1
         self._viewer_origin = None
         if self.cfg.origin_type == "world":
-            self._viewer_origin = torch.zeros(3)
+            self._viewer_origin = [0.0, 0.0, 0.0]
         elif self.cfg.origin_type in ("env", "asset"):
             self._interactive_scene = self._sim.get_scene_data_provider().get_interactive_scene()
             if self._interactive_scene is None:
@@ -367,7 +366,7 @@ class BaseVisualizer(ABC):
             if not 0 <= self.cfg.origin_env_index < self._interactive_scene.num_envs:
                 raise ValueError("Camera origin_env_index is outside the scene's environment range.")
             if self.cfg.origin_type == "env":
-                self._viewer_origin = self._interactive_scene.env_origins[self.cfg.origin_env_index]
+                self._viewer_origin = self._interactive_scene.env_origins[self.cfg.origin_env_index].tolist()
             else:
                 if not self.cfg.origin_track_path:
                     raise ValueError("Camera origin_type='asset' requires origin_track_path.")
@@ -407,22 +406,24 @@ class BaseVisualizer(ABC):
         if asset is None or not asset.is_initialized:
             return
         _, _, body_name = self.cfg.origin_track_path.partition("/")
+        env_index = self.cfg.origin_env_index
         if body_name:
             if self._tracking_body_id is None:
                 body_ids, _ = asset.find_bodies(body_name)
                 if len(body_ids) != 1:
                     raise ValueError(f"Camera tracking body {body_name!r} must match exactly one body.")
                 self._tracking_body_id = body_ids[0]
-            self._viewer_origin = asset.data.body_pos_w.torch[self.cfg.origin_env_index, self._tracking_body_id]
+            position = asset.data.body_pos_w.warp[env_index : env_index + 1, self._tracking_body_id]
         else:
-            self._viewer_origin = asset.data.root_pos_w.torch[self.cfg.origin_env_index]
+            position = asset.data.root_pos_w.warp[env_index : env_index + 1]
+        self._viewer_origin = position.numpy()[0].tolist()
         self._apply_viewer_origin_to_camera()
 
     def _apply_viewer_origin_to_camera(self) -> None:
         """Set the absolute camera pose while preserving the configured relative offsets."""
         if self._viewer_origin is None:
             return
-        origin = self._viewer_origin.detach().cpu().tolist()
+        origin = self._viewer_origin
         eye_offset, target_offset = self.cfg.eye, self.cfg.lookat
         eye = tuple(float(position + offset) for position, offset in zip(origin, eye_offset))
         target = tuple(float(position + offset) for position, offset in zip(origin, target_offset))

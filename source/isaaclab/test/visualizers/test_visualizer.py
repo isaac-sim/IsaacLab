@@ -11,12 +11,13 @@ import random
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
+import numpy as np
 import pytest
-import torch
 import warp as wp
 
 from isaaclab.utils import validate
 from isaaclab.utils.string import ResolvableString
+from isaaclab.utils.warp import ProxyArray
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.image_view import ImageView
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
@@ -162,12 +163,18 @@ def tracking_scene():
     asset = SimpleNamespace(
         is_initialized=True,
         data=SimpleNamespace(
-            root_pos_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 1.0], [12.0, 24.0, 2.0]])),
-            body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.0, 0.0, 3.0]], [[13.0, 25.0, 4.0]]])),
+            root_pos_w=ProxyArray(wp.array([[0.0, 0.0, 1.0], [12.0, 24.0, 2.0]], dtype=wp.vec3, device="cpu")),
+            body_pos_w=ProxyArray(
+                wp.array(
+                    [[[0.0, 0.0, 1.0], [0.0, 0.0, 3.0]], [[12.0, 24.0, 2.0], [13.0, 25.0, 4.0]]],
+                    dtype=wp.vec3,
+                    device="cpu",
+                )
+            ),
         ),
-        find_bodies=Mock(return_value=([0], ["torso_link"])),
+        find_bodies=Mock(return_value=([1], ["torso_link"])),
     )
-    scene = MagicMock(num_envs=2, env_origins=torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]]))
+    scene = MagicMock(num_envs=2, env_origins=np.array([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]]))
     scene.__getitem__.side_effect = {"robot": asset}.__getitem__
     sim = Mock(stage=None)
     sim.get_scene_data_provider.return_value = SimpleNamespace(num_envs=2, get_interactive_scene=lambda: scene)
@@ -201,8 +208,8 @@ def test_camera_tracking_selects_origin_and_preserves_offsets(
     viz.initialize(sim, cameras=[])
     viz.update_camera_tracking()
     assert viz.camera_pose == (expected_eye, expected_target)
-    asset.data.root_pos_w.torch[1, 0] += 5.0
-    asset.data.body_pos_w.torch[1, 0, 0] += 5.0
+    asset.data.root_pos_w.warp.numpy()[1, 0] += 5.0
+    asset.data.body_pos_w.warp.numpy()[1, 1, 0] += 5.0
     sim.get_physics_step_count.return_value = 2
     viz.update_camera_tracking()
     displacement = 0.0 if origin_type == "env" else 5.0
@@ -239,7 +246,7 @@ def test_perspective_capture_tracks_before_render_and_reset(tracking_scene):
     assert poses == [((14.0, 26.0, 4.0), (12.0, 24.0, 2.0))]
     view.read(1)
     assert len(poses) == 1
-    asset.data.root_pos_w.torch[1] = torch.tensor([1.0, 2.0, 3.0])
+    asset.data.root_pos_w.warp.numpy()[1] = [1.0, 2.0, 3.0]
     viz.reset(soft=True)
     view.invalidate()
     view.read(1)

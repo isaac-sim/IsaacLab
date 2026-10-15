@@ -451,12 +451,12 @@ class KitVisualizer(BaseVisualizer):
         self._setup_initial_camera_view()
 
     @property
-    def viewer_origin(self) -> torch.Tensor | None:
+    def viewer_origin(self) -> list[float] | None:
         """Current world-space origin offset applied to :attr:`~KitVisualizerCfg.eye` and
         :attr:`~KitVisualizerCfg.lookat` when computing the absolute camera position.
 
-        Returns ``None`` before :meth:`initialize` is called or when no valid origin has been
-        established yet (e.g. asset-tracking before the first :meth:`step`).
+        Returns CPU coordinates as a list, or ``None`` before :meth:`initialize` is called or when
+        no valid origin has been established yet (e.g. asset-tracking before the first :meth:`step`).
         """
         return self._viewer_origin
 
