@@ -231,12 +231,12 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         Raises:
             RuntimeError: If a group's DOFs are not driven by Newton's BAM drive with its authored delay and
-                backlash processors.
+                exactly its configured backlash processor.
         """
         dofs_per_env = adapter.num_joints
         bam_dofs: set[int] = set()
         delay_slots: dict[int, tuple[InputProcessorDelay, int]] = {}
-        backlash_types: dict[int, type] = {}
+        backlash_types: dict[int, list[type]] = {}
         for actuator in adapter.actuators:
             if not isinstance(actuator.drive, DriveBAM):
                 continue
@@ -246,7 +246,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 if isinstance(processor, InputProcessorDelay):
                     delay_slots.update((dof, (processor, slot)) for slot, dof in enumerate(indices))
                 elif isinstance(processor, InputProcessorBacklash):
-                    backlash_types.update(dict.fromkeys(indices, type(processor)))
+                    for dof in indices:
+                        backlash_types.setdefault(dof, []).append(type(processor))
 
         # Group DOFs, environment-major and in group joint order. Instance e lives in environment e.
         all_joints = list(range(self.num_joints))
@@ -262,11 +263,12 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             dofs = env_offsets + local_dofs[name]
             if not bam_dofs.issuperset(dofs.ravel().tolist()):
                 raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM.")
-            if cfg.backlash_joint_template is not None:
-                # An unregistered processor token is skipped silently when Newton parses the USD.
-                expected = InputProcessorBacklash if cfg.backlash_velocity_feedback else InputProcessorPositionBacklash
-                if any(backlash_types.get(dof) is not expected for dof in dofs.ravel().tolist()):
-                    raise RuntimeError(f"BAM group '{name}' is not driven through a {expected.__name__} processor.")
+            # Newton skips an unregistered processor token silently, and a stale one would read a play hinge.
+            backlash = InputProcessorBacklash if cfg.backlash_velocity_feedback else InputProcessorPositionBacklash
+            expected = [] if cfg.backlash_joint_template is None else [backlash]
+            if any(backlash_types.get(dof, []) != expected for dof in dofs.ravel().tolist()):
+                wanted = f"one {expected[0].__name__}" if expected else "no backlash"
+                raise RuntimeError(f"BAM group '{name}' must read its servos through {wanted} processor.")
             nominal_voltage, sag_gain = self._sample_bam_supply(cfg)
             battery_offset = adapter.add_batteries(dofs, nominal_voltage, sag_gain, min_voltage=max(cfg.vin_min, 0.0))
             friction = BamFriction(cfg.motor, wp.array(dofs.ravel(), dtype=wp.uint32, device=self.device), dofs_per_env)
