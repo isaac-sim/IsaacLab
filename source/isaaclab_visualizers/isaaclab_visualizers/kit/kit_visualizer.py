@@ -924,7 +924,7 @@ class KitVisualizer(BaseVisualizer):
         """Compute absolute eye/target from :attr:`_viewer_origin` and push to the viewport."""
         if self._viewer_origin is None:
             return
-        origin = self._viewer_origin.detach().cpu().numpy()
+        origin = self._viewer_origin
         eye = np.array(self.cfg.eye, dtype=float) + origin
         target = np.array(self.cfg.lookat, dtype=float) + origin
         super()._apply_viewer_origin_to_camera()
