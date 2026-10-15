@@ -14,9 +14,10 @@ from types import SimpleNamespace
 import gymnasium as gym
 import pytest
 import torch
+import warp as wp
+from isaaclab_newton.actuators import get_bam_group
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators.newton import read_group_parameter
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -67,9 +68,9 @@ def test_microduck_deploy_interface_and_friction_reset(device):
         assert env.action_manager.get_term("joint_pos").IO_descriptor.joint_names == MICRODUCK_JOINT_NAMES
 
         robot = env.scene["robot"]
-        before = read_group_parameter(robot.actuators, "servos", "drive", "friction_scale").clone()
+        before = wp.to_torch(get_bam_group(robot, "servos").friction_scale).clone()
         env.reset()
-        after = read_group_parameter(robot.actuators, "servos", "drive", "friction_scale")
+        after = wp.to_torch(get_bam_group(robot, "servos").friction_scale)
         assert not (before == after).all()
         assert (after == after[:, :1]).all(), "one friction scale per environment"
         assert ((after >= 0.9) & (after <= 1.1)).all()
@@ -203,7 +204,7 @@ def test_microduck_backlash_preset_reads_output_side_encoders(device):
         env.sim.physics_manager.set_decimation(env.cfg.decimation)
         robot.update(env.physics_dt)
         servos = robot.cfg.actuators["servos"]
-        vin = read_group_parameter(robot.actuators, "servos", "drive", "vin")[:, :1]
+        vin = wp.to_torch(get_bam_group(robot, "servos").nominal_voltage)[:, None]
         expected = -play * servos.kp_fw * servos.motor.error_gain * vin * servos.motor.kt / servos.motor.resistance
         servo_ids = robot.find_joints(MICRODUCK_JOINT_NAMES, preserve_order=True)[0]
         effort = robot.actuators.applied_effort.torch[:, servo_ids]

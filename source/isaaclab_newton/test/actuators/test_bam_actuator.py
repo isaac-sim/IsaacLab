@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for BAM actuator authoring and the Newton-native BAM drive.
+"""Tests for BAM actuator authoring and its Newton-native composition.
 
-Drive outputs are checked against upstream BAM recordings, stepping the actuator with
-test-supplied joint state and external load.
+Newton's ``DriveBAM``, ``Battery``, delay processor and effort clamp, plus Isaac Lab's command lag and
+gearbox friction, are checked against upstream BAM recordings, stepping the actuators with test-supplied
+joint state and external load.
 """
 
 import sys
@@ -17,19 +18,25 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators import DriveBam
-from newton.actuators import parse_actuator_prim
+from isaaclab_newton.actuators import BamCommandLag, BamFriction, InputProcessorPositionBacklash
+from newton.actuators import (
+    Actuator,
+    ClampingMaxEffort,
+    DriveBAM,
+    InputProcessorBacklash,
+    InputProcessorDelay,
+    parse_actuator_prim,
+)
 
-from pxr import Sdf, Usd
+from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
-from isaaclab.actuators.actuator_bam_cfg import BAM_DRIVE_API
+from isaaclab.actuators.actuator_bam_cfg import BAM_POSITION_BACKLASH_API
 from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrapper
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, define_actuator_properties
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.string import to_camel_case
 
 pytestmark = [pytest.mark.unit, pytest.mark.filterwarnings("error::DeprecationWarning")]
 
@@ -47,6 +54,14 @@ VIN = 7.4
 
 KP_FW = 200.0
 """Firmware proportional gain [-]."""
+
+
+@wp.kernel
+def _reference_lag_kernel(seed: int, step: int, min_delay: int, max_delay: int, lags: wp.array[wp.int32]):
+    """The pre-native BAM lag draw for update period 0: an episode seed per environment, a draw per step."""
+    env = wp.tid()
+    episode_seed = wp.int32(wp.rand_init(seed, env))
+    lags[env] = wp.randi(wp.rand_init(episode_seed, step), min_delay, max_delay + 1)
 
 
 @pytest.fixture(scope="module")
@@ -67,26 +82,24 @@ def make_cfg(goldens: dict[str, np.ndarray], **overrides) -> BamActuatorCfg:
     params = {key.removeprefix("attr_"): goldens[key].item() for key in goldens if key.startswith("attr_")}
     params["resistance"] = params.pop("R")
     motor = BamMotorCfg(model="m6", **{f.name: params[f.name] for f in fields(BamMotorCfg) if f.name in params})
-    return BamActuatorCfg(**{"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW, **overrides})
+    return BamActuatorCfg(**{"joint_names_expr": ["servo_.*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW, **overrides})
 
 
 def make_stage(servo_usd: str, cfg: BamActuatorCfg | None = None) -> Usd.Stage:
-    """Open a fresh fixture layer, optionally authoring its actuators from *cfg*."""
+    """Open a fresh fixture layer, optionally authoring its actuators from *cfg*.
+
+    The fixture's prims carry a pre-native BAM actuator at the paths authoring reuses.
+    """
     stage = Usd.Stage.Open(Sdf.Layer.OpenAsAnonymous(servo_usd))
     if cfg is not None:
         author_actuator_prims(stage, "/Robot", {"servo": cfg})
     return stage
 
 
-def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides: float | int) -> SimpleNamespace:
+def make_actuator(servo_usd: str, cfg: BamActuatorCfg, num_envs: int, device: str) -> SimpleNamespace:
     """Build the fixture's BAM actuator with flat joint-state buffers the test writes into."""
-    stage = make_stage(servo_usd)
-    for joint_name in JOINT_NAMES:
-        prim = stage.GetPrimAtPath(f"/Robot/servo_{joint_name}_actuator")
-        for name, value in drive_overrides.items():
-            prim.GetAttribute(f"newton:{to_camel_case(name)}").Set(value)
     adapter = NewtonActuatorAdapter.from_usd(
-        stage=stage,
+        stage=make_stage(servo_usd, cfg),
         joint_names=JOINT_NAMES,
         num_envs=num_envs,
         num_joints=len(JOINT_NAMES),
@@ -94,13 +107,6 @@ def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides:
         articulation_prim_path="/Robot",
     )
     (actuator,) = adapter.actuators
-    # The adapter creates drive states, so rebuild it once the stride is set, as the articulation path does.
-    actuator.drive.env_dof_stride = len(JOINT_NAMES)
-    adapter = NewtonActuatorAdapter(
-        actuators=[actuator], num_envs=num_envs, num_joints=len(JOINT_NAMES), dof_offset=0, device=device
-    )
-    actuator.drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=device)
-
     shape = (num_envs, len(JOINT_NAMES))
     state = PhysxActuatorWrapper.create(*shape, device)
     control = PhysxActuatorWrapper.create(*shape, device)
@@ -116,23 +122,43 @@ def make_actuator(servo_usd: str, num_envs: int, device: str, **drive_overrides:
     return SimpleNamespace(
         adapter=adapter,
         actuator=actuator,
-        drive=actuator.drive,
+        dofs=np.arange(num_envs * len(JOINT_NAMES)).reshape(shape),
         state=state,
         control=control,
         joint_pos=joint_pos,
         joint_vel=joint_vel,
         target_pos=target_pos,
+        friction=None,
         device=device,
     )
 
 
+def add_supply(bam: SimpleNamespace, vin: np.ndarray, sag_gain: np.ndarray, vin_min: float) -> None:
+    """Power each environment's servos from one battery."""
+    num_envs = bam.dofs.shape[0]
+    f32 = lambda values: wp.array(np.broadcast_to(values, num_envs).astype(np.float32), device=bam.device)  # noqa: E731
+    bam.adapter.add_batteries(bam.dofs, f32(vin), f32(sag_gain), min_voltage=max(vin_min, 0.0))
+
+
+def add_friction(bam: SimpleNamespace, motor: BamMotorCfg) -> BamFriction:
+    """Attach gearbox friction, reset with the adapter as the articulation path does."""
+    dof_indices = wp.array(bam.dofs.ravel(), dtype=wp.uint32, device=bam.device)
+    bam.friction = BamFriction(motor, dof_indices, dofs_per_env=len(JOINT_NAMES))
+    bam.adapter.register_reset_callback(bam.friction.reset)
+    return bam.friction
+
+
 def step(bam: SimpleNamespace, joint_pos: np.ndarray, joint_vel: np.ndarray, target_pos: np.ndarray) -> np.ndarray:
-    """Run one actuator step and return the applied effort [N.m], shape ``(num_envs, J)``."""
+    """Run one physics step's actuator hooks and return the applied effort [N.m], shape ``(num_envs, J)``."""
     bam.joint_pos.assign(np.ascontiguousarray(joint_pos, dtype=np.float32))
     bam.joint_vel.assign(np.ascontiguousarray(joint_vel, dtype=np.float32))
     bam.target_pos.assign(np.ascontiguousarray(target_pos, dtype=np.float32))
     with wp.ScopedDevice(bam.device):
+        if bam.friction is not None:
+            bam.friction.compute_budget(bam.state.joint_qd)
         bam.adapter.step(bam.state, bam.control, DT)
+        if bam.friction is not None:
+            bam.friction.record_applied_effort(bam.control.joint_f)
     return bam.control.joint_f_2d.numpy().copy()
 
 
@@ -160,146 +186,137 @@ def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd
     cfg.motor.model = "m3"
     with pytest.raises(ValueError, match="model"):
         author_actuator_prims(make_stage(servo_usd), "/Robot", {"servo": cfg})
+    with pytest.raises(ValueError, match="BAM backlash requires a revolute sibling play hinge: /Robot/servo_0_play"):
+        author_actuator_prims(
+            make_stage(servo_usd), "/Robot", {"servo": make_cfg(goldens, backlash_joint_template="{}_play")}
+        )
 
 
 @pytest.mark.parametrize(
-    "model, flags, limit, voltage_range",
+    "limit, voltage_range, max_delay, backlash",
     [
-        ("m1", (0, 0, 0), None, None),
-        ("m2", (1, 0, 0), None, (6.5, 8.2)),
-        ("m5", (1, 1, 0), 0.05, (6.5, 8.2)),
-        ("m6", (1, 1, 1), 0.05, None),
+        (None, None, 0, None),
+        (0.05, (6.5, 8.2), 3, None),
+        (None, (6.5, 8.2), 0, "position"),
+        (0.05, None, 2, "velocity"),
     ],
 )
-def test_authored_prim_resolves_to_the_bam_drive(goldens, servo_usd, model, flags, limit, voltage_range):
-    """Authoring a BAM group produces a ``NewtonBamDriveAPI``-only prim carrying the configuration.
+def test_authored_prim_composes_native_components(goldens, servo_usd, limit, voltage_range, max_delay, backlash):
+    """A BAM group authors Newton's BAM drive, effort clamp, delay buffer and backlash processor.
 
-    The effort limit is a drive parameter: a registered clamping schema would hide the drive from Newton.
+    Friction, sag and lag settings are not authored: Isaac Lab runs them from the configuration.
     """
+    stage = make_stage(servo_usd)
+    for name in JOINT_NAMES:
+        UsdPhysics.RevoluteJoint.Define(stage, f"/Robot/passive_{name}_backlash")
     cfg = make_cfg(
         goldens,
         actuator_effort_limit=limit,
         vin_range=voltage_range,
-        vin_min=6.0,
-        min_delay=1,
-        max_delay=3,
-        delay_hold_prob=0.25,
-        delay_update_period=4,
+        max_delay=max_delay,
+        min_delay=min(max_delay, 1),
+        backlash_joint_template=None if backlash is None else "passive_{}_backlash",
+        backlash_velocity_feedback=backlash == "velocity",
     )
-    cfg.motor.model = model
-    stage = make_stage(servo_usd, cfg)
+    author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
     voltage = max(voltage_range) if voltage_range is not None else VIN
     expected_limit = limit if limit is not None else voltage * cfg.motor.kt / cfg.motor.resistance
-    parsed = {
-        prim.GetPath(): entry
-        for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot"))
-        if (entry := parse_actuator_prim(prim))
-    }
-    assert len(parsed) == len(JOINT_NAMES)
-    for path, entry in parsed.items():
-        assert entry.drive_class is DriveBam
-        assert entry.component_specs == [], "the BAM delay and clamp are drive-internal, not components"
-        # The unregistered token is dropped from the composed schemas, so read the authored opinion.
-        spec = stage.GetRootLayer().GetPrimAtPath(path)
-        assert list(spec.GetInfo("apiSchemas").GetAppliedItems()) == [BAM_DRIVE_API]
-        resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
-        assert resolved["max_effort"] == pytest.approx(expected_limit)
-        assert resolved["kp_fw"] == pytest.approx(KP_FW)
+    expected_components = [ClampingMaxEffort]
+    if max_delay:
+        expected_components.append(InputProcessorDelay)
+    if backlash is not None:
+        expected_components.append(InputProcessorBacklash if backlash == "velocity" else InputProcessorPositionBacklash)
+    for name in JOINT_NAMES:
+        prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
+        entry = parse_actuator_prim(prim)
+        assert entry.drive_class is DriveBAM
+        assert set(entry.drive_kwargs) == {"kp", "kt", "resistance", "vin", "max_pwm", "max_current"}
+        resolved = DriveBAM.resolve_arguments(dict(entry.drive_kwargs))
+        assert resolved["kp"] == pytest.approx(KP_FW * cfg.motor.error_gain)
+        assert resolved["kt"] == pytest.approx(cfg.motor.kt)
         assert resolved["vin"] == pytest.approx(VIN)
-        assert resolved["vin_min"] == pytest.approx(6.0)
-        assert resolved["kt"] == pytest.approx(goldens["attr_kt"].item())
-        assert resolved["load_friction_external_quad"] == pytest.approx(goldens["attr_load_friction_external_quad"])
-        assert (resolved["min_delay"], resolved["max_delay"]) == (1, 3)
-        assert resolved["delay_hold_prob"] == pytest.approx(0.25)
-        assert resolved["delay_update_period"] == 4
-        assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == flags
+        assert resolved["max_current"] == pytest.approx(cfg.motor.max_current)
+        assert [component for component, _ in entry.component_specs] == expected_components
+        components = {component: kwargs for component, kwargs in entry.component_specs}
+        assert components[ClampingMaxEffort]["max_effort"] == pytest.approx(expected_limit)
+        if max_delay:
+            assert components[InputProcessorDelay]["delay_steps"] == max_delay
+        if backlash is not None:
+            assert components[expected_components[-1]]["backlash_joint"] == f"/Robot/passive_{name}_backlash"
+        tokens = list(stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas").GetAppliedItems())
+        assert (BAM_POSITION_BACKLASH_API in tokens) == (backlash == "position")
 
 
 def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd):
-    """A serialized asset's fit and joint friction seed are replaced, including runtime parameter values."""
-    # An int literal must not leave an int-typed attribute that truncates the replacement value.
-    cfg = make_cfg(goldens, kp_fw=200)
-    # Constraint allocation needs a positive seed even for a fit with zero Coulomb friction.
-    cfg.motor.friction_base = 0.0
+    """A serialized asset's fit and joint friction seed are replaced, and stale actuator attributes are blocked."""
+    cfg = make_cfg(goldens)
     stage = make_stage(servo_usd)
-    for name in JOINT_NAMES:
-        stage.RemovePrim(f"/Robot/servo_{name}_actuator")
-    author_actuator_prims(stage, "/Robot", {"servo": cfg})
     seeds = []
     for index, name in enumerate(JOINT_NAMES):
         prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
-        prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
-        prim.GetAttribute("newton:frictionScale").Set(2.0)
+        # The fixture's pre-native actuator attributes stay authored on a weaker layer.
+        assert prim.GetAttribute("newton:frictionScale").HasAuthoredValue()
         friction = stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction")
         assert friction.Get() > 0.0
         seeds.append(friction.Get())
         friction.Set(2.0 * friction.Get())
+        prim.CreateAttribute("newton:kt", Sdf.ValueTypeNames.Float).Set(0.3 + index * 0.1)
     path = tmp_path / "robot.usda"
     stage.Export(str(path))
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().subLayerPaths.append(str(path))
     cfg.kp_fw = 123.5
-    cfg.motor.friction_base = 0.012
     author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
     parsed = [entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/Robot")) if (entry := parse_actuator_prim(prim))]
     assert len(parsed) == len(JOINT_NAMES)
     for entry in parsed:
-        resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
-        assert resolved["kt"] == pytest.approx(goldens["attr_kt"].item())
-        assert resolved["kp_fw"] == pytest.approx(123.5)
-        assert resolved["friction_base"] == pytest.approx(0.012)
-        assert resolved["friction_scale"] == 1.0
+        assert entry.drive_class is DriveBAM
+        # Without a registered schema Newton reads every authored attribute, so the stale ones must be blocked.
+        assert set(entry.drive_kwargs) == {"kp", "kt", "resistance", "vin", "max_pwm", "max_current"}
+        assert entry.drive_kwargs["kt"] == pytest.approx(goldens["attr_kt"].item())
+        assert entry.drive_kwargs["kp"] == pytest.approx(123.5 * goldens["attr_error_gain"].item())
     for name, seed in zip(JOINT_NAMES, seeds, strict=True):
         assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() == seed
 
 
 """
-Drive behavior.
+Actuator behavior.
 """
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_drive_matches_upstream_motor_and_friction_goldens(goldens, servo_usd, device):
-    """The USD-to-Warp path preserves upstream firmware, motor and m6 friction outputs."""
-    bam = make_actuator(servo_usd, num_envs=len(goldens["q"]) // 2, device=device)
+def test_motor_and_friction_match_upstream_goldens(goldens, servo_usd, device):
+    """The authored drive and clamp and Isaac Lab's friction budget reproduce upstream motor and m6 outputs."""
+    cfg = make_cfg(goldens)
+    bam = make_actuator(servo_usd, cfg, num_envs=len(goldens["q"]) // 2, device=device)
+    friction = add_friction(bam, cfg.motor)
     # The previous applied torque is an independent golden input, not recomputed by the port.
-    state_in, state_out = bam.actuator.state(), bam.actuator.state()
-    state_in.drive_state.prev_applied_torque.assign(goldens["prev_tau"].astype(np.float32))
-    bam.drive.external_torque.assign(goldens["ext_tau"].astype(np.float32))
-    for array, key in ((bam.joint_pos, "q"), (bam.joint_vel, "dq"), (bam.target_pos, "q_target")):
-        array.assign(goldens[key].astype(np.float32).reshape(-1, 2))
-    with wp.ScopedDevice(device):
-        bam.actuator.step(bam.state, bam.control, state_in, state_out, dt=DT)
-    np.testing.assert_allclose(bam.drive.motor_torque.numpy(), goldens["motor_torque"], rtol=1e-5, atol=1e-6)
-    limit = VIN * float(goldens["attr_kt"]) / float(goldens["attr_R"])
+    friction.prev_applied_torque.assign(goldens["prev_tau"].astype(np.float32))
+    friction.external_torque.assign(goldens["ext_tau"].astype(np.float32))
+    effort = step(bam, *(goldens[key].reshape(-1, 2) for key in ("q", "dq", "q_target")))
     np.testing.assert_allclose(
-        bam.control.joint_f_2d.numpy().reshape(-1),
-        np.clip(goldens["motor_torque"], -limit, limit),
-        rtol=1e-5,
-        atol=1e-6,
+        bam.adapter.computed_effort_2d.numpy().ravel(), goldens["motor_torque"], rtol=1e-5, atol=1e-6
     )
-    np.testing.assert_allclose(bam.drive.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6)
+    limit = VIN * cfg.motor.kt / cfg.motor.resistance
+    np.testing.assert_allclose(effort.ravel(), np.clip(goldens["motor_torque"], -limit, limit), rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(friction.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_shared_supply_sags_with_the_group_load(goldens, servo_usd, device):
+def test_battery_sag_matches_upstream_supply_recording(goldens, servo_usd, device):
     """Voltage and raw torque match a recording of upstream BAM's stateful compute method."""
     shape = goldens["sag_q"].shape[1:]
-    bam = make_actuator(servo_usd, num_envs=shape[0], device=device, vin_min=float(goldens["sag_vin_min"]))
-    for field, key in (("vin", "sag_vin"), ("sag_gain", "sag_gain")):
-        getattr(bam.drive, field).assign(np.broadcast_to(goldens[key], shape).astype(np.float32).ravel())
+    bam = make_actuator(servo_usd, make_cfg(goldens), num_envs=shape[0], device=device)
+    add_supply(bam, goldens["sag_vin"][:, 0], goldens["sag_gain"][:, 0], float(goldens["sag_vin_min"]))
     for index, (pos, vel, target) in enumerate(zip(goldens["sag_q"], goldens["sag_dq"], goldens["sag_target"])):
         step(bam, pos, vel, target)
         np.testing.assert_allclose(
-            bam.drive.effective_vin.numpy().reshape(shape),
-            np.broadcast_to(goldens["sag_effective_vin"][index], shape),
-            rtol=1e-5,
-            atol=1e-6,
+            bam.adapter.battery.voltage.numpy(), goldens["sag_effective_vin"][index, :, 0], rtol=1e-5, atol=1e-6
         )
         np.testing.assert_allclose(
-            bam.drive.motor_torque.numpy().reshape(shape), goldens["sag_motor_torque"][index], rtol=1e-5, atol=1e-6
+            bam.adapter.computed_effort_2d.numpy(), goldens["sag_motor_torque"][index], rtol=1e-5, atol=1e-6
         )
 
 
@@ -307,105 +324,121 @@ def test_shared_supply_sags_with_the_group_load(goldens, servo_usd, device):
 def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
     """Replay mjlab's recorded 3--6-step lags through warm-up, ring wrap, and a partial reset.
 
-    Torch and Warp RNGs differ, so the recorded lags are injected; the RNG test below covers sampling.
+    Torch and Warp RNGs differ, so the recorded lags are written into the delay processor; the lag tests below
+    cover sampling.
     """
     shape = goldens["delay_commands"].shape[1:]
-    bam = make_actuator(
-        servo_usd,
-        num_envs=shape[0],
-        device=device,
-        min_delay=int(goldens["delay_min"]),
-        max_delay=int(goldens["delay_max"]),
-        delay_hold_prob=1.0,
-    )
-    state_in, state_out = bam.actuator.state(), bam.actuator.state()
+    bam = make_actuator(servo_usd, make_cfg(goldens, max_delay=int(goldens["delay_max"])), shape[0], device)
+    (delay,) = bam.actuator.input_processors
     for index, command in enumerate(goldens["delay_commands"]):
-        with wp.ScopedDevice(device):
-            if goldens["delay_resets"][index].any():
-                mask = wp.array(np.repeat(goldens["delay_resets"][index], shape[1]), dtype=wp.bool, device=device)
-                state_in.reset(mask)
-                state_out.reset(mask)
-            state_in.drive_state.delay_lag.assign(np.repeat(goldens["delay_lags"][index], shape[1]).astype(np.int32))
-            bam.target_pos.assign(command.astype(np.float32))
-            bam.control.joint_f_2d.zero_()
-            bam.actuator.step(bam.state, bam.control, state_in, state_out, dt=DT)
-            state_in, state_out = state_out, state_in
+        if goldens["delay_resets"][index].any():
+            bam.adapter.reset(torch.from_numpy(np.flatnonzero(goldens["delay_resets"][index])).to(device))
+        delay.delay_steps.assign(np.repeat(goldens["delay_lags"][index], shape[1]).astype(np.int32))
+        effort = step(bam, np.zeros(shape), np.zeros(shape), command)
         np.testing.assert_allclose(
-            bam.control.joint_f_2d.numpy(),
-            goldens["delay_motor_torque"][index],
-            rtol=1e-5,
-            atol=1e-6,
-            err_msg=f"step {index}",
+            effort, goldens["delay_motor_torque"][index], rtol=1e-5, atol=1e-6, err_msg=f"step {index}"
         )
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_backlash_feedback_adds_play_angle_but_keeps_motor_velocity(goldens, servo_usd, device):
-    """The encoder sees the output angle; back-EMF still uses the rotor velocity."""
-    bam = make_actuator(servo_usd, num_envs=2, device=device)
-    bam.drive.has_backlash = True
-    bam.drive.backlash_pos_indices = wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device)
+@pytest.mark.parametrize("processor", [InputProcessorPositionBacklash, InputProcessorBacklash])
+def test_backlash_feeds_back_the_play_angle(goldens, device, processor):
+    """The encoder sees the output angle; back-EMF uses the rotor velocity unless the play velocity is fed back."""
+    kt, resistance, error_gain = (goldens[f"attr_{name}"].item() for name in ("kt", "R", "error_gain"))
+    full = lambda value: wp.full(4, value, dtype=wp.float32, device=device)  # noqa: E731
+    actuator = Actuator(
+        indices=wp.array([0, 1, 2, 3], dtype=wp.uint32, device=device),
+        drive=DriveBAM(
+            kp=full(KP_FW * error_gain), kt=full(kt), resistance=full(resistance), vin=full(VIN), max_pwm=full(1.0)
+        ),
+        input_processors=[processor(wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device))],
+    )
     positions = np.array([[0.01, -0.02], [0.03, -0.01]], dtype=np.float32)
     velocities = np.array([[0.3, -0.4], [-0.5, 0.2]], dtype=np.float32)
-    targets = np.zeros_like(positions)
-    forces = step(bam, positions, velocities, targets)
-    kt, resistance = goldens["attr_kt"].item(), goldens["attr_R"].item()
-    error = targets - positions - positions[:, ::-1]
-    expected = kt / resistance * (VIN * KP_FW * goldens["attr_error_gain"].item() * error - kt * velocities)
-    np.testing.assert_allclose(forces, expected, rtol=2e-5, atol=1e-7)
+    control = PhysxActuatorWrapper.create(2, 2, device)
+    control.joint_target_q = wp.zeros(4, dtype=wp.float32, device=device)
+    control.joint_target_qd = wp.zeros(4, dtype=wp.float32, device=device)
+    state = SimpleNamespace(
+        joint_q=wp.array(positions.ravel(), device=device), joint_qd=wp.array(velocities.ravel(), device=device)
+    )
+    actuator.step(state, control, dt=DT)
+
+    error = -positions - positions[:, ::-1]
+    motor_velocity = velocities + (velocities[:, ::-1] if processor is InputProcessorBacklash else 0.0)
+    expected = kt / resistance * (VIN * KP_FW * error_gain * error - kt * motor_velocity)
+    np.testing.assert_allclose(control.joint_f_2d.numpy(), expected, rtol=2e-5, atol=1e-7)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_effort_feedback_and_supply_floor(goldens, servo_usd, device):
-    """Friction feeds back the applied effort and sag the raw torque until a reset; an exhausted supply only brakes."""
-    bam = make_actuator(servo_usd, num_envs=2, device=device, max_effort=0.05, sag_gain=0.1, vin_min=-np.inf)
+    """Friction feeds back the clamped effort and sag the raw torque until a reset; an exhausted supply only brakes."""
+    cfg = make_cfg(goldens, actuator_effort_limit=0.05)
+    bam = make_actuator(servo_usd, cfg, num_envs=2, device=device)
+    add_supply(bam, VIN, 0.1, vin_min=-np.inf)
+    friction = add_friction(bam, cfg.motor)
     pos, vel, zeros = np.array([[0.3, -0.1]] * 2), np.array([[0.5, -0.4]] * 2), np.zeros((2, 2))
     effort = step(bam, pos, vel, zeros)
-    motor = bam.drive.motor_torque.numpy().reshape(2, 2)
-    budget = bam.drive.friction_budget.numpy().reshape(2, 2)
+    motor = bam.adapter.computed_effort_2d.numpy().copy()
+    budget = friction.friction_budget.numpy().reshape(2, 2).copy()
     assert np.abs(motor).max() > 0.05, "the configured effort limit must bind"
     np.testing.assert_allclose(effort, np.clip(motor, -0.05, 0.05), atol=0.0, rtol=0.0)
-    friction_base = goldens["attr_friction_base"].item()
-    assert (budget >= friction_base).all()
+    assert (budget >= cfg.motor.friction_base).all()
 
     # Friction uses the previously applied effort even if the limit changes; sag uses the raw torque.
-    bam.drive.max_effort.fill_(0.02)
+    bam.actuator.clamping[0].max_effort.fill_(0.02)
     step(bam, zeros, zeros, zeros)
-    rest_budget = friction_base + goldens["attr_friction_stribeck"].item()
-    load_gain = goldens["attr_load_friction_motor"].item() + goldens["attr_load_friction_motor_stribeck"].item()
+    rest_budget = cfg.motor.friction_base + cfg.motor.friction_stribeck
+    load_gain = cfg.motor.load_friction_motor + cfg.motor.load_friction_motor_stribeck
     np.testing.assert_allclose(
-        bam.drive.friction_budget.numpy().reshape(2, 2), rest_budget + np.abs(effort) * load_gain, rtol=1e-6
+        friction.friction_budget.numpy().reshape(2, 2), rest_budget + np.abs(effort) * load_gain, rtol=1e-6
     )
-    sagged_vin = VIN - 0.1 * np.abs(motor).sum(axis=1, keepdims=True)
-    np.testing.assert_allclose(
-        bam.drive.effective_vin.numpy().reshape(2, 2), np.broadcast_to(sagged_vin, (2, 2)), rtol=1e-6
-    )
+    np.testing.assert_allclose(bam.adapter.battery.voltage.numpy(), VIN - 0.1 * np.abs(motor).sum(axis=1), rtol=1e-6)
 
     # Reset clears the selected environment's history; the other keeps its sagged supply.
     step(bam, pos, vel, zeros)
     bam.adapter.reset(torch.tensor([0], device=device))
     step(bam, pos, vel, zeros)
-    vin = bam.drive.effective_vin.numpy().reshape(2, 2)
-    np.testing.assert_allclose(vin[0], VIN, rtol=1e-6)
-    assert (vin[1] < VIN).all(), "the untouched environment must keep its history"
-    np.testing.assert_allclose(bam.drive.motor_torque.numpy().reshape(2, 2)[0], motor[0], rtol=1e-6)
-    np.testing.assert_allclose(bam.drive.friction_budget.numpy().reshape(2, 2)[0], budget[0], rtol=1e-6)
+    voltage = bam.adapter.battery.voltage.numpy()
+    np.testing.assert_allclose(voltage[0], VIN, rtol=1e-6)
+    assert voltage[1] < VIN, "the untouched environment must keep its history"
+    np.testing.assert_allclose(bam.adapter.computed_effort_2d.numpy()[0], motor[0], rtol=1e-6)
+    np.testing.assert_allclose(friction.friction_budget.numpy().reshape(2, 2)[0], budget[0], rtol=1e-6)
 
     # A supply sagged below zero applies no voltage, so only the back-EMF brake remains.
-    bam.drive.sag_gain.fill_(100.0)
+    bam.adapter.battery.sag_gain.fill_(100.0)
     step(bam, pos, vel, zeros)
-    np.testing.assert_array_equal(bam.drive.effective_vin.numpy(), 0.0)
-    kt, resistance = bam.drive.kt.numpy(), bam.drive.resistance.numpy()
-    np.testing.assert_allclose(bam.drive.motor_torque.numpy(), -(kt**2) * vel.ravel() / resistance, rtol=1e-6)
+    np.testing.assert_array_equal(bam.adapter.battery.voltage.numpy(), 0.0)
+    np.testing.assert_allclose(
+        bam.adapter.computed_effort_2d.numpy(), -(cfg.motor.kt**2) * vel / cfg.motor.resistance, rtol=1e-6
+    )
+
+
+def make_lagged_actuator(goldens, servo_usd, device, num_envs, **lag_settings) -> SimpleNamespace:
+    """Build a delayed BAM actuator whose lag is drawn each step and restarted with the adapter's resets."""
+    cfg = make_cfg(goldens, **lag_settings)
+    bam = make_actuator(servo_usd, cfg, num_envs=num_envs, device=device)
+    (delay,) = bam.actuator.input_processors
+    bam.lag = BamCommandLag(
+        delay,
+        slots=np.arange(bam.dofs.size),
+        dof_indices=bam.dofs.ravel(),
+        dofs_per_env=len(JOINT_NAMES),
+        min_delay=cfg.min_delay,
+        max_delay=cfg.max_delay,
+        hold_prob=cfg.delay_hold_prob,
+        update_period=cfg.delay_update_period,
+    )
+    bam.adapter.register_reset_callback(bam.lag.reset)
+    return bam
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_delay_lags_differ_per_environment_and_episode(goldens, servo_usd, device):
+def test_command_lags_differ_per_environment_and_episode(goldens, servo_usd, device):
     """Lags refresh on staggered per-environment phases, change after a reset, and replay through a CUDA graph."""
     num_envs, period = 16, 4
     # The second actuator never resets after start-up, so it continues every untouched environment.
     actuators = [
-        make_actuator(servo_usd, num_envs=num_envs, device=device, min_delay=1, max_delay=3, delay_update_period=period)
+        make_lagged_actuator(goldens, servo_usd, device, num_envs, min_delay=1, max_delay=3, delay_update_period=period)
         for _ in range(2)
     ]
     zeros = np.zeros((num_envs, 2))
@@ -414,6 +447,7 @@ def test_delay_lags_differ_per_environment_and_episode(goldens, servo_usd, devic
         step(bam, zeros, zeros, zeros)  # Compile before CUDA capture.
         bam.adapter.reset(torch.arange(num_envs, device=device))
         with wp.ScopedDevice(device), wp.ScopedCapture() as capture:
+            bam.lag.step()
             bam.adapter.step(bam.state, bam.control, DT, swap_state=False)
         graphs.append(capture.graph)
     # Small commands stay in the linear firmware regime at rest, so each torque identifies the delayed command.
@@ -453,3 +487,26 @@ def test_delay_lags_differ_per_environment_and_episode(goldens, servo_usd, devic
     second = rollout(range(24, 48))
     assert not np.array_equal(first[:, 0, 0], second[:, 0, 0]), "reset replayed the same delay sequence"
     np.testing.assert_array_equal(second[:, 0, 1:], second[:, 1, 1:])
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_command_lag_stream_keeps_its_seeding(goldens, servo_usd, device):
+    """Each environment's lag stream is seeded from the base seed plus the reset count, as before the native port.
+
+    Pins the draw sequence, so trajectories recorded with the pre-native BAM drive replay unchanged.
+    """
+    num_envs = 4
+    bam = make_lagged_actuator(goldens, servo_usd, device, num_envs, min_delay=3, max_delay=6)
+    expected = wp.zeros(num_envs, dtype=wp.int32, device=device)
+    for reset_count in range(3):
+        if reset_count:
+            bam.adapter.reset(None if reset_count == 1 else torch.arange(num_envs, device=device))
+        for index in range(8):
+            with wp.ScopedDevice(device):
+                bam.lag.step()
+                wp.launch(_reference_lag_kernel, dim=num_envs, inputs=[reset_count, index, 3, 6, expected])
+            np.testing.assert_array_equal(
+                bam.lag.delay.delay_steps.numpy().reshape(num_envs, -1),
+                np.repeat(expected.numpy()[:, None], len(JOINT_NAMES), axis=1),
+                err_msg=f"episode {reset_count}, step {index}",
+            )
