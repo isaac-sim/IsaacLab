@@ -60,16 +60,68 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
 
 @configclass
 class PerspectiveCameraCfg:
-    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+    """Pose and optics for a visualizer-owned perspective camera.
+
+    By default the pose is in world coordinates. With :attr:`env_index` or :attr:`track_path` set, the view is tied
+    to an environment or to an asset in it, so it frames that robot however the scene is laid out, and the
+    visualizer renders it from the viewer camera. Nothing is created in the scene.
+    """
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Eye position in world coordinates [m]."""
+    """Eye position [m]: world coordinates, or an offset from the environment origin or the tracked asset."""
 
     lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    """Look-at target in world coordinates [m]."""
+    """Look-at target [m], in the same frame as :attr:`eye`."""
 
     focal_length: float = 12.0
     """Perspective camera focal length [mm]."""
+
+    env_index: int | None = None
+    """Environment whose origin :attr:`eye` and :attr:`lookat` are relative to; None keeps world coordinates.
+
+    With :attr:`track_path` it is the environment of the tracked asset, and None means environment 0.
+    """
+
+    track_path: str | None = None
+    """Scene asset the view follows, or None for a view fixed relative to the environment origin.
+
+    Use ``"robot"`` for an asset root or ``"robot/base"`` for a named body, which must match exactly one body.
+    """
+
+    follow_heading: bool = False
+    """Rotate :attr:`eye` and :attr:`lookat` with the tracked asset's yaw, keeping the horizon level.
+
+    Without it the offsets stay aligned with the world axes. Only used with :attr:`track_path`.
+    """
+
+    heading_smoothing_time_constant: float = 0.0
+    """Exponential heading-filter time constant [s]; zero follows the heading immediately.
+
+    Larger values damp rapid turns more, with more lag. Only used with :attr:`follow_heading`.
+    """
+
+    @property
+    def is_task_view(self) -> bool:
+        """Whether the view is tied to an environment or an asset, not fixed in the world."""
+        return self.env_index is not None or self.track_path is not None
+
+    def __post_init__(self) -> None:
+        if self.env_index is not None and self.env_index < 0:
+            raise ValueError("env_index must be non-negative.")
+        if not math.isfinite(self.heading_smoothing_time_constant) or self.heading_smoothing_time_constant < 0.0:
+            raise ValueError("heading_smoothing_time_constant must be finite and non-negative.")
+
+
+def with_free_view(cameras: list, eye: tuple, lookat: tuple, focal_length: float) -> list:
+    """Return *cameras*, preceded by a free perspective view when it has task views but no free view of its own.
+
+    A task view follows a robot or frames an environment, so the interactive view that a user moves stays
+    available beside it, at the visualizer's own ``eye``, ``lookat`` and ``focal_length``.
+    """
+    perspective = [camera for camera in cameras if isinstance(camera, PerspectiveCameraCfg)]
+    if any(camera.is_task_view for camera in perspective) and all(camera.is_task_view for camera in perspective):
+        return [PerspectiveCameraCfg(eye=eye, lookat=lookat, focal_length=focal_length), *cameras]
+    return cameras
 
 
 @configclass
@@ -300,5 +352,5 @@ class VisualizerCfg:
             if not self.cameras:
                 raise ValueError("cameras must contain at least one display source.")
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
-            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
+            if isinstance(camera := self.cameras[0], PerspectiveCameraCfg) and not camera.is_task_view:
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length

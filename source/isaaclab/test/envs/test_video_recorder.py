@@ -97,6 +97,7 @@ def _make_env(visualizers=(), sensors: dict | None = None):
         ("viser", ("viz", "viser", "")),
         ("rerun", ("viz", "rerun", "")),
         ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("viz:newton_gl:tracking", ("viz", "newton_gl", "tracking")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
         # ``visualizer`` is the long form of ``viz``
@@ -256,6 +257,20 @@ def test_source_resolves_frame(source, make_env, caplog):
     assert frame is not None
     assert frame.shape == _FRAME.shape
     assert not caplog.records
+
+
+def test_a_tracking_source_records_the_task_view_not_the_selected_one():
+    viz = _FakeViz("newton_gl")
+    task_frame = np.full_like(_FRAME, 7)
+    viz.render_task_view_rgb_array = lambda: task_frame
+    recorder = VideoRecorder(_cfg(source="viz:newton_gl:tracking"), _make_env(visualizers=[viz]))
+    assert recorder._capture() is task_frame
+    assert viz.render_calls == 0
+
+
+def test_a_visualizer_without_task_views_cannot_record_tracking():
+    with pytest.raises(RuntimeError, match="cannot record a tracking view"):
+        VideoRecorder(_cfg(source="viz:kit:tracking"), _make_env(visualizers=[_FakeViz("kit")]))
 
 
 @pytest.mark.parametrize(
