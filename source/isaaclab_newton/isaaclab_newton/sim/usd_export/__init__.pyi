@@ -5,7 +5,6 @@
 
 __all__ = [
     "UsdExporter",
-    "load_usd",
 ]
 
-from .usd_exporter import UsdExporter, load_usd
+from .usd_exporter import UsdExporter

@@ -23,13 +23,11 @@ sys.path.insert(0, str(Path(__file__).parent))
 def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_envs, env_id):
     """Every exported value of a fresh OVPhysX import equals the live engine's, including config overrides."""
     from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
-    from isaaclab_ov.sim.usd_export.usd_exporter import read, readings
-    from usd_export_read_import import read_import
+    from usd_export_read_import import read, read_import, readings
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.sim.usd_export.physx_usd_exporter import physics_prims
-    from isaaclab.test.utils.usd_export import make_export_scene_cfg
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
 
     cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs)
     sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=OvPhysxCfg())
@@ -63,9 +61,9 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
 
 
 def test_read_bindings_cover_ovphysx_properties():
-    """Every OVPhysX articulation and rigid-body binding is exported, compared, or deliberately excluded."""
+    """Every OVPhysX articulation and rigid-body binding is compared by the round trip or deliberately excluded."""
     from isaaclab_ov import tensor_types as TT
-    from isaaclab_ov.sim.usd_export.usd_exporter import ARTICULATION_TENSORS, RIGID_BODY_TENSORS
+    from usd_export_read_import import ARTICULATION_TENSORS, RIGID_BODY_TENSORS
 
     read = {*ARTICULATION_TENSORS.values(), *RIGID_BODY_TENSORS.values()}
     excluded = {

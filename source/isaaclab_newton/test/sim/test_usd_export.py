@@ -93,14 +93,14 @@ def _assert_pose_equal(actual, expected):
 def test_loading_the_export_reproduces_the_initialized_model(tmp_path, solver, device, num_envs, env_id):
     """Every exported quantity of the loaded model equals the live model's, including config overrides."""
     from isaaclab_newton.physics import MJWarpSolverCfg, XPBDSolverCfg
-    from isaaclab_newton.sim.usd_export import load_usd
+    from isaaclab_newton.sim.usd_export import UsdExporter
 
     if device.startswith("cuda") and not wp.is_cuda_available():
         pytest.skip("MuJoCo Warp requires CUDA.")
     solver_cfg = XPBDSolverCfg(iterations=7) if solver == "xpbd" else MJWarpSolverCfg(iterations=17)
     output, live, solver_type = _export(tmp_path, solver_cfg, device, num_envs, env_id)
 
-    model, loaded_solver, dt = load_usd(output, device=device)
+    model, loaded_solver, dt = UsdExporter.load_usd(output, device=device)
     loaded = _capture(model, model.body_q, 0)
 
     assert type(loaded_solver) is solver_type
@@ -150,7 +150,7 @@ def test_export_references_assets_and_keeps_one_environment(tmp_path):
 def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     """An explicit PD actuator, whose gains the engine does not hold, becomes the joint's USD drive."""
     from isaaclab_newton.physics import XPBDSolverCfg
-    from isaaclab_newton.sim.usd_export import load_usd
+    from isaaclab_newton.sim.usd_export import UsdExporter
 
     from isaaclab.actuators import IdealPDActuatorCfg
 
@@ -164,7 +164,7 @@ def test_explicit_pd_actuator_is_exported_as_a_joint_drive(tmp_path):
     assert hinge.GetMaxForceAttr().Get() == pytest.approx(12.0)
     # the drive replaces the actuator prim, so importers reading both apply the PD once
     assert not [prim for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator"]
-    model, _, _ = load_usd(output)
+    model, _, _ = UsdExporter.load_usd(output)
     hinge_dof = model.joint_qd_start.numpy()[model.joint_label.index("/World/envs/env_0/Robot/Hinge")]
     assert model.joint_target_ke.numpy()[hinge_dof] == pytest.approx(83.0, rel=1e-5)
     assert model.joint_target_kd.numpy()[hinge_dof] == pytest.approx(4.5, rel=1e-5)

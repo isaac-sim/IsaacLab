@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene fixture for USD export tests: locally authored assets with configuration that differs from them."""
+"""USD export test utilities: a scene fixture whose configuration differs from its assets, and prim discovery."""
 
 from __future__ import annotations
 
@@ -127,3 +127,26 @@ def make_export_scene_cfg(directory: Path, num_envs: int = 1):
         spawn=sim_utils.CuboidCfg(size=(10.0, 10.0, 0.1), collision_props=sim_utils.CollisionBaseCfg()),
     )
     return cfg
+
+
+def physics_prims(stage) -> tuple[list[str], list[str]]:
+    """Articulation roots, and rigid bodies that belong to no articulation."""
+    from pxr import UsdPhysics
+
+    prims = list(stage.Traverse())
+    articulations = [str(prim.GetPath()) for prim in prims if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    scopes = [articulation_scope(stage, root).GetPath() for root in articulations]
+    bodies = [
+        str(prim.GetPath())
+        for prim in prims
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not any(prim.GetPath().HasPrefix(scope) for scope in scopes)
+    ]
+    return articulations, bodies
+
+
+def articulation_scope(stage, root: str):
+    """The prim containing an articulation's links: its root, or the root's parent if the root is a link or joint."""
+    from pxr import UsdPhysics
+
+    prim = stage.GetPrimAtPath(root)
+    return prim.GetParent() if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.IsA(UsdPhysics.Joint) else prim

@@ -22,6 +22,9 @@ import pytest
 
 from pxr import Sdf, Usd, UsdPhysics
 
+# The engine reader lives next to this test, which also runs it in a separate Isaac Sim process.
+sys.path.insert(0, str(Path(__file__).parent))
+
 
 def _read_import(stage, articulations, bodies) -> dict:
     """Read the objects of ``stage`` after a PhysX import in a new headless Isaac Sim process."""
@@ -43,12 +46,11 @@ def _read_import(stage, articulations, bodies) -> dict:
 def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_envs, env_id):
     """Every exported value of a PhysX import in a new process equals the live engine's."""
     from isaaclab_physx.physics import PhysxCfg, PhysxManager
-    from isaaclab_physx.sim.usd_export.usd_exporter import read, readings
+    from usd_export_read_import import read, readings
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.sim.usd_export.physx_usd_exporter import physics_prims
-    from isaaclab.test.utils.usd_export import make_export_scene_cfg
+    from isaaclab.test.utils.usd_export import make_export_scene_cfg, physics_prims
 
     cfg = make_export_scene_cfg(tmp_path, num_envs=num_envs)
     sim_cfg = SimulationCfg(device="cpu", dt=1 / 120, gravity=(0.2, -0.1, -4.0), physics=PhysxCfg())
@@ -76,9 +78,9 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
 
 
 def test_read_getters_cover_physx_views(tmp_path):
-    """Every getter of the PhysX articulation and rigid-body views is exported, compared, or excluded."""
+    """Every getter of the PhysX articulation and rigid-body views is compared by the round trip or excluded."""
     from isaaclab_physx.physics import PhysxCfg, PhysxManager
-    from isaaclab_physx.sim.usd_export.usd_exporter import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
+    from usd_export_read_import import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context

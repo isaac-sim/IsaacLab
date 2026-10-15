@@ -9,10 +9,7 @@ isaaclab_newton.sim.usd_export
    :nosignatures:
 
    UsdExporter
-   load_usd
 
 .. autoclass:: UsdExporter
    :members:
    :show-inheritance:
-
-.. autofunction:: load_usd

@@ -7,7 +7,7 @@ Exports one initialized environment as USD. The file keeps the scene's USD, with
 their source files, and adds the physics values of the active backend that the USD does not already state.
 Use :meth:`~isaaclab.scene.InteractiveScene.export_to_usd` or
 :attr:`~isaaclab.scene.InteractiveSceneCfg.export_usd_path`; a Newton export loads back with
-:func:`isaaclab_newton.sim.usd_export.load_usd`.
+:meth:`isaaclab_newton.sim.usd_export.UsdExporter.load_usd`.
 
 .. currentmodule:: isaaclab.sim.usd_export
 
@@ -17,7 +17,6 @@ Use :meth:`~isaaclab.scene.InteractiveScene.export_to_usd` or
    UsdExporter
    BaseUsdExporter
    UsdEdit
-   open_exported_stage
 
 Exporters
 ---------
@@ -31,8 +30,3 @@ Exporters
 
 .. autoclass:: UsdEdit
    :members:
-
-Loading
--------
-
-.. autofunction:: open_exported_stage

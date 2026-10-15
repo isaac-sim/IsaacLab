@@ -185,9 +185,9 @@ class DirectRLEnv(gym.Env):
         self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
         # export after asset initialization, before startup events
         if self.cfg.scene.export_usd_path is not None:
-            from ..sim.usd_export.base_usd_exporter import export_configured_scene
+            from ..sim.usd_export import BaseUsdExporter
 
-            export_configured_scene(self.scene)
+            BaseUsdExporter.export_configured_scene(self.scene)
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)

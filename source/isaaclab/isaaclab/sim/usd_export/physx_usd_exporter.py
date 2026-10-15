@@ -10,31 +10,25 @@ from __future__ import annotations
 import logging
 import math
 from abc import abstractmethod
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Callable
 
 import numpy as np
 
 from pxr import Usd, UsdPhysics
 
-from .base_usd_exporter import (
-    BaseUsdExporter,
-    UsdEdit,
-    gravity_edits,
-    mass_edits,
-    material_edits,
-    value_edit,
-)
+from ..utils.queries import find_matching_prim_paths
+from .base_usd_exporter import BaseUsdExporter, UsdEdit
 
 logger = logging.getLogger(__name__)
 
 Readings = dict[tuple[str, str | None], dict[str, np.ndarray]]
 """Engine values in SI units and radians, keyed by USD prim path and joint axis (None for bodies).
 
-Joint entries hold the properties of :data:`JOINT_ATTRIBUTES`. Body entries hold ``mass``,
-``com`` [m] and ``inertia`` [kg*m^2, row-major 3x3 about the COM in body axes], ``disable_gravity``, the per-shape
-``contact_offset`` and ``rest_offset`` [m], ``material`` (static friction, dynamic friction, restitution
-per shape, rigid bodies outside articulations only).
-Multi-axis joint DOFs have a None axis.
+Joint entries hold the properties of :data:`JOINT_ATTRIBUTES`. Body entries hold ``mass``, ``com`` [m]
+and ``inertia`` [kg*m^2, row-major 3x3 about the COM in body axes]; rigid bodies outside articulations
+also hold the per-shape ``contact_offset`` and ``rest_offset`` [m] and ``material`` (static friction,
+dynamic friction, restitution). Multi-axis joint DOFs have a None axis.
 """
 
 _DEGREES = 180.0 / math.pi
@@ -64,7 +58,11 @@ MATERIAL_ATTRIBUTES = ("physics:staticFriction", "physics:dynamicFriction", "phy
 
 
 class PhysxUsdExporter(BaseUsdExporter):
-    """Base of the PhysX-based backends: writes their engine readings in the PhysX USD dialect."""
+    """Base of the PhysX-based backends: writes their engine values in the PhysX USD dialect.
+
+    Joint and body values come from the scene assets' data, which holds the engine values on every
+    backend. A backend only reads the collider values of rigid bodies, which the asset data does not hold.
+    """
 
     def compute_diff(self, stage: Usd.Stage) -> list[UsdEdit]:
         """Return the edits writing every engine value that ``stage`` does not already state.
@@ -75,9 +73,8 @@ class PhysxUsdExporter(BaseUsdExporter):
         Returns:
             Edits in the PhysX USD dialect.
         """
-        live, gravity = self.read_engine(stage)
         edits, materials, multi_axis = [], {}, set()
-        for (path, axis), values in live.items():
+        for (path, axis), values in self._read_assets(stage).items():
             prim = stage.GetPrimAtPath(path)
             if axis is None and "stiffness" in values:
                 multi_axis.add(path.rsplit(":", 1)[0])
@@ -90,80 +87,160 @@ class PhysxUsdExporter(BaseUsdExporter):
                         continue
                     scale = angular_scale if axis == "angular" else 1.0
                     schema = schema and schema.format(axis=axis)
-                    edits.append(
-                        value_edit(prim, attribute.format(axis=axis), float(values[name]) * scale, schema=schema)
-                    )
+                    value = float(values[name]) * scale
+                    edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
                 continue
-            edits += mass_edits(prim, float(values["mass"]), values["com"], values["inertia"])
-            if "disable_gravity" in values:
-                disabled = bool(values["disable_gravity"])
-                edits.append(value_edit(prim, "physxRigidBody:disableGravity", disabled, "bool", "PhysxRigidBodyAPI"))
-            colliders = _colliders(stage, path)
+            edits += self._mass_edits(prim, float(values["mass"]), values["com"], values["inertia"])
+            colliders = self._colliders(stage, path)
             for name, attribute in COLLIDER_ATTRIBUTES.items():
                 if name in values:
                     # The engine reports shapes per body, without their prim identities.
-                    value = _uniform(values[name], path, name)
+                    value = self._uniform(values[name], path, name)
                     edits += [
-                        value_edit(stage.GetPrimAtPath(c), attribute, value, schema="PhysxCollisionAPI")
+                        self._value_edit(stage.GetPrimAtPath(c), attribute, value, schema="PhysxCollisionAPI")
                         for c in colliders
                     ]
             if "material" in values:
-                material = _uniform(values["material"], path, "material")
+                material = self._uniform(values["material"], path, "material")
                 materials.update(
                     {collider: dict(zip(MATERIAL_ATTRIBUTES, material.tolist())) for collider in colliders}
                 )
         if multi_axis:
             logger.warning(f"Multi-axis joints are not exported: {sorted(multi_axis)}.")
-        edits = [edit for edit in edits if edit is not None] + material_edits(stage, materials)
-        return edits + gravity_edits(stage, self.scene.physics_scene_path, gravity)
+        edits = [edit for edit in edits if edit is not None] + self._material_edits(stage, materials)
+        return edits + self._gravity_edits(stage, self.scene.sim.physics_manager.get_gravity())
 
     @abstractmethod
-    def read_engine(self, stage: Usd.Stage) -> tuple[Readings, Sequence[float]]:
-        """Read the engine values of the stage's physics objects.
+    def _read_rigid_body(self, path: str) -> dict[str, np.ndarray]:
+        """Read the per-shape collider values of a rigid body outside articulations from the engine.
 
         Args:
-            stage: The exported stage, reduced to the selected environment.
+            path: Rigid body prim path.
 
         Returns:
-            The readings, and the gravity vector [m/s^2].
+            The body's ``material``, ``contact_offset`` and ``rest_offset`` entries of :data:`Readings`.
         """
         raise NotImplementedError
 
+    """
+    Engine values.
+    """
 
-def physics_prims(stage: Usd.Stage) -> tuple[list[str], list[str]]:
-    """Articulation roots, and rigid bodies that belong to no articulation."""
-    prims = list(stage.Traverse())
-    articulations = [str(prim.GetPath()) for prim in prims if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
-    scopes = [articulation_scope(stage, root).GetPath() for root in articulations]
-    bodies = [
-        str(prim.GetPath())
-        for prim in prims
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not any(prim.GetPath().HasPrefix(scope) for scope in scopes)
-    ]
-    return articulations, bodies
+    def _read_assets(self, stage: Usd.Stage) -> Readings:
+        """Read the engine values of the scene's assets, keyed by their prims in the exported stage."""
+        readings = {}
+        for articulation in self.scene.articulations.values():
+            readings.update(self._read_articulation(stage, articulation))
+        for rigid_object in self.scene.rigid_objects.values():
+            path = self._rigid_body_path(stage, rigid_object.cfg.prim_path)
+            readings[path, None] = {**self._body_values(rigid_object.data, 0), **self._read_rigid_body(path)}
+        for collection in self.scene.rigid_object_collections.values():
+            # Collection bodies are ordered as the configured objects.
+            for index, cfg in enumerate(collection.cfg.rigid_objects.values()):
+                path = self._rigid_body_path(stage, cfg.prim_path)
+                readings[path, None] = {**self._body_values(collection.data, index), **self._read_rigid_body(path)}
+        exported = {path for path, _ in readings}
+        missing = [
+            str(prim.GetPath())
+            for prim in stage.Traverse()
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and str(prim.GetPath()) not in exported
+        ]
+        if missing:
+            logger.warning(f"Rigid bodies outside the scene's assets keep their USD values: {missing}.")
+        return readings
 
+    def _read_articulation(self, stage: Usd.Stage, articulation) -> Readings:
+        """Read an articulation's joint and link values, matching its joint and body names to prims."""
+        scope = stage.GetPrimAtPath(self._asset_path(stage, articulation.cfg.prim_path))
+        joints = self._named(scope, lambda prim: prim.IsA(UsdPhysics.Joint))
+        links = self._named(scope, lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI))
+        data = articulation.data
+        limits = self._row(data.joint_pos_limits)
+        dofs = {
+            "stiffness": self._row(data.joint_stiffness),
+            "damping": self._row(data.joint_damping),
+            "max_force": self._row(data.joint_effort_limits),
+            "lower_limit": limits[..., 0],
+            "upper_limit": limits[..., 1],
+            "armature": self._row(data.joint_armature),
+            "max_velocity": self._row(data.joint_vel_limits),
+            "static_friction": self._row(data.joint_friction_coeff),
+            "dynamic_friction": self._row(data.joint_dynamic_friction_coeff),
+            "viscous_friction": self._row(data.joint_viscous_friction_coeff),
+        }
+        readings, counts = {}, Counter(articulation.joint_names)
+        for index, name in enumerate(articulation.joint_names):
+            path = joints.get(name)
+            prim = stage.GetPrimAtPath(path) if path and counts[name] == 1 else None
+            if prim and prim.IsA(UsdPhysics.RevoluteJoint):
+                key = (path, "angular")
+            elif prim and prim.IsA(UsdPhysics.PrismaticJoint):
+                key = (path, "linear")
+            else:
+                key = (f"{scope.GetPath()}/{name}:{index}", None)
+            readings[key] = {prop: values[index] for prop, values in dofs.items()}
+        for index, name in enumerate(articulation.body_names):
+            readings[links[name], None] = self._body_values(data, index)
+        return readings
 
-def articulation_scope(stage: Usd.Stage, root: str) -> Usd.Prim:
-    """The prim containing an articulation's links: its root, or the root's parent if the root is a link or joint."""
-    prim = stage.GetPrimAtPath(root)
-    return prim.GetParent() if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.IsA(UsdPhysics.Joint) else prim
+    def _body_values(self, data, index: int) -> dict[str, np.ndarray]:
+        """Mass properties of one body of an asset in the selected environment."""
+        return {
+            "mass": float(self._row(data.body_mass)[index]),
+            "com": self._row(data.body_com_pose_b)[index, :3],
+            "inertia": self._row(data.body_inertia)[index],
+        }
 
+    def _row(self, values) -> np.ndarray:
+        """The selected environment's entry of an asset data array."""
+        return values.torch[self.env_id].detach().cpu().numpy()
 
-def _uniform(values: np.ndarray, path: str, name: str) -> np.ndarray:
-    """The one value of all shapes of a body; different values have no per-shape USD identity."""
-    values = np.asarray(values)
-    if not np.all(values == values[0]):
-        raise NotImplementedError(f"The {name} of body '{path}' differs between its shapes.")
-    return values[0]
+    """
+    Exported stage.
+    """
 
+    @staticmethod
+    def _asset_path(stage: Usd.Stage, prim_path: str) -> str:
+        """The prim of an asset in the exported stage, which keeps one environment."""
+        paths = find_matching_prim_paths(prim_path, stage)
+        if len(paths) != 1:
+            raise RuntimeError(f"Expected one prim matching '{prim_path}' in the exported stage, found {paths}.")
+        return paths[0]
 
-def _colliders(stage: Usd.Stage, body: str) -> list[str]:
-    """Colliders owned by a body: its collision prims, excluding those of nested bodies."""
-    colliders = []
-    iterator = iter(Usd.PrimRange(stage.GetPrimAtPath(body), Usd.TraverseInstanceProxies()))
-    for prim in iterator:
-        if str(prim.GetPath()) != body and prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            iterator.PruneChildren()
-        elif prim.HasAPI(UsdPhysics.CollisionAPI):
-            colliders.append(str(prim.GetPath()))
-    return colliders
+    @classmethod
+    def _rigid_body_path(cls, stage: Usd.Stage, prim_path: str) -> str:
+        """The rigid body of a rigid object: its prim, or the rigid body below it."""
+        root = stage.GetPrimAtPath(cls._asset_path(stage, prim_path))
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                return str(prim.GetPath())
+        raise RuntimeError(f"No rigid body below '{root.GetPath()}'.")
+
+    @staticmethod
+    def _named(scope: Usd.Prim, predicate: Callable[[Usd.Prim], bool]) -> dict[str, str]:
+        """Paths of the prims below ``scope`` that satisfy ``predicate``, keyed by prim name."""
+        return {
+            prim.GetName(): str(prim.GetPath())
+            for prim in Usd.PrimRange(scope, Usd.TraverseInstanceProxies())
+            if predicate(prim)
+        }
+
+    @staticmethod
+    def _colliders(stage: Usd.Stage, body: str) -> list[str]:
+        """Colliders owned by a body: its collision prims, excluding those of nested bodies."""
+        colliders = []
+        iterator = iter(Usd.PrimRange(stage.GetPrimAtPath(body), Usd.TraverseInstanceProxies()))
+        for prim in iterator:
+            if str(prim.GetPath()) != body and prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                iterator.PruneChildren()
+            elif prim.HasAPI(UsdPhysics.CollisionAPI):
+                colliders.append(str(prim.GetPath()))
+        return colliders
+
+    @staticmethod
+    def _uniform(values: np.ndarray, path: str, name: str) -> np.ndarray:
+        """The one value of all shapes of a body; different values have no per-shape USD identity."""
+        values = np.asarray(values)
+        if not np.all(values == values[0]):
+            raise NotImplementedError(f"The {name} of body '{path}' differs between its shapes.")
+        return values[0]

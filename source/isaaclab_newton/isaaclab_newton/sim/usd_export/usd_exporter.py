@@ -17,16 +17,7 @@ from newton.usd import PrimType, SchemaResolverNewton
 
 from pxr import Usd, UsdPhysics, UsdShade
 
-from isaaclab.sim.usd_export.base_usd_exporter import (
-    BaseUsdExporter,
-    UsdEdit,
-    gravity_edits,
-    mass_edits,
-    material_edits,
-    open_exported_stage,
-    pose_edit,
-    value_edit,
-)
+from isaaclab.sim.usd_export.base_usd_exporter import BaseUsdExporter, UsdEdit
 from isaaclab.utils.string import string_to_callable
 
 from isaaclab_newton.physics import NewtonManager
@@ -91,7 +82,7 @@ class UsdExporter(BaseUsdExporter):
             stage: The exported stage, reduced to the selected environment.
 
         Returns:
-            Values to author so that :func:`load_usd` reproduces the live model.
+            Values to author so that :meth:`load_usd` reproduces the live model.
         """
         solver_cfg = self.scene.sim.cfg.physics.solver_cfg
         model = NewtonManager.get_model()
@@ -101,23 +92,84 @@ class UsdExporter(BaseUsdExporter):
             *self._joint_edits(stage, model),
             *self._body_edits(stage, model),
             *self._shape_edits(stage, model),
-            *gravity_edits(stage, self.scene.physics_scene_path, gravity),
+            *self._gravity_edits(stage, gravity),
         ]
         settings = {
             "dt": self.scene.sim.get_physics_dt(),
             "force_position_velocity_actuation": self._force_position_velocity,
-            "solver_type": _type_path(solver_cfg),
+            "solver_type": f"{type(solver_cfg).__module__}:{type(solver_cfg).__name__}",
             "solver": solver_cfg.to_dict(),
         }
         layer = stage.GetRootLayer()
         layer.customLayerData = {**layer.customLayerData, SETTINGS_KEY: json.dumps(settings)}
         return edits
 
+    @classmethod
+    def load_usd(
+        cls, path: str, device: str = "cpu"
+    ) -> tuple[newton.Model, newton.solvers.SolverBase | None, float | None]:
+        """Load a USD file exported from a Newton scene.
+
+        Referenced remote assets are downloaded first, as Isaac Lab does when spawning them.
+
+        Args:
+            path: Exported USD file.
+            device: Device of the model and solver. Defaults to ``"cpu"``.
+
+        Returns:
+            The model, the solver configured as in training (None if the file records none), and the
+            physics step size [s] (None if the file records none).
+        """
+        stage = cls.open_stage(path)
+        settings = json.loads(stage.GetRootLayer().customLayerData.get(SETTINGS_KEY, "{}"))
+        solver_cfg = None
+        if "solver_type" in settings:
+            solver_cfg = string_to_callable(settings["solver_type"])()
+            solver_cfg.from_dict(settings["solver"])
+        force = settings.get("force_position_velocity_actuation", False)
+        model = cls.import_model(stage, solver_cfg, device, force)
+        solver = cls._manager(solver_cfg)._create_solver(model, solver_cfg) if solver_cfg is not None else None
+        return model, solver, settings.get("dt")
+
+    @classmethod
+    def import_model(
+        cls, stage: Usd.Stage, solver_cfg=None, device: str = "cpu", force_position_velocity_actuation: bool = False
+    ) -> newton.Model:
+        """Import a stage with Newton's USD importer, as :meth:`load_usd` does.
+
+        Only the solver's custom attributes and schema resolvers are applied; Isaac Lab's builder
+        defaults are not, so an exported file carries every value that differs from Newton's.
+
+        Args:
+            stage: Stage to import.
+            solver_cfg: Newton solver configuration whose attributes the import registers. Defaults to None.
+            device: Device of the finalized model. Defaults to ``"cpu"``.
+            force_position_velocity_actuation: Actuate joints with both drive gains in position-velocity
+                mode. Defaults to False.
+
+        Returns:
+            The finalized model.
+        """
+        manager = cls._manager(solver_cfg)
+        builder = newton.ModelBuilder()
+        manager._register_builder_attributes(builder)
+        # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
+        terrains = manager._inject_terrain_heightfields(stage, builder, root_paths=("/",), device=device)
+        for shape, label in enumerate(builder.shape_label):
+            cls._apply_authored_contacts(stage.GetPrimAtPath(label), builder, shape)
+        builder.add_usd(
+            stage,
+            schema_resolvers=manager._get_usd_import_schema_resolvers(),
+            ignore_paths=terrains,
+            force_position_velocity_actuation=force_position_velocity_actuation,
+        )
+        return builder.finalize(device=device)
+
     def _selected(self, worlds) -> np.ndarray:
         return np.flatnonzero(np.isin(worlds.numpy(), (-1, self.env_id)))
 
     def _joint_edits(self, stage: Usd.Stage, model: newton.Model) -> list[UsdEdit]:
-        values = _arrays(model, DOF_ATTRIBUTES)
+        values = self._arrays(model, DOF_ATTRIBUTES)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
         axes = {int(newton.JointType.REVOLUTE): "angular", int(newton.JointType.PRISMATIC): "linear"}
         edits, dofs, multi_axis = [], [], []
@@ -142,10 +194,10 @@ class UsdExporter(BaseUsdExporter):
                     scale = angular_scale if axis == "angular" else 1.0
                     schema = schema and schema.format(axis=axis)
                     value = float(values[name][dof]) * scale
-                    edits.append(value_edit(prim, attribute.format(axis=axis), value, schema=schema))
+                    edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
         if multi_axis:
             logger.warning(f"Multi-axis joints are not exported: {multi_axis}.")
-        self._force_position_velocity = _actuation_flag(
+        self._force_position_velocity = self._actuation_flag(
             values["joint_target_ke"][dofs], values["joint_target_kd"][dofs], modes[dofs]
         )
         return [edit for edit in edits if edit is not None]
@@ -156,7 +208,7 @@ class UsdExporter(BaseUsdExporter):
         for body in self._selected(model.body_world):
             prim = stage.GetPrimAtPath(model.body_label[body])
             if prim:
-                edits += mass_edits(prim, float(mass[body]), com[body], inertia[body])
+                edits += self._mass_edits(prim, float(mass[body]), com[body], inertia[body])
         # Root bodies and world anchors are placed where initialization put them; joint state is not exported.
         body_q, anchors = NewtonManager.get_state_0().body_q.numpy(), model.joint_X_p.numpy()
         parents, children, types = model.joint_parent.numpy(), model.joint_child.numpy(), model.joint_type.numpy()
@@ -165,15 +217,15 @@ class UsdExporter(BaseUsdExporter):
                 continue
             body = stage.GetPrimAtPath(model.body_label[children[joint]])
             if body:
-                edits.append(pose_edit(body, body_q[children[joint]]))
+                edits.append(self._pose_edit(body, body_q[children[joint]]))
             prim = stage.GetPrimAtPath(model.joint_label[joint])
             if types[joint] != int(newton.JointType.FREE) and prim:
-                edits.append(value_edit(prim, "physics:localPos0", anchors[joint][:3], "point3f"))
-                edits.append(value_edit(prim, "physics:localRot0", anchors[joint][3:7], "quatf"))
+                edits.append(self._value_edit(prim, "physics:localPos0", anchors[joint][:3], "point3f"))
+                edits.append(self._value_edit(prim, "physics:localRot0", anchors[joint][3:7], "quatf"))
         return [edit for edit in edits if edit is not None]
 
     def _shape_edits(self, stage: Usd.Stage, model: newton.Model) -> list[UsdEdit]:
-        values, material = _arrays(model, SHAPE_ATTRIBUTES), _arrays(model, MATERIAL_ATTRIBUTES)
+        values, material = self._arrays(model, SHAPE_ATTRIBUTES), self._arrays(model, MATERIAL_ATTRIBUTES)
         flags, collide = model.shape_flags.numpy(), int(newton.ShapeFlags.COLLIDE_SHAPES)
         edits, materials = [], {}
         for shape in self._selected(model.shape_world):
@@ -182,117 +234,57 @@ class UsdExporter(BaseUsdExporter):
             if not prim or not int(flags[shape]) & collide:
                 continue
             edits += [
-                value_edit(prim, attribute, float(values[name][shape])) for name, attribute in SHAPE_ATTRIBUTES.items()
+                self._value_edit(prim, attribute, float(values[name][shape]))
+                for name, attribute in SHAPE_ATTRIBUTES.items()
             ]
             materials[str(prim.GetPath())] = {a: float(material[n][shape]) for n, a in MATERIAL_ATTRIBUTES.items()}
         edits = [edit for edit in edits if edit is not None]
-        return edits + material_edits(stage, materials, lambda c, v: _collider_contact_edits(stage.GetPrimAtPath(c), v))
+        return edits + self._material_edits(
+            stage, materials, lambda c, v: self._collider_contact_edits(stage.GetPrimAtPath(c), v)
+        )
 
+    @staticmethod
+    def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
+        """Apply the contact values authored on a collider, or its physics material, to a builder shape."""
+        material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
+        sources = [(prim, SHAPE_ATTRIBUTES), (prim, _SHAPE_CONTACT_ARRAYS)]
+        if material:
+            sources.append((material.GetPrim(), MATERIAL_ATTRIBUTES))
+        for owner, table in sources:
+            for array, attribute in table.items():
+                value = owner.GetAttribute(attribute).Get()
+                if value is not None:
+                    getattr(builder, array)[shape] = float(value)
 
-def import_model(
-    stage: Usd.Stage, solver_cfg=None, device: str = "cpu", force_position_velocity_actuation: bool = False
-) -> newton.Model:
-    """Import a stage with Newton's USD importer, as :func:`load_usd` does.
+    @staticmethod
+    def _manager(solver_cfg) -> type[NewtonManager]:
+        if solver_cfg is None:
+            return NewtonManager
+        manager = solver_cfg.class_type
+        return string_to_callable(manager) if isinstance(manager, str) else manager
 
-    Only the solver's custom attributes and schema resolvers are applied; Isaac Lab's builder
-    defaults are not, so an exported file carries every value that differs from Newton's.
+    @staticmethod
+    def _actuation_flag(target_ke, target_kd, modes) -> bool:
+        """Return the ``force_position_velocity_actuation`` import option that reproduces all engine modes."""
+        for force in (False, True):
+            inferred = [
+                int(newton.JointTargetMode.from_gains(float(ke), float(kd), force, has_drive=mode != 0))
+                for ke, kd, mode in zip(target_ke, target_kd, modes)
+            ]
+            if inferred == modes.tolist():
+                return force
+        raise NotImplementedError("Newton's USD import cannot mix position and position-velocity joint actuation.")
 
-    Args:
-        stage: Stage to import.
-        solver_cfg: Newton solver configuration whose attributes the import registers. Defaults to None.
-        device: Device of the finalized model. Defaults to ``"cpu"``.
-        force_position_velocity_actuation: Actuate joints with both drive gains in position-velocity
-            mode. Defaults to False.
+    @staticmethod
+    def _arrays(model, names) -> dict[str, np.ndarray]:
+        return {name: getattr(model, name).numpy() for name in names}
 
-    Returns:
-        The finalized model.
-    """
-    manager = _manager(solver_cfg)
-    builder = newton.ModelBuilder()
-    manager._register_builder_attributes(builder)
-    # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
-    terrains = manager._inject_terrain_heightfields(stage, builder, root_paths=("/",), device=device)
-    for shape, label in enumerate(builder.shape_label):
-        _apply_authored_contacts(stage.GetPrimAtPath(label), builder, shape)
-    builder.add_usd(
-        stage,
-        schema_resolvers=manager._get_usd_import_schema_resolvers(),
-        ignore_paths=terrains,
-        force_position_velocity_actuation=force_position_velocity_actuation,
-    )
-    return builder.finalize(device=device)
-
-
-def _apply_authored_contacts(prim: Usd.Prim, builder: newton.ModelBuilder, shape: int):
-    """Apply the contact values authored on a collider, or its physics material, to a builder shape."""
-    material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial("physics")
-    sources = [(prim, SHAPE_ATTRIBUTES), (prim, _SHAPE_CONTACT_ARRAYS)]
-    if material:
-        sources.append((material.GetPrim(), MATERIAL_ATTRIBUTES))
-    for owner, table in sources:
-        for array, attribute in table.items():
-            value = owner.GetAttribute(attribute).Get()
-            if value is not None:
-                getattr(builder, array)[shape] = float(value)
-
-
-def load_usd(path: str, device: str = "cpu") -> tuple[newton.Model, newton.solvers.SolverBase | None, float | None]:
-    """Load a USD file exported from a Newton scene.
-
-    Referenced remote assets are downloaded first, as Isaac Lab does when spawning them.
-
-    Args:
-        path: Exported USD file.
-        device: Device of the model and solver. Defaults to ``"cpu"``.
-
-    Returns:
-        The model, the solver configured as in training (None if the file records none), and the
-        physics step size [s] (None if the file records none).
-    """
-    stage = open_exported_stage(path)
-    settings = json.loads(stage.GetRootLayer().customLayerData.get(SETTINGS_KEY, "{}"))
-    solver_cfg = None
-    if "solver_type" in settings:
-        solver_cfg = string_to_callable(settings["solver_type"])()
-        solver_cfg.from_dict(settings["solver"])
-    force = settings.get("force_position_velocity_actuation", False)
-    model = import_model(stage, solver_cfg, device, force)
-    solver = _manager(solver_cfg)._create_solver(model, solver_cfg) if solver_cfg is not None else None
-    return model, solver, settings.get("dt")
-
-
-def _manager(solver_cfg) -> type[NewtonManager]:
-    if solver_cfg is None:
-        return NewtonManager
-    manager = solver_cfg.class_type
-    return string_to_callable(manager) if isinstance(manager, str) else manager
-
-
-def _actuation_flag(target_ke, target_kd, modes) -> bool:
-    """Return the ``force_position_velocity_actuation`` import option that reproduces all engine modes."""
-    for force in (False, True):
-        inferred = [
-            int(newton.JointTargetMode.from_gains(float(ke), float(kd), force, has_drive=mode != 0))
-            for ke, kd, mode in zip(target_ke, target_kd, modes)
-        ]
-        if inferred == modes.tolist():
-            return force
-    raise NotImplementedError("Newton's USD import cannot mix position and position-velocity joint actuation.")
-
-
-def _type_path(obj) -> str:
-    return f"{type(obj).__module__}:{type(obj).__name__}"
-
-
-def _arrays(model, names) -> dict[str, np.ndarray]:
-    return {name: getattr(model, name).numpy() for name in names}
-
-
-def _collider_contact_edits(prim: Usd.Prim, values: dict[str, float]) -> list[UsdEdit]:
-    """Contact gains of a collider without a physics material, which Newton reads from the collider."""
-    edits = (
-        value_edit(prim, SHAPE_CONTACT_ATTRIBUTES[name], value)
-        for name, value in values.items()
-        if name in SHAPE_CONTACT_ATTRIBUTES
-    )
-    return [edit for edit in edits if edit is not None]
+    @classmethod
+    def _collider_contact_edits(cls, prim: Usd.Prim, values: dict[str, float]) -> list[UsdEdit]:
+        """Contact gains of a collider without a physics material, which Newton reads from the collider."""
+        edits = (
+            cls._value_edit(prim, SHAPE_CONTACT_ATTRIBUTES[name], value)
+            for name, value in values.items()
+            if name in SHAPE_CONTACT_ATTRIBUTES
+        )
+        return [edit for edit in edits if edit is not None]
