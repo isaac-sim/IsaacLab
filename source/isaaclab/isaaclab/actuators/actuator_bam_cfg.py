@@ -163,3 +163,19 @@ class BamActuatorCfg(ActuatorBaseCfg):
 
     stiff_frictionloss: bool = True
     """Use a stiff friction-constraint solver reference, since MJWarp has no noslip solver."""
+
+    def validate_config(self) -> None:
+        """Reject command-lag settings the lag sampler cannot draw from.
+
+        Raises:
+            ValueError: If the lag range is negative or reversed, :attr:`delay_hold_prob` lies outside
+                [0, 1], or :attr:`delay_update_period` is negative.
+        """
+        if self.min_delay < 0:
+            raise ValueError(f"min_delay must not be negative, got {self.min_delay}")
+        if self.max_delay < self.min_delay:
+            raise ValueError(f"max_delay ({self.max_delay}) must not be below min_delay ({self.min_delay})")
+        if not 0.0 <= self.delay_hold_prob <= 1.0:
+            raise ValueError(f"delay_hold_prob must lie in [0, 1], got {self.delay_hold_prob}")
+        if self.delay_update_period < 0:
+            raise ValueError(f"delay_update_period must not be negative, got {self.delay_update_period}")

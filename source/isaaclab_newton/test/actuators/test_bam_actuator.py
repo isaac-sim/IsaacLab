@@ -179,7 +179,7 @@ def test_bam_requires_the_newton_backend(monkeypatch, goldens):
 
 
 def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd):
-    """Authored USD values cannot fill a missing setting, and an unsupported model would author another friction law."""
+    """Authored USD values cannot fill a missing setting, and unsupported models or lag settings fail at authoring."""
     with pytest.raises(TypeError, match="kp_fw"):
         author_actuator_prims(make_stage(servo_usd), "/Robot", {"servo": make_cfg(goldens, kp_fw=MISSING)})
     cfg = make_cfg(goldens)
@@ -190,6 +190,14 @@ def test_authoring_rejects_incomplete_or_unsupported_settings(goldens, servo_usd
         author_actuator_prims(
             make_stage(servo_usd), "/Robot", {"servo": make_cfg(goldens, backlash_joint_template="{}_play")}
         )
+    # Without these checks a reversed lag range would drop the lag and a hold above 1 would freeze it.
+    for overrides, error in (
+        ({"min_delay": 3}, r"max_delay \(0\) must not be below min_delay \(3\)"),
+        ({"delay_hold_prob": 1.5}, r"delay_hold_prob must lie in \[0, 1\]"),
+        ({"max_delay": 2, "delay_update_period": -1}, "delay_update_period must not be negative"),
+    ):
+        with pytest.raises(ValueError, match=error):
+            author_actuator_prims(make_stage(servo_usd), "/Robot", {"servo": make_cfg(goldens, **overrides)})
 
 
 @pytest.mark.parametrize(
