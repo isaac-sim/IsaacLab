@@ -5,8 +5,6 @@
 
 from dataclasses import MISSING
 
-from isaaclab_teleop import IsaacTeleopCfg
-
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
@@ -14,10 +12,8 @@ from isaaclab_tasks.contrib.stack import mdp
 
 from . import stack_joint_pos_env_cfg
 
-# ``isaaclab_teleop`` imports cleanly without the optional ``isaacteleop`` package (the heavy
-# import is deferred to session start), so no import guard is needed here. This lightweight
-# marker lets the env test suite categorize this as a teleop env (see
-# ``isaaclab_tasks/test/env_test_utils.py::_is_teleop_env``).
+# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
+# environments in the test suite.
 _TELEOP_AVAILABLE = True
 
 # Canonical SO-101 DOF names, in the order the leader arm streams them (matches
@@ -156,11 +152,14 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # provides. ``xr_cfg`` is forwarded only to satisfy the session's XR bootstrap. Launch the
         # ``so101_leader`` device (collection id ``so101_leader``) alongside the sim; it is not
         # spawned here as a plugin so operators can point at real or synthetic hardware.
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_so101_joint_teleop_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if self.xr is not None:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_so101_joint_teleop_pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )
 
         # Widen the gripper-open check in the success termination. In joint teleop the follower jaw
         # mirrors the leader's raw encoder 1:1 and is capped by its own joint limit (1.7453 rad), so
