@@ -172,7 +172,7 @@ class UsdExporter(BaseUsdExporter):
         values = self._arrays(model, DOF_ATTRIBUTES)
         starts, types, modes = model.joint_qd_start.numpy(), model.joint_type.numpy(), model.joint_target_mode.numpy()
         axes = {int(newton.JointType.REVOLUTE): "angular", int(newton.JointType.PRISMATIC): "linear"}
-        edits, dofs, multi_axis = [], [], []
+        edits, dofs, unsupported = [], [], []
         for joint in self._selected(model.joint_world):
             prim = stage.GetPrimAtPath(model.joint_label[joint])
             # Free joints of floating bodies have no USD prim; their pose is exported by the body.
@@ -181,7 +181,7 @@ class UsdExporter(BaseUsdExporter):
             axis = axes.get(int(types[joint]))
             if axis is None:
                 if starts[joint + 1] > starts[joint]:
-                    multi_axis.append(model.joint_label[joint])
+                    unsupported.append(model.joint_label[joint])
                 continue
             dof = starts[joint]
             dofs.append(dof)
@@ -195,8 +195,8 @@ class UsdExporter(BaseUsdExporter):
                     schema = schema and schema.format(axis=axis)
                     value = float(values[name][dof]) * scale
                     edits.append(self._value_edit(prim, attribute.format(axis=axis), value, schema=schema))
-        if multi_axis:
-            logger.warning(f"Multi-axis joints are not exported: {multi_axis}.")
+        if unsupported:
+            logger.warning(f"Joints other than revolute and prismatic are not exported: {unsupported}.")
         self._force_position_velocity = self._actuation_flag(
             values["joint_target_ke"][dofs], values["joint_target_kd"][dofs], modes[dofs]
         )
