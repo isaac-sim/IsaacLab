@@ -361,8 +361,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                 prim_path=f"/World/{name}", width=width, height=height,
                 data_types=["rgba" if channel == "rgb" else sensor_key_for_gt_type(channel) for channel in channels],
                 spawn=PinholeCameraCfg(
-                    focal_length=source.focal_length, vertical_aperture=20.955,
-                    horizontal_aperture=20.955 * width / height,
+                    focal_length=source.focal_length, vertical_aperture=15.2908,
+                    horizontal_aperture=15.2908 * width / height,
                 ),
                 offset=CameraCfg.OffsetCfg(pos=source.eye, rot=tuple(rotation), convention="opengl"),
                 renderer_cfg=visualizer.renderer_cfg, background_color=visualizer.background_color,

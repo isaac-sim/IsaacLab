@@ -22,6 +22,8 @@ import types
 import isaaclab_physx.app as physx_app
 import pytest
 
+from pxr import Gf
+
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
@@ -152,6 +154,9 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     assert cameras[1].offset.pos == NewtonRTXVisualizerCfg().eye
     assert cameras[1].data_types == ["rgba" if channel == "rgb" else channel for channel in channels]
     assert all((camera.width, camera.height) == (160, 120) for camera in cameras[1:])
+    for camera in cameras[1:]:
+        assert camera.spawn.vertical_aperture == pytest.approx(Gf.Camera().verticalAperture)
+        assert camera.spawn.horizontal_aperture / camera.spawn.vertical_aperture == pytest.approx(160 / 120)
     assert all(camera.renderer_cfg == prepared.visualizer_cfgs[0].renderer_cfg for camera in cameras[1:])
     sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
     assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
