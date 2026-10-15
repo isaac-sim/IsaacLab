@@ -132,7 +132,8 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
     """Simulation-owned OVRTX rendering displayed in a Newton GL window.
 
     Launch preparation expands perspective sources into ordinary scene CameraCfg entries.
-    All views borrow camera output; scripts without a SceneCfg spawn Camera and use SceneCameraCfg.
+    All views borrow camera output. Scripts without a SceneCfg declare cameras through ReplicateSession,
+    construct them with instantiate(camera_cfg), and select them with SceneCameraCfg.
     Window resizing scales the displayed image without changing either source's resolution.
     Scene USD owns lighting, materials, and environment placement. Newton-model overlays,
     rigid-body dragging, and viewer-only lighting or world offsets are not supported.

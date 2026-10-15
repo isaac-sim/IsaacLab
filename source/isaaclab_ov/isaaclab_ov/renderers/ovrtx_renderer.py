@@ -530,19 +530,18 @@ class OVRTXRenderer(BaseRenderer):
 
         xform_cache = UsdGeom.XformCache()
         plan = self._clone_plan
-        destinations = {"/": []} if plan is None else {}
-        if plan is not None:
-            sources = cloner_path.get_asset_prototype_paths(plan)
-            templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-                plan, include_world_indices=True
-            )
-            for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
-                ids = world_ids[world_starts[group] : world_starts[group + 1]]
-                if len(ids):
-                    for index in range(start, end):
-                        destinations.setdefault(sources[plan.topology.world_prototypes[index]], []).append(
-                            (templates[index], ids)
-                        )
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        destinations = {}
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            ids = world_ids[world_starts[group] : world_starts[group + 1]]
+            if len(ids):
+                for index in range(start, end):
+                    destinations.setdefault(sources[plan.topology.world_prototypes[index]], []).append(
+                        (templates[index], ids)
+                    )
         for root, targets in destinations.items():
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
                 if not prim.IsA(UsdGeom.Xformable):
@@ -680,10 +679,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         camera_paths = render_data.camera_paths
         scope, product_path = render_data.render_scope_name, render_data.render_product_path
-        env_camera = (
-            self._clone_plan is not None
-            and cloner_path.match(camera_paths[0], self._clone_plan.env_template) is not None
-        )
+        env_camera = cloner_path.match(camera_paths[0], self._clone_plan.env_template) is not None
         usd = build_render_product_as_string(
             spec, render_data, device_id=self._warp_device.ordinal, enable_shadows=self.cfg.enable_shadows
         )
@@ -704,7 +700,7 @@ class OVRTXRenderer(BaseRenderer):
                 else:
                     self.backend.renderer.open_usd_from_string(self._exported_usd_string)
                 self._exported_usd_string = None
-                if self._clone_plan is not None and len(self._clone_plan.topology.world_prototype_layout) > 1:
+                if len(self._clone_plan.topology.world_prototype_layout) > 1:
                     self._clone_sources()
                     self._update_scene_partitions_after_clone()
                 if self._use_ovstage:

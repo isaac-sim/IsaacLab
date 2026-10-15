@@ -29,7 +29,9 @@ import warp as wp  # noqa: E402
 from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg  # noqa: E402
 
 from isaaclab.assets import AssetBaseCfg  # noqa: E402
+from isaaclab.cloner import ReplicateSession  # noqa: E402
 from isaaclab.sim import create_new_stage  # noqa: E402
+from isaaclab.utils import instantiate  # noqa: E402
 from isaaclab.visualizers import SceneCameraCfg, WindowCfg  # noqa: E402
 
 _TEST_DIR = Path(__file__).resolve().parent
@@ -106,13 +108,13 @@ def test_newton_rtx_mpm_points_follow_world_state():
 
 
 def test_directly_spawned_camera_drives_rtx_window():
-    """A script needs no InteractiveScene or clone plan to display its ordinary Camera."""
+    """A standalone script declares its scene through ReplicateSession and displays an ordinary Camera."""
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_ov.renderers import OVRTXRendererCfg
 
     import isaaclab.sim as sim_utils
     from isaaclab.app import launch_simulation
-    from isaaclab.sensors import Camera, CameraCfg
+    from isaaclab.sensors import CameraCfg
 
     camera_cfg = CameraCfg(
         prim_path="/World/Camera", width=96, height=64, data_types=["rgba", "distance_to_image_plane"],
@@ -126,13 +128,14 @@ def test_directly_spawned_camera_drives_rtx_window():
             headless=True, cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)], window=WindowCfg(size=(96, 64))
         )],
     )  # fmt: skip
+    target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0)))
+    light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1000.0))
     with launch_simulation(sim_cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
         sim = sim_utils.SimulationContext(sim_cfg)
-        target = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
-        target.func("/World/Target", target)
-        light = sim_utils.DomeLightCfg(intensity=1000.0)
-        light.func("/World/Light", light)
-        camera = Camera(camera_cfg)
+        with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=1, env_spacing=0.0):
+            instantiate(target_cfg)
+            instantiate(light_cfg)
+            camera = instantiate(camera_cfg)
         sim.reset()
         visualizer = sim.visualizers[0]
         assert visualizer.current_image_view.camera is camera

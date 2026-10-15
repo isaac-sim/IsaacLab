@@ -928,7 +928,7 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     """Replicated and global cameras bind their own paths and retain independent calibration."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._exported_usd_string = "#usda 1.0\n"
-    renderer._clone_plan = None
+    renderer._clone_plan.topology = types.SimpleNamespace(world_prototype_layout=np.zeros(1, dtype=np.int32))
     renderer._sdp = types.SimpleNamespace(
         backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
     )

@@ -1143,7 +1143,8 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         ):
             raise ValueError(
                 "RTX perspective cameras must be declared before scene construction. Pass the environment config "
-                "to launch_simulation, or spawn Camera(CameraCfg(...)) and select it with SceneCameraCfg."
+                "to launch_simulation, or use instantiate(camera_cfg) within ReplicateSession and select it with "
+                "SceneCameraCfg."
             )
         super().initialize(sim, cameras=cameras)
         self._viewer.renderer.set_title("Isaac Lab RTX")

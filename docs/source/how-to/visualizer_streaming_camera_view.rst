@@ -175,13 +175,17 @@ The camera owns pose, calibration, image buffers, capture, and cleanup. Window n
 There is no separate perspective rendering entry point. No default lights are added: scenes
 without authored lights remain unlit. Closing a window leaves its scene camera and renderer alive.
 
-Scripts without an ``InteractiveSceneCfg`` declare and spawn the camera explicitly:
+Scripts without an ``InteractiveSceneCfg`` use ``ReplicateSession`` to declare their scene before
+spawning assets and cameras, including for a single environment:
 
 .. code-block:: python
 
    from isaaclab.app import launch_simulation
-   from isaaclab.sensors import Camera, CameraCfg
-   from isaaclab.sim import PinholeCameraCfg, SimulationCfg, SimulationContext
+   from isaaclab.assets import AssetBaseCfg
+   from isaaclab.cloner import ReplicateSession
+   from isaaclab.sensors import CameraCfg
+   from isaaclab.sim import CuboidCfg, DomeLightCfg, PinholeCameraCfg, SimulationCfg, SimulationContext
+   from isaaclab.utils import instantiate
    from isaaclab.visualizers import SceneCameraCfg
    from isaaclab_ov.renderers import OVRTXRendererCfg
    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
@@ -195,10 +199,14 @@ Scripts without an ``InteractiveSceneCfg`` declare and spawn the camera explicit
    sim_cfg = SimulationCfg(
        visualizer_cfgs=[NewtonRTXVisualizerCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
    )
+   target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
+   light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))
    with launch_simulation(sim_cfg, {"physics": "ovphysx", "visualizer": ["newton_rtx"]}):
        sim = SimulationContext(sim_cfg)
-       # Spawn lights and objects here, using the script's ordinary scene setup.
-       camera = Camera(camera_cfg)
+       with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=1, env_spacing=0.0):
+           instantiate(target_cfg)
+           instantiate(light_cfg)
+           camera = instantiate(camera_cfg)
        sim.reset()
        while sim.is_running():
            sim.step()
