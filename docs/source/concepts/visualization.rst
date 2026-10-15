@@ -8,6 +8,10 @@ renderers produce sensor data for training, visualizers give fast, lightweight f
 human monitoring and recording. Visualizers can also stream that same sensor data through the
 streaming camera panel.
 
+Try :ref:`Franka cube stacking <interactive-demo-franka-stack>` for a compact simulation
+running directly in the browser. Orbit its camera, watch the scripted grasp, or control
+the end effector in Manual mode.
+
 This page covers:
 
 - `Quick Start`_: launch a visualizer with ``--viz``

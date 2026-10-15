@@ -620,6 +620,10 @@ Try :ref:`VBD cable bending <interactive-demo-cable-bending>` for a compact brow
 clamped VBD rod, live bending stiffness and a downward tip load. It illustrates
 transient response; use the native example for cable piles and measured comparisons.
 
+For learned manipulation, try the :ref:`soft-body <interactive-demo-franka-soft>` and
+:ref:`cloth <interactive-demo-franka-cloth>` browser policies. Tune their material,
+move the target, or switch to keyboard end-effector control in Manual mode.
+
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.
 
