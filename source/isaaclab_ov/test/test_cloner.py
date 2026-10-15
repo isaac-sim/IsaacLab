@@ -362,3 +362,98 @@ def test_native_clone_export_rejects_source_overlap():
     with pytest.raises(ValueError, match="overlaps a clone source"):
         _serialize_stage(stage, [("/World/Source", ["/World"], [], [0], 0)], full_stage=False)
     assert stage.GetRootLayer().ExportToString() == before
+
+
+@pytest.mark.parametrize("modern", [False, True])
+def test_export_translates_legacy_joint_properties_without_editing_instances(monkeypatch, modern):
+    """Private exports preserve authored legacy values and modern precedence through instance prototypes."""
+    from isaaclab_ov.physics import ovphysx_compat
+
+    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/Robot")
+    for name, joint_type in (("Angular", UsdPhysics.RevoluteJoint), ("Linear", UsdPhysics.PrismaticJoint)):
+        prim = joint_type.Define(stage, f"/Robot/{name}").GetPrim()
+        prim.AddAppliedSchema("PhysxJointAPI")
+        prim.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(
+            90.0 if name == "Angular" else 2.0
+        )
+        prim.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
+        prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.035)
+    fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed").GetPrim()
+    fixed.CreateAttribute("physxJoint:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(100.0)
+    fixed.CreateAttribute("physxJoint:armature", Sdf.ValueTypeNames.Float).Set(0.25)
+    fixed.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.5)
+    linear = stage.GetPrimAtPath("/Robot/Linear")
+    linear.AddAppliedSchema("NewtonJointAPI")
+    linear.CreateAttribute("newton:armature", Sdf.ValueTypeNames.Float).Set(0.75)
+    linear.CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.8)
+    angular = stage.GetPrimAtPath("/Robot/Angular")
+    angular.AddAppliedSchema("PhysxJointAxisAPI:angular")
+    angular.CreateAttribute("physxJointAxis:angular:staticFrictionEffort", Sdf.ValueTypeNames.Float).Set(0.3)
+    angular.CreateAttribute("physxJointAxis:angular:maxJointVelocity", Sdf.ValueTypeNames.Float).Set(45.0)
+    instance = stage.DefinePrim("/Instance", "Xform")
+    instance.GetReferences().AddInternalReference("/Robot")
+    instance.SetInstanceable(True)
+    before = stage.GetRootLayer().ExportToString()
+    serialized, _ = _serialize_stage(
+        stage, [], full_stage=True, friction_replacements={"Angular|Linear": (0.2, 0.1, 0.0)}
+    )
+    layer = Sdf.Layer.CreateAnonymous()
+    layer.ImportFromString(serialized)
+    exported = Usd.Stage.Open(layer)
+    for root in ("/Robot", "/Instance"):
+        fixed = exported.GetPrimAtPath(f"{root}/Fixed")
+        assert fixed.GetAttribute("physxJoint:maxJointVelocity").Get() == 100.0
+        assert not fixed.GetAttribute("newton:velocityLimit").HasAuthoredValueOpinion()
+        for name, velocity in (("Angular", 90.0), ("Linear", 2.0)):
+            prim = exported.GetPrimAtPath(f"{root}/{name}")
+            attr = prim.GetAttribute("newton:velocityLimit")
+            assert (attr.Get() if attr and attr.HasAuthoredValueOpinion() else None) == (velocity if modern else None)
+            armature = prim.GetAttribute("newton:armature")
+            expected = 0.75 if name == "Linear" else (0.25 if modern else None)
+            assert (armature.Get() if armature and armature.HasAuthoredValueOpinion() else None) == expected
+            legacy_friction = prim.GetAttribute("physxJoint:jointFriction")
+            if modern:
+                assert not legacy_friction or not legacy_friction.HasAuthoredValueOpinion()
+                if name == "Angular":
+                    assert prim.GetAttribute("physxJointAxis:angular:staticFrictionEffort").Get() == pytest.approx(0.3)
+                    assert prim.GetAttribute("physxJointAxis:angular:dynamicFrictionEffort").Get() == pytest.approx(0.1)
+                else:
+                    assert prim.GetAttribute("newton:friction").Get() == pytest.approx(0.8)
+                    per_axis = prim.GetAttribute("physxJointAxis:linear:staticFrictionEffort")
+                    assert not per_axis or not per_axis.HasAuthoredValueOpinion()
+            else:
+                assert legacy_friction.Get() == pytest.approx(0.035)
+        assert (
+            exported.GetPrimAtPath(f"{root}/Angular").GetAttribute("physxJointAxis:angular:maxJointVelocity").Get()
+            == 45.0
+        )
+    assert stage.GetRootLayer().ExportToString() == before
+
+
+@pytest.mark.parametrize(
+    ("property_name", "value", "joint_type", "message", "static_effort"),
+    [
+        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "friction", None),
+        ("physxJoint:jointFriction", 0.5, "PhysicsRevoluteJoint", "static effort", 0.05),
+        ("physxJoint:armature", 0.25, "Xform", "armature", None),
+    ],
+)
+def test_export_rejects_unrepresentable_legacy_joint_properties(
+    monkeypatch, property_name, value, joint_type, message, static_effort
+):
+    from isaaclab_ov.physics import ovphysx_compat
+
+    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_USES_TASKS", True)
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/Robot/Joint", joint_type)
+    prim.CreateAttribute(property_name, Sdf.ValueTypeNames.Float).Set(value)
+    replacements = None
+    if static_effort is not None:
+        prim.CreateAttribute("physxJointAxis:angular:staticFrictionEffort", Sdf.ValueTypeNames.Float).Set(static_effort)
+        replacements = {"Joint": (0.2, 0.1, 0.01)}
+    before = stage.GetRootLayer().ExportToString()
+    with pytest.raises(ValueError, match=f"{message}.*(/Robot/Joint)|(/Robot/Joint).*{message}"):
+        _serialize_stage(stage, [], full_stage=True, friction_replacements=replacements)
+    assert stage.GetRootLayer().ExportToString() == before

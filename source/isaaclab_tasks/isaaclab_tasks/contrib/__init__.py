@@ -8,3 +8,8 @@
 These may depend on :mod:`isaaclab_tasks.core` tasks, but ``core`` tasks never depend
 on ``contrib`` tasks.
 """
+
+from importlib.util import find_spec
+
+ISAACLAB_TELEOP_AVAILABLE = find_spec("isaaclab_teleop") is not None
+"""Whether the optional Isaac Lab Teleop package is installed."""
