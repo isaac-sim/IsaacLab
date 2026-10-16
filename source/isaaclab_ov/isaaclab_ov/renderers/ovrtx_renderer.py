@@ -74,7 +74,7 @@ except ModuleNotFoundError as exc:
 
 from PIL import Image
 
-from pxr import Sdf, Usd, UsdGeom, UsdShade
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -118,8 +118,6 @@ if TYPE_CHECKING:
     from isaaclab_ppisp import PpispPipeline
     from ovrtx import AttributeBinding, FrameOutput, Operation, PendingFetch, RenderVarOutput
 
-    from pxr import Usd
-
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_ov.stage import OvstageBackend
@@ -161,7 +159,6 @@ _PPISP_IMPORT_ERROR_MESSAGE = (
     "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
     "with `uv pip install isaaclab`."
 )
-_READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
@@ -175,16 +172,6 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
     if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
         raise exc
     raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
-
-
-def ovrtx_read_gpu_transforms_enabled() -> bool:
-    """Return whether OVRTX should read GPU transforms from its internal transform cache."""
-    value = os.environ.get(_READ_GPU_TRANSFORMS_ENV, "1").strip()
-    if value not in {"0", "1"}:
-        raise ValueError(
-            f"Invalid value for environment variable `{_READ_GPU_TRANSFORMS_ENV}`: {value}. Expected 0 or 1."
-        )
-    return value == "1"
 
 
 def _gpu_side_render_var_sync_enabled() -> bool:
@@ -216,8 +203,6 @@ def _write_file(output_dir: Path, file_name: str, content: str) -> None:
 
 def _write_combined_stage(output_dir: Path, render_product_usd: str) -> None:
     """Write the scene and render product prims in one debug layer, preserving scene metadata."""
-    from pxr import Sdf
-
     scene_layer = Sdf.Layer.OpenAsAnonymous(str(output_dir / "ovrtx_renderer_stage.usda"))
     render_layer = Sdf.Layer.CreateAnonymous("render_product.usda")
     render_layer.ImportFromString(render_product_usd)
@@ -240,8 +225,8 @@ class OVRTXBackend:
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
             active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
-            log_file_path=cfg.log_file_path,
-            log_level=cfg.log_level,
+            log_file_path=cfg.renderer_cfg.log_file_path,
+            log_level=cfg.renderer_cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
             keep_system_alive=True,
             suppress_deprecation_warnings=True,
@@ -250,7 +235,6 @@ class OVRTXBackend:
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
         self.next_camera_id = 0
-        self.attached = False
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
             self.clone_copies: list[tuple[str, list[str]]] = []
@@ -260,7 +244,7 @@ class OVRTXBackend:
         self.renderer = Renderer(native_cfg)
 
     def close(self) -> None:
-        """Destroy the engine; the registry releases any borrowed stage afterward."""
+        """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
         if self.renderer is not None:
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
@@ -366,7 +350,6 @@ class OVRTXRenderer(BaseRenderer):
         self._transforms_timestamp = -1
         self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
         self._object_scales: wp.array | None = None
-        self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
         self._geometry_offsets: dict[str, int] = {}
         self._geometry_writes = _AsyncWriteBuffers[wp.array]()
@@ -425,7 +408,6 @@ class OVRTXRenderer(BaseRenderer):
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
         logger.info("Preparing stage (%d envs)...", num_envs)
-        self._capture_object_scales(stage)
         usd = export_stage_to_string(
             stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
             keep_env_roots=False, env_paths=self.scene.population_env_paths,
@@ -450,32 +432,20 @@ class OVRTXRenderer(BaseRenderer):
                 self.backend.renderer.write_attribute(
                     env_paths, "primvars:omni:scenePartition", tokens, semantic=Semantic.TOKEN_STRING
                 )
-        self._setup_xform_bindings()
+        self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
         if self._use_ovstage:
             self.scene.commit()
             self.backend.renderer.attach_ovstage(self.scene.stage)
-            self.backend.attached = True
         self._initialized_scene = True
 
-    def _capture_object_scales(self, stage: Usd.Stage) -> None:
-        """Record composed world scales beneath the routed sources and their prepared destinations.
-
-        The per-frame object transform write rebuilds each body's matrix from an SDP
-        pose, which carries only translation and rotation, so any scale authored on the
-        USD prim is lost once that write lands. Capturing the composed scale here, while the full
-        stage is still live, preserves it in the body binding order.
-
-        Only non-unit scales are stored. Native instance paths include repeated assets whose
-        destinations OVRTX creates after the host stage is exported.
-
-        Args:
-            stage: The live USD stage, before per-environment trimming and export.
-        """
-        self._object_scales_by_path.clear()
-
-        from pxr import Gf, Usd, UsdGeom
-
+    def _setup_xform_bindings(self, stage: Usd.Stage) -> None:
+        """Bind SDP body paths and preserve their authored scales when writing world poses."""
+        object_paths = self._sdp.backend.transform_paths
+        if not object_paths:
+            return
+        # SDP poses omit scale. Include native copies that do not exist on the authored USD stage.
+        scales_by_path = {}
         xform_cache = UsdGeom.XformCache()
         for root, targets in self.scene.clone_copies:
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
@@ -484,14 +454,13 @@ class OVRTXRenderer(BaseRenderer):
                 scale = tuple(map(float, Gf.Transform(xform_cache.GetLocalToWorldTransform(prim)).GetScale()))
                 if not all(math.isclose(axis, 1.0, rel_tol=1e-6, abs_tol=1e-6) for axis in scale):
                     path = str(prim.GetPath())
-                    self._object_scales_by_path[path] = scale
-                    self._object_scales_by_path.update((target + path[len(root) :], scale) for target in targets)
-
-    def _setup_xform_bindings(self) -> None:
-        """Bind SDP body paths and their composed scales in the scene's representation."""
-        object_paths = self._sdp.backend.transform_paths
-        if not object_paths:
-            return
+                    scales_by_path[path] = scale
+                    scales_by_path.update((target + path[len(root) :], scale) for target in targets)
+        self._object_scales = None
+        # No override lets renderers share SDP's publication instead of multiplying by ones.
+        if any(path in scales_by_path for path in object_paths):
+            scales = [scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
+            self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
         reset_xforms = np.ones(len(object_paths), dtype=np.bool_)
         if self._use_ovstage:
             self._object_xform_binding = self._bindings.enter_context(self.scene.query(object_paths))
@@ -515,11 +484,6 @@ class OVRTXRenderer(BaseRenderer):
             self.backend.renderer.write_attribute(
                 prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
             )
-        self._object_scales = None
-        # No scale override lets renderers share SDP's converted publication instead of multiplying by ones.
-        if any(path in self._object_scales_by_path for path in object_paths):
-            scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
-            self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
 
     def _setup_geometry_bindings(self) -> None:
         """Bind SDP's world-space point prims without applying inherited transforms again."""
@@ -814,7 +778,9 @@ class OVRTXRenderer(BaseRenderer):
                         device=self._device,
                     )
                     colors = wp.to_torch(color_buffer).view(torch.uint8).reshape(*tiled_data.shape[:2], 4)
-                    self._extract_rgba_tiles(render_data, wp.from_torch(colors, dtype=wp.uint8), output_buffers[key])
+                    self._launch_extract_all_tiles(
+                        render_data, wp.from_torch(colors, dtype=wp.uint8), output_buffers[key]
+                    )
                 else:
                     # Keep uint32 in Warp; torch-to-Warp conversion does not support that dtype.
                     if tiled_data.ndim == 2:
@@ -877,16 +843,6 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
 
-    def _extract_rgba_tiles(
-        self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffer: wp.array
-    ) -> None:
-        """Extract RGB or RGBA tiles into the requested output buffer."""
-        num_channels = output_buffer.shape[-1]
-        if num_channels not in (3, 4):
-            raise ValueError(f"Expected RGB (3 channels) or RGBA (4 channels), got {num_channels}")
-
-        self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
-
     def _process_render_frame(
         self, render_data: OVRTXCameraRenderData, frame: FrameOutput, output_buffers: dict[str, wp.array]
     ) -> None:
@@ -912,7 +868,7 @@ class OVRTXRenderer(BaseRenderer):
 
             if buffer_key is not None:
                 with self._map_render_var_to_dlpack(ldr_color) as tiled_data:
-                    self._extract_rgba_tiles(render_data, tiled_data, output_buffers[buffer_key])
+                    self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
 
         for depth_var, buffer_keys in _DEPTH_VAR_BUFFER_KEYS.items():
             depth_render_var = frame.render_vars.get(render_data.render_var_keys[depth_var])
@@ -932,7 +888,7 @@ class OVRTXRenderer(BaseRenderer):
         albedo_var = frame.render_vars.get(render_data.render_var_keys[_ALBEDO_VAR])
         if albedo_var is not None and "albedo" in output_buffers:
             with self._map_render_var_to_dlpack(albedo_var) as tiled_albedo_data:
-                self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers["albedo"])
+                self._launch_extract_all_tiles(render_data, tiled_albedo_data, output_buffers["albedo"])
 
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
@@ -1257,7 +1213,6 @@ class OVRTXRenderer(BaseRenderer):
                     logger.warning("Error releasing OVRTX bindings: %s", exc)
             self._object_xform_binding = self._geometry_points_binding = None
             self._object_scales = None
-            self._object_scales_by_path.clear()
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
             self._geometry_offsets.clear()
             self._geometry_paths = []

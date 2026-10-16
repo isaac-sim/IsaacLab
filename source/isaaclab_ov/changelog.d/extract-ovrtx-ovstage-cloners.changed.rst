@@ -11,8 +11,9 @@
 * Created native environment frames only in private USD exports and placed OVPhysX originals from the clone plan.
   Replaced recursive export filtering with a pruned USD traversal while retaining routed prototype selection.
 * Moved scene selection from renderer construction into clone preparation. OVRTX configurations
-  requested native cloning by default; preparation selected an isolated OVStage when explicitly
-  requested and acquired resources only after deciding scene ownership.
+  requested native cloning by default; preparation selected isolated OVStage rendering with OVPhysX
+  and native OVRTX cloning with Newton. ``ISAAC_LAB_OVRTX_USE_OVSTAGE=0|1`` overrode that selection.
+  Resources were acquired only after deciding scene ownership.
 * **Breaking:** Removed the OVStage 0.1 and OVRTX 0.4 compatibility modules and their version fallbacks.
   Used the pinned SDKs' GPU hierarchy model and RenderVar prim-path keys directly. Code importing
   ``ovstage_compat`` or ``renderers.ovrtx_compat`` must use OVStage 0.2 and OVRTX 0.5 APIs directly.

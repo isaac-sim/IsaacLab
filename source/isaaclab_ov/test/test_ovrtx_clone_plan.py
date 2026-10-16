@@ -127,7 +127,7 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
 def _prepare_clones(renderer, plan, routed=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
-    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
+    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
     if renderer._use_ovstage:
         from isaaclab_ov.stage import OvstageBackendCfg
 
@@ -203,7 +203,7 @@ def test_native_replication_applies_compositions_then_positions(
 
 
 @pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/World/Instances/World_{}"])
-def test_capture_object_scales_populates_source_and_destination_scale_array(env_template):
+def test_object_bindings_preserve_source_and_destination_scales(env_template):
     """Only declared prototype and shared scales reach the body array, independent of namespace."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, f"{env_template.format(0)}/Object").AddScaleOp().Set(Gf.Vec3d(1, 1, 8))
@@ -226,19 +226,17 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
     )
 
     _prepare_clones(renderer, plan)
-    renderer._capture_object_scales(stage)
     renderer._sdp.backend.transform_paths = (
         [f"{env_template.format(index)}/Object" for index in range(3)]
         + [f"{env_template.format(index)}/Object_1" for index in (0, 2)]
-        + ["/World/Shared"]
+        + ["/World/Shared", "/World/envs/Unplanned"]
     )
     renderer.backend.renderer.bind_attribute = Mock()
-    renderer._setup_xform_bindings()
+    renderer._setup_xform_bindings(stage)
 
     np.testing.assert_allclose(
-        renderer._object_scales.numpy(), [[1, 1, 8], [1, 1, 4], [1, 1, 8], [1, 1, 8], [1, 1, 8], [2, 3, 4]]
+        renderer._object_scales.numpy(), [[1, 1, 8], [1, 1, 4], [1, 1, 8], [1, 1, 8], [1, 1, 8], [2, 3, 4], [1, 1, 1]]
     )
-    assert "/World/envs/Unplanned" not in renderer._object_scales_by_path
 
 
 @pytest.mark.parametrize("dump_enabled", [False, True])
@@ -347,9 +345,6 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
         if attribute_name == "primvars:omni:scenePartition"
         else None
     )
-    renderer._setup_xform_bindings = lambda: None
-    renderer._setup_geometry_bindings = lambda: None
-
     renderer.prepare_stage(_make_multi_env_stage(num_envs), num_envs)
     spec = _make_camera_render_spec(num_envs=1 if global_camera else num_envs)
     if global_camera:
@@ -437,8 +432,9 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
 
 
-def test_renderer_and_stage_do_not_select_physics_clone_routes():
-    """Stage ownership stays independent of rendering; consumers cannot select physics cloning."""
+def test_clone_dependency_boundaries():
+    """Contexts select routes without importing consumers; consumers do not reinterpret topology."""
+    import isaaclab_ov.cloner.replicate as clone_module
     import isaaclab_ov.stage as stage_module
 
     renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
@@ -454,6 +450,12 @@ def test_renderer_and_stage_do_not_select_physics_clone_routes():
         isinstance(node, ast.ImportFrom) and node.module.startswith("isaaclab_ov.renderers")
         for node in ast.walk(stage_tree)
     )
+    clone_tree = ast.parse(Path(clone_module.__file__).read_text())
+    for function in (node for node in ast.walk(clone_tree) if isinstance(node, ast.FunctionDef)):
+        assert not any(
+            isinstance(node, ast.ImportFrom) and node.module == "isaaclab_ov.renderers.ovrtx_renderer"
+            for node in ast.walk(function)
+        )
 
 
 @pytest.mark.parametrize(
@@ -497,9 +499,9 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
 
     renderer_cfg = OVRTXRendererCfg()
     configs = (
-        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
+        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
         OvstageBackendCfg(scene_key=renderer_cfg),
-        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
+        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
     )
     for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
         backends = [SimpleNamespace() for _ in configs]

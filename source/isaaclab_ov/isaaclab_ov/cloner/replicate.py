@@ -168,13 +168,12 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
     def prepare(sim: SimulationContext, routing: dict[type[cloner.ReplicateContext], set[int]]) -> None:
         """Resolve OVRTX's clone route and acquire resources before replication begins.
 
+        Select runtime settings here without importing renderer implementations.
+
         Args:
             sim: Simulation that owns the configured consumers and native resources.
             routing: Asset routes to prepare for each native representation.
         """
-        # OVRTX is optional for physics-only users, and the renderer imports native clone operations.
-        from isaaclab_ov.renderers.ovrtx_renderer import ovrtx_read_gpu_transforms_enabled  # noqa: PLC0415
-
         renderers = sim.get_backends(OVRTXRendererCfg)
         if not renderers:
             return
@@ -194,22 +193,24 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
 
         # Stage ownership is settled before native construction. Register the stage before its borrowers.
         for renderer in renderers:
-            cfg = renderer.cfg
             if renderer.backend is not None:
                 continue
+            read_gpu_transforms = os.environ.get("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "1").strip()
+            if read_gpu_transforms not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS: {read_gpu_transforms!r}. Expected 0 or 1."
+                )
             backend_cfg = OVRTXBackendCfg(
-                scene_key=cfg,
-                log_file_path=cfg.log_file_path,
-                log_level=cfg.log_level,
+                renderer_cfg=renderer.cfg,
                 use_ovstage=use_ovstage,
-                read_gpu_transforms=ovrtx_read_gpu_transforms_enabled(),
+                read_gpu_transforms=read_gpu_transforms == "1",
                 device=sim.device,
             )
             scene = sim.get_or_create_backend(OvstageBackendCfg(scene_key=backend_cfg)) if use_ovstage else None
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
             renderer._use_ovstage = use_ovstage
-            if cfg.async_rendering and use_ovstage:
+            if renderer.cfg.async_rendering and use_ovstage:
                 logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:

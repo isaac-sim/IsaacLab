@@ -28,12 +28,8 @@ class OVRTXBackendCfg(BackendCfg):
     """Native engine settings and the configuration identifying its scene resource."""
 
     class_type: type[OVRTXBackend] | str = "{DIR}.ovrtx_renderer:OVRTXBackend"
-    scene_key: OVRTXRendererCfg = MISSING
+    renderer_cfg: OVRTXRendererCfg = MISSING
     """Renderer configuration identifying the engine's scene and camera product policy."""
-    log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
-    """Native renderer log destination."""
-    log_level: str = "verbose"
-    """Native renderer log level."""
     use_ovstage: bool = MISSING
     """Whether the engine borrows a simulation-owned OVStage instead of using its internal stage."""
     read_gpu_transforms: bool = MISSING

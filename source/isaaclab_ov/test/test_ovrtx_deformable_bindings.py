@@ -30,6 +30,8 @@ if not _MISSING_MODULES:
     from isaaclab_ov.stage import OvstageBackend
     from ovrtx import DataAccess
 
+    from pxr import Gf, Usd, UsdGeom
+
 
 @pytest.fixture(autouse=True)
 def _simulation(monkeypatch):
@@ -184,7 +186,9 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     backend = SimpleNamespace(transforms=transforms, transforms_timestamp=0, transform_count=2, transform_paths=paths)
     backend.get_transforms = lambda _format: transforms
     renderer._sdp = SceneDataProvider(backend)
-    renderer._object_scales_by_path = {paths[0]: (2, 3, 4)} if scaled else {}
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, paths[0]).AddScaleOp().Set(Gf.Vec3d(2, 3, 4) if scaled else Gf.Vec3d(1))
+    renderer.scene.clone_copies = [(paths[0], [])]
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=0))
     renderer._use_ovstage = use_ovstage
     renderer.scene.ordinal = 5
@@ -201,11 +205,11 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
             ),
         )
         monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda matrices: matrices)
-        renderer._setup_xform_bindings()
+        renderer._setup_xform_bindings(stage)
         assert renderer._object_xform_binding == paths
         writes.clear()
     else:
-        renderer._setup_xform_bindings()
+        renderer._setup_xform_bindings(stage)
         assert renderer.backend.renderer.bind_attribute.call_args.kwargs["prim_paths"] == paths
         renderer._object_xform_binding.write = lambda matrices, **kwargs: writes.append((None, matrices, kwargs))
         operation = MagicMock()
@@ -231,7 +235,8 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     if not scaled:
         other, native = _make_renderer_without_backend()
         other._sdp = renderer._sdp
-        other._setup_xform_bindings()
+        other.scene.clone_copies = renderer.scene.clone_copies
+        other._setup_xform_bindings(stage)
         other.update_transforms()
         assert native.bind_attribute.return_value.write.call_args.args[0] is matrices
 

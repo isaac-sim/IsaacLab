@@ -13,7 +13,6 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections.abc import Iterator, Sequence
-from typing import TYPE_CHECKING
 
 import numpy as np
 import ovstage
@@ -23,9 +22,6 @@ from pxr import Sdf, Usd, UsdRender
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
-
-if TYPE_CHECKING:
-    from isaaclab.visualizers import VisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +155,7 @@ class OvstageBackendCfg(BackendCfg):
     """Configuration of a simulation-owned stage and its populated domains."""
 
     class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
-    scene_key: BackendCfg | VisualizerCfg | int | None = None
+    scene_key: BackendCfg | int | None = None
     """None selects the simulation scene; isolated consumers use their configuration or instance identity."""
     population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
     """USD domains to populate. Physics consumers require PHYSICS or ALL."""
@@ -179,15 +175,6 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
-        self._resources = contextlib.ExitStack()
-        self.reset()
-
-    def reset(self) -> None:
-        """Replace the native stage after all consumers have released their bindings and detached.
-
-        Prepared clone operations are retained for population from the next USD export.
-        """
-        self.close()
         self.ordinal = 0
         self.next_camera_id = 0
         with contextlib.ExitStack() as resources:

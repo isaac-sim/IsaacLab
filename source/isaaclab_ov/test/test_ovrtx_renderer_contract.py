@@ -88,8 +88,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.scene.query = OvstageBackend.query.__get__(renderer.scene)
     renderer.scene.next_camera_id = 0
     renderer.scene.clone_env_paths = ["/World/envs/env_0", "/World/envs/env_1"]
-    renderer.backend.attached = False
-    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
+    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
     renderer.scene.stage = renderer.scene.paths = None
     renderer.backend.cfg = cfg
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
@@ -1156,7 +1155,8 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
     else:
         render_data.camera_xform_binding = _RecordingBinding(events, "camera")
         render_data.resources.callback(render_data.camera_xform_binding.unbind)
-    renderer._setup_xform_bindings()
+    renderer.scene.clone_copies = []
+    renderer._setup_xform_bindings(SimulationContext.instance().stage)
     renderer._setup_geometry_bindings()
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
