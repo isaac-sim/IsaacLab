@@ -1,0 +1,160 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Marker-gated tests on self-hosted Windows GPU runners, the counterpart of arm-ci.yml.
+# Windows has no Docker, so the job syncs the locked uv environment on the runner and
+# hands it to the same orchestrator (tools/conftest.py) the container jobs run.
+
+name: Windows CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  OMNI_KIT_ACCEPT_EULA: "yes"
+  # Decode subprocess output as UTF-8 instead of the cp1252 code page.
+  PYTHONUTF8: "1"
+  # A test the orchestrator kills on timeout would otherwise lose its buffered output.
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/actions/detect-changes
+          sparse-checkout-cone-mode: false
+      - id: detect
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-push: windows-ci
+          triggered-jobs-pr: windows-ci
+          patterns: |
+            ^source/ :: Library source code
+            ^tools/ :: Build tooling
+            ^apps/ :: Standalone apps
+            ^scripts/ :: Standalone scripts
+            (^|/)pyproject\.toml$ :: Python project metadata
+            ^uv\.lock$ :: Locked dependency graph
+            ^VERSION$ :: Version file
+            ^\.github/workflows/windows-ci\.yaml$ :: This workflow file
+
+  windows-ci:
+    name: windows-ci
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@v6
+
+      # v6.8.0, which the Linux workflows pin, crashes on exit on these runners once uv
+      # is in the tool cache (astral-sh/setup-uv#686).
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          version: "0.12.9"
+
+      - name: Sync environment
+        id: sync
+        timeout-minutes: 30
+        run: uv sync --frozen --extra isaacsim --extra ovrtx --extra test
+
+      # ovrtx and Kit compile their shaders into .venv, which checkout's clean deletes.
+      # The blobs are only valid for the GPU and driver that compiled them.
+      - name: Shader cache keys
+        id: shader-cache
+        run: |
+          $gpu = @(nvidia-smi --query-gpu=compute_cap,driver_version --format=csv,noheader)
+          if ($LASTEXITCODE -ne 0 -or $gpu.Count -eq 0) { throw "nvidia-smi failed: $gpu" }
+          $gpu = "sm$($gpu[0] -replace '\s', '' -replace ',', '-drv')"
+          foreach ($name in "ovrtx", "isaacsim") {
+            $pin = @(Select-String -LiteralPath uv.lock -Pattern "^name = `"$name`"$" -Context 0,1)
+            if ($pin.Count -ne 1) { throw "uv.lock pins $name $($pin.Count) times" }
+            $version = $pin[0].Context.PostContext[0] -replace '^version = "(.+)"$', '$1'
+            "$name=windows-$name-$version-$gpu" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          }
+
+      # actions/cache archives with Git's tar, which finds gzip only on PATH (actions/cache#1297).
+      - name: Restore ovrtx shader cache
+        id: ovrtx-cache
+        uses: actions/cache/restore@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/ovrtx/bin/cache
+          key: ${{ steps.shader-cache.outputs.ovrtx }}
+
+      - name: Restore Kit shader cache
+        id: kit-cache
+        uses: actions/cache/restore@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/isaacsim/kit/cache
+          key: ${{ steps.shader-cache.outputs.isaacsim }}
+
+      - name: Run windows_ci marker tests
+        env:
+          CI_MARKER: windows_ci
+          TEST_RESULT_FILE: windows-ci-report.xml
+        run: uv run --frozen --no-sync python -m pytest tools
+
+      # The orchestrator skips install_ci/, so the Cartpole state/camera probes run here.
+      - name: Run Cartpole smoke tests
+        if: ${{ !cancelled() && steps.sync.outcome == 'success' }}
+        run: uv run --frozen --no-sync python -m pytest -v source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py --junitxml=tests/windows-ci-smoke-report.xml
+
+      - name: Save ovrtx shader cache
+        if: ${{ success() && steps.ovrtx-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/ovrtx/bin/cache
+          key: ${{ steps.shader-cache.outputs.ovrtx }}
+
+      - name: Save Kit shader cache
+        if: ${{ success() && steps.kit-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        env:
+          PATH: C:\Program Files\Git\usr\bin;C:\Windows\System32
+        with:
+          path: .venv/Lib/site-packages/isaacsim/kit/cache
+          key: ${{ steps.shader-cache.outputs.isaacsim }}
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-ci-reports
+          path: tests/
+          retention-days: 7
