@@ -292,7 +292,5 @@ def _valid_points_mask(points: torch.Tensor, depth: torch.Tensor) -> torch.Tenso
     Returns:
         A boolean mask of the valid points. Shape is (H x W,).
     """
-    im_height, im_width = depth.shape[:2]
-    # flatten the depth image in the (u, v) pixel order used by unproject_depth
-    has_depth = (depth.reshape(im_height, im_width) != 0).transpose(0, 1).reshape(-1)
-    return has_depth & torch.isfinite(points).all(dim=1)
+    # flatten(1) handles both depth shapes, and the transpose keeps the (u, v) pixel order used by unproject_depth
+    return (depth.flatten(1) != 0).T.flatten() & points.isfinite().all(dim=1)
