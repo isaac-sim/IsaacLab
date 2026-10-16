@@ -262,6 +262,20 @@ def create_pointcloud_from_rgbd(
         return points_xyz, points_rgb
 
 
+def save_images_to_file(images: torch.Tensor, file_path: str):
+    """Save images to file.
+
+    Args:
+        images: A tensor of shape (N, H, W, C) containing the images.
+        file_path: The path to save the images to.
+    """
+    from torchvision.utils import make_grid, save_image
+
+    save_image(
+        make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5)), file_path
+    )
+
+
 def _valid_points_mask(points: torch.Tensor, depth: torch.Tensor) -> torch.Tensor:
     """Returns a mask of the points unprojected from valid depth measurements.
 
@@ -282,17 +296,3 @@ def _valid_points_mask(points: torch.Tensor, depth: torch.Tensor) -> torch.Tenso
     # flatten the depth image in the (u, v) pixel order used by unproject_depth
     has_depth = (depth.reshape(im_height, im_width) != 0).transpose(0, 1).reshape(-1)
     return has_depth & torch.isfinite(points).all(dim=1)
-
-
-def save_images_to_file(images: torch.Tensor, file_path: str):
-    """Save images to file.
-
-    Args:
-        images: A tensor of shape (N, H, W, C) containing the images.
-        file_path: The path to save the images to.
-    """
-    from torchvision.utils import make_grid, save_image
-
-    save_image(
-        make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5)), file_path
-    )
