@@ -82,7 +82,9 @@ def main() -> None:
                 if not env.is_state_finite().all():
                     raise RuntimeError("Coffee rollout produced nonfinite robot or material positions.")
                 if controller.finished:
-                    if env.delivered_fraction()[0] < cfg.min_delivered_fraction:
+                    fraction = env.delivered_fraction()[0]
+                    delivered_mass = fraction * len(cfg.scene.coffee.spawn.positions) * cfg.scene.coffee.spawn.mass
+                    if fraction < cfg.min_delivered_fraction or delivered_mass < cfg.min_delivered_mass:
                         raise RuntimeError("The arm completed its path, but insufficient coffee reached the cup.")
                     if not args.keep_open:
                         break
@@ -99,13 +101,19 @@ def _parse_args():
     )
     parser.add_argument("--voxel_size", type=float, default=0.004)
     parser.add_argument(
+        "--bowl_scale",
+        type=float,
+        default=0.65,
+        help="Horizontal scale of the source bowl (>= 0.4); the coffee fill is capped independently.",
+    )
+    parser.add_argument(
         "--physics_hz",
         type=int,
         choices=(100, 120, 200, 400, 800),
         default=None,
         help="Coupling rate; defaults to 400 Hz for dry 2 mm or wet 3+ mm scripts, otherwise 800 Hz.",
     )
-    parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 3, 5, 10, 20, 64, 128), default=5)
+    parser.add_argument("--grains_per_particle", type=int, choices=(0, 1, 3, 5, 10, 20, 64, 128), default=1)
     parser.add_argument("--render_samples", type=int, default=4)
     parser.add_argument("--max_steps", type=int, default=8000)
     parser.add_argument("--camera", choices=("follow", "fixed"), default="follow")
@@ -150,6 +158,8 @@ def _make_env_cfg(args, video_stride):
     cfg = CoffeeDemoEnvCfg(water_enabled=args.water)
     cfg.seed = 7
     cfg.voxel_size = args.voxel_size
+    cfg.bowl_scale = args.bowl_scale
+    cfg.coffee_fill_scale = min(cfg.coffee_fill_scale, cfg.bowl_scale)
     cfg.sim.dt = 1.0 / args.physics_hz
     cfg.decimation = args.physics_hz // args.control_hz
     cfg.sim.render_interval = 2 * cfg.decimation
@@ -198,7 +208,7 @@ def _make_visualizers(args):
     )
     rtx_camera = camera_cfg.copy()
     if args.backdrop == "kitchen":
-        rtx_camera.update(eye=(0.97, -0.88, 0.98), lookat=(0.45, 0.03, 0.14))
+        rtx_camera.update(eye=(0.86, -0.61, 0.70), lookat=(0.53, -0.03, 0.10))
     visualizers = [
         NewtonGLVisualizerCfg(
             class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
@@ -273,7 +283,7 @@ class _SpoonCamera:
             visualizer.set_camera_view(self._eye, self._target)
 
     def update(self, spoon_position, phase, dt):
-        from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import BOWL_POSITION, CUP_POSITION
+        from isaaclab_tasks.contrib.rizon_sharpa_coffee.assets import BOWL_POSITION, CUP_HEIGHT, CUP_POSITION
 
         spoon = np.asarray(spoon_position)
         # Bias toward the handle so the thumb/index pinch stays in the shot.
@@ -282,14 +292,14 @@ class _SpoonCamera:
         distance = 0.85
         elevation = math.radians(48.0)
         azimuth = self._azimuth
-        if phase.startswith(("approach", "return", "scoop")):
+        if phase.startswith(("approach", "scoop", "settle")):
             target = 0.25 * focus + 0.75 * (np.array(BOWL_POSITION) + (-0.025, 0.0, 0.075))
             distance = 0.68
             elevation = math.radians(52.0)
         if phase.startswith("stir"):
             self._stirring = True
-        if self._show_cup and (self._stirring or phase.startswith(("pour_height", "tip", "empty"))):
-            target = np.array(CUP_POSITION) + (-0.015, 0.0, 0.075 if self._stirring else 0.065)
+        if self._show_cup and (self._stirring or phase.startswith(("transfer", "tip", "empty"))):
+            target = np.array(CUP_POSITION) + (-0.015, 0.0, CUP_HEIGHT * (0.9 if self._stirring else 0.75))
             distance = 0.33 if self._stirring else 0.50
             elevation = math.radians(35.0 if self._stirring else 60.0)
             if self._stirring:
