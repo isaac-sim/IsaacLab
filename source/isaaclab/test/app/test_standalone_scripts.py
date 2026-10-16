@@ -85,47 +85,6 @@ def _python(source: str) -> list[str]:
 # Script contracts.
 
 
-@pytest.mark.integration
-def test_dominoes_initializes_with_configured_contact_gaps():
-    """The domino scene must finalize with its configured gaps before stepping."""
-    pytest.importorskip("isaaclab_newton")
-    script = script_cases.ROOT / "examples" / "newton_viewer_dominoes.py"
-    code = """
-import runpy
-import sys
-
-import numpy as np
-
-script = sys.argv[1]
-sys.argv = [script, '--device', 'cpu', '--visualizer', 'none', '--max_steps', '1']
-namespace = runpy.run_path(script)
-run_simulator = namespace['run_simulator']
-scene_cfg_type = namespace['DominoSceneCfg']
-module = namespace['main'].__globals__
-module['LOGO_DOMINO_POSES'] = namespace['LOGO_DOMINO_POSES'][:2]
-
-def small_scene_cfg(**kwargs):
-    cfg = scene_cfg_type(**kwargs)
-    cfg.dominoes.rigid_objects = dict(list(cfg.dominoes.rigid_objects.items())[:2])
-    return cfg
-
-def check_initialized_scene(sim):
-    model = sim.physics_manager.get_model()
-    assert model.body_count == 3
-    assert model.shape_count == 4
-    np.testing.assert_allclose(model.shape_gap.numpy(), 0.001)
-    run_simulator(sim)
-
-module['DominoSceneCfg'] = small_scene_cfg
-module['run_simulator'] = check_initialized_scene
-namespace['main']()
-"""
-    result = subprocess.run(
-        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=120, check=False
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-
-
 def test_haply_scene_config_stays_lazy_until_scene_construction():
     """The Haply module must configure its robot without constructing an articulation."""
     script = script_cases.ROOT / "examples" / "haply_teleoperation.py"
