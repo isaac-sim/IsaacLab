@@ -169,12 +169,10 @@ class Imu(BaseImu):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native Newton sensor and re-registers site/attributes.
+        """Clears references to the native Newton sensor and requests the ``body_qdd`` attribute again.
 
-        Re-registering here ensures the site and ``body_qdd`` attribute survive a
-        non-teardown stop/reinit cycle. During ``NewtonManager.close()``, Newton
-        state is cleared after ``STOP`` so stale registrations from old sensors
-        cannot leak into the next context.
+        The site is not registered again: a hard reset keeps the builder that holds it, so the
+        label from :meth:`__init__` stays valid.
         """
         super()._invalidate_initialize_callback(event)
         self._newton_sensor = None
@@ -186,7 +184,4 @@ class Imu(BaseImu):
         if self._data._lin_acc_b is not None:
             self._data._lin_acc_b.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = NewtonManager.cl_register_site(self.cfg.prim_path, offset_xform)
         NewtonManager.request_extended_state_attribute("body_qdd")

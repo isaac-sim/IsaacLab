@@ -627,6 +627,9 @@ class NewtonManager(PhysicsManager):
             NewtonManager._eval_fk = _eval_fk_unbound
             NewtonManager._reset_solver_internals_delegate = _reset_solver_internals_unbound
             NewtonManager._adapter = None
+            # IMU and frame transform sensors add native sensors for the new model on PHYSICS_READY.
+            NewtonManager._newton_imu_sensors.clear()
+            NewtonManager._newton_frame_transform_sensors.clear()
             if NewtonManager.backend is not None:
                 SimulationContext.instance().close_backend(NewtonManager.backend)
                 NewtonManager.backend = None

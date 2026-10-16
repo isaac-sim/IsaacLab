@@ -6,11 +6,21 @@
 """Unit tests for site injection, validation, and sensor index building."""
 
 import pytest
+import torch
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 from newton import ModelBuilder
 
+import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sensors import FrameTransformerCfg, ImuCfg, PvaCfg, RayCasterCfg
+from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
+from isaaclab.sim import SimulationCfg
+from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.warp.math_ops import transform_to_vec_quat
 
 # ---------------------------------------------------------------------------
@@ -57,6 +67,87 @@ def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, repli
     NewtonManager.cl_register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):
         NewtonManager._cl_inject_sites(main, sources)
+
+
+# ---------------------------------------------------------------------------
+# Hard resets
+# ---------------------------------------------------------------------------
+
+
+def _cube_cfg(name: str, x: float) -> RigidObjectCfg:
+    return RigidObjectCfg(
+        prim_path=f"{{ENV_REGEX_NS}}/{name}",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(x, 0.0, 1.0)),
+    )
+
+
+@configclass
+class SiteSensorSceneCfg(InteractiveSceneCfg):
+    """Two falling cubes; the ray caster registers its site before the IMU, PVA and frame transformer.
+
+    The frame transformer tracks a wildcard target that matches both cubes, then a single named target.
+    """
+
+    env_spacing = 4.0
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    cube_a = _cube_cfg("CubeA", -0.5)
+    cube_b = _cube_cfg("CubeB", 0.5)
+    ray_caster = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/CubeA",
+        mesh_prim_paths=["/World/ground"],
+        pattern_cfg=GridPatternCfg(resolution=1.0, size=(0.0, 0.0)),
+    )
+    imu = ImuCfg(prim_path="{ENV_REGEX_NS}/CubeB")
+    pva = PvaCfg(prim_path="{ENV_REGEX_NS}/CubeB")
+    frame_transformer = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/CubeB",
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Cube.*"),
+            FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/CubeA", name="cube_a"),
+        ],
+    )
+
+
+@pytest.mark.parametrize("num_envs", [1, 2], ids=["one_env", "two_envs"])
+def test_hard_resets_keep_sensor_sites(num_envs):
+    """Site sensors stay on their bodies through hard resets, which leave one native IMU and frame transform sensor.
+
+    Sensors registered their sites again on ``STOP`` and the kept builder received them a second time: the second
+    ``sim.reset()`` of two environments failed, and in one environment the ray caster, which registers its site
+    once, followed the IMU's cube. When the frame transformer initialized again, its single target also took the
+    name of the wildcard target's second match.
+    """
+    sim_cfg = SimulationCfg(dt=0.005, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()))
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(SiteSensorSceneCfg(num_envs=num_envs))
+        spin = torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 2.0]] * num_envs, device=sim.device)
+        first_pass = None
+        for _ in range(3):
+            sim.reset()
+            scene["cube_b"].write_root_velocity_to_sim_index(root_velocity=spin)
+            for _ in range(2):
+                sim.step(render=False)
+                scene.update(sim.get_physics_dt())
+
+            assert scene["frame_transformer"].data.target_frame_names == ["CubeA", "CubeB", "cube_a"]
+            ray_pos_w = scene["ray_caster"].data.pos_w.torch
+            torch.testing.assert_close(ray_pos_w, scene["cube_a"].data.root_link_pos_w.torch)
+            readings = {
+                "imu_ang_vel_b": scene["imu"].data.ang_vel_b.torch.clone(),
+                "pva_pos_w": scene["pva"].data.pos_w.torch.clone(),
+                "target_pos_source": scene["frame_transformer"].data.target_pos_source.torch.clone(),
+            }
+            if first_pass is None:
+                first_pass = readings
+            for name, reading in readings.items():
+                torch.testing.assert_close(reading, first_pass[name], msg=lambda message: f"{name}: {message}")
+            assert len(NewtonManager._newton_imu_sensors) == len(NewtonManager._newton_frame_transform_sensors) == 1
 
 
 # ---------------------------------------------------------------------------
