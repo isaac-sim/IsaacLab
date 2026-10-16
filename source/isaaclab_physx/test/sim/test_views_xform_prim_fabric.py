@@ -423,27 +423,39 @@ def test_initial_seed_with_scaled_parent(device):
 # World translations of the four environment prims and of the camera inside each of them, in meters.
 ENV_ORIGINS = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0), (2.0, 2.0, 0.0))
 CAMERA_OFFSET = (0.5, -0.5, 1.0)
+# Every environment prim is rotated 90 degrees about X (quaternion x, y, z, w) and scaled by 2 along X.
+ENV_ORIENTATION = (0.7071068, 0.0, 0.0, 0.7071068)
+ENV_SCALE = (2.0, 1.0, 1.0)
+# CAMERA_OFFSET scaled by ENV_SCALE is (1.0, -0.5, 1.0). The rotation maps (x, y, z) to (x, -z, y).
+CAMERA_OFFSET_IN_WORLD = (1.0, -1.0, -0.5)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_hierarchy_update_keeps_seeded_world_poses(device):
+def test_hierarchy_update_keeps_seeded_world_poses(device, request):
     """Verify that the Fabric Hierarchy update in ``sim.forward()`` keeps the world poses the view seeds.
 
-    The update recomposes the world matrix of every prim read since the previous update from the
-    local matrices, so the seed must author the parents' local matrices as well as their world matrices.
-    A partial environment reset reads a subset of the cameras before ``sim.forward()``.
+    The update recomposes the world matrices from the local matrices. The seed must therefore author the
+    parents' local matrices as well as their world matrices, in the matrix order Fabric Hierarchy uses.
     """
     _skip_if_unavailable(device)
     stage = sim_utils.get_current_stage()
     for i, origin in enumerate(ENV_ORIGINS):
-        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=origin, stage=stage)
+        sim_utils.create_prim(
+            f"/World/envs/env_{i}",
+            "Xform",
+            translation=origin,
+            orientation=ENV_ORIENTATION,
+            scale=ENV_SCALE,
+            stage=stage,
+        )
         sim_utils.create_prim(f"/World/envs/env_{i}/Camera", "Camera", translation=CAMERA_OFFSET, stage=stage)
     sim = sim_utils.SimulationContext(
         sim_utils.SimulationCfg(dt=0.01, device=device, physics=PhysxCfg(), use_fabric=True)
     )
     sim.reset()
     view = FrameView("/World/envs/env_[^/]*/Camera", device=device)
-    expected = torch.tensor(ENV_ORIGINS, device=device) + torch.tensor(CAMERA_OFFSET, device=device)
+    request.addfinalizer(view.close)
+    expected = torch.tensor(ENV_ORIGINS, device=device) + torch.tensor(CAMERA_OFFSET_IN_WORLD, device=device)
 
     view.get_world_poses()
     sim.forward()
@@ -451,7 +463,6 @@ def test_hierarchy_update_keeps_seeded_world_poses(device):
     sim.forward()
     world_pos, _ = view.get_world_poses()
     torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected, atol=1e-5, rtol=0)
-    view.close()
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -484,7 +495,7 @@ def test_partial_env_reset_keeps_camera_world_pose(device):
         torch.testing.assert_close(camera.data.pos_w.torch, expected, atol=1e-4, rtol=0)
     finally:
         env.close()
-        # ``env.close()`` closes the stage; the autouse fixture tears down the current one.
+        # ``env.close()`` closes the stage, so the autouse fixture needs a new one to tear down.
         sim_utils.create_new_stage()
 
 

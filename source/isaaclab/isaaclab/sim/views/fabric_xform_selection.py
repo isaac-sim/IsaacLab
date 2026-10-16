@@ -22,21 +22,6 @@ from ...utils.warp import fabric as fabric_utils
 logger = logging.getLogger(__name__)
 
 
-def _ancestors(prim: Usd.Prim):
-    """Yield the ancestors of ``prim`` from its parent up to, not including, the pseudo-root."""
-    parent = prim.GetParent()
-    while parent and not parent.IsPseudoRoot():
-        yield parent
-        parent = parent.GetParent()
-
-
-def _usdrt_matrix(matrix: Gf.Matrix4d):
-    """Copy a pxr matrix into its usdrt counterpart."""
-    import usdrt
-
-    return usdrt.Gf.Matrix4d(*(matrix[r][c] for r in range(4) for c in range(4)))
-
-
 def _parent_path(prim_path: str) -> str:
     """Parent prim path of ``prim_path``; the pseudoroot carries no Fabric matrices, so it cannot be one."""
     parent = prim_path.rsplit("/", 1)[0]
@@ -93,7 +78,7 @@ class FabricXformSelection:
         except ImportError:
             hierarchy = None
 
-        from ..utils import get_current_stage, get_current_stage_id
+        from ..utils import get_current_stage, get_current_stage_id, get_first_matching_ancestor_prim
 
         self._device = device
         self._owner = owner
@@ -128,7 +113,8 @@ class FabricXformSelection:
 
         # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
-        # Parents first: a child's local matrix is relative to its nearest ancestor with Fabric matrices.
+        # Parents first: a child's local matrix is relative to its nearest ancestor that carries
+        # ``omni:fabric:localMatrix``, which this pass authors on the direct parent when seeding from USD.
         usd_stage = get_current_stage()
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         for paths, index_attr, is_child in (
@@ -143,12 +129,19 @@ class FabricXformSelection:
                 seed_world = seed_from_usd or not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME)
                 seed_local = seed_from_usd or (is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME))
                 if seed_world or seed_local:
-                    world, local = self._matrices_from_usd(usd_stage.GetPrimAtPath(path), xform_cache)
+                    usd_prim = usd_stage.GetPrimAtPath(path)
+                    if not usd_prim.IsValid():
+                        raise RuntimeError(f"{owner}: prim '{path}' is in the Fabric stage but not in USD.")
                     rt_xformable = Rt.Xformable(rt_prim)
                     if seed_world:
-                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(_usdrt_matrix(world))
+                        world = xform_cache.GetLocalToWorldTransform(usd_prim)
+                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(usdrt.Gf.Matrix4d(world))
                     if seed_local:
-                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(_usdrt_matrix(local))
+                        anchor = get_first_matching_ancestor_prim(
+                            usd_prim.GetParent().GetPath(), self._has_fabric_local_matrix, usd_stage
+                        )
+                        local = self._local_matrix_from_usd(usd_prim, anchor, xform_cache)
+                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(usdrt.Gf.Matrix4d(local))
                 rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
                 rt_prim.GetAttribute(index_attr).Set(i)
                 group_prims.append(rt_prim)
@@ -179,18 +172,19 @@ class FabricXformSelection:
         self._parent_slots_buf = wp.empty((len(self.unique_parent_paths),), dtype=wp.int32, device=device)
         self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
 
-    def _matrices_from_usd(
-        self, usd_prim: Usd.Prim, xform_cache: UsdGeom.XformCache
-    ) -> tuple[Gf.Matrix4d, Gf.Matrix4d]:
-        """Return the prim's ``(world, local)`` Fabric Hierarchy matrices composed from USD.
+    @staticmethod
+    def _local_matrix_from_usd(
+        usd_prim: Usd.Prim, anchor: Usd.Prim | None, xform_cache: UsdGeom.XformCache
+    ) -> Gf.Matrix4d:
+        """Return the ``omni:fabric:localMatrix`` of ``usd_prim`` relative to ``anchor``, composed from USD.
 
-        Fabric Hierarchy composes ``worldMatrix = localMatrix * worldMatrix(ancestor)`` with the nearest
-        ancestor that carries ``omni:fabric:localMatrix``. Without such an ancestor, local equals world.
+        Fabric Hierarchy composes ``worldMatrix = localMatrix * worldMatrix(anchor)``. The anchor is the
+        nearest ancestor that carries ``omni:fabric:localMatrix``. Without one, local equals world.
         """
-        world = xform_cache.GetLocalToWorldTransform(usd_prim)
-        anchor = next((prim for prim in _ancestors(usd_prim) if self._has_fabric_local_matrix(prim)), None)
-        local = world if anchor is None else world * xform_cache.GetLocalToWorldTransform(anchor).GetInverse()
-        return world, local
+        if anchor is None:
+            return xform_cache.GetLocalToWorldTransform(usd_prim)
+        local, _ = xform_cache.ComputeRelativeTransform(usd_prim, anchor)
+        return local
 
     def _has_fabric_local_matrix(self, usd_prim: Usd.Prim) -> bool:
         rt_prim = self.stage.GetPrimAtPath(usd_prim.GetPath().pathString)
