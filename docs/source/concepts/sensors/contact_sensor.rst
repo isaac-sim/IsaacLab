@@ -73,8 +73,8 @@ Add the configuration to an :class:`~isaaclab.scene.InteractiveSceneCfg`:
 ``update_period=0.0`` samples every physics step. ``history_length`` stores earlier force samples.
 Enable optional buffers only when they are needed. Their backend support differs:
 
-* Isaac Sim PhysX 6.2 or later supports pose, filtered contact-point, and aggregate or filtered
-  friction-force tracking. Isaac Sim PhysX 6.1 supports only filtered friction-force tracking.
+* Isaac Sim PhysX supports pose, filtered contact-point, and filtered friction-force tracking.
+  Aggregate friction-force tracking requires Isaac Sim PhysX 6.2 or later.
 * OvPhysX supports filtered contact-point and aggregate or filtered friction-force tracking.
   Pose tracking is supported for a single sensor body per environment.
 * Newton supports filtered contact-point and aggregate or filtered friction-force tracking, but not
