@@ -18,9 +18,9 @@ def position_backlash_kernel(
     backlash_pos_indices: wp.array[wp.uint32],
     out_pos: wp.array[float],
 ):
-    """Read the servo angle plus its play-hinge angle."""
+    """Read the servo angle plus its play-hinge angle, at the servo's index."""
     i = wp.tid()
-    out_pos[i] = positions[pos_indices[i]] + sim_positions[backlash_pos_indices[i]]
+    out_pos[pos_indices[i]] = positions[pos_indices[i]] + sim_positions[backlash_pos_indices[i]]
 
 
 @wp.kernel

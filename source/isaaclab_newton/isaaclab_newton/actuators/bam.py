@@ -57,22 +57,30 @@ class InputProcessorPositionBacklash(InputProcessorBacklash):
 
     as the BAM reference does: the encoder sits on the output, while back-EMF and the current limiter follow
     the rotor.
+
+    The sums are written into an array shaped like the incoming positions, at the actuated indices, so the drive
+    keeps indexing ``joint_qd``-shaped custom inputs, such as the supply voltage, with the original indices.
     """
 
     def finalize(self, device: wp.Device, num_actuators: int, requires_grad: bool = False) -> None:
         super().finalize(device, num_actuators, requires_grad)
-        self._positions = wp.zeros(num_actuators, dtype=wp.float32, device=device, requires_grad=requires_grad)
-        self._slots = wp.array(np.arange(num_actuators, dtype=np.uint32), device=device)
+        self._requires_grad = requires_grad
+        self._positions: wp.array | None = None
 
     def process(self, inputs: InputProcessorBase.Inputs, state: None, dt: float | None) -> InputProcessorBase.Inputs:
+        device = self.backlash_joint_pos_indices.device
+        if self._positions is None or self._positions.shape != inputs.positions.shape:
+            self._positions = wp.zeros(
+                inputs.positions.shape, dtype=wp.float32, device=device, requires_grad=self._requires_grad
+            )
         wp.launch(
             kernel=position_backlash_kernel,
-            dim=len(self._slots),
+            dim=len(self.backlash_joint_pos_indices),
             inputs=[inputs.positions, inputs.pos_indices, inputs.sim_positions, self.backlash_joint_pos_indices],
             outputs=[self._positions],
-            device=self._slots.device,
+            device=device,
         )
-        return replace(inputs, positions=self._positions, pos_indices=self._slots)
+        return replace(inputs, positions=self._positions)
 
 
 register_actuator_component(BAM_POSITION_BACKLASH_API, InputProcessorPositionBacklash, ComponentKind.INPUT_PROCESSOR)
