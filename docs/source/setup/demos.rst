@@ -24,6 +24,7 @@ their simulation initializes. Pass ``--info`` to keep startup messages visible.
 Unlike ``train`` and ``play``, demos and examples usually open a visualizer by default, since they
 are meant to be watched. Demos mostly default to Newton GL (``newton_gl``), with Kit for some such as
 ``pick-and-place``. The ``h1-locomotion`` demo defaults to Kit with PhysX and Newton GL with Newton.
+SONIC with Newton defaults to offscreen Kit/RTX recording without opening a window.
 Examples default to Kit or Newton GL depending on the program, and a few, such as ``ppisp-camera``
 and ``tacsl-sensor``, run without a visualizer. Pass ``--viz`` to pick a different one.
 
@@ -85,17 +86,20 @@ Command Builder
        </aside>
        <aside class="admonition note demo-command-note" data-demo-note="sonic" hidden>
          <p class="admonition-title">SONIC setup</p>
+         <p data-demo-note-visualizers="default" hidden><strong>This command runs the demo offscreen with Kit/RTX,
+           without opening a simulation window, and saves the video to <code>logs/sonic/sonic_0000.mp4</code>.</strong>
+           The MPM simulation can take substantially longer than the video duration; progress appears in the terminal.</p>
          <p>SONIC requires an NVIDIA GPU. The generated <code>uvx</code> command installs the model dependencies;
            the planner and tracker are downloaded from
            <a href="https://huggingface.co/nvidia/GEAR-SONIC">nvidia/GEAR-SONIC</a> at a pinned revision,
            and the robot USD comes from the public Isaac asset server.</p>
-         <p>From a source checkout, install the model dependencies once, then use <code>uv run isaaclab</code>
-           with the selected arguments:</p>
-         <pre><code>uv sync
+         <p>From a source checkout, install the dependencies below, then use
+           <code>uv run --extra isaacsim --extra video isaaclab</code> with the selected arguments:</p>
+         <pre><code>uv sync --extra isaacsim --extra video
    uv pip install "huggingface-hub&gt;=0.34" "onnxruntime-gpu&gt;=1.22"</code></pre>
-         <p>Recording is opt-in. Select <strong>Record video</strong> to add the <code>video</code> dependency and
-           <code>--video</code>. Recording uses the selected capture-capable visualizer or adds a compatible
-           headless capture visualizer without changing the interactive selection.</p>
+         <p>Newton records automatically when <code>--viz</code> is omitted. With an explicit visualizer or PhysX,
+           select <strong>Record video</strong> to add the <code>video</code> dependency and <code>--video</code>.
+           Pass <code>--output</code> to change the output directory.</p>
          <p>Pass <code>--seconds</code> to change the simulation duration or
            <code>env.sim.device=cuda:1</code> to select another CUDA device.</p>
        </aside>
@@ -147,9 +151,11 @@ Command Builder
                data-demo-name="SONIC" data-demo-id="sonic"
                data-demo-physics="newton_mjwarp,isaacsim_physx"
                data-demo-visualizers="kit"
+               data-demo-visualizers-newton-mjwarp="default,kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-default-recording="newton_mjwarp"
                data-demo-with="huggingface-hub&gt;=0.34,onnxruntime-gpu&gt;=1.22"
                data-demo-options="video"
-               data-demo-description="Run G1 over deformable gravel and sand with released SONIC policies, with optional video recording.">
+               data-demo-description="Run G1 over deformable gravel and sand with released SONIC policies. Newton records offscreen by default.">
          <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
          <span>SONIC</span>
        </button>

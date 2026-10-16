@@ -34,10 +34,14 @@
         let selectedCard = cards[0];
 
         const selectedProgramId = () => selectedCard.dataset.demoId || selectedCard.dataset.exampleId;
+        const defaultRecording = () => selectedCard.dataset.demoDefaultRecording === fields.physics.value
+            && fields.visualizer.value === "default";
 
         const populateSelect = (select, values, preferredValues) => {
             const previousValue = select.value;
-            select.replaceChildren(...values.map((value) => new Option(value, value)));
+            select.replaceChildren(...values.map((value) => new Option(
+                value === "default" ? "Default" : value, value
+            )));
             select.value = [previousValue, ...preferredValues].find((value) => values.includes(value)) || values[0];
             select.disabled = values.length === 1;
         };
@@ -53,8 +57,8 @@
         const currentCommand = () => {
             const requiredExtras = new Set(splitValues(selectedCard.dataset.demoExtras));
             const options = splitValues(selectedCard.dataset.demoOptions);
-            const recordVideo = options.includes("video") && videoToggle.checked;
-            if (fields.physics.value === "isaacsim_physx" || fields.visualizer.value === "kit") {
+            const recordVideo = defaultRecording() || (options.includes("video") && videoToggle.checked);
+            if (fields.physics.value === "isaacsim_physx" || fields.visualizer.value === "kit" || defaultRecording()) {
                 requiredExtras.add("isaacsim");
             }
             if (fields.physics.value === "ovphysx") {
@@ -85,8 +89,10 @@
             if (selectedCard.dataset.demoFixedPhysics !== "true") {
                 parts.push("--physics", fields.physics.value);
             }
-            parts.push("--viz", fields.visualizer.value);
-            if (recordVideo) {
+            if (fields.visualizer.value !== "default") {
+                parts.push("--viz", fields.visualizer.value);
+            }
+            if (recordVideo && !defaultRecording()) {
                 parts.push("--video");
             }
             parts.push(...(selectedCard.dataset.demoArgs || "").split(" ").filter(Boolean));
@@ -97,9 +103,11 @@
             const supportsVideo = splitValues(selectedCard.dataset.demoOptions).includes("video");
             optionPanel.hidden = !supportsVideo;
             videoOption.hidden = !supportsVideo;
-            if (!supportsVideo) {
+            if (!supportsVideo || videoToggle.disabled) {
                 videoToggle.checked = false;
             }
+            videoToggle.disabled = defaultRecording();
+            videoToggle.checked ||= defaultRecording();
             commandOutput.textContent = currentCommand();
             for (const note of notes) {
                 const visualizers = splitValues(note.dataset.demoNoteVisualizers);
@@ -112,8 +120,11 @@
 
         const updateVisualizer = () => {
             const preferredVisualizers = fields.physics.value.startsWith("newton")
-                ? ["newton_gl", "kit"]
+                ? ["default", "newton_gl", "kit"]
                 : ["kit"];
+            if (selectedCard.dataset.demoDefaultRecording === fields.physics.value) {
+                fields.visualizer.value = "";
+            }
             populateSelect(fields.visualizer, compatibleVisualizers(), preferredVisualizers);
             updateCommand();
         };
