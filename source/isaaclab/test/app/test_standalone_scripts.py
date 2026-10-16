@@ -19,18 +19,22 @@ run the corresponding backend-runtime group.
 launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 """
 
+import argparse
 import ast
 import os
 import re
 import runpy
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 from standalone_script_cases import (
     OVERRIDES,
     SmokeResult,
@@ -83,6 +87,30 @@ def _python(source: str) -> list[str]:
 
 
 # Script contracts.
+
+
+def test_haply_scene_config_stays_lazy_until_scene_construction():
+    """The Haply module must configure its robot without constructing an articulation."""
+    script = script_cases.ROOT / "examples" / "haply_teleoperation.py"
+    code = """
+import runpy
+import sys
+
+from isaaclab.assets import ArticulationCfg
+
+script = sys.argv[1]
+sys.argv = [script, '--physics', 'newton_mjwarp', '--visualizer', 'none']
+namespace = runpy.run_path(script)
+scene_cfg = namespace['FrankaHaplySceneCfg'](num_envs=1, env_spacing=2.0)
+assert isinstance(scene_cfg.robot, ArticulationCfg)
+assert scene_cfg.robot.init_state.pos == (-0.02, 0.0, 1.05)
+assert scene_cfg.robot.spawn.activate_contact_sensors is True
+assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.parametrize(
@@ -206,6 +234,141 @@ def test_every_packaged_script_is_registered_for_cli_launch():
     """Every executable script in the root examples tree must have one CLI entry."""
     packaged_specs = [spec for spec in SPECS if spec.path.is_relative_to(script_cases.EXAMPLE_ROOT)]
     assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides"),
+    [
+        ((), NewtonCfg(), ["newton_gl"], ["presets=platforms"]),
+        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        (("--viz", "none"), NewtonCfg(), [], ["presets=platforms"]),
+    ],
+    ids=("newton-default", "physx-default", "explicit-none"),
+)
+def test_g1_terrain_forwards_visualizer_selection(
+    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides
+):
+    """The G1 example must choose its backend default without overriding explicit visualizer intent."""
+    script = script_cases.ROOT / "examples" / "g1_terrain.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics_cfg, dt=0.005),
+        policy=SimpleNamespace(checkpoint="checkpoint.pt"),
+        duration=1.0,
+        decimation=4,
+        camera_eye=(4.0, -4.0, 3.0),
+        camera_target=(0.0, 0.0, 0.0),
+        camera_vfov=45.0,
+    )
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return cfg, None
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = (
+            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
+        )
+        raise LaunchReached
+        yield
+
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), "--task", "platforms", *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    assert captured == {"overrides": expected_overrides, "visualizers": expected_visualizers}
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    [
+        ((), NewtonCfg(), [], ["presets=granular"], "viz:kit"),
+        (("--viz", "newton_gl"), NewtonCfg(), ["newton_gl"], ["presets=granular"], None),
+        (("--viz", "none"), NewtonCfg(), [], ["presets=granular"], None),
+        (("--viz", "rerun", "--video"), NewtonCfg(), ["rerun"], ["presets=granular"], "viz"),
+        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
+        (
+            ("--physics", "isaacsim_physx", "--video"),
+            PhysxCfg(),
+            ["kit"],
+            ["presets=granular", "physics=isaacsim_physx"],
+            "viz:kit",
+        ),
+    ],
+    ids=(
+        "newton-default",
+        "explicit-gl",
+        "explicit-none",
+        "streaming-viz-video",
+        "physx-default",
+        "physx-default-video",
+    ),
+)
+def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
+    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides, expected_video_source
+):
+    """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
+    script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics_cfg, dt=0.005, visualizer_cfgs=[]),
+        video_recorders=[],
+        policy_repo="nvidia/GEAR-SONIC",
+        policy_revision="revision",
+        duration=1.0,
+        decimation=4,
+        camera_eye=(4.0, -4.0, 3.0),
+        camera_target=(0.0, 0.0, 0.0),
+        camera_vfov=45.0,
+    )
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return cfg, None
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = (
+            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
+        )
+        captured["launch_physics"] = getattr(launcher_args, "physics", None)
+        captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
+        raise LaunchReached
+        yield
+
+    huggingface_hub = ModuleType("huggingface_hub")
+    huggingface_hub.snapshot_download = lambda **_kwargs: "models"
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_hub)
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    expected_video_sources = [] if expected_video_source is None else [expected_video_source]
+    assert captured == {
+        "overrides": expected_overrides,
+        "visualizers": expected_visualizers,
+        "launch_physics": None,
+        "video_sources": expected_video_sources,
+    }
 
 
 def test_demo_browser_documents_options_for_each_program():

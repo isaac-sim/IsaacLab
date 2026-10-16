@@ -97,11 +97,13 @@ Command Builder
            <code>uv run --extra isaacsim --extra video isaaclab</code> with the selected arguments:</p>
          <pre><code>uv sync --extra isaacsim --extra video
    uv pip install "huggingface-hub&gt;=0.34" "onnxruntime-gpu&gt;=1.22"</code></pre>
+         <p>If you run <code>uv sync</code> again, repeat the <code>uv pip install</code> command before launching SONIC.</p>
          <p>Newton records automatically when <code>--viz</code> is omitted. With an explicit visualizer or PhysX,
            select <strong>Record video</strong> to add the <code>video</code> dependency and <code>--video</code>.
            Pass <code>--output</code> to change the output directory.</p>
          <p>Pass <code>--seconds</code> to change the simulation duration or
-           <code>env.sim.device=cuda:1</code> to select another CUDA device.</p>
+           <code>env.sim.device=cuda:1</code> to select another CUDA device. PhysX keeps state buffers on the CPU
+           for USD readback while particle simulation uses the selected GPU.</p>
        </aside>
        <aside class="admonition note demo-command-note" data-demo-note="tablecloth" hidden>
          <p class="admonition-title">Tablecloth trick</p>
@@ -150,7 +152,8 @@ Command Builder
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="SONIC" data-demo-id="sonic"
                data-demo-physics="newton_mjwarp,isaacsim_physx"
-               data-demo-visualizers="kit"
+               data-demo-visualizers="newton_gl,kit,newton_rtx,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
                data-demo-visualizers-newton-mjwarp="default,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-default-recording="newton_mjwarp"
                data-demo-with="huggingface-hub&gt;=0.34,onnxruntime-gpu&gt;=1.22"
