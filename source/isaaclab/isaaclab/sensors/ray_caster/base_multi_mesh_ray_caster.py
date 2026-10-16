@@ -207,7 +207,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
-        if plan is not None and target_cfg.track_mesh_transforms:
+        if plan is not None:
             sources = cloner.path.get_asset_prototype_paths(plan)
             templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
                 plan, include_world_indices=True
@@ -240,6 +240,24 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 )
                 if not source_prims:
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
+                if not target_cfg.track_mesh_transforms:
+                    # A static record holds its clone's pose. Kitless backends author only the source on the stage,
+                    # so a missing clone is placed as the clone backends place it: shifted by the environment origins.
+                    origins = np.zeros((self._num_envs, 3)) if plan.positions is None else plan.positions
+                    source_env = cloner.path.match(source_root, plan.env_template)
+                    source_origin = origins[int(source_env.instance)] if source_env is not None else 0.0
+                    for env_id in env_ids:
+                        destination_root = destination_template.format(env_id)
+                        for source_prim in source_prims:
+                            path = cloner.path.rebase(str(source_prim.GetPath()), source_root, destination_root)
+                            prim, offset = source_prim.GetStage().GetPrimAtPath(path), 0.0
+                            if not prim.IsValid():
+                                prim, offset = source_prim, origins[env_id] - source_origin
+                            mesh_id = self._load_target_prim_warp_mesh(prim, target_cfg)
+                            dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
+                            pos, quat = sim_utils.resolve_prim_pose(prim)
+                            records_per_env[env_id].append((mesh_id, tuple(np.add(pos, offset)), quat))
+                    continue
 
                 mesh_ids: list[int] = []
                 row_tracked_target_exprs: list[str] = []
@@ -285,7 +303,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         records_per_env[env_id].append((mesh_id, (1.0e9, 1.0e9, 1.0e9), (0.0, 0.0, 0.0, 1.0)))
 
             if target_in_plan:
-                if not plan_tracked_target_exprs:
+                if target_cfg.track_mesh_transforms and not plan_tracked_target_exprs:
                     raise RuntimeError(
                         f"No tracked body expressions were resolved for target '{target_cfg.prim_expr}'."
                     )
