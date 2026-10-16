@@ -19,8 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 
 from isaaclab_physx.physics import PhysxManager
-
-from .kernels import copy_view_rows_to_mesh_table_kernel
+from isaaclab_physx.sensors.kernels import copy_view_rows_to_mesh_table_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
@@ -130,8 +129,11 @@ class _PhysXRayCasterMixin:
         """Build the mesh table and map its tracked entries to the rows of their rigid-body views."""
         super()._initialize_warp_meshes()
         # only multi-mesh ray casters have mesh views
-        views = zip(getattr(self, "_mesh_views", []), getattr(self, "_mesh_body_paths", []))
-        self._mesh_view_rows = [None if view is None else self._map_view_rows(view, paths) for view, paths in views]
+        if hasattr(self, "_mesh_views"):
+            self._mesh_view_rows = [
+                None if view is None else self._map_view_rows(view, paths)
+                for view, paths in zip(self._mesh_views, self._mesh_body_paths)
+            ]
 
     def _map_view_rows(self: Any, view, body_paths_per_env: list[list[str]]) -> wp.array:
         """Return the view row of each mesh-table entry of a tracked target, matched by the entry's body path.
@@ -164,7 +166,7 @@ class _PhysXRayCasterMixin:
 
     def _update_mesh_transforms(self: Any) -> None:
         """Refresh dynamic multi-mesh targets directly from PhysX views."""
-        if not hasattr(self, "_mesh_view_rows"):
+        if not hasattr(self, "_mesh_views"):
             return
         mesh_idx = 0
         for view, view_rows, target_cfg in zip(self._mesh_views, self._mesh_view_rows, self._raycast_targets_cfg):
