@@ -18,6 +18,7 @@ from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
 from isaaclab.sim import BackendCfg, SimulationContext
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import replace
 
 
@@ -122,13 +123,21 @@ def test_vbd_solver_force_input_capability(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "overrides", [{}, {"rigid_compliant_alm": False, "friction_epsilon": 1.0e-3}], ids=["defaults", "legacy"]
+    "overrides",
+    [
+        {},
+        {"rigid_compliant_alm": False, "friction_epsilon": 1.0e-3},
+        {"rigid_contact_history": True, "rigid_avbd_contact_alpha": 0.25},
+    ],
+    ids=["defaults", "legacy", "contact-history"],
 )
 def test_vbd_rigid_solver_controls(overrides):
     """VBD configuration preserves native defaults and forwards explicit controls."""
     physics = importlib.import_module("isaaclab_newton.physics")
     kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides))
     assert kwargs["rigid_body_contact_buffer_size"] == 64
+    assert kwargs["rigid_contact_history"] is overrides.get("rigid_contact_history", False)
+    assert kwargs["rigid_avbd_contact_alpha"] == overrides.get("rigid_avbd_contact_alpha")
     model = ModelBuilder().finalize(device="cpu")
     native_solver = SolverVBD(model, **overrides)
     configured_solver = physics.NewtonVBDManager._create_solver(model, physics.VBDSolverCfg(**overrides))
@@ -139,6 +148,70 @@ def test_vbd_rigid_solver_controls(overrides):
         "friction_epsilon",
     ):
         assert getattr(configured_solver, name) == getattr(native_solver, name)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_vbd_contact_history_initializes_matches_and_resets(monkeypatch, device):
+    """VBD allocates history before graph capture and clears collision matches on reset."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    builder.add_ground_plane()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.09)))
+    builder.add_shape_sphere(body=body, radius=0.1)
+    builder.color()
+    model = builder.finalize(device=device)
+    state_0, state_1 = model.state(), model.state()
+
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state_0))
+    monkeypatch.setattr(NewtonManager, "_solver", None)
+    monkeypatch.setattr(NewtonManager, "_collision_pipeline", None)
+    monkeypatch.setattr(NewtonManager, "_contacts", None)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(NewtonManager, "_use_single_state", False)
+    monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", False)
+    monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.NOT_GUARANTEED)
+    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_contact_history=True)
+
+    collision_cfg = physics.NewtonCollisionPipelineCfg(broad_phase="nxn")
+    monkeypatch.setattr(NewtonManager, "_collision_cfg", collision_cfg)
+    with pytest.raises(ValueError, match="contact_matching"):
+        physics.NewtonVBDManager._build_solver(model, solver_cfg)
+
+    collision_cfg.contact_matching = "latest"
+    physics.NewtonVBDManager._build_solver(model, solver_cfg)
+    physics.NewtonVBDManager._initialize_contacts()
+    solver = NewtonManager._solver
+    pipeline = NewtonManager._collision_pipeline
+    contacts = NewtonManager._contacts
+
+    for _ in range(2):
+        contacts.clear()
+        pipeline.collide(state_0, contacts)
+    count = int(contacts.rigid_contact_count.numpy()[0])
+    assert count > 0
+    assert (contacts.rigid_contact_match_index.numpy()[:count] >= 0).any()
+    initial_height = state_0.body_q.numpy()[body, 2]
+    control = model.control()
+    with wp.ScopedCapture(device=device) as capture:
+        solver.step(state_0, state_1, control, contacts, 1.0 / 240.0)
+    wp.capture_launch(capture.graph)
+    assert state_1.body_q.numpy()[body, 2] > initial_height
+
+    monkeypatch.setattr(
+        NewtonManager, "_world_reset_mask", wp.ones(model.world_count + 1, dtype=wp.bool, device=device)
+    )
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", None)
+    monkeypatch.setattr(NewtonManager, "kinematics_dirty", True)
+    monkeypatch.setattr(NewtonManager, "transforms_may_change_on_graph_replay", False)
+    monkeypatch.setattr(NewtonManager, "_eval_fk", physics.NewtonVBDManager._eval_fk_impl)
+    monkeypatch.setattr(
+        NewtonManager, "_reset_solver_internals_delegate", physics.NewtonVBDManager._reset_solver_internals
+    )
+    NewtonManager.forward()
+    contacts.clear()
+    pipeline.collide(state_0, contacts)
+    assert int(contacts.rigid_contact_count.numpy()[0]) == count
+    assert (contacts.rigid_contact_match_index.numpy()[:count] < 0).all()
 
 
 def test_vbd_compliant_alm_cable_stiffness():
