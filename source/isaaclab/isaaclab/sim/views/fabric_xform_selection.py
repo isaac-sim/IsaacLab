@@ -76,7 +76,9 @@ class FabricXformSelection:
         except ImportError:
             hierarchy = None
 
-        from ..utils import get_current_stage_id
+        from pxr import Usd, UsdGeom
+
+        from ..utils import get_current_stage, get_current_stage_id
 
         self._device = device
         self._owner = owner
@@ -109,30 +111,30 @@ class FabricXformSelection:
         self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
 
-        # Tag children and parents with their ordinal and author the matrices the accessors hand
+        # Tag parents and children with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
+        # Parents go first: a child's local matrix is relative to the nearest ancestor that carries
+        # Fabric matrices, which is usually the parent seeded here.
+        usd_stage = get_current_stage()
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         for paths, index_attr, is_child in (
-            (self._prim_paths, self.child_index_attr, True),
             (self.unique_parent_paths, self._parent_index_attr, False),
+            (self._prim_paths, self.child_index_attr, True),
         ):
             group_prims: list = []
             for i, path in enumerate(paths):
                 rt_prim = self.stage.GetPrimAtPath(path)
                 if not rt_prim.IsValid():
                     raise RuntimeError(f"{owner}: prim '{path}' does not exist in the Fabric stage.")
-                rt_xformable = Rt.Xformable(rt_prim)
-                if seed_from_usd:
-                    rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
-                    rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
-                    rt_xformable.SetLocalXformFromUsd()
-                    rt_xformable.SetWorldXformFromUsd()
-                else:
-                    if not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME):
-                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr()
-                        rt_xformable.SetWorldXformFromUsd()
-                    if is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME):
-                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr()
-                        rt_xformable.SetLocalXformFromUsd()
+                seed_world = seed_from_usd or not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME)
+                seed_local = seed_from_usd or (is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME))
+                if seed_world or seed_local:
+                    world, local = self._matrices_from_usd(path, usd_stage, xform_cache)
+                    rt_xformable = Rt.Xformable(rt_prim)
+                    if seed_world:
+                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(world)
+                    if seed_local:
+                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(local)
                 rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
                 rt_prim.GetAttribute(index_attr).Set(i)
                 group_prims.append(rt_prim)
@@ -162,6 +164,34 @@ class FabricXformSelection:
         self._child_slots_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
         self._parent_slots_buf = wp.empty((len(self.unique_parent_paths),), dtype=wp.int32, device=device)
         self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
+
+    def _matrices_from_usd(self, path: str, usd_stage, xform_cache) -> tuple:
+        """Return the prim's ``(world, local)`` Fabric Hierarchy matrices composed from USD.
+
+        Fabric Hierarchy composes ``worldMatrix = localMatrix * world(ancestor)`` with the nearest
+        ancestor that carries ``omni:fabric:localMatrix``; ancestors without one count as identity.
+        The local matrix is therefore relative to that ancestor, not to the USD parent.
+
+        Note:
+            The ``usdrt.Rt.Xformable.Set*XformFromUsd`` helpers do not apply here: they author the
+            legacy OmniHydra ``_localMatrix`` and ``_world*`` attributes, not these matrices.
+        """
+        import usdrt
+
+        world = xform_cache.GetLocalToWorldTransform(usd_stage.GetPrimAtPath(path))
+        local = world
+        ancestor = path.rsplit("/", 1)[0]
+        while ancestor:
+            rt_ancestor = self.stage.GetPrimAtPath(ancestor)
+            if rt_ancestor.IsValid() and rt_ancestor.HasAttribute(self._LOCAL_MATRIX_NAME):
+                local = world * xform_cache.GetLocalToWorldTransform(usd_stage.GetPrimAtPath(ancestor)).GetInverse()
+                break
+            ancestor = ancestor.rsplit("/", 1)[0]
+
+        def to_rt(m):
+            return usdrt.Gf.Matrix4d(*(m[r][c] for r in range(4) for c in range(4)))
+
+        return to_rt(world), to_rt(local)
 
     def world_ifa(self) -> wp.indexedfabricarray:
         """Return the selected prims' world matrices in view order."""

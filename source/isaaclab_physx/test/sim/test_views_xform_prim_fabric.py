@@ -416,6 +416,47 @@ def test_initial_seed_with_scaled_parent(device):
     view.close()
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_partial_env_reset_keeps_camera_world_pose(device):
+    """Verify that a camera keeps its world pose when its environment resets after the first reset.
+
+    The camera reads its pose from Fabric after ``sim.forward()``, which runs a Fabric Hierarchy
+    update. That update recomposes each world matrix from the local matrices, so the view must seed
+    the parents' local matrices too. Otherwise each reset camera moves to its env-local pose.
+    """
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: PLC0415
+
+    from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
+    from isaaclab.sensors import CameraCfg  # noqa: PLC0415
+    from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg  # noqa: PLC0415
+
+    cfg = make_empty_manager_based_env_cfg(device=device, num_envs=4, env_spacing=2.0)
+    cfg.sim.physics = PhysxCfg()
+    cfg.sim.use_fabric = True
+    cfg.sim.visualizer_cfgs = []
+    offset = (0.5, -0.5, 1.0)
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=16,
+        width=16,
+        data_types=["distance_to_image_plane"],
+        offset=CameraCfg.OffsetCfg(pos=offset, convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(),
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+    env = ManagerBasedEnv(cfg)
+    try:
+        camera = env.scene["camera"]
+        expected = env.scene.env_origins + torch.tensor(offset, device=env.device)
+        env.reset()
+        env.reset(env_ids=torch.tensor([1, 2], device=env.device))
+        torch.testing.assert_close(camera.data.pos_w.torch, expected, atol=1e-4, rtol=0)
+    finally:
+        env.close()
+        # ``env.close()`` closes the stage; the autouse fixture tears down the current one.
+        sim_utils.create_new_stage()
+
+
 # ------------------------------------------------------------------
 # Multi-view per stage: per-view single-writer isolation
 # ------------------------------------------------------------------
