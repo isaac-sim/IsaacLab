@@ -229,8 +229,10 @@ def test_g1_terrain_forwards_visualizer_selection(
     namespace = runpy.run_path(str(script))
     main = namespace["main"]
     cfg = SimpleNamespace(
-        sim=SimpleNamespace(physics=physics_cfg),
+        sim=SimpleNamespace(physics=physics_cfg, dt=0.005),
         policy=SimpleNamespace(checkpoint="checkpoint.pt"),
+        duration=1.0,
+        decimation=4,
         camera_eye=(4.0, -4.0, 3.0),
         camera_target=(0.0, 0.0, 0.0),
         camera_vfov=45.0,

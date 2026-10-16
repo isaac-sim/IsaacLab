@@ -23,7 +23,7 @@ wp.config.enable_backward = False
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
@@ -35,7 +35,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", choices=("platforms", "ramps"), required=True)
     parser.add_argument("--checkpoint", help="Override the pretrained TorchScript checkpoint path or URL")
-    parser.add_argument("--video", action="store_true", help="Record video.mp4")
+    parser.add_argument("--video", action="store_true", help="Record the run to an MP4 clip")
     parser.add_argument("--output", type=Path, default=Path("logs/g1_terrain"))
     parser.add_argument("--seconds", type=float, help="Simulation duration in seconds, independent of wall time")
     parser.add_argument("--max_steps", type=int, help="Stop after at most this many control steps")
@@ -57,8 +57,6 @@ def main() -> None:
         cfg.policy.checkpoint = args.checkpoint
     if args.visualizer is None:
         args.visualizer = ["kit" if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else "newton_gl"]
-    if args.video and not any(name in CAPTURE_VISUALIZER_TYPES for name in args.visualizer):
-        parser.error("--video requires --viz kit, --viz newton_gl, or --viz newton_rtx")
     aperture = 20.955 * args.height / args.width
     cfg.sim.default_visualizer_cfg = VisualizerCfg(
         window=WindowCfg(size=(args.width, args.height)),
@@ -68,6 +66,20 @@ def main() -> None:
         enable_markers=False,
         enable_live_plots=False,
     )
+    duration = args.seconds or cfg.duration
+    step_dt = cfg.sim.dt * cfg.decimation
+    num_steps = math.ceil(duration / step_dt)
+    if args.max_steps is not None:
+        num_steps = min(num_steps, args.max_steps)
+    if args.video:
+        cfg.video_recorders = [
+            VideoRecorderCfg(
+                output_dir=str(args.output),
+                output_filename_prefix="g1_terrain",
+                video_length=num_steps,
+                fps=round(1 / step_dt),
+            )
+        ]
     cfg.sim.visualizer_cfgs = [
         KitVisualizerCfg(
             window=WindowCfg(size=(args.width, args.height)),
@@ -76,20 +88,11 @@ def main() -> None:
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped
-        writer = None
         try:
             env.reset()
             robot = env.scene["robot"]
             kit_visualizer = next(
                 (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.visualizer_type == "kit"), None
-            )
-            recording_visualizer = next(
-                (
-                    visualizer
-                    for visualizer in env.sim.visualizers
-                    if visualizer.cfg.visualizer_type in CAPTURE_VISUALIZER_TYPES
-                ),
-                None,
             )
             env.prepare_view(kit_visualizer)
             from isaaclab_tasks.contrib.g1_terrain.agents.depth_policy import DepthStudentPolicy  # noqa: PLC0415
@@ -97,26 +100,9 @@ def main() -> None:
             policy = DepthStudentPolicy(cfg.policy)
             policy_ids = [robot.joint_names.index(name) for name in policy.joint_names]
             action = robot.data.default_joint_pos.torch.clone()
-            if args.video:
-                import imageio.v2 as imageio  # noqa: PLC0415
-
-                if recording_visualizer is None:
-                    raise RuntimeError("No capture-capable visualizer was initialized for --video.")
-                args.output.mkdir(parents=True, exist_ok=True)
-                writer = imageio.get_writer(
-                    str(args.output / "video.mp4"),
-                    fps=round(1 / env.step_dt),
-                    codec="libx264",
-                    quality=8,
-                    macro_block_size=None,
-                )
-            duration = args.seconds or cfg.duration
             print(f"Running {duration:.2f} simulation seconds with scripted commands; no keyboard control.", flush=True)
             started = time.perf_counter()
             last_log = started
-            num_steps = math.ceil(duration / env.step_dt)
-            if args.max_steps is not None:
-                num_steps = min(num_steps, args.max_steps)
             for step in range(num_steps):
                 if env.sim.is_stopped():
                     break
@@ -144,12 +130,8 @@ def main() -> None:
                         flush=True,
                     )
                     last_log = now
-                if writer and recording_visualizer is not None:
-                    writer.append_data(recording_visualizer.render_rgb_array()[..., :3])
                 env.step(action)
         finally:
-            if writer:
-                writer.close()
             env.close()
 
 
