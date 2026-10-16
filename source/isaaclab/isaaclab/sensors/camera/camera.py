@@ -274,8 +274,8 @@ class Camera(SensorBase):
                 "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
             )
         # The PhysX frame view reads the camera pose from Fabric, where PhysX on CPU writes body poses
-        # only if continuous transform updates are on when the simulation starts.
-        if sim_ctx is not None and sim_ctx.device == "cpu" and FrameView._get_backend() == "physx":
+        # only if continuous transform updates are on when the simulation starts. Only PhysX uses this setting.
+        if sim_ctx is not None and sim_ctx.device == "cpu":
             from ...app.settings_manager import get_settings_manager
 
             get_settings_manager().set("/physics/fabricUpdateTransformations", True)
