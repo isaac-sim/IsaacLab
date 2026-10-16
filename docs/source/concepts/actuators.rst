@@ -729,8 +729,8 @@ config is authored onto that prim:
   gets the same defaults as on a new prim: an unset ``actuator_effort_limit`` becomes the joint's
   USD drive limit.
 * A component the config adds needs its required values, such as a DC motor's ``saturation_effort``,
-  from the config. Otherwise authoring raises before it edits the stage. Newton validates the values
-  of the components the asset's prim keeps.
+  from the config. Otherwise authoring raises before it changes that joint's actuators. Newton
+  validates the values of the components the asset's prim keeps.
 
 .. code-block:: python
 
@@ -837,8 +837,8 @@ Like other explicit actuators, BAM is authored onto the joints' existing BAM act
 
 A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
 ``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``;
-authoring raises before it edits the stage if one is missing. On an asset that models gearbox
-backlash, also set ``backlash_joint_template``.
+if one is missing, authoring raises before it changes that joint's actuators. On an asset that
+models gearbox backlash, also set ``backlash_joint_template``.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1

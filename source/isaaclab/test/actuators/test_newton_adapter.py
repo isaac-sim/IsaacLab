@@ -417,14 +417,12 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     ids=["unsupported_cfgs", "unmatched_effort_limit", "new_prim_without_saturation"],
 )
 def test_rejected_config_leaves_the_stage_untouched(tmp_path, make_stage, groups, match):
-    """A config Newton cannot author, or one that leaves a required value unset, raises before any stage edit."""
+    """A config Newton cannot author, or one that leaves a required value unset, raises before it edits the stage."""
     stage = make_stage(tmp_path)
     before = stage.GetRootLayer().ExportToString()
-    # A valid group comes first; its edits must not land either.
-    cfgs = {"legs": DelayedPDActuatorCfg(joint_names_expr=["pd_b"], stiffness=1.0, damping=1.0), **groups}
 
     with pytest.raises(ValueError, match=match):
-        author_actuator_prims(stage, "/World/Robot", cfgs)
+        author_actuator_prims(stage, "/World/Robot", groups)
 
     assert stage.GetRootLayer().ExportToString() == before
 

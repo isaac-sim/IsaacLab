@@ -161,7 +161,7 @@ def author_actuator_prims(
     articulation_prim_path: str,
     actuator_cfgs: dict[str, ActuatorBaseCfg],
 ) -> None:
-    """Author the ``NewtonActuator`` prims of one articulation, planning every config before editing the stage."""
+    """Author the ``NewtonActuator`` prims of one articulation."""
     art_prim = stage.GetPrimAtPath(articulation_prim_path)
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
@@ -172,8 +172,6 @@ def author_actuator_prims(
     all_joint_names = list(joint_inventory.keys())
     actuator_prims = _collect_actuator_prims(art_prim)
 
-    plans: list[_ActuatorPlan] = []
-    new_prim_paths: set[str] = set()
     for group_name, cfg in actuator_cfgs.items():
         if _is_implicit_actuator_cfg(cfg):
             continue
@@ -189,12 +187,7 @@ def author_actuator_prims(
         if isinstance(resolved_cfg, BamActuatorCfg):
             validate(resolved_cfg)
         joints = {name: stage.GetPrimAtPath(joint_inventory[name]) for name in joint_names}
-        plans.extend(
-            _plan_group(stage, articulation_prim_path, group_name, resolved_cfg, joints, actuator_prims, new_prim_paths)
-        )
-
-    for plan in plans:
-        _apply_plan(stage, plan)
+        _author_group(stage, articulation_prim_path, group_name, resolved_cfg, joints, actuator_prims)
 
 
 """
@@ -276,32 +269,15 @@ class _ActuatorLayout:
     """Attributes authored on each driven joint prim, as ``(name, type, value)``."""
 
 
-@dataclass
-class _ActuatorPlan:
-    """Stage edits that give one joint its configured actuator."""
-
-    joint_path: str
-    prim_path: str
-    """Existing actuator prim to author onto, or the path of a new prim."""
-    define: bool
-    """Whether a new prim targeting :attr:`joint_path` is defined at :attr:`prim_path`."""
-    values: list[tuple[_ActuatorField, Any]]
-    add_schemas: list[str]
-    remove_schemas: list[str]
-    deactivate: list[Usd.Prim]
-    joint_attrs: tuple[tuple[str, Sdf.ValueTypeName, Any], ...]
-
-
-def _plan_group(
+def _author_group(
     stage: Usd.Stage,
     articulation_prim_path: str,
     group_name: str,
     cfg: ActuatorBaseCfg,
     joints: dict[str, Usd.Prim],
     actuator_prims: dict[str, list[Usd.Prim]],
-    new_prim_paths: set[str],
-) -> list[_ActuatorPlan]:
-    """Plan the stage edits of one actuator group, raising before any edit if a required value is missing.
+) -> None:
+    """Author the actuators of one group, raising before a joint's edits if a required value is missing.
 
     A value the config sets is authored. An unset value keeps the prim's opinion when the prim keeps
     that value's schema; otherwise it takes the field's new-prim default.
@@ -309,19 +285,10 @@ def _plan_group(
     layout = _actuator_layout(cfg)
     configured = {field.attr: field.configured(cfg, list(joints)) for field in layout.fields}
     allowed = {layout.drive, *(field.schema for field in layout.fields)}
-    plans: list[_ActuatorPlan] = []
     for joint_name, joint_prim in joints.items():
         existing = actuator_prims.get(str(joint_prim.GetPath()), [])
         prim, reason = _overlay_target(existing, layout.drive)
-        if prim is not None:
-            prim_path, present = str(prim.GetPath()), _applied_schemas(prim)
-        else:
-            prim_path = find_unique_string_name(
-                f"{articulation_prim_path}/{group_name}_{joint_name}_actuator",
-                lambda path: path not in new_prim_paths and not stage.GetPrimAtPath(path).IsValid(),
-            )
-            new_prim_paths.add(prim_path)
-            present = set()
+        present = _applied_schemas(prim) if prim is not None else set()
         disabled = {
             field.schema
             for field in layout.fields
@@ -356,40 +323,25 @@ def _plan_group(
                 f"Actuator group '{group_name}' removes {dropped} from the USD actuator of joint '{joint_name}':"
                 f" {type(cfg).__name__} does not model them."
             )
-        add = [s for s in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]) if s not in present]
-        plans.append(
-            _ActuatorPlan(
-                joint_path=str(joint_prim.GetPath()),
-                prim_path=prim_path,
-                define=prim is None,
-                values=values,
-                add_schemas=add,
-                remove_schemas=remove,
-                deactivate=existing if prim is None else [],
-                joint_attrs=layout.joint_attrs,
+        if prim is None:
+            # Define the new prim before deactivating the old ones, so a failure never leaves the joint without one.
+            prim_path = find_unique_string_name(
+                f"{articulation_prim_path}/{group_name}_{joint_name}_actuator",
+                lambda path: not stage.GetPrimAtPath(path).IsValid(),
             )
-        )
-    return plans
-
-
-def _apply_plan(stage: Usd.Stage, plan: _ActuatorPlan) -> None:
-    """Apply one planned actuator to the stage's edit target."""
-    for prim in plan.deactivate:
-        prim.SetActive(False)
-    if plan.define:
-        act_prim = stage.DefinePrim(plan.prim_path, "NewtonActuator")
-        act_prim.CreateRelationship("newton:targets").SetTargets([Sdf.Path(plan.joint_path)])
-    else:
-        act_prim = stage.GetPrimAtPath(plan.prim_path)
-    for schema in plan.remove_schemas:
-        act_prim.RemoveAppliedSchema(schema)
-    for schema in plan.add_schemas:
-        act_prim.AddAppliedSchema(schema)
-    for field, value in plan.values:
-        act_prim.CreateAttribute(field.attr, field.type_name).Set(value)
-    joint_prim = stage.GetPrimAtPath(plan.joint_path)
-    for name, type_name, value in plan.joint_attrs:
-        joint_prim.CreateAttribute(name, type_name).Set(value)
+            prim = stage.DefinePrim(prim_path, "NewtonActuator")
+            prim.CreateRelationship("newton:targets").SetTargets([joint_prim.GetPath()])
+            for old_prim in existing:
+                old_prim.SetActive(False)
+        for schema in remove:
+            prim.RemoveAppliedSchema(schema)
+        for schema in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]):
+            if schema not in present:
+                prim.AddAppliedSchema(schema)
+        for field, value in values:
+            prim.CreateAttribute(field.attr, field.type_name).Set(value)
+        for name, type_name, value in layout.joint_attrs:
+            joint_prim.CreateAttribute(name, type_name).Set(value)
 
 
 def _overlay_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None, str | None]:
