@@ -6,8 +6,8 @@
 import glob
 import importlib.metadata
 import json
+import logging
 import os
-import shlex
 import shutil
 import subprocess
 from datetime import date
@@ -16,6 +16,8 @@ from typing import Any
 import jinja2
 import tomllib
 from common import MULTI_AGENT_ALGORITHMS, SINGLE_AGENT_ALGORITHMS, TASKS_DIR, TEMPLATE_DIR
+
+logger = logging.getLogger(__name__)
 
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(TEMPLATE_DIR),
@@ -41,11 +43,13 @@ def _setup_git_repo(project_dir: str) -> None:
         for line in result.stdout.splitlines():
             print(f"  |  {line}")
         if result.returncode != 0:
-            print(f"  |  WARNING: '{' '.join(command[:2])}' failed with exit code {result.returncode}:")
-            for line in result.stderr.splitlines():
-                print(f"  |    {line}")
-            print(f"  |  Fix the error above, then run in {project_dir}:")
-            print(f"  |    {' && '.join(shlex.join(pending) for pending in commands[index:])}")
+            remaining = "\n".join(
+                " ".join(f'"{arg}"' if " " in arg else arg for arg in pending) for pending in commands[index:]
+            )
+            logger.warning(
+                f"'{' '.join(command[:2])}' failed with exit code {result.returncode}:\n{result.stderr.strip()}\n"
+                f"Fix the error above, then run in {project_dir}:\n{remaining}"
+            )
             return
 
 

@@ -334,7 +334,7 @@ def test_generated_project_uses_active_source_checkout(tmp_path):
     assert list((tmp_path / "installed").glob("isaaclab_dev-*.dist-info"))
 
 
-def test_generation_warns_when_initial_commit_fails(tmp_path, monkeypatch, capsys):
+def test_generation_warns_when_initial_commit_fails(tmp_path, monkeypatch, caplog):
     """A missing git identity must be reported instead of silently leaving a repository without commits."""
     git_config = tmp_path / "gitconfig"
     git_config.write_text("[user]\n\tuseConfigOnly = true\n")
@@ -345,9 +345,8 @@ def test_generation_warns_when_initial_commit_fails(tmp_path, monkeypatch, capsy
 
     _GENERATOR.generate(_external_specification(tmp_path, initial_content="blank"))
 
-    output = capsys.readouterr().out
-    assert "WARNING: 'git commit' failed" in output
-    assert "git commit -q -m 'Initial commit'" in output
+    assert "'git commit' failed" in caplog.text
+    assert 'git commit -q -m "Initial commit"' in caplog.text
 
 
 def test_installed_project_discovers_all_distribution_extras(tmp_path):
