@@ -58,10 +58,15 @@ def run() -> Callable[..., str]:
         clean_env["LD_PRELOAD"] = "/lib/aarch64-linux-gnu/libgomp.so.1"
 
     def execute(*args: str, cwd: Path, env: dict[str, str] | None = None, timeout: int = 900) -> str:
+        command_env = {**clean_env, **(env or {})}
+        # Keep platform-required libraries when a probe adds another preload.
+        preloads = [clean_env.get("LD_PRELOAD", ""), (env or {}).get("LD_PRELOAD", "")]
+        if any(preloads):
+            command_env["LD_PRELOAD"] = ":".join(preload for preload in preloads if preload)
         result = subprocess.run(
             args,
             cwd=cwd,
-            env={**clean_env, **(env or {})},
+            env=command_env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,

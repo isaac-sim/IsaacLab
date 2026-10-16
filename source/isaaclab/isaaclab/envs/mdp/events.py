@@ -176,6 +176,9 @@ class randomize_rigid_body_material(ManagerTermBase):
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
     the static friction (PhysX and OVPhysX only). This obeys the physics constraint on friction values.
 
+    On PhysX and OVPhysX, compliant-contact stiffness stored as negative native restitution is
+    preserved. Restitution samples apply only to non-compliant shapes; friction is randomized for both.
+
     .. attention::
         On PhysX, this function uses CPU tensors to assign the material properties. It is recommended to
         use this function only during the initialization of the environment.
@@ -683,8 +686,8 @@ class randomize_actuator_gains(ManagerTermBase):
         for name, actuator in self._gain_actuators.items():
             joint_ids = self._group_joint_indices[name]
             if name in self._native_group_names:
-                stiffness = read_group_parameter(collection, name, "controller", "kp")
-                damping = read_group_parameter(collection, name, "controller", "kd")
+                stiffness = read_group_parameter(collection, name, "drive", "kp")
+                damping = read_group_parameter(collection, name, "drive", "kd")
             else:
                 stiffness = actuator.stiffness
                 damping = actuator.damping
@@ -769,7 +772,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     write_group_parameter(
                         self.asset.actuators,
                         actuator_name,
-                        "controller",
+                        "drive",
                         "kp",
                         values=stiffness[:, actuator_indices],
                         env_ids=env_ids,
@@ -795,7 +798,7 @@ class randomize_actuator_gains(ManagerTermBase):
                     write_group_parameter(
                         self.asset.actuators,
                         actuator_name,
-                        "controller",
+                        "drive",
                         "kd",
                         values=damping[:, actuator_indices],
                         env_ids=env_ids,

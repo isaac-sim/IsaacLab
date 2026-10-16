@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_teleop import ControllerHapticFeedbackCfg, IsaacTeleopCfg, XrCameraFeedCfg, XrCameraFeedLayoutCfg, XrCfg
-
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -19,6 +17,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
 from isaaclab_tasks.contrib.pick_place import mdp as manip_mdp
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import g1_robot_pov_camera_cfg
@@ -404,33 +403,44 @@ class FixedBaseUpperBodyIKG1EnvCfg(ManagerBasedRLEnvCfg):
         # Defer Nucleus path resolution to controller initialization at runtime.
         self.actions.upper_body_ik.controller.urdf_path = urdf_omniverse_path
 
-        # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
-        self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, -0.30),
-            anchor_rot=(0.0, 0.0, 0.0, 1.0),
-        )
-
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_g1_upper_body_pipeline()[0],
-            # retargeters_to_tune=lambda: _build_g1_upper_body_pipeline()[1],
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-            xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
-            xr_camera_feeds=[
-                XrCameraFeedCfg(
-                    camera_name="robot_pov_cam",
-                    enable_dlss_ray_reconstruction=True,
-                    dlss_exec_mode="quality",
-                    offset_m=(0.0, -0.15),
-                    max_update_hz=0.0,
-                )
-            ],
-        )
-
-        # Enable contact reporting on the robot so the per-hand ContactSensors
-        # report finger forces, and drive controller haptics from them.
+        # The scene always contains hand contact sensors, so their target bodies must have the
+        # contact reporter API even when the optional teleop package is unavailable.
         self.scene.robot.spawn.activate_contact_sensors = True
-        self.haptic_feedback = ControllerHapticFeedbackCfg(
-            left_sensor_name="left_hand_contact",
-            right_sensor_name="right_hand_contact",
-        )
+
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import (
+                ControllerHapticFeedbackCfg,
+                IsaacTeleopCfg,
+                XrCameraFeedCfg,
+                XrCameraFeedLayoutCfg,
+                XrCfg,
+            )
+
+            # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, -0.30),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_g1_upper_body_pipeline()[0],
+                # retargeters_to_tune=lambda: _build_g1_upper_body_pipeline()[1],
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+                xr_camera_feed_layout=XrCameraFeedLayoutCfg(placement="head_locked", use_scene_partition=True),
+                xr_camera_feeds=[
+                    XrCameraFeedCfg(
+                        camera_name="robot_pov_cam",
+                        enable_dlss_ray_reconstruction=True,
+                        dlss_exec_mode="quality",
+                        offset_m=(0.0, -0.15),
+                        max_update_hz=0.0,
+                    )
+                ],
+            )
+
+            # Drive controller haptics from the per-hand contact sensors.
+            self.haptic_feedback = ControllerHapticFeedbackCfg(
+                left_sensor_name="left_hand_contact",
+                right_sensor_name="right_hand_contact",
+            )

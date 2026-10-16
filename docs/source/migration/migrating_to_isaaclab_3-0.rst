@@ -124,7 +124,7 @@ Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
 For a comprehensive overview of the factory pattern and backend selection,
-see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+see :ref:`backend-architecture`. To add a new backend, see
 :doc:`/source/developer-tools/add_physics_backend`.
 
 
@@ -1171,9 +1171,11 @@ same resolution semantics as a standalone function:
 The backend articulation methods ``write_actuator_stiffness_to_sim`` and
 ``write_actuator_damping_to_sim`` are deprecated. Use
 :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it
-updates actuator-owned gains, implicit solver drives, or native-controller parameters as
-appropriate. For direct writes to a Newton-executed group's controller, use
-:func:`~isaaclab.actuators.newton.write_group_parameter`.
+updates actuator-owned gains, implicit solver drives, or native drive parameters as
+appropriate. For direct writes to a Newton-executed group's drive, use
+:func:`~isaaclab.actuators.newton.write_group_parameter` with the ``"drive"`` component. It was renamed
+from ``"controller"`` to follow the Newton 1.6 drive API. ``"controller"`` remains a deprecated alias that
+warns and will be removed in 3.2.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and
 its canonical replacement are present in the same group, use only the canonical name; equivalent
@@ -1577,20 +1579,20 @@ If you need to track sensor poses in world frame, please use a dedicated sensor 
 .. rubric:: Contact force property names
 
 Contact sensor force properties now state whether they contain aggregate or filtered normal and
-friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton and
-OVPhysX report this quantity even when ``track_friction_forces=False``. The Isaac Sim PhysX backend
-currently returns the corresponding normal-force quantity and warns.
-``friction_forces_w`` is the aggregate friction force. Newton and OVPhysX report it as
-``net_friction_forces_w``; Isaac Sim PhysX only provides filtered friction, so it returns
-``friction_force_matrix_w`` and warns.
+friction forces. ``net_forces_w`` is the total contact force (normal + friction). Newton, OVPhysX,
+and Isaac Sim PhysX 6.2 or later report this quantity even when ``track_friction_forces=False``.
+Isaac Sim PhysX 6.1 returns the corresponding normal-force quantity and warns.
+``friction_forces_w`` is the aggregate friction force. Newton, OVPhysX, and Isaac Sim PhysX 6.2 or
+later report it as ``net_friction_forces_w``; Isaac Sim PhysX 6.1 only provides filtered friction,
+so it returns ``friction_force_matrix_w`` and warns.
 
 .. list-table::
    :header-rows: 1
 
    * - Property
      - Meaning
-     - Isaac Sim PhysX
-     - Newton / OVPhysX
+     - Isaac Sim PhysX 6.1
+     - Newton / OVPhysX / Isaac Sim PhysX 6.2+
    * - ``net_forces_w``
      - Total contact force
      - Returns ``net_normal_forces_w`` with a warning
@@ -1614,16 +1616,17 @@ currently returns the corresponding normal-force quantity and warns.
 
 Prefer the explicit names ``net_normal_forces_w``, ``net_friction_forces_w``,
 ``normal_force_matrix_w``, and ``friction_force_matrix_w`` (and their ``*_history`` variants)
-when the normal / friction split matters. Newton and OVPhysX also expose ``net_friction_forces_w_history``
-and ``friction_force_matrix_w_history``. The Isaac Sim PhysX backend does not expose aggregate friction
-and raises ``NotImplementedError`` when ``net_friction_forces_w`` or
-``net_friction_forces_w_history`` is accessed; use the filtered friction matrix instead.
+when the normal / friction split matters. Newton, OVPhysX, and Isaac Sim PhysX 6.2 or later also
+expose ``net_friction_forces_w_history`` and ``friction_force_matrix_w_history``. Isaac Sim PhysX 6.1
+does not expose aggregate friction and raises ``NotImplementedError`` when
+``net_friction_forces_w`` or ``net_friction_forces_w_history`` is accessed; use the filtered
+friction matrix instead.
 
-On OVPhysX, ``track_friction_forces=True`` enables separate friction buffers and histories without
-requiring contact filters. Force matrices still require filters. Aggregate and filtered forces do
-not depend on ``max_contact_data_count_per_prim``; a positive capacity is required only when
-``track_contact_points=True``. Total-force buffers always include friction, whether or not its
-separate buffers are enabled.
+On OVPhysX and Isaac Sim PhysX 6.2 or later, ``track_friction_forces=True`` enables separate
+friction buffers and histories without requiring contact filters. Force matrices still require
+filters. Aggregate and filtered forces do not depend on ``max_contact_data_count_per_prim``; a
+positive capacity is required only when ``track_contact_points=True``. Total-force buffers always
+include friction, whether or not its separate buffers are enabled.
 
 
 .. rubric:: Articulation Joint Wrench Data Moved to ``JointWrenchSensor``
@@ -2693,7 +2696,7 @@ Streaming cameras must now be declared in the scene before cloning. Move
 ``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
 The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
 Visualizers only display the selected sensor's output; they no longer create a renderer or
-camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+camera, force a capture, or remove camera prims on close. See :ref:`visualization-streaming-camera-view`.
 
 .. code-block:: python
 
@@ -2794,10 +2797,16 @@ dragging; RTX retains visualization markers and camera controls.
 
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective
-resolution follows its framebuffer. For windows sharing one sensor image selection, use
-``ImageViewCfg`` as described in :doc:`/source/features/visualizer_tiled_camera`; existing CLI
-recording source strings remain supported. Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
-window settings control presentation independently of image selection.
+resolution follows its framebuffer. For windows and recorders sharing one image selection, use
+``ImageViewCfg`` as described in :doc:`/source/how-to/visualizer_streaming_camera_view`; existing CLI
+recording source strings remain supported. Pass the shared declaration as ``VideoRecorderCfg(source=view)``.
+Set ``VisualizerCfg.view`` beside ``VisualizerCfg.window``;
+window settings control presentation independently of image selection. Invalid recording sources or
+channel selections now raise an error during recorder construction instead of disabling recording.
+
+Visualizer imports and :func:`~isaaclab.utils.string.string_to_callable` now propagate the original
+``ModuleNotFoundError`` for missing modules or dependencies. Catch ``ModuleNotFoundError`` instead of
+the previous ``ValueError`` wrapper if your application handles these failures.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)

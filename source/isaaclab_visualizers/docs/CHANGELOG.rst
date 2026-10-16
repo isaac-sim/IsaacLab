@@ -3,6 +3,61 @@ Changelog
 
 .. towncrier release notes start
 
+3.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a reusable Newton particle-surface renderer for GL and RTX viewers,
+  shared by the teapot demo and MPM surface-reconstruction tutorial.
+
+Fixed
+^^^^^
+
+* Fixed dynamic MPM surface mesh submission in Newton RTX and shared staged
+  mesh updates between the Newton GL and RTX frame lifecycles.
+
+
+3.1.1 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Ctrl+C sometimes being swallowed by Kit while updating the visualizer.
+* Fixed Kit toolbar controls so they reflected the running state, paused and resumed training while keeping the app
+  responsive, and did not start PhysX when another physics backend owned the simulation.
+* Fixed Newton GL camera keyboard controls when ImGui captured only mouse input and kept the viewer compatible with
+  Newton's updated fullscreen image handling.
+* Prevented unchanged Rerun instance appearance from being retransmitted every frame during training.
+
+
+3.1.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Preserved the original ``ModuleNotFoundError`` when Viser or its dependencies were missing,
+  removing the installation-hint wrapper.
+* Simplified Viser initialization and camera updates around its native client API, preserving deferred
+  camera poses until clients connected and removing unused metadata and repeated capability checks.
+* Separated shared image selection from Newton window dimensions through ``WindowCfg``.
+  RTX capture copied native output directly on the GPU;
+  only CPU consumers downloaded pixels. Sensor-view window resizing retained source and output storage.
+  ``WindowCfg.size`` set initial viewer dimensions; RTX perspective rendering kept that resolution,
+  while GL perspective rendering followed its window framebuffer.
+  Unified GL and RTX capture lifecycle checks; call ``render_rgb_array()`` after ``sim.reset()``.
+* Kept shared views on ``VisualizerCfg.view``, separate from window presentation settings.
+  Detached perspective render callbacks when their owning viewer closed, allowing another viewer
+  to bind the retained view without accessing the destroyed renderer.
+* Shared Kit window docking between viewport and camera-image presentation.
+* Keyed sensor-view capture to the physics step, fixing frozen headless
+  ``--video viz:newton_gl:streaming_view`` clips while reusing repeated reads within one step.
+  Explicit headless viewer updates also refreshed perspective captures after marker edits without a physics step.
+
+
 3.0.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

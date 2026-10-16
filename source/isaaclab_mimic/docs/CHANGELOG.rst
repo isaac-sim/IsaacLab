@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.4 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Separated locomanipulation SDG configuration from runtime imports and left URDF retrieval to the IK controller, allowing task configuration before simulation launch.
+
+
 2.1.3 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

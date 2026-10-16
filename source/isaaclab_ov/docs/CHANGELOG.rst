@@ -3,6 +3,16 @@ Changelog
 
 .. towncrier release notes start
 
+5.0.1 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Preserved compliant-contact stiffness during material randomization.
+* Preserved acceleration-spring contact behavior by importing cloned scenes through USD when these materials were present, at the cost of native-cloning startup savings.
+
+
 5.0.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

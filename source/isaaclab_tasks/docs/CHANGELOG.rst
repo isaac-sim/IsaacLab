@@ -3,6 +3,105 @@ Changelog
 
 .. towncrier release notes start
 
+28.0.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``Isaac-Shadow-Handover-Direct`` and ``Isaac-Shadow-Handover`` to alternate
+  their goal between the two hands after each completed transfer, continuing until
+  timeout or an object drop.
+* Added ``success_steps_required`` (20 cumulative steps inside the success distance; must be positive) to
+  both workflows and ``goal_position_offset`` to the Direct configuration. The manager
+  command's ``position_offset`` now uses each hand's local root frame instead of the
+  object's initial position; update custom offsets for this frame change.
+* Changed ``Metrics/success_rate`` to report ``goals / (goals + 1)`` and added
+  ``Metrics/consecutive_success`` for the number of transfers per episode. Success rates
+  from the previous single-goal task are not directly comparable; retrain policies for
+  the alternating task objective.
+* Changed the default recording view of both handover tasks to face one hand pair from the
+  side instead of the gap between environment rows.
+* Simplified task preset traversal and CLI help, preserving selection validation and deprecated-name warnings.
+* **Breaking:** Consolidated task preset parsing and categories in ``isaaclab_tasks.utils.hydra``.
+  Replace direct imports from ``isaaclab_tasks.utils.preset_cli`` and ``isaaclab_tasks.utils.preset_target``
+  with imports from ``isaaclab_tasks.utils.hydra``; ``isaaclab_tasks.utils.setup_preset_cli`` stayed unchanged.
+
+
+27.0.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a Franka Reach ``hold`` preset with end-effector pose-error feedback, a fixed episode goal,
+  continued pose-success rewards, task-level Newton and Isaac Sim PhysX control profiles for
+  quiet holding, and a separate RSL-RL experiment directory for its 38-input policies.
+  Holding requires the Torch frontend and a trained or local holding checkpoint until pretrained
+  policies are published. The environment browser filters domain presets by Warp compatibility
+  and only offers pretrained checkpoints for declared published presets.
+* Added a contributed dual-Franka shoelace task with Newton MJWarp/VBD coupling, contact-aware rewards,
+  randomized resets, and an RSL-RL PPO configuration.
+  Supported seven externally supplied shoe variants with mixed eyelet counts and baked USD friction,
+  retaining Franka finger friction overrides for grasp retention.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Aligned Franka Reach with the shared reach success reward and reset behavior and increased
+  RSL-RL PPO exploration to match UR10. Existing Franka Reach policies should be retrained for
+  the updated task; continuous tracking evaluations can disable the success reward and termination.
+  The default reward configuration now uses the shared ``RewardsCfg`` and no longer includes
+  ``end_effector_position_tracking_fine_grained``; add that term explicitly for custom tracking tasks.
+* Tuned Franka Reach arm damping per joint and used bounded initial joint offsets supported by
+  both frontends to avoid concentrating reset samples at joint limits, while retaining the shared robot
+  asset and finger drives.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``FrankaReachRewardsCfg`` while retaining its legacy rewards for existing imports.
+  Use the shared Reach ``RewardsCfg`` and add ``end_effector_position_tracking_fine_grained``
+  explicitly if needed.
+
+Fixed
+^^^^^
+
+* Fixed DR Legs training with the Newton Kamino solver by constraining destabilizing
+  initialization randomization and joint-position targets, terminating invalid joint states before observation,
+  and preventing non-finite solver rewards from reaching the trainer.
+* Tuned the DR Legs walking actions, actuator gains, observations, gait timing, rewards, and exploration noise for
+  stable locomotion on Newton and PhysX, and separated the strict walk-success metric from command metrics.
+* Fixed the Shadow Hand and Allegro Hand reorientation task videos missing the hands in play mode;
+  they now record a close view of one hand and its cube.
+* Fixed the reorientation goal cube displaying away from the hand, outside the recording view. It now
+  follows the hand at ``goal_marker_offset`` from the in-hand position.
+* Allowed non-string literal overrides to replace resolved preset values while preserving named preset selection.
+
+
+26.0.0 (2026-10-12)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Updated both Franka drawer workflows with the existing EMA joint-position action,
+  stronger motion and joint-limit penalties, increased arm damping, and 16-second episodes.
+  Actions now map to soft joint limits and are smoothed before application. Retrain existing
+  policies for the changed action semantics, rewards, and reset pose. Direct configurations
+  now use ``arm_action`` in place of ``arm_joint_names`` and ``arm_action_scale``.
+  The 0.3 rad/s actuator limit is not a hard physical speed bound in MJWarp.
+* Gave both cabinet workflows light-brown satin fronts, a cream body, and bronze hardware
+  using shared materials, without changing cabinet physics or the default floor.
+
+Fixed
+^^^^^
+
+* Retracted the initial Franka shoulder pose in both cabinet workflows to prevent randomized
+  hand poses from penetrating the lower cabinet doors and knobs with the shared Franka asset.
+* Fixed the Anymal-C direct rough-terrain task loading its shingles material from the relocated Isaac Sim 6.2 asset path.
+
+
 25.0.3 (2026-10-11)
 ~~~~~~~~~~~~~~~~~~~
 

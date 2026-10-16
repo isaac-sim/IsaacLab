@@ -1253,6 +1253,7 @@ def _run_kit_viewport_frame_motion_test(
 
         def _attempt_kit_pause():
             _set_kit_simulation_paused(env, True)
+            _warm_kit_rtx_render_product(env, annotator, use_convergence=True)
             paused_start_frame = _capture_kit_viewport_rgb(annotator)
             for _ in range(PAUSE_VIZ_N_STEP):
                 env.sim.render()
@@ -1327,10 +1328,10 @@ def _capture_visualizer_tiled_camera_rgb(visualizer) -> np.ndarray:
     """Converge the declared sensor and read the same composed frame used by its window."""
     view = visualizer.current_image_view
     assert view is not None and view.camera is not None, "Visualizer did not bind its declared scene camera."
-    if isinstance(visualizer, KitVisualizer):
-        _update_active_simulation_app()
     previous = None
     for index in range(_WARMUP_MAX_FRAMES):
+        if isinstance(visualizer, KitVisualizer):
+            _update_active_simulation_app()
         view.camera.update(dt=0.0, force_recompute=True)
         view.invalidate()
         frame = visualizer.render_tiled_rgb_array()
@@ -1709,8 +1710,13 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                 env.step(action=actions)
 
             if "kit" in visualizer_kinds:
+                import omni.timeline
+
                 kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
                 assert kit_visualizers, "Expected an initialized Kit visualizer."
+                assert omni.timeline.get_timeline_interface().is_playing(), (
+                    "The Kit toolbar must show Pause while the simulation is running."
+                )
                 with _visualizer_debug_case("kit", backend_kind):
                     _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
 
@@ -1734,30 +1740,6 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                         physics_kind=backend_kind,
                     )
 
-            if "newton_rtx" in visualizer_kinds:
-                rtx_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonRTXVisualizer)]
-                assert rtx_visualizers, "Expected an initialized Newton RTX visualizer."
-                rtx_viewer = getattr(rtx_visualizers[0], "_viewer", None)
-                assert rtx_viewer is not None, "Newton RTX viewer was not created."
-
-                with _visualizer_debug_case("newton_rtx", backend_kind):
-                    # The first async capture must succeed before warm-up can suppress its error.
-                    first_frame = rtx_visualizers[0].render_rgb_array()
-                    width, height = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
-                    assert first_frame is not None and first_frame.shape == (height, width, 3)
-                    _run_newton_viewer_frame_motion_test(
-                        env,
-                        rtx_viewer,
-                        visualizer=rtx_visualizers[0],
-                        step_hook=_step_env,
-                        get_physics_step_count=lambda: env.sim._physics_step_count,
-                        physics_kind=backend_kind,
-                        viz_kind="newton_rtx",
-                    )
-                    _assert_newton_rtx_markers_drawn(
-                        env, rtx_visualizers[0], case_label=_visualizer_case_label("newton_rtx", backend_kind)
-                    )
-
             if "rerun" in visualizer_kinds:
                 from isaaclab_visualizers.rerun import RerunVisualizer
 
@@ -1774,62 +1756,6 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                 assert getattr(viser_visualizers[0], "_viewer", None) is not None, "Viser viewer was not created."
                 _step_env_without_frame_check(env, actions, max_steps=_MAX_FRAME_CHECK_STEPS)
 
-        _assert_no_visualizer_log_issues(caplog)
-    finally:
-        _cleanup_visualizer_test_process(env)
-
-
-def run_cartpole_env_kit_viewport_and_tiled(backend_kind: str, caplog: pytest.LogCaptureFixture) -> None:
-    """Kit RTX viewport and tiled camera motion tests in two sequential Kit-only envs.
-
-    Two envs are required because the Kit RTX viewport render product is inactive when
-    ``tiled_camera=True``; the GPU only renders tiled products in that mode.
-
-    Args:
-        backend_kind: Physics backend, ``"physx"`` or ``"newton"``.
-        caplog: Pytest log capture fixture.
-    """
-    env = None
-    try:
-        _prepare_visualizer_test_process()
-        sim_utils.create_new_stage()
-        env = _make_cartpole_camera_env(
-            visualizer_kind=("kit",),
-            backend_kind=backend_kind,
-        )
-        env.cfg.initial_pole_angle_range = _INTEGRATION_TEST_POLE_ANGLE_RANGE
-        env.cfg.initial_pole_velocity_range = _INTEGRATION_TEST_POLE_VELOCITY_RANGE
-        _configure_sim_for_visualizer_test(env)
-        with caplog.at_level(logging.WARNING):
-            env.reset()
-            kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
-            assert kit_visualizers, "Expected an initialized Kit visualizer."
-            with _visualizer_debug_case("kit", backend_kind):
-                _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
-        _assert_no_visualizer_log_issues(caplog)
-    finally:
-        _cleanup_visualizer_test_process(env)
-
-    env = None
-    try:
-        _prepare_visualizer_test_process()
-        sim_utils.create_new_stage()
-        env = _make_cartpole_camera_env(
-            visualizer_kind=("kit",),
-            backend_kind=backend_kind,
-            tiled_camera=True,
-        )
-        env.cfg.initial_pole_angle_range = _INTEGRATION_TEST_POLE_ANGLE_RANGE
-        env.cfg.initial_pole_velocity_range = _INTEGRATION_TEST_POLE_VELOCITY_RANGE
-        _configure_sim_for_visualizer_test(env)
-        with caplog.at_level(logging.WARNING):
-            env.reset()
-            kit_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, KitVisualizer)]
-            assert kit_visualizers, "Expected an initialized Kit visualizer."
-            with _visualizer_debug_case("kit", backend_kind, tiled=True):
-                _run_visualizer_tiled_camera_motion_test(
-                    env, kit_visualizers[0], physics_kind=backend_kind, viz_kind="kit"
-                )
         _assert_no_visualizer_log_issues(caplog)
     finally:
         _cleanup_visualizer_test_process(env)

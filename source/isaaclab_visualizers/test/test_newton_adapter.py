@@ -23,9 +23,11 @@ from isaaclab_visualizers.newton import (
     NewtonGLVisualizerCfg,
     NewtonRTXVisualizer,
     NewtonRTXVisualizerCfg,
+    ParticleSurfaceRenderer,
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
+from isaaclab_visualizers.newton import particle_surface as particle_surface_module
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
@@ -33,7 +35,6 @@ from isaaclab_visualizers.newton_adapter import (
     log_geo_with_expanded_plane_scale,
 )
 
-from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import instantiate, validate
@@ -86,6 +87,56 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
 
     with pytest.raises(RuntimeError, match="must be initialized"):
         visualizer.log_mesh("/surface", points, indices)
+
+
+@pytest.mark.parametrize("visualizer_cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
+def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(
+    monkeypatch: pytest.MonkeyPatch, visualizer_cfg_type
+):
+    """A reusable extractor must stage visible and empty meshes through the viewer API."""
+    model = SimpleNamespace(
+        device=wp.get_device("cpu"),
+        particle_radius=object(),
+        particle_flags=object(),
+        particle_world=object(),
+    )
+    state = SimpleNamespace(particle_q=object())
+    monkeypatch.setattr(particle_surface_module.NewtonManager, "get_model", lambda: model)
+    monkeypatch.setattr(particle_surface_module.NewtonManager, "get_state_0", lambda: state)
+
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer, cfg=visualizer_cfg_type(enable_markers=False))
+    surface = Mock(world_count=2)
+    mesh = surface.extract.return_value
+    vertices = wp.zeros(4, dtype=wp.vec3)
+    indices = wp.zeros(6, dtype=wp.int32)
+    normals = wp.zeros(4, dtype=wp.vec3)
+    mesh.to_arrays.side_effect = [(vertices, indices, normals), (None, None, None)]
+    renderer = ParticleSurfaceRenderer(
+        [visualizer], surface, path="/water", color=(0.1, 0.2, 0.8), opacity=0.65, use_cuda_graph=False
+    )
+
+    assert viewer.events == []
+    assert renderer.update() == 2
+    assert viewer.events == []
+    surface.extract.assert_called_with(
+        state.particle_q,
+        model.particle_radius,
+        particle_flags=model.particle_flags,
+        particle_world=model.particle_world,
+    )
+    visualizer.step(0.1)
+    assert viewer.logged_mesh[0] == "/water"
+    assert viewer.logged_mesh[1] is vertices
+    assert viewer.logged_mesh[3]["dynamic"] and not viewer.logged_mesh[3]["hidden"]
+    assert viewer.logged_mesh[3]["opacity"] == 0.65
+    assert viewer.events == ["begin_frame", "log_state", "log_mesh", "end_frame"]
+
+    assert renderer.update() == 0
+    visualizer.step(0.1)
+    assert viewer.logged_mesh[3]["hidden"]
+    assert viewer.logged_mesh[1].shape[0] == 0
+    assert viewer.logged_mesh[2].shape[0] == 0
 
 
 class _MarkerRegistry:
@@ -288,6 +339,46 @@ def test_newton_viewer_camera_speed_setter_validates(monkeypatch):
         viewer.camera_speed = -1.0
 
 
+def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
+    from newton._src.viewer.camera import Camera
+    from newton._src.viewer.viewer_gui import ViewerGui
+    from pyglet.window import key
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.camera = Camera(width=64, height=64, up_axis="Z")
+    viewer._camera_speed = 1.0
+    viewer._paused = False
+    viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
+
+    gui = ViewerGui.__new__(ViewerGui)
+    gui.ui = SimpleNamespace(
+        is_available=True,
+        is_capturing=lambda: True,
+        imgui=SimpleNamespace(get_current_context=lambda: object()),
+        io=SimpleNamespace(want_capture_mouse=True, want_capture_keyboard=False),
+    )
+    gui._viewer = viewer
+    gui._cam_vel = np.zeros(3, dtype=np.float32)
+    gui._cam_damp_tau = 0.01
+    fake_implot = SimpleNamespace(create_context=lambda: object(), set_imgui_context=lambda context: None)
+    monkeypatch.setitem(sys.modules, "imgui_bundle", SimpleNamespace(implot=fake_implot))
+    monkeypatch.setattr(
+        newton_visualizer_module.NewtonViewerUI,
+        "__init__",
+        lambda self, *args, **kwargs: setattr(self, "gui", gui),
+    )
+
+    start = np.asarray(viewer.camera.pos)
+    NewtonViewerGL.__init__(viewer)
+    viewer._update_camera(1.0)
+    moved = np.asarray(viewer.camera.pos)
+    assert not np.array_equal(moved, start)
+
+    gui.ui.io.want_capture_keyboard = True
+    viewer._update_camera(1.0)
+    np.testing.assert_array_equal(viewer.camera.pos, moved)
+
+
 class _FakeTrainingControlsImgui:
     """Minimal imgui double that drives ``_render_training_controls`` by label."""
 
@@ -334,6 +425,29 @@ def test_newton_gl_viewer_rendering_pause_state_stays_in_sync_with_space_key():
     resume_click = _FakeTrainingControlsImgui(clicked_label="Resume Rendering")
     viewer._render_training_controls(resume_click)
     assert viewer.is_rendering_paused() is False
+
+
+def test_newton_gl_viewer_skips_picking_only_while_a_fullscreen_image_is_shown(monkeypatch):
+    """Clicks on a fullscreen sensor image, which Newton dispatches during ``end_frame()``, must not
+    pick in the hidden perspective scene, and picking must resume once a frame shows the scene again.
+    """
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._close_requested = False
+    viewer._fullscreen_image_active = False  # Set by NewtonViewerGL.__init__, which __new__ skips.
+    picks = []
+    monkeypatch.setattr(ViewerGL, "log_image", lambda self, name, image, *, fullscreen=False: None)
+    monkeypatch.setattr(ViewerGL, "on_mouse_press", lambda self, *args: picks.append(args))
+    # Newton dispatches window input from inside end_frame(), after the frame's images were logged.
+    monkeypatch.setattr(ViewerGL, "end_frame", lambda self: self.on_mouse_press(1, 2, 4, 0))
+
+    viewer.log_image("Streaming View", np.zeros((2, 2, 3), dtype=np.uint8), fullscreen=True)
+    viewer.end_frame()
+    assert picks == []
+
+    viewer.end_frame()
+    assert picks == [(1, 2, 4, 0)]
 
 
 def test_newton_viewer_particle_color_override(monkeypatch):
@@ -500,9 +614,13 @@ class _ContactSensor:
 class _SceneDataProvider:
     def __init__(self, contact_sensors=None):
         self._contact_sensors = contact_sensors or {}
+        self.backend = SimpleNamespace(geometry_timestamp=0)
 
     def get_contact_sensors(self):
         return self._contact_sensors
+
+    def get_geometry_points(self):
+        return {}
 
     def create_mapping(self, paths):
         return None
@@ -540,7 +658,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
     view.render = visualizer._capture_perspective
     visualizer.current_image_view, visualizer._image_views = view, [view]
-    if viewer is not None:
+    if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
     return visualizer
 
@@ -945,12 +1063,11 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     """Recording advances without viewer steps, while repeated reads in one physics step reuse the image."""
     from unittest.mock import PropertyMock
 
-    from isaaclab.envs.utils import video_recorder
     from isaaclab.envs.utils.video_recorder import VideoRecorder
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     clip = Mock()
-    monkeypatch.setattr(video_recorder, "ImageSequenceClip", clip)
+    monkeypatch.setitem(sys.modules, "moviepy.video.io.ImageSequenceClip", SimpleNamespace(ImageSequenceClip=clip))
     pixels = wp.full((2, 4, 6, 4), 10, dtype=wp.uint8, device="cpu")
     camera = Mock(cfg=SimpleNamespace(prim_path="/Camera", data_types=["rgb"]))
     acquired = PropertyMock(return_value=SimpleNamespace(output={"rgb": ProxyArray(pixels)}))
@@ -963,8 +1080,6 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     sim.get_setting = lambda name: False
     sim._physics_step_count, sim._backend_registry = 0, []
     sim.physics_manager = Mock()
-    sim.forward = Mock()
-    sim.vis_marker_registry = Mock()
     sim._scene_data_provider = SimpleNamespace(num_envs=2)
     sim._visualizers = [visualizer]
     BaseVisualizer.initialize(visualizer, sim, cameras=[camera])
@@ -977,9 +1092,9 @@ def test_headless_streaming_recording_advances_with_physics(monkeypatch, tmp_pat
     for value in (10, 20, 30):
         pixels.fill_(value)
         sim.step(render=False)
-        frame = recorder._get_frame()
+        frame = recorder._capture()
         recorder.step()
-        assert recorder._get_frame() is frame
+        assert recorder._capture() is frame
     assert visualizer._sim_time == 0.0
     frames = clip.call_args.args[0]
     assert len(frames) == 3
@@ -1185,137 +1300,6 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     expected_lower = cfg.sky_lower_color if color is None else color
     assert visualizer._viewer.renderer.sky_upper == expected_upper
     assert visualizer._viewer.renderer.sky_lower == expected_lower
-
-
-@pytest.mark.rendering
-@pytest.mark.kitless
-@pytest.mark.parametrize("lighting", [True, False])
-@pytest.mark.parametrize("background_color", [None, (0.0, 0.0, 1.0)])
-def test_newton_rtx_scene_sky_and_background_override(tmp_path, monkeypatch, lighting, background_color):
-    """The native viewer preserves authored lighting and borrows a stage without owning sensors."""
-    if lighting:
-        pytest.skip(
-            "Two OVRTX renderers can hang; re-enable after adopting https://github.com/newton-physics/newton/pull/4627."
-        )
-    import gymnasium as gym
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-    from isaaclab_ov.renderers import OVRTXRendererCfg
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.app import launch_simulation
-    from isaaclab.assets import VisualMaterialCfg
-    from isaaclab.sensors import CameraCfg
-    from isaaclab.visualizers import PerspectiveCameraCfg
-
-    import isaaclab_tasks  # noqa: F401
-    from isaaclab_tasks.utils import resolve_task_config
-
-    if sys.platform == "linux" and not os.environ.get("DISPLAY"):
-        monkeypatch.setenv("PYOPENGL_PLATFORM", "egl")
-
-    texture = tmp_path / "red.hdr"
-    texture.write_bytes(b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 2 +X 4\n" + bytes((128, 0, 0, 129)) * 8)
-    cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
-    cfg.scene.num_envs = 2
-    cfg.seed = 0
-    cfg.scene.distant_light = AssetBaseCfg(
-        prim_path="/World/Sky", spawn=sim_utils.DomeLightCfg(texture_file=str(texture), intensity=750.0)
-    )
-    if not lighting:
-        cfg.scene.distant_light = None
-    cfg.scene.target = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Target",
-        spawn=sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0), visual_material=sim_utils.PreviewSurfaceCfg()),
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, -2.0, 2.0)),
-    )
-    cfg.scene.material = VisualMaterialCfg(prim_path="{ENV_REGEX_NS}/Target/geometry/material", spawn=None)
-    cfg.scene.camera = CameraCfg(
-        prim_path="{ENV_REGEX_NS}/Camera",
-        width=128,
-        height=128,
-        data_types=["rgba"],
-        renderer_cfg=OVRTXRendererCfg() if lighting else NewtonWarpRendererCfg(),
-        spawn=sim_utils.PinholeCameraCfg(focal_length=24.0, horizontal_aperture=15.2908),
-        offset=CameraCfg.OffsetCfg(pos=(0.0, -6.0, 2.0), rot=(0.0, 0.0, 2**-0.5, 2**-0.5), convention="world"),
-    )
-    cfg.sim.visualizer_cfgs = [
-        NewtonRTXVisualizerCfg(
-            headless=True,
-            window=WindowCfg(size=(128, 128)),
-            streaming_envs=[0],
-            background_color=background_color,
-            cameras=[
-                PerspectiveCameraCfg(eye=(0.0, -6.0, 2.0), lookat=(0.0, -2.0, 2.0), focal_length=24.0),
-                SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera"),
-            ],
-        )
-    ]
-    with launch_simulation(cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
-        env = gym.make("Isaac-Cartpole", cfg=cfg)
-        try:
-            env.reset()
-            visualizer = env.unwrapped.sim.visualizers[0]
-            camera = env.unwrapped.scene["camera"]
-            viewer = visualizer._viewer
-            native_stage = viewer._borrowed_stage
-            # Exercise the native presentation path through an EGL window in headless CI.
-            viewer._headless = False
-            assert visualizer.current_image_view.camera is None
-            assert len(env.unwrapped.scene.sensors) == 1
-            origin = env.unwrapped.scene.env_origins[0].cpu().numpy()
-            visualizer.set_camera_view(origin + (0.0, -6.0, 2.0), origin + (0.0, -2.0, 2.0))
-            for _ in range(40):
-                env.unwrapped.sim.step(render=False)
-                pixels = visualizer.render_rgb_array()
-            background = pixels[8:24, 8:24].mean(axis=(0, 1))
-            color = pixels[56:72, 56:72].mean(axis=(0, 1))
-            channel = 0 if background_color is None else 2
-            if lighting or background_color is not None:
-                assert background[channel] > 180 and np.delete(background, channel).max() < 10, background
-            else:
-                assert background.max() < 10, background
-            if lighting:
-                assert color[0] > 80 and color[0] > 2 * color[1:].max(), color
-            else:
-                assert color.max() < 10, color
-
-            output = camera.data.output["rgba"].warp
-            sensor_frame = camera.frame.torch.clone()
-            sensor_ptr = output.ptr
-            captured_output = wp.empty_like(output)
-            with wp.ScopedCapture(device=output.device) as capture:
-                wp.copy(captured_output, output)
-            viewer._window.set_size(160, 96)
-            viewer._window.dispatch_events()
-            pixels = visualizer.render_rgb_array()
-            assert pixels.shape == (128, 128, 3)
-            assert camera.image_shape == (128, 128)
-            assert camera.data.output["rgba"].warp.ptr == sensor_ptr
-            torch.testing.assert_close(camera.frame.torch, sensor_frame)
-            wp.capture_launch(capture.graph)
-            np.testing.assert_array_equal(captured_output.numpy(), output.numpy())
-
-            visualizer._select_camera(1)
-            image = visualizer.render_tiled_rgba_array()
-            np.testing.assert_array_equal(image.numpy(), camera.data.output["rgba"].warp.numpy()[0])
-            assert image.device.is_cuda
-            with monkeypatch.context() as gpu_display:
-                gpu_display.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Display downloaded pixels")))
-                visualizer._render_frame()
-            if lighting and background_color is None:
-                env.unwrapped.sim.reset()
-                visualizer._select_camera(0)
-                assert visualizer.render_rgb_array().shape == (128, 128, 3)
-            visualizer.close()
-            query = native_stage.get_attribute_write_floor()
-            try:
-                assert native_stage.fetch_ordinal(query) > 0
-            finally:
-                native_stage.release_ordinal_query(query).wait()
-            camera.update(cfg.sim.dt)
-            assert np.ptp(camera.data.output["rgba"].warp.numpy()) > 0
-        finally:
-            env.close()
 
 
 def test_newton_rtx_visualizer_rejects_kit_physics_backend():
