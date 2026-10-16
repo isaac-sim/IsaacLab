@@ -145,9 +145,6 @@ class CameraData:
         wrapped in a :class:`~isaaclab.utils.warp.ProxyArray`; call ``.torch`` on
         the result to obtain a zero-copy :class:`torch.Tensor` view.
 
-        When both are requested with matching layouts, ``rgb_hdr`` aliases ``rgb_radiance``:
-        radiance selects the camera's active HDR signal before exposure and response.
-
         Args:
             data_types: Requested output names (typically :attr:`CameraCfg.data_types`).
                 Every name must be a member of :class:`RenderBufferKind`.
