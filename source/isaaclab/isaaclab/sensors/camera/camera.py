@@ -555,6 +555,8 @@ class Camera(SensorBase):
         idx_wp = self._resolve_env_ids_wp(env_ids)
         with self._view.xform_world_space_writer() as writer:
             writer.set_poses(pos_wp, ori_wp, idx_wp)
+        # the first capture after a reset keeps the explicitly set pose instead of reading it again
+        wp.indexedarray(self._pose_pending, idx_wp).fill_(False)
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
@@ -615,6 +617,8 @@ class Camera(SensorBase):
                 wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),
                 idx_wp,
             )
+        # the first capture after a reset keeps the explicitly set pose instead of reading it again
+        wp.indexedarray(self._pose_pending, idx_wp).fill_(False)
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
@@ -635,15 +639,14 @@ class Camera(SensorBase):
         self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
-        # reset the data
-        # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
-        if env_mask is not None:
-            self._update_poses(env_mask=env_mask, frame_op=2)
-        elif env_ids is None:
-            self._update_poses(frame_op=2)
-        else:
-            env_ids_wp = self._resolve_env_ids_wp(env_ids)
-            self._update_poses(env_ids_wp, frame_op=2)
+        # reset the frame counters
+        reset_mask = self._resolve_indices_and_mask(env_ids, env_mask)
+        self._update_camera_state(env_mask=reset_mask, frame_op=2)
+        # reset events, such as pose randomizations, move the cameras after the sensors reset,
+        # so the poses of the reset cameras are read at their next capture
+        if not self.cfg.update_latest_camera_pose:
+            self._pose_pending_torch.logical_or_(wp.to_torch(reset_mask))
+            self._has_pending_poses = True
 
     """
     Implementation.
@@ -705,6 +708,10 @@ class Camera(SensorBase):
         self._ALL_INDICES = wp.array(np.arange(self._view.count, dtype=np.int32), device=self._device)
         # Create frame count buffer
         self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
+        # Cameras reset since their last capture, whose poses the next capture reads unless they are set before it
+        self._pose_pending = wp.zeros(self._view.count, device=self._device, dtype=wp.bool)
+        self._pose_pending_torch = wp.to_torch(self._pose_pending)
+        self._has_pending_poses = False
 
         # Convert all encapsulated prims to Camera. Newton keeps only source USD camera prims.
         self._sensor_prims.clear()
@@ -730,6 +737,10 @@ class Camera(SensorBase):
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
+            if self._has_pending_poses:
+                self._update_poses(env_mask=self._pose_pending, frame_op=0)
+                self._pose_pending.zero_()
+                self._has_pending_poses = False
             self._update_camera_state(env_mask=env_mask, frame_op=1)
         self._renderer.prepare_capture(self._render_data, self._data, self._frame)
 

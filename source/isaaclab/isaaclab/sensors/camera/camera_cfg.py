@@ -102,7 +102,13 @@ class CameraCfg(SensorBaseCfg):
 
     If True, the latest camera pose is updated in the camera's data which will slow down performance
     due to the use of :class:`FrameView`.
-    If False, the pose of the camera during initialization is returned.
+
+    If False, the pose is read at initialization, after :meth:`~isaaclab.sensors.Camera.set_world_poses` and
+    :meth:`~isaaclab.sensors.Camera.set_world_poses_from_view`, and at the first capture after each reset, so
+    that it includes pose changes made by reset events. A pose set with these methods after a reset is kept at
+    that capture. Motion of the camera's parent between these reads is not tracked. Renderers that take the
+    camera pose from the camera's data, such as the Newton Warp and OVRTX renderers, render from this pose,
+    while the Isaac RTX renderer renders from the camera prim's current transform.
     """
 
     semantic_filter: str | list[str] = "*:*"
