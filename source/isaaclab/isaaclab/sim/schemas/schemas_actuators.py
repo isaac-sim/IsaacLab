@@ -252,8 +252,8 @@ def author_actuator_prims(
         if is_bam:
             validate(cfg)
             motor = to_dict(cfg.motor)
-            # The model becomes drive flags; viscous friction is applied as passive joint damping.
-            del motor["model"], motor["friction_viscous"]
+            # The model becomes drive flags; viscous friction and armature are applied as joint properties.
+            del motor["model"], motor["friction_viscous"], motor["armature"]
             bam_attrs = {
                 # Float-typed in USD: an int-typed attribute on a weaker layer would truncate the override.
                 **{name: float(value) for name, value in motor.items()},

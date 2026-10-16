@@ -51,6 +51,13 @@ class BamMotorCfg:
     friction_viscous: float = MISSING
     """Viscous friction coefficient [N.m.s/rad], applied as passive joint damping."""
 
+    armature: float | None = None
+    """Reflected rotor inertia [kg.m^2], applied as joint armature.
+
+    The actuator group's :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature` takes precedence when set. None
+    keeps the USD joint armature.
+    """
+
     friction_stribeck: float = 0.0
     """Additional near-rest friction [N.m]."""
 

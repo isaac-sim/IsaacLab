@@ -86,6 +86,8 @@ def _make_cfg(**overrides) -> BamActuatorCfg:
     with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_xl330_m6_goldens.npz")) as data:
         params = {key.removeprefix("attr_"): data[key].item() for key in data.files if key.startswith("attr_")}
     params["resistance"] = params.pop("R")
+    # The pendulum's arm inertia already includes the reflected rotor inertia.
+    del params["armature"]
     motor = BamMotorCfg(model="m6", **{f.name: params[f.name] for f in fields(BamMotorCfg) if f.name in params})
     kwargs = {"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW}
     kwargs.update(overrides)
@@ -251,6 +253,17 @@ def test_reset_environment_starts_without_the_previous_episode_load(native_sim, 
     external_torque = actuator.drive.external_torque.numpy()
     np.testing.assert_array_equal(external_torque[reset], 0.0)
     np.testing.assert_array_equal(external_torque[~reset], last_load[~reset])
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_motor_fit_armature_applies_unless_the_group_sets_one(native_sim, device, pendulum_usd):
+    """The motor fit's armature replaces the USD joint armature, and an explicit group armature wins."""
+    cfgs = {"FitRobot": _make_cfg(), "GroupRobot": _make_cfg(armature=0.004)}
+    for cfg in cfgs.values():
+        cfg.motor.armature = 0.003
+    for robot, expected in zip(_spawn_pendulums(native_sim, pendulum_usd, cfgs), (0.003, 0.004)):
+        armature = robot.data.joint_armature.torch
+        torch.testing.assert_close(armature, torch.full_like(armature, expected))
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
