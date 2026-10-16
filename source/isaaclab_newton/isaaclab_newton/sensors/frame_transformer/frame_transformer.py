@@ -89,9 +89,6 @@ class FrameTransformer(BaseFrameTransformer):
             self._target_frame_body_names.append(target_frame.name or body_name)
             self._num_targets += 1
 
-        # Configured names: initialization replaces the body names with one entry per matched body.
-        self._target_frame_cfg_names = list(self._target_frame_body_names)
-
         # Set target frame names for base class find_bodies() and data container
         self._target_frame_names = [t.name or split_path_expr(t.prim_path)[-1] for t in cfg.target_frames]
         self._data._target_frame_names = self._target_frame_names
@@ -144,11 +141,12 @@ class FrameTransformer(BaseFrameTransformer):
             num_envs,
         )
 
-        # Expand targets and build sensor index lists
+        # Expand targets and build sensor index lists. The configured names come from the cfg, since the name
+        # lists hold the expanded names after the first initialization.
         expanded_names, target_indices_per_target, shapes_list, references_list = self._build_sensor_index_lists(
             source_indices,
             target_per_world,
-            self._target_frame_cfg_names,
+            [t.name or split_path_expr(t.prim_path)[-1] for t in self.cfg.target_frames],
             NewtonManager.backend.model.shape_label,
             world_origin_idx,
             num_envs,
