@@ -110,6 +110,15 @@ Command Builder
          <span>Zoo</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
+               data-demo-physics="isaacsim_physx"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
+         <img src="../../_static/browser_demos/previews/microduck.jpg"
+              alt="MicroDuck warehouse scene" loading="lazy">
+         <span>MicroDuck Warehouse</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"

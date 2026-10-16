@@ -28,7 +28,7 @@ import gymnasium as gym
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
-from isaaclab_tasks.utils.preset_cli import setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument(
