@@ -22,7 +22,6 @@ SHELL ["/bin/bash", "-c"]
 
 LABEL description="Container for installation CI tests."
 
-ARG ISAACLAB_USER_HOME=/opt/isaaclab-user
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -90,15 +89,15 @@ RUN ARCH=$(case "$(uname -m)" in \
     && curl -fsSL --proto '=https' --proto-redir '=https' \
       "https://repo.anaconda.com/miniconda/Miniconda3-${MINICONDA_VERSION}-Linux-${ARCH}.sh" \
       -o /tmp/miniconda.sh \
-    && bash /tmp/miniconda.sh -b -p ${ISAACLAB_USER_HOME}/miniconda3 \
+    && bash /tmp/miniconda.sh -b -p /home/isaaclab/miniconda3 \
     && rm /tmp/miniconda.sh \
-    && chown -R 1000:1000 ${ISAACLAB_USER_HOME}/miniconda3
+    && chown -R 1000:1000 /home/isaaclab/miniconda3
 
 # Add the conda wrapper (condabin/) to PATH but NOT miniconda3/bin/, so the
 # system Python remains the default `python` and only `conda` itself becomes
 # globally available.  Tests that need conda's Python activate envs explicitly
 # via `conda run -n <env>`.
-ENV PATH="${ISAACLAB_USER_HOME}/miniconda3/condabin:${PATH}"
+ENV PATH="/home/isaaclab/miniconda3/condabin:${PATH}"
 
 # Copy the repo
 ARG ISAACLAB_PATH=/workspace/isaaclab
@@ -117,9 +116,10 @@ RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
- && useradd --uid 1000 --gid 1000 --home-dir ${ISAACLAB_USER_HOME} --create-home --shell /bin/bash isaaclab \
- && mkdir -p ${ISAACLAB_USER_HOME}/.cache/uv ${ISAACLAB_USER_HOME}/.cache/pip \
- && chown -R isaaclab:isaaclab ${ISAACLAB_USER_HOME} \
+ && useradd --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
+ && chown isaaclab:isaaclab /home/isaaclab \
+ && mkdir -p /home/isaaclab/.cache/uv /home/isaaclab/.cache/pip \
+ && chown -R isaaclab:isaaclab /home/isaaclab/.cache \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
 
 # Passwordless sudo for the runtime user so ``./isaaclab.sh -i`` can apt-get
@@ -127,12 +127,11 @@ RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
 RUN echo "isaaclab ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/isaaclab \
  && chmod 0440 /etc/sudoers.d/isaaclab
 
-ENV HOME=${ISAACLAB_USER_HOME}
 USER isaaclab
 
 # Accept Miniconda default-channel Terms of Service non-interactively so that
 # `conda create` works without user prompts inside the container.
-# Runs as isaaclab so the acceptance is written to ${ISAACLAB_USER_HOME}/.condarc.
+# Runs as isaaclab so the acceptance is written to /home/isaaclab/.condarc.
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
     conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
 
