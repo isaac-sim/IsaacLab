@@ -126,6 +126,8 @@ def get_model_checkpoint(
     checkpoint: int | None = None,
     wandb_entity: str | None = None,
     download_dir: str = "logs/wandb_checkpoints",
+    *,
+    checkpoint_pattern: str = r"model_\d+\.pt",
 ) -> str:
     """Download a model checkpoint logged to Weights & Biases (wandb).
 
@@ -134,44 +136,32 @@ def get_model_checkpoint(
         project: The name of the wandb project the run belongs to.
         checkpoint: The specific checkpoint iteration to download. If None, downloads the latest.
         wandb_entity: The wandb entity (user or team) that owns the project. If None, uses the
-            ``WANDB_ENTITY`` or ``WANDB_USERNAME`` environment variable.
+            ``WANDB_ENTITY`` or ``WANDB_USERNAME`` environment variable, then the local W&B login.
         download_dir: Directory the checkpoint is downloaded to.
+        checkpoint_pattern: Regular expression matching file names when ``checkpoint`` is None.
+            Multiple matches are sorted naturally to select the highest numeric iteration.
 
     Returns:
         The local path to the downloaded model checkpoint.
 
     Raises:
-        ImportError: If the ``wandb`` package is not installed.
-        ValueError: If the wandb entity cannot be resolved or no matching checkpoint is found on the run.
+        ValueError: If no matching checkpoint is found on the run.
     """
-    if "wandb" not in globals():
-        raise ImportError(
-            "The 'wandb' package is required to resolve wandb checkpoints. Install it with 'pip install wandb'."
-        )
+    import wandb
+
     wandb_entity = resolve_wandb_entity(wandb_entity)
-    if wandb_entity is None:
-        raise ValueError(
-            "A wandb entity is required to resolve a checkpoint. Pass 'wandb_entity' or set the "
-            "WANDB_ENTITY or WANDB_USERNAME environment variable."
-        )
-
-    logger.info(f"Downloading model checkpoint from wandb run: {wandb_entity}/{project}/{run_id}")
+    run_path = "/".join(filter(None, (wandb_entity, project, run_id)))
+    logger.info(f"Downloading model checkpoint from wandb run: {run_path}")
     api = wandb.Api()
-    wdb_run = api.run(f"{wandb_entity}/{project}/{run_id}")
+    wdb_run = api.run(run_path)
 
-    models = sorted(
-        (file for file in wdb_run.files() if re.fullmatch(r"model_(\d+)\.pt", file.name)),
-        key=lambda file: int(re.fullmatch(r"model_(\d+)\.pt", file.name).group(1)),
-    )
+    pattern = rf"model_{checkpoint}\.pt" if checkpoint is not None else checkpoint_pattern
+    models = [file for file in wdb_run.files() if re.fullmatch(pattern, os.path.basename(file.name))]
     if not models:
-        raise ValueError(f"No model checkpoints found in wandb run '{wandb_entity}/{project}/{run_id}'.")
-
-    if checkpoint is None:
-        model = models[-1]
-    else:
-        model = next((file for file in models if file.name == f"model_{checkpoint}.pt"), None)
-        if model is None:
+        if checkpoint is not None:
             raise ValueError(f"Model checkpoint iteration {checkpoint} not found in run '{run_id}'.")
+        raise ValueError(f"No model checkpoints found matching '{pattern}' in wandb run '{run_path}'.")
+    model = max(models, key=lambda file: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", file.name)])
 
     target_folder = os.path.join(download_dir, project, run_id)
     os.makedirs(target_folder, exist_ok=True)

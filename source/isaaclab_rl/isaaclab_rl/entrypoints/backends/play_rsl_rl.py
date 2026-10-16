@@ -25,7 +25,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config, setup_preset_cli
 
 from ...rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
-from ...utils.wandb import is_wandb_checkpoint, resolve_wandb_checkpoint
+from ...utils.wandb import get_model_checkpoint, is_wandb_checkpoint, resolve_wandb_checkpoint
 from ..common import (
     CHECKPOINT_SELECTORS,
     add_common_play_args,
@@ -76,6 +76,14 @@ def _resolve_checkpoint(
     args_cli: argparse.Namespace, agent_cfg: RslRlBaseRunnerCfg, env_cfg: object, log_root_path: str
 ) -> str | None:
     """Resolve the checkpoint to play, or None when no published checkpoint exists."""
+    if args_cli.wandb_run is not None:
+        return get_model_checkpoint(
+            run_id=args_cli.wandb_run,
+            project=args_cli.wandb_project if args_cli.wandb_project is not None else agent_cfg.wandb_project,
+            wandb_entity=args_cli.wandb_entity,
+            download_dir=os.path.join(log_root_path, "wandb"),
+            checkpoint_pattern=agent_cfg.load_checkpoint,
+        )
     if args_cli.checkpoint and is_wandb_checkpoint(args_cli.checkpoint):
         return resolve_wandb_checkpoint(args_cli.checkpoint)
     if args_cli.checkpoint == "pretrained":
