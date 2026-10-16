@@ -243,6 +243,7 @@ def _backends_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
             for marker, name in (
                 ("ovphysx", "ovphysx"),
                 ("kamino", "newton_kamino"),
+                ("feather", "newton_feather_pgs"),
                 ("mjwarp", "newton_mjwarp"),
                 ("physx", "physx"),
             )
