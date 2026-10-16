@@ -1,0 +1,1 @@
+* Added mixed rigid/MPM terrain training with matching generated terrain grids and paired spawn locations, MPM-only material randomization, and fixed robot foot collider margins for each contact model.

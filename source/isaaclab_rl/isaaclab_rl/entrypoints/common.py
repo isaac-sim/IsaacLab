@@ -710,6 +710,56 @@ def resolve_checkpoint_selector(
     )
 
 
+def download_wandb_checkpoint(
+    log_root_path: str,
+    wandb_project: str,
+    wandb_run: str,
+    wandb_entity: str | None = None,
+    checkpoint_pattern: str = r"model_.*\.pt",
+) -> str:
+    """Download a checkpoint uploaded by a Weights & Biases run and return its local path.
+
+    The checkpoint is picked among the run's uploaded files by matching
+    :attr:`checkpoint_pattern` against the file name. When several files match, the naturally
+    last one is used, which is the highest iteration for ``model_<iter>.pt`` style names. The
+    files are read directly off the run because the RSL-RL W&B writer uploads checkpoints as
+    plain run files rather than artifacts.
+
+    Args:
+        log_root_path: Directory under which downloaded runs are cached.
+        wandb_project: W&B project the run lives in.
+        wandb_run: W&B run id to download the checkpoint from.
+        wandb_entity: W&B entity (team or user) owning the project. When None, W&B resolves the
+            default entity of the local login.
+        checkpoint_pattern: Regular expression matching checkpoint file names.
+
+    Returns:
+        Absolute path to the downloaded checkpoint.
+
+    Raises:
+        ImportError: If the ``wandb`` package is not installed.
+        ValueError: If the run has no file matching :attr:`checkpoint_pattern`.
+    """
+    try:
+        import wandb
+    except ImportError as exc:  # wandb is an optional logging backend, not a base dependency
+        raise ImportError("Resolving a checkpoint from W&B requires the 'wandb' package to be installed.") from exc
+
+    run_path = "/".join(filter(None, (wandb_entity, wandb_project, wandb_run)))
+    run = wandb.Api().run(run_path)
+
+    checkpoints = [file.name for file in run.files() if re.fullmatch(checkpoint_pattern, os.path.basename(file.name))]
+    if not checkpoints:
+        raise ValueError(f"No file matching '{checkpoint_pattern}' was found in W&B run '{run_path}'.")
+    checkpoints.sort(key=_natural_sort_key)
+
+    download_dir = os.path.join(log_root_path, "wandb", f"{run.name or run.id}_{run.id}")
+    os.makedirs(download_dir, exist_ok=True)
+    run.file(checkpoints[-1]).download(root=download_dir, replace=True)
+
+    return os.path.abspath(os.path.join(download_dir, checkpoints[-1]))
+
+
 def _compatible_runs(
     log_root: Path, *, library: str, task: str, metadata: dict[str, str]
 ) -> list[tuple[datetime, Path]]:
