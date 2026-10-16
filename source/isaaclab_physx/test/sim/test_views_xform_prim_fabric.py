@@ -25,13 +25,17 @@ import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402, F401
+from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.envs import ManagerBasedEnv  # noqa: E402
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider  # noqa: E402
+from isaaclab.sensors import CameraCfg  # noqa: E402
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -416,38 +420,65 @@ def test_initial_seed_with_scaled_parent(device):
     view.close()
 
 
+# World translations of the four environment prims and of the camera inside each of them, in meters.
+ENV_ORIGINS = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0), (2.0, 2.0, 0.0))
+CAMERA_OFFSET = (0.5, -0.5, 1.0)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hierarchy_update_keeps_seeded_world_poses(device):
+    """Verify that the Fabric Hierarchy update in ``sim.forward()`` keeps the world poses the view seeds.
+
+    The update recomposes the world matrix of every prim read since the previous update from the
+    local matrices, so the seed must author the parents' local matrices as well as their world matrices.
+    A partial environment reset reads a subset of the cameras before ``sim.forward()``.
+    """
+    _skip_if_unavailable(device)
+    stage = sim_utils.get_current_stage()
+    for i, origin in enumerate(ENV_ORIGINS):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform", translation=origin, stage=stage)
+        sim_utils.create_prim(f"/World/envs/env_{i}/Camera", "Camera", translation=CAMERA_OFFSET, stage=stage)
+    sim = sim_utils.SimulationContext(
+        sim_utils.SimulationCfg(dt=0.01, device=device, physics=PhysxCfg(), use_fabric=True)
+    )
+    sim.reset()
+    view = FrameView("/World/envs/env_[^/]*/Camera", device=device)
+    expected = torch.tensor(ENV_ORIGINS, device=device) + torch.tensor(CAMERA_OFFSET, device=device)
+
+    view.get_world_poses()
+    sim.forward()
+    view.get_world_poses(wp.array([1, 2], dtype=wp.int32, device=device))
+    sim.forward()
+    world_pos, _ = view.get_world_poses()
+    torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected, atol=1e-5, rtol=0)
+    view.close()
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_partial_env_reset_keeps_camera_world_pose(device):
     """Verify that a camera keeps its world pose when its environment resets after the first reset.
 
-    The camera reads its pose from Fabric after ``sim.forward()``, which runs a Fabric Hierarchy
-    update. That update recomposes each world matrix from the local matrices, so the view must seed
-    the parents' local matrices too. Otherwise each reset camera moves to its env-local pose.
+    ``env.reset`` runs ``sim.forward()``, whose Fabric Hierarchy update recomposes the camera world
+    matrices from the seeded local matrices of the environment prims.
     """
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: PLC0415
-
-    from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
-    from isaaclab.sensors import CameraCfg  # noqa: PLC0415
-    from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg  # noqa: PLC0415
-
+    _skip_if_unavailable(device)
     cfg = make_empty_manager_based_env_cfg(device=device, num_envs=4, env_spacing=2.0)
     cfg.sim.physics = PhysxCfg()
     cfg.sim.use_fabric = True
     cfg.sim.visualizer_cfgs = []
-    offset = (0.5, -0.5, 1.0)
     cfg.scene.camera = CameraCfg(
         prim_path="{ENV_REGEX_NS}/Camera",
         height=16,
         width=16,
         data_types=["distance_to_image_plane"],
-        offset=CameraCfg.OffsetCfg(pos=offset, convention="opengl"),
+        offset=CameraCfg.OffsetCfg(pos=CAMERA_OFFSET, convention="opengl"),
         spawn=sim_utils.PinholeCameraCfg(),
         renderer_cfg=NewtonWarpRendererCfg(),
     )
     env = ManagerBasedEnv(cfg)
     try:
         camera = env.scene["camera"]
-        expected = env.scene.env_origins + torch.tensor(offset, device=env.device)
+        expected = env.scene.env_origins + torch.tensor(CAMERA_OFFSET, device=env.device)
         env.reset()
         env.reset(env_ids=torch.tensor([1, 2], device=env.device))
         torch.testing.assert_close(camera.data.pos_w.torch, expected, atol=1e-4, rtol=0)

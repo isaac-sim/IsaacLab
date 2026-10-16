@@ -15,9 +15,26 @@ import logging
 
 import warp as wp
 
+from pxr import Gf, Usd, UsdGeom
+
 from ...utils.warp import fabric as fabric_utils
 
 logger = logging.getLogger(__name__)
+
+
+def _ancestors(prim: Usd.Prim):
+    """Yield the ancestors of ``prim`` from its parent up to, not including, the pseudo-root."""
+    parent = prim.GetParent()
+    while parent and not parent.IsPseudoRoot():
+        yield parent
+        parent = parent.GetParent()
+
+
+def _usdrt_matrix(matrix: Gf.Matrix4d):
+    """Copy a pxr matrix into its usdrt counterpart."""
+    import usdrt
+
+    return usdrt.Gf.Matrix4d(*(matrix[r][c] for r in range(4) for c in range(4)))
 
 
 def _parent_path(prim_path: str) -> str:
@@ -76,8 +93,6 @@ class FabricXformSelection:
         except ImportError:
             hierarchy = None
 
-        from pxr import Usd, UsdGeom
-
         from ..utils import get_current_stage, get_current_stage_id
 
         self._device = device
@@ -111,10 +126,9 @@ class FabricXformSelection:
         self.unique_parent_paths = list(dict.fromkeys(child_parent_paths))
         parent_ordinal = {path: i for i, path in enumerate(self.unique_parent_paths)}
 
-        # Tag parents and children with their ordinal and author the matrices the accessors hand
+        # Tag children and parents with their ordinal and author the matrices the accessors hand
         # out. The tag doubles as the selection filter, so a prim in both groups gets both tags.
-        # Parents go first: a child's local matrix is relative to the nearest ancestor that carries
-        # Fabric matrices, which is usually the parent seeded here.
+        # Parents first: a child's local matrix is relative to its nearest ancestor with Fabric matrices.
         usd_stage = get_current_stage()
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         for paths, index_attr, is_child in (
@@ -129,12 +143,12 @@ class FabricXformSelection:
                 seed_world = seed_from_usd or not rt_prim.HasAttribute(self._WORLD_MATRIX_NAME)
                 seed_local = seed_from_usd or (is_child and not rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME))
                 if seed_world or seed_local:
-                    world, local = self._matrices_from_usd(path, usd_stage, xform_cache)
+                    world, local = self._matrices_from_usd(usd_stage.GetPrimAtPath(path), xform_cache)
                     rt_xformable = Rt.Xformable(rt_prim)
                     if seed_world:
-                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(world)
+                        rt_xformable.CreateFabricHierarchyWorldMatrixAttr(_usdrt_matrix(world))
                     if seed_local:
-                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(local)
+                        rt_xformable.CreateFabricHierarchyLocalMatrixAttr(_usdrt_matrix(local))
                 rt_prim.CreateAttribute(index_attr, usdrt.Sdf.ValueTypeNames.UInt, custom=True)
                 rt_prim.GetAttribute(index_attr).Set(i)
                 group_prims.append(rt_prim)
@@ -165,33 +179,22 @@ class FabricXformSelection:
         self._parent_slots_buf = wp.empty((len(self.unique_parent_paths),), dtype=wp.int32, device=device)
         self._parent_slot_of_child_buf = wp.empty((self.count,), dtype=wp.int32, device=device)
 
-    def _matrices_from_usd(self, path: str, usd_stage, xform_cache) -> tuple:
+    def _matrices_from_usd(
+        self, usd_prim: Usd.Prim, xform_cache: UsdGeom.XformCache
+    ) -> tuple[Gf.Matrix4d, Gf.Matrix4d]:
         """Return the prim's ``(world, local)`` Fabric Hierarchy matrices composed from USD.
 
-        Fabric Hierarchy composes ``worldMatrix = localMatrix * world(ancestor)`` with the nearest
-        ancestor that carries ``omni:fabric:localMatrix``; ancestors without one count as identity.
-        The local matrix is therefore relative to that ancestor, not to the USD parent.
-
-        Note:
-            The ``usdrt.Rt.Xformable.Set*XformFromUsd`` helpers do not apply here: they author the
-            legacy OmniHydra ``_localMatrix`` and ``_world*`` attributes, not these matrices.
+        Fabric Hierarchy composes ``worldMatrix = localMatrix * worldMatrix(ancestor)`` with the nearest
+        ancestor that carries ``omni:fabric:localMatrix``. Without such an ancestor, local equals world.
         """
-        import usdrt
+        world = xform_cache.GetLocalToWorldTransform(usd_prim)
+        anchor = next((prim for prim in _ancestors(usd_prim) if self._has_fabric_local_matrix(prim)), None)
+        local = world if anchor is None else world * xform_cache.GetLocalToWorldTransform(anchor).GetInverse()
+        return world, local
 
-        world = xform_cache.GetLocalToWorldTransform(usd_stage.GetPrimAtPath(path))
-        local = world
-        ancestor = path.rsplit("/", 1)[0]
-        while ancestor:
-            rt_ancestor = self.stage.GetPrimAtPath(ancestor)
-            if rt_ancestor.IsValid() and rt_ancestor.HasAttribute(self._LOCAL_MATRIX_NAME):
-                local = world * xform_cache.GetLocalToWorldTransform(usd_stage.GetPrimAtPath(ancestor)).GetInverse()
-                break
-            ancestor = ancestor.rsplit("/", 1)[0]
-
-        def to_rt(m):
-            return usdrt.Gf.Matrix4d(*(m[r][c] for r in range(4) for c in range(4)))
-
-        return to_rt(world), to_rt(local)
+    def _has_fabric_local_matrix(self, usd_prim: Usd.Prim) -> bool:
+        rt_prim = self.stage.GetPrimAtPath(usd_prim.GetPath().pathString)
+        return rt_prim.IsValid() and rt_prim.HasAttribute(self._LOCAL_MATRIX_NAME)
 
     def world_ifa(self) -> wp.indexedfabricarray:
         """Return the selected prims' world matrices in view order."""
