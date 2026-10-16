@@ -1568,7 +1568,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._pos_ranges[joint_ids] += default_joint_pos[joint_ids].unsqueeze(1)
 
         # store the joint pos ids (used later to sample the joint positions)
-        self._pos_joint_ids = torch.tensor(pos_joint_ids, dtype=torch.long, device=self._pos_ranges.device)
+        self._pos_joint_ids = torch.tensor(pos_joint_ids, dtype=torch.int32, device=self._pos_ranges.device)
         self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
 
         # create buffers to store the joint velocity range
@@ -1597,7 +1597,7 @@ class reset_joints_within_limits_range(ManagerTermBase):
                 self._vel_ranges[joint_ids] += default_joint_vel[joint_ids].unsqueeze(1)
 
         # store the joint vel ids (used later to sample the joint positions)
-        self._vel_joint_ids = torch.tensor(vel_joint_ids, dtype=torch.long, device=self._vel_ranges.device)
+        self._vel_joint_ids = torch.tensor(vel_joint_ids, dtype=torch.int32, device=self._vel_ranges.device)
         self._vel_ranges = self._vel_ranges[self._vel_joint_ids]
 
     def __call__(
