@@ -41,7 +41,10 @@ _RTX_ONLY_MODES = (
 _RENDERER_SLUGS = {"newton": "newton", "ovrtx": "ovrtx", "isaac_rtx": "isaac-rtx"}
 _SIMPLE_SHADING_MODES = tuple(mode.output_name for mode in _RTX_ONLY_MODES if mode.output_name.startswith("simple_"))
 _OVRTX_AMBIENT_LIGHT_SETTING = "float omni:rtx:rt:ambientLight:intensity = 1.0"
-_DEFAULT_GALLERY_SCENE = "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Docs/Renderers/renderer_gallery_scene.usda"
+_DEFAULT_GALLERY_SCENE = (
+    "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Docs/"
+    "Renderers/renderer_gallery_scene.usda"
+)
 
 
 def gallery_modes(renderer: str) -> tuple[GalleryMode, ...]:
@@ -175,8 +178,8 @@ def gallery_stage_paths() -> tuple[str, str]:
 
 
 def resolve_gallery_scene(scene: str) -> str:
-    """Preserve a Nucleus URI or resolve and validate a local scene path."""
-    if scene.startswith("omniverse://"):
+    """Preserve a remote URI or resolve and validate a local scene path."""
+    if scene.startswith(("https://", "omniverse://")):
         return scene
 
     scene_path = Path(scene).expanduser().resolve()
