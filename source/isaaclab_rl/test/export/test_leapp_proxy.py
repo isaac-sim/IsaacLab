@@ -198,10 +198,11 @@ def test_rgb_observation_export_keeps_live_camera_input(tmp_path: Path, frame_st
         "frame_stack": frame_stack,
     }
     cfg = ObservationTermCfg(func=mdp.image_rgb, params=params)
-    term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None)
+    term_cfg = SimpleNamespace(func=mdp.image_rgb(cfg, env), params=params, noise=None, modifiers=None)
     obs_manager = SimpleNamespace(
         _group_obs_term_cfgs={"policy": [term_cfg]},
         _group_obs_term_names={"policy": ["image"]},
+        _group_obs_term_delay_buffer={},
         compute=lambda *args, **kwargs: None,
     )
     cache = {}
@@ -253,9 +254,10 @@ def test_observation_history_export_preserves_buffer_behavior(tmp_path: Path, st
     patcher = ExportPatcher(export_method="onnx-dynamo", required_obs_groups={"policy"})
     patcher.task_name = "history"
     obs_manager = SimpleNamespace(
-        _group_obs_term_cfgs={"policy": [SimpleNamespace(func=lambda env: None, history_length=3)]},
+        _group_obs_term_cfgs={"policy": [SimpleNamespace(func=lambda env: None, history_length=3, modifiers=None)]},
         _group_obs_term_names={"policy": ["positions"]},
         _group_obs_term_history_buffer={"policy": {"positions": buffer}},
+        _group_obs_term_delay_buffer={},
     )
     patcher._patch_history_buffers(obs_manager)
     frames = [torch.arange(6, dtype=torch.float32).reshape(2, 3) + value for value in (0, 10, 30)]
@@ -371,3 +373,198 @@ def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.
     assert semantics.kind == InputKindEnum.BODY_POSITION
     assert semantics.element_names == [["x", "y", "z"]]
     assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
+
+
+@pytest.mark.parametrize("operation", ["delay", "variable_delay", "filter", "integrator"])
+def test_observation_state_export_matches_runtime(tmp_path: Path, operation: str):
+    """Compiled stateful preprocessing matches Isaac Lab across samples and reset."""
+    from leapp import InferenceManager, annotate
+
+    from isaaclab.utils.buffers import DelayBuffer
+    from isaaclab.utils.leapp.export_annotator import _leapp_delay_compute, _leapp_stateful_call
+    from isaaclab.utils.modifiers import DigitalFilter, DigitalFilterCfg, Integrator, IntegratorCfg
+
+    is_delay = operation in ("delay", "variable_delay")
+    if is_delay:
+        min_lag = 0 if operation == "variable_delay" else 2
+        actual = DelayBuffer(2, 2, "cpu", min_lag=min_lag, hold_prob=1.0)
+        reference = DelayBuffer(2, 2, "cpu", min_lag=min_lag, hold_prob=1.0)
+        actual.compute(torch.zeros(2, 3))
+        reference.compute(torch.zeros(2, 3))
+        actual.reset()
+        reference.reset()
+        fields = ("_buffer", "_write_index", "_num_pushes")
+        call = actual.compute
+        reference_call = reference.compute
+    else:
+        cfg = DigitalFilterCfg(A=[-0.3], B=[0.4, 0.3]) if operation == "filter" else IntegratorCfg(dt=0.02)
+        cls = DigitalFilter if operation == "filter" else Integrator
+        actual = cls(cfg, (2, 3), "cpu")
+        reference = cls(cfg, (2, 3), "cpu")
+        fields = ("x_n", "y_n") if operation == "filter" else ("integral", "y_prev")
+        call, reference_call = actual, reference
+    call = (
+        _leapp_delay_compute(actual, operation, "observation")
+        if is_delay
+        else _leapp_stateful_call(actual, call, fields, operation, "observation")
+    )
+    samples = [torch.arange(6, dtype=torch.float32).reshape(2, 3) + offset for offset in (2, -3, 8, 1, -5)]
+    leapp.start(operation, save_path=str(tmp_path))
+    try:
+        for index, sample in enumerate(samples):
+            if operation == "variable_delay":
+                actual.set_time_lag(torch.tensor([index % 3, (index + 1) % 3]))
+            value = annotate.input_tensors(operation, {"sample": sample})
+            annotate.output_tensors(operation, {"value": call(value)}, export_with="onnx-dynamo")
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True)
+    manager = InferenceManager(str(tmp_path / operation / f"{operation}.yaml"))
+    for _ in range(2):
+        manager.reset()
+        reference.reset()
+        for index, sample in enumerate(samples[::-1]):
+            inputs = {f"{operation}/sample": sample.clone()}
+            if operation == "variable_delay":
+                lags = torch.tensor([(index + 2) % 3, index % 3], dtype=reference.time_lags.dtype)
+                reference.set_time_lag(lags)
+                inputs[f"{operation}/observation_lag"] = lags.clone()
+            expected = reference_call(sample).clone()
+            outputs = manager.run_policy(inputs)
+            torch.testing.assert_close(outputs[f"{operation}/value"], expected)
+
+
+def test_live_observation_sources_export_and_deploy(tmp_path: Path):
+    """Plain sensor fields, effort and episode time remain live through deployment."""
+    from isaaclab_physx.assets.deformable_object.deformable_object_data import DeformableObjectData
+    from leapp import annotate
+
+    from isaaclab.actuators.actuator_collection import ActuatorCollection
+    from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_camera_data import MultiMeshRayCasterCameraData
+    from isaaclab.sensors.ray_caster.multi_mesh_ray_caster_data import MultiMeshRayCasterData
+
+    from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
+
+    def array(value):
+        return ProxyArray(wp.from_torch(value))
+
+    class Scene(dict):
+        sensors = {}
+
+        def reset(self, env_ids):
+            pass
+
+        def write_data_to_sim(self):
+            pass
+
+        def update(self, dt):
+            pass
+
+    rays = MultiMeshRayCasterData()
+    rays.create_buffers(2, 2, "cpu")
+    rays.ray_mesh_ids = array(torch.tensor([[[1], [2]], [[3], [4]]], dtype=torch.int32))
+    camera = MultiMeshRayCasterCameraData()
+    camera.image_mesh_ids = array(torch.ones(2, 2, 2, 1, dtype=torch.int32))
+    deformable = object.__new__(DeformableObjectData)
+    deformable.nodal_kinematic_target = array(torch.ones(2, 4, 4))
+    tactile = VisuoTactileSensorData(
+        tactile_depth_image=torch.ones(2, 2, 2, 1),
+        tactile_rgb_image=torch.ones(2, 2, 2, 3),
+        tactile_points_pos_w=torch.ones(2, 4, 3),
+        tactile_points_quat_w=torch.ones(2, 4, 4),
+        penetration_depth=torch.ones(2, 4),
+        tactile_normal_force=torch.ones(2, 4),
+        tactile_shear_force=torch.ones(2, 4, 2),
+    )
+    actuators = object.__new__(ActuatorCollection)
+    actuators._applied_effort_ta = array(torch.tensor([[1.0, 2.0], [3.0, 4.0]]))
+    actuators._computed_effort_ta = array(torch.tensor([[5.0, 6.0], [7.0, 8.0]]))
+    motor = object()
+    actuators._groups = {"motor": motor}
+    scene = Scene(
+        rays=SimpleNamespace(data=rays),
+        camera=SimpleNamespace(data=camera),
+        deformable=SimpleNamespace(data=deformable),
+        tactile=SimpleNamespace(data=tactile),
+        robot=SimpleNamespace(data=SimpleNamespace(), actuators=actuators),
+    )
+    env = SimpleNamespace(
+        scene=scene,
+        num_envs=2,
+        device="cpu",
+        step_dt=0.02,
+        max_episode_length_s=10.0,
+        episode_length_buf=torch.tensor([3, 7]),
+        common_step_counter=0,
+        _sim_step_counter=0,
+        cfg=SimpleNamespace(sim=SimpleNamespace(dt=0.01, render_interval=1), decimation=2),
+        sim=SimpleNamespace(device="cpu", is_rendering=False, step=lambda **kwargs: None, forward=lambda: None),
+        event_manager=None,
+        command_manager=None,
+        has_rtx_sensors=False,
+    )
+    cache = {}
+    proxy_env = _EnvProxy(env, "sources", {}, cache)
+    tactile_fields = tuple(tactile.__dataclass_fields__)
+
+    def observe(target):
+        values = [mdp.current_time_s(target), mdp.remaining_time_s(target), mdp.joint_effort(target)]
+        values.append(target.scene["robot"].actuators.computed_effort.torch)
+        for entity, field in (
+            ("rays", "ray_hits_w"),
+            ("rays", "ray_mesh_ids"),
+            ("camera", "image_mesh_ids"),
+            ("deformable", "nodal_kinematic_target"),
+        ):
+            values.append(getattr(target.scene[entity].data, field).torch.flatten(start_dim=1))
+        values.extend(getattr(target.scene["tactile"].data, field).flatten(start_dim=1) for field in tactile_fields)
+        return torch.cat([value.float() for value in values], dim=-1)
+
+    # Wrapping the actuator collection must preserve its mapping interface.
+    assert proxy_env.scene["robot"].actuators["motor"] is motor
+    assert list(proxy_env.scene["robot"].actuators) == ["motor"]
+    assert len(proxy_env.scene["robot"].actuators) == 1
+    leapp.start("sources", save_path=str(tmp_path))
+    try:
+        for _ in range(3):
+            cache.clear()
+            annotate.output_tensors("sources", {"observation": observe(proxy_env)}, export_with="onnx-dynamo")
+            env.episode_length_buf += 1
+    finally:
+        leapp.stop()
+    leapp.compile_graph(visualize=False, validate=True)
+    deployment = LeappDeploymentEnv(env, str(tmp_path / "sources" / "sources.yaml"))
+    expected_connections = {
+        "env:episode_length_buf",
+        "actuator:robot:applied_effort",
+        "actuator:robot:computed_effort",
+        "state:rays:ray_hits_w",
+        "state:rays:ray_mesh_ids",
+        "state:camera:image_mesh_ids",
+        "state:deformable:nodal_kinematic_target",
+        *(f"state:tactile:{field}" for field in tactile_fields),
+    }
+    descriptions = deployment.inference.nodes["sources"].input_descriptions
+    assert {desc.get("isaaclab_connection") for desc in descriptions} == expected_connections
+    assert len(deployment._read_inputs()) == len(expected_connections)
+    for _ in range(2):
+        saved_inputs = {name: value.clone() for name, value in deployment._read_inputs().items()}
+        deployment.reset()
+        for name, value in deployment._read_inputs().items():
+            if name != "sources/episode_length_buf":
+                torch.testing.assert_close(value, saved_inputs[name])
+        assert torch.equal(env.episode_length_buf, torch.zeros(2, dtype=torch.long))
+        for step in range(3):
+            rays.ray_mesh_ids.torch.add_(1)
+            camera.image_mesh_ids.torch.add_(2)
+            deformable.nodal_kinematic_target.torch.add_(0.2)
+            actuators.applied_effort.torch.add_(0.3)
+            actuators.computed_effort.torch.add_(0.4)
+            for field in tactile_fields:
+                getattr(tactile, field).add_(0.1)
+            expected = observe(env).clone()
+            actual = deployment.step()["sources/observation"]
+            torch.testing.assert_close(actual, expected)
+            torch.testing.assert_close(actual[:, 0], torch.full((2,), step * env.step_dt))
+            torch.testing.assert_close(actual[:, 1], torch.full((2,), 10.0 - step * env.step_dt))
+            assert torch.equal(env.episode_length_buf, torch.full((2,), step + 1))

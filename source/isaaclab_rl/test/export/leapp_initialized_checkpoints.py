@@ -13,6 +13,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import leapp_test_tasks  # noqa: F401
+
+from isaaclab.test.utils import resolve_test_sim_device
 from isaaclab.utils import to_dict
 
 
@@ -26,6 +29,8 @@ def create_initialized_checkpoint(
 ) -> Path:
     """Create a structurally valid initialized checkpoint through the requested backend's standard APIs."""
     checkpoint_root.mkdir(parents=True, exist_ok=True)
+    if backend_id == "sb3" and task_name == leapp_test_tasks.MANAGER_TASK:
+        env_cfg.observations.policy.concatenate_terms = False
     checkpoint_creators = {
         "rsl_rl": _create_rsl_rl_checkpoint,
         "rl_games": _create_rl_games_checkpoint,
@@ -82,6 +87,11 @@ def _create_rsl_rl_checkpoint(
             raise ValueError(f"Unsupported RSL-RL runner class: {agent_cfg.class_name}")
 
         checkpoint_path = checkpoint_root / "model_0.pt"
+        if task_name == leapp_test_tasks.MANAGER_TASK:
+            # Exercise checkpoint normalization with nonzero mean and nonunit variance, without training.
+            observations = env.get_observations()
+            runner.alg.actor.update_normalization(observations.apply(lambda value: value + 0.2))
+            runner.alg.actor.update_normalization(observations.apply(lambda value: value - 0.4))
         runner.save(str(checkpoint_path), infos={"initialized_for_leapp_export_test": True})
         return checkpoint_path
     finally:
@@ -241,6 +251,11 @@ def _create_sb3_checkpoint(
             )
 
         agent = PPO(policy_arch, env, verbose=0, tensorboard_log=str(checkpoint_root), **agent_cfg)
+        if task_name == leapp_test_tasks.MANAGER_TASK and isinstance(env, VecNormalize):
+            env.reset()
+            observations = env.get_original_obs()
+            for name, stats in env.obs_rms.items():
+                stats.update(np.concatenate((observations[name] - 1.0, observations[name] + 1.0)))
         checkpoint_without_suffix = checkpoint_root / "model"
         agent.save(str(checkpoint_without_suffix))
         if isinstance(env, VecNormalize):
@@ -321,13 +336,21 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    cli_args = SimpleNamespace(seed=args.seed, algorithm=args.algorithm)
+    device = resolve_test_sim_device()
+    cli_args = SimpleNamespace(seed=args.seed, algorithm=args.algorithm, device=device)
     task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
     task_dir.mkdir(parents=True, exist_ok=True)
     original_argv = sys.argv
     sys.argv = [sys.argv[0], f"presets={preset}"] if preset else [sys.argv[0]]
     try:
         env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
+        env_cfg.sim.device = device
+        if backend_id == "rsl_rl":
+            agent_cfg.device = device
+        elif backend_id == "rl_games":
+            agent_cfg["params"]["config"].update(device=device, device_name=device)
+        elif backend_id == "sb3":
+            agent_cfg["device"] = device
         with launch_simulation(env_cfg, vars(cli_args)):
             get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
             get_settings_manager().set("/isaaclab/render/rtx_sensors", False)

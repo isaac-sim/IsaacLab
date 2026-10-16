@@ -10,6 +10,8 @@ from dataclasses import dataclass
 
 import torch
 
+from isaaclab.utils.leapp import LeappTensorSemantics
+
 
 @dataclass
 class VisuoTactileSensorData:
@@ -22,6 +24,16 @@ class VisuoTactileSensorData:
     - Tactile point positions and contact information
 
     """
+
+    _leapp_field_semantics = {
+        "tactile_depth_image": LeappTensorSemantics(kind="state/sensor/image/depth"),
+        "tactile_rgb_image": LeappTensorSemantics(kind="state/sensor/image/rgb"),
+        "tactile_points_pos_w": LeappTensorSemantics(kind="state/sensor/tactile_point_position"),
+        "tactile_points_quat_w": LeappTensorSemantics(kind="state/sensor/tactile_point_rotation"),
+        "penetration_depth": LeappTensorSemantics(kind="state/sensor/penetration_depth"),
+        "tactile_normal_force": LeappTensorSemantics(kind="state/sensor/normal_force"),
+        "tactile_shear_force": LeappTensorSemantics(kind="state/sensor/shear_force"),
+    }
 
     # Camera-based tactile data
     tactile_depth_image: torch.Tensor | None = None

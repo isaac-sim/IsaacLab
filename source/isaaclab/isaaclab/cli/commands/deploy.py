@@ -12,6 +12,7 @@ import logging
 import sys
 from pathlib import Path
 
+import gymnasium as gym
 import torch
 
 import isaaclab_tasks  # noqa: F401
@@ -55,13 +56,14 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
             env_cfg.seed = args_cli.seed
         if args_cli.device is not None:
             env_cfg.sim.device = args_cli.device
+        env_cfg.scene.num_envs = 1
 
         with launch_simulation(env_cfg, args_cli):
             # Runtime environment classes load simulation modules and must only be
             # imported after the simulation runtime has started.
             from ...envs import LeappDeploymentEnv
 
-            env = LeappDeploymentEnv(env_cfg, args_cli.pipeline)
+            env = LeappDeploymentEnv(gym.make(task_name, cfg=env_cfg).unwrapped, args_cli.pipeline)
 
             if getattr(args_cli, "headless", False):
                 logger.warning(

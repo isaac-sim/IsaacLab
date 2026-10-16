@@ -5,6 +5,7 @@
 
 """Data container for the multi-mesh ray-cast camera sensor."""
 
+from ...utils.leapp import LeappTensorSemantics
 from ...utils.warp import ProxyArray
 from ..camera import CameraData
 
@@ -17,6 +18,10 @@ class MultiMeshRayCasterCameraData(CameraData):
     manages its own torch-based pose and hit buffers independently from the
     warp-native :class:`RayCasterData`.
     """
+
+    _leapp_field_semantics = {
+        "image_mesh_ids": LeappTensorSemantics(kind="state/sensor/image_mesh_id"),
+    }
 
     image_mesh_ids: ProxyArray = None
     """The mesh ids of the image pixels.

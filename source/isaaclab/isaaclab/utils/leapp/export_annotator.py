@@ -49,6 +49,7 @@ from ...envs.mdp.actions import EMAJointPositionToLimitsAction
 from ...managers import ManagerTermBase
 from ..array import convert_to_torch
 from ..images import CameraFrameStack
+from ..modifiers import DigitalFilter, Integrator
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
@@ -120,13 +121,26 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
         return None, None
     kp = stiffness.torch.clone() if stiffness is not None else None
     kd = damping.torch.clone() if damping is not None else None
-    for actuator in getattr(real_asset, "actuators", {}).values():
+    collection = getattr(real_asset, "actuators", {})
+    for actuator in collection.values():
         if not isinstance(actuator, (ImplicitActuator, IdealPDActuator)):
             continue
         if kp is not None:
             kp[:, actuator.joint_indices] = actuator.stiffness
         if kd is not None:
             kd[:, actuator.joint_indices] = actuator.damping
+    native_groups = getattr(collection, "_native_group_names", set())
+    if native_groups:
+        # Newton owns these gains; importing its adapter is only needed for native groups.
+        from ...actuators.newton import read_group_parameter  # noqa: PLC0415
+
+        for name in native_groups:
+            joint_ids = collection._group_joint_indices[name]
+            for gains, parameter in ((kp, "kp"), (kd, "kd")):
+                if gains is not None:
+                    # Custom controllers need not expose both PD parameters.
+                    with suppress(ValueError):
+                        gains[:, joint_ids] = read_group_parameter(collection, name, "controller", parameter)
     return kp, kd
 
 
@@ -181,6 +195,68 @@ def _leapp_history_buffer_append(circular_buffer, task_name: str, state_name: st
         return wrapped
 
     return decorate
+
+
+def _leapp_stateful_call(owner, original_call, fields: tuple[str, ...], task_name: str, prefix: str):
+    """Carry known observation-buffer state across exported inference calls."""
+
+    @wraps(original_call)
+    def wrapped(*args, **kwargs):
+        if not ExportManager.is_interpret_graph_enabled():
+            return original_call(*args, **kwargs)
+        states = annotate.state_tensors(
+            task_name, {f"{prefix}_{field.lstrip('_')}": getattr(owner, field) for field in fields}
+        )
+        for field, state in zip(fields, states):
+            setattr(owner, field, state.clone())
+        result = original_call(*args, **kwargs)
+        updates = annotate.update_state(
+            task_name, {f"{prefix}_{field.lstrip('_')}": getattr(owner, field) for field in fields}
+        )
+        for field, state in zip(fields, updates):
+            setattr(owner, field, state)
+        return result
+
+    return wrapped
+
+
+def _leapp_delay_compute(delay, task_name: str, prefix: str):
+    """Trace ring-buffer writes functionally and expose variable delay as a runtime input."""
+    original_compute = delay.compute
+
+    def compute(data, *, update_history=True):
+        lags = delay.time_lags
+        if delay._min_lag != delay.history_length:
+            lags = annotate.input_tensors(task_name, {f"{prefix}_lag": lags})
+        lags = lags.clamp(0, delay.history_length)
+        if update_history:
+            slots = torch.arange(delay.history_length + 1, device=data.device)
+            write_mask = (slots == delay._write_index).view(-1, *([1] * data.ndim))
+            delay._buffer = torch.where(write_mask, data.unsqueeze(0), delay._buffer)
+            lag = torch.minimum(lags, delay._num_pushes)
+            read_index = (delay._write_index - lag) % (delay.history_length + 1)
+            result = delay._buffer[read_index, delay._ALL_INDICES]
+            delay._num_pushes = delay._num_pushes + 1
+            delay._write_index = (delay._write_index + 1) % (delay.history_length + 1)
+            return result
+        lag = torch.minimum(lags, (delay._num_pushes - 1).clamp_min(0))
+        read_index = (delay._write_index - 1 - lag) % (delay.history_length + 1)
+        has_history = (delay._num_pushes > 0).view(delay.batch_size, *([1] * (data.ndim - 1)))
+        return torch.where(has_history, delay._buffer[read_index, delay._ALL_INDICES], data)
+
+    captured_compute = _leapp_stateful_call(
+        delay, compute, ("_buffer", "_write_index", "_num_pushes"), task_name, prefix
+    )
+
+    @wraps(original_compute)
+    def wrapped(data, *, update_history=True):
+        if not ExportManager.is_interpret_graph_enabled():
+            return original_compute(data, update_history=update_history)
+        if delay._buffer is None:
+            delay._buffer = torch.zeros((delay.history_length + 1, *data.shape), dtype=data.dtype, device=data.device)
+        return captured_compute(data, update_history=update_history)
+
+    return wrapped
 
 
 class _ImageRgbExportProxy(_ManagerTermProxy):
@@ -372,6 +448,26 @@ class ExportPatcher:
                     continue
 
                 term_name = group_term_names[index]
+                for modifier_index, modifier in enumerate(term_cfg.modifiers or []):
+                    fields = None
+                    if isinstance(modifier.func, DigitalFilter):
+                        fields = ("x_n", "y_n")
+                    elif isinstance(modifier.func, Integrator):
+                        fields = ("integral", "y_prev")
+                    if fields is not None:
+                        modifier.func = _leapp_stateful_call(
+                            modifier.func,
+                            modifier.func,
+                            fields,
+                            self.task_name,
+                            f"modifier_{group_name}_{term_name}_{modifier_index}",
+                        )
+                        # Class modifiers consume params at construction, not on each call.
+                        modifier.params = {}
+
+                delay = obs_manager._group_obs_term_delay_buffer.get(group_name, {}).get(term_name)
+                if delay is not None:
+                    delay.compute = _leapp_delay_compute(delay, self.task_name, f"delay_{group_name}_{term_name}")
                 circular_buffer = group_buffers.get(term_name)
                 if circular_buffer is not None:
                     self._patch_history_buffer_append(circular_buffer, f"h_{group_name}_{term_name}")
@@ -774,6 +870,8 @@ class ExportPatcher:
         static_values: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
             if skip_terms and term_name in skip_terms:
+                continue
+            if not hasattr(term, "_joint_ids"):
                 continue
             osc = getattr(term, "_osc", None)
             if osc and hasattr(osc, "cfg") and osc.cfg.impedance_mode in VARIABLE_IMPEDANCE_MODES:
