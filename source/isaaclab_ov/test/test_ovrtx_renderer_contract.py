@@ -122,7 +122,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
 ):
     """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
-    destroyed, redirected = [], []
+    destroyed, redirected, crash_upload_configs = [], [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
     dependency.parent.mkdir(parents=True)
     dependency.touch()
@@ -132,6 +132,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     # Cache redirection can load the SDK too; isolate it with the other native entry points.
     monkeypatch.setenv("OVRTX_SHADER_CACHE_PATH", str(tmp_path / "shader-cache"))
     monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", redirected.append)
+    monkeypatch.setattr(ovrtx_renderer_module, "enable_crash_upload", crash_upload_configs.append)
 
     class RecordingRendererConfig:
         def __init__(self, **kwargs):
@@ -139,9 +140,12 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
             config_kwargs.update(kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
-    monkeypatch.setattr(
-        ovrtx_renderer_module, "Renderer", lambda cfg: types.SimpleNamespace(destroy=lambda: destroyed.append(cfg))
-    )
+
+    def create_renderer(cfg):
+        assert crash_upload_configs and crash_upload_configs[-1] is cfg
+        return types.SimpleNamespace(destroy=lambda: destroyed.append(cfg))
+
+    monkeypatch.setattr(ovrtx_renderer_module, "Renderer", create_renderer)
     monkeypatch.setattr(ovrtx_renderer_module, "ovrtx_use_ovstage_enabled", lambda: use_ovstage)
     monkeypatch.setattr(ovrtx_renderer_module, "create_ovstage", lambda _name: contextlib.nullcontext(object()))
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: contextlib.nullcontext(object()))
@@ -175,7 +179,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     SimulationContext.instance().close_backend(renderer.backend)
     SimulationContext.instance().close_backend(other.backend)
     assert len(destroyed) == 2
-    assert redirected == destroyed
+    assert redirected == crash_upload_configs == destroyed
     assert not SimulationContext.instance()._backend_registry
 
 
