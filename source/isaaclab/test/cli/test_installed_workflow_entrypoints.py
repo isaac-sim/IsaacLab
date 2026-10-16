@@ -333,31 +333,15 @@ def test_cli_loads_downstream_tasks_before_benchmark():
     benchmark.assert_called_once_with(["runtime", "--task", "Example"])
 
 
-def test_task_discovery_skips_broken_packages_and_keeps_registered_task_ids(caplog):
-    """A task package that fails to import is skipped, and none may replace an already registered task id."""
-    import gymnasium as gym
-
-    gym.register(id="Example-Core-Task", entry_point="core.env:Env")
-
-    def register_tasks():
-        gym.register(id="Example-Core-Task", entry_point="plugin.env:Env")
-        gym.register(id="Example-Plugin-Task", entry_point="plugin.env:Env")
-
-    broken, overriding, working = mock.Mock(), mock.Mock(), mock.Mock()
+def test_task_discovery_skips_broken_packages(caplog):
+    """A task package that fails to import is reported and does not stop discovery of the others."""
+    broken, working = mock.Mock(), mock.Mock()
     broken.name, broken.dist.name, broken.load.side_effect = "broken_tasks", "broken-dist", ImportError("no module")
-    overriding.name, overriding.dist.name, overriding.load.side_effect = "plugin_tasks", "plugin-dist", register_tasks
-    try:
-        with mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[broken, overriding, working]):
-            cli.load_external_tasks()
-        specs = {task: gym.registry[task].entry_point for task in ("Example-Core-Task", "Example-Plugin-Task")}
-    finally:
-        for task in ("Example-Core-Task", "Example-Plugin-Task"):
-            gym.registry.pop(task, None)
+    with mock.patch.object(cli.importlib.metadata, "entry_points", return_value=[broken, working]):
+        cli.load_external_tasks()
 
-    assert specs == {"Example-Core-Task": "core.env:Env", "Example-Plugin-Task": "plugin.env:Env"}
     working.load.assert_called_once_with()
     assert "broken-dist" in caplog.text and "no module" in caplog.text
-    assert "plugin-dist's registration of task 'Example-Core-Task'" in caplog.text
 
 
 def test_list_envs_cli_dispatches_without_preloading_tasks():

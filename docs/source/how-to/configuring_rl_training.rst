@@ -154,8 +154,8 @@ omit it when initializing a new student from a PPO teacher checkpoint.
 
 Installed downstream tasks are discovered through the ``isaaclab.tasks`` entry-point group.
 Custom launchers can call ``isaaclab.cli.load_external_tasks()`` before looking up task IDs,
-as the built-in CLI and direct RL workers do. A package that fails to import is skipped with a
-warning, and a package cannot replace a task ID that is already registered, so task IDs must be unique.
+as the built-in CLI and direct RL workers do. A package that fails to import is reported with a
+warning instead of stopping discovery.
 
 .. _Stable-Baselines3: https://stable-baselines3.readthedocs.io/en/master/
 .. _RL-Games: https://github.com/Denys88/rl_games

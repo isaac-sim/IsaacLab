@@ -45,27 +45,16 @@ def load_external_tasks() -> None:
 
     Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
     Entry points should reference modules so repeated discovery uses Python's import cache.
-    A package that fails to import is skipped with a warning, so one broken package cannot stop
-    every workflow, and a package cannot replace a task ID that is already registered.
+    A package that fails to import is reported with a warning, so one broken package cannot stop
+    every workflow.
     """
-    import gymnasium as gym
-
     for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
-        registered = dict(gym.registry)
         try:
             entry_point.load()
         except Exception:
             logger.warning(
-                f"Skipped the '{entry_point.name}' task entry point of {entry_point.dist.name}, which failed to load.",
-                exc_info=True,
+                f"The '{entry_point.name}' task entry point of {entry_point.dist.name} failed to load.", exc_info=True
             )
-        for task_id, spec in registered.items():
-            if gym.registry.get(task_id) is not spec:
-                logger.warning(
-                    f"Ignored {entry_point.dist.name}'s registration of task '{task_id}',"
-                    f" which {spec.entry_point} already registers."
-                )
-                gym.registry[task_id] = spec
 
 
 def train(args: list[str] | None = None) -> None:
