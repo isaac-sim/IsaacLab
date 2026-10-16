@@ -38,29 +38,16 @@ For particle-material comparisons and solver guidance, see :ref:`newton-tuning-m
 MicroDuck Warehouse rendering
 -----------------------------
 
-The warehouse demo loads a static scene, including the duck's final looking-up pose, without advancing
-physics. Pass the scene's Nucleus or HTTPS URL using ``--usd_path``. In the examples below,
-set ``WAREHOUSE_USD_URL`` to the scene's asset-server URL.
+View the static MicroDuck Warehouse through selectable renderers and saved cameras, without advancing physics.
 
 .. code-block:: bash
 
-   uv run --extra ovrtx isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL"
-   uv run --extra isaacsim isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL" renderer=isaacsim_rtx presets=minimal
-   uv run --extra isaacsim isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL" renderer=isaacsim_rtx presets=path_traced
-   uv run isaaclab demo microduck-warehouse --usd_path "$WAREHOUSE_USD_URL" renderer=newton_renderer presets=depth
+   uv run --extra ovrtx isaaclab demo microduck-warehouse
+   uv run --extra isaacsim isaaclab demo microduck-warehouse renderer=isaacsim_rtx presets=path_traced
+   uv run isaaclab demo microduck-warehouse renderer=newton_renderer presets=aisle,depth
 
-Select ``renderer=ovrtx``, ``renderer=isaacsim_rtx``, or ``renderer=newton_renderer`` independently
-from the viewer selected by ``--viz``. The default Newton GL window displays the selected camera
-renderer's output; it does not replace it with OpenGL shading. Use the existing viewer controls to
-inspect the image. ``presets=aisle`` selects the saved aisle view; the default is the final poster view.
-
-Output presets include ``rgb``, ``minimal`` (full MDL shading), ``depth``, ``normals``,
-``semantic_segmentation``, and ``instance_segmentation``. Minimal shading requires an RTX renderer;
-``path_traced`` selects Kit path tracing with ``renderer=isaacsim_rtx``. OVRTX RGB uses its real-time
-path tracer. Use Kit RTX for minimal shading of this scene; the current OVRTX minimal output clips
-heavily with its lighting. Presets can be combined, for example ``presets=aisle,depth``. Normal configuration
-overrides remain available, including ``env.scene.camera.width=1920 env.scene.camera.height=1080``.
-The USD and images are not bundled with the demo; its NVIDIA-hosted dependencies require server access.
+Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
+For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
 
 Command Builder
 ---------------

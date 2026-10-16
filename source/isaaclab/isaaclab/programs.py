@@ -85,7 +85,7 @@ DEMOS = (
     ProgramSpec(
         "microduck-warehouse",
         "examples/demos/microduck_warehouse.py",
-        "View the static MicroDuck Warehouse with renderer and camera presets (--usd_path required).",
+        "View the static MicroDuck Warehouse with renderer and camera presets.",
         extras=("ovrtx",),
         newton_gl_args=None,
     ),

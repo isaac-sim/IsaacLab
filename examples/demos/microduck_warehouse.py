@@ -5,17 +5,14 @@
 
 """View the static MicroDuck Warehouse with selectable camera-renderer presets.
 
-Keep the poster and flag's ``textures/`` directory beside the USD. ``--usd_path``
-accepts a local filename or a Nucleus/HTTPS URL; the scene is not distributed with the code.
-
 .. code-block:: bash
 
-    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc
-    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc \\
+    uv run isaaclab demo microduck-warehouse
+    uv run isaaclab demo microduck-warehouse \\
         renderer=isaacsim_rtx presets=minimal
-    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc \\
+    uv run isaaclab demo microduck-warehouse \\
         renderer=isaacsim_rtx presets=path_traced
-    uv run isaaclab demo microduck-warehouse --usd_path /path/to/microduck_warehouse_static.usdc \\
+    uv run isaaclab demo microduck-warehouse \\
         renderer=newton_renderer presets=depth
 
 Use ``presets=aisle`` for the other saved camera. Resolution and renderer settings
@@ -26,7 +23,6 @@ The existing viewer's camera/channel controls display the selected sensor output
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
 import gymnasium as gym
 
@@ -35,9 +31,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument(
-    "--usd_path", required=True, help="Static warehouse USD, loaded locally or from an asset-server URL."
-)
 parser.add_argument(
     "--max_steps", type=int, default=-1, help="Number of render frames; -1 runs until the viewer closes."
 )
@@ -59,12 +52,14 @@ from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass, instantiate
-from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import SceneCameraCfg, VisualizerCfg
 
 from isaaclab_tasks.utils import preset
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+WAREHOUSE_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/MicroDuckWarehouse/microduck_warehouse_static.usdc"
 
 
 @configclass
@@ -146,14 +141,11 @@ def main() -> None:
     with launch_simulation(cfg, args_cli):
         from pxr import UsdGeom
 
-        usd_path = args_cli.usd_path
-        if "://" not in usd_path:
-            usd_path = str(Path(usd_path).expanduser().resolve(strict=True))
         stage = sim_utils.create_new_stage()
-        stage.GetRootLayer().subLayerPaths = [retrieve_file_path(usd_path)]
+        stage.GetRootLayer().subLayerPaths = [retrieve_file_path(WAREHOUSE_USD)]
         source_camera = UsdGeom.Camera(stage.GetPrimAtPath(cfg.camera_path))
         if not source_camera:
-            raise ValueError(f"No USD camera at {cfg.camera_path!r} in {usd_path!r}.")
+            raise ValueError(f"No USD camera at {cfg.camera_path!r} in {WAREHOUSE_USD!r}.")
         UsdGeom.Camera.Define(stage, "/World/envs/env_0/Camera").SetFromCamera(source_camera.GetCamera())
         sim = sim_utils.SimulationContext(cfg.sim)
         scene = instantiate(cfg.scene)
