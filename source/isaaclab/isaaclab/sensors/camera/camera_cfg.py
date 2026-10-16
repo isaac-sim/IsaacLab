@@ -209,14 +209,14 @@ class CameraCfg(SensorBaseCfg):
     """
 
     pipeline: list[DictTensorProcessorCfg] = []
-    """Ordered image operations applied after each newly published capture.
+    """Ordered dictionary processors applied after each newly published capture.
 
     Processors consume and return dictionaries of named tensors. They may combine several render
     outputs or preceding results. The renderer receives the pipeline's external dependencies
     before initialization.
     Only :attr:`data_types` are published in :attr:`CameraData.output`; unprocessed inputs remain
-    available through :attr:`Camera.render_outputs`. Operations borrow their inputs read-only and
-    own persistent result buffers. Camera reset and teardown reset and close the operations.
+    available through :attr:`Camera.render_outputs`. Processors borrow their inputs read-only and
+    own persistent result buffers. Camera reset and teardown reset and close the processors.
     """
 
     isp_cfg: Any | None = None

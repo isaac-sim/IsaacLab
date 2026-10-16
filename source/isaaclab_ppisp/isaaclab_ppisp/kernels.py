@@ -550,7 +550,7 @@ def _apply_ppisp_kernel(
 
     For each pixel, the model applies HDR responsivity scaling, exposure
     scaling, per-channel vignetting, color homography correction, CRF tone
-    mapping, and uint8 RGBA packing. The first tensor dimension is the
+    mapping, and uint8 RGB or RGBA packing. The first tensor dimension is the
     camera/environment index, so image-space effects use local ``height_id``
     and ``width_id`` coordinates per camera.
     """

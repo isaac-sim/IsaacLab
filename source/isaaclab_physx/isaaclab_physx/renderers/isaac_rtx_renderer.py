@@ -374,8 +374,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=spec.device, do_array_copy=False)
                 annotators["rgba"] = annotator
             elif annotator_type in _HDR_DATA_TYPES:
-                # Radiance reads the same HdrColor AOV through the ``rgb_hdr`` alias set in
-                # :meth:`set_outputs`; exposure is neutralized in :meth:`prepare_cameras`.
+                # HdrColor reflects the exposure configured on the camera prim.
                 if str(RenderBufferKind.RGB_HDR) not in annotators:
                     annotator = rep.AnnotatorRegistry.get_annotator("HdrColor", device=spec.device, do_array_copy=False)
                     annotators[str(RenderBufferKind.RGB_HDR)] = annotator

@@ -41,9 +41,9 @@ class TensorProcessorCfg:
 
 @configclass
 class DictTensorProcessorAdapterCfg(TensorProcessorCfg):
-    """Bind an incoming observation tensor to a buffer pipe.
+    """Bind an incoming observation tensor to a dictionary processor pipeline.
 
-    Operations are prepared from the first tensor received after preceding processors.
+    Dictionary processors are constructed from the first tensor received after preceding processors.
     Their documented input requirements define the expected array layout and value semantics.
     """
 
@@ -51,13 +51,13 @@ class DictTensorProcessorAdapterCfg(TensorProcessorCfg):
     """Processor class consuming the incoming tensor."""
 
     pipeline: list[DictTensorProcessorCfg] = MISSING
-    """Ordered buffer processing operations."""
+    """Ordered dictionary processor configurations."""
 
     input_name: str = "rgb"
-    """Name assigned to the incoming tensor in the buffer bundle."""
+    """Dictionary key assigned to the incoming tensor."""
 
     output_name: str = "rgb"
-    """Name selected from the processed bundle."""
+    """Dictionary key selected from the processed outputs."""
 
 
 @configclass

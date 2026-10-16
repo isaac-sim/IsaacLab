@@ -3,16 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing tensor processor implementations.
+"""Stateful and stateless processing for tensors and dictionaries of named tensors.
 
-Tensor processors are used to apply stateful or stateless modifications to tensor data. They take
-in a tensor and a configuration and return a tensor with the modification applied. This way users
-can define custom operations to apply to a tensor. For instance, a processor can be used to normalize
-the input data or to apply a rolling average.
+Single-tensor functions and :class:`TensorProcessor` subclasses take and return one tensor.
+They apply custom operations in the :class:`~isaaclab.managers.ObservationManager`, such as
+normalization or rolling averages. Configure them through
+:attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
 
-They are primarily used to apply custom operations in the :class:`~isaaclab.managers.ObservationManager`
-as an alternative to the built-in noise, clip and scale post-processing operations. For more details, see
-the :class:`~isaaclab.managers.ObservationTermCfg` class.
+:class:`DictTensorProcessor` subclasses take and return dictionaries of named
+:class:`~isaaclab.utils.warp.ProxyArray` tensors. They own persistent outputs and state for camera
+pipelines and processed sensor observation terms. :class:`DictTensorProcessorAdapter` applies
+these dictionary processors to an incoming observation tensor.
 
 Usage with a function processor:
 

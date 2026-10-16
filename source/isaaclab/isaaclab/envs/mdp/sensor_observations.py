@@ -22,20 +22,20 @@ if TYPE_CHECKING:
 
 
 class processed_sensor(ManagerTermBase):
-    """Process named sensor render outputs with the shared buffer pipe.
+    """Apply dictionary processors to named sensor render outputs.
 
     The sensor must expose ``request_render_inputs`` and ``render_outputs``, as
-    :class:`~isaaclab.sensors.Camera` does. Operations define the supported buffer layouts and
+    :class:`~isaaclab.sensors.Camera` does. Processors define the supported tensor layouts and
     value semantics; outputs need not be visual images.
 
     Dependencies are requested before simulation initialization through
     :meth:`~isaaclab.managers.ObservationManager.prepare_scene`. They remain private to the
     renderer buffer bundle and need not appear in ``CameraCfg.data_types``. Each term owns
-    its own operation state and output storage. The pipe runs on every observation evaluation;
+    its own processor state and output storage. The pipeline runs on every observation evaluation;
     returned tensors are snapshots, so later evaluations cannot overwrite retained history.
 
     Use this term for multiple render inputs or changed buffer dimensions. To process other
-    sensor data or the result of earlier observation tensor_processors, use
+    sensor data or the result of earlier observation tensor processors, use
     :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorAdapter` on an observation tensor.
     To read a camera's already processed public output, use the existing image observation terms.
     """
@@ -69,7 +69,7 @@ class processed_sensor(ManagerTermBase):
         *,
         out: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Return a snapshot of the selected operation output.
+        """Return a snapshot of the selected processor output.
 
         The observation manager supplies ``out`` to receive the snapshot without another clone.
         Direct callers may omit it to allocate a new snapshot.

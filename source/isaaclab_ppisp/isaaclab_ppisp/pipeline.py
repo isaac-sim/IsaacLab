@@ -36,7 +36,7 @@ class PpispControllerWeights:
             raise ValueError("PPISP controller weights require the expected one-dimensional float32 buffer.")
 
     def __deepcopy__(self, memo: dict) -> PpispControllerWeights:
-        # Config cloning must share model resources, while each operation creates its own workspace.
+        # Config cloning must share model resources, while each processor creates its own workspace.
         return self
 
 

@@ -17,14 +17,14 @@ if TYPE_CHECKING:
 
 
 class TensorProcessor(ABC):
-    """Base class for Warp-native class-based tensor_processors.
+    """Base class for Warp-native class-based tensor processors.
 
     Experimental fork of :class:`isaaclab.utils.tensor_processors.TensorProcessor` adapted for the
     Warp-first calling convention.  Subclasses operate **in-place** on ``wp.array``
     buffers and return ``None``.
 
     A class implementation of a processor can be used to store state information between
-    calls.  This is useful for tensor_processors that require stateful operations, such as
+    calls.  This is useful for tensor processors that require stateful operations, such as
     rolling averages, delays, or decaying filters.
     """
 

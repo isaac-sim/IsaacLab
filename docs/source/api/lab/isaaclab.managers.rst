@@ -115,7 +115,7 @@ For a delay buffer with no recorded sample after initialization or reset, the cu
 without recording it. Once recording starts, delays exceeding the available history return the oldest
 sample. Partial resets invalidate only the selected environments' histories.
 
-Observation outputs are independent snapshots: later simulation steps, modifier updates, and resets
+Observation outputs are independent snapshots: later simulation steps, processor updates, and resets
 do not overwrite previously returned tensors. The manager automatically copies borrowed storage before
 mutation or retention. Term and custom callback outputs are treated conservatively, without decorators
 or task-level copy settings. Clipping and scaling create independent storage when needed, which later

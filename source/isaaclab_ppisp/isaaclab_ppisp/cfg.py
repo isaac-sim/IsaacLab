@@ -337,7 +337,7 @@ def resolve_and_normalize(
 ) -> PpispCfg | None:
     """Resolve explicit settings or a discovery mode using the caller's USD stage.
 
-    Call this before constructing a PPISP stage. The processing operation receives only concrete
+    Call this before constructing a PPISP processor. The processor receives only concrete
     settings and never looks up a camera or stage. Legacy ``CameraISPMode`` string-enum values
     remain accepted for migration without importing the camera package.
 

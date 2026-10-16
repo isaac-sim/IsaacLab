@@ -311,7 +311,6 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 
 .. code-block:: python
 
-   from isaaclab.sensors.camera import CameraExposureCfg
    from isaaclab.utils import replace
 
    mask_camera = replace(front_camera, background_color=(0.0, 0.0, 0.0))
@@ -327,9 +326,8 @@ Post-render image processing
 and returns a dictionary of named tensors. It lives beside
 :class:`~isaaclab.utils.tensor_processors.TensorProcessor`, whose call takes and returns one tensor.
 :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorCfg` declares the actual input and output
-keys needed for renderer setup. There are no separate operation roles or prepared-operation objects.
-The shared dictionary interface also accepts nonvisual sensor data; each processor defines its
-layout and value semantics.
+keys needed for renderer setup. The shared dictionary interface also accepts nonvisual sensor data;
+each processor defines its layout and value semantics.
 
 The camera resolves external inputs before renderer initialization, including inputs needed only by the
 pipeline. It publishes the names in ``data_types`` after processing. For example, this camera requests
@@ -351,8 +349,8 @@ private ``rgb_hdr`` from its renderer and publishes PPISP's processed ``rgb``:
 PPISP (Physically Plausible Image Signal Processing) applies responsivity, exposure, vignetting, color
 correction, and a camera response function. It consumes float32 scene-linear radiance and produces
 uint8 color. Set ``outputs=["rgba"]`` and ``params={"cfg": ppisp_cfg, "channels": 4}`` on the
-step for RGBA output. A pipeline-produced RGBA buffer also supplies a zero-copy RGB view when ``rgb``
-is requested. A pipeline producing only RGB cannot satisfy an explicit RGBA request.
+processor configuration for RGBA output. A pipeline-produced RGBA buffer also supplies a zero-copy
+RGB view when ``rgb`` is requested. A pipeline producing only RGB cannot satisfy an explicit RGBA request.
 
 For custom dictionary processing, subclass ``DictTensorProcessor``. Its constructor receives
 ``(cfg, data)`` with actual ``ProxyArray`` tensors. Allocate persistent output tensors in
@@ -361,7 +359,7 @@ to fill and return those named outputs, and override ``reset`` or ``close`` only
 The pipeline passes the current dictionary to each processor and merges its returned outputs;
 untouched keys pass through. Shape, dtype and device come from the arrays directly.
 
-PPISP is a regular ``PpispProcessor`` subclass. It can also be constructed and called directly:
+``PpispProcessor`` subclasses ``DictTensorProcessor`` and can also be constructed and called directly:
 
 .. code-block:: python
 
@@ -381,25 +379,25 @@ below when the final observation should have a different image shape or layout.
 
 ``camera.render_outputs`` exposes borrowed raw renderer buffers, including private inputs. Their
 ``ProxyArray`` properties provide shape, dtype, and device. Reading raw outputs updates the camera
-when due. Neither an operation nor a caller may mutate borrowed inputs. Public processed
+when due. Neither a processor nor a caller may mutate borrowed inputs. Public processed
 buffers and raw buffers retain their storage until camera reinitialization, but later captures replace
-their contents; clone values that must survive another capture. Each camera owns its pipe and operation
-workspace. Operations may share explicitly supplied immutable model resources.
+their contents; clone values that must survive another capture. Each camera owns its pipeline and processor
+workspace. Processors may share explicitly supplied immutable model resources.
 Configuration copying must preserve the identity of borrowed resources: PPISP provides
 ``PpispControllerWeights`` for device weights. Custom processors can use a resource wrapper with
 identity-preserving ``__deepcopy__``; raw Warp allocations are not configuration values.
 
 Pipelines run after scalar and batched captures. When an asynchronous renderer republishes a capture,
 the camera retains its processed result and matching capture metadata. Camera reset forwards only the
-selected environment indices to operation reset callbacks; teardown closes the operations. For an
+selected environment indices to processor reset callbacks; teardown closes the processors. For an
 observation-only pipeline, declare raw dependencies with ``camera.request_render_inputs(names)`` before
-simulation initialization. Additional requests after initialization fail because renderer setup is
-already complete. Observation consumers use their own pipe and snapshot results needed across captures.
+simulation initialization. Requests for new inputs after initialization fail because renderer setup is
+already complete. Observation consumers use their own pipeline and snapshot results needed across captures.
 
 Processing sensor observations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use :class:`~isaaclab.envs.mdp.processed_sensor` for observation-only processing, including operations
+Use :class:`~isaaclab.envs.mdp.processed_sensor` for observation-only processing, including processors
 that combine several camera outputs or change image dimensions. The term currently binds sensors
 through their ``request_render_inputs()`` and ``render_outputs`` interface:
 
@@ -423,23 +421,23 @@ Manager-based environments collect the term's private renderer inputs before sim
 standalone observation manager must call ``ObservationManager.prepare_scene(cfg, env)`` before reset.
 The term processes raw renderer outputs even when the camera has its own pipeline. To read the
 camera's published processed output, use an existing image term such as ``mdp.image_rgb`` instead.
-The observation pipe executes on every term evaluation and returns a snapshot; its state belongs to
+The observation pipeline executes on every term evaluation and returns a snapshot; its state belongs to
 that term rather than the camera's capture cadence.
 
 For a single incoming tensor, :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorAdapterCfg` uses the
-same operations while preserving preceding observation transformations. This includes nonvisual
+same dictionary processors while preserving preceding observation transformations. This includes nonvisual
 observation tensors from sensors without the render-input interface. This form must preserve shape;
 use ``processed_sensor`` for multiple render inputs or changes to render-output shapes, or construct
-a ``DictTensorProcessor`` directly for other named buffers. The first incoming tensor prepares the
-operations; later calls reuse their output storage. Its values must meet the operation's documented
-input requirements, including any transformations from preceding tensor processors:
+a ``DictTensorProcessor`` directly for other named buffers. The first incoming tensor constructs the
+dictionary processors; later calls reuse their output storage. Its values must meet each processor's
+documented input requirements, including any transformations from preceding tensor processors:
 
 .. code-block:: python
 
    from isaaclab.utils import tensor_processors
 
    # This camera publishes radiance for the ordinary image term to read.
-   raw_camera = replace(front_camera, data_types=["rgb_hdr"], exposure=CameraExposureCfg(), pipeline=[])
+   front_camera = replace(front_camera, data_types=["rgb_hdr"], exposure=CameraExposureCfg(), pipeline=[])
    policy_image = ObservationTermCfg(
        func=mdp.image_rgb,
        params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_hdr", "normalize": False},
@@ -458,7 +456,7 @@ Migrating renderer-owned ISP configuration
 ``CameraCfg.isp_cfg`` no longer executes image processing. A non-None value raises a migration error;
 replace it with ``CameraCfg.pipeline`` as above. ``CameraISPMode`` remains importable for legacy
 configuration values, but new code should resolve USD attributes explicitly before constructing the
-operation:
+processor:
 
 .. code-block:: python
 
@@ -475,7 +473,7 @@ operation:
 ``AUTO_CAMERA`` checks the supplied camera prim; ``AUTO_ANY`` can fall back to the first PPISP camera
 on the supplied stage. Alternatively, pass an already resolved camera prim to
 ``ppisp_cfg_from_usd_camera(camera_prim)``. Discovery has no implicit simulation or stage lookup inside
-the operation. Static coefficients apply to the whole camera batch; controller weights may predict
+the processor. Static coefficients apply to the whole camera batch; controller weights may predict
 per-view exposure and color parameters.
 
 For either processing attachment, configure the source camera with

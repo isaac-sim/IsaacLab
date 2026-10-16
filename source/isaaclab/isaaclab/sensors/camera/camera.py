@@ -919,7 +919,7 @@ class Camera(SensorBase):
                             f" {expected_shape}; received {buffer.shape}. Use an observation pipe"
                             " for shape-changing results, because camera calibration describes the rendered image."
                         )
-                # Preserve RGB's view semantics when an operation produces RGBA, without publishing stale raw RGB.
+                # Preserve RGB's view semantics when a processor produces RGBA, without publishing stale raw RGB.
                 if alias_rgb:
                     rgba = outputs["rgba"].warp
                     if len(rgba.shape) != 4 or rgba.shape[-1] != 4:

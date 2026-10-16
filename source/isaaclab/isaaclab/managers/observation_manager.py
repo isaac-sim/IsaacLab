@@ -60,8 +60,8 @@ class ObservationManager(ManagerBase):
     called in the order of the terms in the group. The functions are expected to return a tensor with shape
     (num_envs, ...).
 
-    If a noise model or custom modifier is registered for a term, the function is called to corrupt
-    the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+    If a noise model or custom tensor processor is registered for a term, it transforms
+    the observation and returns a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
 
     Returned observations are independent snapshots, including dictionary entries and history.
@@ -145,7 +145,7 @@ class ObservationManager(ManagerBase):
                     func.prepare_scene(term, env)
 
     def close(self) -> None:
-        """Close every owned term and modifier once, including nested configurations.
+        """Close every owned term and tensor processor once, including nested configurations.
 
         All resources are closed before any callback errors are raised. Repeated calls are safe.
         """
@@ -433,7 +433,7 @@ class ObservationManager(ManagerBase):
         The following steps are performed for each observation term:
 
         1. Compute observation term by calling the function
-        2. Apply custom tensor_processors in the order specified in :attr:`ObservationTermCfg.tensor_processors`
+        2. Apply custom tensor processors in the order specified in :attr:`ObservationTermCfg.tensor_processors`
         3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
         4. Apply clipping based on :attr:`ObservationTermCfg.clip`
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`

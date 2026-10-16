@@ -5,7 +5,7 @@
 
 """Post-render PPISP (Physically Plausible Image Signal Processing) for IsaacLab.
 
-Provides a shared render-buffer operation that converts scene-linear radiance to RGB or RGBA.
+Provides a dictionary processor that converts scene-linear radiance to RGB or RGBA.
 Camera and observation pipelines use :class:`PpispProcessorCfg` with concrete settings. USD discovery
 helpers remain explicit, and renderer backends do not own PPISP execution or controller workspace.
 """

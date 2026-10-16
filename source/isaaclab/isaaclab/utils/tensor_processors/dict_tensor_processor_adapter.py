@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Buffer processing for an incoming observation tensor."""
+"""Dictionary processing for an incoming observation tensor."""
 
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ if TYPE_CHECKING:
 
 
 class DictTensorProcessorAdapter(TensorProcessor):
-    """Apply a buffer pipe to the tensor received from the preceding processor.
+    """Apply dictionary processors to the tensor received from the preceding processor.
 
-    The processor owns a pipe and returns a snapshot. Its output must preserve the input
-    shape, as required by :class:`TensorProcessor`. The first incoming tensor prepares the pipe;
+    The adapter owns a processor pipeline and returns a snapshot. Its output must preserve the input
+    shape, as required by :class:`TensorProcessor`. The first incoming tensor initializes the pipeline;
     subsequent calls reuse its output storage. Inputs may represent images or nonvisual sensor
     observations. For multiple render inputs or shape changes to render outputs, use
     :class:`~isaaclab.envs.mdp.processed_sensor` instead.
