@@ -346,17 +346,16 @@ def export_stage_to_string(
     anonymous session layer used only for export, so the input stage remains unchanged. Renderer-specific scene
     partition settings are authored on that same session layer before exporting.
 
-    When ``keep_env_roots`` is True (the legacy ``renderer.clone_usd`` path) the non-source env root prims stay
-    active so the exported stage retains a slot for every env. The ovstage ``stage.clone`` path passes False, which
-    additionally trims the non-source env roots themselves; ``stage.clone`` recreates them and the RenderProduct's
-    camera relationship is re-authored after clone.
+    Asset-level cloning needs ``keep_env_roots=True`` so destination ancestors retain their USD type,
+    transforms, and partition metadata. Whole-environment cloning needs False so the destination roots
+    are absent when the native cloner creates them. This distinction applies to both native rendering paths.
 
     Args:
         stage: USD stage to export.
         num_envs: Number of parallel environments on the stage.
         source_paths: The paths to source prims to keep in the exported stage.
-        keep_env_roots: Whether to keep the non-source env root prims active in the exported stage. Pass False for
-            the ovstage clone path, which repopulates env roots itself.
+        keep_env_roots: Whether to keep the non-source env root prims active in the exported stage. Pass False
+            when the clone targets are environment roots rather than assets beneath them.
 
     Returns:
         USDA text of the (possibly trimmed) stage.
@@ -386,12 +385,12 @@ def export_stage_to_string(
 
     if keep_env_roots:
         for child in envs_prim.GetChildren():
-            # Legacy code path: keep env roots so we can query their xforms after opening stage
+            # Keep destination ancestors for asset-level cloning.
             child_path = child.GetPath()
             if child_path not in source_path_set:
                 prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
     else:
-        # Ovstage code path: strip env roots, their xforms are queried beforehand.
+        # Whole-environment cloning recreates the destination roots.
         prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
 
     with Sdf.ChangeBlock():

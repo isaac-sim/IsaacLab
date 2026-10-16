@@ -485,12 +485,12 @@ class OVRTXRenderer(BaseRenderer):
         self._capture_object_scales(stage)
 
         # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
-        # asset-level clones need their parents' authored environment transforms.
+        # asset-level clones need their parents' authored transforms and partition metadata.
         sources = tuple(
             source for source in cloner_path.get_asset_prototype_paths(self._clone_plan) if source is not None
         )
         templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
-        keep_env_roots = not self._use_ovstage and self._clone_plan.env_template not in templates
+        keep_env_roots = self._clone_plan.env_template not in templates
         self._exported_usd_string = export_stage_to_string(
             stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
         )

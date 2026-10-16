@@ -394,6 +394,8 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
 def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
     """Keep prototype contents and material bindings, retaining only needed destination ancestors."""
     stage = _make_multi_env_stage(3)
+    for env_id in range(3):
+        UsdGeom.Xform(stage.GetPrimAtPath(f"/World/envs/env_{env_id}")).AddTranslateOp().Set(Gf.Vec3d(3 * env_id, 0, 0))
     source = f"/World/envs/env_0{suffix}"
     material = UsdShade.Material.Define(stage, f"{source}/warm")
     body = UsdGeom.Xform.Define(stage, f"{source}/Body").GetPrim()
@@ -414,5 +416,12 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     for env_id in (1, 2):
         root = f"/World/envs/env_{env_id}"
         assert bool(exported.GetPrimAtPath(root)) is bool(suffix)
+        if suffix:
+            root_prim = exported.GetPrimAtPath(root)
+            assert root_prim.IsA(UsdGeom.Xform)
+            assert root_prim.GetAttribute("primvars:omni:scenePartition").Get() == f"env_{env_id}"
+            assert UsdGeom.Xformable(root_prim).GetLocalTransformation().ExtractTranslation() == Gf.Vec3d(
+                3 * env_id, 0, 0
+            )
         assert not exported.GetPrimAtPath(f"{root}/Robot")
         assert not exported.GetPrimAtPath(f"{root}/Object_env{env_id}_only")
