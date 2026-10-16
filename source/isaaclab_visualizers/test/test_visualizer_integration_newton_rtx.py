@@ -39,6 +39,72 @@ if str(_TEST_DIR) not in sys.path:
 import visualizer_integration_utils as _viz_utils  # noqa: E402
 
 
+@pytest.mark.rendering
+@pytest.mark.kitless
+def test_newton_rtx_mpm_points_follow_world_state():
+    """Authored particle geometry follows native state updates without repeating its parent transform."""
+    from isaaclab_newton.assets import MPMObjectCfg
+    from isaaclab_newton.physics import MPMSolverCfg
+    from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.utils import configclass
+    from isaaclab.visualizers import PerspectiveCameraCfg
+
+    @configclass
+    class ParticleSceneCfg(InteractiveSceneCfg):
+        fluid = MPMObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Fluid",
+            spawn=MPMGridCfg(
+                lower=(-0.04, -0.04, -0.04),
+                upper=(0.04, 0.04, 0.04),
+                voxel_size=0.04,
+                particle_placement="cell_center",
+                radius=0.015,
+                visual_color=(0.1, 0.4, 1.0),
+            ),
+            init_state=MPMObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        )
+        light = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1000.0))
+
+    cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=MPMSolverCfg(max_iterations=2, voxel_size=0.05), use_cuda_graph=False),
+        visualizer_cfgs=[
+            NewtonRTXVisualizerCfg(
+                headless=True,
+                window=WindowCfg(size=(256, 256)),
+                cameras=[PerspectiveCameraCfg(eye=(0.0, -1.0, 1.1), lookat=(0.0, 0.0, 1.1))],
+                render_settings={"omni:rtx:quality": ("Int", 0)},
+            )
+        ],
+    )
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        scene = InteractiveScene(ParticleSceneCfg(num_envs=1, env_spacing=0.0))
+        sim.reset()
+        fluid, visualizer = scene["fluid"], sim.visualizers[0]
+        _viz_utils._warm_newton_viewer(visualizer)
+        initial = fluid.data.particle_state_w.torch.clone()
+        centers = []
+        for offset in (0.0, 0.10):
+            state = initial.clone()
+            state[..., 2] += offset
+            fluid.write_particle_state_to_sim_index(state)
+            # Allow Newton's in-flight perspective frame to complete at each held pose.
+            for _ in range(3):
+                sim.step(render=False)
+                scene.update(sim.get_physics_dt())
+                pixels = visualizer.render_rgb_array()
+            color = pixels.astype(np.int16)
+            blue = (color[..., 2] - color[..., 0] > 50) & (color[..., 2] - color[..., 1] > 20)
+            assert blue.any(), "The authored particle cloud was not rendered"
+            centers.append(np.argwhere(blue)[:, 0].mean())
+        assert centers[1] < centers[0] - 5.0, "The rendered particle cloud did not move upward"
+
+
 @pytest.mark.arm_ci
 def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture) -> None:
     """Newton RTX frames are non-flat, move while playing, freeze while paused, and draw a marker."""

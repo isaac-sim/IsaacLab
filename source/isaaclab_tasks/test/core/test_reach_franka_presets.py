@@ -19,10 +19,8 @@ from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
+from isaaclab_tasks.utils.hydra import PresetCfg, PresetTarget, enumerate_task_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
 
 from isaaclab_assets import FRANKA_PANDA_CFG
 
@@ -186,6 +184,13 @@ def test_reach_relative_ik_presets_configure_six_dof_native_teleop_devices(actio
     validate(cfg)
     assert set(cfg.teleop_devices.devices) == {"keyboard", "gamepad", "spacemouse"}
     assert all(not device_cfg.gripper_term for device_cfg in cfg.teleop_devices.devices.values())
+
+    # Full device input must command the same per-step motion for every device and IK action.
+    action = cfg.actions.arm_action
+    action_scale = action.scale if action_preset == "diffik" else action.objectives[0].scale
+    for device_cfg in cfg.teleop_devices.devices.values():
+        assert device_cfg.pos_sensitivity * action_scale[0] == pytest.approx(0.025)
+        assert device_cfg.rot_sensitivity * action_scale[3] == pytest.approx(0.025)
 
 
 def test_reach_diffik_physx_configures_teleop_physics():

@@ -3,6 +3,34 @@ Changelog
 
 .. towncrier release notes start
 
+9.3.1 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton frame views returning cloned frames in prototype-group order instead of environment order,
+  keeping poses, indexed writes, scales, and renderer destinations aligned for interleaved world prototypes.
+
+
+9.3.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added VBD structural joint stiffness and friction-smoothing settings, and optional standalone generalized joint-state synchronization.
+
+Fixed
+^^^^^
+
+* Fixed VBD graph coloring for active cloth bending constraints and stale joint state after rigid-body integration.
+  Coupled and external rigid solvers retained ownership of their generalized joint state.
+* Fixed Newton IK prototype selection for nested articulation roots.
+* Applied explicit camera background colors to HDR output in linear space before ISP processing, without replacing black geometry.
+* Warned when camera lens distortion was authored only in USD and ignored by Newton Warp, while accepting configured OpenCV models.
+
+
 9.2.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

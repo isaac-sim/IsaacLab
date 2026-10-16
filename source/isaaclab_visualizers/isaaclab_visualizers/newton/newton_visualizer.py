@@ -193,7 +193,7 @@ class NewtonViewerUI:
                 live_plots_cb(imgui)
 
             # --- Model overlays ---------------------------------------------
-            if isinstance(viewer, ViewerGL) and viewer.model is not None and viewer._main_image_name is None:
+            if isinstance(viewer, NewtonViewerGL) and viewer.model is not None and not viewer._fullscreen_image_active:
                 imgui.set_next_item_open(False, imgui.Cond_.appearing)
                 if imgui.collapsing_header("Model Overlays"):
                     imgui.separator()
@@ -283,7 +283,11 @@ class NewtonViewerUI:
                 imgui.text("Shift + WASD - Move camera 2x speed")
                 imgui.text("QE - Pan up/down")
                 imgui.text("Left Click - Look around")
-                if isinstance(viewer, ViewerGL) and viewer.picking_enabled and viewer._main_image_name is None:
+                if (
+                    isinstance(viewer, NewtonViewerGL)
+                    and viewer.picking_enabled
+                    and not viewer._fullscreen_image_active
+                ):
                     imgui.text("Right Click - Pick and drag objects")
                 imgui.text("Middle Click - Orbit")
                 imgui.text("Shift + Middle Click - Pan")
@@ -364,27 +368,8 @@ class NewtonViewerRTX(NewtonViewerUI, ViewerRTX):
             self.close()
 
     def get_frame(self, target_image: wp.array | None = None) -> wp.array:
-        """Copy the completed RTX image into owned device storage before releasing its mapping."""
-        from ovrtx import Device
-
-        products = self._render_products
-        if products is None and self._render_result is not None:
-            products = self._render_result.wait().fetch()
-        if products is None:
-            raise RuntimeError("Perspective capture requires a completed Newton RTX frame.")
-        for product in products.values():
-            for frame in product.frames:
-                render_var = self._get_ldr_color_render_var(frame)
-                if render_var is None:
-                    continue
-                with render_var.map(device=Device.CUDA) as mapping:
-                    rgba = wp.from_dlpack(mapping)
-                    if target_image is None or target_image.shape != rgba.shape or target_image.device != rgba.device:
-                        target_image = wp.empty_like(rgba)
-                    wp.copy(target_image, rgba)
-                    mapping.unmap(stream=target_image.device.stream.cuda_stream)
-                return target_image
-        raise RuntimeError("Newton RTX did not publish an LdrColor render output.")
+        """Capture the latest completed frame through Newton's native API."""
+        return super().get_frame(output=target_image)
 
 
 class NewtonViewerGL(NewtonViewerUI, ViewerGL):
@@ -397,38 +382,54 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         self._particle_color_buffer_value: tuple[float, float, float] | None = None
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
+        self._fullscreen_image_active = False
         self._implot = self._implot_ctx = None
         if self.gui is not None:
             from imgui_bundle import implot
 
+            # Keep camera keys active while ImGui captures mouse input for its controls.
+            self.gui.is_capturing = self.gui.should_ignore_keyboard_input
             self._implot = implot
             self._implot_ctx = implot.create_context()
             implot.set_imgui_context(self.gui.ui.imgui.get_current_context())
             # Live plots are drawn in the sidebar, not Newton's floating window.
             self.gui._render_scalar_plots = lambda: None
 
+    def begin_frame(self, time: float) -> None:
+        """Update mesh VAOs in their owning context because VAOs are not shared between viewers."""
+        self.renderer.window.switch_to()
+        super().begin_frame(time)
+
     def get_frame(self, target_image: wp.array | None = None, render_ui: bool = False) -> wp.array:
         """Reuse device capture storage while the native framebuffer size remains unchanged."""
         shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
         if target_image is not None and target_image.shape != shape:
             target_image = None
-        return super().get_frame(target_image, render_ui=render_ui)
+        return super().get_frame(output=target_image, render_ui=render_ui)
 
     def end_frame(self) -> None:
         """Finish the frame, then close the window if :meth:`request_close` was called."""
-        super().end_frame()
+        try:
+            super().end_frame()
+        finally:
+            self._fullscreen_image_active = False
         if self._close_requested:
-            self.renderer.close()
+            self.close()
 
-    def on_key_press(self, symbol, modifiers):
-        """Forward key presses unless UI is currently capturing input."""
-        if self.ui.is_capturing():
-            return
-        super().on_key_press(symbol, modifiers)
+    def close(self) -> None:
+        """Release context-local GL resources before closing their owning window."""
+        self.renderer.window.switch_to()
+        super().close()
+
+    def log_image(self, name: str, image: wp.array | np.ndarray, *, fullscreen: bool = False) -> None:
+        """Track whether the current frame replaces the perspective scene with an image."""
+        super().log_image(name, image, fullscreen=fullscreen)
+        if fullscreen:
+            self._fullscreen_image_active = True
 
     def on_mouse_press(self, x, y, button, modifiers):
         """Image coordinates must not pick objects in the hidden perspective scene."""
-        if self._main_image_name is None:
+        if not self._fullscreen_image_active:
             super().on_mouse_press(x, y, button, modifiers)
 
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
@@ -509,6 +510,7 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = cfg.headless
         self._last_present_time = -math.inf
         self._last_render_step = -1
+        self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
 
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Bind scene data and the Newton model shared with the simulation."""
@@ -521,6 +523,54 @@ class NewtonVisualizerBase(BaseVisualizer):
         self._runtime_headless = self.cfg.headless or (
             sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY")
         )
+
+    def log_mesh(
+        self,
+        name: str,
+        points: wp.array[wp.vec3],
+        indices: wp.array[wp.int32] | wp.array[wp.uint32],
+        normals: wp.array[wp.vec3] | None = None,
+        uvs: wp.array[wp.vec2] | None = None,
+        texture: np.ndarray | str | None = None,
+        hidden: bool = False,
+        backface_culling: bool = True,
+        color: tuple[float, float, float] | None = None,
+        roughness: float | None = None,
+        metallic: float | None = None,
+        dynamic: bool = False,
+        opacity: float | None = None,
+    ) -> None:
+        """Stage a mesh registration or update for the next Newton viewer frame.
+
+        Newton viewers require geometry updates between ``begin_frame()`` and
+        ``end_frame()``. Staging here keeps that lifecycle internal to the
+        visualizer and lets callers submit meshes before :meth:`step`.
+
+        Args:
+            name: Unique viewer path for the mesh.
+            points: Vertex positions [m].
+            indices: Flattened triangle vertex indices.
+            normals: Optional per-vertex normals.
+            uvs: Optional per-vertex texture coordinates.
+            texture: Optional texture path or image.
+            hidden: Whether to hide the mesh.
+            backface_culling: Whether to cull back-facing triangles.
+            color: Optional RGB base color in ``[0, 1]``.
+            roughness: Optional surface roughness in ``[0, 1]``.
+            metallic: Optional surface metallic value in ``[0, 1]``.
+            dynamic: Whether the mesh topology may change between updates.
+            opacity: Optional surface opacity in ``[0, 1]``.
+
+        Raises:
+            RuntimeError: If the Newton viewer has not been initialized.
+        """
+        if not self._is_initialized or self._viewer is None:
+            raise RuntimeError("Newton visualizer must be initialized before logging meshes.")
+        self._pending_mesh_submissions[name] = partial(
+            self._viewer.log_mesh, name, points, indices, normals=normals, uvs=uvs,
+            texture=texture, hidden=hidden, backface_culling=backface_culling, color=color,
+            roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
+        )  # fmt: skip
 
     def _update_state(self) -> newton.State:
         """Bind current scene arrays without reading any camera sensors."""
@@ -632,6 +682,7 @@ class NewtonVisualizerBase(BaseVisualizer):
 
     def close(self) -> None:
         """Detach perspective producers before releasing the visualizer's borrowed views."""
+        self._pending_mesh_submissions.clear()
         for view in self._image_views:
             if view.render == self._capture_perspective:
                 view.render = None
@@ -673,6 +724,13 @@ class NewtonVisualizerBase(BaseVisualizer):
             composite = self.current_image_view.read(self._sim.get_physics_step_count())
         if composite is not None:
             self._viewer.log_image("Streaming View", composite, fullscreen=True)
+
+    def _log_pending_meshes(self) -> None:
+        """Submit the latest mesh updates inside the viewer's active frame."""
+        submissions = tuple(self._pending_mesh_submissions.values())
+        self._pending_mesh_submissions.clear()
+        for submit in submissions:
+            submit()
 
     def _capture_perspective(self, output: wp.array | None) -> wp.array:
         """Read the frame already displayed, or render once when capture is the only consumer."""
@@ -747,7 +805,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         super().__init__(cfg)
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
-        self._pending_mesh_submissions: dict[str, Callable[[], None]] = {}
 
     # ------------------------------------------------------------------
     # GL lifecycle
@@ -855,10 +912,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                             render_newton_visualization_markers(
                                 viewer, self._env_ids, num_envs=self.backend.model.num_envs
                             )
-                submissions = tuple(self._pending_mesh_submissions.values())
-                self._pending_mesh_submissions.clear()
-                for submit in submissions:
-                    submit()
+            self._log_pending_meshes()
             if not viewer.is_paused():
                 self._render_live_plots()
         finally:
@@ -894,56 +948,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._viewer_picking_binding.deactivate()
         finally:
             self._viewer = self.backend = self._transform_mapping = None
-            self._pending_mesh_submissions.clear()
             super().close()
-
-    def log_mesh(
-        self,
-        name: str,
-        points: wp.array[wp.vec3],
-        indices: wp.array[wp.int32] | wp.array[wp.uint32],
-        normals: wp.array[wp.vec3] | None = None,
-        uvs: wp.array[wp.vec2] | None = None,
-        texture: np.ndarray | str | None = None,
-        hidden: bool = False,
-        backface_culling: bool = True,
-        color: tuple[float, float, float] | None = None,
-        roughness: float | None = None,
-        metallic: float | None = None,
-        dynamic: bool = False,
-        opacity: float | None = None,
-    ) -> None:
-        """Stage a mesh registration or update for the next Newton viewer frame.
-
-        Newton viewers require geometry updates between ``begin_frame()`` and
-        ``end_frame()``. Staging here keeps that lifecycle internal to the
-        visualizer and lets callers submit meshes before :meth:`step`.
-
-        Args:
-            name: Unique viewer path for the mesh.
-            points: Vertex positions [m].
-            indices: Flattened triangle vertex indices.
-            normals: Optional per-vertex normals.
-            uvs: Optional per-vertex texture coordinates.
-            texture: Optional texture path or image.
-            hidden: Whether to hide the mesh.
-            backface_culling: Whether to cull back-facing triangles.
-            color: Optional RGB base color in ``[0, 1]``.
-            roughness: Optional surface roughness in ``[0, 1]``.
-            metallic: Optional surface metallic value in ``[0, 1]``.
-            dynamic: Whether the mesh topology may change between updates.
-            opacity: Optional surface opacity in ``[0, 1]``.
-
-        Raises:
-            RuntimeError: If the Newton viewer has not been initialized.
-        """
-        if not self._is_initialized or self._viewer is None:
-            raise RuntimeError("Newton visualizer must be initialized before logging meshes.")
-        self._pending_mesh_submissions[name] = partial(
-            self._viewer.log_mesh, name, points, indices, normals=normals, uvs=uvs,
-            texture=texture, hidden=hidden, backface_culling=backface_culling, color=color,
-            roughness=roughness, metallic=metallic, dynamic=dynamic, opacity=opacity,
-        )  # fmt: skip
 
     # ------------------------------------------------------------------
     # Shared internals
@@ -1136,6 +1141,9 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
     Resizing the window scales the displayed image without resizing either source's buffers.
     """
 
+    _viewer_class: type[NewtonViewerRTX] = NewtonViewerRTX
+    """Native viewer implementation; subclasses may extend its frame publication."""
+
     def initialize(self, sim: SimulationContext, *, cameras: list[PerspectiveCameraCfg | Camera]) -> None:
         """Attach to the populated scene and bind the model used to publish body poses."""
         from isaaclab_ov.stage import OvstageBackendCfg
@@ -1150,12 +1158,15 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         scene_data_provider = self._sim.get_scene_data_provider()
         scene = self._sim.get_or_create_backend(OvstageBackendCfg(viewer_id=id(self)))
         scene.populate(self._sim.stage, sim.get_clone_plan())
+        self._scene_stage = scene.stage
+        self._geometry_timestamp = -1
+        self._update_geometries()
         cfg = self.cfg
         settings = dict(cfg.render_settings)
         if cfg.background_color is not None:
             settings["omni:rtx:background:source:type"] = ("Token", "color")
             settings["omni:rtx:background:source:color"] = ("Color3f", cfg.background_color)
-        self._viewer = NewtonViewerRTX(
+        self._viewer = self._viewer_class(
             width=self.cfg.window.size[0],
             height=self.cfg.window.size[1],
             headless=self._runtime_headless,
@@ -1177,6 +1188,55 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         self._select_camera(0)
         self._is_initialized = True
 
+    def _update_geometries(self) -> None:
+        """Publish world-space SDP vertices to the authored scene before Newton renders it."""
+        import ovstage
+        from isaaclab_ov.stage import points_tensor_from_warp, xform_tensor_from_numpy
+
+        provider = self._sim.get_scene_data_provider()
+        points = provider.get_geometry_points()
+        timestamp = provider.backend.geometry_timestamp
+        if not points or timestamp == self._geometry_timestamp:
+            return
+        stage = self._scene_stage
+        device = wp.get_device(self._sim.device)
+        floor = stage.get_attribute_write_floor()
+        try:
+            ordinal = int(stage.fetch_ordinal(floor)) + 1
+        finally:
+            stage.release_ordinal_query(floor).wait()
+        with ovstage.PathDictionary(stage) as paths:
+            with paths.create_path_list_from_strings(list(points)) as path_list:
+                with stage.query_from_path_list(path_list) as query:
+                    if self._geometry_timestamp == -1:
+                        # Native vertices already include their environment and asset transforms.
+                        stage.write_attribute(
+                            query,
+                            "omni:resetXformStack",
+                            ordinal=ordinal,
+                            tensors=np.ones(len(points), dtype=np.bool_),
+                            is_array=False,
+                        ).wait()
+                        stage.write_attribute(
+                            query,
+                            "omni:xform",
+                            ordinal=ordinal,
+                            tensors=xform_tensor_from_numpy(np.tile(np.eye(4), (len(points), 1, 1))),
+                            is_array=False,
+                            semantic=ovstage.AttributeSemantic.MATRIX,
+                        ).wait()
+                    stage.write_attribute(
+                        query,
+                        "points",
+                        ordinal=ordinal,
+                        tensors=[points_tensor_from_warp(array) for array in points.values()],
+                        is_array=True,
+                        semantic=ovstage.AttributeSemantic.POINT,
+                        cuda_stream=(device.stream.cuda_stream or 1) if device.is_cuda else 0,
+                    ).wait()
+        stage.advance_write_floor(ordinal, ovstage.Scope.ALL).wait()
+        self._geometry_timestamp = timestamp
+
     def _render_frame(self) -> None:
         """Update controls and publish GPU poses or sensor pixels to Newton once per frame."""
         viewer = self._viewer
@@ -1187,9 +1247,11 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 self._log_streaming_image()
             else:
                 if not viewer.is_paused():
+                    self._update_geometries()
                     viewer.log_state(self._update_state())
                 if self.cfg.enable_markers:
                     render_newton_visualization_markers(viewer, self._env_ids, num_envs=self.backend.model.num_envs)
+            self._log_pending_meshes()
         finally:
             viewer.end_frame()
         self._last_render_step = self._sim.get_physics_step_count()
@@ -1201,6 +1263,7 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         previous = self.backend
         super().reset(soft)
         if self.backend is not previous:
+            self._geometry_timestamp = -1
             self._viewer.picking_enabled = False
             self._select_camera(self._image_views.index(self.current_image_view))
 
@@ -1213,4 +1276,5 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
                 self._viewer.close()
         finally:
             self._viewer = self.backend = None
+            self._scene_stage = None
             super().close()

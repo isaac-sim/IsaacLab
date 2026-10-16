@@ -73,6 +73,9 @@ jobs:
       working-directory: ./docs
       run: make current-docs
 
+    - name: Stage browser demos
+      run: bash .github/actions/_lib/stage-browser-demos.sh
+
     - name: Upload docs artifact
       uses: actions/upload-artifact@v7
       with:
@@ -121,6 +124,9 @@ jobs:
     - name: Verify default docs version
       working-directory: ./docs
       run: grep -Fq "url=./$DOCS_DEFAULT_REF/index.html" _build/index.html
+
+    - name: Stage browser demos
+      run: bash .github/actions/_lib/stage-browser-demos.sh
 
     - name: Upload GitHub Pages artifact
       uses: actions/upload-pages-artifact@v4

@@ -3,6 +3,37 @@ Changelog
 
 .. towncrier release notes start
 
+5.2.0 (2026-10-14)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_rl.rsl_rl.RslRlMLPModelCfg.GaussianDistributionCfg.std_range` to clamp the standard
+  deviation of RSL-RL Gaussian output distributions, exposing the existing ``std_range`` argument of RSL-RL.
+
+Fixed
+^^^^^
+
+* Fixed TorchRL wrapper stepping when its output device differs from the simulation device.
+* Updated RLInf configuration loading for compatibility with Hydra 1.4.
+
+
+5.1.0 (2026-10-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--no-resume_optimizer_state`` to RSL-RL training to restore checkpoint models and iteration with a fresh policy optimizer. RND retained its separate optimizer state.
+
+Fixed
+^^^^^
+
+* Allowed a further Ctrl+C during environment shutdown to force process termination.
+* Loaded installed downstream task registrations in direct distributed workers before selecting the training backend.
+
+
 5.0.0 (2026-10-10)
 ~~~~~~~~~~~~~~~~~~
 

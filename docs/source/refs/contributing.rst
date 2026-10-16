@@ -138,6 +138,32 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
+Browser-demo bundles and exporter sources are distributed through the permanent
+`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
+Reuse the ``interactive-releases`` publishing branch and upload commit-named archives to that same release.
+Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
+``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
+The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
+under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
+assets and preserve older links. The development source tree contains the staging script, documentation links,
+and small thumbnails. Run the staging step from the repository root:
+
+.. code-block:: bash
+
+   bash .github/actions/_lib/stage-browser-demos.sh
+
+The staging step also resolves demo links relative to each documentation version. To preview the
+complete site locally, serve ``docs/_build`` over HTTP:
+
+.. code-block:: bash
+
+   uv run --no-project python -m http.server 8000 --directory docs/_build
+
+Open ``http://localhost:8000/current/index.html`` for the docs or
+``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
+``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
+The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
+
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
@@ -311,6 +337,7 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   meaningful state or resources, enforce invariants over a lifecycle, or implement an interface required
   by the architecture. Avoid classes that only group static methods, wrap a single operation, or forward
   calls to another object. Preserve established public contracts when simplifying existing designs.
+  Use argparse's parsing and formatting for CLI help instead of private argv-scanner or help-builder classes.
 * Place shared operations in the existing module that owns their contract before adding a new file.
   Reuse existing mechanisms before introducing helpers, configuration options, or abstractions. Extract
   shared logic when it has the same contract; keep helpers private unless callers need a public API.

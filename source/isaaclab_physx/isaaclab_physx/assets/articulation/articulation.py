@@ -102,8 +102,8 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
 
-    __backend_native_orderings__: tuple[str, ...] = ("physx",)
-    """PhysX tensor-view order already matches the ``"physx"`` convention."""
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """None: Isaac Sim PhysX visits sibling links in authored joint-prim order, which can differ from ``"physx"``."""
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
