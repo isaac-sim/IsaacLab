@@ -95,7 +95,7 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     """Camera requirements enter both workflows; an attached ray caster does not own a clone source."""
     constructed = []
 
-    def factory(cfg):
+    def factory(cfg, *, sim):
         constructed.append(cfg)
         return object()
 

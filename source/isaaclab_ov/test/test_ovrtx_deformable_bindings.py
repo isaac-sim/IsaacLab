@@ -31,6 +31,9 @@ if not _MISSING_MODULES:
 def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer.geometry_callbacks = {}
+    renderer.markers = {}
+    renderer.marker_groups = ()
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer._device = "cpu"
     renderer._geometry_paths = []
