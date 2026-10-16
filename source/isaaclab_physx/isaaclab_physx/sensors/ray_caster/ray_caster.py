@@ -16,7 +16,6 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab import cloner
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 
 from isaaclab_physx.physics import PhysxManager
@@ -131,35 +130,25 @@ class _PhysXRayCasterMixin:
         """Build the mesh table and map its tracked entries to the rows of their rigid-body views."""
         super()._initialize_warp_meshes()
         # only multi-mesh ray casters have mesh views
-        self._mesh_view_rows = [
-            None if view is None else self._map_view_rows(view) for view in getattr(self, "_mesh_views", [])
-        ]
+        views = zip(getattr(self, "_mesh_views", []), getattr(self, "_mesh_body_paths", []))
+        self._mesh_view_rows = [None if view is None else self._map_view_rows(view, paths) for view, paths in views]
 
-    def _map_view_rows(self: Any, view) -> wp.array:
-        """Return the view row of each mesh-table entry of a tracked target.
+    def _map_view_rows(self: Any, view, body_paths_per_env: list[list[str]]) -> wp.array:
+        """Return the view row of each mesh-table entry of a tracked target, matched by the entry's body path.
 
         The view lists the bodies of one pattern after another, while the mesh table lists the meshes of each
-        environment in target order. The rows are therefore grouped by the environment of their prim path,
-        keeping the pattern order within an environment. Bodies outside the environments are assigned to the
-        environments in view order, and a single body is shared by all of them.
+        environment in its prototype's order, so the rows are looked up by prim path.
+
+        Args:
+            body_paths_per_env: Prim path of the tracked body of each mesh entry, per environment.
 
         Returns:
-            View rows, shape ``[num_envs, max_entries]``; ``-1`` for the entries of environments with fewer bodies.
+            View rows, shape ``[num_envs, max_entries]``; ``-1`` for entries whose body is not in the view.
         """
-        if view.count == 1:
-            rows_per_env = [[0]] * self._num_envs
-        else:
-            plan = sim_utils.SimulationContext.instance().get_clone_plan()
-            meshes_per_env = max(view.count // self._num_envs, 1)
-            rows_per_env = [[] for _ in range(self._num_envs)]
-            for row, path in enumerate(view.prim_paths):
-                matched = None if plan is None else cloner.path.match(path, plan.env_template)
-                env_id = row // meshes_per_env if matched is None else int(matched.instance)
-                if env_id < self._num_envs:
-                    rows_per_env[env_id].append(row)
-        view_rows = np.full((self._num_envs, max(map(len, rows_per_env))), -1, dtype=np.int32)
-        for env_id, rows in enumerate(rows_per_env):
-            view_rows[env_id, : len(rows)] = rows
+        rows = {path: row for row, path in enumerate(view.prim_paths)}
+        view_rows = np.full((self._num_envs, max(map(len, body_paths_per_env))), -1, dtype=np.int32)
+        for env_id, paths in enumerate(body_paths_per_env):
+            view_rows[env_id, : len(paths)] = [rows.get(path, -1) for path in paths]
         return wp.array(view_rows, dtype=wp.int32, device=self._device)
 
     def _create_tracked_target_view(self: Any, target_prim_paths: str | list[str]):
