@@ -40,6 +40,7 @@ from ..visualizers.visualizer_cfg import (
     VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
+    with_free_view,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -461,12 +462,18 @@ class SimulationContext:
                         eye=visualizer.cfg.eye, lookat=visualizer.cfg.lookat, focal_length=visualizer.cfg.focal_length
                     )
                 ])  # fmt: skip
+            cameras = with_free_view(cameras, visualizer.cfg.eye, visualizer.cfg.lookat, visualizer.cfg.focal_length)
             if visualizer.cfg.view is None and visualizer.cfg.streaming_view:
                 sensors = self._scene_data_provider.get_camera_sensors()
                 env_template = self._clone_plan.env_template if self._clone_plan is not None else DEFAULT_ENV_TEMPLATE
                 for gt_type in visualizer.cfg.streaming_gt_types:
                     sensor_key_for_gt_type(gt_type)
-                if visualizer.cfg.cameras is None:
+                # task views only add to the scene cameras the visualizer would find on its own
+                task_views_only = bool(visualizer.cfg.cameras) and all(
+                    isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view
+                    for camera in visualizer.cfg.cameras
+                )
+                if visualizer.cfg.cameras is None or task_views_only:
                     if visualizer.cfg.streaming_sensor_prim_path is not None:
                         cameras.insert(0, SceneCameraCfg(prim_path=visualizer.cfg.streaming_sensor_prim_path))
                     else:
@@ -499,6 +506,8 @@ class SimulationContext:
                             f"Declare a CameraCfg in the scene; available paths: {available_paths}."
                         )
                     cameras[index] = camera
+            # task views come last, after the free view and the scene cameras
+            cameras.sort(key=lambda camera: isinstance(camera, PerspectiveCameraCfg) and camera.is_task_view)
             visualizer.initialize(self, cameras=cameras)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)

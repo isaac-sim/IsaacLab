@@ -17,7 +17,14 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG
 
-from .humanoid_common import FEET_BODY_NAMES, JOINT_GEARS, TERRAIN_CFG, WALK_TARGET_POS, HumanoidPhysicsCfg
+from .humanoid_common import (
+    FEET_BODY_NAMES,
+    JOINT_GEARS,
+    TERRAIN_CFG,
+    VISUALIZER_CFG,
+    WALK_TARGET_POS,
+    HumanoidPhysicsCfg,
+)
 
 
 @configclass
@@ -45,7 +52,12 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     state_space = 0
 
     # simulation
-    sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=HumanoidPhysicsCfg())
+    sim: SimulationCfg = SimulationCfg(
+        dt=1 / 120,
+        render_interval=decimation,
+        physics=HumanoidPhysicsCfg(),
+        default_visualizer_cfg=VISUALIZER_CFG.copy(),
+    )
 
     # scene
     scene: HumanoidDirectSceneCfg = HumanoidDirectSceneCfg(

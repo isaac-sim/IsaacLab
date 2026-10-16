@@ -333,9 +333,9 @@ class BaseVisualizer(ABC):
         """
         pass
 
-    def _focal_length_to_vertical_fov_degrees(self) -> float:
-        """Convert cfg focal length to vertical FOV using USD's default aperture."""
-        focal_length = float(self.cfg.focal_length)
+    def _focal_length_to_vertical_fov_degrees(self, focal_length: float | None = None) -> float:
+        """Convert a focal length, by default the config's, to vertical FOV using USD's default aperture."""
+        focal_length = float(self.cfg.focal_length if focal_length is None else focal_length)
         if focal_length <= 0.0:
             raise ValueError("VisualizerCfg.focal_length must be positive.")
         return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))

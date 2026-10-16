@@ -97,6 +97,7 @@ def _make_env(visualizers=(), sensors: dict | None = None):
         ("viser", ("viz", "viser", "")),
         ("rerun", ("viz", "rerun", "")),
         ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("viz:newton_gl:tracking", ("viz", "newton_gl", "tracking")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
         # ``visualizer`` is the long form of ``viz``
@@ -258,6 +259,15 @@ def test_source_resolves_frame(source, make_env, caplog):
     assert not caplog.records
 
 
+def test_a_tracking_source_records_the_task_view_not_the_selected_one():
+    viz = _FakeViz("newton_gl")
+    task_frame = np.full_like(_FRAME, 7)
+    viz.render_task_view_rgb_array = lambda: task_frame
+    recorder = VideoRecorder(_cfg(source="viz:newton_gl:tracking"), _make_env(visualizers=[viz]))
+    assert recorder._capture() is task_frame
+    assert viz.render_calls == 0
+
+
 @pytest.mark.parametrize(
     "source,make_env,error,message",
     [
@@ -268,6 +278,12 @@ def test_source_resolves_frame(source, make_env, caplog):
             lambda: _make_env(visualizers=[_FakeViz("newton_gl")]),
             RuntimeError,
             "Enable streaming_view",
+        ),
+        (
+            "viz:kit:tracking",
+            lambda: _make_env(visualizers=[_FakeViz("kit")]),
+            RuntimeError,
+            "cannot record a tracking view",
         ),
         ("sensor:missing", lambda: _make_env(sensors={"tiled_camera": MagicMock()}), ValueError, "missing"),
         ("sensor:tiled_camera:depth", lambda: _make_env(sensors={"tiled_camera": _rgb_sensor()}), KeyError, "depth"),
@@ -301,9 +317,12 @@ def test_apply_deprecated_viewer_preserves_pose_and_tracking(origin_type, expect
     _apply_deprecated_viewer_cfg(env_cfg)
     cfg = env_cfg.sim.default_visualizer_cfg
     assert cfg is not None
-    assert cfg.eye == (1.0, 2.0, 3.0)
-    assert cfg.origin_type == ("asset" if expected_path else "world")
-    assert cfg.origin_track_path == expected_path
+    if expected_path is None:
+        assert cfg.eye == (1.0, 2.0, 3.0)
+        return
+    # a followed asset becomes a task view that comes first, so the viewport starts on it
+    assert cfg.cameras[0].track_path == expected_path and cfg.cameras[0].eye == (1.0, 2.0, 3.0)
+    assert not cfg.cameras[1].is_task_view
 
 
 def test_apply_deprecated_viewer_noop_when_defaults():

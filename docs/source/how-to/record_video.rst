@@ -286,6 +286,9 @@ The ``source`` string selects what to capture:
      - Newton OVRTX path-traced viewport
    * - ``"viz:newton_gl:streaming_view"``
      - Newton GL streaming camera panel, requires ``streaming_view=True``
+   * - ``"viz:newton_gl:tracking"``
+     - First perspective view tied to an environment or an asset (``env_index`` or ``track_path``),
+       whichever view the window shows; see :ref:`how-to-visualizer-task-views`
    * - ``"sensor:<name>"``
      - ``env.scene.sensors[name]``, RGB (default)
    * - ``"sensor:<name>:rgb"``
