@@ -12,8 +12,6 @@ from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 
 from isaaclab_assets import ONEROBOTICS_A1_UNIMANUAL_CFG  # isort: skip
 
-from .. import mdp as a1_mdp
-
 _A1_JOINT_PATTERNS = [f".*joint{index}.*" for index in range(1, 8)]
 _A1_END_EFFECTOR_PATTERN = ".*Link7.*"
 
@@ -29,8 +27,7 @@ class OneRoboticsA1ReachEnvCfg(ReachEnvCfg):
     """Reach task for the canonical fixed-base, 7-DoF OneRobotics A1 right arm.
 
     Actions are joint-position offsets from the configured home pose, scaled by 0.5 rad.
-    End-effector targets are generated from random in-limit joint configurations, so every
-    commanded position and orientation is kinematically reachable by construction.
+    Cartesian end-effector targets use the framework's standard uniform pose command.
     """
 
     def __post_init__(self) -> None:
@@ -67,22 +64,13 @@ class OneRoboticsA1ReachEnvCfg(ReachEnvCfg):
             preserve_order=True,
         )
 
-        self.commands.ee_pose = a1_mdp.FkReachablePoseCommandCfg(
-            asset_name="robot",
-            body_name=_A1_END_EFFECTOR_PATTERN,
-            chain=a1_mdp.A1_RIGHT_CHAIN,
-            joint_range_scale=0.8,
-            resampling_time_range=(4.0, 4.0),
-            make_quat_unique=False,
-            debug_vis=True,
-            position_success_threshold=0.05,
-            orientation_success_threshold=0.2,
-            ranges=a1_mdp.FkReachablePoseCommandCfg.Ranges(
-                pos_x=(0.0, 0.0),
-                pos_y=(0.0, 0.0),
-                pos_z=(0.0, 0.0),
-                roll=(0.0, 0.0),
-                pitch=(0.0, 0.0),
-                yaw=(0.0, 0.0),
-            ),
+        self.commands.ee_pose.body_name = _A1_END_EFFECTOR_PATTERN
+        # Targets are expressed in the robot base frame, before the table-mount rotation.
+        self.commands.ee_pose.ranges = mdp.UniformPoseCommandCfg.Ranges(
+            pos_x=(-0.14, -0.02),
+            pos_y=(-0.36, -0.24),
+            pos_z=(0.42, 0.54),
+            roll=(-0.99, -0.59),
+            pitch=(-0.25, 0.15),
+            yaw=(2.48, 2.88),
         )
