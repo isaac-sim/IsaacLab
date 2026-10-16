@@ -96,6 +96,7 @@ Guidelines for modifications:
 * Ege Sekkin
 * Emily Sturman
 * Emmanuel Ferdman
+* Evgenii Golubev
 * Fabian Jenelten
 * Fatima Anes
 * Felipe Mohr
