@@ -154,6 +154,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     checkpoint_pattern=r".*\.pth",
                     other_dirs=["nn"],
                     preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+                    latest_checkpoint_pattern=r"last_.*\.pth",
                     metadata={"agent": args_cli.agent},
                 )
             else:

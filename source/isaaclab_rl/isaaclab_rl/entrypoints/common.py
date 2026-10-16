@@ -665,9 +665,9 @@ def resolve_checkpoint_selector(
 ) -> str:
     """Resolve a checkpoint selector using the manifests written by training runs.
 
-    ``latest`` selects the naturally last checkpoint in the newest compatible run. ``best`` prefers
-    the backend's canonical best or final checkpoint and falls back to the same checkpoint used by
-    ``latest``.
+    ``latest`` selects the naturally last checkpoint in the newest compatible run, considering only the files
+    that match ``latest_checkpoint_pattern`` when any do. ``best`` selects the naturally last file that matches
+    ``preferred_checkpoint_pattern``, or the naturally last checkpoint when none does.
 
     Args:
         log_root_path: Directory containing training run directories.
@@ -677,8 +677,8 @@ def resolve_checkpoint_selector(
         checkpoint_pattern: Regular expression matching checkpoint filenames.
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
-        latest_checkpoint_pattern: Regular expression for the backend's periodic checkpoints. ``latest`` prefers
-            them when the best checkpoint's name would otherwise sort last.
+        latest_checkpoint_pattern: Regular expression for the backend's periodic checkpoints. When any checkpoint
+            matches, ``latest`` only considers the matching files.
         metadata: Additional manifest metadata required for compatibility.
         recursive: Whether to search recursively below each matching run directory.
 
