@@ -802,9 +802,9 @@ lag and computes the gearbox friction (:mod:`isaaclab_newton.actuators`). Every 
 
 When the USD models gearbox play as a passive revolute hinge in series with each servo, set
 ``backlash_joint_template`` to the hinge name pattern, e.g. ``"passive_{}_backlash"``. The firmware
-then reads servo angle plus play angle, while back-EMF and the current limiter keep the servo velocity;
-missing or non-revolute pairs raise while the asset is spawned. Set ``backlash_velocity_feedback=True``
-to use Newton's ``NewtonActuatorBacklashAPI`` instead, which also adds the play-hinge velocity.
+then reads servo angle plus play angle through Newton's ``NewtonActuatorBacklashAPI``, while back-EMF
+and the current limiter keep the servo velocity; missing or non-revolute pairs raise while the asset is
+spawned. Set ``backlash_velocity_feedback=True`` to also add the play-hinge velocity.
 
 ``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
 actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to

@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.actuators import BamCommandLag, BamFriction, InputProcessorPositionBacklash
+from isaaclab_newton.actuators import BamCommandLag, BamFriction
 from newton.actuators import (
     Actuator,
     ClampingMaxEffort,
@@ -31,7 +31,6 @@ from newton.actuators import (
 from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
-from isaaclab.actuators.actuator_bam_cfg import BAM_POSITION_BACKLASH_API
 from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrapper
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, define_actuator_properties
@@ -245,7 +244,7 @@ def test_authored_prim_composes_native_components(goldens, servo_usd, limit, vol
     if max_delay:
         expected_components.append(InputProcessorDelay)
     if backlash is not None:
-        expected_components.append(InputProcessorBacklash if backlash == "velocity" else InputProcessorPositionBacklash)
+        expected_components.append(InputProcessorBacklash)
     for name in JOINT_NAMES:
         prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
         entry = parse_actuator_prim(prim)
@@ -263,9 +262,11 @@ def test_authored_prim_composes_native_components(goldens, servo_usd, limit, vol
         if max_delay:
             assert components[InputProcessorDelay]["delay_steps"] == max_delay
         if backlash is not None:
-            assert components[expected_components[-1]]["backlash_joint"] == f"/Robot/passive_{name}_backlash"
-        tokens = list(stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas").GetAppliedItems())
-        assert (BAM_POSITION_BACKLASH_API in tokens) == (backlash == "position")
+            resolved = InputProcessorBacklash.resolve_arguments(components[InputProcessorBacklash])
+            assert resolved == {
+                "backlash_joint": f"/Robot/passive_{name}_backlash",
+                "velocity_feedback": backlash == "velocity",
+            }
 
 
 def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd):
@@ -372,8 +373,8 @@ def test_delay_matches_recorded_mjlab_sequence(goldens, servo_usd, device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("processor", [InputProcessorPositionBacklash, InputProcessorBacklash])
-def test_backlash_feeds_back_the_play_angle(goldens, device, processor):
+@pytest.mark.parametrize("velocity_feedback", [False, True])
+def test_backlash_feeds_back_the_play_angle(goldens, device, velocity_feedback):
     """The encoder sees the output angle; back-EMF uses the rotor velocity unless the play velocity is fed back."""
     kt, resistance, error_gain = (goldens[f"attr_{name}"].item() for name in ("kt", "R", "error_gain"))
     full = lambda value: wp.full(4, value, dtype=wp.float32, device=device)  # noqa: E731
@@ -382,7 +383,11 @@ def test_backlash_feeds_back_the_play_angle(goldens, device, processor):
         drive=DriveBAM(
             kp=full(KP_FW * error_gain), kt=full(kt), resistance=full(resistance), vin=full(VIN), max_pwm=full(1.0)
         ),
-        input_processors=[processor(wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device))],
+        input_processors=[
+            InputProcessorBacklash(
+                wp.array([1, 0, 3, 2], dtype=wp.uint32, device=device), velocity_feedback=velocity_feedback
+            )
+        ],
     )
     positions = np.array([[0.01, -0.02], [0.03, -0.01]], dtype=np.float32)
     velocities = np.array([[0.3, -0.4], [-0.5, 0.2]], dtype=np.float32)
@@ -395,7 +400,7 @@ def test_backlash_feeds_back_the_play_angle(goldens, device, processor):
     actuator.step(state, control, dt=DT)
 
     error = -positions - positions[:, ::-1]
-    motor_velocity = velocities + (velocities[:, ::-1] if processor is InputProcessorBacklash else 0.0)
+    motor_velocity = velocities + (velocities[:, ::-1] if velocity_feedback else 0.0)
     expected = kt / resistance * (VIN * KP_FW * error_gain * error - kt * motor_velocity)
     np.testing.assert_allclose(control.joint_f_2d.numpy(), expected, rtol=2e-5, atol=1e-7)
 

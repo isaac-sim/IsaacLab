@@ -11,9 +11,6 @@ from isaaclab.utils.configclass import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
 
-BAM_POSITION_BACKLASH_API = "IsaacLabPositionBacklashAPI"
-"""USD API schema token of the backlash input processor that feeds back the play angle but not its velocity."""
-
 BAM_STIFF_SOLREF_FRICTION: tuple[float, float] = (-5.0e4, -2.0e2)
 """Stiff ``(-stiffness, -damping)`` friction solref from the reference BAM implementation [N.m/rad, N.m.s/rad]."""
 
@@ -163,8 +160,9 @@ class BamActuatorCfg(ActuatorBaseCfg):
     backlash_velocity_feedback: bool = False
     """Whether the firmware and back-EMF also read the play-hinge velocity.
 
-    True uses Newton's ``NewtonActuatorBacklashAPI``, which reads servo plus play velocity. False, the default,
-    keeps the servo velocity as the BAM reference does. Only used with :attr:`backlash_joint_template`.
+    Authored as ``newton:velocityFeedback`` on Newton's ``NewtonActuatorBacklashAPI``. True reads servo plus play
+    velocity. False, the default, keeps the servo velocity as the BAM reference does. Only used with
+    :attr:`backlash_joint_template`.
     """
 
     stiff_frictionloss: bool = True

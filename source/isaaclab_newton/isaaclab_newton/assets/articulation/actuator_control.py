@@ -27,7 +27,7 @@ from isaaclab.actuators.newton.adapter import NewtonActuatorAdapter, NewtonActua
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 
-from isaaclab_newton.actuators.bam import BamCommandLag, BamFriction, BamGroup, InputProcessorPositionBacklash
+from isaaclab_newton.actuators.bam import BamCommandLag, BamFriction, BamGroup
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
 
@@ -235,7 +235,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         dofs_per_env = adapter.num_joints
         bam_dofs: set[int] = set()
         delay_slots: dict[int, tuple[InputProcessorDelay, int]] = {}
-        backlash_types: dict[int, list[type]] = {}
+        backlash_feedback: dict[int, list[bool]] = {}
         for actuator in adapter.actuators:
             # A drive on its own supply voltage would ignore the group's battery.
             if not isinstance(actuator.drive, DriveBAM) or not actuator.drive.supply_from_control:
@@ -247,7 +247,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                     delay_slots.update((dof, (processor, slot)) for slot, dof in enumerate(indices))
                 elif isinstance(processor, InputProcessorBacklash):
                     for dof in indices:
-                        backlash_types.setdefault(dof, []).append(type(processor))
+                        backlash_feedback.setdefault(dof, []).append(processor.velocity_feedback)
 
         # Group DOFs, environment-major and in group joint order. Instance e lives in environment e.
         all_joints = list(range(self.num_joints))
@@ -264,11 +264,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             if not bam_dofs.issuperset(dofs.ravel().tolist()):
                 raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM with supply_from_control.")
             # Newton skips an unregistered processor token silently, and a stale one would read a play hinge.
-            backlash = InputProcessorBacklash if cfg.backlash_velocity_feedback else InputProcessorPositionBacklash
-            expected = [] if cfg.backlash_joint_template is None else [backlash]
-            if any(backlash_types.get(dof, []) != expected for dof in dofs.ravel().tolist()):
-                wanted = f"one {expected[0].__name__}" if expected else "no backlash"
-                raise RuntimeError(f"BAM group '{name}' must read its servos through {wanted} processor.")
+            expected = [] if cfg.backlash_joint_template is None else [cfg.backlash_velocity_feedback]
+            if any(backlash_feedback.get(dof, []) != expected for dof in dofs.ravel().tolist()):
+                wanted = f"one backlash processor with velocity_feedback={expected[0]}" if expected else "no backlash"
+                raise RuntimeError(f"BAM group '{name}' must read its servos through {wanted}.")
             nominal_voltage, sag_gain = self._sample_bam_supply(cfg)
             battery_offset = adapter.add_batteries(dofs, nominal_voltage, sag_gain, min_voltage=max(cfg.vin_min, 0.0))
             friction = BamFriction(cfg.motor, wp.array(dofs.ravel(), dtype=wp.uint32, device=self.device), dofs_per_env)
