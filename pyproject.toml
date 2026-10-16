@@ -87,8 +87,11 @@ dependencies = [
     # TODO: the native BAM path imports newton.actuators.Battery, InputProcessorBase, InputProcessorDelay,
     # InputProcessorBacklash and DriveBAM from newton-physics/newton#4504, which this revision predates. It needs
     # the PR head 9f1645156ec02a46924de3bcb61d22803eaf3d17 or later, where the battery writes the drives'
-    # supply_voltage control input. Until the pin (here, in override-dependencies and in uv.lock) moves to a
-    # revision with #4504, install Newton at that head and run without syncing (`uv run --no-sync`).
+    # supply_voltage control input. BAM also reads its play angle through InputProcessorBacklash's
+    # velocity_feedback option and draws its command lag with InputProcessorRandomDelay, both proposed for #4504
+    # and not merged there yet (7b4be812 and 091a954c). Until the pin (here, in override-dependencies and in
+    # uv.lock) moves to a revision with all of these, install such a Newton and run without syncing
+    # (`uv run --no-sync`).
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@71eeba16a717d4dcf0b9dd7056a7b6f863054dc3",
     # Import and mesh-processing packages used by Newton, including the ones that honoring
     # USD-authored ``physics:approximation`` requires. Keep these explicit instead of selecting
