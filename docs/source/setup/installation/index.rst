@@ -260,7 +260,7 @@ updating the lockfile can then select a newer Isaac Lab revision and dependency 
 Installing the published wheel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not point Isaac Lab at
+Use NVIDIA's package index for the |isaaclab_wheel_version| release. Do not point Isaac Lab at
 the Git source from the previous workflow when installing the published wheel.
 
 Run the published package directly or install it into a persistent environment. All workflows start
@@ -274,7 +274,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
          uvx --index https://pypi.nvidia.com \
             --torch-backend cu130 \
-            --from "isaaclab==3.0.0rc1" \
+            --from "isaaclab==3.0.0" \
             isaaclab demo zoo
 
       This resolves the published wheel from the package index into an isolated environment. It does
@@ -293,7 +293,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
          uv add \
             --index-strategy unsafe-best-match \
             --index nvidia=https://pypi.nvidia.com \
-            isaaclab==3.0.0rc1
+            isaaclab==3.0.0
 
    .. tab-item:: Standalone uv environment
 
@@ -307,7 +307,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install isaaclab==3.0.0rc1 \
+               uv pip install isaaclab==3.0.0 \
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
@@ -318,7 +318,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
                uv venv --python 3.12 env_isaaclab
                env_isaaclab\Scripts\activate
-               uv pip install isaaclab==3.0.0rc1 ^
+               uv pip install isaaclab==3.0.0 ^
                   --index https://pypi.nvidia.com ^
                   --torch-backend cu130
 
@@ -329,7 +329,7 @@ with the base ``isaaclab`` package; add optional capabilities only when your pro
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install isaaclab==3.0.0rc1 \
+               uv pip install isaaclab==3.0.0 \
                   --index https://pypi.nvidia.com \
                   --torch-backend cu130
 
