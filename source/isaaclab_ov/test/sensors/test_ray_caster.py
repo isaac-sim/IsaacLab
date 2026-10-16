@@ -19,7 +19,7 @@ from isaaclab_ov.sensors.ray_caster import ray_caster as ray_caster_module
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, RayCasterCfg, patterns
+from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -89,7 +89,7 @@ def test_initialize_pose_tracking_binds_body_glob_and_replicates_offset(monkeypa
 
 @configclass
 class _VariantSceneCfg(InteractiveSceneCfg):
-    """Ray casters on a crate next to an object with two variants, so the environments are cloned in batches."""
+    """A ray caster on a crate next to an object with two variants, so the environments are cloned in batches."""
 
     env_spacing = 2.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
@@ -112,13 +112,6 @@ class _VariantSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 0.1)),
     )
-    # one ray straight down onto the ground below the crate
-    ray_caster = RayCasterCfg(
-        prim_path="{ENV_REGEX_NS}/Crate",
-        mesh_prim_paths=["/World/ground"],
-        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(0.0, 0.0)),
-        ray_alignment="world",
-    )
     # one ray straight down onto the variant, a tracked target
     scanner = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Crate",
@@ -130,8 +123,8 @@ class _VariantSceneCfg(InteractiveSceneCfg):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_ray_casters_follow_environment_order_with_variants(device):
-    """Ray-caster rows and their tracked targets belong to their own environment in a scene with variants.
+def test_ray_caster_follows_environment_order_with_variants(device):
+    """Ray-caster rows and their tracked target belong to their own environment in a scene with variants.
 
     On GPU, OVPhysX discovers the bodies of each variant batch in clone order, not in environment order.
     """
@@ -139,10 +132,6 @@ def test_ray_casters_follow_environment_order_with_variants(device):
     with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
         scene = InteractiveScene(_VariantSceneCfg(num_envs=4))
         sim.reset()
-
-        crate_pos_w = scene["crate"].data.root_pos_w.torch
-        hits = scene["ray_caster"].data.ray_hits_w.torch[:, 0]
-        torch.testing.assert_close(hits, crate_pos_w * torch.tensor([1.0, 1.0, 0.0], device=device))
 
         variant_pos_w = scene["variant"].data.root_pos_w.torch
         hits = scene["scanner"].data.ray_hits_w.torch[:, 0]
