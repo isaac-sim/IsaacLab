@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
 from typing import Literal
 
 from isaaclab.utils.configclass import configclass
@@ -21,7 +20,7 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
 }
 """Drive flags of the friction terms each BAM model enables."""
 
-BAM_NEW_ACTUATOR_DEFAULTS: dict[str, float | int] = {
+BAM_NEW_ACTUATOR_DEFAULTS: dict[str, float] = {
     "max_pwm": 1.0,
     "friction_stribeck": 0.0,
     "dtheta_stribeck": 1.0,
@@ -32,13 +31,8 @@ BAM_NEW_ACTUATOR_DEFAULTS: dict[str, float | int] = {
     "load_friction_external_stribeck": 0.0,
     "load_friction_motor_quad": 0.0,
     "load_friction_external_quad": 0.0,
-    "vin_min": -math.inf,
-    "delay_hold_prob": 0.0,
-    "min_delay": 0,
-    "max_delay": 0,
-    "delay_update_period": 0,
 }
-"""Values a new BAM actuator takes for fields its configuration leaves as None."""
+"""Values a new BAM actuator takes for motor fields left as None; unset vin_min and delay settings take DriveBam's."""
 
 
 @configclass
@@ -160,13 +154,13 @@ class BamActuatorCfg(ActuatorBaseCfg):
     """Minimum command delay [physics steps]."""
 
     max_delay: int | None = None
-    """Maximum command delay [physics steps]; zero disables the delay."""
+    """Maximum command delay [physics steps]. Zero disables the delay."""
 
     delay_hold_prob: float | None = None
     """Probability of keeping the current lag instead of resampling it [-]."""
 
     delay_update_period: int | None = None
-    """Physics steps between lag resamples, with a random per-environment phase; zero resamples every step."""
+    """Physics steps between lag resamples, with a random per-environment phase. Zero resamples every step."""
 
     backlash_joint_template: str | None = None
     """Name of each servo's passive gearbox-play hinge, formatted with the servo joint name.

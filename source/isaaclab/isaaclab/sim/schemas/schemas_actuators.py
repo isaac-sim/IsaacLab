@@ -25,6 +25,7 @@ import logging
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from operator import attrgetter
 from typing import Any
 
 import torch
@@ -40,7 +41,7 @@ from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from ...actuators.actuator_pd import DCMotor, DelayedPDActuator, IdealPDActuator, RemotizedPDActuator
 from ...actuators.actuator_pd_cfg import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg, RemotizedPDActuatorCfg
-from ...utils import clone, to_dict, validate
+from ...utils import clone, validate
 from ...utils.assets import retrieve_file_path
 from ...utils.backend_utils import FactoryBase
 from ...utils.string import (
@@ -160,15 +161,7 @@ def author_actuator_prims(
     articulation_prim_path: str,
     actuator_cfgs: dict[str, ActuatorBaseCfg],
 ) -> None:
-    """Author the ``NewtonActuator`` prims of one articulation.
-
-    Every config is resolved and checked before the stage is edited, so a rejected
-    config leaves the stage unchanged.
-
-    Raises:
-        ValueError: If the articulation prim is missing, a config is unsupported, or a required
-            value is set neither by the config nor by the USD actuator it is authored onto.
-    """
+    """Author the ``NewtonActuator`` prims of one articulation, planning every config before editing the stage."""
     art_prim = stage.GetPrimAtPath(articulation_prim_path)
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
@@ -236,7 +229,7 @@ class _ActuatorField:
     """A ``NewtonActuator`` attribute that an actuator config can author."""
 
     name: str
-    """Config field named in errors."""
+    """Config field that sets the attribute, as a dotted path; also named in errors."""
 
     schema: str
     """API schema that owns the attribute."""
@@ -244,11 +237,11 @@ class _ActuatorField:
     attr: str
     """USD attribute name."""
 
-    type_name: Sdf.ValueTypeName
+    type_name: Sdf.ValueTypeName = _FLOAT
     """USD value type of the attribute."""
 
-    source: Callable[[ActuatorBaseCfg, list[str]], dict[str, Any]]
-    """Values the config sets, keyed by joint name; joints left out keep the USD value."""
+    source: Callable[[ActuatorBaseCfg, list[str]], dict[str, Any]] | None = None
+    """Values the config sets, keyed by joint name; joints left out keep the USD value. Defaults to :attr:`name`."""
 
     new_prim_default: Any = None
     """Value a new prim gets when the config leaves it unset, or a callable of the config and joint prim."""
@@ -258,6 +251,12 @@ class _ActuatorField:
 
     disabled_by: Any = None
     """Configured value that removes :attr:`schema` instead of authoring the attribute."""
+
+    def configured(self, cfg: ActuatorBaseCfg, joint_names: list[str]) -> dict[str, Any]:
+        """Return the values *cfg* sets, keyed by joint name."""
+        if self.source is not None:
+            return self.source(cfg, joint_names)
+        return _configured_values(attrgetter(self.name)(cfg), joint_names, int if self.type_name == _INT else float)
 
 
 @dataclass(frozen=True)
@@ -302,112 +301,73 @@ def _plan_group(
     actuator_prims: dict[str, list[Usd.Prim]],
     new_prim_paths: set[str],
 ) -> list[_ActuatorPlan]:
-    """Plan the stage edits of one actuator group, raising before any edit if a value is missing."""
+    """Plan the stage edits of one actuator group, raising before any edit if a required value is missing.
+
+    A value the config sets is authored. An unset value keeps the prim's opinion when the prim keeps
+    that value's schema; otherwise it takes the field's new-prim default.
+    """
     layout = _actuator_layout(cfg)
-    configured = {field.attr: field.source(cfg, list(joints)) for field in layout.fields}
+    configured = {field.attr: field.configured(cfg, list(joints)) for field in layout.fields}
+    allowed = {layout.drive, *(field.schema for field in layout.fields)}
     plans: list[_ActuatorPlan] = []
-    replaced: dict[str, list[str]] = {}
-    removed: dict[str, list[str]] = {}
     for joint_name, joint_prim in joints.items():
-        joint_values = {
-            field.attr: configured[field.attr][joint_name]
-            for field in layout.fields
-            if joint_name in configured[field.attr]
-        }
         existing = actuator_prims.get(str(joint_prim.GetPath()), [])
-        target, reason = _overlay_target(existing, layout.drive)
-        if target is not None:
-            prim_path = str(target.GetPath())
+        prim, reason = _overlay_target(existing, layout.drive)
+        if prim is not None:
+            prim_path, present = str(prim.GetPath()), _applied_schemas(prim)
         else:
-            if reason is not None:
-                replaced.setdefault(reason, []).append(joint_name)
             prim_path = find_unique_string_name(
                 f"{articulation_prim_path}/{group_name}_{joint_name}_actuator",
                 lambda path: path not in new_prim_paths and not stage.GetPrimAtPath(path).IsValid(),
             )
             new_prim_paths.add(prim_path)
-        plan = _plan_joint(group_name, joint_name, cfg, layout, joint_prim, joint_values, target, prim_path, existing)
-        for schema in plan.remove_schemas:
-            removed.setdefault(schema, []).append(joint_name)
-        plans.append(plan)
-
-    for reason, names in replaced.items():
-        logger.warning(
-            f"Actuator group '{group_name}' replaces the USD actuators of joints {names}: {reason}. Values the"
-            " configuration leaves unset use code defaults instead of the asset's."
-        )
-    for schema, names in removed.items():
-        logger.warning(
-            f"Actuator group '{group_name}' removes {schema} from the USD actuators of joints {names}, because"
-            f" {type(cfg).__name__} does not model it."
-        )
-    return plans
-
-
-def _plan_joint(
-    group_name: str,
-    joint_name: str,
-    cfg: ActuatorBaseCfg,
-    layout: _ActuatorLayout,
-    joint_prim: Usd.Prim,
-    joint_values: dict[str, Any],
-    prim: Usd.Prim | None,
-    prim_path: str,
-    existing: list[Usd.Prim],
-) -> _ActuatorPlan:
-    """Plan one joint's actuator: authored onto *prim*, or onto a new prim at *prim_path* when *prim* is None.
-
-    A value the config sets is authored. An unset value keeps the prim's opinion when the prim
-    keeps that value's schema; otherwise it takes the field's new-prim default.
-    """
-    present = _applied_schemas(prim) if prim is not None else set()
-    disabled = {
-        field.schema
-        for field in layout.fields
-        if field.disabled_by is not None and joint_values.get(field.attr) == field.disabled_by
-    }
-    allowed = {layout.drive, *(field.schema for field in layout.fields)}
-    remove = sorted(((present & _COMPONENT_APIS) - allowed) | (present & disabled))
-    kept = present - set(remove)
-    values = []
-    for field in layout.fields:
-        if field.schema in disabled:
-            continue
-        if field.attr in joint_values:
-            value = joint_values[field.attr]
-        elif field.schema in kept:
-            # The prim's opinion stays; a required value must be authored there.
-            attr = prim.GetAttribute(field.attr)
-            if field.required and not (attr.IsValid() and attr.HasAuthoredValue()):
-                raise _missing_value_error(group_name, joint_name, field)
-            continue
-        else:
-            default = field.new_prim_default
-            value = default(cfg, joint_prim) if callable(default) else default
+            present = set()
+        disabled = {
+            field.schema
+            for field in layout.fields
+            if field.disabled_by is not None and configured[field.attr].get(joint_name) == field.disabled_by
+        }
+        remove = sorted(((present & _COMPONENT_APIS) - allowed) | (present & disabled))
+        kept = present - set(remove)
+        values = []
+        for field in layout.fields:
+            value = configured[field.attr].get(joint_name)
+            if field.schema in disabled:
+                continue
+            if value is None and field.schema in kept:
+                # The prim's opinion stays; a required value must be authored there.
+                if not field.required or prim.GetAttribute(field.attr).HasAuthoredValue():
+                    continue
+            elif value is None:
+                default = field.new_prim_default
+                value = default(cfg, joint_prim) if callable(default) else default
             if value is None:
                 if field.required:
-                    raise _missing_value_error(group_name, joint_name, field)
+                    raise ValueError(
+                        f"Actuator group '{group_name}' does not set '{field.name}' for joint '{joint_name}', and the"
+                        f" joint has no compatible USD actuator that authors '{field.attr}'."
+                    )
                 continue
-        values.append((field, value))
-    add = [schema for schema in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]) if schema not in present]
-    return _ActuatorPlan(
-        joint_path=str(joint_prim.GetPath()),
-        prim_path=prim_path,
-        define=prim is None,
-        values=values,
-        add_schemas=add,
-        remove_schemas=remove,
-        deactivate=existing if prim is None else [],
-        joint_attrs=layout.joint_attrs,
-    )
-
-
-def _missing_value_error(group_name: str, joint_name: str, field: _ActuatorField) -> ValueError:
-    """Return the error for a required value that neither the config nor a USD actuator provides."""
-    return ValueError(
-        f"Actuator group '{group_name}' does not set '{field.name}' for joint '{joint_name}', and the joint has"
-        f" no compatible USD actuator that authors '{field.attr}'."
-    )
+            values.append((field, value))
+        if reason is not None:
+            logger.warning(
+                f"Actuator group '{group_name}' replaces the USD actuators of joint '{joint_name}': {reason}. Values"
+                " the configuration leaves unset use code defaults instead of the asset's."
+            )
+        add = [s for s in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]) if s not in present]
+        plans.append(
+            _ActuatorPlan(
+                joint_path=str(joint_prim.GetPath()),
+                prim_path=prim_path,
+                define=prim is None,
+                values=values,
+                add_schemas=add,
+                remove_schemas=remove,
+                deactivate=existing if prim is None else [],
+                joint_attrs=layout.joint_attrs,
+            )
+        )
+    return plans
 
 
 def _apply_plan(stage: Usd.Stage, plan: _ActuatorPlan) -> None:
@@ -439,7 +399,7 @@ def _overlay_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None,
     if not prims:
         return None, None
     if len(prims) > 1:
-        return None, f"{len(prims)} actuator prims drive each joint"
+        return None, f"{len(prims)} actuator prims drive it"
     schemas = _applied_schemas(prims[0])
     drives = schemas & _DRIVE_APIS
     if drives != {drive}:
@@ -451,16 +411,9 @@ def _overlay_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None,
 
 
 def _applied_schemas(prim: Usd.Prim) -> set[str]:
-    """Return the composed API schema tokens of *prim*.
-
-    Reads the composed ``apiSchemas`` list as well, since an unregistered schema such as BAM's
-    drive is missing from :meth:`Usd.Prim.GetAppliedSchemas`.
-    """
-    schemas = set(prim.GetAppliedSchemas())
+    """Return the composed ``apiSchemas`` tokens of *prim*, including unregistered ones such as BAM's drive."""
     list_op = prim.GetMetadata("apiSchemas")
-    if list_op is not None:
-        schemas.update(list_op.GetAddedOrExplicitItems())
-    return schemas
+    return set(list_op.GetAddedOrExplicitItems()) if list_op is not None else set()
 
 
 def _get_authored_joint_effort_limit(joint_prim: Usd.Prim) -> float | None:
@@ -524,15 +477,6 @@ def _new_prim_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim) -> float 
     return _get_authored_joint_effort_limit(joint_prim)
 
 
-def _lookup_column(column: int) -> Callable[[RemotizedPDActuatorCfg, list[str]], dict[str, list[float]]]:
-    """Return a source of one column of a remotized actuator's joint parameter lookup table."""
-
-    def source(cfg: RemotizedPDActuatorCfg, joint_names: list[str]) -> dict[str, list[float]]:
-        return dict.fromkeys(joint_names, [float(row[column]) for row in cfg.joint_parameter_lookup])
-
-    return source
-
-
 def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_names: list[str]) -> dict[str, Any]:
     """Export a neural actuator's checkpoint with its config metadata and return its path for every joint."""
     meta: dict[str, Any] = {}
@@ -548,23 +492,18 @@ def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_name
     return dict.fromkeys(joint_names, Sdf.AssetPath(resave_checkpoint_with_metadata(cfg.network_file, meta)))
 
 
-def _bam_value(name: str, type_name: Sdf.ValueTypeName, motor: bool = False, required: bool = False) -> _ActuatorField:
-    """Return the BAM drive attribute set by the :class:`BamActuatorCfg` (or, with *motor*, :class:`BamMotorCfg`) field.
+def _bam_value(name: str, type_name: Sdf.ValueTypeName = _FLOAT, required: bool = False) -> _ActuatorField:
+    """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field (``motor.`` for the fit).
 
     Its new-prim default comes from :data:`~isaaclab.actuators.actuator_bam_cfg.BAM_NEW_ACTUATOR_DEFAULTS`.
     """
-    cast = float if type_name == _FLOAT else int
-
-    def source(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str, Any]:
-        return _configured_values(to_dict(cfg.motor if motor else cfg)[name], joint_names, cast)
-
+    key = name.removeprefix("motor.")
     return _ActuatorField(
-        f"motor.{name}" if motor else name,
+        name,
         BAM_DRIVE_API,
-        f"newton:{to_camel_case(name)}",
+        f"newton:{to_camel_case(key)}",
         type_name,
-        source,
-        new_prim_default=BAM_NEW_ACTUATOR_DEFAULTS.get(name),
+        new_prim_default=BAM_NEW_ACTUATOR_DEFAULTS.get(key),
         required=required,
     )
 
@@ -590,69 +529,29 @@ def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str,
 
 
 _PD_GAINS = (
-    _ActuatorField(
-        "stiffness", _PD_API, "newton:kp", _FLOAT, lambda cfg, names: _configured_values(cfg.stiffness, names), 0.0
-    ),
-    _ActuatorField(
-        "damping", _PD_API, "newton:kd", _FLOAT, lambda cfg, names: _configured_values(cfg.damping, names), 0.0
-    ),
+    _ActuatorField("stiffness", _PD_API, "newton:kp", new_prim_default=0.0),
+    _ActuatorField("damping", _PD_API, "newton:kd", new_prim_default=0.0),
 )
 _MAX_EFFORT = _ActuatorField(
-    "actuator_effort_limit",
-    _MAX_EFFORT_API,
-    "newton:maxEffort",
-    _FLOAT,
-    lambda cfg, names: _configured_values(cfg.actuator_effort_limit, names),
-    _new_prim_effort_limit,
+    "actuator_effort_limit", _MAX_EFFORT_API, "newton:maxEffort", new_prim_default=_new_prim_effort_limit
 )
 _DC_MOTOR = (
+    _ActuatorField("saturation_effort", _DC_MOTOR_API, "newton:saturationEffort", required=True),
+    _ActuatorField("actuator_velocity_limit", _DC_MOTOR_API, "newton:velocityLimit"),
     _ActuatorField(
-        "saturation_effort",
-        _DC_MOTOR_API,
-        "newton:saturationEffort",
-        _FLOAT,
-        lambda cfg, names: _configured_values(cfg.saturation_effort, names),
-        required=True,
-    ),
-    _ActuatorField(
-        "actuator_velocity_limit",
-        _DC_MOTOR_API,
-        "newton:velocityLimit",
-        _FLOAT,
-        lambda cfg, names: _configured_values(cfg.actuator_velocity_limit, names),
-    ),
-    _ActuatorField(
-        "actuator_effort_limit",
-        _DC_MOTOR_API,
-        "newton:maxMotorEffort",
-        _FLOAT,
-        lambda cfg, names: _configured_values(cfg.actuator_effort_limit, names),
-        _new_prim_effort_limit,
+        "actuator_effort_limit", _DC_MOTOR_API, "newton:maxMotorEffort", new_prim_default=_new_prim_effort_limit
     ),
 )
-_DELAY = _ActuatorField(
-    "max_delay",
-    _DELAY_API,
-    "newton:delaySteps",
-    _INT,
-    lambda cfg, names: _configured_values(cfg.max_delay, names, int),
-    disabled_by=0,
-)
-_POSITION_BASED = (
+_DELAY = _ActuatorField("max_delay", _DELAY_API, "newton:delaySteps", _INT, disabled_by=0)
+_POSITION_BASED = tuple(
     _ActuatorField(
         "joint_parameter_lookup",
         _POSITION_BASED_API,
-        "newton:lookupPositions",
+        attr,
         Sdf.ValueTypeNames.FloatArray,
-        _lookup_column(0),
-    ),
-    _ActuatorField(
-        "joint_parameter_lookup",
-        _POSITION_BASED_API,
-        "newton:lookupEfforts",
-        Sdf.ValueTypeNames.FloatArray,
-        _lookup_column(2),
-    ),
+        lambda cfg, names, column=column: dict.fromkeys(names, [float(r[column]) for r in cfg.joint_parameter_lookup]),
+    )
+    for attr, column in (("newton:lookupPositions", 0), ("newton:lookupEfforts", 2))
 )
 _NEURAL_MODEL = _ActuatorField(
     "network_file", _NEURAL_API, "newton:modelPath", Sdf.ValueTypeNames.Asset, _exported_model_path
@@ -661,11 +560,11 @@ _NEURAL_MODEL = _ActuatorField(
 # BAM attributes are float-typed even when integral: an int-typed attribute would truncate a float override.
 # The fit and supply are required: the drive would silently fall back to m1 friction and no current limit.
 _BAM_FIELDS = (
-    *(_bam_value(name, _FLOAT, motor=True, required=True) for name in ("kt", "resistance", "error_gain")),
-    _bam_value("max_pwm", _FLOAT, motor=True),
-    *(_bam_value(name, _FLOAT, motor=True, required=True) for name in ("max_current", "friction_base")),
+    *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
+    _bam_value("motor.max_pwm"),
+    *(_bam_value(f"motor.{name}", required=True) for name in ("max_current", "friction_base")),
     *(
-        _bam_value(name, _FLOAT, motor=True)
+        _bam_value(f"motor.{name}")
         for name in (
             "friction_stribeck",
             "dtheta_stribeck",
@@ -679,8 +578,8 @@ _BAM_FIELDS = (
         )
     ),
     *(_bam_model_flag(flag) for flag in ("stribeck", "load_dependent", "quadratic")),
-    *(_bam_value(name, _FLOAT, required=True) for name in ("kp_fw", "vin")),
-    *(_bam_value(name, _FLOAT) for name in ("vin_min", "delay_hold_prob")),
+    *(_bam_value(name, required=True) for name in ("kp_fw", "vin")),
+    *(_bam_value(name) for name in ("vin_min", "delay_hold_prob")),
     *(_bam_value(name, _INT) for name in ("min_delay", "max_delay", "delay_update_period")),
     # Flag backlash drives so they never merge with regular ones; without a hinge template, keep the USD flag.
     _ActuatorField(
@@ -689,16 +588,10 @@ _BAM_FIELDS = (
         "newton:hasBacklash",
         _INT,
         lambda cfg, names: dict.fromkeys(names, 1) if cfg.backlash_joint_template is not None else {},
-        0,
     ),
+    # A new prim requires kt, resistance and vin, so the default only fills joints a configured mapping skips.
     _ActuatorField(
-        "actuator_effort_limit",
-        BAM_DRIVE_API,
-        "newton:maxEffort",
-        _FLOAT,
-        _bam_effort_limits,
-        # A configured mapping resolves unmatched joints to zero, like the other effort limits.
-        lambda cfg, joint_prim: 0.0 if cfg.actuator_effort_limit is not None else None,
+        "actuator_effort_limit", BAM_DRIVE_API, "newton:maxEffort", _FLOAT, _bam_effort_limits, _new_prim_effort_limit
     ),
 )
 
