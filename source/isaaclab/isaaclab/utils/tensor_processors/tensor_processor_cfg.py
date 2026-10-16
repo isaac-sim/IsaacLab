@@ -14,8 +14,8 @@ import torch
 from .. import configclass
 
 if TYPE_CHECKING:
-    from ..processing import DictTensorProcessorStepCfg
     from .dict_tensor_processor_adapter import DictTensorProcessorAdapter
+    from .dict_tensor_processor_cfg import DictTensorProcessorCfg
     from .processors import DigitalFilter, Integrator
     from .tensor_processor import TensorProcessor
 
@@ -50,7 +50,7 @@ class DictTensorProcessorAdapterCfg(TensorProcessorCfg):
     func: type[DictTensorProcessorAdapter] | str = "{DIR}.dict_tensor_processor_adapter:DictTensorProcessorAdapter"
     """Processor class consuming the incoming tensor."""
 
-    pipeline: list[DictTensorProcessorStepCfg] = MISSING
+    pipeline: list[DictTensorProcessorCfg] = MISSING
     """Ordered buffer processing operations."""
 
     input_name: str = "rgb"

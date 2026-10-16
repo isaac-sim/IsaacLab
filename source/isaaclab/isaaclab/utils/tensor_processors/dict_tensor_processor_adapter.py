@@ -13,8 +13,8 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from ..processing import DictTensorProcessor
 from ..warp import ProxyArray
+from ._pipeline import _DictTensorProcessorPipeline
 from .tensor_processor import TensorProcessor
 
 if TYPE_CHECKING:
@@ -33,7 +33,7 @@ class DictTensorProcessorAdapter(TensorProcessor):
 
     def __init__(self, cfg: DictTensorProcessorAdapterCfg, data_dim: tuple[int, ...], device: str):
         super().__init__(cfg, data_dim, device)
-        self._pipe: DictTensorProcessor | None = None
+        self._pipe: _DictTensorProcessorPipeline | None = None
         self._closed = False
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
@@ -46,7 +46,9 @@ class DictTensorProcessorAdapter(TensorProcessor):
         if self._pipe is None:
             stream = wp.stream_from_torch(torch.cuda.current_stream(data.device)) if data.is_cuda else None
             with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-                pipe = DictTensorProcessor({self._cfg.input_name: ProxyArray(wp.from_torch(data))}, self._cfg.pipeline)
+                pipe = _DictTensorProcessorPipeline(
+                    {self._cfg.input_name: ProxyArray(wp.from_torch(data))}, self._cfg.pipeline
+                )
                 try:
                     if self._cfg.output_name not in pipe.outputs:
                         raise ValueError(f"Buffer processing does not provide output {self._cfg.output_name!r}.")

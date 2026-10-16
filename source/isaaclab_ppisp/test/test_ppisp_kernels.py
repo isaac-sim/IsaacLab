@@ -9,7 +9,7 @@ import warp as wp
 from isaaclab_ppisp import (
     PpispCfg,
     PpispControllerWeights,
-    PpispStepCfg,
+    PpispProcessorCfg,
     apply_ppisp_to_rgba,
     apply_ppisp_to_rgba_with_controller_params,
     compute_ppisp_controller_params,
@@ -41,7 +41,7 @@ from isaaclab_ppisp.kernels import (
 )
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.processing import DictTensorProcessor
+from isaaclab.utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -314,18 +314,18 @@ def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference(attachment):
         )
     )
 
-    pipe = DictTensorProcessor(
-        {"rgb_hdr": ProxyArray(hdr_color)},
-        [PpispStepCfg(params={"cfg": cfg})],
-    )
     if attachment == "dictionary":
-        rgb_np = pipe({"rgb_hdr": ProxyArray(hdr_color)})["rgb"].warp.numpy()[0, 0]
+        from isaaclab_ppisp import PpispProcessor
+
+        processor = PpispProcessor(PpispProcessorCfg(params={"cfg": cfg}), {"rgb_hdr": ProxyArray(hdr_color)})
+        rgb_np = processor({"rgb_hdr": ProxyArray(hdr_color)})["rgb"].warp.numpy()[0, 0]
+        processor.close()
     else:
         from isaaclab.utils.tensor_processors import DictTensorProcessorAdapter, DictTensorProcessorAdapterCfg
 
         processor = DictTensorProcessorAdapter(
             DictTensorProcessorAdapterCfg(
-                pipeline=[PpispStepCfg(params={"cfg": cfg})], input_name="rgb_hdr", output_name="rgb"
+                pipeline=[PpispProcessorCfg(params={"cfg": cfg})], input_name="rgb_hdr", output_name="rgb"
             ),
             hdr_data.shape,
             "cpu",
@@ -344,7 +344,6 @@ def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference(attachment):
         # float32 kernel math may land one byte away from the float64 reference at a floor boundary
         np.testing.assert_allclose(rgb_np[:, channel].astype(float), expected_bytes, atol=1.0, err_msg=suffix)
     np.testing.assert_array_equal(hdr_color.numpy(), hdr_data)
-    pipe.close()
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -361,9 +360,9 @@ def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
     cfg = PpispCfg()
     shared_weights = PpispControllerWeights(weights)
     pipes = [
-        DictTensorProcessor(
+        _DictTensorProcessorPipeline(
             {"rgb_hdr": ProxyArray(hdr)},
-            [PpispStepCfg(params={"cfg": cfg, "channels": channels, "controller_weights": shared_weights})],
+            [PpispProcessorCfg(params={"cfg": cfg, "channels": channels, "controller_weights": shared_weights})],
         )
         for channels in (3, 4)
     ]
@@ -392,13 +391,13 @@ def test_ppisp_pipe_rejects_incompatible_input_storage(shape, dtype, message):
     """Reject invalid image channels and scalar types before preparing numerical execution."""
     source = ProxyArray(wp.empty(shape, dtype=dtype, device="cpu"))
     with pytest.raises(ValueError, match=message):
-        DictTensorProcessor({"rgb_hdr": source}, [PpispStepCfg()])
+        _DictTensorProcessorPipeline({"rgb_hdr": source}, [PpispProcessorCfg()])
 
 
 def test_ppisp_pipe_requires_resolved_configuration():
     """An image operation must not discover its settings from a camera during preparation."""
     source = ProxyArray(wp.empty((1, 2, 2, 3), dtype=wp.float32, device="cpu"))
     with pytest.raises(ValueError, match="resolve USD camera attributes"):
-        DictTensorProcessor(
-            {"rgb_hdr": source}, [PpispStepCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]
+        _DictTensorProcessorPipeline(
+            {"rgb_hdr": source}, [PpispProcessorCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]
         )

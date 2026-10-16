@@ -25,7 +25,7 @@ from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, Re
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, validate
-from isaaclab.utils.processing import DictTensorProcessorStepCfg, PreparedBufferOperation
+from isaaclab.utils.tensor_processors import DictTensorProcessor, DictTensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -370,17 +370,19 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
         lambda path, **kwargs: SimpleNamespace(count=2, prims=[stage.GetPrimAtPath(path)] * 2, close=lambda: None),
     )
 
-    def prepare_identity(inputs):
-        output = ProxyArray(wp.empty_like(inputs["image"].warp))
-        return PreparedBufferOperation(
-            {"image": output},
-            lambda inputs, outputs: wp.copy(outputs["image"].warp, inputs["image"].warp),
-        )
+    class Identity(DictTensorProcessor):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            self.outputs["processed_radiance"] = ProxyArray(wp.empty_like(data["rgb_hdr"].warp))
+
+        def __call__(self, data):
+            wp.copy(self.outputs["processed_radiance"].warp, data["rgb_hdr"].warp)
+            return dict(self.outputs)
 
     def make_camera(prim, data_types):
         camera = Camera.__new__(Camera)
         pipeline = (
-            [DictTensorProcessorStepCfg(prepare_identity, {"image": "rgb_hdr"}, {"image": "processed_radiance"})]
+            [DictTensorProcessorCfg(Identity, ["rgb_hdr"], ["processed_radiance"])]
             if data_types == ["processed_radiance"]
             else []
         )
@@ -450,28 +452,26 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     events = []
     output_shape = (2, 1, 1, 4)
     close_fails = False
-    reset_enabled = True
 
-    def prepare_color(inputs):
-        output = ProxyArray(wp.empty(output_shape, dtype=wp.uint8, device=inputs["radiance"].device))
+    class Color(DictTensorProcessor):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            self.outputs["rgba"] = ProxyArray(wp.empty(output_shape, dtype=wp.uint8, device=data["rgb_hdr"].device))
 
-        def apply(inputs, outputs):
+        def __call__(self, data):
             events.append("apply")
-            output = outputs["color"].torch
-            output[..., :3].copy_(100 * (inputs["radiance"].torch + inputs["range"].torch))
+            output = self.outputs["rgba"].torch
+            output[..., :3].copy_(100 * (data["rgb_hdr"].torch + data["depth"].torch))
             output[..., 3] = 255
+            return dict(self.outputs)
 
-        def close():
+        def reset(self, env_ids=None):
+            events.append(tuple(env_ids))
+
+        def close(self):
             events.append("close")
             if close_fails:
                 raise RuntimeError("processor close failed")
-
-        return PreparedBufferOperation(
-            {"color": output},
-            apply,
-            reset=(lambda ids: events.append(tuple(ids))) if reset_enabled else None,
-            close=close,
-        )
 
     cfg = CameraCfg(
         prim_path="/World/Camera",
@@ -479,9 +479,7 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
         height=1,
         width=1,
         data_types=["rgb", "depth"],
-        pipeline=[
-            DictTensorProcessorStepCfg(prepare_color, {"radiance": "rgb_hdr", "range": "depth"}, {"color": "rgba"})
-        ],
+        pipeline=[DictTensorProcessorCfg(Color, ["rgb_hdr", "depth"], ["rgba"])],
     )
     specs = {
         RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
@@ -547,7 +545,7 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     assert camera._buffer_pipe is None
     assert events[-2:] == ["close", "close"]
     output_shape = (2, 1, 1, 4)
-    reset_enabled = False
+    monkeypatch.setattr(Color, "reset", DictTensorProcessor.reset)
     camera._create_buffers()
     # Stateless operations must not materialize indices: CUDA nonzero would synchronize the host.
     with monkeypatch.context() as patch:
@@ -559,7 +557,7 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     camera._renderer.cleanup = lambda data: events.append("renderer-close")
     camera._view.close = lambda: events.append("view-close")
     close_fails = True
-    with pytest.raises(ExceptionGroup, match="close buffer operations"):
+    with pytest.raises(ExceptionGroup, match="close dictionary processors"):
         camera._invalidate_initialize_callback(None)
     assert events[-3:] == ["close", "renderer-close", "view-close"]
     assert not camera.is_initialized

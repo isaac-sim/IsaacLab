@@ -11,34 +11,36 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.processing import DictTensorProcessor, DictTensorProcessorStepCfg, PreparedBufferOperation
+from isaaclab.utils.tensor_processors import DictTensorProcessor, DictTensorProcessorCfg
+from isaaclab.utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
 
-def _prepare_scale(inputs, *, factor=2.0):
-    destination = ProxyArray(wp.empty_like(inputs["value"].warp))
+class _Scale(DictTensorProcessor):
+    def __init__(self, cfg, data):
+        super().__init__(cfg, data)
+        self.outputs[cfg.outputs[0]] = ProxyArray(wp.empty_like(data[cfg.inputs[0]].warp))
 
-    def apply(inputs, outputs):
-        torch.mul(inputs["value"].torch, factor, out=outputs["value"].torch)
-
-    return PreparedBufferOperation({"value": destination}, apply)
-
-
-def _prepare_composite(inputs):
-    """Combine color and depth, retaining only one spatial sample per batch entry."""
-    color = inputs["color"]
-    destination = ProxyArray(wp.empty((color.shape[0], 1, 1, 3), dtype=color.dtype, device=color.device))
-
-    def apply(inputs, outputs):
-        torch.sub(
-            inputs["color"].torch[:, :1, :1],
-            inputs["depth"].torch[:, :1, :1],
-            out=outputs["value"].torch,
+    def __call__(self, data):
+        torch.mul(
+            data[self.cfg.inputs[0]].torch,
+            self.cfg.params.get("factor", 2.0),
+            out=self.outputs[self.cfg.outputs[0]].torch,
         )
+        return dict(self.outputs)
 
-    return PreparedBufferOperation({"value": destination}, apply)
+
+class _Composite(DictTensorProcessor):
+    def __init__(self, cfg, data):
+        super().__init__(cfg, data)
+        color = data["color"]
+        self.outputs["color"] = ProxyArray(wp.empty((color.shape[0], 1, 1, 3), dtype=color.dtype, device=color.device))
+
+    def __call__(self, data):
+        torch.sub(data["color"].torch[:, :1, :1], data["range"].torch[:, :1, :1], out=self.outputs["color"].torch)
+        return dict(self.outputs)
 
 
 @pytest.fixture
@@ -48,15 +50,19 @@ def composite_pipe():
         "range": ProxyArray(wp.zeros((2, 2, 2, 1), dtype=wp.float32, device="cpu")),
     }
     steps = [
-        DictTensorProcessorStepCfg(prepare=_prepare_scale, inputs={"value": "raw_color"}, outputs={"value": "color"}),
-        DictTensorProcessorStepCfg(
-            prepare=_prepare_composite,
-            inputs={"color": "color", "depth": "range"},
-            outputs={"value": "color"},
+        DictTensorProcessorCfg(class_type=_Scale, inputs=["raw_color"], outputs=["color"]),
+        DictTensorProcessorCfg(
+            class_type=_Composite,
+            inputs=["color", "range"],
+            outputs=["color"],
         ),
     ]
-    assert DictTensorProcessor.required_source_names(steps, ["color", "labels"]) == {"raw_color", "range", "labels"}
-    pipe = DictTensorProcessor(sources, steps)
+    assert _DictTensorProcessorPipeline.required_source_names(steps, ["color", "labels"]) == {
+        "raw_color",
+        "range",
+        "labels",
+    }
+    pipe = _DictTensorProcessorPipeline(sources, steps)
     yield pipe
     pipe.close()
 
@@ -115,7 +121,7 @@ def test_tensor_adapter_preserves_incoming_transformations_and_returns_snapshots
 def test_tensor_snapshot_accepts_passthrough_buffer_omitted_from_previous_call():
     """Optional pass-through buffers can return after a call that did not supply them."""
     original = ProxyArray(wp.zeros((2,), dtype=wp.float32, device="cpu"))
-    pipe = DictTensorProcessor({"value": original}, [])
+    pipe = _DictTensorProcessorPipeline({"value": original}, [])
     try:
         pipe({})
         current = ProxyArray(wp.full((2,), 3.0, dtype=wp.float32, device="cpu"))
@@ -132,13 +138,14 @@ def test_invalid_source_buffers_are_rejected_before_processing(invalid):
     calls = []
     source = ProxyArray(wp.zeros((2, 1, 1, 1), dtype=wp.float32, device="cpu"))
 
-    def prepare(inputs):
-        destination = ProxyArray(wp.empty_like(inputs["value"].warp))
-        return PreparedBufferOperation({"value": destination}, lambda *_: calls.append(True))
+    class CountCalls(_Scale):
+        def __call__(self, data):
+            calls.append(True)
+            return super().__call__(data)
 
-    pipe = DictTensorProcessor(
+    pipe = _DictTensorProcessorPipeline(
         {"source": source},
-        [DictTensorProcessorStepCfg(prepare=prepare, inputs={"value": "source"}, outputs={"value": "result"})],
+        [DictTensorProcessorCfg(class_type=CountCalls, inputs=["source"], outputs=["result"])],
     )
     try:
         shape = (1, 1, 1, 1) if invalid == "shape" else source.shape
@@ -151,72 +158,69 @@ def test_invalid_source_buffers_are_rejected_before_processing(invalid):
         pipe.close()
 
 
-@pytest.mark.parametrize("invalid", ["missing_dependency", "output_roles", "duplicate_outputs", "output_type"])
-def test_invalid_bindings_release_prepared_operations(invalid):
-    """Construction failure closes owned operations, including one whose outputs could not be bound."""
+@pytest.mark.parametrize("invalid", ["missing_dependency", "output_names", "duplicate_outputs", "output_type"])
+def test_invalid_declarations_release_processors(invalid):
+    """Construction failure closes each successfully constructed processor in reverse order."""
     closed = []
     source = ProxyArray(wp.zeros((2, 1, 1, 1), dtype=wp.float32, device="cpu"))
 
-    def prepare(inputs, *, name):
-        destination = ProxyArray(wp.empty_like(inputs["value"].warp))
-        if invalid == "output_type" and name == "second":
-            destination = destination.warp
-        return PreparedBufferOperation({"value": destination}, lambda *_: None, close=lambda: closed.append(name))
+    class Tracked(_Scale):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            if cfg.params["name"] == "second":
+                if invalid == "output_names":
+                    self.outputs = {"wrong": next(iter(self.outputs.values()))}
+                elif invalid == "output_type":
+                    self.outputs[cfg.outputs[0]] = self.outputs[cfg.outputs[0]].warp
 
-    first = DictTensorProcessorStepCfg(
-        prepare=prepare, inputs={"value": "source"}, outputs={"value": "middle"}, params={"name": "first"}
-    )
-    second = DictTensorProcessorStepCfg(
-        prepare=prepare, inputs={"value": "middle"}, outputs={"value": "result"}, params={"name": "second"}
-    )
+        def close(self):
+            closed.append(self.cfg.params["name"])
+
+    first = DictTensorProcessorCfg(Tracked, ["source"], ["middle"], {"name": "first"})
+    second = DictTensorProcessorCfg(Tracked, ["middle"], ["result"], {"name": "second"})
     if invalid == "missing_dependency":
-        second.inputs = {"value": "absent"}
+        second.inputs = ["absent"]
         message = "Missing input buffers for preparation"
-    elif invalid == "output_roles":
-        second.outputs = {"wrong": "result"}
-        message = "output roles"
+    elif invalid == "output_names":
+        message = "declared output names"
     elif invalid == "duplicate_outputs":
-        second.outputs = {"value": "result", "other": "result"}
+        second.outputs = ["result", "result"]
         message = "distinct output names"
     else:
         message = "outputs must be ProxyArray"
     with pytest.raises(TypeError if invalid == "output_type" else ValueError, match=message):
-        DictTensorProcessor({"source": source}, [first, second])
-    assert closed == (["second", "first"] if invalid in ("output_roles", "output_type") else ["first"])
+        _DictTensorProcessorPipeline({"source": source}, [first, second])
+    assert closed == (["second", "first"] if invalid in ("output_names", "output_type") else ["first"])
 
 
 @pytest.mark.parametrize("close_fails", [False, True], ids=["normal_close", "failing_close"])
 def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_order(close_fails):
-    """State belongs to each operation; selected resets and idempotent teardown preserve its lifecycle."""
+    """State belongs to each processor; selected resets and idempotent teardown preserve its lifecycle."""
     closed = []
     source = ProxyArray(wp.zeros((2, 1, 1, 1), dtype=wp.float32, device="cpu"))
 
-    def prepare(inputs, *, name):
-        destination = ProxyArray(wp.empty_like(inputs["value"].warp))
-        history = torch.zeros(inputs["value"].shape)
+    class History(_Scale):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            self.history = torch.zeros(data["value"].shape)
 
-        def apply(inputs, outputs):
-            history.add_(inputs["value"].torch)
-            outputs["value"].torch.copy_(history)
+        def __call__(self, data):
+            self.history.add_(data["value"].torch)
+            self.outputs["value"].torch.copy_(self.history)
+            return dict(self.outputs)
 
-        def reset(env_ids):
-            history[slice(None) if env_ids is None else env_ids] = 0
+        def reset(self, env_ids=None):
+            self.history[slice(None) if env_ids is None else env_ids] = 0
 
-        def close():
+        def close(self):
+            name = self.cfg.params["name"]
             closed.append(name)
             if close_fails and name == "second":
-                raise RuntimeError("Operation cleanup failed")
+                raise RuntimeError("Processor cleanup failed")
 
-        return PreparedBufferOperation({"value": destination}, apply, reset=reset, close=close)
-
-    pipe = DictTensorProcessor(
+    pipe = _DictTensorProcessorPipeline(
         {"value": source},
-        [
-            DictTensorProcessorStepCfg(
-                prepare=prepare, inputs={"value": "value"}, outputs={"value": "value"}, params={"name": name}
-            )
-            for name in ("first", "second")
-        ],
+        [DictTensorProcessorCfg(History, ["value"], ["value"], {"name": name}) for name in ("first", "second")],
     )
     source = {"value": ProxyArray(wp.ones(source.shape, dtype=wp.float32, device="cpu"))}
     try:
@@ -238,3 +242,26 @@ def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_or
         pipe(source)
     with pytest.raises(RuntimeError, match="closed"):
         pipe.as_tensor(source, output_name="value")
+
+
+@pytest.mark.parametrize("replacement", ["missing", "new_storage"])
+def test_processor_cannot_replace_published_output_storage(replacement):
+    """Camera consumers retain prepared tensors, so missing or replaced outputs must fail."""
+
+    class ReplacesOutput(_Scale):
+        def __call__(self, data):
+            super().__call__(data)
+            if replacement == "missing":
+                return {}
+            self.outputs["result"] = ProxyArray(wp.empty_like(data["source"].warp))
+            return dict(self.outputs)
+
+    source = ProxyArray(wp.ones((2,), dtype=wp.float32, device="cpu"))
+    pipe = _DictTensorProcessorPipeline(
+        {"source": source}, [DictTensorProcessorCfg(ReplacesOutput, ["source"], ["result"])]
+    )
+    try:
+        with pytest.raises(ValueError, match="persistent named output buffers"):
+            pipe({"source": source})
+    finally:
+        pipe.close()

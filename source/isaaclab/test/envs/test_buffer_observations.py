@@ -21,7 +21,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
 )
 from isaaclab.utils import configclass, tensor_processors
-from isaaclab.utils.processing import DictTensorProcessorStepCfg, PreparedBufferOperation
+from isaaclab.utils.tensor_processors import DictTensorProcessor, DictTensorProcessorCfg
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -69,18 +69,20 @@ def _depth_weighted_half(
     result[n, y, x, c] = color[n, y, 2 * x, c] * depth[n, y, 2 * x, 0]
 
 
-def _prepare_gain(inputs, gain):
-    result = ProxyArray(wp.empty_like(inputs["color"].warp))
+class _Gain(DictTensorProcessor):
+    def __init__(self, cfg, data):
+        super().__init__(cfg, data)
+        self.outputs[cfg.outputs[0]] = ProxyArray(wp.empty_like(data[cfg.inputs[0]].warp))
 
-    def apply(inputs, outputs):
+    def __call__(self, data):
+        output = self.outputs[self.cfg.outputs[0]]
         wp.launch(
             _gain,
-            dim=outputs["color"].shape,
-            inputs=[inputs["color"].warp, gain, outputs["color"].warp],
-            device=result.device,
+            dim=output.shape,
+            inputs=[data[self.cfg.inputs[0]].warp, self.cfg.params.get("gain", 2.0), output.warp],
+            device=output.device,
         )
-
-    return PreparedBufferOperation({"color": result}, apply)
+        return dict(self.outputs)
 
 
 def _read_ranges(env):
@@ -111,14 +113,15 @@ def test_pipe_modifier_uses_preceding_modifier_output():
     ranges = torch.ones((2, 4))
     preparations = []
 
-    def prepare(inputs, gain):
-        preparations.append(inputs["ranges"].shape)
-        result = ProxyArray(wp.empty_like(inputs["ranges"].warp))
+    class RangeGain(DictTensorProcessor):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            preparations.append(data["ranges"].shape)
+            self.outputs["ranges"] = ProxyArray(wp.empty_like(data["ranges"].warp))
 
-        def apply(inputs, outputs):
-            torch.mul(inputs["ranges"].torch, gain, out=outputs["ranges"].torch)
-
-        return PreparedBufferOperation({"ranges": result}, apply)
+        def __call__(self, data):
+            torch.mul(data["ranges"].torch, self.cfg.params["gain"], out=self.outputs["ranges"].torch)
+            return dict(self.outputs)
 
     @configclass
     class Policy(ObservationGroupCfg):
@@ -129,10 +132,10 @@ def test_pipe_modifier_uses_preceding_modifier_output():
                 tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 3.0}),
                 tensor_processors.DictTensorProcessorAdapterCfg(
                     pipeline=[
-                        DictTensorProcessorStepCfg(
-                            prepare=prepare,
-                            inputs={"ranges": "ranges"},
-                            outputs={"ranges": "ranges"},
+                        DictTensorProcessorCfg(
+                            class_type=RangeGain,
+                            inputs=["ranges"],
+                            outputs=["ranges"],
                             params={"gain": 2.0},
                         )
                     ],
@@ -162,18 +165,18 @@ def test_pipe_modifier_retries_failed_preparation_and_stays_closed():
     lifecycle = []
     valid_shape = False
 
-    def prepare(inputs):
-        lifecycle.append("prepare")
-        operation = _prepare_gain(inputs, 2.0)
-        output = (
-            operation.outputs["color"]
-            if valid_shape
-            else ProxyArray(wp.empty((2, 2, 2, 3), dtype=wp.float32, device="cpu"))
-        )
-        return PreparedBufferOperation({"color": output}, operation.apply, close=lambda: lifecycle.append("close"))
+    class TrackingGain(_Gain):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            lifecycle.append("prepare")
+            if not valid_shape:
+                self.outputs["rgb"] = ProxyArray(wp.empty((2, 2, 2, 3), dtype=wp.float32, device="cpu"))
+
+        def close(self):
+            lifecycle.append("close")
 
     cfg = tensor_processors.DictTensorProcessorAdapterCfg(
-        pipeline=[DictTensorProcessorStepCfg(prepare=prepare, inputs={"color": "rgb"}, outputs={"color": "rgb"})]
+        pipeline=[DictTensorProcessorCfg(class_type=TrackingGain, inputs=["rgb"], outputs=["rgb"])]
     )
     modifier = tensor_processors.DictTensorProcessorAdapter(cfg, tuple(image.shape), "cpu")
     modifier.reset([1])
@@ -202,29 +205,29 @@ def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape(
     """Preparation resolves private AOVs before binding; manager dimensions describe the processed output."""
     lifecycle = []
 
-    def prepare(inputs):
-        color = inputs["color"]
-        n, h, w, c = color.shape
-        output = ProxyArray(wp.empty((n, h, w // 2, c), dtype=wp.float32, device=color.device))
+    class DepthWeighted(DictTensorProcessor):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            color = data["rgb_hdr"]
+            n, h, w, c = color.shape
+            self.outputs["rgb"] = ProxyArray(wp.empty((n, h, w // 2, c), dtype=wp.float32, device=color.device))
 
-        def apply(inputs, outputs):
+        def __call__(self, data):
+            output = self.outputs["rgb"]
             wp.launch(
                 _depth_weighted_half,
                 dim=output.shape,
-                inputs=[inputs["color"].warp, inputs["depth"].warp, outputs["color"].warp],
+                inputs=[data["rgb_hdr"].warp, data["depth"].warp, output.warp],
                 device=output.device,
             )
+            return dict(self.outputs)
 
-        def close():
+        def reset(self, env_ids=None):
+            lifecycle.append(("reset", env_ids))
+
+        def close(self):
             lifecycle.append(("close",))
             raise ValueError("operation close failed")
-
-        return PreparedBufferOperation(
-            {"color": output},
-            apply,
-            reset=lambda env_ids: lifecycle.append(("reset", env_ids)),
-            close=close,
-        )
 
     radiance = torch.full((2, 2, 4, 3), 2.0)
     depth = torch.tensor([1.0, 9.0, 3.0, 9.0]).reshape(1, 1, 4, 1).expand(2, 2, 4, 1).contiguous()
@@ -248,10 +251,10 @@ def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape(
                             func="isaaclab.envs.mdp:processed_sensor",
                             params={
                                 "pipeline": [
-                                    DictTensorProcessorStepCfg(
-                                        prepare=prepare,
-                                        inputs={"color": "rgb_hdr", "depth": "depth"},
-                                        outputs={"color": "rgb"},
+                                    DictTensorProcessorCfg(
+                                        class_type=DepthWeighted,
+                                        inputs=["rgb_hdr", "depth"],
+                                        outputs=["rgb"],
                                     )
                                 ]
                             },
@@ -277,7 +280,7 @@ def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape(
     torch.testing.assert_close(manager.compute()["policy"]["image"], expected * 2)
     torch.testing.assert_close(result, expected)
     manager.reset([1])
-    with pytest.raises(ExceptionGroup, match="Failed to close buffer operations") as error:
+    with pytest.raises(ExceptionGroup, match="Failed to close dictionary processors") as error:
         manager.close()
     assert str(error.value.exceptions[0]) == "operation close failed"
     manager.close()

@@ -16,7 +16,7 @@ from ..sensor_base_cfg import SensorBaseCfg
 from .camera_exposure_cfg import CameraExposureCfg
 
 if TYPE_CHECKING:
-    from ...utils.processing import DictTensorProcessorStepCfg
+    from ...utils.tensor_processors import DictTensorProcessorCfg
     from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
@@ -208,11 +208,12 @@ class CameraCfg(SensorBaseCfg):
     changes affect every output from this camera prim. Newton ignores RTX exposure settings.
     """
 
-    pipeline: list[DictTensorProcessorStepCfg] = []
+    pipeline: list[DictTensorProcessorCfg] = []
     """Ordered image operations applied after each newly published capture.
 
-    Steps bind operation roles to named buffers and may consume several render outputs or preceding
-    results. The renderer is configured with the pipeline's external dependencies before initialization.
+    Processors consume and return dictionaries of named tensors. They may combine several render
+    outputs or preceding results. The renderer receives the pipeline's external dependencies
+    before initialization.
     Only :attr:`data_types` are published in :attr:`CameraData.output`; unprocessed inputs remain
     available through :attr:`Camera.render_outputs`. Operations borrow their inputs read-only and
     own persistent result buffers. Camera reset and teardown reset and close the operations.
@@ -232,13 +233,13 @@ class CameraCfg(SensorBaseCfg):
             )
         if not self.pipeline:
             return list(self.data_types)
-        from ...utils.processing import DictTensorProcessor
+        from ...utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
 
-        produced = {name for step in self.pipeline for name in step.outputs.values()}
+        produced = {name for step in self.pipeline for name in step.outputs}
         if "rgb" in produced and "rgba" not in produced and "rgba" in self.data_types:
             raise ValueError("A pipeline producing rgb must also produce rgba when rgba is requested.")
         published = [name for name in self.data_types if not (name == "rgb" and "rgba" in produced)]
-        return sorted(DictTensorProcessor.required_source_names(self.pipeline, published))
+        return sorted(_DictTensorProcessorPipeline.required_source_names(self.pipeline, published))
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.

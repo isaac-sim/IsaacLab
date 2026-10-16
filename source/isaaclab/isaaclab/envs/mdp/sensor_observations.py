@@ -14,7 +14,8 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.processing import DictTensorProcessor, DictTensorProcessorStepCfg
+from isaaclab.utils.tensor_processors import DictTensorProcessorCfg
+from isaaclab.utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -43,7 +44,7 @@ class processed_sensor(ManagerTermBase):
     def prepare_scene(cls, cfg: ObservationTermCfg, env: ManagerBasedEnv) -> None:
         sensor_cfg = cfg.params.get("sensor_cfg", SceneEntityCfg("camera"))
         output_name = cfg.params.get("output_name", "rgb")
-        requirements = DictTensorProcessor.required_source_names(cfg.params["pipeline"], [output_name])
+        requirements = _DictTensorProcessorPipeline.required_source_names(cfg.params["pipeline"], [output_name])
         env.scene.sensors[sensor_cfg.name].request_render_inputs(requirements)
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
@@ -54,7 +55,7 @@ class processed_sensor(ManagerTermBase):
         device = wp.get_device(self.device)
         stream = wp.stream_from_torch(torch.cuda.current_stream(str(device))) if device.is_cuda else None
         with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-            self._pipe = DictTensorProcessor(buffers, cfg.params["pipeline"])
+            self._pipe = _DictTensorProcessorPipeline(buffers, cfg.params["pipeline"])
         if self._output_name not in self._pipe.outputs:
             self._pipe.close()
             raise ValueError(f"Buffer processing does not provide output {self._output_name!r}.")
@@ -62,7 +63,7 @@ class processed_sensor(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        pipeline: Sequence[DictTensorProcessorStepCfg],
+        pipeline: Sequence[DictTensorProcessorCfg],
         sensor_cfg: SceneEntityCfg = SceneEntityCfg("camera"),
         output_name: str = "rgb",
         *,

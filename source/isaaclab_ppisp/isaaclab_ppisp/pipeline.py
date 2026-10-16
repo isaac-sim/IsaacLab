@@ -46,7 +46,7 @@ class PpispPipeline:
     This numerical object performs no camera, scene, or renderer discovery. Resolve USD settings
     with :func:`~isaaclab_ppisp.ppisp_cfg_from_usd_camera` before construction. Each instance owns
     its controller workspace and is not reentrant; coefficients apply to its whole image batch.
-    :func:`~isaaclab_ppisp.prepare_ppisp` creates an independent instance for each buffer-pipe stage.
+    :class:`~isaaclab_ppisp.PpispProcessor` owns an independent instance for each consumer.
 
     Args:
         cfg: Concrete PPISP settings, normalized in place for direct numerical use.

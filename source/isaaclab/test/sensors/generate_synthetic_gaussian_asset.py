@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import torch
-from isaaclab_ppisp import PpispCfg, PpispStepCfg, normalize_ppisp_cfg, ppisp_cfg_from_usd_camera
+from isaaclab_ppisp import PpispCfg, PpispProcessorCfg, normalize_ppisp_cfg, ppisp_cfg_from_usd_camera
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
@@ -728,7 +728,7 @@ def render_synthetic_gaussian_scene(
             data_types=data_types,
             spawn=None,
             exposure=CameraExposureCfg(),
-            pipeline=[PpispStepCfg(params={"cfg": isp_cfg})],
+            pipeline=[PpispProcessorCfg(params={"cfg": isp_cfg})],
             renderer_cfg=renderer_cfg,
         )
         camera = Camera(cfg)
@@ -821,7 +821,7 @@ def _render_synthetic_gaussian_camera(
         data_types=data_types,
         spawn=None,
         exposure=CameraExposureCfg(),
-        pipeline=[PpispStepCfg(params={"cfg": ppisp_cfg})],
+        pipeline=[PpispProcessorCfg(params={"cfg": ppisp_cfg})],
         renderer_cfg=renderer_cfg,
     )
     camera = Camera(cfg)

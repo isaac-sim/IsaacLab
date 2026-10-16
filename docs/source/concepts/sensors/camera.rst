@@ -155,7 +155,7 @@ Output types
 
 For raw outputs, the active renderer validates the requested names and allocates the channel count
 and data type declared by its :class:`~isaaclab.renderers.RenderBufferSpec`. A camera pipeline may
-produce additional output names; its operation factories allocate those buffers.
+produce additional output names; its processors allocate those buffers.
 
 .. list-table:: Common output contracts
    :header-rows: 1
@@ -322,13 +322,14 @@ scene.
 Post-render image processing
 ----------------------------
 
-:attr:`~sensors.CameraCfg.pipeline` applies an ordered sequence of operations to named image buffers.
-Each :class:`~isaaclab.utils.processing.DictTensorProcessorStepCfg` maps operation input and output roles to buffer
-names. A step can read several channels, such as radiance and depth, and later steps read the preceding
-step's results. The same :class:`~isaaclab.utils.processing.DictTensorProcessor` can run independently or serve
-an observation consumer; operations receive explicit buffers and resources without discovering a camera,
-environment, or simulation singleton. The shared pipe accepts named ``ProxyArray`` buffers, including
-nonvisual sensor data; image layout and pixel meaning are requirements of individual operations.
+:attr:`~sensors.CameraCfg.pipeline` composes dictionary processors after rendering.
+:class:`~isaaclab.utils.tensor_processors.DictTensorProcessor` takes a dictionary of named tensors
+and returns a dictionary of named tensors. It lives beside
+:class:`~isaaclab.utils.tensor_processors.TensorProcessor`, whose call takes and returns one tensor.
+:class:`~isaaclab.utils.tensor_processors.DictTensorProcessorCfg` declares the actual input and output
+keys needed for renderer setup. There are no separate operation roles or prepared-operation objects.
+The shared dictionary interface also accepts nonvisual sensor data; each processor defines its
+layout and value semantics.
 
 The camera resolves external inputs before renderer initialization, including inputs needed only by the
 pipeline. It publishes the names in ``data_types`` after processing. For example, this camera requests
@@ -338,30 +339,42 @@ private ``rgb_hdr`` from its renderer and publishes PPISP's processed ``rgb``:
 
    from isaaclab.sensors.camera import CameraExposureCfg
    from isaaclab.utils import replace
-   from isaaclab_ppisp import PpispCfg, PpispStepCfg
+   from isaaclab_ppisp import PpispCfg, PpispProcessorCfg
 
    processed_camera = replace(
        front_camera,
        data_types=["rgb"],
        exposure=CameraExposureCfg(),
-       pipeline=[PpispStepCfg(params={"cfg": PpispCfg(inputs={"exposureOffset": 1.5})})],
+       pipeline=[PpispProcessorCfg(params={"cfg": PpispCfg(inputs={"exposureOffset": 1.5})})],
    )
 
 PPISP (Physically Plausible Image Signal Processing) applies responsivity, exposure, vignetting, color
 correction, and a camera response function. It consumes float32 scene-linear radiance and produces
-uint8 color. Set ``outputs={"color": "rgba"}`` and ``params={"cfg": ppisp_cfg, "channels": 4}`` on the
+uint8 color. Set ``outputs=["rgba"]`` and ``params={"cfg": ppisp_cfg, "channels": 4}`` on the
 step for RGBA output. A pipeline-produced RGBA buffer also supplies a zero-copy RGB view when ``rgb``
 is requested. A pipeline producing only RGB cannot satisfy an explicit RGBA request.
 
-For a custom operation, provide a factory ``prepare(inputs, **params)`` returning
-:class:`~isaaclab.utils.processing.PreparedBufferOperation`. The factory receives actual
-:class:`~isaaclab.utils.warp.ProxyArray` inputs, inspects their shape, dtype, and device, and allocates
-its output buffers and workspace once. Return the output arrays in the prepared operation, then write
-each supplied destination in ``apply(inputs, outputs)``. Both mappings use operation role names; the
-step configuration maps those roles to camera-buffer names. Preparation must not read input pixels or
-retain their addresses for execution: each ``apply`` call receives the current inputs.
-Operations document their expected image layout and pixel meaning. PPISP requires NHWC float32
-scene-linear radiance and produces NHWC uint8 color; a float32 array alone does not establish radiance.
+For custom dictionary processing, subclass ``DictTensorProcessor``. Its constructor receives
+``(cfg, data)`` with actual ``ProxyArray`` tensors. Allocate persistent output tensors in
+``self.outputs`` without reading input values or advancing state. Implement ``__call__(data)``
+to fill and return those named outputs, and override ``reset`` or ``close`` only when needed.
+The pipeline passes the current dictionary to each processor and merges its returned outputs;
+untouched keys pass through. Shape, dtype and device come from the arrays directly.
+
+PPISP is a regular ``PpispProcessor`` subclass. It can also be constructed and called directly:
+
+.. code-block:: python
+
+   from isaaclab.utils import instantiate
+
+   cfg = PpispProcessorCfg()
+   processor = instantiate(cfg, {"rgb_hdr": hdr_tensor})
+   color = processor({"rgb_hdr": hdr_tensor})["rgb"]
+   processor.close()
+
+Here ``hdr_tensor`` is a scene-linear float32 ``ProxyArray`` with shape ``(N, H, W, 3)``.
+The returned color is uint8; copy it before another call if its values must be retained.
+
 Published camera outputs must keep the camera's batch size, height, width, and NHWC layout so pose
 and calibration metadata remain valid. Intermediate buffers may change shape. Use ``processed_sensor``
 below when the final observation should have a different image shape or layout.
@@ -373,8 +386,8 @@ buffers and raw buffers retain their storage until camera reinitialization, but 
 their contents; clone values that must survive another capture. Each camera owns its pipe and operation
 workspace. Operations may share explicitly supplied immutable model resources.
 Configuration copying must preserve the identity of borrowed resources: PPISP provides
-``PpispControllerWeights`` for device weights. Custom factories can capture a resource in a closure
-or use a wrapper with identity-preserving ``__deepcopy__``; raw Warp allocations are not configuration values.
+``PpispControllerWeights`` for device weights. Custom processors can use a resource wrapper with
+identity-preserving ``__deepcopy__``; raw Warp allocations are not configuration values.
 
 Pipelines run after scalar and batched captures. When an asynchronous renderer republishes a capture,
 the camera retains its processed result and matching capture metadata. Camera reset forwards only the
@@ -394,14 +407,14 @@ through their ``request_render_inputs()`` and ``render_outputs`` interface:
 
    from isaaclab.envs import mdp
    from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
-   from isaaclab_ppisp import PpispStepCfg
+   from isaaclab_ppisp import PpispProcessorCfg
 
    front_camera.exposure = CameraExposureCfg()
    policy_image = ObservationTermCfg(
        func=mdp.processed_sensor,
        params={
            "sensor_cfg": SceneEntityCfg("front_camera"),
-           "pipeline": [PpispStepCfg()],
+           "pipeline": [PpispProcessorCfg()],
            "output_name": "rgb",
        },
    )
@@ -432,7 +445,7 @@ input requirements, including any transformations from preceding tensor processo
        params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_hdr", "normalize": False},
        tensor_processors=[
            tensor_processors.DictTensorProcessorAdapterCfg(
-               pipeline=[PpispStepCfg()],
+               pipeline=[PpispProcessorCfg()],
                input_name="rgb_hdr",
                output_name="rgb",
            )
@@ -449,14 +462,14 @@ operation:
 
 .. code-block:: python
 
-   from isaaclab_ppisp import PpispDiscoveryMode, PpispStepCfg, resolve_and_normalize
+   from isaaclab_ppisp import PpispDiscoveryMode, PpispProcessorCfg, resolve_and_normalize
 
    ppisp_cfg = resolve_and_normalize(PpispDiscoveryMode.AUTO_CAMERA, stage, "/World/Camera")
    discovered_camera = replace(
        front_camera,
        data_types=["rgb"],
        exposure=CameraExposureCfg(),
-       pipeline=[PpispStepCfg(params={"cfg": ppisp_cfg})] if ppisp_cfg is not None else [],
+       pipeline=[PpispProcessorCfg(params={"cfg": ppisp_cfg})] if ppisp_cfg is not None else [],
    )
 
 ``AUTO_CAMERA`` checks the supplied camera prim; ``AUTO_ANY`` can fall back to the first PPISP camera

@@ -28,7 +28,7 @@ from ...utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from ...utils.processing import DictTensorProcessor
+from ...utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -253,7 +253,7 @@ class Camera(SensorBase):
 
         # Renderer requirements include private pipeline inputs and exclude produced public outputs.
         self._render_cfg = replace(self.cfg, data_types=self.cfg.render_data_types(), pipeline=[])
-        self._buffer_pipe: DictTensorProcessor | None = None
+        self._buffer_pipe: _DictTensorProcessorPipeline | None = None
         self._pipeline_capture: object | None = None
         self._render_camera_data: CameraData | None = None
         self._render_outputs: dict[str, ProxyArray] = {}
@@ -904,7 +904,7 @@ class Camera(SensorBase):
         self._close_pipeline()
         self._pipeline_capture = None
         if self.cfg.pipeline:
-            self._buffer_pipe = DictTensorProcessor(self._render_outputs, self.cfg.pipeline)
+            self._buffer_pipe = _DictTensorProcessorPipeline(self._render_outputs, self.cfg.pipeline)
             try:
                 outputs = dict(self._buffer_pipe.outputs)
                 alias_rgb = (

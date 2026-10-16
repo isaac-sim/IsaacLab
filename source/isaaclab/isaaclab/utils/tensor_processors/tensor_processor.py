@@ -16,33 +16,12 @@ if TYPE_CHECKING:
 
 
 class TensorProcessor(ABC):
-    """Base class for tensor_processors implemented as classes.
+    """Transform one tensor into one tensor, optionally retaining state between calls.
 
-    Tensor processors implementations can be functions or classes. If a processor is a class, it should
-    inherit from this class and implement the required methods.
-
-    A class implementation of a processor can be used to store state information between calls.
-    This is useful for tensor_processors that require stateful operations, such as rolling averages
-    or delays or decaying filters.
-
-    Example pseudo-code to create and use the class:
-
-    .. code-block:: python
-
-        from isaaclab.utils import tensor_processors
-
-        # define custom keyword arguments to pass to TensorProcessorCfg
-        kwarg_dict = {"arg_1": VAL_1, "arg_2": VAL_2}
-
-        # create processor configuration object
-        # func is the class name of the processor and params is the dictionary of arguments
-        processor_config = tensor_processors.TensorProcessorCfg(
-            func=tensor_processors.TensorProcessor, params=kwarg_dict
-        )
-
-        # define processor instance
-        my_processor = MyProcessor(processor_config, data_dim=(32, 4), device="cpu")
-
+    This is the single-tensor counterpart of :class:`DictTensorProcessor`. Subclasses
+    implement ``__call__`` and ``reset``; override ``close`` when external resources need
+    cleanup. Observation processors preserve the input shape. Configuration and dimensions
+    are supplied by the observation manager once during construction.
     """
 
     def __init__(self, cfg: TensorProcessorCfg, data_dim: tuple[int, ...], device: str) -> None:

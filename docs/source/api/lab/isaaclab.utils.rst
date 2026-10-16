@@ -128,6 +128,15 @@ Mesh operations
 Tensor processors
 ~~~~~~~~~~~~~~~~~
 
+The processor interfaces live together in :mod:`isaaclab.utils.tensor_processors`:
+
+* ``TensorProcessor``: tensor to tensor.
+* ``DictTensorProcessor``: dictionary of named tensors to dictionary of named tensors.
+
+Dictionary tensors use ``ProxyArray`` for Warp and Torch access without copying. Processors own
+any persistent outputs and state. ``DictTensorProcessorCfg`` declares input/output keys for camera
+setup. Camera and observation consumers compose processors and preserve untouched keys.
+
 .. automodule:: isaaclab.utils.tensor_processors
    :members:
    :imported-members:
@@ -145,25 +154,6 @@ Noise operations
    :inherited-members:
    :show-inheritance:
    :exclude-members: __init__, func
-
-Processing operations
-~~~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: isaaclab.utils.processing
-
-``DictTensorProcessor`` processes named ``ProxyArray`` buffers, including camera outputs and nonvisual
-sensor data. Operations define their own input shape, dtype, and semantic requirements.
-
-.. autoclass:: isaaclab.utils.processing.PreparedBufferOperation
-   :members:
-
-.. autoclass:: isaaclab.utils.processing.DictTensorProcessorStepCfg
-   :members:
-   :exclude-members: __init__
-
-.. autoclass:: isaaclab.utils.processing.DictTensorProcessor
-   :members:
-   :special-members: __call__
 
 Seed operations
 ~~~~~~~~~~~~~~~

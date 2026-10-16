@@ -10,7 +10,7 @@ __all__ = [
     "PpispControllerWeights",
     "PpispDiscoveryMode",
     "PpispPipeline",
-    "PpispStepCfg",
+    "PpispProcessorCfg",
     "apply_ppisp_to_rgba",
     "apply_ppisp_to_rgba_with_controller_params",
     "auto_any_ppisp_cfg",
@@ -21,7 +21,7 @@ __all__ = [
     "normalize_ppisp_cfg",
     "ppisp_cfg_from_usd_camera",
     "ppisp_cfg_from_usd_stage",
-    "prepare_ppisp",
+    "PpispProcessor",
     "resolve_and_normalize",
 ]
 
@@ -41,4 +41,5 @@ from .cfg import (
 )
 from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
 from .pipeline import PpispControllerWeights, PpispPipeline
-from .processor import PpispStepCfg, prepare_ppisp
+from .processor import PpispProcessor
+from .processor_cfg import PpispProcessorCfg
