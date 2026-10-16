@@ -240,6 +240,8 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd):
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
         prim.GetAttribute("newton:frictionScale").Set(2.0)
         prim.CreateAttribute("newton:hasBacklash", Sdf.ValueTypeNames.Int).Set(1)
+        # A sparse asset leaves the current limit to the drive's default; the config need not restate it.
+        prim.RemoveProperty("newton:maxCurrent")
         asset.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Set(0.0)
     path = tmp_path / "robot.usda"
     asset.Export(str(path))
@@ -257,6 +259,7 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd):
         assert resolved["friction_base"] == pytest.approx(0.012)
         assert resolved["friction_scale"] == pytest.approx(2.0)
         assert resolved["vin"] == pytest.approx(VIN)
+        assert resolved["max_current"] == 0.0
         # The unset friction model and backlash template keep the asset's m6 and backlash flags.
         assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
         assert resolved["has_backlash"] == 1

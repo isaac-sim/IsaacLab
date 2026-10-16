@@ -377,16 +377,6 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     assert _parsed_actuator(stage, "dc_b").drive_kwargs == {"kp": 44.0, "kd": 4.5}
 
 
-def _asset_stage_without_dc_saturation(tmp_path: Path) -> Usd.Stage:
-    """Reference the actuator asset with dc_a's saturation effort blocked, so its kept DC clamp lacks one."""
-    stage = _make_asset_stage(tmp_path)
-    stage.GetPrimAtPath("/World/Robot/dc_a_dc_a_actuator").GetAttribute("newton:saturationEffort").Block()
-    return stage
-
-
-_DC_WITHOUT_SATURATION = DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)
-
-
 @pytest.mark.parametrize(
     ("make_stage", "groups", "match"),
     [
@@ -415,10 +405,13 @@ _DC_WITHOUT_SATURATION = DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, da
             },
             "missing_joint",
         ),
-        (_asset_stage_without_dc_saturation, {"group": _DC_WITHOUT_SATURATION}, "saturation_effort.*dc_a"),
-        (lambda tmp_path: _make_robot_stage(), {"group": _DC_WITHOUT_SATURATION}, "saturation_effort.*dc_a"),
+        (
+            lambda tmp_path: _make_robot_stage(),
+            {"group": DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)},
+            "saturation_effort.*dc_a",
+        ),
     ],
-    ids=["unsupported_cfgs", "unmatched_effort_limit", "kept_clamp_without_saturation", "new_prim_without_saturation"],
+    ids=["unsupported_cfgs", "unmatched_effort_limit", "new_prim_without_saturation"],
 )
 def test_rejected_config_leaves_the_stage_untouched(tmp_path, make_stage, groups, match):
     """A config Newton cannot author, or one that leaves a required value unset, raises before any stage edit."""

@@ -136,8 +136,8 @@ def define_actuator_properties(
 
     Raises:
         ValueError: If BAM is configured without native Newton execution, if Newton-native
-            execution is enabled and an explicit actuator config is unsupported, or if a required
-            value is set neither by the config nor by the USD actuator it is authored onto.
+            execution is enabled and an explicit actuator config is unsupported, or if an actuator
+            component the config adds lacks a required value.
     """
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -247,7 +247,7 @@ class _ActuatorField:
     """Value a new prim gets when the config leaves it unset, or a callable of the config and joint prim."""
 
     required: bool = False
-    """Whether the config or the USD prim it is authored onto must provide the value."""
+    """Whether a component the config adds needs the value; Newton validates the components a USD prim keeps."""
 
     disabled_by: Any = None
     """Configured value that removes :attr:`schema` instead of authoring the attribute."""
@@ -328,24 +328,20 @@ def _plan_group(
             if field.disabled_by is not None and configured[field.attr].get(joint_name) == field.disabled_by
         }
         remove = sorted(((present & _COMPONENT_APIS) - allowed) | (present & disabled))
-        kept = present - set(remove)
         values = []
         for field in layout.fields:
             value = configured[field.attr].get(joint_name)
-            if field.schema in disabled:
+            if field.schema in disabled or (value is None and field.schema in present):
+                # A component the prim keeps keeps its USD values.
                 continue
-            if value is None and field.schema in kept:
-                # The prim's opinion stays; a required value must be authored there.
-                if not field.required or prim.GetAttribute(field.attr).HasAuthoredValue():
-                    continue
-            elif value is None:
+            if value is None:
                 default = field.new_prim_default
                 value = default(cfg, joint_prim) if callable(default) else default
             if value is None:
                 if field.required:
                     raise ValueError(
                         f"Actuator group '{group_name}' does not set '{field.name}' for joint '{joint_name}', and the"
-                        f" joint has no compatible USD actuator that authors '{field.attr}'."
+                        f" joint has no USD actuator with {field.schema} to provide it."
                     )
                 continue
             values.append((field, value))
@@ -558,7 +554,7 @@ _NEURAL_MODEL = _ActuatorField(
 )
 
 # BAM attributes are float-typed even when integral: an int-typed attribute would truncate a float override.
-# The fit and supply are required: the drive would silently fall back to m1 friction and no current limit.
+# A new prim requires the fit and supply: the drive would silently fall back to m1 friction and no current limit.
 _BAM_FIELDS = (
     *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
     _bam_value("motor.max_pwm"),
