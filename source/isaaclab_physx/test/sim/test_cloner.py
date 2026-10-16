@@ -132,20 +132,22 @@ def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
 
 @cuda_only
 @pytest.mark.parametrize(
-    "num_envs,src,expected_worlds",
+    "num_envs,src,mapped,expected_worlds",
     [
-        (3, "/World/envs/env_0", [2]),
-        (1, "/World/envs/env_0", []),
-        (3, "/World/template/Robot", [3]),
+        (3, "/World/envs/env_0", True, [2]),
+        (1, "/World/envs/env_0", True, []),
+        (3, "/World/template/Robot", True, [3]),
+        (3, "/World/envs/env_0", False, []),
     ],
 )
-def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
+def test_physx_replicate_world_counts(sim, num_envs, src, mapped, expected_worlds):
     """physx_replicate calls rep.replicate with the correct world count (exclude-self).
 
     With ``exclude_self_replication=True`` (default), the source environment is excluded
     from the replication targets when it also maps to other environments.  A source at
     ``env_0`` mapping to ``[0, 1, 2]`` only replicates to ``[1, 2]`` (2 worlds).
-    With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely.
+    With ``num_envs == 1`` the ``num_envs > 1`` guard skips registration entirely, as does
+    a mapping that selects no environment.
     Non-env sources (e.g. ``/World/template/Robot``) are never excluded because the
     self-id is not a digit.
     """
@@ -165,12 +167,13 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
             sources=[src, src],
             destinations=["/World/envs/env_{}"] * 2,
             env_ids=np.arange(num_envs, dtype=np.int64),
-            mapping=np.array([[True] * num_envs, [False] * num_envs], dtype=np.bool_),
+            mapping=np.array([[mapped] * num_envs, [False] * num_envs], dtype=np.bool_),
         )
 
     assert replicate_calls == expected_worlds, (
         f"Expected replicate world counts {expected_worlds}, got {replicate_calls}"
     )
+    assert mock_rep.register_replicator.called == bool(expected_worlds)
 
 
 def test_physx_replicate_isolated_source_loaded_without_replication(sim):

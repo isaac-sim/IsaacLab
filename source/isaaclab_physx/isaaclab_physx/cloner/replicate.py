@@ -116,7 +116,9 @@ def _replicate_instances(
     # The replicator builds each source along with its copies, so a source that is its own only target
     # would be built twice, and such self-copies have triggered intermittent heap corruption in multi-GPU
     # runs. Every environment already exists in USD: let PhysX parse the stage instead.
-    if any(len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue):
+    if not physx_queue or any(
+        len(envs) == 1 and src == destination.format(envs[0]) for src, destination, envs in physx_queue
+    ):
         return
 
     physics_scene_prim = stage.GetPrimAtPath("/physicsScene")
