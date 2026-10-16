@@ -244,38 +244,17 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         continue
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
                 if not target_cfg.track_mesh_transforms:
-                    # A static record holds its clone's pose. Kitless backends author only the source on the stage,
-                    # so a missing clone is placed as the clone backends place it: shifted by the environment origins.
-                    origins = np.zeros((self._num_envs, 3)) if plan.positions is None else plan.positions
-                    source_env = cloner.path.match(source_root, plan.env_template)
-                    source_origin = 0.0
-                    if source_env is not None:
-                        # As in the Newton cloner, a source ID outside the environments takes the first one's place.
-                        instance = source_env.instance
-                        in_envs = instance.isdigit() and int(instance) < self._num_envs
-                        source_origin = origins[int(instance) if in_envs else worlds[world_starts[group]]]
-                    source_records = {}
-                    for env_id in env_ids:
-                        destination_root = destination_template.format(env_id)
-                        for source_prim in source_prims:
-                            source_prim_path = str(source_prim.GetPath())
-                            path = cloner.path.rebase(source_prim_path, source_root, destination_root)
-                            prim = source_prim.GetStage().GetPrimAtPath(path)
-                            if prim.IsValid():
-                                mesh_id = self._load_target_prim_warp_mesh(prim, target_cfg)
-                                pos, quat = sim_utils.resolve_prim_pose(prim)
-                                offset = 0.0
-                            else:
-                                if source_prim_path not in source_records:
-                                    mesh_id = self._load_target_prim_warp_mesh(source_prim, target_cfg)
-                                    source_records[source_prim_path] = (
-                                        mesh_id,
-                                        *sim_utils.resolve_prim_pose(source_prim),
-                                    )
-                                mesh_id, pos, quat = source_records[source_prim_path]
-                                offset = origins[env_id] - source_origin
-                            dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
-                            records_per_env[env_id].append((mesh_id, tuple(np.add(pos, offset)), quat))
+                    dummy_mesh_id = self._add_static_plan_records(
+                        records_per_env,
+                        target_cfg,
+                        plan,
+                        source_root,
+                        destination_template,
+                        source_prims,
+                        env_ids,
+                        worlds[world_starts[group]],
+                        dummy_mesh_id,
+                    )
                     continue
 
                 mesh_ids: list[int] = []
@@ -365,6 +344,57 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         records_per_env = [records[env_id * n_meshes : (env_id + 1) * n_meshes] for env_id in range(self._num_envs)]
 
         return records_per_env, dummy_mesh_id, tracked_target_exprs
+
+    def _add_static_plan_records(
+        self,
+        records_per_env: list[list],
+        target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
+        plan: cloner.ClonePlan,
+        source_root: str,
+        destination_template: str,
+        source_prims: list,
+        env_ids: np.ndarray,
+        first_env: int,
+        dummy_mesh_id: int | None,
+    ) -> int | None:
+        """Add the records of a static target to the environments of one prototype.
+
+        A static record holds its clone's pose. Kitless backends author only the source on the stage, so a missing
+        clone is placed as the clone backends place it: the source shifted by the environment origins.
+
+        Returns:
+            The dummy mesh id, set to the first loaded mesh if it was unset.
+        """
+        origins = np.zeros((self._num_envs, 3)) if plan.positions is None else plan.positions
+        source_env = cloner.path.match(source_root, plan.env_template)
+        source_origin = 0.0
+        if source_env is not None:
+            # As in the Newton cloner, a source ID outside the environments takes the first environment's place.
+            instance = source_env.instance
+            source_origin = origins[
+                int(instance) if instance.isdigit() and int(instance) < self._num_envs else first_env
+            ]
+        source_records = {}
+        for env_id in env_ids:
+            destination_root = destination_template.format(env_id)
+            for source_prim in source_prims:
+                source_prim_path = str(source_prim.GetPath())
+                prim = source_prim.GetStage().GetPrimAtPath(
+                    cloner.path.rebase(source_prim_path, source_root, destination_root)
+                )
+                if prim.IsValid():
+                    mesh_id = self._load_target_prim_warp_mesh(prim, target_cfg)
+                    pos, quat = sim_utils.resolve_prim_pose(prim)
+                    offset = 0.0
+                else:
+                    if source_prim_path not in source_records:
+                        mesh_id = self._load_target_prim_warp_mesh(source_prim, target_cfg)
+                        source_records[source_prim_path] = (mesh_id, *sim_utils.resolve_prim_pose(source_prim))
+                    mesh_id, pos, quat = source_records[source_prim_path]
+                    offset = origins[env_id] - source_origin
+                dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
+                records_per_env[env_id].append((mesh_id, tuple(np.add(pos, offset)), quat))
+        return dummy_mesh_id
 
     def _load_target_prim_warp_mesh(self, target_prim, target_cfg, reference_prim=None) -> int:
         reference_prim = target_prim if reference_prim is None else reference_prim
