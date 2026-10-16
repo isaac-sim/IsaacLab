@@ -398,6 +398,13 @@ class ContactSensor(BaseContactSensor):
             filter_patterns=filter_patterns,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
+        if self._contact_view._backend is None:
+            raise RuntimeError(
+                "Failed to create the contact view. Each filter pattern must match one prim per environment, or one"
+                " prim for all environments; the PhysX log names the pattern it rejected."
+                f"\n\tSensor patterns: {body_path_globs}"
+                f"\n\tFilter patterns: {filter_prim_paths_glob}"
+            )
         self._supports_total_contact_forces = hasattr(self.contact_view, "get_net_friction_contact_forces")
         # resolve the true count of bodies
         self._num_sensors = self.body_physx_view.count // self._num_envs

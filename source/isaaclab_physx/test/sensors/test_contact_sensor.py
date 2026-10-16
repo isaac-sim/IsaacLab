@@ -640,8 +640,9 @@ def test_filter_expression_matching_nested_bodies(setup_simulation, device):
 
     Regression test: each filter expression became one filter pattern of the contact view, which
     must match one prim per environment, so an expression matching feet at two depths of a nested
-    rigid-body hierarchy failed sensor initialization. Expressions matching one body, and globs
-    that are not regular expressions, keep their column and order.
+    rigid-body hierarchy failed sensor initialization. A body matched by two expressions keeps one
+    column and the colliders inside the bodies get none. Expressions matching one body, a concrete
+    environment, and globs that are not regular expressions keep their column and order.
     """
     sim_dt = setup_simulation[0]
     num_envs = 4
@@ -663,36 +664,43 @@ def test_filter_expression_matching_nested_bodies(setup_simulation, device):
             # a cube resting on each foot
             cube_cfg.func(f"/World/envs/env_{env_id}/Cube_left", cube_cfg, translation=(-0.5, -1.0, 0.6))
             cube_cfg.func(f"/World/envs/env_{env_id}/Cube_right", cube_cfg, translation=(0.5, -1.0, 0.6))
-        robot = "/World/envs/env_[^/]+/Robot"
+        robot = "{ENV_REGEX_NS}/Robot"
         left_sensor = ContactSensor(
-            ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Cube_left", filter_prim_paths_expr=[f"{robot}/.*_foot"])
+            ContactSensorCfg(
+                prim_path="{ENV_REGEX_NS}/Cube_left", filter_prim_paths_expr=[f"{robot}/.*_foot", f"{robot}/pelvis/.*"]
+            )
         )
         right_sensor = ContactSensor(
             ContactSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_right",
-                filter_prim_paths_expr=[f"{robot}/pelvis/left_hip/?eft_foot", f"{robot}/pelvis/right_.*"],
+                filter_prim_paths_expr=[
+                    f"{robot}/pelvis/left_hip/?eft_foot",
+                    f"{robot}/pelvis/right_.*",
+                    "/World/envs/env_0/Robot/pelvis/left_hip/.*_foot",
+                ],
             )
         )
         sim.reset()
 
-        # one column per matched foot, in breadth-first order; single-body expressions in configured order
-        feet = ["pelvis/right_foot", "pelvis/left_hip/left_foot"]
-        for sensor, sensor_feet in ((left_sensor, feet), (right_sensor, feet[::-1])):
-            expected_paths = [[f"/World/envs/env_{i}/Robot/{foot}" for foot in sensor_feet] for i in range(num_envs)]
-            assert sensor.contact_view.filter_paths == expected_paths
+        # one column per matched body, in breadth-first order and once; expressions in configured order
+        right, left, hip = "Robot/pelvis/right_foot", "Robot/pelvis/left_hip/left_foot", "Robot/pelvis/left_hip"
+        left_columns = [[f"env_{i}/{right}", f"env_{i}/{left}", f"env_{i}/{hip}"] for i in range(num_envs)]
+        right_columns = [[f"env_{i}/{left}", f"env_{i}/{right}", f"env_0/{left}"] for i in range(num_envs)]
+        for sensor, columns in ((left_sensor, left_columns), (right_sensor, right_columns)):
+            assert sensor.contact_view.filter_paths == [[f"/World/envs/{path}" for path in row] for row in columns]
 
         for _ in range(100):
             sim.step()
             left_sensor.update(sim_dt, force_recompute=True)
             right_sensor.update(sim_dt, force_recompute=True)
 
-        # each cube rests on the foot in the last column, which carries its whole normal force
+        # each cube rests on the foot in the second column, which carries its whole normal force
         for sensor in (left_sensor, right_sensor):
             net_forces = sensor.data.net_normal_forces_w.torch[:, 0]
             force_matrix = sensor.data.normal_force_matrix_w.torch[:, 0]
             assert (net_forces[:, 2] > 0.0).all()
             torch.testing.assert_close(force_matrix[:, 1], net_forces)
-            assert torch.count_nonzero(force_matrix[:, 0]) == 0
+            assert torch.count_nonzero(force_matrix[:, [0, 2]]) == 0
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

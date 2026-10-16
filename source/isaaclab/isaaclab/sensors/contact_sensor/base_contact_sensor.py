@@ -178,10 +178,11 @@ class BaseContactSensor(SensorBase):
         matched against the names of the prims at any depth below the prims matched by the rest of the
         expression, which are not candidates themselves. Rigid bodies match, and so do colliders without a
         rigid-body ancestor (static geometry such as a ground plane); colliders, visuals, and other prims inside
-        a rigid body do not. If several prims match, each gets its own expression, which keeps the environment
-        segment of the original.
+        a rigid body do not. Each matched prim gets its own expression, which keeps the environment segment of
+        the original, unless an earlier expression already resolved to it.
 
-        Other expressions, and expressions that match at most one such prim, are returned unchanged.
+        Other expressions, and expressions that match no such prim, are returned unchanged. ``{ENV_REGEX_NS}``
+        is expanded in all expressions.
 
         Returns:
             The expressions in the configured order, the bodies of one expression in breadth-first order.
@@ -193,7 +194,9 @@ class BaseContactSensor(SensorBase):
 
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
         body_exprs = []
+        resolved_globs = set()
         for path_expr in self.cfg.filter_prim_paths_expr:
+            path_expr = cloner.expand_env_regex_ns(path_expr)
             *parent_segments, leaf_pattern = sim_utils.split_path_expr(path_expr)
             parent_expr = "/".join(parent_segments)
             # the physics views match a leaf name at any depth themselves, and globs are their syntax
@@ -222,17 +225,22 @@ class BaseContactSensor(SensorBase):
                 for path in (prim.GetPath().pathString for prim in prims):
                     if path != root:
                         bodies.setdefault(path, parent_dest + path[len(root) :])
-            exprs = list(bodies.values())
-            if len(exprs) < 2:
-                # at most one body: the expression stays one pattern, matched by the views
+            if not bodies:
+                # no body: the expression stays one pattern, matched by the views
                 body_exprs.append(path_expr)
                 continue
+            exprs = list(bodies.values())
             world = None if plan is None else cloner.path.match(path_expr, plan.env_template)
             if world is not None:
                 # the clone plan resolves the environment segment to a wildcard; keep the expression's own
                 source_root, own_root = plan.env_template.format("[^/]+"), plan.env_template.format(world.instance)
                 exprs = [cloner.path.rebase(expr, source_root, own_root) for expr in exprs]
-            body_exprs.extend(exprs)
+            # a body resolved twice would get two columns, and the views report its forces in one of them only
+            for expr in exprs:
+                glob = sim_utils.path_expr_to_glob(expr)
+                if glob not in resolved_globs:
+                    resolved_globs.add(glob)
+                    body_exprs.append(expr)
         return body_exprs
 
     @abstractmethod

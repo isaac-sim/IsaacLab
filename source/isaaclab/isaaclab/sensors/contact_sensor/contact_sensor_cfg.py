@@ -89,12 +89,14 @@ class ContactSensorCfg(SensorBaseCfg):
     Each expression is matched against body prim paths in the scene.
 
     On PhysX and OVPhysX, an expression whose last segment is a regular expression and which has no
-    glob ``*`` (a ``*`` that does not follow ``.``, ``]`` or ``)``) is split into one filter body per
-    match when that segment matches the names of two or more bodies at any depth below the prims
-    matched by the rest of the expression. For example, ``{ENV_REGEX_NS}/Robot/.*_foot`` gives one
-    filter body per foot of a robot whose links are nested. Rigid bodies and static colliders count
-    as bodies; the prims matched by the rest of the expression are not candidates themselves. The
-    bodies of one expression are ordered breadth-first. Every other expression is passed to the
+    glob ``*`` (a ``*`` that does not follow ``.``, ``]`` or ``)``) is resolved into one filter body
+    for each body whose name matches that segment, at any depth below the prims matched by the rest
+    of the expression. For example, ``{ENV_REGEX_NS}/Robot/.*_foot`` gives one filter body per foot
+    of a robot whose links are nested. Rigid bodies and static colliders count as bodies; the prims
+    matched by the rest of the expression are not candidates themselves. The bodies of one
+    expression are ordered breadth-first, and a body that an earlier expression already resolved to
+    is not repeated. Every other expression, such as ``{ENV_REGEX_NS}/Drawer_.*/handle`` with its
+    regular expression in another segment, and an expression that matches no body are passed to the
     physics view unchanged and must match one prim per environment, or one prim for all
     environments.
 
