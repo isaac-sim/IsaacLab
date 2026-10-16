@@ -8,10 +8,12 @@
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
+import subprocess
+import sys
+
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 from collections import namedtuple
-from contextlib import nullcontext
 from importlib import import_module
 from typing import TYPE_CHECKING, cast
 
@@ -896,11 +898,48 @@ def test_stateless_tensor_processor_cfg_roundtrip_preserves_signature_validation
         update_from_dict(cfg, to_dict(cfg))
 
     env = DummyEnv()
-    warning = pytest.warns(FutureWarning, match="ObservationTermCfg.modifiers") if api != "current" else nullcontext()
-    with warning:
-        manager = manager_type(cfg, cast("ManagerBasedEnv", env))
+    manager = manager_type(cfg, cast("ManagerBasedEnv", env))
     observations = manager.compute()["policy"]
     torch.testing.assert_close(observations, env.observation + 2.0)
+
+
+def test_legacy_modifiers_share_one_migration_warning():
+    """Legacy fields and imports share one warning, regardless of repeated manager construction."""
+    # A fresh interpreter keeps the first-use warning independent of test collection and ordering.
+    script = """
+import warnings
+from importlib import import_module
+from types import SimpleNamespace
+
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    import torch
+    from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
+    from isaaclab.utils.tensor_processors import TensorProcessorCfg, bias
+
+    env = SimpleNamespace(num_envs=1, device="cpu", sim=SimpleNamespace(is_playing=lambda: True))
+    group = ObservationGroupCfg()
+    group.value = ObservationTermCfg(
+        func=lambda env: torch.ones((1, 1)),
+        tensor_processors=[TensorProcessorCfg(func=bias, params={"value": 2.0})],
+    )
+    ObservationManager({"policy": group}, env).compute()
+    assert not [warning for warning in caught if "modifiers" in str(warning.message)]
+
+    group.value.modifiers = group.value.tensor_processors
+    group.value.tensor_processors = None
+    for _ in range(2):
+        result = ObservationManager({"policy": group}, env).compute()["policy"]
+        torch.testing.assert_close(result, torch.full((1, 1), 3.0))
+    for package in ("isaaclab", "isaaclab_experimental"):
+        import_module(f"{package}.utils.modifiers.modifier_cfg")
+
+    migration_warnings = [warning for warning in caught if "modifiers" in str(warning.message)]
+    assert len(migration_warnings) == 1, migration_warnings
+    assert migration_warnings[0].category is FutureWarning
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
 
 
 def test_observation_rejects_conflicting_processor_fields():

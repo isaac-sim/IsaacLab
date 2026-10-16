@@ -7,9 +7,9 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
+from importlib import import_module
 from typing import TYPE_CHECKING, Any, Literal
 
 import torch
@@ -243,11 +243,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
             return
         if self.tensor_processors is not None:
             raise ValueError("Set only one of 'modifiers' and 'tensor_processors'.")
-        warnings.warn(
-            "ObservationTermCfg.modifiers is deprecated. Use tensor_processors instead.",
-            FutureWarning,
-            stacklevel=5,
-        )
+        import_module("isaaclab.utils.modifiers")
         self.tensor_processors = self.modifiers
         self.modifiers = None
 
