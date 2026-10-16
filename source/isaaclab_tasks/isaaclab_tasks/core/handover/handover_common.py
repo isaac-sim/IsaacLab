@@ -19,7 +19,7 @@ from isaaclab_tasks.core.reorient.utils import SuccessTracker
 
 __all__ = [
     "GOAL_MARKER_CFG",
-    "GOAL_POSITION_OFFSET",
+    "HOLD_POSITION_OFFSET",
     "HandoverGoal",
     "OBJECT_RADIUS",
     "VISUALIZER_CFG",
@@ -29,8 +29,9 @@ __all__ = [
 OBJECT_RADIUS: float = 0.0335
 """Hand-over object sphere radius [m], also used for the goal marker."""
 
-GOAL_POSITION_OFFSET: tuple[float, float, float] = (0.36, 0.0, 0.04)
-"""Goal-position offset in each hand's local root frame [m]."""
+HOLD_POSITION_OFFSET: tuple[float, float, float] = (0.36, 0.0, 0.04)
+"""Object hold position in each hand's local root frame [m]: the goal at the receiving hand and the start at the
+holding hand."""
 
 # The camera is world-framed, so this aims at the environment nearest the grid center for the
 # default 2048 environments (x = 0.75 m); other counts shift the grid.
@@ -89,6 +90,11 @@ class HandoverGoal:
         self.success_steps.masked_fill_(switched, 0)
         torch.where(self._left.unsqueeze(-1), self._positions[1], self._positions[0], out=self.position)
         return switched
+
+    @property
+    def hold_positions(self) -> torch.Tensor:
+        """Object hold position at the right and left hand, in environment frames [m]. Shape is (2, num_envs, 3)."""
+        return self._positions
 
     @property
     def left(self) -> torch.Tensor:

@@ -86,11 +86,13 @@ def test_handover_alternates_after_cumulative_success_steps_and_resets_one_episo
         observations, _ = env.reset(seed=42)
         observations = observations["right_hand" if direct else "policy"]
         object_asset = env.scene["object"]
-        # These points independently specify the task geometry in the environment frame.
+        # Each hand's hold point (its goal, or the start when it holds the object) in the environment frame.
         left = torch.tensor([0.0, -0.64, 0.54], device=device)
         right = torch.tensor([0.0, -0.36, 0.54], device=device)
         targets = left.repeat(2, 1)
         torch.testing.assert_close(observations[:, 146:149], targets)
+        # the object starts at the right hand's hold point, where that hand's goal is, opposite the first goal
+        torch.testing.assert_close(object_asset.data.root_pos_w.torch - env.scene.env_origins, right.repeat(2, 1))
         actions = (
             {agent: torch.zeros((2, 20), device=device) for agent in env.possible_agents}
             if direct

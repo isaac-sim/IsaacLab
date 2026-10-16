@@ -24,7 +24,7 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_assets.robots.shadow_hand import FINGERTIP_NAMES, JOINT_NAMES, TENDON_NAMES, TENDON_POSITION_LIMITS
 
 from . import mdp
-from .handover_common import VISUALIZER_CFG
+from .handover_common import HOLD_POSITION_OFFSET, VISUALIZER_CFG
 from .handover_env_cfg import BALL_CFG, LeftHandCfg, PhysicsCfg, RightHandCfg
 
 ##
@@ -219,12 +219,14 @@ class ResetEventCfg:
     """Reset distributions matching the Direct handover environment."""
 
     reset_object = EventTerm(
-        func=mdp.reset_root_state_with_random_orientation,
+        func=mdp.reset_object_at_hold_point,
         mode="reset",
         params={
-            # the Direct task jitters the drop position and samples a random orientation
+            # the first goal is at the left hand, so the object starts at the right hand's hold point; the Direct
+            # task jitters the drop position and samples a random orientation
             "pose_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},  # [m]
-            "velocity_range": {},
+            "hand_cfg": SceneEntityCfg("right_hand"),
+            "position_offset": HOLD_POSITION_OFFSET,
             "asset_cfg": SceneEntityCfg("object"),
         },
     )

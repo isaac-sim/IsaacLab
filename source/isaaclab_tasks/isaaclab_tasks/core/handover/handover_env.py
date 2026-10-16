@@ -105,7 +105,7 @@ class HandoverEnv(DirectMARLEnv):
 
         self._goal = HandoverGoal(
             torch.stack((self.right_hand.data.default_root_pose.torch, self.left_hand.data.default_root_pose.torch)),
-            self.cfg.goal_position_offset,
+            self.cfg.hold_position_offset,
             randomize_start=self.cfg.randomize_start_hand,
         )
         self.goal_pos = self._goal.position
@@ -286,14 +286,8 @@ class HandoverEnv(DirectMARLEnv):
         object_default_vel = self.object.data.default_root_vel.torch.clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
 
-        # the hands are a half turn apart about the vertical axis through their midpoint, so the same pose
-        # relative to the left hand is the right-hand pose mirrored through that axis
-        hands_xy = (
-            self.right_hand.data.default_root_pose.torch[env_ids, :2]
-            + self.left_hand.data.default_root_pose.torch[env_ids, :2]
-        )
-        object_default_pose[:, :2] = torch.where(
-            goal_left.unsqueeze(-1), object_default_pose[:, :2], hands_xy - object_default_pose[:, :2]
+        object_default_pose[:, :3] = torch.where(
+            goal_left.unsqueeze(-1), self._goal.hold_positions[0, env_ids], self._goal.hold_positions[1, env_ids]
         )
         object_default_pose[:, 0:3] = (
             object_default_pose[:, 0:3] + self.cfg.reset_position_noise * pos_noise + self.scene.env_origins[env_ids]
