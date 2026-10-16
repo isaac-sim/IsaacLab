@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.54.5 (2026-10-16)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Reused Fabric view-index attributes for identical ordered prim paths in
+  :class:`~isaaclab.sim.views.XformPrimView`, avoiding attribute accumulation and
+  CUDA misaligned-address errors when repeatedly rebuilding the same scene and camera views.
+
+
 0.54.4 (2026-06-01)
 ~~~~~~~~~~~~~~~~~~~
 

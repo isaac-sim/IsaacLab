@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
+from pxr import Usd  # noqa: E402
 
 try:
     from isaacsim.core.prims import XFormPrim as _IsaacSimXformPrimView
@@ -1423,6 +1424,44 @@ def test_compare_set_local_poses_with_isaacsim():
 """
 Tests - Fabric Operations.
 """
+
+
+def test_fabric_view_index_attribute_reuse():
+    """Identical views share an indexing attribute and retain consistent Fabric poses."""
+    device = "cuda:0"
+    _skip_if_backend_unavailable("fabric", device)
+    stage = sim_utils.get_current_stage()
+    for i in range(3):
+        sim_utils.create_prim(f"/World/Cam_{i}", "Camera", translation=(float(i), 0.0, 1.0), stage=stage)
+
+    views = [_create_view("/World/Cam_.*", device=device, backend="fabric")]
+    views.extend(XformPrimView("/World/Cam_.*", device=device) for _ in range(9))
+    for view in views:
+        view.get_world_poses()
+    assert len({view._view_index_attr for view in views}) == 1
+
+    positions = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], device=device)
+    orientations = torch.tensor([[1.0, 0.0, 0.0, 0.0]] * 3, device=device)
+    views[-1].set_world_poses(positions, orientations)
+    for view in views:
+        actual_positions, actual_orientations = view.get_world_poses()
+        torch.testing.assert_close(actual_positions, positions, atol=1e-4, rtol=0)
+        torch.testing.assert_close(actual_orientations, orientations, atol=1e-4, rtol=0)
+
+
+def test_fabric_view_index_attribute_preserves_prim_order():
+    """The same prim paths in a different traversal order require a different attribute."""
+    views = []
+    for order in ((1, 0, 2), (2, 0, 1)):
+        stage = Usd.Stage.CreateInMemory()
+        for i in order:
+            sim_utils.create_prim(f"/World/Cam_{i}", "Camera", stage=stage)
+        view = XformPrimView("/World/Cam_.*", stage=stage)
+        assert view.prim_paths == [f"/World/Cam_{i}" for i in order]
+        views.append(view)
+
+    assert set(views[0].prim_paths) == set(views[1].prim_paths)
+    assert views[0]._view_index_attr != views[1]._view_index_attr
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])

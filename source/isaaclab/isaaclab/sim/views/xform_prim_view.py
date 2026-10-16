@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Sequence
 
@@ -167,9 +168,11 @@ class XformPrimView:
         self._view_to_fabric: wp.array | None = None
         self._default_view_indices: wp.array | None = None
         self._fabric_hierarchy = None
-        # Create a valid USD attribute name: namespace:name
-        # Use "isaaclab" namespace to identify our custom attributes
-        self._view_index_attr = f"isaaclab:view_index:{abs(hash(self))}"
+        # Reuse the attribute for the same ordered view across scene rebuilds.
+        # Different ordered prim sets need distinct attributes because Fabric
+        # selections use this attribute to identify the view's membership.
+        view_identity = hashlib.sha256("\0".join(self.prim_paths).encode("utf-8")).hexdigest()
+        self._view_index_attr = f"isaaclab:view_index:{view_identity}"
 
     """
     Properties.
