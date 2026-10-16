@@ -22,7 +22,7 @@
 - Every test file has a module docstring with `Setup:` and `Tests:` sections.
 - `Setup:` lists only commands that actually run before tests. `Tests:` has one full command per test method in declaration order.
 - List every setup and test command in full; do not abbreviate commands or use shell line continuations.
-- Keep setup commands aligned with the installation documentation in `docs/source/setup/installation/`.
+- Keep setup commands aligned with the installation documentation in `docs/source/isaaclab/installation.rst`.
 - Update the documentation in the same change when adding an installation path.
 - Use exactly one of `@pytest.mark.docker` or `@pytest.mark.native` when either applies.
 - Use `@pytest.mark.uv` or `@pytest.mark.conda` when a package manager is required, `@pytest.mark.gpu` when a GPU is required, and `@pytest.mark.slow` whenever an installation runs.

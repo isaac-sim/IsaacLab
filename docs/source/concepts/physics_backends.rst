@@ -123,7 +123,7 @@ limitations and runtime constraints.
 Find supported tasks and APIs
 -----------------------------
 
-Backend support is task-specific. Use :doc:`/source/setup/environments` to
+Backend support is task-specific. Use :doc:`/source/isaaclab/environments` to
 browse registered environments and presets, or ask a task for its current
 choices:
 

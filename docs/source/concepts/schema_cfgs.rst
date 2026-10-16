@@ -391,7 +391,7 @@ See also
 --------
 
 * :ref:`schema-fragments` — single-namespace fragments and expression-driven targeting
-* :doc:`/source/migration/migrating_to_isaaclab_3-0` — migration guide
+* :doc:`/source/isaaclab/migrating` — migration guide
 * :doc:`/source/api/lab/isaaclab.sim.schemas` — solver-common base class API
 * :doc:`/source/api/lab_physx/isaaclab_physx.sim.schemas` — PhysX subclass API
 * :doc:`/source/api/lab_newton/isaaclab_newton.sim.schemas` — Newton/MuJoCo subclass API

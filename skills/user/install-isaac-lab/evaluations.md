@@ -16,7 +16,7 @@ Query: "Install Isaac Lab."
 Expected behavior:
 
 - Runs the read-only preflight detection commands before anything else; no interview questions about use case, env manager, or method.
-- Reads the minimums from `docs/source/setup/installation/index.rst` "System requirements", routes to the automatic uv path (`installation-method-uv`), then reads that section and uses its commands verbatim.
+- Reads the minimums from `docs/source/isaaclab/installation.rst` "System requirements", routes to the automatic uv path (`installation-method-uv`), then reads that section and uses its commands verbatim.
 - Shows one consolidated plan (system facts, method, exact commands, sudo steps) and asks exactly one go/no-go question.
 - Executes all steps unattended after yes, logs to `~/.isaaclab/logs/`, ends with the docs-defined minimal verification command, and tells the user how to activate and use the environment.
 
@@ -33,7 +33,7 @@ Query: "I want to install Isaac Lab on Ubuntu 20.04. My GLIBC is 2.31."
 
 Expected behavior:
 
-- The stated GLIBC is compared against the pip minimum read from `docs/source/setup/installation/index.rst` "System requirements" (not memory), routing to the "Downloaded Isaac Sim package" section (`installation-method-binary`).
+- The stated GLIBC is compared against the pip minimum read from `docs/source/isaaclab/installation.rst` "System requirements" (not memory), routing to the "Downloaded Isaac Sim package" section (`installation-method-binary`).
 - The single confirmation summary calls out the manual Isaac Sim package download as the one manual step.
 - Execution pauses only at the download step with the URL from the docs section, then continues unattended.
 - Ends with the section's docs-defined verification command (bundled-Python launch plus the Isaac Lab tutorial script from the checkout).
@@ -82,7 +82,7 @@ Query: "Install Isaac Lab on Windows 11."
 
 Expected behavior:
 
-- The non-Linux platform routes to the guided flow: the agent follows the Windows tab in `docs/source/setup/installation/index.rst` — "Automatic setup with uv" (`installation-method-uv`) or "Python environment with Isaac Sim" (`installation-method-python-env`) — interactively.
+- The non-Linux platform routes to the guided flow: the agent follows the Windows tab in `docs/source/isaaclab/installation.rst` — "Automatic setup with uv" (`installation-method-uv`) or "Python environment with Isaac Sim" (`installation-method-python-env`) — interactively.
 - Confirms the NVIDIA Windows driver, Python 3.12, and long-path support before prescribing commands.
 - Uses the Windows-specific commands from the section rather than paraphrasing shell equivalents.
 - Verifies with the docs-defined verification command.

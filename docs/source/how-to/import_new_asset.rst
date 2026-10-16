@@ -110,7 +110,7 @@ is then passed to the :class:`~sim.converters.UrdfConverter` class.
    The URDF importer was upgraded to version 3.0 in Isaac Sim 6, replacing the previous C++
    binding-based API with a Python pipeline (``urdf-usd-converter``). Assets are now made
    instanceable by default — ``make_instanceable`` is no longer a configuration option.
-   See the :doc:`/source/migration/migrating_to_isaaclab_3-0` for a full list of breaking changes.
+   See the :doc:`/source/isaaclab/migrating` for a full list of breaking changes.
 
 The URDF importer has various configuration parameters that can be set to control the behavior of the importer.
 The default values for the importer's configuration parameters are specified in the :class:`~sim.converters.UrdfConverterCfg` class, and they are listed below. We made a few commonly modified settings to be available as command-line arguments when calling the ``convert_urdf.py``, and they are marked with ``*`` in the list. For a comprehensive list of the configuration parameters, please check the documentation at `URDF importer`_.

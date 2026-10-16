@@ -402,7 +402,7 @@ want our simulation to be more performant. The process can be killed by pressing
 terminal.
 
 For more details on headless mode and launching visualizers, see
-:doc:`/source/migration/migrating_to_isaaclab_3-0`.
+:doc:`/source/isaaclab/migrating`.
 
 
 .. _specification: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/api.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG

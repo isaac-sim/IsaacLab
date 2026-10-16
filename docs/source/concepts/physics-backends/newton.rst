@@ -14,7 +14,7 @@ backend with :class:`~isaaclab_newton.physics.NewtonCfg` and choose a solver
 configuration through its ``solver_cfg`` field.
 
 Task and component coverage is task-specific. Check task ``--help`` and
-:doc:`the environment catalog </source/setup/environments>` for current
+:doc:`the environment catalog </source/isaaclab/environments>` for current
 presets; the presence of a solver configuration does not imply that a task
 supports it. Start with :doc:`/source/how-to/prepare_asset_for_newton` before
 tuning a new asset or task.

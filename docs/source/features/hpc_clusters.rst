@@ -1,6 +1,6 @@
 .. _deployment-cluster:
 
-Running on HPC clusters
+Running on HPC Clusters
 =======================
 
 Clusters are a great way to speed up training and evaluation of learning algorithms.
@@ -57,7 +57,7 @@ Cluster configuration
 Configure the cluster-specific parameters in ``docker/cluster/.env.cluster``. Each parameter is
 documented inline in the file:
 
-.. literalinclude:: ../../../../docker/cluster/.env.cluster
+.. literalinclude:: ../../../docker/cluster/.env.cluster
    :language: bash
 
 A few constraints are worth calling out:
@@ -114,7 +114,7 @@ the time limit. For more information, please check the `SLURM documentation`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../../docker/cluster/submit_job_slurm.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 12-19
   :linenos:
@@ -127,7 +127,7 @@ must be loaded to allow internet access.
 For instance, on ETH Zurich Euler cluster, the ``eth_proxy`` module needs to be loaded. This can be done
 by adding the following line to the ``submit_job_slurm.sh`` script:
 
-.. literalinclude:: ../../../../docker/cluster/submit_job_slurm.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_slurm.sh
   :language: bash
   :lines: 3-5
   :linenos:
@@ -142,7 +142,7 @@ information, please check the `PBS Official Site`_.
 
 The default configuration is as follows:
 
-.. literalinclude:: ../../../../docker/cluster/submit_job_pbs.sh
+.. literalinclude:: ../../../docker/cluster/submit_job_pbs.sh
   :language: bash
   :lines: 11-17
   :linenos:

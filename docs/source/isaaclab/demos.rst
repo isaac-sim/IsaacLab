@@ -8,44 +8,18 @@
 Demos
 =====
 
-Demos are polished showcases of Isaac Lab capabilities. They ship in the ``isaaclab`` wheel, so you can run them
-without a source checkout. Start with Zoo to see several robot families and simulation features in one scene, or run
-``uvx --torch-backend cu130 isaaclab demo list`` to inspect the complete catalog.
-
-All programs live under the repository-level ``examples/`` directory: curated showcases in ``examples/demos/``,
-focused programs for learning an API or tuning a feature in directories such as ``examples/mpm/`` and
-``examples/sensors/``, and shared data in ``examples/assets/``. List focused programs with
-``uvx --torch-backend cu130 isaaclab example list`` and run one with
-``uvx --torch-backend cu130 isaaclab example <name>``.
-
-Demo and example commands show the same Isaac Lab startup screen as task playback while
-their simulation initializes. Pass ``--info`` to keep startup messages visible.
-
-Unlike ``train`` and ``play``, demos and examples usually open a visualizer by default, since they
-are meant to be watched. Demos mostly default to Newton GL (``newton_gl``), with Kit for some such as
-``pick-and-place``. The ``h1-locomotion`` demo defaults to Kit with PhysX and Newton GL with Newton.
-Examples default to Kit or Newton GL depending on the program, and a few, such as ``ppisp-camera``
-and ``tacsl-sensor``, run without a visualizer. Pass ``--viz`` to pick a different one.
-
-In any packaged demo or example running with ``--viz newton_gl``, the **Isaac Lab Programs**
-panel shows the core showcases first, with focused examples in a separate collapsed section.
-Selecting one closes the current simulation and relaunches it with ``--viz newton_gl``.
-For example, run ``uvx --torch-backend cu130 isaaclab demo zoo --viz newton_gl`` to explore the catalog.
-Programs whose required modules are unavailable, hardware-dependent teleoperation, and
-Kit-only demos are not shown.
-
-For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
-
-Command Builder
----------------
+Select a demo, choose its backend and visualizer, then copy the command to run it locally.
+No source checkout is required.
 
 .. raw:: html
 
    <div class="environment-browser demo-browser" data-demo-browser>
      <section class="environment-command-panel" aria-label="Isaac Lab demo command builder">
        <div class="environment-command-row environment-command-row-primary demo-command-row">
-         <span class="environment-command-prefix" aria-hidden="true">uvx</span>
-         <strong class="demo-command-selection" data-demo-name>Zoo</strong>
+         <span class="environment-command-prefix">uvx isaaclab demo</span>
+         <strong class="demo-command-selection" data-demo-name>zoo</strong>
+       </div>
+       <div class="environment-command-row demo-command-options">
          <label class="environment-selector environment-selector-physics">
            <span>--physics</span>
            <select data-demo-field="physics" aria-label="Physics backend"></select>
@@ -66,16 +40,6 @@ Command Builder
            </button>
          </div>
        </div>
-       <aside class="admonition note demo-command-note" data-demo-note="h1-locomotion" hidden>
-         <p class="admonition-title">H1 locomotion</p>
-         <p>H1 locomotion uses a published policy. For autonomous H1 task playback, use <code>isaaclab play</code>.</p>
-         <p data-demo-note-visualizers="newton_gl,newton_rtx" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
-           <kbd>I</kbd>/<kbd>J</kbd>/<kbd>L</kbd> to walk forward or turn, <kbd>K</kbd> to stop, and <kbd>C</kbd> to toggle the follow camera.</p>
-       </aside>
-       <aside class="admonition note demo-command-note" data-demo-note="pick-and-place" hidden>
-         <p class="admonition-title">Pick and place</p>
-         <p>Pick and place requires Kit input.</p>
-       </aside>
      </section>
 
      <div class="demo-card-grid" data-demo-list>
@@ -133,4 +97,27 @@ Command Builder
          <span>Teapot Fill</span>
        </button>
      </div>
+       <aside class="admonition hint demo-command-note" data-demo-note="h1-locomotion" hidden>
+         <p class="admonition-title">H1 locomotion</p>
+         <p>H1 locomotion uses a published policy. For autonomous H1 task playback, use <code>isaaclab play</code>.</p>
+         <p data-demo-note-visualizers="newton_gl,newton_rtx" hidden>In the Newton viewer, press <kbd>N</kbd> to select a robot,
+           <kbd>I</kbd>/<kbd>J</kbd>/<kbd>L</kbd> to walk forward or turn, <kbd>K</kbd> to stop, and <kbd>C</kbd> to toggle the follow camera.</p>
+       </aside>
+       <aside class="admonition hint demo-command-note" data-demo-note="pick-and-place" hidden>
+         <p class="admonition-title">Pick and place</p>
+         <p>Pick and place requires Kit input.</p>
+       </aside>
    </div>
+
+More examples
+-------------
+
+List all demos or focused API examples:
+
+.. code-block:: bash
+
+   uvx --torch-backend cu130 isaaclab demo list
+   uvx --torch-backend cu130 isaaclab example list
+
+Run a focused example with ``isaaclab example <name>``. In the Newton GL viewer, the
+**Isaac Lab Programs** panel lets you switch between available demos and examples.

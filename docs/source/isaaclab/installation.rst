@@ -19,9 +19,9 @@ Installation
    :target: https://www.microsoft.com/en-ca/windows/windows-11
    :alt: Windows 11
 
-Choose the path that matches what you want to install and how you want to run it. Start with the
-automatic ``uv`` setup unless you need to manage your own environment, use a downloaded Isaac Sim
-package, or deploy to Docker or the cloud. Each card jumps to complete instructions on this page.
+**Isaac Lab installs Newton by default.** The standard installation runs without Isaac Sim;
+add Isaac Sim or other optional backends when your workflow needs them. Start with the automatic
+``uv`` setup, or choose another installation method below.
 
 Choose an installation path
 ---------------------------
@@ -33,7 +33,7 @@ Choose an installation path
       :link: installation-method-uv
       :link-type: ref
 
-      Run from the Isaac Lab checkout while ``uv`` creates and manages the environment.
+      Run with Newton from the Isaac Lab checkout while ``uv`` manages the environment.
       **Recommended for most users.**
 
    .. grid-item-card:: **isaaclab.sh installer (legacy)**
@@ -66,11 +66,11 @@ Choose an installation path
 
       Build or modify Isaac Sim itself. This is an advanced workflow.
 
-   .. grid-item-card:: **Docker and HPC clusters**
+   .. grid-item-card:: **Docker containers**
       :link: installation-method-container
       :link-type: ref
 
-      Develop in a container or submit containerized jobs to an HPC cluster.
+      Build or run a container with the physics and rendering stack you need.
 
    .. grid-item-card:: **Cloud workstations**
       :link: installation-method-cloud
@@ -83,28 +83,55 @@ Choose an installation path
 System requirements
 -------------------
 
-Full Isaac Sim workflows require Python 3.12 on Ubuntu 22.04+ or Windows 11. Use a recent NVIDIA
-production driver and a workstation with at least 32 GB RAM and 16 GB GPU VRAM. Rendering can
-require additional VRAM. Confirm your machine against the `Isaac Sim system requirements
-<https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__ and
-`Omniverse technical requirements
-<https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
+Isaac Lab installs Newton by default, using **NVIDIA Warp** for simulation. The requirements below
+cover the default Newton and PyTorch training environment; Isaac Sim is an optional addition.
 
-Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.2 with Python 3.12.
-The Isaac Sim wheels require GLIBC 2.35 or newer on Linux.
+.. list-table::
+   :widths: 24 76
+   :header-rows: 1
 
-The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
-``580.88`` or newer on Windows, as documented in the `PyTorch CUDA 13.0 requirements
-<https://pytorch.org/blog/pytorch-2-12-release-blog/>`__. CUDA 13.0 wheels support Blackwell GPUs.
+   * - Component
+     - Requirement
+   * - Python
+     - Python 3.12. The automatic ``uv`` setup manages the environment.
+   * - Platform
+     - Ubuntu 22.04+ on x86_64, Linux aarch64 (including DGX Spark), or Windows 11 on x86_64.
+   * - GPU training
+     - A CUDA-capable NVIDIA GPU supported by the selected Newton solver and PyTorch.
+       The default CUDA 13 stack requires Turing or newer (compute capability 7.5+).
+   * - NVIDIA driver
+     - ``580.65.06`` or newer on Linux; ``580.88`` or newer on Windows.
+       Use a current production driver for your GPU.
+   * - Memory
+     - RAM and VRAM needs depend on the task, number of parallel environments, and camera workload.
+       Isaac Sim's workstation memory requirements do not apply to a Newton-only installation.
 
-Use the latest NVIDIA production branch driver. Version ``580.95.05`` or later is recommended on
-Linux x86_64 and aarch64, ``580.142`` on DGX Spark, and ``581.42.00`` on Windows. If a new GPU or
-driver issue requires a newer release, use the production driver from the `Unix Driver Archive
-<https://www.nvidia.com/en-us/drivers/unix/>`__. On Linux, the `Isaac Sim Compatibility Checker
-<https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`__
-and `Linux troubleshooting guide
-<https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__ can identify
-unsupported host configurations.
+This release uses Warp 1.17. Its prebuilt wheels include the CUDA components needed by Warp,
+so a separate CUDA Toolkit installation is not needed for standard wheel-based use. See
+`Warp installation <https://nvidia.github.io/warp/v1.17/user_guide/installation.html>`__ and
+`compatibility <https://nvidia.github.io/warp/v1.17/user_guide/compatibility.html>`__ for its
+platform and GPU requirements.
+
+.. hint::
+
+   The default environment also installs **PyTorch with CUDA 13.0**, which sets the driver
+   minimum above. Warp 1.17's CUDA 12 wheels alone can run with older drivers; meeting only
+   Warp's minimum is not enough for the default GPU training environment. See the
+   `PyTorch CUDA 13.0 requirements <https://pytorch.org/blog/pytorch-2-12-release-blog/>`__.
+
+Optional Isaac Sim and rendering
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **Isaac Sim:** Install the ``isaacsim`` extra for Isaac Sim 6.2 / PhysX workflows. On Linux,
+  its wheels require GLIBC 2.35+. For x86_64 workstations, plan for at least 32 GB RAM,
+  16 GB VRAM, and a supported RTX GPU; training and rendering may need more. Check the
+  `Isaac Sim requirements <https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html>`__
+  for supported GPUs, tested drivers, and DGX Spark support. Isaac Sim 5.1 and older are unsupported.
+* **Rendering:** Headless Newton simulation does not require RTX hardware. Add the requirements
+  of your chosen :doc:`renderer </source/concepts/renderers>` or
+  :doc:`visualizer </source/concepts/visualization>` when you need camera images or an interactive
+  view. RTX rendering has its own
+  `GPU and driver requirements <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
 
 .. dropdown:: Linux aarch64 and DGX Spark requirements
 
@@ -250,7 +277,7 @@ The aggregate wheel pins the PyTorch versions using registry-compatible metadata
 commands select the CUDA 13.0 build at install time. The wheel supports Python 3.12, matching the source
 checkout.
 
-Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
+Head over to the :doc:`/source/isaaclab/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
 
 .. _installation-legacy-installer:
@@ -1057,34 +1084,524 @@ Choose how to connect the Isaac Sim source build to Isaac Lab:
 
 
 .. _installation-method-container:
+.. _workflows:
+.. _docker-cloud:
+.. _deployment-docker:
+.. _docker-guide:
 
-Docker and HPC clusters
------------------------
+Docker containers
+-----------------
+
+Docker packages Isaac Lab and its dependencies into a reusable environment.
+``docker/container.py`` is the main entry point for running Isaac Lab in a container. It wraps
+``docker compose`` so that you do not have to remember which Dockerfile, environment files, and
+volume mounts belong together -- you name a *profile*, and the script assembles the rest.
+
+For remote execution, see :ref:`deployment-cluster` and :ref:`docker-cloud-cloud`.
+
+Clone Isaac Lab before running the container commands below:
+
+.. isaaclab-clone-commands::
+
+.. caution::
+
+    The standard Isaac Lab container depends on the Isaac Sim Docker image. By running that container, you are
+    implicitly agreeing to the `NVIDIA Software License Agreement`_. If you do not agree to the EULA, do not run
+    that container. The ``kitless`` image contains neither Isaac Sim nor Kit.
+
+Prerequisites
+~~~~~~~~~~~~~
 
 Install `Docker Engine <https://docs.docker.com/engine/install/>`__, `Docker Compose
 <https://docs.docker.com/compose/install/>`__, and the `NVIDIA Container Toolkit
 <https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html>`__.
-Place the Isaac Lab checkout under ``/home`` when Docker was installed with Snap.
+The container is tested with Docker Engine 26.0.0 and Docker Compose 2.25.0; use these versions or
+newer. Follow the `post-installation steps`_ so that Docker runs without ``sudo``.
 
-Clone Isaac Lab, then build, start, and enter the development container:
+The Isaac Sim documentation on `container installation`_ covers the same prerequisites in more
+detail, including how to obtain access to the Isaac Sim image.
 
-.. isaaclab-clone-commands::
+.. note::
+
+    Due to limitations with `snap <https://snapcraft.io/docs/home-outside-home>`_, please make sure
+    the Isaac Lab directory is placed under the ``/home`` directory tree when using docker.
+
+Container profiles
+~~~~~~~~~~~~~~~~~~
+
+A profile is a `Docker Compose profile <https://docs.docker.com/compose/how-tos/profiles/>`__:
+``docker-compose.yaml`` tags each service with one, and Compose starts only the services whose
+profile is active. Naming a profile therefore selects a matched set -- one service, one Dockerfile,
+one set of environment files, and one image name:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 20 20 24 24
+
+   * - Profile
+     - Compose service
+     - Dockerfile
+     - Environment files
+     - Built on top of
+   * - ``base``
+     - ``isaac-lab-base``
+     - ``Dockerfile.base``
+     - ``.env.base``
+     - the Isaac Sim image
+   * - ``ros2``
+     - ``isaac-lab-ros2``
+     - ``Dockerfile.ros2``
+     - ``.env.base`` + ``.env.ros2``
+     - the ``base`` image, built first
+   * - ``kitless``
+     - ``isaac-lab-kitless``
+     - ``Dockerfile.kitless``
+     - ``.env.kitless``
+     - nothing -- standalone, no Isaac Sim
+
+Every command below takes the profile as its first positional argument and defaults to ``base``.
+Only one profile applies at a time, and the resulting image and container are both named
+``isaac-lab-<profile>``. Pass ``--suffix`` to append a name suffix when you want several variants of
+the same profile side by side. Do not use ``--suffix`` with cluster deployments, whose export
+commands expect the unsuffixed image name.
+
+For what each image actually contains and how to choose between them, see :ref:`docker-images`.
+
+.. _container-lifecycle:
+.. _docker-example:
+.. _worked-docker-example:
+
+Start, run, and retrieve results
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+From the repository root on the host, build and start the default ``base`` container,
+then open a shell in it. Append a profile to target a different image:
 
 .. code-block:: bash
 
-   ./docker/container.py start
-   ./docker/container.py enter base
+    ./docker/container.py start
+    ./docker/container.py enter
 
-The container uses ``/isaac-sim/python.sh`` and mounts the repository's ``source`` and ``docs``
-directories for live editing. Use ``./docker/container.py stop`` to stop it and
-``./docker/container.py copy`` to retrieve logs, data, and documentation artifacts.
+Inside the container, run the logging example without a visualizer:
 
-For HPC, build the image on a machine with Docker, convert it to an Apptainer/Singularity image,
-and submit it with the cluster's SLURM or PBS workflow. Keep cluster-specific paths and scheduler
-settings outside the base image.
+.. code-block:: bash
 
-See :ref:`docker-cloud` for volume management, X11, image extensions, pre-built containers,
-worked examples, and complete cluster instructions.
+    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py --viz none
+
+The script writes simulation time at each step to
+``/workspace/isaaclab/logs/docker_tutorial/log.txt``. Stop the script with ``Ctrl+C``
+and type ``exit`` to return to the host shell. Retrieve the results before stopping
+the container:
+
+.. code-block:: bash
+
+    ./docker/container.py copy
+    ./docker/container.py stop
+
+The log is now at ``docker/artifacts/logs/docker_tutorial/log.txt`` on the host.
+The ``stop`` command removes the container and its Compose-managed volumes, including logs
+and caches; copy out anything you need first. The image remains. To remove it after stopping, run ``docker image rm isaac-lab-base``; the next ``start`` rebuilds it. See
+`Docker pruning <https://docs.docker.com/engine/manage-resources/pruning/>`__ for other cleanup options.
+
+.. dropdown:: Code for log_time.py
+   :icon: code
+
+   .. literalinclude:: ../../../scripts/tutorials/00_sim/log_time.py
+      :language: python
+      :linenos:
+
+.. note::
+
+    The image copies the repository to ``/workspace/isaaclab`` at build time, so edits made after the
+    build are not picked up automatically. To keep the development loop fast, the compose file
+    bind-mounts ``source``, ``scripts``, ``docs``, and ``tools`` from the host, so changes to those
+    directories appear inside the container immediately. Everything else requires a rebuild.
+
+``container.py`` command reference
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Run ``./docker/container.py --help`` to list commands and
+``./docker/container.py <command> --help`` for that command's arguments.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Command
+     - Description
+   * - ``build``
+     - Build the image without creating a container.
+   * - ``start``
+     - Build the image and start the container in the background.
+   * - ``enter``
+     - Open a Bash shell in the running container.
+   * - ``config``
+     - Print the merged Compose configuration. Use ``--output-yaml <path>`` to write it to a file instead.
+   * - ``copy``
+     - Copy logs, data, and built documentation to ``docker/artifacts`` on the host.
+   * - ``stop``
+     - Stop and remove the container and its Compose-managed volumes.
+
+Every command accepts the following arguments:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Argument
+     - Description
+   * - ``profile``
+     - Optional profile name; defaults to ``base``. Other profiles are ``ros2`` and ``kitless``.
+   * - ``--files [FILE ...]``
+     - Merge additional Compose YAML files after ``docker-compose.yaml``, in the supplied order.
+   * - ``--env-files [FILE ...]``
+     - Merge additional environment files after the profile defaults, in the supplied order.
+   * - ``--suffix [SUFFIX]``
+     - Append ``-SUFFIX`` to the image and container names. Omit it for unsuffixed names.
+   * - ``--info``
+     - Print the resolved container interface configuration instead of running the command.
+   * - ``-h``, ``--help``
+     - Show help and exit.
+
+Extending the Compose configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``--files`` and ``--env-files`` merge extra Compose and environment files into the generated
+configuration, which is how optional components are layered on without editing the checked-in files.
+Streaming to XR devices is the worked example -- it adds the CloudXR Runtime service alongside
+``base``:
+
+.. code:: bash
+
+    ./docker/container.py start --files docker-compose.cloudxr-runtime.patch.yaml --env-files .env.cloudxr-runtime
+
+Stop it with the same arguments. The teleoperation setup, firewall rules, and client connection
+steps are covered in :ref:`cloudxr-teleoperation`. Use ``./docker/container.py config`` to print the
+merged result when a combination does not behave as expected.
+
+What persists between runs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The compose file declares named volumes for Isaac Sim caches, logs, and your own data. They
+remain available while reusing a container, but ``container.py stop`` runs ``docker compose down
+--volumes`` and removes them. Run ``container.py copy`` before ``stop`` to preserve your results
+on the host.
+
+``container.py copy`` extracts the three volumes you are most likely to want on the host --
+``logs``, ``data_storage``, and ``docs/_build`` -- into ``docker/artifacts``. For anything else, use
+``docker cp``, for example ``docker cp isaac-lab-base:/workspace/isaaclab/logs .``.
+
+If you are upgrading from an Isaac Lab image that ran as ``root``, the existing volumes still hold
+root-owned files that the current uid/gid 1000 runtime user cannot write. Copy out anything worth
+keeping, then recreate them from the ``docker`` directory:
+
+.. code:: bash
+
+    docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+
+.. dropdown:: All named volumes and their container paths
+   :icon: file-directory
+
+   .. list-table::
+      :header-rows: 1
+      :widths: 23 45 32
+
+      * - Volume Name
+        - Description
+        - Container Path
+      * - isaac-cache-kit
+        - Stores cached Kit resources
+        - /isaac-sim/kit/cache
+      * - isaac-data-kit
+        - Stores Kit data
+        - /isaac-sim/kit/data
+      * - isaac-cache-ov
+        - Stores cached OV resources
+        - /root/.cache/ov
+      * - isaac-cache-pip
+        - Stores cached pip resources
+        - /root/.cache/pip
+      * - isaac-cache-gl
+        - Stores cached GLCache resources
+        - /root/.cache/nvidia/GLCache
+      * - isaac-cache-compute
+        - Stores cached compute resources
+        - /root/.nv/ComputeCache
+      * - isaac-cache-uv
+        - Stores uv downloads for the kit-less profile
+        - /home/isaaclab/.cache/uv
+      * - isaac-cache-warp
+        - Stores Warp kernels for the kit-less profile
+        - /home/isaaclab/.cache/warp
+      * - isaac-logs
+        - Stores logs generated by Omniverse
+        - /root/.nvidia-omniverse/logs
+      * - isaac-carb-logs
+        - Stores logs generated by carb
+        - /isaac-sim/kit/logs/Kit/Isaac-Sim
+      * - isaac-data
+        - Stores data generated by Omniverse
+        - /root/.local/share/ov/data
+      * - isaac-docs
+        - Stores documents generated by Omniverse
+        - /root/Documents
+      * - isaac-lab-docs
+        - Stores documentation of Isaac Lab when built inside the container
+        - /workspace/isaaclab/docs/_build
+      * - isaac-lab-logs
+        - Stores logs generated by Isaac Lab workflows when run inside the container
+        - /workspace/isaaclab/logs
+      * - isaac-lab-data
+        - Stores whatever data users may want to preserve between container runs
+        - /workspace/isaaclab/data_storage
+
+   Run ``docker volume ls`` on the host to find the actual names, which include the Compose project
+   prefix, then use ``docker volume inspect <volume-name>``. The ``kitless`` profile
+   uses the uv and Warp caches and shares the documentation, logs, and data volumes with the others.
+
+Display forwarding with X11
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+X11 forwarding lets GUI applications started inside the container display on the host. The first
+``start`` asks whether to enable it and records the answer in ``docker/.container.cfg``. To change it
+later, set ``X11_FORWARDING_ENABLED`` to ``0`` or ``1`` in that file and run ``start`` again -- the
+rebuild is what applies the change.
+
+.. _`NVIDIA Software License Agreement`: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement
+.. _`container installation`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_container.html
+.. _`post-installation steps`: https://docs.docker.com/engine/install/linux-postinstall/
+
+.. _docker-images:
+
+Container images
+~~~~~~~~~~~~~~~~
+
+Each :ref:`profile <deployment-docker>` builds a different image. They differ in what simulation and
+rendering stack they carry, which decides how large they are and what they can run. This section
+describes the images themselves; to build or run one, name its profile in the
+:ref:`container lifecycle <container-lifecycle>`.
+
+Choosing an image
+^^^^^^^^^^^^^^^^^
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 40 48
+
+   * - Profile
+     - Contains
+     - Use it when
+   * - ``base``
+     - Isaac Lab on the NVIDIA Isaac Sim image, with Kit and RTX rendering
+     - You want the default environment, GUI rendering, or anything that needs Isaac Sim
+   * - ``ros2``
+     - The ``base`` image plus ROS 2 Humble
+     - You are bridging Isaac Lab to ROS 2 nodes
+   * - ``kitless``
+     - Ubuntu 24.04, Python 3.12, Newton and OVPhysX physics, OVRTX rendering, four RL libraries
+     - You are training with Newton and want the smallest image; also the only one with no Isaac Sim EULA
+
+Building an image
+^^^^^^^^^^^^^^^^^
+
+Every image builds with the same command; only the profile name changes. From the repository root,
+build the image for a profile from the table above, for example ``kitless``:
+
+.. code:: bash
+
+    ./docker/container.py build kitless
+
+``./docker/container.py start kitless`` also builds the image before starting the container. Without
+Compose, build the profile's Dockerfile directly; it uses the same default paths:
+
+.. code:: bash
+
+    docker build --pull --file docker/Dockerfile.kitless --tag isaac-lab-kitless .
+
+Release images are also published pre-built, so building is optional; see :ref:`docker-ngc-images`.
+
+Base image
+^^^^^^^^^^
+
+``Dockerfile.base`` overlays Isaac Lab's dependencies onto the Isaac Sim container, so it inherits
+Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it builds against is set
+by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
+container.
+
+ROS 2 image
+^^^^^^^^^^^
+
+``Dockerfile.ros2`` installs ROS 2 Humble from an `apt package`_ and sources it in the runtime
+user's ``.bashrc``. ``ROS2_APT_PACKAGE`` in ``.env.ros2`` selects the package set, defaulting to
+``ros-base``. The image defaults to the ``FastRTPS`` middleware; ``CycloneDDS`` is also supported, and
+both can be `tuned`_ through their ``.xml`` files under ``docker/.ros``. See `various middleware`_
+for the trade-offs.
+
+.. dropdown:: Parameters in .env.ros2
+   :icon: code
+
+   .. literalinclude:: ../../../docker/.env.ros2
+      :language: bash
+
+Kit-less image
+^^^^^^^^^^^^^^
+
+The kit-less image drops Isaac Sim entirely and builds on Ubuntu 24.04 with Python 3.12. It carries
+Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL frameworks: RL Games, RSL-RL,
+Stable-Baselines3, and SKRL. The ``newton_gl``, ``newton_rtx``, ``viser``, and ``rerun`` visualizers are
+included. Use ``--viz newton_gl`` for local visualization with a display available in the container.
+``--viz newton_gl`` selects the OpenGL rasterizer; ``--viz newton_rtx`` selects the OVRTX
+path tracer. Both can render offscreen without Isaac Sim. To open their windows from a direct
+``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. The deprecated ``--viz newton`` alias
+selects GL; it does not choose between GL and RTX automatically.
+
+Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
+``docker run`` commands, pass ``--gpus all -e NVIDIA_DRIVER_CAPABILITIES=all``. The NVIDIA
+Container Toolkit exposes the host driver; avoid mounting a second copy of its Vulkan ICD.
+If multiple drivers are discovered, select the NVIDIA ICD available inside the container
+with ``VK_DRIVER_FILES`` (for example, ``/etc/vulkan/icd.d/nvidia_icd.json``).
+
+No visualizer is selected by default, so
+training runs headless unless you ask for one. The ``kit`` visualizer is the exception: it comes from
+Omniverse Kit, which this image does not contain.
+
+Unlike the other two, it bind-mounts ``apps`` in addition to ``source``, ``scripts``, ``tools``, and
+``docs``, and it keeps a uv cache and a Warp cache of its own.
+
+You do not have to build it locally. It is published alongside each Isaac Lab release in the same
+registry repository, distinguished by a ``-kitless`` tag suffix:
+
+.. code:: bash
+
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
+
+Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
+NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
+that several commands can share it. The ``isaac-lab-kitless-logs`` named volume keeps checkpoints
+after the container is removed:
+
+.. code:: bash
+
+    docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
+        -e NVIDIA_DRIVER_CAPABILITIES=all \
+        -v isaac-lab-kitless-logs:/workspace/isaaclab/logs \
+        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
+
+    docker exec isaac-lab-kitless \
+        isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+        --num_envs 16 presets=newton_mjwarp --max_iterations 5
+
+Replay in a browser with:
+
+.. code:: bash
+
+    docker exec --interactive --tty isaac-lab-kitless \
+        isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct \
+        --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
+
+Viser is reachable through the host network without forwarding a desktop display. Stop playback
+with ``Ctrl+C`` without stopping the container. Copy the logs to the host with
+``docker cp isaac-lab-kitless:/workspace/isaaclab/logs ./logs``.
+
+Check which architectures a tag publishes with ``docker buildx imagetools inspect <image:tag>``
+before choosing a host.
+
+.. _docker-ngc-images:
+
+Pre-built image from NGC
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+A minimal pre-built container carries a small set of Isaac Sim and Omniverse dependencies with Isaac
+Lab already built in, under ``/workspace/isaaclab``. The example below runs without a
+forwarded desktop display. Choose the image profile for the physics and rendering stack
+you need, and configure graphics access separately when rendering.
+
+.. note::
+
+  Use an explicit published version tag for reproducible runs. The examples below use
+  ``3.0.0-rc1``; the corresponding kit-less image uses ``3.0.0-rc1-kitless``.
+
+.. attention::
+
+  Images from 3.0.0-beta2 onward run as a **non-root** user, so those bind-mount directories must be
+  writable by uid/gid 1000. Docker creates any missing one as ``root``, which the runtime user cannot
+  write to, producing errors such as
+  ``PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'``.
+  Create them first:
+
+  .. code:: bash
+
+     mkdir -p ~/docker/isaac-sim/{cache/kit,cache/ov,cache/pip,cache/glcache,cache/computecache,logs,data,documents}
+     sudo chown -R 1000:1000 ~/docker/isaac-sim
+
+Because it is run outside Compose, the Isaac Sim cache directories have to be mounted by hand,
+otherwise every start recompiles shaders:
+
+.. code:: bash
+
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+
+The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
+``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
+and need no display. To enable rendering through X11 forwarding, let local clients use the host X
+server and pass the display into the container:
+
+.. code:: bash
+
+  xhost +local:
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -e DISPLAY \
+     -e MUJOCO_GL=disable \
+     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+
+``xhost +local:`` lets every local client use your display, not only the container; run
+``xhost -local:`` on the host to revoke it when you are done.
+``MUJOCO_GL=disable`` is needed by the Newton viewers in images released before it was set in the
+image: those inherit ``MUJOCO_GL=egl``, which fails the windowed viewer with
+``Attempt to retrieve context when no valid context``. The Compose workflow sets up X11 forwarding
+for you; see :ref:`deployment-docker`. Follow the graphics-driver requirements above for GL or RTX.
+
+Runtime user
+^^^^^^^^^^^^
+
+The base, ROS 2, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000. When
+running one of these images directly with ``docker run``, keep that default user instead of passing
+``--user``, so that the runtime home and cache directories stay writable. Named volumes inherit the
+image's ownership; make host bind mounts writable with ``sudo chown -R 1000:1000 <directory>``.
+
+Python interpreter
+^^^^^^^^^^^^^^^^^^
+
+Every image installs from ``uv.lock`` into a Python 3.12 virtual environment at
+``/opt/isaaclab-venv``. On the Isaac Sim-based images the environment is built on Isaac Sim's own
+interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim`` symlink;
+``isaaclab.sh`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
+to the right one, so scripts are run the same way regardless of image.
+
+.. _`apt package`: https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html#install-ros-2-packages
+.. _`various middleware`: https://docs.ros.org/en/humble/How-To-Guides/Working-with-multiple-RMW-implementations.html
+.. _`tuned`: https://docs.ros.org/en/foxy/How-To-Guides/DDS-tuning.html
 
 .. _installation-method-cloud:
 
@@ -1123,7 +1640,7 @@ and the complete workstation lifecycle.
 Next steps
 ----------
 
-Continue with the :doc:`quickstart </source/setup/quickstart>` to run a task and train a policy.
+Continue with the :doc:`quickstart </source/isaaclab/quickstart>` to run a task and train a policy.
 For asset caching, Nucleus migration, and regional asset services, see
 :doc:`/source/how-to/manage_asset_downloads`. For setup, launch, and performance problems, use the
 :doc:`troubleshooting reference </source/refs/troubleshooting>`.

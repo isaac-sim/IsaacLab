@@ -815,7 +815,7 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
      - ``[NewtonGLVisualizerCfg(...), RerunVisualizerCfg(...)]``
      - All visualizers disabled; no window, no capture source.
 
-For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
+For migration context, see :doc:`/source/isaaclab/migrating`.
 
 
 .. _visualization-partial-visualization:
@@ -1033,4 +1033,4 @@ See Also
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
 - :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
-- :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference
+- :doc:`/source/isaaclab/migrating`: visualizer migration reference

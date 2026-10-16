@@ -10,6 +10,10 @@ in robotics research (such as reinforcement learning, learning from demonstratio
 `NVIDIA Isaac Sim`_ for photo-realistic scenes and RTX rendering, and can also run standalone with the Newton physics backend
 for fast and efficient simulation without requiring a full Isaac Sim installation.
 
+Isaac Lab 3.0 introduces a :doc:`multi-backend architecture <source/concepts/backends_and_presets>`
+with shared asset, sensor, and scene APIs. Task presets let you select supported physics and rendering
+configurations, while visualization can be chosen independently.
+
 The core objectives of the framework are:
 
 - **Modularity**: Easily customize and add new environments, robots, and sensors.
@@ -17,10 +21,12 @@ The core objectives of the framework are:
 - **Openness**: Remain open-sourced to allow the community to contribute and extend the framework.
 - **Batteries-included**: Include a number of environments, sensors, and tasks that are ready to use.
 
-Key features available in Isaac Lab include fast and accurate physics simulation powered by both the
-**PhysX** and **Newton** backends, tiled rendering APIs for vectorized rendering with support for both
-**RTX** and **Newton** camera sensors, domain randomization for improving robustness and
-adaptability, and support for running in the cloud.
+Key features available in Isaac Lab include GPU-accelerated physics simulation with **PhysX** and
+**Newton**, an experimental **OvPhysX** backend, vectorized camera rendering with **Newton Warp** and
+**RTX** renderers, domain randomization, and support for running in the cloud. Newton also supports
+soft bodies, cloth, and experimental cables through its VBD solver, along with experimental particle
+materials and coupled solvers for rigid--deformable interactions. See
+:doc:`source/concepts/physics_backends` for backend support and maturity.
 
 .. note::
 
@@ -30,9 +36,9 @@ adaptability, and support for running in the cloud.
 Additionally, Isaac Lab provides a variety of environments, and we are actively working on adding more environments
 to the list. These include classic control tasks, fixed-arm and dexterous manipulation tasks, legged locomotion tasks,
 and navigation tasks. Browse the registered tasks and build a command in the
-:doc:`environment browser <source/setup/environments>`.
+:doc:`environment browser <source/isaaclab/environments>`.
 
-Isaac lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
+Isaac Lab is developed with specific robot assets that are now **Batteries-included** as part of the platform and are ready to learn! These robots include...
 
 - **Classic** Cartpole, Humanoid, Ant
 - **Fixed-Arm and Hands**: UR10, Franka, Allegro, Shadow Hand
@@ -91,22 +97,23 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
    :caption: Isaac Lab
 
-   source/setup/ecosystem
-   source/setup/installation/index
-   source/setup/environments
-   source/setup/quickstart
-   source/setup/tutorial
-   source/setup/demos
-   source/setup/interactive_demos
+   source/isaaclab/ecosystem
+   source/isaaclab/installation
+   source/isaaclab/environments
+   source/isaaclab/quickstart
+   source/isaaclab/tutorial
+   source/isaaclab/demos
+   source/isaaclab/interactive_demos
    source/how-to/index
-   source/workflows/index
-   source/migration/migrating_to_isaaclab_3-0
+   source/isaaclab/migrating
 
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
    :caption: Concepts
 
    source/concepts/backends_and_presets
@@ -127,17 +134,21 @@ Table of Contents
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :titlesonly:
    :caption: Features
 
    source/features/isaac_teleop
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
+   source/features/hpc_clusters
+   source/features/cloud_deployment
 
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :titlesonly:
    :caption: Developer Tools
 
    source/developer-tools/editor_setup
@@ -149,7 +160,8 @@ Table of Contents
 
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 1
+   :titlesonly:
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
@@ -160,19 +172,21 @@ Table of Contents
 
 .. toctree::
    :maxdepth: 1
-   :caption: Resources
    :titlesonly:
+   :caption: Resources
 
    source/policy_deployment/index
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
    :caption: Source API
 
    source/api/index
 
 .. toctree::
    :maxdepth: 1
+   :titlesonly:
    :caption: References
 
 
