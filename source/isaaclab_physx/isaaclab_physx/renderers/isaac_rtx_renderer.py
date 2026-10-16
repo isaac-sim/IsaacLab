@@ -186,8 +186,8 @@ class IsaacRtxRenderer(BaseRenderer):
     Requires Isaac Sim.
     """
 
-    def __init__(self, cfg: IsaacRtxRendererCfg):
-        self.cfg = cfg
+    def __init__(self, cfg: IsaacRtxRendererCfg, *, sim: SimulationContext):
+        super().__init__(cfg, sim=sim)
         # Enable Replicator only when the Isaac RTX renderer is selected. Declaring it
         # in a Kit experience would resolve its bundled omni.warp.core dependency at startup.
         enable_extension("omni.replicator.core")
@@ -200,9 +200,8 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
-        sim = SimulationContext.instance()
-        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
-        self._fabric.bind_transforms(sim.get_scene_data_provider())
+        self._fabric = self._sim.get_or_create_backend(FabricBackendCfg(stage=self._sim.stage, device=self._sim.device))
+        self._fabric.bind_transforms(self._sim.get_scene_data_provider())
 
     @property
     def visual_material_writer(self):
@@ -581,12 +580,11 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def update_transforms(self) -> None:
         """Update shared Fabric transforms and propagate the visual hierarchy."""
-        self._fabric.update_transforms(SimulationContext.instance().get_scene_data_provider())
+        self._fabric.update_transforms(self._sim.get_scene_data_provider())
 
     def update_geometries(self) -> None:
         """Update shared Fabric geometry from SDP's visual point publication."""
-        sim = SimulationContext.instance()
-        self._fabric.update_geometries(sim.get_scene_data_provider(), sim.render_generation)
+        self._fabric.update_geometries(self._sim.get_scene_data_provider(), self._sim.render_generation)
 
     def update_camera(
         self,

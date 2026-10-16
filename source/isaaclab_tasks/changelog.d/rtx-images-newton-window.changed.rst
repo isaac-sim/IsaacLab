@@ -1,0 +1,2 @@
+* Updated the coffee demo to publish grains and liquid materials through the scene camera's shared RTX renderer. Authored its backdrop before camera initialization and removed its Newton RTX viewer subclass.
+* Restored coffee geometry publication in GL frames and moved RTX publication to camera capture, including recording without a window. Kept liquid colors and grain widths on the GPU during RTX updates.

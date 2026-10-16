@@ -77,12 +77,16 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
     spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 2, ("/World/envs/env_0/Camera",), 2)
-    return OVRTXCameraRenderData(spec, "cpu", render_scope_name="RenderCamera_0")
+    return OVRTXCameraRenderData(spec, render_scope_name="RenderCamera_0")
 
 
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer._sim = SimulationContext.instance()
+    renderer.meshes, renderer.markers, renderer.geometry_callbacks = {}, {}, {}
+    renderer.marker_groups = ()
+    renderer.geometry_resources = contextlib.ExitStack()
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
     cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
     renderer.backend.stage = renderer.backend.paths = None
@@ -90,11 +94,14 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
     renderer._initialized_scene = False
+    renderer._device = "cpu"
+    renderer._warp_device = wp.get_device("cpu")
     renderer._next_camera_id = 0
     renderer._transform_writes = _AsyncWriteBuffers()
     renderer._geometry_writes = _AsyncWriteBuffers()
     renderer._geometry_offsets = {}
     renderer._use_ovstage = False
+    renderer._clone_plan = types.SimpleNamespace(env_template="/World/envs/env_{}")
     return renderer
 
 
@@ -145,8 +152,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     }
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", devices.__getitem__)
 
-    renderer = OVRTXRenderer(OVRTXRendererCfg())
-    shared = OVRTXRenderer(renderer.cfg)
+    renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
+    shared = OVRTXRenderer(renderer.cfg, sim=SimulationContext.instance())
 
     assert shared.backend is renderer.backend
     assert loaded == [str(dependency)]
@@ -156,7 +163,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     assert len(SimulationContext.instance()._backend_registry) == 1
-    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
+    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True), sim=SimulationContext.instance())
     assert other.backend is not renderer.backend
     renderer.close()
     renderer.close()
@@ -289,6 +296,11 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     if not use_ovstage:
         UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+    # RTX clips deforming meshes to initial partition bounds; this off-camera wall encloses their motion.
+    # https://docs.omniverse.nvidia.com/materials-and-rendering/latest/cameras.html#limitations
+    wall = UsdGeom.Cube.Define(stage, "/World/envs/env_0/Wall")
+    wall.CreateSizeAttr(8.0)
+    wall.AddTranslateOp().Set(Gf.Vec3d(10, 0, 3))
     batches, initial_points = [], []
     for index, x in enumerate((0.0, 2.0)):
         camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
@@ -326,15 +338,15 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
         batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
 
-    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=asynchronous))
+    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=asynchronous), sim=SimulationContext.instance())
     publication = types.SimpleNamespace(
         transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
     )
     renderer._sdp = SceneDataProvider(publication)
-    renderer._exported_usd_string = stage.ExportToString()
-    renderer._clone_plan = make_clone_plan(
+    plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
+    SimulationContext.instance().get_clone_plan = lambda: plan
     cameras = []
 
     def camera_scope_exists(rd):
@@ -358,6 +370,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         )
 
     try:
+        renderer.prepare_stage(stage, 2)
+        assert renderer.visual_material_writer is not None
         for index, (height, width) in enumerate(((480, 640), (384, 512))):
             cfg = _make_camera_cfg(
                 ["rgb", "distance_to_image_plane"] if index == 0 else ["rgb", "distance_to_image_plane", "normals"]
@@ -628,7 +642,8 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
 
     monkeypatch.setattr(ovrtx_renderer_module, "OVRTX_VERSION", Version(version))
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._initialized_scene = False
+    renderer._initialized_scene = True
+    renderer._device = "cpu"
     renderer._next_camera_id = 0
     renderer._render_product_paths = []
     renderer._use_ovstage = use_ovstage
@@ -655,16 +670,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         return usd
 
     monkeypatch.setattr(ovrtx_renderer_module, "build_render_product_as_string", capture_render_product)
-
-    def initialize_first_camera(spec, render_data):
-        capture_render_product(spec, render_data)
-        renderer._render_product_paths.append(render_data.render_product_path)
-        renderer._camera_xform_binding = MagicMock()
-        renderer._camera_paths_list = object()
-        renderer._camera_xform_query = contextlib.nullcontext(object())
-        renderer._initialized_scene = True
-
-    monkeypatch.setattr(renderer, "_initialize_camera_render_data_from_spec", initialize_first_camera)
 
     @contextlib.contextmanager
     def fake_map(self, render_var):
@@ -929,39 +934,9 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert renderer._initialized_scene is True
 
 
-@pytest.mark.parametrize(
-    "camera_path",
-    [
-        "/World/Camera",
-        "/World/envs/env_1/Camera",
-        "/World/envs/env_00/Camera",
-        "/World/envs/env_0",
-        "/World/envs/env_0/",
-    ],
-)
-def test_create_render_data_rejects_cameras_outside_source_environment(camera_path):
-    """Camera registration requires a source camera beneath env_0 before touching the backend."""
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer.backend.renderer = MagicMock()
-    spec = CameraRenderSpec(
-        cfg=_make_camera_cfg(["depth"]),
-        device="cpu",
-        num_instances=2,
-        camera_prim_paths=(camera_path,),
-        view_count=2,
-    )
-
-    with pytest.raises(ValueError, match="/World/envs/env_0/"):
-        renderer.create_render_data(spec)
-
-    assert not renderer.backend.renderer.mock_calls
-
-
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
-    """Distinct cameras, including a prototype-only wrist camera, bind every environment independently."""
+    """Replicated and global cameras bind their own paths and retain independent calibration."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
@@ -975,34 +950,40 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     renderer.backend.paths = MagicMock()
     renderer.backend.paths.create_path_list_from_strings.side_effect = tuple
     renderer.backend.stage.query_from_path_list.side_effect = lambda paths: contextlib.nullcontext(object())
-    for name in ("add_usd_reference_from_string", "apply_usd_changes", "remove_usd"):
+    for name in ("open_usd_from_string", "add_usd_reference_from_string", "apply_usd_changes", "remove_usd"):
         monkeypatch.setattr(ovrtx_renderer_module.ovstage.population, name, MagicMock())
     paths = [
         [f"/World/envs/env_{i}/{name}" for i in range(2)] for name in ("CameraA", "Robot/ee_link/palm_link/CameraB")
     ]
+    paths.append(["/World/PerspectiveCamera"])
     cameras = [
         renderer.create_render_data(
             CameraRenderSpec(
                 cfg=_make_camera_cfg(["depth"]),
                 device="cpu",
-                num_instances=2,
-                view_count=2,
+                num_instances=len(paths[index]),
+                view_count=len(paths[index]),
                 camera_prim_paths=camera_paths,
             )
         )
-        for camera_paths in (paths[0], paths[1][:1])
+        for index, camera_paths in enumerate((paths[0], paths[1][:1], paths[2]))
     ]
+    assert not vars(renderer).keys() & {"_camera_xform_binding", "_camera_xform_query", "_camera_paths_list"}
     monkeypatch.setattr(wp, "get_stream", lambda device: types.SimpleNamespace(cuda_stream=99))
     parameters = wp.zeros((5, 2), dtype=wp.float32, device="cpu")
     renderer.update_camera_intrinsics(cameras[1], wp.zeros(2, dtype=wp.mat33f, device="cpu"), parameters)
     if use_ovstage:
         assert renderer.backend.stage.write_attributes.call_args.args[0] is cameras[1].camera_xform_query
         bound_paths = [call.args[0] for call in renderer.backend.paths.create_path_list_from_strings.call_args_list]
-        assert bound_paths == [[cameras[0].render_product_path], paths[0], [cameras[1].render_product_path], paths[1]]
+        assert bound_paths == [
+            entry
+            for camera, targets in zip(cameras, paths, strict=True)
+            for entry in ([camera.render_product_path], targets)
+        ]
     else:
         bound_paths = [call.kwargs["prim_paths"] for call in renderer.backend.renderer.bind_attribute.call_args_list]
         binding_count = 1 + len(ovrtx_renderer_module._CAMERA_INTRINSIC_ATTRIBUTES)
-        assert bound_paths == [paths[0]] * binding_count + [paths[1]] * binding_count
+        assert bound_paths == [targets for targets in paths for _ in range(binding_count)]
         assert all(not binding.write_async.called for binding in cameras[0].intrinsic_bindings)
         for row, binding in enumerate(cameras[1].intrinsic_bindings):
             assert binding.write_async.call_args.args[0].ptr == parameters[row].ptr
@@ -1011,26 +992,6 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
         cameras[1].cleanup()
         assert all(binding.unbind.call_count == 1 for binding in bindings)
         assert all(not binding.unbind.called for binding in cameras[0].intrinsic_bindings)
-
-    sensor_shape = (cameras[0].height, cameras[0].width)
-    with pytest.raises(ValueError, match="renderer-owned perspective"):
-        renderer.resize_render_product(cameras[0], width=64, height=32)
-    spec = CameraRenderSpec(_make_camera_cfg(["rgb"]), "cpu", 1, (), 1)
-    perspective = OVRTXCameraRenderData(spec, "cpu", "Perspective")
-    renderer.backend.renderer.write_attribute.reset_mock()
-    renderer.backend.stage.write_attribute.reset_mock()
-    renderer.resize_render_product(perspective, width=64, height=32)
-    assert (perspective.height, perspective.width) == (32, 64)
-    assert (cameras[0].height, cameras[0].width) == sensor_shape
-    if use_ovstage:
-        renderer.backend.paths.create_path_list_from_strings.assert_called_with([perspective.render_product_path])
-        calls = renderer.backend.stage.write_attribute.call_args_list
-        values = {call.args[1]: call.kwargs["tensors"] for call in calls}
-    else:
-        calls = renderer.backend.renderer.write_attribute.call_args_list
-        assert all(call.args[0] == [perspective.render_product_path] for call in calls)
-        values = {call.args[1]: call.args[2] for call in calls}
-    np.testing.assert_array_equal(values["resolution"], [[64, 32]])
 
 
 class _RecordingBinding:
@@ -1057,7 +1018,6 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     render_data.resources.callback(render_data.camera_xform_binding.unbind)
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
-    renderer._camera_xform_binding = None
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._geometry_points_binding = _RecordingBinding(events, "geometry")
     renderer.backend.renderer = Backend()
@@ -1103,8 +1063,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     render_data.resources.callback(lambda: renderer.backend.stage.release_query("camera").wait())
     render_data.renderer_info = {"rgb": object()}
     renderer._camera_render_data.append(render_data)
-    renderer._camera_xform_query = None
-    renderer._camera_paths_list = None
     renderer._object_xform_query = "object"
     renderer._object_paths_list = "object"
     renderer._geometry_points_query = "geometry"
