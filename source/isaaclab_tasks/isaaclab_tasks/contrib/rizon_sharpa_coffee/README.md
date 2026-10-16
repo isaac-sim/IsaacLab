@@ -7,7 +7,7 @@ into a cup, and optionally stir using scripted IK.
 uv run isaaclab demo rizon-sharpa-coffee
 ```
 
-The default is a dry Newton GL scene with a 4 mm grid and five visual grains
+The default is a dry Newton GL scene with a 4 mm grid and one visual grain
 per physical particle. Add `--water` for a filled cup, physical coffee-to-liquid
 conversion, conservative colour diffusion and stirring. Kit and Newton RTX
 load the same full kitchen presentation; use `--water --visualizer kit` or
@@ -20,6 +20,29 @@ tool margins and solver iteration limits belong to `CoffeeDemoEnvCfg`.
 This is a demo: a complete visual showcase, like `teapot-fill`. Focused examples
 show an individual API or tuning method. This demo has no learning task or
 policy registration.
+
+The source bowl is approximately 110 × 103 mm, with its original 40 mm depth.
+`--bowl_scale` scales the hosted bowl horizontally; `--bowl_scale 1` restores
+its original size. The powder fill is capped independently, so enlarging the
+bowl adds room without adding particles. Smaller bowls reduce the fill to fit.
+The scoop follows the powder pile. Completion requires at least 1 g of coffee
+in the cup as well as the configured delivery fraction, so reducing the fill
+does not lower the minimum successful dose.
+The script starts near the powder, curls the spoon level inside it, lifts clear
+away from the arm, and follows a low arc to the nearby cup before pouring and
+moving directly into stirring.
+The initial carry arc stays over the bowl so loose rim grains can fall back
+before the spoon moves toward the cup.
+
+The shallow cup is 56 mm tall with a circular side handle. Its water seed is
+chosen to settle near 80% full. Coffee uses physical sampling at up to 1.5 mm,
+with deterministic position jitter of ±35% of that spacing. Denser sampling
+preserves the source volume instead of multiplying passive rendering grains.
+Water sampling follows half the solver grid spacing. Both materials share the
+same APIC MPM grid.
+Liquid rendering uses the native particle surface with visual cells at most
+1 mm wide, independently of the physics grid. Spatial field smoothing and mild
+anisotropy suppress sampling ridges while preserving the larger stirring waves.
 
 ## Code layout
 
@@ -54,11 +77,13 @@ Use Isaac Lab's uv environment, Newton and a CUDA-capable NVIDIA GPU. Standalone
 RTX needs the `ovrtx` extra; Kit needs an Isaac Sim runtime. Assets are loaded
 through the existing USD spawner and asset resolver.
 
-The fixed bowl, cup, spoon, table and prepared kitchen are supplied at
+The fixed bowl, shallow cup, spoon, table and prepared kitchen are supplied at
 `{ISAACLAB_NUCLEUS_DIR}/Environments/RizonSharpaCoffee`. The bundle includes
 `walnut.png`, `CoffeeWater.mdl`, `kitchen.usda`, the collected kitchen geometry,
 materials and textures in `Kitchen/`, the prepared robot in `Robot/`, licenses
 and checksum manifests.
+The shallow cup is supplied as `cup_shallow.usda`; its visible shell and exact
+triangle collider share the same geometry.
 Props are authored in metres with Z up; their default
 prim is `/Asset`. The exact concave spoon triangles and material groups are
 required for MPM contact. Assets load without runtime generation.
@@ -76,8 +101,11 @@ standard asset loader; the demo does not generate replacements.
 The prepared Rizon/Sharpa robot reuses the licensed Fabrics-Sim USD and textures
 from the RJ45 insertion scene, with two malformed visual normals arrays blocked
 in a separate USD layer. It loads from `Robot/` under the selected bundle root.
-`ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` can select a separate robot folder.
-That folder must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
+`Robot/` must include `rizon4s_sharpa.usda`, its source USD and `textures/`.
+`ISAACLAB_COFFEE_ASSET_ROOT` selects the entire bundle, including the robot.
+The teapot/RJ45 override `ISAACLAB_FABRICS_SIM_RIZON_SHARPA_ROOT` does not apply
+to coffee. To migrate an existing coffee override, place the prepared robot in
+`Robot/` under the selected coffee bundle.
 The source revision is `d0dbd1ddaefc4996db546949a7dfb37e39afcbeb`; its manifest
 records the source fingerprint and file checksums. The robot retains its original
 licensing and access restrictions and is not part of the BSD-licensed coffee
