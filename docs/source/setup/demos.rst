@@ -150,24 +150,18 @@ Focused examples
          :width: 100%
          :alt: Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina.
 
-      Three H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
-      different speeds using GPU-captured Newton VBD and scripted Newton IK.
-      This is calibrated fixed-base manipulation, not balance or an RL task;
-      the settings favor contact accuracy over real-time throughput.
+      Three H2 Plus robots with SHARPA hands pull tablecloths at different speeds
+      in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,
+      tableware, and contact-driven grasps; scripted IK controls the fixed-base robots.
 
       .. code-block:: bash
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
 
-      The Cloth Pull Challenge cantina loads from the configured Isaac Lab asset
-      root at ``Environments/TableClothPull/tablecloth_cantina.usdc``.
-      The backdrop keeps the original robot scale, manipulation, cloth physics,
-      and tableware, while hiding the duplicate ground graphic.
-      Use ``--speeds 4.0 2.0 1.5 0.75 0.5`` for the original five-trial comparison.
+      Use ``--speeds`` to choose the pull speeds.
 
-      Newton GL is the default. For the Isaac Sim RTX viewport inside Isaac Lab,
-      install the ``isaacsim`` extra and select ``--visualizer kit``. This changes
-      the visualizer while keeping the same camera, Newton VBD physics, and manipulation.
+      Newton GL is the default visualizer. For the Isaac Sim RTX viewport,
+      install the ``isaacsim`` extra and select ``--visualizer kit``.
 
       .. code-block:: bash
 
