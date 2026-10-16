@@ -236,8 +236,9 @@ class _ActuatorField:
     source: Callable[[ActuatorBaseCfg, list[str]], dict[str, Any]] | None = None
     """Values the config sets, keyed by joint name; joints left out keep the USD value. Defaults to :attr:`name`."""
 
-    new_prim_default: Any = None
-    """Value a new prim gets when the config leaves it unset, or a callable of the config and joint prim."""
+    new_prim_default: float | Callable[[ActuatorBaseCfg, Usd.Prim, bool], float | None] | None = None
+    """Value of a component the config adds when the config leaves it unset, or a callable of the config, the joint
+    prim and whether the actuator prim is new."""
 
     required: bool = False
     """Whether a component the config adds needs the value; Newton validates the components a USD prim keeps."""
@@ -304,7 +305,7 @@ def _author_group(
                 continue
             if value is None:
                 default = field.new_prim_default
-                value = default(cfg, joint_prim) if callable(default) else default
+                value = default(cfg, joint_prim, prim is None) if callable(default) else default
             if value is None:
                 if field.required:
                     raise ValueError(
@@ -420,13 +421,13 @@ def _configured_values(value: Any, joint_names: list[str], cast: type = float) -
     return dict.fromkeys(joint_names, cast(value))
 
 
-def _new_prim_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim) -> float | None:
-    """Return a new prim's effort limit for a joint *cfg* does not set.
+def _new_prim_effort_limit(cfg: ActuatorBaseCfg, joint_prim: Usd.Prim, new_prim: bool) -> float | None:
+    """Return the limit of an effort clamp the config adds for a joint it does not set.
 
-    A configured mapping resolves unmatched joints to zero, like the Isaac Lab actuator models.
-    Without a configured limit, the joint's authored USD drive limit applies.
+    On a new prim, a configured mapping resolves unmatched joints to zero, like the Isaac Lab actuator models.
+    Otherwise the joint's authored USD drive limit applies.
     """
-    if cfg.actuator_effort_limit is not None:
+    if new_prim and cfg.actuator_effort_limit is not None:
         return 0.0
     return _get_authored_joint_effort_limit(joint_prim)
 

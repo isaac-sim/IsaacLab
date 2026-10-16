@@ -307,14 +307,19 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
     remote_a = asset.GetPrimAtPath("/World/Robot/remote_a_remote_a_actuator")
     remote_a.AddAppliedSchema("NewtonMaxEffortClampingAPI")
     remote_a.CreateAttribute("newton:maxEffort", Sdf.ValueTypeNames.Float).Set(65.0)
+    pd_b = asset.GetPrimAtPath("/World/Robot/pd_b_pd_b_actuator")
+    pd_b.RemoveAppliedSchema("NewtonMaxEffortClampingAPI")
+    pd_b.RemoveProperty("newton:maxEffort")
     stage = _make_asset_stage(tmp_path, asset)
     # A component the asset lacks takes its joint's drive limit; a kept clamp keeps the asset's limit.
     for index, joint_name in enumerate(_JOINT_NAMES):
         joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
         UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(80.0 + index)
     cfgs = {
-        # A mapping that does not match pd_b keeps its asset gain; an unset delay is kept.
-        "legs": DelayedPDActuatorCfg(joint_names_expr=["pd_.*"], stiffness={"pd_a": 99.0}, damping=None),
+        # Mappings that do not match pd_b keep its asset gain and give its added clamp the drive limit, not zero.
+        "legs": DelayedPDActuatorCfg(
+            joint_names_expr=["pd_.*"], stiffness={"pd_a": 99.0}, damping=None, actuator_effort_limit={"pd_a": 5.0}
+        ),
         # IdealPD swaps the asset's DC clamp for a max-effort clamp.
         "dc_a": IdealPDActuatorCfg(joint_names_expr=["dc_a"], stiffness=None, damping=None),
         # A DC motor without a saturation effort keeps the asset's motor curve.
@@ -336,8 +341,8 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
 
     dc_b_curve = {"saturation_effort": 64.0, "velocity_limit": 8.0, "max_motor_effort": 54.0}
     expected = {
-        "pd_a": ({"kp": 99.0, "kd": 1.5}, {ClampingMaxEffort: {"max_effort": 21.0}, Delay: {"delay_steps": 2}}),
-        "pd_b": ({"kp": 22.0, "kd": 2.5}, {ClampingMaxEffort: {"max_effort": 32.0}, Delay: {"delay_steps": 4}}),
+        "pd_a": ({"kp": 99.0, "kd": 1.5}, {ClampingMaxEffort: {"max_effort": 5.0}, Delay: {"delay_steps": 2}}),
+        "pd_b": ({"kp": 22.0, "kd": 2.5}, {ClampingMaxEffort: {"max_effort": 81.0}, Delay: {"delay_steps": 4}}),
         "dc_a": ({"kp": 33.0, "kd": 3.5}, {ClampingMaxEffort: {"max_effort": 82.0}}),
         "dc_b": ({"kp": 1.0, "kd": 4.5}, {ClampingDCMotor: dc_b_curve}),
         "remote_a": ({"kp": 55.0, "kd": 5.5}, {ClampingDCMotor: {"saturation_effort": 5.0, "max_motor_effort": 84.0}}),
