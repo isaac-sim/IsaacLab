@@ -203,6 +203,9 @@ def cmd_check(args: argparse.Namespace) -> int:
         # Preserve origin shorthand for branches, but never shadow HEAD, revisions, or commit SHAs.
         if resolved_ref is None or resolved_ref == f"refs/heads/{args.base_ref}":
             refs.insert(0, f"origin/{args.base_ref}")
+    else:
+        # A branch named with a slash, such as ``exp/feature``, may only be fetched as ``origin/exp/feature``.
+        refs.append(f"origin/{args.base_ref}")
     for ref in refs:
         try:
             base_commit = run("git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}").strip()

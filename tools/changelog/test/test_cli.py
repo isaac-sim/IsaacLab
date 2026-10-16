@@ -99,6 +99,15 @@ def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, stat
         assert check(base_ref="HEAD") == 0
 
 
+def test_check_resolves_a_slashed_base_branch_fetched_only_from_origin(repo):
+    """CI fetches a base such as ``exp/feature`` as ``origin/exp/feature`` only."""
+    git(repo, "update-ref", "refs/remotes/origin/exp/feature", "HEAD")
+    git(repo, "switch", "-qc", "feature")
+    write(repo, {"source/pkg/code.py": "x = 1\n", FRAGMENTS + "a.skip": ""})
+    commit(repo, "change")
+    assert check(base_ref="exp/feature") == 0
+
+
 def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, capsys):
     write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", FRAGMENTS + "b.fixed.rst": "* Fixed y.\n"})
     commit(repo, "pending fragments")
