@@ -29,7 +29,7 @@ from typing import Literal
 SCHEMA_VERSION = "1.4"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
-PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
+PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "newton_feather_pgs", "ovphysx"]
 # "newton" selects Newton's built-in Warp renderer.
 RenderingBackend = Literal["none", "isaacsim_rtx", "ovrtx", "newton"]
 RunStatus = Literal["completed", "interrupted", "crashed"]
