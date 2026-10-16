@@ -44,7 +44,7 @@ Command Builder
 .. raw:: html
 
    <div class="environment-browser demo-browser" data-demo-browser>
-     <section class="environment-command-panel" aria-label="Isaac Lab program command builder">
+     <section class="environment-command-panel" aria-label="Isaac Lab demo command builder">
        <div class="environment-command-row environment-command-row-primary demo-command-row">
          <span class="environment-command-prefix" aria-hidden="true">uvx</span>
          <strong class="demo-command-selection" data-demo-name>Zoo</strong>
