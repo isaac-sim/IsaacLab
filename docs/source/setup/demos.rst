@@ -197,12 +197,17 @@ Run either backend:
      --physics newton_mjwarp --output logs/sonic_newton
 
    uv run --extra isaacsim --extra video isaaclab demo sonic \
-     --physics isaacsim_physx --output logs/sonic_physx
+     --physics isaacsim_physx --video --output logs/sonic_physx
 
-Newton records offscreen; PhysX opens a window to synchronize robot and particle
-visuals. Both save ``video.mp4`` in the selected output directory. Recording advances
+Without ``--viz``, Newton records offscreen with Kit/RTX and opens no simulation window;
+PhysX opens Kit and records only with ``--video``. Both commands above save
+``sonic_0000.mp4`` in the selected output directory (``logs/sonic`` when ``--output`` is omitted).
+The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
+
+Pass ``--viz newton_gl`` or ``--viz kit`` to open a Newton simulation window instead.
+With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC
 inference. PhysX keeps state buffers on the CPU for USD readback while particle

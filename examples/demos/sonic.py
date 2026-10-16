@@ -6,16 +6,18 @@
 """Run SONIC over gravel and sand using Newton MPM or PhysX PBD.
 
 Usage:
-    uv sync
+    uv sync --extra isaacsim --extra video
     uv pip install "huggingface-hub>=0.34" "onnxruntime-gpu>=1.22"
+    uv run --extra isaacsim --extra video isaaclab demo sonic
     uv run isaaclab demo sonic --viz newton_gl
     uv run --extra video isaaclab demo sonic --viz newton_gl --video
 
 The released planner and tracker are downloaded from nvidia/GEAR-SONIC on Hugging
 Face under their upstream model license. The robot USD is downloaded from the
-public Isaac asset server. Pass ``--video`` to record the selected capture-capable
-visualizer, or a backend-compatible headless visualizer when the selected one cannot
-be captured directly.
+public Isaac asset server. Newton runs offscreen and records with Kit/RTX by default,
+saving logs/sonic/sonic_0000.mp4. The full MPM scene can run much slower than real time.
+Pass ``--viz`` to select a visualizer; recording then requires ``--video``. PhysX opens
+Kit by default and also requires ``--video`` to record.
 """
 
 from __future__ import annotations
@@ -65,7 +67,9 @@ def main() -> None:
         choices=("newton_mjwarp", "isaacsim_physx"),
         help="Physics backend (default: newton_mjwarp)",
     )
-    parser.add_argument("--video", action="store_true", help="Record the traversal to an MP4 clip")
+    parser.add_argument(
+        "--video", action="store_true", help="Record an MP4 clip (automatic for Newton when --viz is omitted)"
+    )
     parser.add_argument("--output", type=Path, default=Path("logs/sonic"))
     parser.add_argument("--seconds", type=float, help="Simulation duration in seconds, independent of wall time")
     parser.add_argument("--max_steps", type=int, help="Stop after at most this many control steps")
@@ -86,8 +90,10 @@ def main() -> None:
     overrides.insert(0, "presets=granular")
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     is_physx = isinstance(cfg.sim.physics, PhysxCfg)
+    offline_default = not is_physx and args.visualizer is None
     if args.visualizer is None:
-        args.visualizer = ["kit" if is_physx else "newton_gl"]
+        args.visualizer = ["kit"] if is_physx else []
+    args.video = args.video or offline_default
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation
     num_steps = math.ceil(duration / step_dt)
@@ -96,13 +102,19 @@ def main() -> None:
     if args.video:
         cfg.video_recorders = [
             VideoRecorderCfg(
-                source="viz:kit" if is_physx else "viz",
+                source="viz:kit" if is_physx or offline_default else "viz",
                 output_dir=str(args.output),
                 output_filename_prefix="sonic",
                 video_length=num_steps,
                 fps=round(1 / step_dt),
             )
         ]
+    if offline_default:
+        print(
+            f"Running SONIC offscreen with Kit/RTX; recording to {args.output.resolve() / 'sonic_0000.mp4'}.\n"
+            "No simulation window will open. MPM can run much slower than real time; watch the terminal for progress.",
+            flush=True,
+        )
 
     from huggingface_hub import snapshot_download  # noqa: PLC0415
 

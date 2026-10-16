@@ -268,9 +268,11 @@ def test_g1_terrain_forwards_visualizer_selection(
 @pytest.mark.parametrize(
     ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides", "expected_video_source"),
     [
-        ((), NewtonCfg(), ["newton_gl"], ["presets=granular"], None),
+        ((), NewtonCfg(), [], ["presets=granular"], "viz:kit"),
+        (("--viz", "newton_gl"), NewtonCfg(), ["newton_gl"], ["presets=granular"], None),
         (("--viz", "none"), NewtonCfg(), [], ["presets=granular"], None),
         (("--viz", "rerun", "--video"), NewtonCfg(), ["rerun"], ["presets=granular"], "viz"),
+        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
         (
             ("--physics", "isaacsim_physx", "--video"),
             PhysxCfg(),
@@ -279,12 +281,19 @@ def test_g1_terrain_forwards_visualizer_selection(
             "viz:kit",
         ),
     ],
-    ids=("newton-default", "explicit-none", "streaming-viz-video", "physx-default-video"),
+    ids=(
+        "newton-default",
+        "explicit-gl",
+        "explicit-none",
+        "streaming-viz-video",
+        "physx-default",
+        "physx-default-video",
+    ),
 )
-def test_sonic_forwards_visualizer_and_only_configures_requested_video(
+def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
     monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides, expected_video_source
 ):
-    """SONIC must keep visualizer selection independent from its opt-in video recorder."""
+    """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
     script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
     namespace = runpy.run_path(str(script))
     main = namespace["main"]
