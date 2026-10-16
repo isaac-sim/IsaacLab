@@ -51,7 +51,7 @@ def _ovphysx_body_glob(body_expr: str) -> str:
     return sim_utils.path_expr_to_glob(body_expr.replace("{}", "*"))
 
 
-def _create_pose_binding(physx, pattern: str, tensor_type):
+def _create_pose_binding(physx: Any, pattern: str, tensor_type: Any) -> Any:
     """Bind the rigid-body poses matched by ``pattern`` with rows in numeric environment order.
 
     Variant batches are discovered in clone order, not environment order, so the binding is
