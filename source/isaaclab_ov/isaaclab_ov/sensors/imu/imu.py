@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import torch
 import warp as wp
@@ -56,7 +56,7 @@ class Imu(BaseImu):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the IMU sensor."""
 
-    _skips_unstepped_envs = True
+    _skips_unstepped_envs: ClassVar[bool] = True
 
     def __init__(self, cfg: ImuCfg):
         """Initializes the IMU sensor.

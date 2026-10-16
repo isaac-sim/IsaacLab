@@ -11,6 +11,8 @@ the ``1e-6`` due tolerance.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import pytest
 import warp as wp
@@ -58,7 +60,7 @@ class _SkippingLogSensor(_RefreshLogSensor):
     seen by each refresh, which contact sensors add to their air and contact times.
     """
 
-    _skips_unstepped_envs = True
+    _skips_unstepped_envs: ClassVar[bool] = True
 
     def __init__(self, update_period: float, device: str, num_envs: int = 2):
         super().__init__(update_period, device, num_envs)

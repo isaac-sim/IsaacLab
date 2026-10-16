@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import warp as wp
 from newton.sensors import SensorContact as NewtonContactSensor
@@ -59,7 +59,7 @@ class ContactSensor(BaseContactSensor):
     cfg: ContactSensorCfg
     """The configuration parameters."""
 
-    _skips_unstepped_envs = True
+    _skips_unstepped_envs: ClassVar[bool] = True
 
     def __init__(self, cfg: BaseContactSensorCfg | ContactSensorCfg):
         """Initializes the contact sensor object.

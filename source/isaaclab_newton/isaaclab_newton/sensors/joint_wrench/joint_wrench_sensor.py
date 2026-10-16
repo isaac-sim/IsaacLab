@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import warp as wp
@@ -52,7 +52,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
     __backend_name__: str = "newton"
     """The name of the backend for the joint wrench sensor."""
 
-    _skips_unstepped_envs = True
+    _skips_unstepped_envs: ClassVar[bool] = True
 
     def __init__(self, cfg: JointWrenchSensorCfg):
         """Initialize the Newton joint-wrench sensor.

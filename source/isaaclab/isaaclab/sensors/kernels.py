@@ -63,7 +63,8 @@ def update_outdated_envs_kernel(
         timestamp_last_update: Last update timestamp per env. Will be set to current timestamp for captured envs.
         elapsed_since_update: Time since the last refresh per env. Will be set to 0.0 for captured envs.
         period_offset: Time from the last reset to the last refresh per env, for envs whose update period
-            counts from that reset, and -1.0 for the other envs [s]. Will be set to 0.0 for skipped envs.
+            counts from that reset, and -1.0 for the other envs [s]. Will be set to 0.0 for skipped envs, and
+            increased by ``elapsed_since_update`` for captured envs whose update period counts from the reset.
         skips_unstepped_envs: Whether the sensor skipped envs not stepped since their last reset.
     """
     env = wp.tid()
