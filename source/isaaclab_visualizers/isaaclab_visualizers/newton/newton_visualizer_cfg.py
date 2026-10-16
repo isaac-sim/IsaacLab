@@ -10,6 +10,8 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any
 
+from isaaclab_ov.renderers import OVRTXRendererCfg
+
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -127,9 +129,11 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
 
 @configclass
 class NewtonRTXVisualizerCfg(VisualizerCfg):
-    """Newton ViewerRTX rendering a simulation-owned OVStage.
+    """Simulation-owned OVRTX rendering displayed in a Newton GL window.
 
-    Perspective sources use Newton's fixed-resolution render product; scene sources borrow sensor output.
+    Launch preparation expands perspective sources into ordinary scene CameraCfg entries.
+    All views borrow camera output. Scripts without a SceneCfg declare cameras through ReplicateSession,
+    construct them with instantiate(camera_cfg), and select them with SceneCameraCfg.
     Window resizing scales the displayed image without changing either source's resolution.
     Scene USD owns lighting, materials, and environment placement. Newton-model overlays,
     rigid-body dragging, and viewer-only lighting or world offsets are not supported.
@@ -149,8 +153,11 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
     copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
     quality convergence loop, disabled by default to keep interactive latency down."""
 
-    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-    """Build the Newton model supplying poses to the borrowed rendering stage."""
+    renderer_cfg: OVRTXRendererCfg = OVRTXRendererCfg()
+    """Shared scene renderer. Use the same configuration as scene cameras to share their instance.
+
+    Used when declaring perspective CameraCfg entries. SceneCameraCfg retains its sensor's renderer.
+    """
 
     streaming_view: bool = True
-    """Offer compatible scene sensors alongside the interactive RTX perspective camera."""
+    """Display the cameras declared by :attr:`view` or :attr:`cameras`; default to a perspective camera."""

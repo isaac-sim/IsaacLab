@@ -184,28 +184,26 @@ def ovstage_replicate(stage: ovstage.Stage, plan: ClonePlan, *, ordinal: int) ->
 
 @configclass
 class OvstageBackendCfg(BackendCfg):
-    """Identify the simulation-owned rendering stage for one visualizer instance."""
+    """Identify a simulation-owned native stage for consumers that borrow scene data."""
 
     class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
     viewer_id: int = 0
 
 
 class OvstageBackend:
-    """Own the native scene until the simulation has closed its borrowing viewers."""
+    """Own a native stage independently of a renderer or window."""
 
     def __init__(self, cfg: OvstageBackendCfg):
         """Create an empty stage for the configured consumer."""
         self.stage = create_ovstage("isaaclab.viewer")
         self._populated = False
 
-    def populate(self, stage: Usd.Stage, plan: ClonePlan | None) -> None:
-        """Export and clone the authored scene before a viewer attaches to it."""
+    def populate(self, stage: Usd.Stage, plan: ClonePlan) -> None:
+        """Export and clone the declared scene before consumers attach to it."""
         if self._populated:
             return
-        num_envs = len(plan.topology.world_prototype_layout) if plan is not None else 1
-        sources = None
-        if plan is not None:
-            sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
+        num_envs = len(plan.topology.world_prototype_layout)
+        sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
         usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
         ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
         if num_envs > 1:
@@ -214,7 +212,7 @@ class OvstageBackend:
         self._populated = True
 
     def close(self) -> None:
-        """Release the stage after all viewers have detached."""
+        """Release the stage after its consumers have detached."""
         if self.stage is not None:
             self.stage.destroy()
             self.stage = None

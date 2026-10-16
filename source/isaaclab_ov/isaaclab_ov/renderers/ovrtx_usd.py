@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender
+from pxr import Sdf, Usd, UsdGeom, UsdRender
 
 if TYPE_CHECKING:
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
@@ -233,21 +233,12 @@ def Scope "{render_data.render_scope_name}"
     }}
 }}
 '''
-    if spec.camera_prim_paths and not spec.render_settings:
+    if not spec.cfg.render_settings:
         return layer
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().ImportFromString(layer)
-    if not spec.camera_prim_paths:
-        camera = UsdGeom.Camera.Define(stage, render_data.camera_paths[0])
-        camera.CreateHorizontalApertureAttr(20.955)
-        camera.CreateVerticalApertureAttr(20.955 * spec.cfg.height / spec.cfg.width)
-        camera.CreateFocalLengthAttr(24.0)
-        camera.CreateHorizontalApertureOffsetAttr(0.0)
-        camera.CreateVerticalApertureOffsetAttr(0.0)
-        camera.CreateClippingRangeAttr((0.01, 1.0e6))
-        camera.AddTransformOp().Set(Gf.Matrix4d(1.0))
     product = stage.GetPrimAtPath(render_data.render_product_path)
-    for name, (type_name, value) in spec.render_settings.items():
+    for name, (type_name, value) in spec.cfg.render_settings.items():
         product.CreateAttribute(name, getattr(Sdf.ValueTypeNames, type_name)).Set(value)
     return stage.GetRootLayer().ExportToString()
 

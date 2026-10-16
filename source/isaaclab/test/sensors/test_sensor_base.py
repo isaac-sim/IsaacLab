@@ -149,6 +149,7 @@ def test_sensor_init(create_dummy_sensor, device, planned):
     if planned:
         sim.set_clone_plan(make_clone_plan((sensor_cfg,), ((0,),), 5))
     sensor = DummySensor(cfg=sensor_cfg)
+    global_sensor = DummySensor(cfg=sensor_cfg.replace(prim_path="/World/Light/dummy_sensor"))
 
     # Play sim
     sim.step()
@@ -157,6 +158,8 @@ def test_sensor_init(create_dummy_sensor, device, planned):
 
     assert sensor.is_initialized
     assert int(sensor.num_instances) == 5
+    assert global_sensor.is_initialized
+    assert global_sensor.num_instances == 1
 
     # test that the data is not updated
     for i in range(10):

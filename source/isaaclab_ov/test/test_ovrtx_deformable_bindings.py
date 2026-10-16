@@ -31,6 +31,9 @@ if not _MISSING_MODULES:
 def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer.geometry_callbacks = {}
+    renderer.markers = {}
+    renderer.marker_groups = ()
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer._device = "cpu"
     renderer._geometry_paths = []
@@ -39,7 +42,7 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer._geometry_writes = _AsyncWriteBuffers()
     renderer._transforms_timestamp = -1
     renderer._use_ovstage = False
-    renderer._init_fields_legacy()
+    renderer._object_xform_binding = renderer._geometry_points_binding = None
     renderer._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
     return renderer, renderer.backend.renderer
@@ -82,7 +85,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     publication.get_geometry_batches = read_points
     renderer._sdp = SceneDataProvider(publication)
     if use_ovstage:
-        renderer._init_fields_ovstage()
+        renderer._geometry_points_query = None
         renderer._current_ordinal = 7
         renderer.backend.paths = SimpleNamespace(create_path_list_from_strings=lambda paths: paths)
         renderer.backend.stage = MagicMock()

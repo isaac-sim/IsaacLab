@@ -24,6 +24,7 @@ import warp as wp
 from isaaclab.utils import clone, validate
 
 from .. import sim as sim_utils
+from ..cloner import path as cloner_path
 from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
@@ -267,7 +268,10 @@ class SensorBase(ABC):
         self._sim_physics_dt = sim.get_physics_dt()
         # Native clones need not have corresponding USD prims.
         clone_plan = sim.get_clone_plan()
-        if clone_plan is not None:
+        self._is_global = (
+            clone_plan is not None and cloner_path.match(self.cfg.prim_path, clone_plan.env_template) is None
+        )
+        if clone_plan is not None and not self._is_global:
             self._num_envs = len(clone_plan.topology.world_prototype_layout)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])

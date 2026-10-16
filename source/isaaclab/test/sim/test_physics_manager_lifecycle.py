@@ -305,7 +305,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
     for cfg_type, resources in groups if renderer_first else reversed(groups):
         for name, error in resources:
             context.get_or_create_backend(
-                cfg_type(class_type=lambda cfg, name=name, error=error: Resource(name, error))
+                cfg_type(class_type=lambda cfg, *, sim=None, name=name, error=error: Resource(name, error))
             )
     context.get_or_create_backend(SimpleNamespace(class_type=lambda cfg: Resource("data")))
     monkeypatch.setattr(SimulationContext, "_instance", context)
