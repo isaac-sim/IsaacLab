@@ -9,11 +9,9 @@ __all__ = [
     "handover_goal_distance_reward",
     "handover_reward",
     "evaluate_handover_success",
-    "reset_object_at_hold_point",
 ]
 
 from .commands import HandoverCommand
 from .commands_cfg import HandoverCommandCfg
-from .events import reset_object_at_hold_point
 from .rewards import evaluate_handover_success, handover_goal_distance_reward, handover_reward
 from isaaclab.envs.mdp import *

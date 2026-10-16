@@ -91,10 +91,16 @@ class HandoverGoal:
         torch.where(self._left.unsqueeze(-1), self._positions[1], self._positions[0], out=self.position)
         return switched
 
-    @property
-    def hold_positions(self) -> torch.Tensor:
-        """Object hold position at the right and left hand, in environment frames [m]. Shape is (2, num_envs, 3)."""
-        return self._positions
+    def start_position(self, env_ids: Sequence[int] | torch.Tensor | slice) -> torch.Tensor:
+        """Object start position for each episode: the hold point of the hand opposite its first goal.
+
+        Args:
+            env_ids: Environments whose episodes start.
+
+        Returns:
+            Start positions in environment frames [m]. Shape is (len(env_ids), 3).
+        """
+        return torch.where(self._left[env_ids].unsqueeze(-1), self._positions[0, env_ids], self._positions[1, env_ids])
 
     @property
     def left(self) -> torch.Tensor:

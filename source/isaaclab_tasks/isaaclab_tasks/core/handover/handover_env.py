@@ -279,16 +279,13 @@ class HandoverEnv(DirectMARLEnv):
 
         # reset goals; the ball starts in the hand opposite the first goal
         self._reset_target_pose(env_ids)
-        goal_left = self._goal.left[env_ids]
 
         # reset object
         object_default_pose = self.object.data.default_root_pose.torch.clone()[env_ids]
         object_default_vel = self.object.data.default_root_vel.torch.clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
 
-        object_default_pose[:, :3] = torch.where(
-            goal_left.unsqueeze(-1), self._goal.hold_positions[0, env_ids], self._goal.hold_positions[1, env_ids]
-        )
+        object_default_pose[:, :3] = self._goal.start_position(env_ids)
         object_default_pose[:, 0:3] = (
             object_default_pose[:, 0:3] + self.cfg.reset_position_noise * pos_noise + self.scene.env_origins[env_ids]
         )

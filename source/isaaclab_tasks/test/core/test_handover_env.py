@@ -66,13 +66,12 @@ def test_handover_alternates_after_cumulative_success_steps_and_resets_one_episo
     cfg = parse_env_cfg(task_name, device=device, num_envs=2)
     goal_cfg = cfg if direct else cfg.commands.object_pose
     goal_cfg.success_steps_required = 3
+    # the assertions below follow the fixed right-to-left first transfer
+    goal_cfg.randomize_start_hand = False
+    goal_cfg.reset_position_noise = 0.0
     if direct:
-        # the assertions below follow the fixed right-to-left first transfer
-        cfg.randomize_start_hand = False
-        cfg.reset_position_noise = 0.0
         cfg.reset_dof_pos_noise = 0.0
     else:
-        cfg.events.reset_object.params["pose_range"] = {}
         cfg.events.reset_right_hand.params["joint_position_noise"] = 0.0
         cfg.events.reset_left_hand.params["joint_position_noise"] = 0.0
     cfg.sim.gravity = (0.0, 0.0, 0.0)
