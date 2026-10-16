@@ -301,7 +301,7 @@ def test_schema_authoring_matches_lab_effort_limit_resolution():
         assert "NewtonActuatorDelayAPI" not in actuator_prim.GetAppliedSchemas()
 
 
-def test_configuration_overrides_only_the_values_it_sets(tmp_path):
+def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
     """Unset values keep the asset's actuator, and the config type keeps, swaps, or removes its components."""
     asset = _make_actuator_stage()
     remote_a = asset.GetPrimAtPath("/World/Robot/remote_a_remote_a_actuator")
@@ -325,7 +325,10 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path):
         "remote_b": DelayedPDActuatorCfg(joint_names_expr=["remote_b"], stiffness=None, damping=None, max_delay=0),
     }
 
-    author_actuator_prims(stage, "/World/Robot", cfgs)
+    with caplog.at_level(logging.WARNING):
+        author_actuator_prims(stage, "/World/Robot", cfgs)
+    # A warning names each joint whose asset components the config type does not model.
+    assert {name for name in _JOINT_NAMES if f"of joint '{name}'" in caplog.text} == {"dc_a", "remote_a", "remote_b"}
     # Authoring again overlays the same prims, so the stage does not change.
     authored = stage.GetRootLayer().ExportToString()
     author_actuator_prims(stage, "/World/Robot", cfgs)

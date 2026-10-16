@@ -327,7 +327,8 @@ def _plan_group(
             for field in layout.fields
             if field.disabled_by is not None and configured[field.attr].get(joint_name) == field.disabled_by
         }
-        remove = sorted(((present & _COMPONENT_APIS) - allowed) | (present & disabled))
+        dropped = sorted((present & _COMPONENT_APIS) - allowed)
+        remove = sorted({*dropped, *(present & disabled)})
         values = []
         for field in layout.fields:
             value = configured[field.attr].get(joint_name)
@@ -349,6 +350,11 @@ def _plan_group(
             logger.warning(
                 f"Actuator group '{group_name}' replaces the USD actuators of joint '{joint_name}': {reason}. Values"
                 " the configuration leaves unset use code defaults instead of the asset's."
+            )
+        if dropped:
+            logger.warning(
+                f"Actuator group '{group_name}' removes {dropped} from the USD actuator of joint '{joint_name}':"
+                f" {type(cfg).__name__} does not model them."
             )
         add = [s for s in dict.fromkeys([layout.drive, *(f.schema for f, _ in values)]) if s not in present]
         plans.append(

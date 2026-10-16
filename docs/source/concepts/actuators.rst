@@ -724,9 +724,10 @@ config is authored onto that prim:
 * Only the values the config sets are written, in the stage's edit target. A value left as ``None``,
   or a joint that a regex mapping does not match, keeps the asset's value through USD composition.
 * The config type decides the actuator's components. Clamping and delay schemas that the type does
-  not model are removed, a type that authors another clamp swaps it, and ``max_delay=0`` removes a
-  delay. A component the prim does not provide, such as a swapped-in clamp, gets the same defaults
-  as on a new prim: an unset ``actuator_effort_limit`` becomes the joint's USD drive limit.
+  not model are removed with a warning, a type that authors another clamp swaps it, and
+  ``max_delay=0`` removes a delay. A component the prim does not provide, such as a swapped-in clamp,
+  gets the same defaults as on a new prim: an unset ``actuator_effort_limit`` becomes the joint's
+  USD drive limit.
 * A component the config adds needs its required values, such as a DC motor's ``saturation_effort``,
   from the config. Otherwise authoring raises before it edits the stage. Newton validates the values
   of the components the asset's prim keeps.
