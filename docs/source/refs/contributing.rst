@@ -138,11 +138,15 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
-Browser-demo deployment bundles are hosted as Isaac Lab GitHub release assets. The docs workflow downloads
-the pinned archive, verifies its SHA-256, and stages it under ``docs/_build/demos/`` before publishing
-the Pages artifact. The source tree contains the staging script, documentation links, and small thumbnails.
-When publishing a new bundle, retain earlier version directories and update the archive URL and checksum
-together in ``.github/actions/_lib/stage-browser-demos.sh``. Run the staging step from the repository root:
+Browser-demo bundles and exporter sources are distributed through the permanent
+`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
+Reuse the ``interactive-releases`` publishing branch and upload commit-named archives to that same release.
+Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
+``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
+The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
+under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
+assets and preserve older links. The development source tree contains the staging script, documentation links,
+and small thumbnails. Run the staging step from the repository root:
 
 .. code-block:: bash
 
@@ -156,7 +160,7 @@ complete site locally, serve ``docs/_build`` over HTTP:
    uv run --no-project python -m http.server 8000 --directory docs/_build
 
 Open ``http://localhost:8000/current/index.html`` for the docs or
-``http://localhost:8000/demos/v3/`` for the demos. Downloaded ``docs-html`` artifacts include
+``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
 ``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
 The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
 
