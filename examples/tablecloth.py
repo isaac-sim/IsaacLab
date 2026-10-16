@@ -117,6 +117,7 @@ WINE_GLASS_USD = (
     "sm_dishware_glass_wine_a01_01.usd"
 )
 FORK_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Utensils/Fork_K01/sm_kitchenware_fork_k01_01.usd"
+CANTINA_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc"
 
 # Table coordinates are authored in centimeters; USD references do not convert stage units.
 TABLE_ASSET_SIZE = (91.44, 152.7302, 76.20)
@@ -681,9 +682,7 @@ TABLECLOTH_ASSETS = {
     ),
     "backdrop": AssetBaseCfg(
         prim_path="/World/Backdrop",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc"
-        ),
+        spawn=sim_utils.UsdFileCfg(usd_path=CANTINA_USD),
     ),
 }
 
@@ -1290,6 +1289,8 @@ def main() -> None:
         rigid_body_contact_buffer_size=256,
         rigid_body_particle_contact_buffer_size=8192,
     )
+    # Frame up to three trials at 4.6 m with a 27 mm lens; stations are 1.5 m apart.
+    # Wider rows use 20 mm and 1.16 m of camera distance per trial.
     camera_distance = max(4.6, 1.16 * len(speeds))
     sim_cfg = sim_utils.SimulationCfg(
         dt=step_dt / substeps,

@@ -153,12 +153,11 @@ Focused examples
       Three H2 Plus robots with SHARPA hands pull tablecloths at different speeds
       in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,
       tableware, and contact-driven grasps; scripted IK controls the fixed-base robots.
+      The contact settings prioritize accuracy over real-time throughput.
 
       .. code-block:: bash
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
-
-      Use ``--speeds`` to choose the pull speeds.
 
       Newton GL is the default visualizer. For the Isaac Sim RTX viewport,
       install the ``isaacsim`` extra and select ``--visualizer kit``.
