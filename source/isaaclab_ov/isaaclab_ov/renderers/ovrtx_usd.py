@@ -221,7 +221,6 @@ def Scope "{render_data.render_scope_name}"
         rel camera = [<{render_data.camera_paths[0]}>]
         uint[] deviceIds = [{device_id}]
         {bg_type_line}
-        float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
         rel orderedVars = [{ordered_vars}]
