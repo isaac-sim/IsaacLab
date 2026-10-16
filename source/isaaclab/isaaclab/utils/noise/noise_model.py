@@ -146,6 +146,8 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         # store the bias noise configuration
         self._bias_noise_cfg = noise_model_cfg.bias_noise_cfg
         self._bias = torch.zeros((num_envs, 1), device=self._device)
+        # zeros that the bias noise is applied to on reset; the noise functions never modify their input
+        self._zero_bias = torch.zeros_like(self._bias)
         self._num_components: int | None = None
         self._sample_bias_per_component = noise_model_cfg.sample_bias_per_component
 
@@ -162,7 +164,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         if env_ids is None:
             env_ids = slice(None)
         # sample a fresh bias; applying the noise to the previous bias would accumulate it for the "add" operation
-        self._bias[env_ids] = self._bias_noise_cfg.func(torch.zeros_like(self._bias[env_ids]), self._bias_noise_cfg)
+        self._bias[env_ids] = self._bias_noise_cfg.func(self._zero_bias[env_ids], self._bias_noise_cfg)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Apply bias noise to the data.
@@ -176,6 +178,7 @@ class NoiseModelWithAdditiveBias(NoiseModel):
         if self._sample_bias_per_component and self._num_components is None:
             self._num_components = math.prod(data.shape[1:])
             self._bias = self._bias.repeat(1, self._num_components)
+            self._zero_bias = torch.zeros_like(self._bias)
             self.reset()
         # Keep the environment axis fixed while broadcasting over observation components.
         bias_shape = data.shape if self._sample_bias_per_component else (self._num_envs,) + (1,) * (data.ndim - 1)
