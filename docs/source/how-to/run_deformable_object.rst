@@ -35,11 +35,11 @@ commands to the mesh nodes to move the soft body.
 
       uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
-   With the legacy installer, install the optional dependencies first:
+   To install the optional dependencies explicitly:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -i tetrahedralization
+      uv sync --extra tetrahedralization
 
 
 The Code
@@ -52,7 +52,7 @@ The tutorial corresponds to the ``run_deformable_object.py`` script in the ``scr
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_deformable_object.py
       :language: python
-      :emphasize-lines: 88-112, 135-151, 156-164, 173-178, 191-192
+      :emphasize-lines: 85-109, 132-148, 153-161, 170-175, 188-189
       :linenos:
 
 
@@ -75,8 +75,9 @@ the :class:`assets.DeformableObject` class, it spawns the object and initializes
 when the simulation is played.
 
 .. note::
-    Deformable objects require a mesh object to be spawned with backend-specific deformable body physics
-    properties and a matching deformable physics material.
+    Deformable objects require a mesh spawned with a ``volume_deformable_props`` slot
+    (``surface_deformable_props`` for cloth) and a matching deformable physics material.
+    An empty slot uses backend defaults.
     Use ``--backend physx`` for the PhysX implementation or ``--backend newton_vbd`` for the experimental Newton
     implementation.
 
@@ -189,12 +190,6 @@ Now that we have gone through the code, let's run the script and see the result:
 
          uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --visualizer kit
-
 To run the same tutorial with the experimental Newton deformable backend:
 
 .. tab-set::
@@ -204,13 +199,6 @@ To run the same tutorial with the experimental Newton deformable backend:
       .. code-block:: bash
 
          uv run --extra isaacsim --extra tetrahedralization python scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/01_assets/run_deformable_object.py --backend newton_vbd --visualizer kit
 
 
 This should open a stage with a ground plane, lights, and several cubes. Two of the four cubes must be dropping

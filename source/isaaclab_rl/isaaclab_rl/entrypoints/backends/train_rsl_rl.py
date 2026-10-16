@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import time
 from datetime import datetime
@@ -48,6 +49,8 @@ from ..common import (
 )
 from . import cli_args_rsl_rl as cli_args
 
+logger = logging.getLogger(__name__)
+
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
@@ -63,6 +66,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--external_callback", default=None, help="Fully qualified path to an externally defined callback."
+    )
+    parser.add_argument(
+        "--resume_optimizer_state",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Restore the policy optimizer; disable to keep a fresh optimizer and configured learning rate.",
     )
     cli_args.add_rsl_rl_args(parser)
     add_launcher_args(parser)
@@ -123,14 +132,13 @@ def _run(args_cli: argparse.Namespace) -> None:
                 agent_cfg.max_iterations = args_cli.max_iterations
             rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
-                agent_cfg.device = env_cfg.sim.device
                 agent_cfg.seed += rank
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            logger.info(f"Logging experiment in directory: {log_root_path}")
             run_name = args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            print(f"Exact experiment name requested from command line: {run_name}")
+            logger.info(f"Exact experiment name requested from command line: {run_name}")
             if agent_cfg.run_name:
                 run_name += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, run_name)
@@ -174,9 +182,15 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             runner.add_git_repo_to_log(__file__)
             if resume_path is not None:
-                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                logger.info(f"Loading model checkpoint from: {resume_path}")
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
-                runner.load(resume_path, map_location=agent_cfg.device)
+                runner.load(
+                    resume_path,
+                    load_cfg=cli_args.checkpoint_load_cfg(
+                        args_cli.resume_optimizer_state, runner_class=agent_cfg.class_name
+                    ),
+                    map_location=agent_cfg.device,
+                )
             dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if agent_cfg.logger == "wandb":

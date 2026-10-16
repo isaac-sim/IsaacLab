@@ -53,7 +53,8 @@ def _build_rlinf_mocks() -> dict[str, types.ModuleType]:
 
     mock_simulation_io = types.ModuleType("rlinf.models.embodiment.gr00t.simulation_io")
     mock_simulation_io.OBS_CONVERSION = {}
-    mock_simulation_io.ACTION_CONVERSION = {}
+    mock_simulation_io.ACTION_CONVERSION_N1D5 = {}
+    mock_simulation_io.ACTION_CONVERSION_N1D7 = {}
 
     mock_isaaclab_env = types.ModuleType("rlinf.envs.isaaclab")
     mock_isaaclab_env.REGISTER_ISAACLAB_ENVS = {}
@@ -163,8 +164,10 @@ def _reset_extension_state():
     ext._registered = False
     ext._full_cfg_cache = None
     # Reset mock registries
-    _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"].OBS_CONVERSION = {}
-    _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"].ACTION_CONVERSION = {}
+    sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
+    sim_io.OBS_CONVERSION.clear()
+    sim_io.ACTION_CONVERSION_N1D5.clear()
+    sim_io.ACTION_CONVERSION_N1D7.clear()
     _rlinf_mocks["rlinf.envs.isaaclab"].REGISTER_ISAACLAB_ENVS = {}
     _rlinf_mocks["rlinf.models.embodiment.gr00t.embodiment_tags"].EMBODIMENT_TAG_MAPPING = dict(
         _MOCK_EMBODIMENT_TAG_MAPPING
@@ -256,16 +259,17 @@ class TestObsConversion:
         assert "video.right_wrist" in result
         assert result["video.left_wrist"].shape == (B, 1, H, W, C)
 
-    def test_task_descriptions_passthrough(self, set_config_env) -> None:
-        """Task descriptions should be passed through to GR00T annotation key."""
-        ext._load_full_cfg()
-
+    @pytest.mark.parametrize("language_key", [None, "annotation.human.task_description"])
+    def test_task_descriptions_passthrough(self, set_config_env, language_key) -> None:
+        """Use the checkpoint's language key without adding duplicate annotations."""
+        cfg = ext._get_isaaclab_cfg()
+        if language_key is not None:
+            cfg["gr00t_mapping"]["language"] = language_key
+        expected_key = language_key or "annotation.human.action.task_description"
         descs = ["task1", "task2"]
-        env_obs = {"task_descriptions": descs}
-        result = ext._convert_isaaclab_obs_to_gr00t(env_obs)
-        assert result["annotation.human.action.task_description"] == descs
+        assert ext._convert_isaaclab_obs_to_gr00t({"task_descriptions": descs}) == {expected_key: descs}
         # An empty observation still carries an (empty) task description.
-        assert ext._convert_isaaclab_obs_to_gr00t({})["annotation.human.action.task_description"] == []
+        assert ext._convert_isaaclab_obs_to_gr00t({}) == {expected_key: []}
 
     def test_obs_state_slicing_consistency(self, set_config_env) -> None:
         """State slices must match the original tensor content after conversion."""
@@ -323,23 +327,17 @@ class TestActionConversion:
         # Check suffix padding is zeros
         np.testing.assert_array_equal(result[:, :, -2:], 0.0)
 
-    def test_no_padding(self, yaml_config_file: str) -> None:
-        """Without padding config, actions should just be concatenated."""
-        no_pad_cfg = {
-            "env": {
-                "train": {
-                    "init_params": {"id": "test"},
-                    "isaaclab": {"action_mapping": {"prefix_pad": 0, "suffix_pad": 0}},
-                },
-            }
+    @pytest.mark.parametrize("keys", [None, ["arm", "hand"]])
+    def test_no_padding(self, set_config_env, keys) -> None:
+        """Concatenate in insertion order by default, or the declared environment action order."""
+        ext._get_isaaclab_cfg()["action_mapping"] = {} if keys is None else {"keys": keys}
+        action_chunk = {
+            "hand": np.full((2, 3, 1), 2.0),
+            "arm": np.full((2, 3, 2), 1.0),
         }
-        with open(yaml_config_file, "w") as f:
-            yaml.dump(no_pad_cfg, f)
-        with mock.patch.dict(os.environ, {"RLINF_CONFIG_FILE": yaml_config_file}):
-            B, T, D = 2, 3, 4
-            action_chunk = {"joint": np.random.randn(B, T, D)}
-            result = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=1)
-            assert result.shape == (B, 1, D)
+        result = ext._convert_gr00t_to_isaaclab_action(action_chunk, chunk_size=1)
+        expected = [2.0, 1.0, 1.0] if keys is None else [1.0, 1.0, 2.0]
+        np.testing.assert_array_equal(result, np.broadcast_to(expected, (2, 1, 3)))
 
 
 # ---------------------------------------------------------------------------
@@ -427,24 +425,31 @@ class TestTaskRegistration:
 class TestConverterRegistration:
     """Tests for ``_register_gr00t_converters``."""
 
-    def test_converters_registered(self, set_config_env) -> None:
-        """Obs and action converters should be added to RLinf's registries."""
-        ext._register_gr00t_converters({"obs_converter_type": "isaaclab"})
-
+    @pytest.mark.parametrize("model_type", ["gr00t", "gr00t_n1d7"])
+    def test_converters_registered(self, set_config_env, monkeypatch, model_type) -> None:
+        """Register converters for both models, patching only the custom N1.5 loader."""
+        ext._load_full_cfg()["actor"] = {"model": {"model_type": model_type}}
+        ext._get_isaaclab_cfg()["data_config_class"] = "custom:DataConfig"
+        gr00t = _rlinf_mocks["rlinf.models.embodiment.gr00t"]
+        native_loader = object()
+        monkeypatch.setattr(gr00t, "get_model", native_loader, raising=False)
         sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
-        assert "isaaclab" in sim_io.OBS_CONVERSION
-        assert "isaaclab" in sim_io.ACTION_CONVERSION
+        ext.register()
+
+        assert (gr00t.get_model is native_loader) == (model_type == "gr00t_n1d7")
         assert sim_io.OBS_CONVERSION["isaaclab"] is ext._convert_isaaclab_obs_to_gr00t
-        assert sim_io.ACTION_CONVERSION["isaaclab"] is ext._convert_gr00t_to_isaaclab_action
+        for registry in (sim_io.ACTION_CONVERSION_N1D5, sim_io.ACTION_CONVERSION_N1D7):
+            assert registry["isaaclab"] is ext._convert_gr00t_to_isaaclab_action
 
     def test_no_duplicate_converter_registration(self) -> None:
         """Should not overwrite existing converter entries."""
         sim_io = _rlinf_mocks["rlinf.models.embodiment.gr00t.simulation_io"]
         sentinel = lambda x: None  # noqa: E731
-        sim_io.OBS_CONVERSION["isaaclab"] = sentinel
-        sim_io.ACTION_CONVERSION["isaaclab"] = sentinel
+        registries = (sim_io.OBS_CONVERSION, sim_io.ACTION_CONVERSION_N1D5, sim_io.ACTION_CONVERSION_N1D7)
+        for registry in registries:
+            registry["isaaclab"] = sentinel
 
         ext._register_gr00t_converters({"obs_converter_type": "isaaclab"})
 
-        assert sim_io.OBS_CONVERSION["isaaclab"] is sentinel
-        assert sim_io.ACTION_CONVERSION["isaaclab"] is sentinel
+        for registry in registries:
+            assert registry["isaaclab"] is sentinel

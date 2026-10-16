@@ -25,6 +25,25 @@ Choosing an image
      - Ubuntu 24.04, Python 3.12, Newton and OVPhysX physics, OVRTX rendering, four RL libraries
      - You are training with Newton and want the smallest image; also the only one with no Isaac Sim EULA
 
+Building an image
+-----------------
+
+Every image builds with the same command; only the profile name changes. From the repository root,
+build the image for a profile from the table above, for example ``kitless``:
+
+.. code:: bash
+
+    ./docker/container.py build kitless
+
+``./docker/container.py start kitless`` also builds the image before starting the container. Without
+Compose, build the profile's Dockerfile directly; it uses the same default paths:
+
+.. code:: bash
+
+    docker build --pull --file docker/Dockerfile.kitless --tag isaac-lab-kitless .
+
+Release images are also published pre-built, so building is optional; see :ref:`docker-ngc-images`.
+
 Base image
 ----------
 
@@ -32,6 +51,42 @@ Base image
 Kit, RTX rendering, and the Isaac Sim asset pipeline. The Isaac Sim version it builds against is set
 by ``ISAACSIM_VERSION`` in ``.env.base``; the other variables in that file control paths inside the
 container.
+
+Dependencies are installed from ``uv.lock`` with frozen resolution. To update the development
+container after pulling repository changes, rebuild it and recreate the service:
+
+.. code:: bash
+
+    ./docker/container.py stop base
+    ./docker/container.py build base --pull
+    ./docker/container.py start base
+
+Stopping now preserves named volumes; older versions deleted them on every stop. Compose
+caches, logs, and data use named volumes, whose existing ownership is unchanged by rebuilding.
+For a one-time upgrade from a root-run image, copy any results you need, stop other profiles
+without ``--remove-volumes`` (use ``docker rm <name>`` for already-stopped containers),
+then run ``./docker/container.py stop base --remove-volumes``
+before rebuilding and starting base. This deletes the project's caches, logs, and data so
+new volumes inherit uid/gid 1000 ownership. Cleanup requires the selected container to still
+exist and refuses to run while another container remains in the Compose project.
+
+If the selected container was already removed, start it again before requesting cleanup.
+For custom host bind-mounted caches, fix ownership on the host to uid/gid 1000 instead.
+
+With X11 forwarding enabled, launch the standalone Isaac Sim GUI from its installation directory:
+
+.. code:: bash
+
+    cd /isaac-sim
+    ./runapp.sh
+
+The image redirects shared Python packages, including the direct ``omni.warp.core`` package,
+to the locked environment. Missing ``packaging/__init__.py`` or ``warp/_src/apic/__init__.py``
+errors indicate broken shared package files; recreating a container from a newly built image
+restores the package tree. An installer error about a whole-namespace NVIDIA symlink likewise
+requires restoring a clean Isaac Sim installation or rebuilding the image before retrying;
+removing the link alone does not restore Kit's CUDA 12 libraries. Cache-permission errors
+require the named-volume migration above or fixing ownership on custom host bind mounts.
 
 Kit-less image
 --------------
@@ -41,8 +96,9 @@ Newton physics, OVPhysX physics, OVRTX rendering, and the four core RL framework
 Stable-Baselines3, and SKRL. The ``newton_gl``, ``newton_rtx``, ``viser``, and ``rerun`` visualizers are
 included. Use ``--viz newton_gl`` for local visualization with a display available in the container.
 ``--viz newton_gl`` selects the OpenGL rasterizer; ``--viz newton_rtx`` selects the OVRTX
-path tracer. Both can render offscreen without Isaac Sim. Windowed use additionally needs
-a display server accessible inside the container. The deprecated ``--viz newton`` alias
+path tracer. Both can render offscreen without Isaac Sim. To open their windows from a direct
+``docker run``, run ``xhost +local:`` on the host and add ``-e DISPLAY`` and
+``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` to the command below. The deprecated ``--viz newton`` alias
 selects GL; it does not choose between GL and RTX automatically.
 
 Rendering needs NVIDIA graphics driver capabilities in addition to compute. For direct
@@ -67,12 +123,14 @@ registry repository, distinguished by a ``-kitless`` tag suffix:
 
 Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
 NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
-that several commands can share it:
+that several commands can share it. The ``isaac-lab-kitless-logs`` named volume keeps checkpoints
+after the container is removed:
 
 .. code:: bash
 
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
+        -v isaac-lab-kitless-logs:/workspace/isaaclab/logs \
         nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
 
     docker exec isaac-lab-kitless \
@@ -88,12 +146,13 @@ Replay in a browser with:
         --num_envs 16 presets=newton_mjwarp --checkpoint latest --viz viser
 
 Viser is reachable through the host network without forwarding a desktop display. Stop playback
-with ``Ctrl+C`` without stopping the container.
-To build the image from the checkout instead of
-pulling it, run ``docker build --file docker/Dockerfile.kitless --tag isaac-lab-kitless .``.
+with ``Ctrl+C`` without stopping the container. Copy the logs to the host with
+``docker cp isaac-lab-kitless:/workspace/isaaclab/logs ./logs``.
 
-Only ``linux/amd64`` images are published. The Dockerfile itself is architecture-agnostic, but the
-published manifest is limited to the architecture that is validated in CI.
+Check which architectures a tag publishes with ``docker buildx imagetools inspect <image:tag>``
+before choosing a host.
+
+.. _docker-ngc-images:
 
 Pre-built image from NGC
 ------------------------
@@ -138,21 +197,43 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
      nvcr.io/nvidia/isaac-lab:3.0.0-rc1
 
-For windowed use, follow the X11 setup in :ref:`deployment-docker`; the container needs
-access to the host display and matching authorization. For direct ``docker run`` use, add
-``-e DISPLAY -e XAUTHORITY=/tmp/isaaclab.xauth`` and the mounts
-``-v /tmp/.X11-unix:/tmp/.X11-unix:rw`` and
-``-v "${XAUTHORITY:-$HOME/.Xauthority}":/tmp/isaaclab.xauth:ro`` to the command above.
-The host authority file must exist and be readable by the container user. Offscreen Newton rendering does
-not require X11. Follow the graphics-driver requirements above for GL or RTX.
+The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
+``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
+and need no display. To enable rendering through X11 forwarding, let local clients use the host X
+server and pass the display into the container:
+
+.. code:: bash
+
+  xhost +local:
+  docker run --name isaac-lab --entrypoint bash -it --gpus all -e "ACCEPT_EULA=Y" --rm --network=host \
+     -e "PRIVACY_CONSENT=Y" \
+     -e DISPLAY \
+     -e MUJOCO_GL=disable \
+     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+     -v ~/docker/isaac-sim/cache/kit:/isaac-sim/kit/cache:rw \
+     -v ~/docker/isaac-sim/cache/ov:/root/.cache/ov:rw \
+     -v ~/docker/isaac-sim/cache/pip:/root/.cache/pip:rw \
+     -v ~/docker/isaac-sim/cache/glcache:/root/.cache/nvidia/GLCache:rw \
+     -v ~/docker/isaac-sim/cache/computecache:/root/.nv/ComputeCache:rw \
+     -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
+     -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
+     -v ~/docker/isaac-sim/documents:/root/Documents:rw \
+     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+
+``xhost +local:`` lets every local client use your display, not only the container; run
+``xhost -local:`` on the host to revoke it when you are done.
+``MUJOCO_GL=disable`` is needed by the Newton viewers in images released before it was set in the
+image: those inherit ``MUJOCO_GL=egl``, which fails the windowed viewer with
+``Attempt to retrieve context when no valid context``. The Compose workflow sets up X11 forwarding
+for you; see :ref:`deployment-docker`. Follow the graphics-driver requirements above for GL or RTX.
 
 Runtime user
 ------------
 
-The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000, which
-keeps bind-mounted workspaces writable on GitHub runners. When running one of these images directly
-with ``docker run`` from a host account whose uid differs, pass ``--user "$(id -u):1000"`` so that
-new files on bind mounts belong to your host user while the runtime home stays accessible.
+The base, cuRobo, and kit-less images all run as a non-root user with uid/gid 1000. When running
+one of these images directly with ``docker run``, keep that default user instead of passing ``--user``,
+so that the runtime home and cache directories stay writable. Named volumes inherit the image's
+ownership; make host bind mounts writable with ``sudo chown -R 1000:1000 <directory>``.
 
 Python interpreter
 ------------------
@@ -160,5 +241,5 @@ Python interpreter
 Every image installs from ``uv.lock`` into a Python 3.12 virtual environment at
 ``/opt/isaaclab-venv``. On the Isaac Sim-based images the environment is built on Isaac Sim's own
 interpreter, and Isaac Sim itself stays outside it, reached through the ``_isaac_sim`` symlink;
-``isaaclab.sh`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
+``uv run isaaclab`` puts it on the path. In either case ``python`` on the container's ``PATH`` resolves
 to the right one, so scripts are run the same way regardless of image.

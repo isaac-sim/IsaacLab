@@ -870,12 +870,6 @@ To launch a training in Isaac Lab, use the command:
 
          uv run --extra rl-games isaaclab train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole-Direct physics=physx
-
 .. rubric:: Running Inference
 
 To run a trained policy in Isaac Lab, use the command:
@@ -887,14 +881,6 @@ To run a trained policy in Isaac Lab, use the command:
       .. code-block:: bash
 
          uv run --extra rl-games isaaclab play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
-             --checkpoint=<path/to/checkpoint> physics=physx
-
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rl_games --task=Isaac-Cartpole-Direct --num_envs=25 \
              --checkpoint=<path/to/checkpoint> physics=physx
 
 

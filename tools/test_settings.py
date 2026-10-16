@@ -23,9 +23,10 @@ PER_TEST_TIMEOUTS = {
     "test_environments_isaacsim_physx.py": 10000,
     "test_environments_newton.py": 10000,
     "test_environments_ovphysx.py": 10000,
-    "test_contrib_environments_kit.py": 10000,
-    "test_contrib_environments_kit_cameras.py": 10000,
-    "test_contrib_environments_kitless.py": 10000,
+    # Bound contrib hangs before the 120-minute CI job timeout so the orchestrator can collect diagnostics.
+    "test_contrib_environments_kit.py": 1200,
+    "test_contrib_environments_kit_cameras.py": 1200,
+    "test_contrib_environments_kitless.py": 1200,
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
     "test_generate_dataset_franka_state.py": 3200,  # Annotation and generation each have a 1500 s subprocess cap
@@ -49,7 +50,6 @@ PER_TEST_TIMEOUTS = {
     "test_visualizer_golden_newton.py": 6000,
     "test_visuotactile_sensor.py": 1000,
     "test_visuotactile_render.py": 1000,
-    "test_rigid_object_collection.py": 1500,
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
@@ -83,8 +83,8 @@ PER_TEST_STARTUP_TIMEOUTS = {
 """Per-test startup timeouts for cold external asset downloads."""
 
 PYTEST_WORKERS = {
-    # 20 independent export round trips, ~18 min serially: the RL job's long pole.
-    "test_leapp_export_flow.py": 4,
+    # Standalone launches already use independent subprocesses; overlap two simulator startups.
+    "test_standalone_scripts.py": 2,
     # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
     # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
     "test_contrib_environments_kit.py": 2,
@@ -102,6 +102,9 @@ EXCLUSIVE_TESTS = [
     # Both assert wall-clock limits, which other files running at the same time would eat into.
     "test_kit_startup_performance.py",
     "test_robot_load_performance.py",
+    # Kit's native extension loading and shutdown can deadlock when several apps run concurrently.
+    "test_leapp_export_flow.py",
+    "test_rmpflow_reset_stability.py",
 ]
 """Test files that run with no other test file alongside them, when a job runs several files at once."""
 

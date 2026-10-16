@@ -8,8 +8,7 @@
 Constructs the public term with an ``EventTermCfg`` and verifies per-shape friction/restitution
 writes through a real OVPhysX rigid object's ``OvPhysxView``.
 
-Kitless; run once per device (``-k cpu`` / ``-k 'cuda:0'``) -- the ovphysx runtime binds the
-device mode process-globally (see the asset tests' module docstring).
+Kitless; the CPU and CUDA cases run in one process.
 """
 
 from __future__ import annotations
@@ -17,6 +16,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import torch
 import warp as wp
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
@@ -30,31 +30,10 @@ from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.envs.mdp.events import randomize_rigid_body_material  # noqa: E402
 from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 wp.init()
-
-pytestmark = pytest.mark.device_split
-
-_LOCKED_DEVICE: list[str | None] = [None]
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to (process-global lock)."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 def _ovphysx_sim_context(device: str, **kwargs):
@@ -75,7 +54,7 @@ def _make_cubes(num_cubes: int, device: str) -> RigidObject:
     return RigidObject(cfg=cfg)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_randomize_material_writes_friction_within_range(device):
     """The term should dispatch to OVPhysX and write per-shape friction/restitution within the given ranges.
 
@@ -111,6 +90,21 @@ def test_randomize_material_writes_friction_within_range(device):
         for component, (lo, hi) in enumerate((static_range, dynamic_range, restitution_range)):
             values = materials[..., component]
             assert (values >= lo - eps).all() and (values <= hi + eps).all()
+
+        # Negative restitution encodes compliant stiffness, not bounce.
+        materials[0, :, :2] = 0.0
+        materials[0, :, 2] = -15700.0
+        cube_object.root_view.set_attribute(
+            TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION, wp.from_torch(materials.contiguous())
+        )
+        before = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)).clone()
+        assert (before[0, :, 2] == -15700.0).all()
+        term(env, torch.tensor([0]), **cfg.params)
+        after = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
+        torch.testing.assert_close(after[0, :, 2], before[0, :, 2])
+        torch.testing.assert_close(after[1], before[1])
+        for component, (lo, hi) in enumerate((static_range, dynamic_range)):
+            assert ((after[0, :, component] >= lo - eps) & (after[0, :, component] <= hi + eps)).all()
 
         cfg.params["asset_cfg"] = SceneEntityCfg("cube", body_ids=[])
         with pytest.raises(NotImplementedError, match="per-body"):

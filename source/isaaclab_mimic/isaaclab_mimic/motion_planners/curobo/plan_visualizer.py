@@ -10,6 +10,7 @@ using Rerun's visualization capabilities. It helps in debugging and validating c
 """
 
 import atexit
+import logging
 import os
 import signal
 import subprocess
@@ -33,6 +34,8 @@ from curobo.types.state import JointState
 
 import isaaclab.utils.math as PoseUtils
 
+logger = logging.getLogger(__name__)
+
 # Import psutil for process management
 try:
     import psutil
@@ -40,7 +43,7 @@ try:
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
-    print("Warning: psutil not available. Process monitoring will be limited.")
+    logger.warning("psutil not available. Process monitoring will be limited.")
 
 if TYPE_CHECKING:  # For type hints only
     import trimesh

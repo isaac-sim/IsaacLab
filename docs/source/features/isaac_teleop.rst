@@ -174,16 +174,6 @@ Enable the visualization when launching a teleoperation session:
              --xr \
              --enable_debug_visualization
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr \
-             --enable_debug_visualization
-
 The ``--enable_debug_visualization`` flag is also available in ``scripts/tools/record_demos.py``
 and ``scripts/environments/teleoperation/teleop_replay_agent.py``. The option is applied when the
 Isaac Capture device is created and cannot be toggled during a running device session. The markers
@@ -443,7 +433,23 @@ Prerequisites
 
   Because ``tail -1`` shows only the most recent kernel message, the output unambiguously
   names the just-connected device, e.g. ``[12345.6] usb ... ttyACM0``.
-  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the command below.
+  Use that path (``/dev/ttyACM0``, ``/dev/ttyACM1``, etc.) in the commands below.
+
+  On Linux, serial devices are owned by the ``dialout`` group, so the plugin fails with
+  ``Permission denied`` unless your user can access the port. Add your user to the group once, then
+  log out and back in for it to take effect:
+
+  .. code-block:: bash
+
+     sudo usermod -aG dialout $USER
+
+  Alternatively, grant access for the current session only (this resets when the arm is unplugged):
+
+  .. code-block:: bash
+
+     sudo chmod 666 /dev/ttyACM0
+
+  Then run the calibration:
 
   .. code-block:: bash
 
@@ -491,16 +497,6 @@ on launch -- no headset connection is needed (see :ref:`isaac-teleop-standalone`
              --visualizer kit \
              physics=isaacsim_physx
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit \
-             physics=isaacsim_physx
-
 **With a headset (immersive XR view)**
 
 Add ``--xr`` to stream the simulation to a Quest, Pico, or Apple Vision Pro headset while the
@@ -515,16 +511,6 @@ only controls whether the scene is rendered to the headset. Follow the connectio
       .. code-block:: bash
 
          uv run --extra teleop,isaacsim isaaclab teleop run \
-             --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
-             --num_envs 1 \
-             --visualizer kit --xr \
-             physics=isaacsim_physx
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-Stack-Cube-SO101-Joint-Teleop-v0 \
              --num_envs 1 \
              --visualizer kit --xr \
@@ -1208,16 +1194,6 @@ for the headless profile, or pass a full file path for a custom profile:
              --visualizer kit --xr \
              --cloudxr_env avp
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Use the AVP profile
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit --xr \
-             --cloudxr_env avp
-
 Create a custom profile
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1260,22 +1236,6 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
              --visualizer kit --xr
 
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Disable via CLI flag
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr \
-             --no-auto_launch_cloudxr
-
-         # Or disable via environment variable
-         ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit --xr
-
-
 Accept the CloudXR license non-interactively
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -1295,7 +1255,7 @@ works for the Omniverse license:
 
 .. code-block:: bash
 
-   ISAACLAB_CXR_ACCEPT_EULA=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   ISAACLAB_CXR_ACCEPT_EULA=1 uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
        --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
        --xr
 
@@ -1702,15 +1662,6 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
              --visualizer kit \
              --xr
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
-
 The ``run``, ``record``, and ``replay`` workflows accept task configuration selectors using
 Hydra-style ``key=value`` syntax (with no leading ``--``). For example, record the Franka reach
 task with the PhysX and differential IK presets as follows:
@@ -1747,15 +1698,6 @@ the input device:
       .. code-block:: bash
 
          uv run --extra teleop,isaacsim isaaclab teleop record \
-             --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
-             --visualizer kit \
-             --teleop_device keyboard
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
              --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
              --visualizer kit \
              --teleop_device keyboard
@@ -2076,6 +2018,11 @@ Optimize XR Performance
 
 Known Issues
 ------------
+
+* OpenXR runtime error messages (``XR_ERROR_...``) are hidden by default
+
+  Isaac Lab sets ``OXR_NO_PRINTING=true`` for teleoperation sessions. Set ``OXR_NO_PRINTING=false``
+  before launching to see them when debugging an XR connection.
 
 * ``XR_ERROR_VALIDATION_FAILURE: xrWaitFrame(frameState->type == 0)`` when stopping AR Mode
 

@@ -6,12 +6,6 @@
 import tempfile
 from dataclasses import MISSING
 
-from isaaclab_teleop import XrCfg
-
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
-
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -29,6 +23,7 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 from . import mdp
@@ -328,7 +323,10 @@ class ExhaustPipeGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]
 
-        self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, 0.0),
-            anchor_rot=(0.0, 0.0, 0.0, 1.0),
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import XrCfg
+
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )

@@ -44,7 +44,7 @@ def test_spawn_glass_mdl_material(sim):
 
 def test_spawn_rigid_body_material(sim):
     """Test spawning a rigid body material."""
-    cfg = sim_utils.RigidBodyMaterialCfg(
+    cfg = sim_utils.PhysxRigidBodyMaterialCfg(
         dynamic_friction=1.5,
         restitution=1.5,
         static_friction=0.5,
@@ -67,7 +67,7 @@ def test_apply_rigid_body_material_on_visual_material(sim):
     """Test applying a rigid body material on a visual material."""
     cfg = sim_utils.GlassMdlCfg(thin_walled=False, glass_ior=1.0, glass_color=(0.0, 1.0, 0.0))
     prim = cfg.func("/Looks/Material", cfg)
-    cfg = sim_utils.RigidBodyMaterialCfg(
+    cfg = sim_utils.PhysxRigidBodyMaterialCfg(
         dynamic_friction=1.5,
         restitution=1.5,
         static_friction=0.5,
@@ -97,7 +97,9 @@ def test_bind_prim_to_material(sim):
     visual_material_cfg = sim_utils.GlassMdlCfg(glass_ior=1.0, thin_walled=True)
     visual_material_cfg.func("/World/Looks/glassMaterial", visual_material_cfg)
     # create a physics material
-    physics_material_cfg = sim_utils.RigidBodyMaterialCfg(static_friction=0.5, dynamic_friction=1.5, restitution=1.5)
+    physics_material_cfg = sim_utils.RigidBodyMaterialBaseCfg(
+        static_friction=0.5, dynamic_friction=1.5, restitution=1.5
+    )
     physics_material_cfg.func("/World/Physics/rubberMaterial", physics_material_cfg)
     sim_utils.bind_visual_material("/World/Geometry/box", "/World/Looks/glassMaterial")
     sim_utils.bind_physics_material("/World/Geometry/box", "/World/Physics/rubberMaterial")

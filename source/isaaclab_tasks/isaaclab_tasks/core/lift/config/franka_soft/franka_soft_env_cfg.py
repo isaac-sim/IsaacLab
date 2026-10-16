@@ -312,7 +312,6 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        success_vis_material_name="table_material",
         success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
@@ -639,10 +638,13 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = _FrankaSoftVisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.75, 0.25, 0.65), lookat=(0.0, 0.75, 0.4))
 
     def play_mode(self):
         super().play_mode()
+        for command_cfg in vars(self.commands).values():
+            if isinstance(command_cfg, mdp.ObjectUniformPoseCommandCfg):
+                command_cfg.success_vis_material_name = "table_material"
         if self.curriculum is not None:
             self.curriculum.gravity = None
 
@@ -658,11 +660,3 @@ class FrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
         super().__post_init__()
         # warm up the RTX render product and annotator; Newton skips the PhysX asset-loading render loop
         self.num_rerenders_on_reset = 2
-
-
-@configclass
-class _FrankaSoftVisualizerCfg(VisualizerCfg):
-    """Visualizer with a full-HD window for the soft-body environments."""
-
-    window_width: int = 1920
-    window_height: int = 1080

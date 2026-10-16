@@ -316,7 +316,7 @@ Step 2: Synthetic Data Generation using Isaac Lab Mimic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded HDF5 dataset containing 10 human demonstrations for the cube stacking task
-here: `[Cube Stacking Human Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.1/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
+here: `[Cube Stacking Human Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
 If you skipped :ref:`Step 1: Human Data Collection <teleop-imitation-step-1-human-data-collection>`, you can download this dataset and use it in the remaining tutorial steps.
 
 Place the dataset in the ``IsaacLab/datasets`` folder. You may need to create the folder if you skipped Step 1 and
@@ -481,8 +481,7 @@ Install the Robomimic framework using the following command:
    # resolve and verify Robomimic in the uv-managed environment
    uv run --extra mimic python -c "import robomimic"
 
-For a legacy environment, install the same dependencies with
-``./isaaclab.sh -i mimic``.
+To prepare the dependencies explicitly, run ``uv sync --extra mimic``.
 
 
 Train an Agent
@@ -503,7 +502,11 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
          uv run --extra isaacsim,mimic python scripts/imitation_learning/robomimic/train.py \
          --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --algo bc \
+         --epochs 1000 \
          --dataset ./datasets/generated_dataset.hdf5
+
+      This command overrides the configuration's default of 2000 epochs to train for 1000 epochs,
+      matching the training-time estimate below.
 
    .. tab-item:: Visuomotor policy
       :sync: visuomotor

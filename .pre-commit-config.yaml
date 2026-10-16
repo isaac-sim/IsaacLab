@@ -88,3 +88,10 @@ repos:
         entry: tools/pre_commit/check_git_lfs_pointers.sh
         language: script
         pass_filenames: true
+      - id: no-print-warnings
+        name: use logger.warning or warnings.warn instead of print for warnings
+        # See "Warnings and Logging" in docs/source/refs/contributing.rst.
+        entry: '\bprint\(\s*[rRfF]*["''](\\n)*\s*\[?\s*warn'
+        language: pygrep
+        args: [--multiline, --ignore-case]
+        files: ^(source|scripts)/.*\.py$

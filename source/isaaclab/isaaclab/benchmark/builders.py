@@ -42,6 +42,9 @@ def build_run_config(
     physics_backend: str,
     rendering_backend: str = "none",
     presets: Sequence[str] | None = None,
+    *,
+    physics_solvers: Sequence[str] | None = None,
+    physics_coupling: str | None = None,
 ) -> RunConfig:
     """Assemble a :class:`~isaaclab.benchmark.schema.RunConfig`.
 
@@ -52,6 +55,8 @@ def build_run_config(
             with no camera sensors.
         presets: Active Hydra preset tokens (e.g. ``["rgb"]``).  ``None``
             is treated as an empty list.
+        physics_solvers: Active solver identifiers. Defaults to the selected physics backend.
+        physics_coupling: Coupling method, or ``None`` for a single solver.
 
     Returns:
         Populated :class:`~isaaclab.benchmark.schema.RunConfig`.
@@ -60,6 +65,8 @@ def build_run_config(
         physics_backend=physics_backend,
         rendering_backend=rendering_backend,
         presets=list(presets) if presets else [],
+        physics_solvers=list(physics_solvers) if physics_solvers is not None else [physics_backend],
+        physics_coupling=physics_coupling,
     )
 
 

@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import warp as wp
 
-from pxr import Sdf, UsdPhysics
+from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -34,6 +34,7 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sim.schemas.schemas import _setup_omniphysics_deformable_body
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.buffers import TimestampedBuffer
 
@@ -44,6 +45,7 @@ from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
+from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
@@ -84,6 +86,30 @@ def _prepare_default_cache_dir(cache_dir: str) -> str:
     if hasattr(os, "getuid") and entry.st_uid != os.getuid():
         raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is owned by another user; refusing to use it.")
     return cache_dir
+
+
+def _set_scene_dynamics_device(scene_prim: Usd.Prim, device: str) -> None:
+    """Select CPU or GPU dynamics, with the matching broadphase, on a physics scene prim.
+
+    The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode, so the ``PhysxSceneAPI``
+    entry and the scene attributes are written through raw metadata and attributes.
+
+    Args:
+        scene_prim: A ``UsdPhysics.Scene`` prim.
+        device: Resolved physics device, either ``"cpu"`` or ``"gpu"``.
+    """
+    schemas = Sdf.TokenListOp()
+    current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+    items = list(current.prependedItems) if current.prependedItems else []
+    if "PhysxSceneAPI" not in items:
+        items.append("PhysxSceneAPI")
+    schemas.prependedItems = items
+    scene_prim.SetMetadata("apiSchemas", schemas)
+
+    # The schema default enables GPU dynamics, so CPU scenes must author it explicitly.
+    use_gpu = device == "gpu"
+    scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(use_gpu)
+    scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU" if use_gpu else "MBP")
 
 
 logger = logging.getLogger(__name__)
@@ -134,14 +160,22 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             # Native output metadata names the actual bodies, not articulation-root aliases.
             # Keep these renderer-only bindings out of headless simulation startup.
             from ovphysx.types import SimObjectType
-            from ovstage import PathDictionary
 
+            kinds = (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK)
             body_paths = []
-            with PathDictionary() as paths:
-                for kind in (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK):
-                    with backend.physx.read(kind, ["mass"]) as bodies:
+            if ovphysx_compat.OVPHYSX_USES_TASKS:
+                for kind in kinds:
+                    with backend.physx.read_sync(kind, ["mass"]) as bodies:
                         for group in bodies.groups:
-                            body_paths.extend(paths.get_path_strings(group.prim_list))
+                            body_paths.extend(bodies.dictionary.get_path_strings(group.prim_list))
+            else:
+                from ovstage import PathDictionary
+
+                with PathDictionary() as paths:
+                    for kind in kinds:
+                        with backend.physx.read(kind, ["mass"]) as bodies:
+                            for group in bodies.groups:
+                                body_paths.extend(paths.get_path_strings(group.prim_list))
             if body_paths:
                 backend.rigid_body_view = backend.physx.create_tensor_binding(prim_paths=body_paths)
             self.setup(backend, device, entries)
@@ -295,7 +329,8 @@ class OvPhysxBackend:
         }
         if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
-        ovphysx.PhysX.set_cpu_mode(not is_gpu)
+        # CPU scenes select CPU dynamics through their scene attributes (see _set_scene_dynamics_device).
+        # OVPhysX's process-wide CPU-only mode is irreversible and would block later CUDA scenes.
         self.physx = ovphysx.PhysX(
             config=ovphysx.PhysXConfig(
                 num_threads=8, cooked_collider_cache_dir=cache_dir, carbonite_overrides=carbonite_overrides
@@ -325,7 +360,7 @@ class OvPhysxBackend:
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
-                    physx.wait_op(physx.reset_stage())
+                    ovphysx_compat.detach_stage(physx)
                 finally:
                     try:
                         destroy = getattr(physx, destroy_entry_point, None)
@@ -373,8 +408,6 @@ class OvPhysxManager(PhysicsManager):
     _warmup_done: ClassVar[bool] = False
     _next_control_ordinal: ClassVar[int] = 2
     _requires_full_stage: ClassVar[bool] = False
-    # Device mode is process-wide; later contexts must reuse the first selected device.
-    _locked_device: ClassVar[str | None] = None
     # Retain construction inputs for hard reset; serialization and replay never consume them.
     _clone_recipes: ClassVar[list[CloneRecipe]] = []
     _atexit_registered: ClassVar[bool] = False
@@ -408,6 +441,15 @@ class OvPhysxManager(PhysicsManager):
         return root
 
     @classmethod
+    def setup_deformable_body(cls, prim: Any, deformable_type: str, sim_mesh_prim: Any, vis_mesh_prim: Any) -> None:
+        """Apply the OmniPhysics deformable anchor APIs, rest state, and bind pose.
+
+        OVPhysX reads the same OmniPhysics deformable schemas as the Kit PhysX backend, so both
+        backends share one authoring path.
+        """
+        _setup_omniphysics_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
+
+    @classmethod
     def register_clone(
         cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
@@ -433,8 +475,8 @@ class OvPhysxManager(PhysicsManager):
     def _ensure_physx_schemas_registered(cls) -> None:
         """Register the USD schemas consumed by the OVPhysX runtime.
 
-        OVStage maintains its own USD schema registry, so register the wheel's
-        schema root and the separately packaged Newton schemas there even when
+        OVStage maintains its own USD schema registry, so register the selected
+        PhysX provider and the separately packaged Newton schemas there even when
         the host USD runtime already provides the same plugins. For the host USD
         registry, only register providers that are not already available from a
         compiled plugin.
@@ -447,6 +489,7 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
+        schema_paths = ovphysx_compat.physx_schema_paths(ovphysx)
         try:
             import ovstage  # noqa: PLC0415
         except ImportError:
@@ -455,7 +498,9 @@ class OvPhysxManager(PhysicsManager):
             schema_root = getattr(ovphysx, "codeless_schema_root", None)
             register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
             if callable(register_ovstage_schemas):
-                if callable(schema_root):
+                if ovphysx_compat.OVPHYSX_USES_TASKS:
+                    register_ovstage_schemas([str(path) for path in schema_paths])
+                elif callable(schema_root):
                     register_ovstage_schemas(str(schema_root()))
                 if (newton_schema_root := _newton_schema_root()) is not None:
                     register_ovstage_schemas(newton_schema_root)
@@ -463,9 +508,7 @@ class OvPhysxManager(PhysicsManager):
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
         # bundled plugin names match those module directory names case-insensitively.
-        schema_paths = [
-            str(path) for path in ovphysx.codeless_schema_paths() if path.parent.name.casefold() not in registered_names
-        ]
+        schema_paths = [str(path) for path in schema_paths if path.parent.name.casefold() not in registered_names]
         if schema_paths:
             registry.RegisterPlugins(schema_paths)
         cls._physx_schemas_registered = True
@@ -479,7 +522,6 @@ class OvPhysxManager(PhysicsManager):
         happens lazily in :meth:`reset`.
 
         The simulation registry retains its native resource across reinitialization.
-        ``cls._locked_device`` carries the process-wide first-device policy.
         """
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
@@ -607,14 +649,15 @@ class OvPhysxManager(PhysicsManager):
                 domains=ovstage.PopulationDomain.ALL,
             )
             # ovphysx reads sealed data only: population completes the writes but never
-            # commits the ordinal, so attaching at an unsealed ordinal fails the parse
-            # and silently yields an empty scene.
+            # commits the ordinal. The initial parse requires a sealed ordinal.
             stage.advance_write_floor(ordinal=1).wait()
-            cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
+            operation = cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
         except Exception:
             stage.destroy()
             raise
         cls.backend.stage = stage
+        # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
+        ovphysx_compat.finish_stage_operation(cls.backend.physx, operation)
 
         cls._next_control_ordinal = 2
 
@@ -628,7 +671,7 @@ class OvPhysxManager(PhysicsManager):
             cls.backend.rigid_body_view.destroy()
             cls.backend.rigid_body_view = None
         OvPhysxView._close_all_for(physx)
-        physx.wait_op(physx.reset_stage())
+        ovphysx_compat.detach_stage(physx)
         if cls.backend.stage is not None:
             cls.backend.stage.destroy()
             cls.backend.stage = None
@@ -641,7 +684,7 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def get_gravity(cls) -> tuple[float, float, float]:
-        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
+        """Return the last successfully applied world-frame gravity vector [m/s^2].
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
         can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
@@ -700,10 +743,10 @@ class OvPhysxManager(PhysicsManager):
                 query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
             stage.advance_write_floor(ordinal=ordinal).wait()
-            cls.backend.physx.update_from_ovstage(ordinal, ordinal)
+            operation = cls.backend.physx.update_from_ovstage(ordinal, ordinal)
+            ovphysx_compat.finish_stage_operation(cls.backend.physx, operation)
 
-        # Only publish once the ordinal has been applied, so a failed write leaves
-        # :meth:`get_gravity` reporting the gravity the scene is still running with.
+        # Publish only after successful completion; a failed native update need not be atomic.
         cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
     @classmethod
@@ -728,20 +771,15 @@ class OvPhysxManager(PhysicsManager):
     def _warmup_and_load(cls) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
-        When no runtime is active, constructs a new :class:`ovphysx.PhysX`
-        instance. The first construction also records IsaacLab's process device
-        choice and registers process-exit cleanup. On a forced re-warm before
-        :meth:`close`, it reuses the active instance, attaches the new USD through
-        OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and re-runs the supported warmup entry point
+        When no runtime is active, constructs a new :class:`ovphysx.PhysX` instance for the
+        simulation device and registers process-exit cleanup. CPU and CUDA simulations may follow
+        each other in one process. On a forced re-warm before :meth:`close`, it reuses the active
+        instance, attaches the new USD through OVStage, rebuilds active clone recipes through
+        full-stage materialization or runtime replay, and re-runs the supported warmup entry point
         so the new stage's bodies are resident.
 
         Raises:
-            RuntimeError: If ``SimulationContext`` is not set, or if a device
-                different from IsaacLab's first device choice is requested.
-                OVPhysX CPU-only mode is process-wide and cannot be reversed;
-                IsaacLab applies the same conservative policy in both
-                directions for a predictable lifecycle.
+            RuntimeError: If ``SimulationContext`` is not set.
         """
         sim = PhysicsManager._sim
         if sim is None:
@@ -754,21 +792,19 @@ class OvPhysxManager(PhysicsManager):
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 
-        if cls._locked_device is not None and ovphysx_device != cls._locked_device:
-            raise RuntimeError(
-                f"OvPhysxManager is locked to device {cls._locked_device!r} for the lifetime of this process; "
-                f"cannot switch to {ovphysx_device!r}. IsaacLab pins the first OVPhysX device choice because "
-                "CPU-only mode cannot be reversed; restart the process to use a different device."
-            )
-
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid():
-            if cls._clone_recipes:
-                scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
+        if scene_prim.IsValid() and cls._clone_recipes:
+            scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
+        cls._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, PhysicsManager._cfg, ovphysx_device)
 
         full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
-        stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage, plan)
+        stage_usda, native_clones = _serialize_stage(
+            sim.stage,
+            cls._clone_recipes,
+            full_stage,
+            plan,
+            friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
+        )
         cls._stage_usda = stage_usda
 
         previous_backend = cls.backend
@@ -778,7 +814,6 @@ class OvPhysxManager(PhysicsManager):
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
             )
         )
-        cls._locked_device = ovphysx_device
         if not cls._atexit_registered:
             atexit.register(cls._close_at_exit)
             cls._atexit_registered = True
@@ -792,7 +827,9 @@ class OvPhysxManager(PhysicsManager):
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
-            cls.backend.physx.wait_op(cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
+            ovphysx_compat.wait_for_operation(
+                cls.backend.physx, cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids)
+            )
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
         cls._warmup_physx(cls.backend.physx)
@@ -825,19 +862,36 @@ class OvPhysxManager(PhysicsManager):
         except Exception:
             logger.exception("Failed to close OVPhysX during process exit.")
 
+    @classmethod
+    def _configure_physics_scenes(
+        cls, stage: Usd.Stage, physics_prim_path: str, cfg: OvPhysxCfg | None, device: str
+    ) -> None:
+        """Configure every physics scene in a stage for the simulation device.
+
+        The simulation's physics scene receives the full OVPhysX scene configuration. OVPhysX also
+        simulates every other ``UsdPhysics.Scene`` in the stage, such as one authored by an asset, so
+        each of those selects the simulation device's dynamics and broadphase.
+
+        Args:
+            stage: The USD stage to configure.
+            physics_prim_path: Path of the simulation's physics scene prim.
+            cfg: The configuration of the simulation's physics scene.
+            device: Resolved physics device, either ``"cpu"`` or ``"gpu"``.
+        """
+        scene_prim = stage.GetPrimAtPath(physics_prim_path)
+        if scene_prim.IsValid():
+            cls._configure_physx_scene_prim(scene_prim, cfg, device)
+        for prim in stage.Traverse():
+            if prim.IsA(UsdPhysics.Scene) and prim != scene_prim:
+                _set_scene_dynamics_device(prim, device)
+
     @staticmethod
     def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
-        """Apply PhysxSceneAPI schema and device-specific scene attributes to the
-        scene prim.
+        """Apply the OVPhysX scene configuration to the simulation's physics scene prim.
 
-        The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode,
-        so we write the apiSchemas list entry and scene attributes directly via
-        raw Sdf metadata manipulation instead of using the high-level USD API.
-
-        The schema, scene-query-support, and solver-determinism/accuracy attributes are applied
-        regardless of device. The GPU-specific dynamics/broadphase/capacity attributes are
-        applied only when ``device == "gpu"`` — without them PhysX defaults to
-        CPU broadphase even when OVPhysX is configured for GPU execution.
+        The schema, dynamics device and broadphase (see :func:`_set_scene_dynamics_device`),
+        scene-query-support, and solver-determinism/accuracy attributes are applied regardless of
+        device. The GPU buffer-capacity attributes are applied only to GPU scenes.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
@@ -845,13 +899,7 @@ class OvPhysxManager(PhysicsManager):
                 values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
-        schemas = Sdf.TokenListOp()
-        current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-        items = list(current.prependedItems) if current.prependedItems else []
-        if "PhysxSceneAPI" not in items:
-            items.append("PhysxSceneAPI")
-        schemas.prependedItems = items
-        scene_prim.SetMetadata("apiSchemas", schemas)
+        _set_scene_dynamics_device(scene_prim, device)
 
         # PhysX uses the declared timestep to derive automatic collision contact offsets.
         sim_cfg = PhysicsManager._sim.cfg
@@ -870,17 +918,13 @@ class OvPhysxManager(PhysicsManager):
                 cfg.enable_external_forces_every_iteration
             )
 
-        if device == "gpu":
-            scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
-            scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
-
-            if cfg is not None:
-                for attr, val in [
-                    ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
-                    ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
-                    ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
-                    ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
-                    ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
-                    ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
-                ]:
-                    scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
+        if device == "gpu" and cfg is not None:
+            for attr, val in [
+                ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
+                ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
+                ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
+                ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
+                ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
+                ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
+            ]:
+                scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)

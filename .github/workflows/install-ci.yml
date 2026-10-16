@@ -20,7 +20,7 @@ on:
         default: 'ubuntu:24.04'
         type: string
       test_filter:
-        description: 'pytest -k filter expression (e.g. "uv" or "bugs")'
+        description: 'pytest -k filter expression (e.g. "workspace" or "wheel")'
         default: ''
 
 concurrency:
@@ -61,7 +61,6 @@ jobs:
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'^uv\\.lock$\tuv lockfile'
-            $'(^|/)environment\\.ya?ml$\tConda environment file'
           )
 
           render_table() {

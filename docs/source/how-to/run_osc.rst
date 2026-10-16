@@ -24,6 +24,8 @@ tilted wall surface while tracking a desired end-effector pose in all the other 
 
 This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
 The target quaternions use ``(x, y, z, w)`` order and orient the end-effector toward the tilted wall.
+For controller selection and the control-loop walkthrough, see
+:doc:`../concepts/motion_generators`.
 
 The Code
 ~~~~~~~~
@@ -73,7 +75,7 @@ axes) or a list of six scalars, one value corresponding to each axis. If desired
 values could be a command parameter (e.g., to learn the values using RL or change them on the go). For this,
 ``impedance_mode`` should be either ``"variable_kp"`` to include the stiffness values within the command or
 ``"variable"`` to include both the stiffness and damping ratio values. In these cases, ``motion_stiffness_limits_task``
-and ``motion_damping_limits_task`` should be set as well, which puts bounds on the stiffness and damping ratio values.
+and ``motion_damping_ratio_limits_task`` should be set as well, which puts bounds on the stiffness and damping ratio values.
 
 For contact force control, it is possible to apply an open-loop force control by not setting the
 ``contact_wrench_stiffness_task``, or apply a closed-loop force control (with the feed-forward term) by setting
@@ -134,12 +136,12 @@ gravity compensation vector and null-space joint position targets if required.
 Computing robot command
 -----------------------
 
-The OSC separates the operation of setting the desired command and computing the desired joint positions.
+The OSC separates the operation of setting the desired command and computing the desired joint efforts.
 To set the desired command, the user should provide command vector, which  includes the target commands
 (i.e., in the order they appear in the ``target_types`` argument of the OSC configuration),
 and the desired stiffness and damping ratio values if the impedance_mode is set to ``"variable_kp"`` or ``"variable"``.
 They should be all in the same coordinate frame as the task frame (e.g., indicated with ``_task`` subscript) and
-concatanated together.
+concatenated together.
 
 In this tutorial, the desired wrench is already defined w.r.t. the task frame, and the desired pose is transformed
 to the task frame as the following:
@@ -186,12 +188,6 @@ You can now run the script and see the result:
       .. code-block:: bash
 
          uv run isaaclab -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tutorials/05_controllers/run_osc.py --num_envs 128 --viz kit
 
 The script will start a simulation with 128 robots. The robots will be controlled using the OSC.
 The current and desired end-effector poses should be displayed using frame markers in addition to the red tilted wall.
