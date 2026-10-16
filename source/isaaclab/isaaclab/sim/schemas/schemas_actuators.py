@@ -33,7 +33,7 @@ from torch._export.converter import TS2EPConverter
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BAM_MODEL_FLAGS, BAM_NEW_ACTUATOR_DEFAULTS, BamActuatorCfg
+from ...actuators.actuator_bam_cfg import BAM_DRIVE_API, BAM_MODEL_FLAGS, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
@@ -494,20 +494,12 @@ def _exported_model_path(cfg: ActuatorNetMLPCfg | ActuatorNetLSTMCfg, joint_name
     return dict.fromkeys(joint_names, Sdf.AssetPath(resave_checkpoint_with_metadata(cfg.network_file, meta)))
 
 
-def _bam_value(name: str, type_name: Sdf.ValueTypeName = _FLOAT, required: bool = False) -> _ActuatorField:
-    """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field (``motor.`` for the fit).
-
-    Its new-prim default comes from :data:`~isaaclab.actuators.actuator_bam_cfg.BAM_NEW_ACTUATOR_DEFAULTS`.
-    """
-    key = name.removeprefix("motor.")
-    return _ActuatorField(
-        name,
-        BAM_DRIVE_API,
-        f"newton:{to_camel_case(key)}",
-        type_name,
-        new_prim_default=BAM_NEW_ACTUATOR_DEFAULTS.get(key),
-        required=required,
-    )
+def _bam_value(
+    name: str, type_name: Sdf.ValueTypeName = _FLOAT, default: float | None = None, required: bool = False
+) -> _ActuatorField:
+    """Return the BAM drive attribute set by a :class:`BamActuatorCfg` field, named after its DriveBam argument."""
+    attr = f"newton:{to_camel_case(name.removeprefix('motor.'))}"
+    return _ActuatorField(name, BAM_DRIVE_API, attr, type_name, new_prim_default=default, required=required)
 
 
 def _bam_model_flag(flag: str) -> _ActuatorField:
@@ -563,14 +555,13 @@ _NEURAL_MODEL = _ActuatorField(
 # A new prim requires the fit and supply: the drive would silently fall back to m1 friction and no current limit.
 _BAM_FIELDS = (
     *(_bam_value(f"motor.{name}", required=True) for name in ("kt", "resistance", "error_gain")),
-    _bam_value("motor.max_pwm"),
+    _bam_value("motor.max_pwm", default=1.0),
     *(_bam_value(f"motor.{name}", required=True) for name in ("max_current", "friction_base")),
+    *(_bam_value(f"motor.{name}", default=1.0) for name in ("dtheta_stribeck", "alpha")),
     *(
-        _bam_value(f"motor.{name}")
+        _bam_value(f"motor.{name}", default=0.0)
         for name in (
             "friction_stribeck",
-            "dtheta_stribeck",
-            "alpha",
             "load_friction_motor",
             "load_friction_external",
             "load_friction_motor_stribeck",

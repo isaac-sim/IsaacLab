@@ -20,27 +20,15 @@ BAM_MODEL_FLAGS: dict[str, dict[str, int]] = {
 }
 """Drive flags of the friction terms each BAM model enables."""
 
-BAM_NEW_ACTUATOR_DEFAULTS: dict[str, float] = {
-    "max_pwm": 1.0,
-    "friction_stribeck": 0.0,
-    "dtheta_stribeck": 1.0,
-    "alpha": 1.0,
-    "load_friction_motor": 0.0,
-    "load_friction_external": 0.0,
-    "load_friction_motor_stribeck": 0.0,
-    "load_friction_external_stribeck": 0.0,
-    "load_friction_motor_quad": 0.0,
-    "load_friction_external_quad": 0.0,
-}
-"""Values a new BAM actuator takes for motor fields left as None; unset vin_min and delay settings take DriveBam's."""
-
 
 @configclass
 class BamMotorCfg:
     """Identified BAM motor and gearbox fit, shared by all joints of an actuator group.
 
-    A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator takes
-    :data:`BAM_NEW_ACTUATOR_DEFAULTS`; the other fields, except :attr:`friction_viscous`, are then required.
+    A field left as None keeps the value of the joint's USD-authored BAM actuator. A new actuator needs
+    :attr:`model`, :attr:`kt`, :attr:`resistance`, :attr:`error_gain`, :attr:`max_current` and
+    :attr:`friction_base`; it defaults :attr:`max_pwm`, :attr:`dtheta_stribeck` and :attr:`alpha` to 1 and the
+    Stribeck and load-dependent friction terms to 0.
     """
 
     model: Literal["m1", "m2", "m5", "m6"] | None = None
