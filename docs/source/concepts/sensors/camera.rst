@@ -341,13 +341,15 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
 .. important::
 
    With Isaac RTX and OVRTX, enabling ``isp_cfg`` makes PPISP the ISP authority. The renderer
-   disables RTX auto-exposure, authors neutral ``exposure:*`` values, and applies the
+   disables RTX auto-exposure, authors neutral ``exposure`` compensation, ``exposure:fStop``,
+   ``exposure:iso``, ``exposure:responsivity`` and ``exposure:time`` values, and applies the
    ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
    camera prim so RTX does not process the image a second time. Do not combine ``isp_cfg`` with
    separately authored RTX exposure or tonemapping settings. Every color output rendered from those
-   prims, including ``rgb_hdr``, loses the authored exposure, and so do other camera sensors that share
-   a prim; use a separate camera prim when authored-exposure color is also needed. When ``isp_cfg`` is
-   ``None``, the renderer leaves authored camera exposure unchanged.
+   prims, including ``rgb_hdr``, loses the authored f-stop, ISO, responsivity, shutter time, exposure
+   compensation and auto-exposure, and so do other camera sensors that share a prim; use a separate
+   camera prim when authored-exposure color is also needed. When ``isp_cfg`` is ``None``, the renderer
+   leaves authored camera exposure unchanged.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
 ``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
