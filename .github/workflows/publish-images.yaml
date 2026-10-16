@@ -78,7 +78,7 @@ jobs:
           isaacsim_base: "false"
           # Ubuntu and the pinned build/runtime artifacts support both architectures.
           platforms: linux/amd64,linux/arm64
-          build_args: --build-arg DOCKER_USER_HOME_ARG=/home/isaaclab
+          build_args: --build-arg DOCKER_USER_HOME_ARG=/opt/isaaclab-user
     concurrency:
       group: publish-images-${{ matrix.branch }}-${{ matrix.image.key }}
       cancel-in-progress: true

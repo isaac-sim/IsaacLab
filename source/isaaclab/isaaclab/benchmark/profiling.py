@@ -41,7 +41,7 @@ def parse_cprofile_stats(
     Args:
         profile: A completed cProfile.Profile instance (after .disable()).
         isaaclab_prefixes: Absolute file path prefixes identifying IsaacLab source
-            (e.g. ["/home/user/IsaacLab/source/isaaclab", ...]).
+            (e.g. ["/workspace/IsaacLab/source/isaaclab", ...]).
         top_n: Maximum number of functions to return. Ignored when
             *whitelist* is provided.
         whitelist: Optional list of ``fnmatch`` patterns to select specific
