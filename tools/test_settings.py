@@ -105,6 +105,8 @@ EXCLUSIVE_TESTS = [
     # Kit's native extension loading and shutdown can deadlock when several apps run concurrently.
     "test_leapp_export_flow.py",
     "test_rmpflow_reset_stability.py",
+    # Four concurrent Kit apps can leave the RTX renderer without frames (1x1 viewport and black tiled captures).
+    "test_visualizer_golden_newton.py",
 ]
 """Test files that run with no other test file alongside them, when a job runs several files at once."""
 
