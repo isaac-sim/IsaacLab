@@ -239,23 +239,42 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     source_root, lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None
                 )
                 if not source_prims:
+                    # A static target may exist in only some prototypes; their environments hold no copy.
+                    if not target_cfg.track_mesh_transforms:
+                        continue
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
                 if not target_cfg.track_mesh_transforms:
                     # A static record holds its clone's pose. Kitless backends author only the source on the stage,
                     # so a missing clone is placed as the clone backends place it: shifted by the environment origins.
                     origins = np.zeros((self._num_envs, 3)) if plan.positions is None else plan.positions
                     source_env = cloner.path.match(source_root, plan.env_template)
-                    source_origin = origins[int(source_env.instance)] if source_env is not None else 0.0
+                    source_origin = 0.0
+                    if source_env is not None:
+                        # As in the Newton cloner, a source ID outside the environments takes the first one's place.
+                        instance = source_env.instance
+                        in_envs = instance.isdigit() and int(instance) < self._num_envs
+                        source_origin = origins[int(instance) if in_envs else worlds[world_starts[group]]]
+                    source_records = {}
                     for env_id in env_ids:
                         destination_root = destination_template.format(env_id)
                         for source_prim in source_prims:
-                            path = cloner.path.rebase(str(source_prim.GetPath()), source_root, destination_root)
-                            prim, offset = source_prim.GetStage().GetPrimAtPath(path), 0.0
-                            if not prim.IsValid():
-                                prim, offset = source_prim, origins[env_id] - source_origin
-                            mesh_id = self._load_target_prim_warp_mesh(prim, target_cfg)
+                            source_prim_path = str(source_prim.GetPath())
+                            path = cloner.path.rebase(source_prim_path, source_root, destination_root)
+                            prim = source_prim.GetStage().GetPrimAtPath(path)
+                            if prim.IsValid():
+                                mesh_id = self._load_target_prim_warp_mesh(prim, target_cfg)
+                                pos, quat = sim_utils.resolve_prim_pose(prim)
+                                offset = 0.0
+                            else:
+                                if source_prim_path not in source_records:
+                                    mesh_id = self._load_target_prim_warp_mesh(source_prim, target_cfg)
+                                    source_records[source_prim_path] = (
+                                        mesh_id,
+                                        *sim_utils.resolve_prim_pose(source_prim),
+                                    )
+                                mesh_id, pos, quat = source_records[source_prim_path]
+                                offset = origins[env_id] - source_origin
                             dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
-                            pos, quat = sim_utils.resolve_prim_pose(prim)
                             records_per_env[env_id].append((mesh_id, tuple(np.add(pos, offset)), quat))
                     continue
 
@@ -307,6 +326,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     raise RuntimeError(
                         f"No tracked body expressions were resolved for target '{target_cfg.prim_expr}'."
                     )
+                if not target_cfg.track_mesh_transforms and not any(records_per_env):
+                    raise RuntimeError(f"No ClonePlan source prims matched '{target_cfg.prim_expr}'.")
                 return records_per_env, dummy_mesh_id, plan_tracked_target_exprs
 
         # Fall back to authored USD prims for global targets and scenes without ClonePlan data.
