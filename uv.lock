@@ -2042,7 +2042,7 @@ requires-dist = [
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
     { name = "numpydantic", marker = "extra == 'rlinf'", specifier = ">=1.7.0" },
-    { name = "omniverseclient", specifier = "==2.74.0", index = "https://pypi.org/simple" },
+    { name = "omniverseclient", specifier = "==2.75.1", index = "https://pypi.org/simple" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "open3d", marker = "(python_full_version < '3.13' and platform_machine != 'aarch64') or (python_full_version < '3.13' and sys_platform != 'linux')", specifier = ">=0.19.0" },
     { name = "ovrtx", marker = "extra == 'ov'", specifier = "==0.6.0.1791947691", index = "https://pypi.org/simple" },
@@ -3732,12 +3732,12 @@ wheels = [
 
 [[package]]
 name = "omniverseclient"
-version = "2.74.0"
+version = "2.75.1"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/a4/f99608e58ab90602eea23a30ce5d754466151fa5d8765678ddcc4385ceaf/omniverseclient-2.74.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:2071be85b5932b787df280e569078ed9274739da865f14d777a41a4b5e767fc4", size = 17028603, upload-time = "2026-09-17T15:18:48.114Z" },
-    { url = "https://files.pythonhosted.org/packages/74/eb/ff9e3c27e44f3502f1df05ee1598ccbe8f0e86747f82a8efe8bd9f6d42e3/omniverseclient-2.74.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:20ede072259d6912aa2176349b74aae71c0f56c4b7ff26f6885e4a84980cc2cc", size = 17070196, upload-time = "2026-09-17T15:18:31.408Z" },
-    { url = "https://files.pythonhosted.org/packages/00/a6/b8adbe167c854ca8c775c554b4e779dd34f860e06021a6c3b9175b89a7cf/omniverseclient-2.74.0-cp312-cp312-win_amd64.whl", hash = "sha256:a4138c3c17502176b8fab3a0e0f4c8a4aab22006e7a6f4ee7d57a1a44906ee6f", size = 12215440, upload-time = "2026-09-17T15:19:02.933Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/90/5c006060b6e78d711fdbda0b5c1d5b8fc5233689a1991951eae13873b41e/omniverseclient-2.75.1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:5701cc1ef34f224034cdddb5126011d2bf09effe3dcacb96099e9e5aa8dcb408", size = 18510305, upload-time = "2026-10-02T15:03:10.527Z" },
+    { url = "https://files.pythonhosted.org/packages/88/35/8b67ec7d4cb6be9b2c07a4c51feba1ad36649df7f01b8f8a0b5d44ca58a3/omniverseclient-2.75.1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:435ac7d391fd14ca6800a9dd09880ea68359ea8d5ccdac7374686cbc5eee1647", size = 18711517, upload-time = "2026-10-02T15:02:42.372Z" },
+    { url = "https://files.pythonhosted.org/packages/25/c9/37475185b4f25ba446e11a3227d926639f0aa900f5331cd222dff382619d/omniverseclient-2.75.1-cp312-cp312-win_amd64.whl", hash = "sha256:97c9e325b18f6bc0dcb768208d19efd9ff8e500806a11c70574ce7fd28f75050", size = 12618868, upload-time = "2026-10-02T15:03:25.849Z" },
 ]
 
 [[package]]
