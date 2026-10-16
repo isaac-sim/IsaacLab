@@ -689,14 +689,15 @@ class NewtonSiteFrameView(BaseFrameView):
             return
 
         state = NewtonManager.get_state_0()
-        if not state.body_q.device.is_capturing:
-            NewtonManager.forward()
         if positions is None or orientations is None:
+            # The read of the current poses resolves pending FK.
             cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
             if positions is None:
                 positions = cur_pos_ta.warp
             if orientations is None:
                 orientations = cur_quat_ta.warp
+        elif not state.body_q.device.is_capturing:
+            NewtonManager.forward()
 
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
