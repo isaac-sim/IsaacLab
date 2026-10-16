@@ -9,7 +9,7 @@ import warnings
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from ...renderers import RendererCfg
+from ...renderers import RenderBufferKind, RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
@@ -261,8 +261,10 @@ class CameraCfg(SensorBaseCfg):
         supported = {str(kind) for kind in supported_specs}
         unsupported = sorted(set(self.data_types) - supported)
         if unsupported:
+            # radiance is an internal input, so it is not offered as a choice
+            offered = sorted(supported - {str(RenderBufferKind.RGB_RADIANCE)})
             raise ValueError(
-                f"Renderer {type(self.renderer_cfg).__name__} only supports data types {sorted(supported)}, "
+                f"Renderer {type(self.renderer_cfg).__name__} only supports data types {offered}, "
                 f"but the camera is configured with unsupported types: {unsupported}. "
                 "Choose supported data types or select a different renderer."
             )

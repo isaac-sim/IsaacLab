@@ -318,6 +318,23 @@ def test_camera_data_allocate_raises_on_unknown_name():
     assert "RenderBufferKind" in str(exc_info.value)
 
 
+def test_camera_cfg_error_does_not_offer_radiance():
+    """The unsupported-type error lists public outputs only; radiance stays an internal input."""
+    from isaaclab.sensors.camera import CameraCfg
+
+    renderer_cfg = SimpleNamespace(
+        supported_output_types=lambda: {
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
+        }
+    )
+    CameraCfg.validate_config(SimpleNamespace(renderer_cfg=renderer_cfg, data_types=["rgb_radiance"]))
+    with pytest.raises(ValueError) as exc_info:
+        CameraCfg.validate_config(SimpleNamespace(renderer_cfg=renderer_cfg, data_types=["not_a_real_type"]))
+    assert "not_a_real_type" in str(exc_info.value)
+    assert "rgb_radiance" not in str(exc_info.value)
+
+
 def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
     """A renderer that snapshots the stage at the first camera's initialization sees every camera's overrides."""
     import numpy as np
