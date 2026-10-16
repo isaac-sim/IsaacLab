@@ -486,6 +486,33 @@ class SensorBase(ABC):
             index_fill_(self._reset_mask_torch, env_ids, True)
             return self._reset_mask
 
+    def _check_env_count(self, count: int, expr: str | None = None, per_env: int = 1) -> None:
+        """Check that a physics binding of the sensor holds ``per_env`` instances for each environment.
+
+        Sensor buffers hold one row per environment, and resets address rows by environment index.
+        A binding on an asset that exists in only some environments (for example through
+        :attr:`~isaaclab.cloner.CloneCfg.clone_combinations`) has fewer instances, which would assign
+        its rows to the wrong environments or overrun the sensor buffers.
+
+        Args:
+            count: Number of instances in the binding.
+            expr: Path expression of the binding. Defaults to None, in which case the sensor's prim path is
+                the binding's expression.
+            per_env: Number of instances expected in each environment. Defaults to 1.
+
+        Raises:
+            RuntimeError: If ``count`` is not ``per_env`` times the number of environments.
+        """
+        if count != per_env * self._num_envs:
+            binding = "" if expr is None else f" of '{expr}'"
+            raise RuntimeError(
+                f"{type(self).__name__} at '{self.cfg.prim_path}' found {count} instances{binding} in"
+                f" {self._num_envs} environments, expected {per_env} per environment. The sensor's prim path"
+                " must match the same frames in every environment, and its asset must exist in every"
+                " environment; assets that exist in only some environments (for example through"
+                " CloneCfg.clone_combinations) are not supported."
+            )
+
     def _resolve_rigid_body_ancestor_expr(
         self,
     ) -> tuple[str, tuple[float, float, float] | None, tuple[float, float, float, float] | None]:

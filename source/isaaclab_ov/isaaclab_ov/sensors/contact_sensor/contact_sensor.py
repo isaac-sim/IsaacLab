@@ -279,9 +279,11 @@ class ContactSensor(BaseContactSensor):
                 f"\n\tBound sensors       : {self._contact_binding.sensor_count}"
             )
 
-        # A sensor may select fewer worlds than the complete plan.
+        # Rows are the environments of the clone plan; without a plan, the binding defines them.
         binding_num_envs = self._contact_binding.sensor_count // self._num_sensors
-        if binding_num_envs != self._num_envs:
+        if plan is not None:
+            self._check_env_count(self._contact_binding.sensor_count, per_env=self._num_sensors)
+        elif binding_num_envs != self._num_envs:
             self._num_envs = binding_num_envs
             self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
             self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)

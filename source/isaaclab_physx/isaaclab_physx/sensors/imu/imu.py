@@ -131,6 +131,7 @@ class Imu(BaseImu):
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
+        self._check_env_count(self._view.count, self._rigid_parent_expr)
 
         # Real IMUs always measure gravity, so the accelerometer is biased by -g. The scene value
         # can change at runtime, so it is refreshed on every update instead of snapshotted here.

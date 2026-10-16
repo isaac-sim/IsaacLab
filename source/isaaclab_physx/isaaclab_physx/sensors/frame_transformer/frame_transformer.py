@@ -258,6 +258,7 @@ class FrameTransformer(BaseFrameTransformer):
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)
+        self._check_env_count(self._frame_physx_view.count, ", ".join(body_names_regex), len(body_names_regex))
 
         # Determine the order in which regex evaluated body names so we can later index into frame transforms
         # by frame name correctly

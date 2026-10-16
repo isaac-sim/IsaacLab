@@ -158,6 +158,7 @@ class Pva(BasePva):
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         # Create the rigid body view on the ancestor
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
+        self._check_env_count(self._view.count, self._rigid_parent_expr)
 
         # Unit world-gravity direction. The scene value can change at runtime, so it is
         # refreshed on every update instead of snapshotted here.
