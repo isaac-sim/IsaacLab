@@ -556,7 +556,7 @@ class Camera(SensorBase):
         with self._view.xform_world_space_writer() as writer:
             writer.set_poses(pos_wp, ori_wp, idx_wp)
         # the first capture after a reset keeps the explicitly set pose instead of reading it again
-        wp.indexedarray(self._pose_pending, idx_wp).fill_(False)
+        wp.indexedarray(self._pose_pending.warp, idx_wp).fill_(False)
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
@@ -618,7 +618,7 @@ class Camera(SensorBase):
                 idx_wp,
             )
         # the first capture after a reset keeps the explicitly set pose instead of reading it again
-        wp.indexedarray(self._pose_pending, idx_wp).fill_(False)
+        wp.indexedarray(self._pose_pending.warp, idx_wp).fill_(False)
         # write through to the data buffers so explicitly set poses are never stale,
         # regardless of :attr:`CameraCfg.update_latest_camera_pose`
         self._update_poses(env_ids=idx_wp, frame_op=0)
@@ -645,7 +645,7 @@ class Camera(SensorBase):
         # reset events, such as pose randomizations, move the cameras after the sensors reset,
         # so the poses of the reset cameras are read at their next capture
         if not self.cfg.update_latest_camera_pose:
-            self._pose_pending_torch.logical_or_(wp.to_torch(reset_mask))
+            self._pose_pending.torch.logical_or_(wp.to_torch(reset_mask))
             self._has_pending_poses = True
 
     """
@@ -709,8 +709,8 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
         # Cameras reset since their last capture, whose poses the next capture reads unless they are set before it
-        self._pose_pending = wp.zeros(self._view.count, device=self._device, dtype=wp.bool)
-        self._pose_pending_torch = wp.to_torch(self._pose_pending)
+        self._pose_pending = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.bool))
+        # Set by resets, so captures skip the pose read without checking the mask on the device
         self._has_pending_poses = False
 
         # Convert all encapsulated prims to Camera. Newton keeps only source USD camera prims.
@@ -738,8 +738,8 @@ class Camera(SensorBase):
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             if self._has_pending_poses:
-                self._update_poses(env_mask=self._pose_pending, frame_op=0)
-                self._pose_pending.zero_()
+                self._update_poses(env_mask=self._pose_pending.warp, frame_op=0)
+                self._pose_pending.warp.zero_()
                 self._has_pending_poses = False
             self._update_camera_state(env_mask=env_mask, frame_op=1)
         self._renderer.prepare_capture(self._render_data, self._data, self._frame)
