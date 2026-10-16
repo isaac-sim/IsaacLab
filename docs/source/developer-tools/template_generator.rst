@@ -93,9 +93,10 @@ installed Isaac Lab package:
 The command uses the dependencies from the active Isaac Lab environment. It
 does not invoke ``pip`` or install another set of template dependencies, so it
 also works in the pip-less virtual environments created by ``uv``.
-When invoked from an installed wheel, the generated ``pyproject.toml`` pins
-Isaac Lab and its optional extras to that exact version so ``uv sync`` cannot
-silently resolve an older release. When invoked from a source checkout, it
+When invoked from an installed wheel, the generated ``pyproject.toml`` requires
+Isaac Lab and its optional extras at a compatible release of that version (for
+example ``isaaclab~=3.0.0``), so ``uv sync`` cannot silently resolve an older
+release but still accepts its patch releases. When invoked from a source checkout, it
 instead records editable paths to that checkout and its workspace packages.
 This lets development and release branches work before their version is
 published while preserving the code that generated the project.

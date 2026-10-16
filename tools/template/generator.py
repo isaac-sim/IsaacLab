@@ -248,6 +248,9 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
     specification = specification.copy()
     source_path = specification.get("isaaclab_source_path")
     if not source_path:
+        # Accept patch releases of the installed version, without its local label such as "+build7".
+        installed_version = specification.get("isaaclab_version")
+        specification["isaaclab_release"] = installed_version.split("+", 1)[0] if installed_version else None
         specification["isaaclab_dependency"] = "isaaclab"
         specification["isaaclab_environments"] = []
         specification["isaaclab_indexes"] = []
@@ -283,6 +286,7 @@ def _prepare_external_dependencies(specification: dict, project_dir: str) -> dic
         }
     )
     specification["isaaclab_dependency"] = source_config["project"]["name"]
+    specification["isaaclab_release"] = None
     specification["isaaclab_optional_extras"] = sorted(source_config["project"].get("optional-dependencies", {}).keys())
     specification["isaaclab_environments"] = uv_config.get("environments", [])
     specification["isaaclab_indexes"] = uv_config.get("index", [])
