@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import builtins
 import os
 import random
 import re
@@ -15,6 +16,8 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
+from functools import wraps
 from typing import IO, Any
 
 from rich.cells import cell_len, chop_cells, set_cell_size
@@ -331,6 +334,8 @@ class LoadingScreen:
         self._spool: IO[str] | None = None
         self._saved_fds: tuple[int, int] | None = None
         self._saved_streams: tuple[IO[str], IO[str]] | None = None
+        self._original_input: Callable[..., str] | None = None
+        self._input_wrapper: Callable[..., str] | None = None
         self._started = 0.0
         self._index = 0
         self._stage = ""
@@ -363,6 +368,18 @@ class LoadingScreen:
                     redirect_stderr=False,
                 )
                 self._live.start(refresh=True)
+                original_input = builtins.input
+
+                @wraps(original_input)
+                def input_with_console(*args: Any, **kwargs: Any) -> str:
+                    # Interactive questions need both the captured context and
+                    # their prompt visible before they wait for an answer.
+                    self._shut_down(replay=True)
+                    return original_input(*args, **kwargs)
+
+                self._original_input = original_input
+                self._input_wrapper = input_with_console
+                builtins.input = input_with_console
         _active_screen = self
         return self
 
@@ -437,6 +454,10 @@ class LoadingScreen:
         global _active_screen
         if _active_screen is self:
             _active_screen = None
+        if self._original_input is not None and builtins.input is self._input_wrapper:
+            builtins.input = self._original_input
+            self._original_input = None
+            self._input_wrapper = None
         live: Live | None
         final_header = ""
         with self._render_lock:
