@@ -730,8 +730,9 @@ joints.
     Under native execution, delay is fixed. The schema stores only ``max_delay``, so ``min_delay``
     is ignored. A :class:`~isaaclab.actuators.DelayedPDActuator` does not randomize delay between
     resets as it does on the Isaac Lab path.
-    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: Isaac Lab draws one lag per
-    environment every step, honoring both bounds, and writes it into Newton's delay processor.
+    :class:`~isaaclab.actuators.BamActuatorCfg` is the exception: Newton's
+    :class:`~newton.actuators.InputProcessorRandomDelay` draws one lag per environment every step,
+    honoring both bounds.
 
 .. note::
 
@@ -753,8 +754,9 @@ cannot hold its target under load, its gearbox sticks, and its supply sags.
 BAM requires Newton with ``MJWarpSolverCfg`` and
 :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``; other backends and solvers
 raise an error. Newton runs the firmware and motor (:class:`~newton.actuators.DriveBAM`), the supply
-(:class:`~newton.actuators.Battery`), the command delay and the effort clamp. Isaac Lab draws the command
-lag and computes the gearbox friction (:mod:`isaaclab_newton.actuators`). Every physics step:
+(:class:`~newton.actuators.Battery`), the random command lag
+(:class:`~newton.actuators.InputProcessorRandomDelay`) and the effort clamp. Isaac Lab computes the
+gearbox friction (:mod:`isaaclab_newton.actuators`). Every physics step:
 
 * the position command is delayed by a lag drawn for each environment;
 * each environment's battery sags with the summed torque its group joints drew on the previous step,
@@ -859,10 +861,9 @@ since MJWarp has no noslip solver.
 friction. ``data.joint_friction`` reports the authored seed. Read the live budget with
 ``get_bam_group(robot, "servos").friction_budget`` from :mod:`isaaclab_newton.actuators`.
 
-Isaac Lab draws one command lag per environment, shared by the group's joints, honoring ``min_delay``,
-``max_delay``, ``delay_hold_prob`` and ``delay_update_period``, and writes it into Newton's delay
-processor before the actuators step. Reset restarts the lag stream only for the selected environments,
-including during CUDA graph replay.
+Newton draws one command lag per environment, shared by the group's joints, honoring ``min_delay``,
+``max_delay``, ``delay_hold_prob`` and ``delay_update_period``. Reset restarts the lag stream only for
+the selected environments, including during CUDA graph replay.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^
