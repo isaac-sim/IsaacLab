@@ -228,7 +228,6 @@ exclude_patterns = [
     "licenses/*",
     "plans",
     # Include-only fragments (pulled in via ``.. include::``; not standalone pages).
-    "source/migration/include/*",
 ]
 
 # Mock out modules that are not available on RTD
@@ -413,6 +412,14 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/migration/migrating_to_isaaclab_3-0": "source/isaaclab/migrating",
+    "source/setup/ecosystem": "source/isaaclab/ecosystem",
+    "source/setup/environments": "source/isaaclab/environments",
+    "source/setup/quickstart": "source/isaaclab/quickstart",
+    "source/setup/tutorial": "source/isaaclab/tutorial",
+    "source/setup/demos": "source/isaaclab/demos",
+    "source/setup/interactive_demos": "source/isaaclab/interactive_demos",
+    "source/setup/installation/index": "source/isaaclab/installation",
     "source/concepts/backend_architecture": "source/concepts/backends_and_presets",
     "source/concepts/joint_and_body_ordering": "source/how-to/transfer_policies_between_physx_and_newton",
     "source/concepts/native-physics-api/newton": "source/concepts/physics-backends/newton",
@@ -426,7 +433,12 @@ isaaclab_doc_redirects = {
     "source/concepts/solver-tuning/tune_mpm": "source/how-to/solver_tuning_mpm",
     "source/concepts/solver-tuning/tune_physx": "source/how-to/solver_tuning_physx",
     "source/concepts/solver-tuning/tune_vbd": "source/how-to/solver_tuning_vbd",
-    "source/features/docker_cloud": "source/workflows/docker/index",
+    "source/features/docker_cloud": "source/isaaclab/installation",
+    "source/workflows/index": "source/isaaclab/installation",
+    "source/workflows/docker/index": "source/isaaclab/installation",
+    "source/workflows/docker/images": "source/isaaclab/installation",
+    "source/workflows/docker/cluster": "source/features/hpc_clusters",
+    "source/workflows/docker/cloud": "source/features/cloud_deployment",
     "source/features/reproducibility": "source/how-to/reproducibility",
     "source/concepts/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
     "source/developer-tools/scene_data_providers": "source/concepts/native-physics-api/scene_data_providers",
@@ -514,11 +526,22 @@ isaaclab_doc_redirect_fragments = {
             )
         },
     },
+    "source/workflows/index": {
+        "": "source/isaaclab/installation#installation-method-container",
+    },
+    "source/workflows/docker/index": {
+        "": "source/isaaclab/installation#installation-method-container",
+        "running-isaac-lab-in-docker": "source/isaaclab/installation#installation-method-container",
+    },
+    "source/workflows/docker/images": {
+        "": "source/isaaclab/installation#docker-images",
+    },
     "source/features/docker_cloud": {
-        "clusters": "source/workflows/docker/cluster#deployment-cluster",
-        "deployment-cluster": "source/workflows/docker/cluster#deployment-cluster",
-        "cloud-workstations": "source/workflows/docker/cloud#docker-cloud-cloud",
-        "docker-cloud-cloud": "source/workflows/docker/cloud#docker-cloud-cloud",
+        "": "source/isaaclab/installation#installation-method-container",
+        "clusters": "source/features/hpc_clusters#deployment-cluster",
+        "deployment-cluster": "source/features/hpc_clusters#deployment-cluster",
+        "cloud-workstations": "source/features/cloud_deployment#docker-cloud-cloud",
+        "docker-cloud-cloud": "source/features/cloud_deployment#docker-cloud-cloud",
     },
     "source/features/record_video": {
         "overview": "source/concepts/visualization#video-recording",
@@ -555,4 +578,5 @@ def update_environment_browser(app):
 
 def setup(app):
     app.connect("autodoc-skip-member", skip_member)
-    app.connect("builder-inited", update_environment_browser)
+    # Temporarily disabled while editing docs to avoid parsing every task configuration.
+    # app.connect("builder-inited", update_environment_browser)

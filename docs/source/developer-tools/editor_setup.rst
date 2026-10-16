@@ -1,7 +1,7 @@
 .. _setup-vs-code:
 
 Editor setup
-------------
+============
 
 Editor setup is optional and is not required to run Isaac Lab. The repository
 includes shared settings for `Visual Studio Code <https://code.visualstudio.com/>`_
@@ -23,7 +23,7 @@ The ``.vscode`` directory contains the checked-in templates and tasks:
    └── tasks.json
 
 Configure a source checkout
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------
 
 Open the Isaac Lab repository root in your editor. Then run the setup command
 that matches your installation from a terminal in that directory.
@@ -72,7 +72,7 @@ Isaac Lab packages found in the active Python environment. This covers source,
 editable, and wheel installations without storing absolute paths in Git.
 
 Configure VS Code
-^^^^^^^^^^^^^^^^^
+-----------------
 
 Install the extensions recommended by the repository when VS Code prompts you.
 At minimum, install the Python and Pylance extensions. Run the setup command
@@ -81,7 +81,7 @@ the same interpreter used by the command. For the recommended uv installation,
 this is ``.venv/bin/python`` on Linux or ``.venv\Scripts\python.exe`` on Windows.
 
 Configure Cursor
-^^^^^^^^^^^^^^^^
+----------------
 
 Cursor cannot use Pylance because Pylance is licensed for official VS Code
 builds. Install the Python extension and the `basedpyright
@@ -96,7 +96,7 @@ No Cursor-specific path list is required. Pylance and basedpyright read the
 same Pyright configuration.
 
 Troubleshoot editor imports
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
+---------------------------
 
 If an import is still unresolved:
 

@@ -91,7 +91,7 @@ or run a Newton-based task, which does not need Kit:
 
    uv run isaaclab train --task Isaac-Cartpole physics=newton_mjwarp --visualizer newton_gl
 
-See :doc:`/source/setup/quickstart` for the full list of ``physics=`` and ``renderer=``
+See :doc:`/source/isaaclab/quickstart` for the full list of ``physics=`` and ``renderer=``
 selectors and the extras each one requires.
 
 Dependency version conflicts during installation

@@ -626,7 +626,7 @@ collection API.
 The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
 ``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
 ``robot.actuators.computed_effort`` / ``robot.actuators.applied_effort``. See the
-:doc:`Isaac Lab 3.0 migration guide <../migration/migrating_to_isaaclab_3-0>` for the full table.
+:doc:`Isaac Lab 3.0 migration guide <../isaaclab/migrating>` for the full table.
 
 
 Value resolution: USD vs. ActuatorCfg

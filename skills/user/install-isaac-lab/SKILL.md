@@ -17,7 +17,7 @@ This skill operates on the currently-checked-out Isaac Lab ref. If the user want
 
 Do not use this skill for post-install issues. Use `isaaclab-setup-troubleshooting` for import failures, launch failures, verification failures, and other diagnostic questions after the install completed.
 
-Do not vendor install commands, version pins, or troubleshooting steps into this skill. The install pages under `docs/source/setup/installation/index.rst` and their siblings are the source of truth for commands and minimums alike.
+Do not vendor install commands, version pins, or troubleshooting steps into this skill. The install pages under `docs/source/isaaclab/installation.rst` and their siblings are the source of truth for commands and minimums alike.
 
 ## Workflow
 
@@ -50,14 +50,14 @@ Do not vendor install commands, version pins, or troubleshooting steps into this
 
 Keep this skill synchronized with the following install docs. If commands or version pins change in the docs, update the docs, not this skill:
 
-- `docs/source/setup/installation/index.rst` — the installation entrypoint. Every install method is a section on this page with a stable ref anchor. Contains "System requirements" (driver minimums, GLIBC, Python, OS support), the method-picker cards, and the per-method command sequences.
-- `docs/source/setup/installation/index.rst` — includes the automatic uv setup steps under `installation-method-uv`.
-- `docs/source/setup/installation/index.rst` — `installation-method-uv` steps (Newton-only default without Isaac Sim).
-- `docs/source/setup/installation/index.rst` — `installation-method-python-env` steps (managed uv sync with the isaacsim extra).
-- `docs/source/setup/installation/index.rst` — `installation-method-wheel` steps (Isaac Lab Python package for external projects).
-- `docs/source/setup/installation/index.rst` — `installation-method-source` steps (Isaac Sim source build).
+- `docs/source/isaaclab/installation.rst` — the installation entrypoint. Every install method is a section on this page with a stable ref anchor. Contains "System requirements" (driver minimums, GLIBC, Python, OS support), the method-picker cards, and the per-method command sequences.
+- `docs/source/isaaclab/installation.rst` — includes the automatic uv setup steps under `installation-method-uv`.
+- `docs/source/isaaclab/installation.rst` — `installation-method-uv` steps (Newton-only default without Isaac Sim).
+- `docs/source/isaaclab/installation.rst` — `installation-method-python-env` steps (managed uv sync with the isaacsim extra).
+- `docs/source/isaaclab/installation.rst` — `installation-method-wheel` steps (Isaac Lab Python package for external projects).
+- `docs/source/isaaclab/installation.rst` — `installation-method-source` steps (Isaac Sim source build).
 - `docs/source/how-to/manage_asset_downloads.rst` — the `installation-asset-region-profiles` workflow.
-- `docs/source/setup/installation/asset_caching_details.inc` — asset caching notes.
+- `docs/source/isaaclab/installation/asset_caching_details.inc` — asset caching notes.
 - `docs/source/workflows/docker/index.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `index.rst`.
 - `docs/source/refs/troubleshooting.rst` — hand-off target for post-install diagnostics.
 
@@ -68,7 +68,7 @@ This skill is a router and executor, not a copy of the install pages. Adding ins
 - [Evaluations](evaluations.md)
 - [Reference](reference.md)
 - [Examples](examples.md)
-- Installation entrypoint: `docs/source/setup/installation/index.rst`
+- Installation entrypoint: `docs/source/isaaclab/installation.rst`
 - Automatic setup with uv (docs-Recommended): section `installation-method-uv` in `index.rst`
 - Python environment with Isaac Sim (uv sync): section `installation-method-python-env` in `index.rst`
 - Isaac Lab Python package (external projects): section `installation-method-wheel` in `index.rst`

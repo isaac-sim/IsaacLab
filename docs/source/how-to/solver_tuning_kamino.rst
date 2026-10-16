@@ -25,7 +25,7 @@ Read :ref:`backends-and-presets` for preset semantics and
 :ref:`hydra-backend-solver-presets` for task integration. Prepare the asset for
 Newton with :doc:`/source/how-to/prepare_asset_for_newton`. Confirm that the
 task exposes ``newton_kamino`` through its ``--help`` output or the
-:doc:`environment catalog </source/setup/environments>`; do not infer
+:doc:`environment catalog </source/isaaclab/environments>`; do not infer
 Kamino support from another Newton preset.
 
 Start from an explicit baseline

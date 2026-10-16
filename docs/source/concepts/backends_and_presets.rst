@@ -478,7 +478,7 @@ alternatives. The ``physics=`` selector recognizes these bundles from their
 Where to go next
 ----------------
 
-- :doc:`/source/setup/environments` lists environments and their supported
+- :doc:`/source/isaaclab/environments` lists environments and their supported
   presets.
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.

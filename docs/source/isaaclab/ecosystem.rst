@@ -127,7 +127,7 @@ Capabilities in motion
 
 These examples span real-to-sim reconstruction, vision-policy learning, and contact-rich material
 simulation. Explore the packaged
-:doc:`demos </source/setup/demos>` and :doc:`environment catalog </source/setup/environments>`
+:doc:`demos </source/isaaclab/demos>` and :doc:`environment catalog </source/isaaclab/environments>`
 for more examples.
 
 .. grid:: 1 1 2 2
@@ -150,7 +150,7 @@ for more examples.
          :alt: An SO-101 arm uses a wrist-camera policy to place a vial in a rack.
 
       The SO-101 tutorial trains a state teacher and distills it into a wrist-camera policy for
-      vial placement. See the :doc:`SO-101 tutorial </source/setup/tutorial>`.
+      vial placement. See the :doc:`SO-101 tutorial </source/isaaclab/tutorial>`.
 
    .. grid-item-card:: Robot cable manipulation
 
