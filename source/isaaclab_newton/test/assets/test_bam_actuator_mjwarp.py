@@ -151,8 +151,7 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, INITIAL_ANGLE))
     robot.write_joint_velocity_to_sim_index(velocity=torch.zeros_like(robot.data.joint_vel.torch))
     robot.actuators.reset()
-    # Version 2 starts without external load, as the state write resets the worlds.
-    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory_v2.npz")) as golden:
+    with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_pendulum_trajectory.npz")) as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
         for index in range(0, len(golden["target"]), decimation):
