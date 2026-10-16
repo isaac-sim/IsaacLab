@@ -471,6 +471,11 @@ def _bam_effort_limits(cfg: BamActuatorCfg, joint_names: list[str]) -> dict[str,
         return _configured_values(cfg.actuator_effort_limit, joint_names)
     voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
     if cfg.motor.kt is None or cfg.motor.resistance is None or voltage is None:
+        if any(v is not None for v in (voltage, cfg.motor.kt, cfg.motor.resistance)):
+            logger.warning(
+                f"The BAM configuration of joints {joint_names} changes only part of the stall torque inputs, so their"
+                " USD actuators keep their effort limit. Set actuator_effort_limit to change it."
+            )
         return {}
     return dict.fromkeys(joint_names, voltage * cfg.motor.kt / cfg.motor.resistance)
 

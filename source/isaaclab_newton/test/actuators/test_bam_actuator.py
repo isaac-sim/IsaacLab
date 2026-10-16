@@ -232,7 +232,7 @@ def test_authored_prim_resolves_to_the_bam_drive(goldens, servo_usd, model, flag
         assert (resolved["max_pwm"], resolved["alpha"]) == (1.0, 1.0)
 
 
-def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd):
+def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd, caplog):
     """A partial configuration keeps the asset's fit and runtime values and overrides only what it sets."""
     asset = make_stage(servo_usd)
     for index, name in enumerate(JOINT_NAMES):
@@ -249,7 +249,11 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd):
     stage.GetRootLayer().subLayerPaths.append(str(path))
     cfg = BamActuatorCfg(joint_names_expr=[".*"], kp_fw=123.5)
     cfg.motor.friction_base = 0.012
-    author_actuator_prims(stage, "/Robot", {"servo": cfg})
+    # Part of the stall torque inputs: the asset's torque limit stays, with a warning.
+    cfg.vin_range = (6.5, 8.2)
+    with caplog.at_level("WARNING"):
+        author_actuator_prims(stage, "/Robot", {"servo": cfg})
+    assert "actuator_effort_limit" in caplog.text
 
     for index, name in enumerate(JOINT_NAMES):
         entry = parse_actuator_prim(stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator"))

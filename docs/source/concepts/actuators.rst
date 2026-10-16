@@ -837,7 +837,9 @@ Like other explicit actuators, BAM is authored onto the joints' existing BAM act
 A joint without a BAM actuator gets a new one, which needs the motor fit (``model``, ``kt``,
 ``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``;
 if one is missing, authoring raises before it changes that joint's actuators. On an asset that
-models gearbox backlash, also set ``backlash_joint_template``.
+models gearbox backlash, also set ``backlash_joint_template``. A configuration that changes only
+part of ``vin``, ``vin_range``, ``kt`` and ``resistance`` keeps the asset's torque limit and warns;
+set ``actuator_effort_limit`` to change the limit.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
