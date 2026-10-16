@@ -239,13 +239,14 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd):
         prim = asset.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
         prim.GetAttribute("newton:frictionScale").Set(2.0)
-        asset.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Set(2.0)
+        prim.CreateAttribute("newton:hasBacklash", Sdf.ValueTypeNames.Int).Set(1)
+        asset.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Set(0.0)
     path = tmp_path / "robot.usda"
     asset.Export(str(path))
     stage = Usd.Stage.CreateInMemory()
     stage.GetRootLayer().subLayerPaths.append(str(path))
-    cfg = BamActuatorCfg(joint_names_expr=[".*"], kp_fw=123.5, motor=BamMotorCfg(friction_base=0.012))
-
+    cfg = BamActuatorCfg(joint_names_expr=[".*"], kp_fw=123.5)
+    cfg.motor.friction_base = 0.012
     author_actuator_prims(stage, "/Robot", {"servo": cfg})
 
     for index, name in enumerate(JOINT_NAMES):
@@ -256,10 +257,11 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, servo_usd):
         assert resolved["friction_base"] == pytest.approx(0.012)
         assert resolved["friction_scale"] == pytest.approx(2.0)
         assert resolved["vin"] == pytest.approx(VIN)
-        # The unset friction model keeps the asset's m6 flags.
+        # The unset friction model and backlash template keep the asset's m6 and backlash flags.
         assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
-        # The friction constraint seed is always re-authored; BAM overwrites it before each solve.
-        assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() == 1.0
+        assert resolved["has_backlash"] == 1
+        # Constraint allocation needs a positive friction seed; BAM overwrites it before each solve.
+        assert stage.GetPrimAtPath(f"/Robot/{name}").GetAttribute("newton:friction").Get() > 0.0
 
 
 """
