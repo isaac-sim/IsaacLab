@@ -267,6 +267,16 @@ Articulation root properties.
 """
 
 
+def _warn_fix_root_link_false_unsupported(root_path: str) -> None:
+    """Warn that ``fix_root_link=False`` is not supported for an articulation rooted at its fixed world joint."""
+    logger.warning(
+        "fix_root_link=False is not supported for articulation '%s', which is rooted at the fixed joint that attaches"
+        " it to the world. To make it floating, author the asset without that joint, or convert it with"
+        " fix_base=False.",
+        root_path,
+    )
+
+
 def apply_articulation_root_properties(
     prim_path_expr: str,
     fragments: Iterable[schemas_cfg.ArticulationRootFragment],
@@ -357,7 +367,9 @@ def apply_articulation_root_properties(
             root = sim.physics_manager.fix_articulation_root(root, stage)
         elif fix_root_link is False:
             joint = find_global_fixed_joint_prim(root.GetPath().pathString, stage=stage)
-            if joint is not None:
+            if joint is not None and joint.GetPrim() == root:
+                _warn_fix_root_link_false_unsupported(root.GetPath().pathString)
+            elif joint is not None:
                 joint.GetJointEnabledAttr().Set(False)
 
         root_path = root.GetPath().pathString
@@ -519,7 +531,12 @@ def modify_articulation_root_properties(
     if fix_root_link is not None:
         existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
         # enable/disable an existing world joint, otherwise create one
-        if existing_fixed_joint_prim is not None:
+        root_is_joint = (
+            existing_fixed_joint_prim is not None and existing_fixed_joint_prim.GetPrim() == articulation_prim
+        )
+        if root_is_joint and not fix_root_link:
+            _warn_fix_root_link_false_unsupported(prim_path)
+        elif existing_fixed_joint_prim is not None:
             logger.info(
                 f"Found an existing fixed joint for the articulation: '{prim_path}'. Setting it to: {fix_root_link}."
             )
