@@ -965,6 +965,18 @@ def _build_rgb_annotator_for_camera(
     return annotator, render_product
 
 
+def _release_rgb_annotator(annotator, render_product) -> None:
+    """Detach the annotator and destroy its render product.
+
+    Replicator render products are not released by detaching an annotator. Every one left alive keeps its RTX
+    Hydra engine, and Kit eventually refuses to create another, so each capture must destroy the product it created.
+    """
+    with contextlib.suppress(Exception):
+        annotator.detach([render_product])
+    with contextlib.suppress(Exception):
+        render_product.destroy()
+
+
 def _annotator_rgb_to_numpy(rgb_data) -> np.ndarray:
     """Convert replicator annotator output to HxWx3 uint8 numpy array."""
     rgb_array = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
@@ -1155,8 +1167,7 @@ def _capture_kit_viewport_with_pose_reapply(
             _warm_kit_rtx_render_product(env, annotator, use_convergence=True)
         return _capture_kit_viewport_rgb(annotator)
     finally:
-        with contextlib.suppress(Exception):
-            annotator.detach([render_product])
+        _release_rgb_annotator(annotator, render_product)
 
 
 def _warm_kit_rtx_render_product(
@@ -1302,8 +1313,7 @@ def _run_kit_viewport_frame_motion_test(
         _attempt_kit_replay()
     finally:
         if annotator is not None and render_product is not None:
-            with contextlib.suppress(Exception):
-                annotator.detach([render_product])
+            _release_rgb_annotator(annotator, render_product)
 
 
 def _capture_kit_viewport_rgb(annotator) -> np.ndarray:
