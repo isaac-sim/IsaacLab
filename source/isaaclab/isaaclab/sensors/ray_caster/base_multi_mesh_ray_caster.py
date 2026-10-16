@@ -301,12 +301,12 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         records_per_env[env_id].append((mesh_id, (1.0e9, 1.0e9, 1.0e9), (0.0, 0.0, 0.0, 1.0)))
 
             if target_in_plan:
+                if not target_cfg.track_mesh_transforms and not any(records_per_env):
+                    raise RuntimeError(f"No ClonePlan source prims matched '{target_cfg.prim_expr}'.")
                 if target_cfg.track_mesh_transforms and not plan_tracked_target_exprs:
                     raise RuntimeError(
                         f"No tracked body expressions were resolved for target '{target_cfg.prim_expr}'."
                     )
-                if not target_cfg.track_mesh_transforms and not any(records_per_env):
-                    raise RuntimeError(f"No ClonePlan source prims matched '{target_cfg.prim_expr}'.")
                 return records_per_env, dummy_mesh_id, plan_tracked_target_exprs
 
         # Fall back to authored USD prims for global targets and scenes without ClonePlan data.
