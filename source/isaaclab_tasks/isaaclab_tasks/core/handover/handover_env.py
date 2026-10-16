@@ -232,18 +232,12 @@ class HandoverEnv(DirectMARLEnv):
         self.extras["log"]["Metrics/goal_distance"] = goal_dist_mean
 
         self._goal.update(succeeded, self.cfg.success_steps_required)
-        self._visualize_goal()
+        self.goal_markers.visualize(
+            self.goal_pos + self.scene.env_origins, self.goal_rot, environment_ids=self.scene._ALL_INDICES
+        )
         self.extras["log"]["Diagnostics/success_steps"] = self._goal.success_steps.float().mean()
 
         return {"right_hand": rew_dist, "left_hand": rew_dist}
-
-    def _visualize_goal(self) -> None:
-        """Draw the current goals."""
-        self.goal_markers.visualize(
-            self.goal_pos + self.scene.env_origins,
-            self.goal_rot,
-            environment_ids=self.scene._ALL_INDICES,
-        )
 
     def _get_dones(self) -> tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
         self._compute_intermediate_values()
@@ -333,7 +327,9 @@ class HandoverEnv(DirectMARLEnv):
 
         # update goal pose and markers
         self.goal_rot[env_ids] = new_rot
-        self._visualize_goal()
+        self.goal_markers.visualize(
+            self.goal_pos + self.scene.env_origins, self.goal_rot, environment_ids=self.scene._ALL_INDICES
+        )
 
     def _compute_intermediate_values(self) -> None:
         env_origins = self.scene.env_origins.unsqueeze(1)
