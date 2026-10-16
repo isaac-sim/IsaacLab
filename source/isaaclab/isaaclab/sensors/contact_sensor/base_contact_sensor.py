@@ -200,7 +200,13 @@ class BaseContactSensor(SensorBase):
             if leaf_pattern.isidentifier() or not parent_expr.startswith("/") or _GLOB_WILDCARD.search(path_expr):
                 body_exprs.append(path_expr)
                 continue
-            name_pattern = re.compile(leaf_pattern)
+            try:
+                name_pattern = re.compile(leaf_pattern)
+                parents = sim_utils.resolve_matching_prims_from_source(parent_expr, raise_if_no_matches=False)
+            except re.error:
+                # not a regular expression, such as a glob ``?``: the views match it themselves
+                body_exprs.append(path_expr)
+                continue
 
             def is_partner(prim) -> bool:
                 if not name_pattern.fullmatch(prim.GetName()):
@@ -209,7 +215,6 @@ class BaseContactSensor(SensorBase):
                 return body == prim if body is not None else prim.HasAPI(UsdPhysics.CollisionAPI)
 
             bodies = {}
-            parents = sim_utils.resolve_matching_prims_from_source(parent_expr, raise_if_no_matches=False)
             for parent, parent_dest in parents:
                 root = parent.GetPath().pathString
                 prims = sim_utils.get_all_matching_child_prims(root, is_partner, traverse_instance_prims=False)

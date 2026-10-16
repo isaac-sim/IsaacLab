@@ -547,7 +547,9 @@ def test_cube_stack_contact_filtering(setup_simulation, device):
         assert contact_sensor.data.net_normal_forces_w.torch.sum().item() > 0.0
 
 
-def _author_nested_chain(prim_path: str, link_specs: list[tuple[str, tuple[float, float, float]]] | None = None):
+def _author_nested_chain(
+    prim_path: str, link_specs: list[tuple[str, tuple[float, float, float]]] | None = None
+) -> None:
     """Author a chain of kinematic rigid bodies whose link prims are nested under each other.
 
     Mirrors the layout produced by the URDF importer in Isaac Sim 6.0+, where each child
@@ -638,8 +640,8 @@ def test_filter_expression_matching_nested_bodies(setup_simulation, device):
 
     Regression test: each filter expression became one filter pattern of the contact view, which
     must match one prim per environment, so an expression matching feet at two depths of a nested
-    rigid-body hierarchy failed sensor initialization. Expressions matching one body keep their
-    column and order.
+    rigid-body hierarchy failed sensor initialization. Expressions matching one body, and globs
+    that are not regular expressions, keep their column and order.
     """
     sim_dt = setup_simulation[0]
     num_envs = 4
@@ -668,7 +670,7 @@ def test_filter_expression_matching_nested_bodies(setup_simulation, device):
         right_sensor = ContactSensor(
             ContactSensorCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_right",
-                filter_prim_paths_expr=[f"{robot}/pelvis/left_hip/left_foot", f"{robot}/pelvis/right_.*"],
+                filter_prim_paths_expr=[f"{robot}/pelvis/left_hip/?eft_foot", f"{robot}/pelvis/right_.*"],
             )
         )
         sim.reset()

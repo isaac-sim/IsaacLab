@@ -733,9 +733,10 @@ def test_filter_expression_matching_nested_bodies(device):
 
     Regression test: each filter expression became one filter pattern of the contact binding,
     which must match one prim per sensor, so an expression matching feet at two depths of a
-    nested rigid-body hierarchy failed binding creation. Expressions matching one body keep
-    their column and order. The source environment is replicated through the OVPhysX clone
-    path, so the expressions resolve through the clone plan.
+    nested rigid-body hierarchy failed binding creation. Expressions matching one body, and
+    globs that are not regular expressions, keep their column and order. The source environment
+    is replicated through the OVPhysX clone path, so the expressions resolve through the clone
+    plan.
     """
     num_envs = 4
     # feet at two depths with their tops 0.5 m above the environment origin
@@ -750,7 +751,7 @@ def test_filter_expression_matching_nested_bodies(device):
         ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Cube_left", filter_prim_paths_expr=[f"{robot}/.*_foot"]),
         ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube_right",
-            filter_prim_paths_expr=[f"{robot}/pelvis/left_hip/left_foot", f"{robot}/pelvis/right_.*"],
+            filter_prim_paths_expr=[f"{robot}/pelvis/left_hip/?eft_foot", f"{robot}/pelvis/right_.*"],
         ),
     )
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
