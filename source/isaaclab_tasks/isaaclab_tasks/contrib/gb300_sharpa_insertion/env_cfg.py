@@ -54,6 +54,11 @@ class GB300SharpaSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.55, -0.2, 2.55)),
         spawn=sim_utils.SphereLightCfg(intensity=1200, radius=0.25, color=(0.85, 0.93, 1.0)),
     )
+    back_light = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/BackLight",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.1, -0.45, 2.4)),
+        spawn=sim_utils.SphereLightCfg(intensity=3500, radius=0.35, color=(0.95, 0.97, 1.0)),
+    )
     pedestal = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Pedestal",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(*ROBOT_BASE_POSITION_E[:2], ROBOT_BASE_POSITION_E[2] / 2)),

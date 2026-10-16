@@ -395,6 +395,11 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
             # Live plots are drawn in the sidebar, not Newton's floating window.
             self.gui._render_scalar_plots = lambda: None
 
+    def begin_frame(self, time: float) -> None:
+        """Update mesh VAOs in their owning context because VAOs are not shared between viewers."""
+        self.renderer.window.switch_to()
+        super().begin_frame(time)
+
     def get_frame(self, target_image: wp.array | None = None, render_ui: bool = False) -> wp.array:
         """Reuse device capture storage while the native framebuffer size remains unchanged."""
         shape = (self.renderer._screen_height, self.renderer._screen_width, 3)
@@ -409,7 +414,12 @@ class NewtonViewerGL(NewtonViewerUI, ViewerGL):
         finally:
             self._fullscreen_image_active = False
         if self._close_requested:
-            self.renderer.close()
+            self.close()
+
+    def close(self) -> None:
+        """Release context-local GL resources before closing their owning window."""
+        self.renderer.window.switch_to()
+        super().close()
 
     def log_image(self, name: str, image: wp.array | np.ndarray, *, fullscreen: bool = False) -> None:
         """Track whether the current frame replaces the perspective scene with an image."""
