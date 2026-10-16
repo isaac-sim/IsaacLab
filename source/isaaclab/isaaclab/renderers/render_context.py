@@ -15,7 +15,9 @@ from typing import Any
 import torch
 import warp as wp
 
+from .. import cloner
 from ..sensors.camera.camera_data import CameraData
+from ..utils.string import string_to_callable
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
 
@@ -79,7 +81,7 @@ class RenderContext:
     )
 
     def __init__(self, backend_registry: list[tuple[Any, Any]]) -> None:
-        self.clone_contexts: set[type | str] = set()
+        self.clone_contexts: set[type[cloner.ReplicateContext] | str] = set()
         """Scene representations declared by camera renderers and visualizers before cloning."""
         self._backend_registry = backend_registry
         self._physics_initialized: bool = False  # Set to True after the first PHYSICS_READY callback fires.
@@ -123,6 +125,13 @@ class RenderContext:
         """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
         if self._physics_initialized:
+            routing = {
+                string_to_callable(context) if isinstance(context, str) else context: set()
+                for context in cfg.cloning_contexts
+            }
+            for context in tuple(routing):
+                if context in routing:
+                    context.prepare(renderer._sim, routing)
             renderer.initialize()
 
     def ensure_initialize(self) -> None:

@@ -24,11 +24,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 @pytest.fixture()
 def ovstage_variant(request, monkeypatch):
     """Select the indirectly parametrized OVRTX stage path."""
-    if request.param == "ovstage":
-        monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1")
-    else:
-        # Clear explicitly rather than relying on the variable being unset. An ambient
-        # ISAAC_LAB_OVRTX_USE_OVSTAGE=1 would otherwise make both variants exercise the ovstage
-        # path, silently dropping legacy coverage while still reporting two passing variants.
-        monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    # Pin both variants: an unset flag selects the physics backend's preferred rendering path.
+    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(request.param == "ovstage")))
     return request.param
