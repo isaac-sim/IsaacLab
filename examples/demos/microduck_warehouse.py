@@ -115,6 +115,7 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
         ),
         default_visualizer_cfg=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
+    camera_exposure_iso = preset(default=6400.0, isaacsim_rtx=None, newton_renderer=None)
     camera_path = preset(
         default="/RoofReview/Cameras/duck_showcase_animation",
         poster="/RoofReview/Cameras/duck_showcase_animation",
@@ -146,7 +147,14 @@ def main() -> None:
         source_camera = UsdGeom.Camera(stage.GetPrimAtPath(cfg.camera_path))
         if not source_camera:
             raise ValueError(f"No USD camera at {cfg.camera_path!r} in {WAREHOUSE_USD!r}.")
-        UsdGeom.Camera.Define(stage, "/World/envs/env_0/Camera").SetFromCamera(source_camera.GetCamera())
+        camera = UsdGeom.Camera.Define(stage, "/World/envs/env_0/Camera")
+        camera.SetFromCamera(source_camera.GetCamera())
+        if output == "rgb" and cfg.camera_exposure_iso is not None:
+            # Use a fixed physical exposure for the warehouse's dim interior in OVRTX.
+            camera.GetPrim().AddAppliedSchema("OmniRtxCameraExposureAPI_1")
+            camera.CreateExposureFStopAttr(5.0)
+            camera.CreateExposureTimeAttr(0.02)
+            camera.CreateExposureIsoAttr(cfg.camera_exposure_iso)
         sim = sim_utils.SimulationContext(cfg.sim)
         scene = instantiate(cfg.scene)
         sim.register_interactive_scene(scene)
