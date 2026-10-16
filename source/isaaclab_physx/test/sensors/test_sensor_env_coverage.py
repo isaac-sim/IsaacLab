@@ -17,7 +17,15 @@ from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import FrameTransformerCfg, ImuCfg, JointWrenchSensorCfg, PvaCfg, RayCasterCfg, patterns
+from isaaclab.sensors import (
+    FrameTransformerCfg,
+    ImuCfg,
+    JointWrenchSensorCfg,
+    MultiMeshRayCasterCfg,
+    PvaCfg,
+    RayCasterCfg,
+    patterns,
+)
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
@@ -83,4 +91,28 @@ def test_sensor_rejects_asset_missing_from_some_envs(sensor_name):
         # keep the scene alive: only live sensors initialize on reset
         _scene = InteractiveScene(cfg)
         with pytest.raises(RuntimeError, match=rf"/{asset_name}'.* found 2 instances.* in 4 environments"):
+            sim.reset()
+
+
+def test_multi_mesh_ray_caster_rejects_tracked_target_missing_from_some_envs():
+    """A multi-mesh ray caster fails to initialize when a tracked target exists in only some environments.
+
+    The target's body view would cover only the environments holding the target, while the mesh table holds a
+    row for every environment: the target would be missing from its own environments or appear in others.
+    """
+    cfg = _PartialAssetSceneCfg(num_envs=4)
+    # the robot carrying the sensor exists in every environment, the crate in environments 0 and 1
+    cfg.clone_cfg.clone_combinations = [cloner.InclusionSet(assets=["crate"]), cloner.InclusionSet(assets=[])]
+    for name in SENSORS:
+        setattr(cfg, name, None)
+    cfg.scanner = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/Arm",
+        mesh_prim_paths=[MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="{ENV_REGEX_NS}/Crate")],
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=(0.0, 0.0)),
+    )
+
+    with build_simulation_context(sim_cfg=SimulationCfg(physics=PhysxCfg())) as sim:
+        # keep the scene alive: only live sensors initialize on reset
+        _scene = InteractiveScene(cfg)
+        with pytest.raises(RuntimeError, match=r"found 2 instances of '[^']*/Crate' in 4 environments"):
             sim.reset()
