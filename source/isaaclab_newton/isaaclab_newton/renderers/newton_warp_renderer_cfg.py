@@ -136,6 +136,7 @@ class NewtonWarpRendererCfg(RendererCfg):
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),

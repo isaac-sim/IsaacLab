@@ -179,6 +179,11 @@ class CameraData:
         allocated = requested.intersection(supported_specs)
         if rgb_alias:
             allocated.remove(RenderBufferKind.RGB)
+        hdr_alias = {RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE} <= allocated and (
+            supported_specs[RenderBufferKind.RGB_HDR] == supported_specs[RenderBufferKind.RGB_RADIANCE]
+        )
+        if hdr_alias:
+            allocated.remove(RenderBufferKind.RGB_HDR)
 
         buffers: dict[str, ProxyArray] = {}
         for name, spec in supported_specs.items():
@@ -186,6 +191,9 @@ class CameraData:
                 continue
             shape = (num_views, height, width, spec.channels)
             buffers[str(name)] = ProxyArray(wp.zeros(shape, dtype=spec.dtype, device=device))
+
+        if hdr_alias:
+            buffers[str(RenderBufferKind.RGB_HDR)] = buffers[str(RenderBufferKind.RGB_RADIANCE)]
 
         if rgb_alias:
             # Zero-copy strided view into rgba: shape (N, H, W, 3), skipping the alpha channel.

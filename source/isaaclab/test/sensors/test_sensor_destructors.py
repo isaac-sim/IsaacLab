@@ -77,6 +77,7 @@ def test_camera_destructor_cleans_renderer_before_shutdown(monkeypatch):
     view = _View()
     renderer = _Renderer()
     camera = object.__new__(Camera)
+    camera._prepare_renderer_handle = None
     camera._view = view
     camera._renderer = renderer
     camera._render_data = None

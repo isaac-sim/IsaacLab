@@ -343,7 +343,7 @@ class SensorBase(ABC):
         def _invoke(callback_name, event):
             getattr(obj_ref, callback_name)(event)
 
-        # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
+        # Backend-agnostic: PHYSICS_READY initializes sensors; STOP invalidates them.
         self._initialize_handle = physics_mgr_cls.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
                 _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls

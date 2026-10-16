@@ -182,6 +182,49 @@ def ovrtx_use_ovstage_enabled() -> bool:
     return value == "1"
 
 
+# RTX has no native pre-exposure radiance output, so scene-linear camera inputs are derived by authoring
+# neutral exposure on the camera prim, which affects every output rendered from it. Temporary workaround:
+# remove once RTX provides a native radiance output (NVBug 6858736). The Isaac RTX renderer carries a copy.
+_CAMERA_EXPOSURE_SCHEMAS = ("OmniRtxCameraAutoExposureAPI_1", "OmniRtxCameraExposureAPI_1")
+_NEUTRAL_CAMERA_EXPOSURE: tuple[tuple[str, str, Any], ...] = (
+    ("exposure", "Float", 0.0),
+    ("exposure:fStop", "Float", 1.0),
+    ("exposure:iso", "Float", 0.0),
+    ("exposure:responsivity", "Float", 1.0),
+    ("exposure:time", "Float", 1.0),
+    ("omni:rtx:autoExposure:enabled", "Bool", False),
+)
+
+
+def _apply_rtx_exposure_overrides(stage: Any, prim_paths: list[str]) -> None:
+    """Disable RTX camera exposure so downstream processors receive scene-linear HDR.
+
+    Existing API schemas are preserved. Schema metadata is authored directly so the RTX schema
+    plugin does not need to be loaded yet.
+
+    Args:
+        stage: USD stage containing the camera prims.
+        prim_paths: Resolved camera prim paths.
+    """
+    from pxr import Sdf
+
+    value_types = {"Bool": Sdf.ValueTypeNames.Bool, "Float": Sdf.ValueTypeNames.Float}
+    for prim_path in prim_paths:
+        prim = stage.GetPrimAtPath(prim_path)
+        if not prim or not prim.IsValid():
+            continue
+        current = prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+        existing = list(current.prependedItems) + list(current.explicitItems) + list(current.appendedItems)
+        missing = [schema for schema in _CAMERA_EXPOSURE_SCHEMAS if schema not in existing]
+        if missing:
+            prim.SetMetadata("apiSchemas", Sdf.TokenListOp.Create(prependedItems=[*missing, *existing]))
+        for attr_name, sdf_type_name, value in _NEUTRAL_CAMERA_EXPOSURE:
+            attr = prim.GetAttribute(attr_name)
+            if not attr:
+                attr = prim.CreateAttribute(attr_name, value_types[sdf_type_name], custom=False)
+            attr.Set(value)
+
+
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
     # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
     # unrelated missing modules should surface unchanged for easier debugging.
@@ -448,20 +491,20 @@ class OVRTXRenderer(BaseRenderer):
         :mod:`isaaclab` does not need to know about PPISP. Then pins
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         the RTX exposure model OVRTX embeds does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
+        ISP. Exposure is also neutralized when ``rgb_radiance`` is requested. Otherwise, the
+        camera prim's authored exposure is left alone.
         """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
+        if spec.cfg.isp_cfg is not None:
+            try:
+                from isaaclab_ppisp import resolve_and_normalize
+            except ModuleNotFoundError as exc:
+                _raise_missing_ppisp_error(exc)
 
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
+            camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+            spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        needs_neutral_exposure = spec.cfg.isp_cfg is not None or "rgb_radiance" in spec.cfg.data_types
+        if needs_neutral_exposure and spec.camera_prim_paths:
+            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
@@ -900,6 +943,10 @@ class OVRTXRenderer(BaseRenderer):
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
+        # Radiance reads the same HdrColor var; exposure is neutralized in :meth:`prepare_cameras`.
+        radiance = render_data.warp_buffers.get(str(RenderBufferKind.RGB_RADIANCE))
+        if radiance is not None:
+            render_data.warp_buffers.setdefault(str(RenderBufferKind.RGB_HDR), radiance)
         # When PPISP is composed but the user did not request the raw HDR AOV,
         # allocate an internal HDR scratch buffer under "rgb_hdr" so both the
         # HdrColor extractor and PPISP dispatch can use the same buffer map.
