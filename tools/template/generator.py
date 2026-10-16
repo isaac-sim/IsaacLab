@@ -7,6 +7,7 @@ import glob
 import importlib.metadata
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from datetime import date
@@ -25,7 +26,7 @@ jinja_env = jinja2.Environment(
 
 
 def _setup_git_repo(project_dir: str) -> None:
-    """Setup the git repository.
+    """Set up the git repository with an initial commit, warning with the commands left to run if one fails.
 
     Args:
         project_dir: The directory of the project.
@@ -35,10 +36,17 @@ def _setup_git_repo(project_dir: str) -> None:
         ["git", "add", "-f", "."],
         ["git", "commit", "-q", "-m", "Initial commit"],
     ]
-    for command in commands:
+    for index, command in enumerate(commands):
         result = subprocess.run(command, capture_output=True, text=True, cwd=project_dir)
         for line in result.stdout.splitlines():
             print(f"  |  {line}")
+        if result.returncode != 0:
+            print(f"  |  WARNING: '{' '.join(command[:2])}' failed with exit code {result.returncode}:")
+            for line in result.stderr.splitlines():
+                print(f"  |    {line}")
+            print(f"  |  Fix the error above, then run in {project_dir}:")
+            print(f"  |    {' && '.join(shlex.join(pending) for pending in commands[index:])}")
+            return
 
 
 def _write_file(dst: str, content: str) -> None:
