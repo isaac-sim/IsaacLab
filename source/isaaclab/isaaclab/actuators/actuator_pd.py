@@ -451,7 +451,6 @@ class DelayedPDActuator(IdealPDActuator):
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
-        # None means no delay for the Isaac Lab model; only Newton authoring inherits a USD delay.
         self._max_delay = 0 if cfg.max_delay is None else cfg.max_delay
         # instantiate the delay buffers
         self.positions_delay_buffer = DelayBuffer(self._max_delay, self._num_envs, device=self._device)

@@ -636,10 +636,6 @@ Gains and limits can come from the USD joint-drive prim or the actuator config. 
 ``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
 schema supplies joint and body ordering, not actuator parameters.
 
-On the native path, an explicit actuator's parameters (gains, actuator limits, delay) come from the
-joint's ``NewtonActuator`` prim when the asset ships one: a ``None`` field keeps that prim's value.
-See :ref:`Existing USD actuators <actuators-usd-overlay>`.
-
 Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
 log the USD, configuration, and applied values for every joint when the sources differ or the
 configuration leaves a value unspecified. Unspecified values appear as ``Not Specified``. See
