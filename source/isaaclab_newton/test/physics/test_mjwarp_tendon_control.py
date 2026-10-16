@@ -15,6 +15,8 @@ from isaaclab_newton.physics.mjwarp_tendon_control import (
 )
 from newton.solvers import SolverMuJoCo
 
+pytestmark = pytest.mark.kitless
+
 _TENDON = int(SolverMuJoCo.TrnType.TENDON)
 _JOINT = 0
 

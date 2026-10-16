@@ -20,6 +20,8 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
 from isaaclab.physics import PhysicsManager
 
+pytestmark = pytest.mark.kitless
+
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:
     """Build a USD pose matrix from an xyzw quaternion."""

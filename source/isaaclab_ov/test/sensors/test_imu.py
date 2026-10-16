@@ -32,6 +32,8 @@ from __future__ import annotations
 # ---------------------------------------------------------------------------
 import pytest
 
+pytestmark = pytest.mark.kitless
+
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 _TT_module = pytest.importorskip(
     "isaaclab_ov.tensor_types",

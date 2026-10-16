@@ -19,7 +19,7 @@ from rendering_test_utils import (
     rendering_test_cartpole,
 )
 
-pytestmark = pytest.mark.arm_ci
+pytestmark = [pytest.mark.arm_ci, pytest.mark.kitless]
 
 _RENDERING_PARAMS = [
     pytest.param(*param.values, False, marks=param.marks, id=param.id)

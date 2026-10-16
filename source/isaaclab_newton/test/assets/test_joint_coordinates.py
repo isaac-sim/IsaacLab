@@ -23,6 +23,8 @@ from isaaclab_newton.physics import NewtonManager
 from newton.selection import ArticulationView
 from scipy.spatial.transform import Rotation
 
+pytestmark = pytest.mark.kitless
+
 # One revolute, one ball, one revolute -- the layout that hides an off-by-one when the tables are
 # built by walking the model instead of the view's own per-joint counts.
 COORD_COUNTS = [1, 4, 1]

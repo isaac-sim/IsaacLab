@@ -67,6 +67,13 @@ on:
       - develop
       - 'release/**'
   workflow_dispatch:
+    inputs:
+      marker:
+        description: >-
+          Run only the tests carrying this registered pytest marker, e.g. kitless. A job with no
+          marked file passes with an empty report. Empty runs every test.
+        type: string
+        default: ''
 
 # Concurrency control to prevent parallel runs on the same PR
 concurrency:
@@ -266,6 +273,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -294,6 +302,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -322,6 +331,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -349,6 +359,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -376,6 +387,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -403,6 +415,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -434,6 +447,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -468,6 +482,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -499,6 +514,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -523,6 +539,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -546,6 +563,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -570,6 +588,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -594,6 +613,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -618,6 +638,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -641,6 +662,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -664,6 +686,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -688,6 +711,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -717,6 +741,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -761,6 +786,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -802,6 +828,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -834,6 +861,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -857,6 +885,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -901,6 +930,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -948,6 +978,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -1273,6 +1304,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
@@ -1317,6 +1349,7 @@ jobs:
       id: ov_pins
     - uses: ./.github/actions/run-package-tests
       with:
+        ci-marker: ${{ inputs.marker }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
