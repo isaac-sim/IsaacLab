@@ -285,20 +285,20 @@ def test_schema_authoring_matches_lab_effort_limit_resolution():
     for joint_name, authored_limit in zip(("pd_a", "pd_b", "dc_a", "dc_b"), (71.0, 72.0, 73.0, 74.0), strict=True):
         joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
         UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(authored_limit)
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Robot/a")
     cfgs = {
         "mapped": DelayedPDActuatorCfg(
             joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit={"pd_a": 5.0}, max_delay=0
         ),
         "fallback": DelayedPDActuatorCfg(joint_names_expr=["dc_.*"], stiffness=1.0, damping=0.0, max_delay=0),
+        # "mapped_pd" and joint "a" name the same new prim as "mapped" and "pd_a"; each joint still gets its own.
+        "mapped_pd": IdealPDActuatorCfg(joint_names_expr=["a"], stiffness=1.0, damping=0.0, actuator_effort_limit=9.0),
     }
 
     author_actuator_prims(stage, "/World/Robot", cfgs)
 
-    expected = {"mapped_pd_a": 5.0, "mapped_pd_b": 0.0, "fallback_dc_a": 73.0, "fallback_dc_b": 74.0}
-    for name, expected_limit in expected.items():
-        actuator_prim = stage.GetPrimAtPath(f"/World/Robot/{name}_actuator")
-        assert actuator_prim.GetAttribute("newton:maxEffort").Get() == pytest.approx(expected_limit)
-        assert "NewtonActuatorDelayAPI" not in actuator_prim.GetAppliedSchemas()
+    for joint_name, limit in {"pd_a": 5.0, "pd_b": 0.0, "dc_a": 73.0, "dc_b": 74.0, "a": 9.0}.items():
+        assert _parsed_actuator(stage, joint_name).component_specs == [(ClampingMaxEffort, {"max_effort": limit})]
 
 
 def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
