@@ -386,7 +386,8 @@ class OVRTXRenderer(BaseRenderer):
 
     @property
     def visual_material_writer(self):
-        return self._create_visual_material_writer
+        """Return a writer factory once this renderer has a scene consumer."""
+        return self._create_visual_material_writer if self._initialized_scene else None
 
     def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
         """Create the detached-scene material writer after scene population."""
