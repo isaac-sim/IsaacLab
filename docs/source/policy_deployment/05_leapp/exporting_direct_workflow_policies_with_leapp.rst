@@ -56,8 +56,17 @@ tutorial environment into the task package:
             source\isaaclab_tasks\isaaclab_tasks\contrib\anymal_c_direct\anymal_c_env.py
 
 After your environment includes the required LEAPP input, output, and state
-annotations, export a trained policy with the same backend extra pattern as training.
-For example, on Isaac Sim PhysX:
+annotations, export the trained policy with the backend extra required by the task.
+Only pass a ``physics=...`` selector when the task exposes that preset. Check the
+available selectors in the **Presets** column printed by:
+
+.. code-block:: bash
+
+   uv run isaaclab list_envs --show_presets
+
+The ``IsaacContrib-Velocity-Rough-AnymalC-Direct`` example has a fixed Isaac Sim
+PhysX configuration and does not expose selectable physics presets. Its export command
+must therefore omit the ``physics=...`` selector:
 
 .. tab-set::
    :sync-group: os
@@ -67,38 +76,36 @@ For example, on Isaac Sim PhysX:
 
       .. code-block:: bash
 
-         # Newton:     uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
-         # OV PhysX:   uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
-         # Isaac Sim:
          OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl \
-             --task <TASK_NAME> \
+             --task IsaacContrib-Velocity-Rough-AnymalC-Direct \
              --checkpoint <PATH_TO_CHECKPOINT> \
-             --export_save_path <EXPORT_PATH> \
-             physics=isaacsim_physx
+             --export_save_path <EXPORT_PATH>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         :: Newton:   uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
-         :: OV PhysX: uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
-         :: Isaac Sim:
          set OMNI_KIT_ACCEPT_EULA=Y
          set ACCEPT_EULA=Y
          uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
-             --task <TASK_NAME> ^
+             --task IsaacContrib-Velocity-Rough-AnymalC-Direct ^
              --checkpoint <PATH_TO_CHECKPOINT> ^
-             --export_save_path <EXPORT_PATH> ^
-             physics=isaacsim_physx
+             --export_save_path <EXPORT_PATH>
 
-The ``--task`` argument is the registered task name, such as
-``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument
-points to the trained RSL-RL checkpoint to export. Train with
-``uv run isaaclab train --rl_library rsl_rl --task <TASK_NAME>`` (see
-:ref:`uv-run-training`); do not use the removed per-backend ``train.py`` scripts.
-The optional ``--export_save_path`` argument selects the output directory for the
-exported artifacts. If you omit it, the export is written next to the checkpoint.
+The ``--checkpoint`` argument points to the trained RSL-RL checkpoint to export.
+Train this example with:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Velocity-Rough-AnymalC-Direct
+
+See :ref:`uv-run-training` for more training options; do not use the removed
+per-backend ``train.py`` scripts. For another task that lists a physics preset,
+append the same ``physics=<PRESET>`` selector used for training and enable its
+matching backend extra. The optional ``--export_save_path`` argument selects the
+output directory for the exported artifacts. If you omit it, the export is written
+next to the checkpoint.
 
 .. note::
 
