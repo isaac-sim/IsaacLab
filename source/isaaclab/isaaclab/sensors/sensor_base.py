@@ -268,7 +268,10 @@ class SensorBase(ABC):
         self._sim_physics_dt = sim.get_physics_dt()
         # Native clones need not have corresponding USD prims.
         clone_plan = sim.get_clone_plan()
-        if clone_plan is not None and cloner_path.match(self.cfg.prim_path, clone_plan.env_template) is not None:
+        self._is_global = (
+            clone_plan is not None and cloner_path.match(self.cfg.prim_path, clone_plan.env_template) is None
+        )
+        if clone_plan is not None and not self._is_global:
             self._num_envs = len(clone_plan.topology.world_prototype_layout)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])

@@ -20,7 +20,6 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
-from ..app.sim_launcher import _apply_visualizer_defaults
 from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
@@ -39,6 +38,7 @@ from ..visualizers.visualizer_cfg import (
     VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
+    _apply_visualizer_defaults,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -786,6 +786,7 @@ class SimulationContext:
                 return resource
         if isinstance(cfg, RendererCfg):
             self._render_context.validate_renderer_cfg(cfg)
+            kwargs["sim"] = self
         resource = instantiate(cfg, **kwargs)
         self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):

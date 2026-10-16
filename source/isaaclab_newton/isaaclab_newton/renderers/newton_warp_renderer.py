@@ -453,16 +453,15 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
-    def __init__(self, cfg: NewtonWarpRendererCfg):
+    def __init__(self, cfg: NewtonWarpRendererCfg, *, sim: SimulationContext):
         """Pre-physics initialization."""
-        self.cfg = cfg
+        super().__init__(cfg, sim=sim)
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
         # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
         self._stage: Any = None
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
-        sim = SimulationContext.instance()
         self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
         sim.requires_usd_stage |= requires_stage
@@ -470,9 +469,8 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Acquire the clone-built native resource and bind its SDP layout."""
-        sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
-        self._scene_data_provider = sim.get_scene_data_provider()
+        self.backend = self._sim.get_or_create_backend(self.newton_cfg)
+        self._scene_data_provider = self._sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
@@ -563,7 +561,7 @@ class NewtonWarpRenderer(BaseRenderer):
         has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
         has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         if (has_semantic or has_instance) and self._seg_mapper is None:
-            plan = SimulationContext.instance().get_clone_plan()
+            plan = self._sim.get_clone_plan()
             self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, plan)
         if has_semantic:
             self._seg_mapper.build_mapping(

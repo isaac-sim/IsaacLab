@@ -876,13 +876,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 self._navigate_scene_camera()
                 self._log_streaming_image()
             elif not viewer.is_paused():
-                state = self.backend.state_0
-                provider = self._sim.get_scene_data_provider()
-                poses = SceneDataFormat.Transform()
-                if provider.get_transforms(poses, mapping=self._transform_mapping, count=self.backend.model.body_count):
-                    state.body_q = poses.transforms
-                if self.backend.geometry_offsets:
-                    provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
+                state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
                     contacts = NewtonManager.get_contacts()
@@ -904,6 +898,17 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._last_render_step = self._sim.get_physics_step_count()
         if self.current_image_view.camera is None:
             self.current_image_view.invalidate()
+
+    def _update_state(self):
+        """Publish current scene state while the GL frame is active."""
+        state = self.backend.state_0
+        provider = self._sim.get_scene_data_provider()
+        poses = SceneDataFormat.Transform()
+        if provider.get_transforms(poses, mapping=self._transform_mapping, count=self.backend.model.body_count):
+            state.body_q = poses.transforms
+        if self.backend.geometry_offsets:
+            provider.get_geometry_points(output=state.particle_q, offsets=self.backend.geometry_offsets)
+        return state
 
     def reset(self, soft: bool = False) -> None:
         """Restore GL overlays and picking after the shared model binding changes."""
@@ -1150,7 +1155,25 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         self._viewer.renderer.set_title("Isaac Lab RTX")
         self._viewer.picking_enabled = False
         self._select_camera(0)
+        self._renderers = tuple(dict.fromkeys(
+            sim.get_or_create_backend(view.camera.cfg.renderer_cfg) for view in self._image_views
+            if view.camera.cfg.renderer_cfg.renderer_type == "ovrtx"
+        ))  # fmt: skip
+        if self.cfg.enable_markers:
+            for renderer in self._renderers:
+                renderer.marker_groups = sim.vis_marker_registry.get_groups().values()
+        self._marker_revision = -1
         self._is_initialized = True
+
+    def log_mesh(self, name: str, *args, **kwargs) -> None:
+        """Publish geometry to the shared scene, including cameras captured without a window."""
+        if not self._is_initialized:
+            raise RuntimeError("The visualizer must be initialized before logging a mesh.")
+        for renderer in self._renderers:
+            renderer.log_mesh(f"Viewer_{id(self)}/{name.lstrip('/')}", *args, **kwargs)
+        for view in self._image_views:
+            view.camera.update(0.0)
+            view.invalidate()
 
     def _render_frame(self) -> None:
         """Update navigation and scene overlays, then display the selected camera's GPU image."""
@@ -1158,15 +1181,11 @@ class NewtonRTXVisualizer(NewtonVisualizerBase):
         try:
             if not self._viewer.is_paused():
                 self._navigate_scene_camera()
-                camera = self.current_image_view.camera
-                if camera.cfg.renderer_cfg.renderer_type == "ovrtx":
-                    camera._renderer.update_debug_geometry(
-                        camera._render_data, self._pending_mesh_submissions,
-                        self._viewer.marker_groups if self.cfg.enable_markers else (), env_ids=self._env_ids,
-                    )  # fmt: skip
-                    self._pending_mesh_submissions.clear()
-                camera.update(0.0)
-                self.current_image_view.invalidate()
+                if self.cfg.enable_markers and self._marker_revision != self._sim.vis_marker_registry.revision:
+                    for view in self._image_views:
+                        view.camera.update(0.0)
+                        view.invalidate()
+                    self._marker_revision = self._sim.vis_marker_registry.revision
             self._log_streaming_image()
             self._last_render_step = self._sim.get_physics_step_count()
         finally:

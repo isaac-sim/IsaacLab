@@ -70,14 +70,6 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, plan: ClonePlan) -> None:
-    mock_ctx = SimpleNamespace(get_clone_plan=lambda: plan)
-    monkeypatch.setattr(
-        "isaaclab_ov.renderers.ovrtx_renderer.SimulationContext",
-        SimpleNamespace(instance=lambda: mock_ctx),
-    )
-
-
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
@@ -93,6 +85,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._clone_plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 1, positions=np.zeros((1, 3), dtype=np.float32)
     )
+    renderer._sim = SimpleNamespace(get_clone_plan=lambda: renderer._clone_plan)
     renderer._device = "cpu"
     renderer._warp_device = SimpleNamespace(ordinal=0)
     renderer._render_product_paths = []
@@ -258,7 +251,6 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     """The optional dump preserves the raw stage; default preparation performs no file writes."""
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),)
     plan = make_clone_plan(assets, ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32))
-    _patch_simulation_context(monkeypatch, plan)
 
     stage = _make_multi_env_stage(2)
     renderer = _make_ovrtx_renderer_without_backend()
@@ -268,6 +260,7 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
         monkeypatch.setattr(ovrtx_renderer_module, "_write_file", Mock(side_effect=AssertionError("Unexpected dump")))
     expected_pre_export = stage.ExportToString()
 
+    renderer._clone_plan = plan
     renderer.prepare_stage(stage, 2)
 
     assert output_dir.exists() is dump_enabled
@@ -283,7 +276,6 @@ def test_create_render_data_writes_combined_stage_on_the_simulation_device(tmp_p
     scene = _make_multi_env_stage(1)
     scene.SetDefaultPrim(scene.GetPrimAtPath("/World"))
     scene.SetMetadata("metersPerUnit", 1.0)
-    _patch_simulation_context(monkeypatch, renderer._clone_plan)
 
     open_calls: list[str] = []
     renderer.backend.renderer.open_usd_from_string = lambda usd_string: open_calls.append(usd_string)
@@ -341,7 +333,6 @@ def test_create_render_data_binds_camera_after_cloning(monkeypatch, global_camer
         num_envs,
         positions=np.zeros((num_envs, 3), dtype=np.float32),
     )
-    _patch_simulation_context(monkeypatch, renderer._clone_plan)
 
     call_order: list[str] = []
     write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
@@ -389,8 +380,8 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     UsdShade.MaterialBindingAPI(body).Bind(material)
     asset = AssetBaseCfg(prim_path=f"/World/envs/env_[^/]+{suffix}", spawn=SpawnerCfg(spawn_path=source))
     plan = make_clone_plan((asset,), ((0,),), 3, positions=np.zeros((3, 3), dtype=np.float32))
-    _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._clone_plan = plan
     renderer.prepare_stage(stage, 3)
     exported = Usd.Stage.CreateInMemory()
     assert exported.GetRootLayer().ImportFromString(renderer.backend.renderer.open_usd_from_string.call_args.args[0])

@@ -114,6 +114,8 @@ def test_newton_rtx_mpm_points_follow_world_state():
         assert centers[1] < centers[0] - 5.0, "The rendered particle cloud did not move upward"
 
 
+@pytest.mark.rendering
+@pytest.mark.kitless
 def test_directly_spawned_camera_drives_rtx_window():
     """A standalone script declares its scene through ReplicateSession and displays an ordinary Camera."""
     from isaaclab_ov.physics import OvPhysxCfg
@@ -139,7 +141,7 @@ def test_directly_spawned_camera_drives_rtx_window():
     light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=1000.0))
     with launch_simulation(sim_cfg, {"visualizer": ["newton_rtx"], "device": "cuda:0"}):
         sim = sim_utils.SimulationContext(sim_cfg)
-        with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=1, env_spacing=0.0):
+        with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=3, env_spacing=0.0):
             instantiate(target_cfg)
             instantiate(light_cfg)
             camera = instantiate(camera_cfg)
@@ -148,6 +150,12 @@ def test_directly_spawned_camera_drives_rtx_window():
         assert visualizer.current_image_view.camera is camera
         assert visualizer.render_rgb_array().shape == (64, 96, 3)
         assert np.ptp(camera.data.output["rgba"].warp.numpy()[..., :3]) > 20
+        # This world camera has no per-environment rows; partial scene resets reset its one frame.
+        camera.reset([2])
+        np.testing.assert_array_equal(camera.frame.warp.numpy(), [0])
+        camera.data
+        camera.reset(env_mask=wp.array([False, False, True], dtype=wp.bool, device=sim.device))
+        np.testing.assert_array_equal(camera.frame.warp.numpy(), [0])
         focal = float(camera._data.intrinsic_matrices.torch[0, 0, 0])
         output_ptr = camera.data.output["rgba"].warp.ptr
         depth = camera.data.output["distance_to_image_plane"].torch[0, 32, :, 0]
@@ -202,15 +210,24 @@ def test_newton_rtx_motion_pause_and_markers(caplog: pytest.LogCaptureFixture, m
             with monkeypatch.context() as gpu_update:
                 gpu_update.setattr(wp.array, "numpy", Mock(side_effect=AssertionError("Geometry readback")))
                 visualizer.log_mesh("surface", points, indices, dynamic=True)
-                visualizer._render_frame()
-            _viz_utils._warm_newton_viewer(visualizer)
-            updated_mesh = visualizer.render_rgb_array()
+            # Recording a shared view must see geometry updates without drawing the window.
+            updated_mesh = visualizer.current_image_view.read_rgb(env.sim.get_physics_step_count())
             blue_rows = []
             for pixels in (initial_mesh, updated_mesh):
                 blue = (pixels[..., 2] > 50) & (pixels[..., 2] > 1.5 * pixels[..., :2].max(axis=2))
                 assert blue.any(), "The runtime mesh must be visible in RTX output."
                 blue_rows.append(np.nonzero(blue)[0].mean())
             assert blue_rows[1] < blue_rows[0] - 10, "Moving the mesh upward must move its rendered pixels."
+            visualizer.log_mesh("surface", points, indices, color=(0.0, 1.0, 0.0), roughness=0.9)
+            recolored = visualizer.current_image_view.read_rgb(env.sim.get_physics_step_count())
+            green = (recolored[..., 1] > 50) & (recolored[..., 1] > 1.5 * recolored[..., (0, 2)].max(axis=2))
+            assert (green & blue).sum() > blue.sum() / 2, "A later material update must reach recorded pixels."
+            uvs = wp.array([(0, 0), (1, 0), (0, 1)], dtype=wp.vec2, device=env.device)
+            for color in ((255, 0, 0), (0, 0, 255)):
+                texture = np.full((2, 2, 3), color, np.uint8)
+                visualizer.log_mesh("surface", points, indices, uvs=uvs, texture=texture, color=(1.0, 1.0, 1.0))
+                textured = visualizer.current_image_view.read_rgb(env.sim.get_physics_step_count())
+                assert np.argmax(textured[blue].mean(axis=0)) == np.argmax(color)
         _viz_utils._assert_no_visualizer_log_issues(caplog)
     finally:
         _viz_utils._cleanup_visualizer_test_process(env)

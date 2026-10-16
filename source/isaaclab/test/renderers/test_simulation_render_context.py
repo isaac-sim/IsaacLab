@@ -36,7 +36,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
-def _renderer(cfg):
+def _renderer(cfg, *, sim):
     renderer = Mock(spec=BaseRenderer)
     renderer.visual_material_writer = None
     return renderer
@@ -57,7 +57,7 @@ def test_renderer_registry_sharing_and_early_clone_requirements(sim):
 
     assert sim.get_or_create_backend(cfg) is renderer
     assert sim.get_or_create_backend(replace(cfg)) is renderer
-    constructor.assert_called_once_with(cfg)
+    constructor.assert_called_once_with(cfg, sim=sim)
     assert constructor.call_args.args[0] is cfg
     assert sim.render_context.clone_contexts == set(cfg.cloning_contexts)
     renderer.initialize.assert_not_called()
@@ -94,7 +94,7 @@ def test_conflicting_global_settings_are_rejected_before_construction(sim):
     with pytest.raises(ValueError, match="global settings differ"):
         sim.get_or_create_backend(conflicting)
 
-    constructor.assert_called_once_with(cfg)
+    constructor.assert_called_once_with(cfg, sim=sim)
     assert sim.get_or_create_backend(cfg) is renderer
     assert sim.render_context.renderer_types == ("isaac_rtx",)
 
@@ -122,7 +122,7 @@ def test_finalized_consumers_allow_cache_hits_but_reject_new_renderers_with_mate
     if has_materials:
         with pytest.raises(RuntimeError, match="before rendering consumers are finalized"):
             sim.get_or_create_backend(late_cfg)
-        constructor.assert_called_once_with(cfg)
+        constructor.assert_called_once_with(cfg, sim=sim)
     else:
         assert sim.get_or_create_backend(late_cfg) is not renderer
         assert constructor.call_count == 2
@@ -288,6 +288,7 @@ class _CpuCamera(Camera):
         self.cfg = SimpleNamespace(update_period=update_period, update_latest_camera_pose=True)
         self._device = "cpu"
         self._num_envs = 2
+        self._is_global = False
         self._is_initialized = True
         self._is_visualizing = False
         self._renderer = renderer

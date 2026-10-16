@@ -101,6 +101,24 @@ def _camera_set_intrinsics_kernel(
     output_matrices[index] = wp.mat33f(fx, 0.0, float(width) * 0.5, 0.0, fx, float(height) * 0.5, 0.0, 0.0, 1.0)
 
 
+@wp.kernel(module=f"{__name__}.runtime_intrinsics", enable_backward=False)
+def _camera_commit_intrinsics_kernel(
+    rows: wp.array(dtype=wp.int32),
+    matrices: wp.array(dtype=wp.mat33f),
+    parameters: wp.array2d(dtype=wp.float32),
+    output_matrices: wp.array(dtype=wp.mat33f),
+    output_parameters: wp.array2d(dtype=wp.float32),
+    outdated: wp.array(dtype=wp.bool),
+):
+    index = wp.tid()
+    if rows[index] < 0:
+        return
+    output_matrices[index] = matrices[index]
+    for attribute in range(5):
+        output_parameters[attribute, index] = parameters[attribute, index]
+    outdated[index] = True
+
+
 # Register supported projection precisions together so later calls do not rebuild the module.
 for _dtype in (wp.float32, wp.float64):
     wp.overload(_camera_select_intrinsics_kernel, {"matrices": wp.array3d(dtype=_dtype)})
@@ -488,8 +506,12 @@ class Camera(SensorBase):
         self._renderer.update_camera_intrinsics(
             self._render_data, self._intrinsic_pending, self._intrinsic_parameters_pending
         )
-        wp.copy(self._data.intrinsic_matrices.warp, self._intrinsic_pending)
-        wp.copy(self._intrinsic_parameters, self._intrinsic_parameters_pending)
+        wp.launch(
+            _camera_commit_intrinsics_kernel, self._view.count,
+            [self._intrinsic_rows, self._intrinsic_pending, self._intrinsic_parameters_pending,
+             self._data.intrinsic_matrices.warp, self._intrinsic_parameters, self._is_outdated], device=self._device,
+        )  # fmt: skip
+        self._data_dirty = True
 
     """
     Operations - Pose.
@@ -628,6 +650,9 @@ class Camera(SensorBase):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
+        # World cameras have no per-environment rows; any scene reset refreshes the whole camera.
+        if self._is_global:
+            env_ids = env_mask = None
         # The hook takes plain id sequences, so a slice resolves to its range. A mask-only call
         # passes None, which means all environments: the hook permits resetting more than asked.
         if isinstance(env_ids, slice):

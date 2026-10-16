@@ -21,7 +21,9 @@ if TYPE_CHECKING:
     import warp as wp
 
     from ..sensors.camera.camera_data import CameraData
+    from ..sim import SimulationContext
     from ..utils.warp import ProxyArray
+    from .renderer_cfg import RendererCfg
 
 
 @dataclass(frozen=True)
@@ -37,6 +39,16 @@ class VisualMaterialBatch:
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
+
+    def __init__(self, cfg: RendererCfg, *, sim: SimulationContext) -> None:
+        """Bind this renderer to its owning simulation.
+
+        Args:
+            cfg: Renderer configuration.
+            sim: Simulation that creates and owns this renderer through its backend registry.
+        """
+        self.cfg = cfg
+        self._sim = sim
 
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""

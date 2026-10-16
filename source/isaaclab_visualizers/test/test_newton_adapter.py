@@ -751,9 +751,14 @@ def test_newton_visualizer_logs_native_contacts_when_available(monkeypatch):
 def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
     from isaaclab_newton.physics import NewtonManager
 
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering import CoffeeGLVisualizer
+
     state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
     viewer = _Viewer()
-    visualizer = _make_newton_visualizer(viewer, state=state)
+    visualizer = _make_newton_visualizer(
+        viewer, state=state, cfg=NewtonGLVisualizerCfg(class_type=CoffeeGLVisualizer, enable_markers=False)
+    )
+    visualizer.rendering = SimpleNamespace(draw=lambda viewer: viewer.events.append("coffee"))
     points = wp.zeros(3, dtype=wp.vec3)
     indices = wp.zeros(3, dtype=wp.int32)
 
@@ -776,7 +781,7 @@ def test_newton_visualizer_logs_staged_mesh_inside_frame(monkeypatch):
     assert viewer.events == []
     visualizer.step(0.1)
 
-    assert viewer.events == ["begin_frame", "log_state", "log_mesh", "end_frame"]
+    assert viewer.events == ["begin_frame", "coffee", "log_state", "log_mesh", "end_frame"]
     assert viewer.logged_mesh == (
         "/surface",
         points,

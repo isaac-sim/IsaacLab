@@ -31,7 +31,7 @@ import tempfile
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -335,8 +335,6 @@ class OVRTXCameraRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
-        self.meshes: dict[str, OVRTXMesh] = {}
-        self.markers: dict[Any, OVRTXMarkers] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes = _AsyncWriteBuffers()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
@@ -373,8 +371,6 @@ class OVRTXCameraRenderData:
             self.camera_xform_query = None
             self.intrinsic_bindings.clear()
             self.warp_buffers.clear()
-            self.meshes.clear()
-            self.markers.clear()
             self.renderer_info.clear()
             self.ppisp_pipeline = None
 
@@ -393,14 +389,19 @@ class OVRTXRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return self.cfg.supported_output_types()
 
-    def __init__(self, cfg: OVRTXRendererCfg):
-        self.cfg = cfg
-        self._warp_device = wp.get_device(SimulationContext.instance().device)
+    def __init__(self, cfg: OVRTXRendererCfg, *, sim: SimulationContext):
+        super().__init__(cfg, sim=sim)
+        self._warp_device = wp.get_device(self._sim.device)
         self._device = str(self._warp_device)
         self._render_product_paths = []
         self._camera_render_data: list[OVRTXCameraRenderData] = []
+        self.meshes: dict[str, OVRTXMesh] = {}
+        self.markers: dict[Any, OVRTXMarkers] = {}
+        self.marker_groups: Iterable = ()
+        self.geometry_callbacks: dict[Any, Callable[[OVRTXRenderer], None]] = {}
+        self.geometry_resources = contextlib.ExitStack()
         self._next_camera_id = 0
-        self._sdp = SimulationContext.instance().get_scene_data_provider()
+        self._sdp = self._sim.get_scene_data_provider()
         self._transforms_timestamp = -1
         self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
         self._object_scales: wp.array | None = None
@@ -419,12 +420,12 @@ class OVRTXRenderer(BaseRenderer):
         self._use_ovstage = ovrtx_use_ovstage_enabled()
         if cfg.async_rendering and self._use_ovstage:
             logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
-        self.backend: OVRTXBackend = SimulationContext.instance().get_or_create_backend(
+        self.backend: OVRTXBackend = self._sim.get_or_create_backend(
             OVRTXBackendCfg(
                 renderer_cfg=cfg,
                 use_ovstage=self._use_ovstage,
                 read_gpu_transforms=_read_gpu_transforms_enabled(),
-                device=SimulationContext.instance().device,
+                device=self._sim.device,
             )
         )
         """Native engine and detached stage borrowed from the simulation registry, which owns their lifetime."""
@@ -475,7 +476,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
-        self._clone_plan = SimulationContext.instance().get_clone_plan()
+        self._clone_plan = self._sim.get_clone_plan()
 
         # If temp_usd_dir is set, write the pre-ovrtx stage to a temporary file.
         if self.cfg.temp_usd_dir is not None:
@@ -1343,6 +1344,20 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_geometries(self) -> None:
         """Write changed SDP geometry to OVRTX."""
+        for callback in self.geometry_callbacks.values():
+            callback(self)
+        for marker in tuple(self.markers):
+            if marker not in self.marker_groups:
+                self.markers.pop(marker).close()
+        for marker in self.marker_groups:
+            if marker.translations is None:
+                continue
+            if marker not in self.markers:
+                self.markers[marker] = OVRTXMarkers(self, marker.cfg)
+            self.markers[marker].update(
+                marker.translations, marker.orientations, marker.scales, marker.marker_indices,
+                visible=marker.is_visible(),
+            )  # fmt: skip
         binding = self._geometry_points_query if self._use_ovstage else self._geometry_points_binding
         if binding is None:
             return
@@ -1436,28 +1451,11 @@ class OVRTXRenderer(BaseRenderer):
         """Submit one camera capture; :meth:`read_output` publishes the available image."""
         self.render_batch((render_data,))
 
-    def update_debug_geometry(
-        self, render_data: OVRTXCameraRenderData, meshes: dict[str, dict[str, Any]], markers: Iterable,
-        *, env_ids: list[int] | None,
-    ) -> None:  # fmt: skip
-        """Update view-owned meshes and marker projections; product cleanup releases their native references."""
-        for name, arguments in meshes.items():
-            if name not in render_data.meshes:
-                mesh = OVRTXMesh(self, f"/{render_data.render_scope_name}/Meshes/{name.lstrip('/')}")
-                render_data.meshes[name] = mesh
-                render_data.resources.callback(mesh.close)
-            render_data.meshes[name].update(**arguments)
-        for marker in markers:
-            if marker.translations is None:
-                continue
-            if marker not in render_data.markers:
-                geometry = OVRTXMarkers(self, marker.cfg, env_ids=env_ids, num_envs=self._sdp.num_envs)
-                render_data.markers[marker] = geometry
-                render_data.resources.callback(geometry.close)
-            render_data.markers[marker].update(
-                marker.translations, marker.orientations, marker.scales, marker.marker_indices,
-                visible=marker.is_visible(),
-            )  # fmt: skip
+    def log_mesh(self, name: str, *args, **kwargs) -> None:
+        """Publish a runtime mesh through the same scene used by every camera."""
+        if name not in self.meshes:
+            self.meshes[name] = OVRTXMesh(self, f"/IsaacLabMeshes/{name.lstrip('/')}")
+        self.meshes[name].update(*args, **kwargs)
 
     def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render all requested camera products in one native submission.
@@ -1510,10 +1508,13 @@ class OVRTXRenderer(BaseRenderer):
         try:
             with contextlib.ExitStack() as resources:
                 resources.callback(self._close_ovstage if self._use_ovstage else self._close_legacy)
-                for render_data in tuple(self._camera_render_data):
-                    resources.callback(self.cleanup, render_data)
                 resources.callback(self._transform_writes.close)
                 resources.callback(self._geometry_writes.close)
+                resources.callback(self.geometry_resources.close)
+                for geometry in (*self.meshes.values(), *self.markers.values()):
+                    resources.callback(geometry.close)
+                for render_data in tuple(self._camera_render_data):
+                    resources.callback(self.cleanup, render_data)
         finally:
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
             self._geometry_offsets.clear()
@@ -1524,6 +1525,9 @@ class OVRTXRenderer(BaseRenderer):
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
             self._visual_material_writer_ref = None
+            self.meshes.clear()
+            self.markers.clear()
+            self.geometry_callbacks.clear()
 
     # ---------------------------------------------------------------------------
     # ovstage implementation
@@ -1661,6 +1665,9 @@ class OVRTXMesh:
         self.path = path
         self.resources = contextlib.ExitStack()
         self.stage = None
+        self._native_resources = self.resources.enter_context(contextlib.ExitStack())
+        self._appearance = (True, (0.7, 0.7, 0.7), 0.5, 0.0, 1.0)
+        self._texture = None
         self._face_counts = None
         self._normals = None
 
@@ -1679,7 +1686,7 @@ class OVRTXMesh:
         dynamic: bool = False,
         opacity: float | None = None,
     ) -> None:
-        """Author appearance once, then write GPU geometry and visibility into the native scene."""
+        """Publish GPU geometry and apply explicitly supplied appearance changes."""
         indices = indices.view(wp.int32)
         errors = self.renderer.drain_pending_renders()
         if errors:
@@ -1698,6 +1705,13 @@ class OVRTXMesh:
             normals = self._normals
         if self._face_counts is None or len(self._face_counts) != len(indices) // 3:
             self._face_counts = wp.full(len(indices) // 3, 3, dtype=wp.int32, device=indices.device)
+        appearance = tuple(
+            old if value is None else value
+            for old, value in zip(
+                self._appearance, (backface_culling, color, roughness, metallic, opacity), strict=True
+            )
+        )
+        populate = self.stage is None or appearance != self._appearance
         if self.stage is None:
             self.stage = Usd.Stage.CreateInMemory()
             mesh = UsdGeom.Mesh.Define(self.stage, "/Mesh")
@@ -1710,56 +1724,70 @@ class OVRTXMesh:
             mesh.CreateFaceVertexCountsAttr(self._face_counts.numpy())
             mesh.CreateSubdivisionSchemeAttr(UsdGeom.Tokens.none)
             mesh.CreateDoubleSidedAttr(not backface_culling)
-            material_cfg = PreviewSurfaceCfg(
-                diffuse_color=(0.7, 0.7, 0.7) if color is None else color,
-                roughness=0.5 if roughness is None else roughness,
-                metallic=0.0 if metallic is None else metallic,
-                opacity=1.0 if opacity is None else opacity,
-            )
+            material_cfg = PreviewSurfaceCfg()
             with use_stage(self.stage):
                 material_cfg.func("/Mesh/Material", material_cfg)
             material = UsdShade.Material.Get(self.stage, "/Mesh/Material")
             UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material)
-            if uvs is not None:
-                UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
-                    "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
-                ).Set(uvs.numpy())
-                if texture is not None:
-                    if isinstance(texture, np.ndarray):
-                        directory = self.resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab-mesh-"))
-                        texture_path = Path(directory) / "texture.png"
-                        Image.fromarray(texture).save(texture_path)
-                    else:
-                        texture_path = Path(texture).absolute()
-                    reader = UsdShade.Shader.Define(self.stage, "/Mesh/Material/Primvar")
-                    reader.CreateIdAttr("UsdPrimvarReader_float2")
-                    reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
-                    reader.CreateOutput("result", Sdf.ValueTypeNames.Float2)
-                    sampler = UsdShade.Shader.Define(self.stage, "/Mesh/Material/Texture")
-                    sampler.CreateIdAttr("UsdUVTexture")
-                    sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(str(texture_path))
-                    sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(
-                        reader.ConnectableAPI(), "result"
-                    )
-                    sampler.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
-                    surface = material.ComputeSurfaceSource()[0]
-                    surface.GetInput("diffuseColor").ConnectToSource(sampler.ConnectableAPI(), "rgb")
+        mesh = UsdGeom.Mesh.Get(self.stage, "/Mesh")
+        material = UsdShade.Material.Get(self.stage, "/Mesh/Material")
+        surface = material.ComputeSurfaceSource()[0]
+        if populate:
+            mesh.CreateDoubleSidedAttr(not appearance[0])
+            for name, value in zip(("diffuseColor", "roughness", "metallic", "opacity"), appearance[1:], strict=True):
+                surface.GetInput(name).Set(value)
+            self._appearance = appearance
+        if uvs is not None and not UsdGeom.PrimvarsAPI(mesh).HasPrimvar("st"):
+            UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
+                "st", Sdf.ValueTypeNames.TexCoord2fArray, UsdGeom.Tokens.vertex
+            ).Set(uvs.numpy())
+            populate = True
+        if texture is not None and not np.array_equal(texture, self._texture):
+            if isinstance(texture, np.ndarray):
+                directory = self.resources.enter_context(tempfile.TemporaryDirectory(prefix="isaaclab-mesh-"))
+                texture_path = Path(directory) / "texture.png"
+                pixels = (np.clip(texture, 0.0, 1.0) * 255).astype(np.uint8) if texture.dtype.kind == "f" else texture
+                Image.fromarray(pixels).save(texture_path)
+                self._texture = texture.copy()
+            else:
+                texture_path = Path(texture).absolute()
+                self._texture = texture
+            reader = UsdShade.Shader.Define(self.stage, "/Mesh/Material/Primvar")
+            reader.CreateIdAttr("UsdPrimvarReader_float2")
+            reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set("st")
+            reader.CreateOutput("result", Sdf.ValueTypeNames.Float2)
+            sampler = UsdShade.Shader.Define(self.stage, "/Mesh/Material/Texture")
+            sampler.CreateIdAttr("UsdUVTexture")
+            sampler.CreateInput("file", Sdf.ValueTypeNames.Asset).Set(str(texture_path))
+            sampler.CreateInput("st", Sdf.ValueTypeNames.Float2).ConnectToSource(reader.ConnectableAPI(), "result")
+            sampler.CreateOutput("rgb", Sdf.ValueTypeNames.Float3)
+            surface.GetInput("diffuseColor").ConnectToSource(sampler.ConnectableAPI(), "rgb")
+            populate = True
+        if populate:
+            if self._texture is not None:
+                sampler = UsdShade.Shader.Get(self.stage, "/Mesh/Material/Texture")
+                sampler.CreateInput("scale", Sdf.ValueTypeNames.Float4).Set((*appearance[1], 1.0))
+            self._native_resources.close()
             usd = self.stage.GetRootLayer().ExportToString()
             if self.renderer._use_ovstage:
                 reference = ovstage.population.add_usd_reference_from_string(
                     self.renderer.backend.stage, usd, self.path
                 )
-                self.resources.callback(self.renderer._remove_usd_reference, reference)
+                self._native_resources.callback(self.renderer._remove_usd_reference, reference)
                 ovstage.population.apply_usd_changes(
                     self.renderer.backend.stage, ordinal=self.renderer._current_ordinal
                 )
                 paths = self.renderer.backend.paths.create_path_list_from_strings([self.path])
-                self.resources.callback(self.renderer.backend.paths.destroy_path_list, paths)
-                self.query = self.resources.enter_context(self.renderer.backend.stage.query_from_path_list(paths))
+                self._native_resources.callback(self.renderer.backend.paths.destroy_path_list, paths)
+                self.query = self._native_resources.enter_context(
+                    self.renderer.backend.stage.query_from_path_list(paths)
+                )
             else:
                 reference = self.renderer.backend.renderer.add_usd_reference_from_string(usd, self.path)
-                self.resources.callback(self.renderer.backend.renderer.remove_usd, reference)
+                self._native_resources.callback(self.renderer.backend.renderer.remove_usd, reference)
         attributes = {"points": points, "normals": normals}
+        if uvs is not None:
+            attributes["primvars:st"] = uvs
         if dynamic:
             attributes.update(faceVertexIndices=indices, faceVertexCounts=self._face_counts)
         stream = wp.get_stream(points.device).cuda_stream or 1
@@ -1768,12 +1796,19 @@ class OVRTXMesh:
                 semantic = {
                     "points": ovstage.AttributeSemantic.POINT,
                     "normals": ovstage.AttributeSemantic.NORMAL,
+                    "primvars:st": ovstage.AttributeSemantic.TEXTURE_COORDINATE,
                 }.get(name, ovstage.AttributeSemantic.NONE)
+                if name in ("points", "normals"):
+                    values = points_tensor_from_warp(values)
+                elif name == "primvars:st":
+                    values = ovstage.make_dltensor(
+                        values, dtype=ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=2)
+                    )
                 self.renderer.backend.stage.write_attribute(
                     self.query,
                     name,
                     ordinal=self.renderer._current_ordinal,
-                    tensors=[points_tensor_from_warp(values) if name in ("points", "normals") else values],
+                    tensors=[values],
                     is_array=True,
                     semantic=semantic,
                     cuda_stream=stream,
@@ -1808,14 +1843,11 @@ class OVRTXMesh:
 class OVRTXMarkers:
     """Shared USD marker instances with GPU transform bindings."""
 
-    def __init__(
-        self, renderer: OVRTXRenderer, cfg: VisualizationMarkersCfg, *, env_ids: list[int] | None, num_envs: int
-    ):
+    def __init__(self, renderer: OVRTXRenderer, cfg: VisualizationMarkersCfg):
         self._renderer = renderer
         self._resources = contextlib.ExitStack()
         self._path = f"{cfg.prim_path}_{id(self)}"
         self._visible = True
-        self._env_ids, self._num_envs = env_ids, num_envs
         self._source_count = -1
         self._layout = None
         self._transforms = self._selection = None
@@ -1848,11 +1880,8 @@ class OVRTXMarkers:
         count = len(translations)
         count_changed = count != self._source_count
         if count_changed:
-            self._selected_ids = np.arange(count, dtype=np.int32)
-            if self._env_ids is not None and count % self._num_envs == 0:
-                self._selected_ids = self._selected_ids.reshape(self._num_envs, -1)[self._env_ids].flatten()
-            self._instance_ids = wp.array(self._selected_ids, dtype=wp.int32, device=renderer._device)
-            self._transforms = wp.empty(len(self._selected_ids), dtype=wp.mat44d, device=renderer._device)
+            self._instance_ids = wp.array(np.arange(count, dtype=np.int32), device=renderer._device)
+            self._transforms = wp.empty(count, dtype=wp.mat44d, device=renderer._device)
             self._identity = wp.full(count, wp.quat_identity(), dtype=wp.quat, device=renderer._device)
             self._unit_scale = wp.ones(count, dtype=wp.vec3, device=renderer._device)
             self._source_count = count
@@ -1860,7 +1889,6 @@ class OVRTXMarkers:
             indices = (0,) * count if marker_indices is None else tuple(marker_indices.tolist())
             if len(indices) != count or any(i < 0 or i >= len(self._prototypes) for i in indices):
                 raise ValueError("Each marker must select a configured prototype.")
-            indices = tuple(indices[i] for i in self._selected_ids)
             self._selection = marker_indices
         else:
             indices = self._layout

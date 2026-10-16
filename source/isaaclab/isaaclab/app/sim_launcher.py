@@ -19,7 +19,6 @@ import sys
 import traceback
 from collections.abc import Generator
 from contextlib import contextmanager
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -48,6 +47,7 @@ from ..visualizers.visualizer_cfg import (
     PerspectiveCameraCfg,
     SceneCameraCfg,
     VisualizerCfg,
+    _apply_visualizer_defaults,
     parse_visualizer_csv,
 )
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
@@ -182,20 +182,6 @@ class Scan:
     needs_kit: bool
     launcher_types: list[str] = field(default_factory=list)  # named by the physics and renderer configs
     visualizer_cfgs: list[VisualizerCfg] = field(default_factory=list)  # final display and recording producers
-
-
-def _apply_visualizer_defaults(visualizer: VisualizerCfg, defaults: VisualizerCfg | None) -> None:
-    """Copy non-default shared values into fields still at their backend defaults, including window fields."""
-    if defaults is None:
-        return
-    for source, target in ((defaults, visualizer), (defaults.window, visualizer.window)):
-        source_values, target_values = vars(source), vars(target)
-        target_defaults = vars(type(target)())
-        for name, default in vars(type(source)()).items():
-            if name in ("class_type", "visualizer_type", "window") or name not in target_defaults:
-                continue
-            if source_values[name] != default and target_values[name] == target_defaults[name]:
-                target_values[name] = deepcopy(source_values[name])
 
 
 def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  # noqa: C901

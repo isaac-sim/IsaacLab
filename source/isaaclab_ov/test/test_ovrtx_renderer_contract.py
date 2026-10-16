@@ -83,6 +83,10 @@ def _make_ovrtx_camera_render_data() -> OVRTXCameraRenderData:
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
+    renderer._sim = SimulationContext.instance()
+    renderer.meshes, renderer.markers, renderer.geometry_callbacks = {}, {}, {}
+    renderer.marker_groups = ()
+    renderer.geometry_resources = contextlib.ExitStack()
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
     cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True, device="cpu")
     renderer.backend.stage = renderer.backend.paths = None
@@ -148,8 +152,8 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     }
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", devices.__getitem__)
 
-    renderer = OVRTXRenderer(OVRTXRendererCfg())
-    shared = OVRTXRenderer(renderer.cfg)
+    renderer = OVRTXRenderer(OVRTXRendererCfg(), sim=SimulationContext.instance())
+    shared = OVRTXRenderer(renderer.cfg, sim=SimulationContext.instance())
 
     assert shared.backend is renderer.backend
     assert loaded == [str(dependency)]
@@ -159,7 +163,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     assert len(SimulationContext.instance()._backend_registry) == 1
-    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
+    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True), sim=SimulationContext.instance())
     assert other.backend is not renderer.backend
     renderer.close()
     renderer.close()
@@ -334,7 +338,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
         batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
 
-    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=asynchronous))
+    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=asynchronous), sim=SimulationContext.instance())
     publication = types.SimpleNamespace(
         transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
     )

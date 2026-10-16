@@ -54,24 +54,26 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
             return
         super().initialize(sim, cameras=cameras)
         self._geometry_queries = {}
+        for renderer in self._renderers:
+            renderer.geometry_callbacks[self] = self._update_geometry
 
-    def _render_frame(self) -> None:
-        if self.rendering is not None and not self._viewer.is_paused():
+    def _update_geometry(self, renderer) -> None:
+        if self.rendering is not None:
             import ovstage
             from isaaclab_ov.stage import OVSTAGE_POINT_DTYPE
+            from ovrtx import DataAccess
 
             from pxr import Usd, UsdGeom, UsdShade
 
             self.rendering.update()
-            camera = self.current_image_view.camera
-            renderer = camera._renderer
+            queries = self._geometry_queries.setdefault(renderer, {})
             errors = renderer.drain_pending_renders()
             if errors:
                 raise ExceptionGroup("RTX renders failed before coffee geometry update", errors)
             root = f"/Coffee_{id(self)}"
             attributes = {f"{root}/Grains": {"points": self.rendering._points}}
-            if self.rendering._water is not None or not self._geometry_queries:
-                attributes[f"{root}/Grains"]["widths"] = 2.0 * self.rendering._radii.numpy()
+            if self.rendering._water is not None or not queries:
+                attributes[f"{root}/Grains"]["widths"] = self.rendering._widths
             if self.rendering._surface is not None:
                 points, indices, normals, colors, _ = self.rendering._water_surface_arrays()
                 attributes[f"{root}/Water"] = dict(
@@ -81,12 +83,12 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                     faceVertexCounts=np.full(0 if indices is None else indices.size // 3, 3, np.int32),
                     **{"primvars:displayColor": np.empty((0, 3), np.float32) if colors is None else colors},
                 )
-            if not self._geometry_queries:
+            if not queries:
                 stage = Usd.Stage.CreateInMemory()
                 stage.SetDefaultPrim(UsdGeom.Xform.Define(stage, "/Coffee").GetPrim())
                 grains = UsdGeom.Points.Define(stage, "/Coffee/Grains")
                 grains.CreatePointsAttr(self.rendering._points.numpy())
-                grains.CreateWidthsAttr(attributes[f"{root}/Grains"]["widths"])
+                grains.CreateWidthsAttr(self.rendering._widths.numpy())
                 grains.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
                 grains.CreateDisplayColorPrimvar(UsdGeom.Tokens.vertex).Set(self.rendering._colors.numpy())
                 material, _ = _vertex_color_material(stage, "/Coffee/Grains/Material", COFFEE_COLOR, roughness=0.85)
@@ -100,36 +102,37 @@ class CoffeeRTXVisualizer(NewtonRTXVisualizer):
                     material, _ = _water_material(stage, "/Coffee/Water/Material")
                     UsdShade.MaterialBindingAPI.Apply(water.GetPrim()).Bind(material)
                 usd = stage.GetRootLayer().ExportToString()
-                camera._render_data.resources.callback(self._geometry_queries.clear)
+                renderer.geometry_resources.callback(self._geometry_queries.pop, renderer, None)
                 if renderer._use_ovstage:
                     reference = ovstage.population.add_usd_reference_from_string(renderer.backend.stage, usd, root)
-                    camera._render_data.resources.callback(renderer._remove_usd_reference, reference)
+                    renderer.geometry_resources.callback(renderer._remove_usd_reference, reference)
                     ovstage.population.apply_usd_changes(renderer.backend.stage, ordinal=renderer._current_ordinal)
                     for path in attributes:
                         paths = renderer.backend.paths.create_path_list_from_strings([path])
-                        camera._render_data.resources.callback(renderer.backend.paths.destroy_path_list, paths)
-                        self._geometry_queries[path] = camera._render_data.resources.enter_context(
+                        renderer.geometry_resources.callback(renderer.backend.paths.destroy_path_list, paths)
+                        queries[path] = renderer.geometry_resources.enter_context(
                             renderer.backend.stage.query_from_path_list(paths)
                         )
                 else:
                     reference = renderer.backend.renderer.add_usd_reference_from_string(usd, root)
-                    camera._render_data.resources.callback(renderer.backend.renderer.remove_usd, reference)
-                    self._geometry_queries.update(dict.fromkeys(attributes))
+                    renderer.geometry_resources.callback(renderer.backend.renderer.remove_usd, reference)
+                    queries.update(dict.fromkeys(attributes))
             stream = wp.get_stream(self.rendering._model.device).cuda_stream or 1
             semantics = {"points": ovstage.AttributeSemantic.POINT, "normals": ovstage.AttributeSemantic.NORMAL}
             for path, values in attributes.items():
                 for name, array in values.items():
                     if renderer._use_ovstage:
                         renderer.backend.stage.write_attribute(
-                            self._geometry_queries[path], name, ordinal=renderer._current_ordinal,
+                            queries[path], name, ordinal=renderer._current_ordinal,
                             tensors=[ovstage.make_dltensor(array, dtype=OVSTAGE_POINT_DTYPE)
                                      if name in ("points", "normals", "primvars:displayColor") else array],
                             is_array=True, semantic=semantics.get(name, ovstage.AttributeSemantic.NONE),
                             cuda_stream=stream,
                         ).wait()  # fmt: skip
                     else:
-                        renderer.backend.renderer.write_array_attribute([path], name, [array], cuda_stream=stream)
-        super()._render_frame()
+                        renderer.backend.renderer.write_array_attribute(
+                            [path], name, [array], data_access=DataAccess.ASYNC, cuda_stream=stream
+                        )
 
 
 class CoffeeRendering:
@@ -192,6 +195,7 @@ class CoffeeRendering:
         count = self._coffee_ids.size * self._factor
         self._points = wp.empty(count, dtype=wp.vec3, device=device)
         self._radii = wp.empty(count, dtype=float, device=device)
+        self._widths = wp.empty_like(self._radii)
         self._colors = wp.empty(count, dtype=wp.vec3, device=device)
         self._color_mass_scale = color_mass_scale
         self._water = env.scene["water"] if "water" in env.scene.keys() else None
@@ -332,7 +336,7 @@ class CoffeeRendering:
                 self._liquid_flags,
                 0 if self._dissolution is None else self._dissolution.water_ids.size,
             ],
-            outputs=[self._points, self._radii, self._colors],
+            outputs=[self._points, self._radii, self._widths, self._colors],
             device=self._model.device,
         )
 
@@ -396,7 +400,9 @@ class CoffeeRendering:
         visualizer.update_coffee(self._points, self._radii, self._colors, dynamic_radii=self._water is not None)
         if self._surface is not None:
             points, indices, normals, colors, fraction = self._water_surface_arrays()
-            visualizer.update_water(points, indices, normals, colors, 0.42 + 0.40 * fraction)
+            visualizer.update_water(
+                points, indices, normals, None if colors is None else colors.numpy(), 0.42 + 0.40 * fraction
+            )
 
     def _water_surface_arrays(self):
         """Reconstruct once per physics state and interpolate tint on shared vertices."""
@@ -435,7 +441,7 @@ class CoffeeRendering:
                 outputs=[self._vertex_colors],
                 device=self._model.device,
             )
-            colors = self._vertex_colors[: points.size].numpy()
+            colors = self._vertex_colors[: points.size]
         self._surface_cache = points, indices, normals, colors, fraction
         return self._surface_cache
 
@@ -682,6 +688,7 @@ def _gather_grains(
     water_count: int,
     points: wp.array[wp.vec3],
     result_radii: wp.array[float],
+    widths: wp.array[float],
     colors: wp.array[wp.vec3],
 ):
     i, j = wp.tid()
@@ -692,5 +699,6 @@ def _gather_grains(
     result_radii[index] = 0.9 * radii[ids[i]] * radius_scale
     if liquid_flags and liquid_flags[water_count + i] != 0:
         result_radii[index] = 0.0
+    widths[index] = 2.0 * result_radii[index]
     rng = wp.rand_init(index)
     colors[index] = color * (0.75 + 0.5 * wp.randf(rng))

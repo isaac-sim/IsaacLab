@@ -1,0 +1,1 @@
+Passed the owning simulation explicitly to the internal renderer constructor.
