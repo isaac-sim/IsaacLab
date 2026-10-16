@@ -67,7 +67,10 @@ def _unit_interval_float(value: str) -> float:
     return resolved
 
 
-parser = argparse.ArgumentParser(description="Newton implicit MPM teapot-fill demo.")
+parser = argparse.ArgumentParser(
+    description="Newton implicit MPM teapot-fill demo.",
+    epilog="For the Kit visualizer, include --extra isaacsim when launching with uv run.",
+)
 parser.add_argument("--robot", choices=["none", "rizon_sharpa"], default="none", help="Use the fixed physical grasp.")
 parser.add_argument(
     "--max_steps",
@@ -802,12 +805,12 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None, 
 
 def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
-    if ROBOT_ENABLED:
-        from rizon_sharpa_teapot import configured_asset_path
-
-        configured_asset_path()
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
+        if ROBOT_ENABLED:
+            from rizon_sharpa_teapot import configured_asset_path
+
+            configured_asset_path()
         if "kit" in (args_cli.visualizer or []):
             from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
