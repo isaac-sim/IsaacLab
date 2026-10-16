@@ -6,8 +6,6 @@ import os
 import tempfile
 
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
-from isaaclab_teleop.xr_cfg import XrCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -25,6 +23,8 @@ from isaaclab.sim.schemas import MassCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 
 from . import mdp
 
@@ -592,13 +592,16 @@ class PickPlaceG1InspireFTPEnvCfg(ManagerBasedRLEnvCfg):
         self.actions.pink_ik_cfg.controller.usd_path = self.scene.robot.spawn.usd_path
         self.actions.pink_ik_cfg.controller.urdf_output_dir = self.temp_urdf_dir
 
-        # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
-        self.xr = XrCfg(
-            anchor_pos=(0.0, 0.0, 0.0),
-            anchor_rot=(0.0, 0.0, 0.0, 1.0),
-        )
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=_build_g1_inspire_pickplace_pipeline,
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+
+            # Isaac Capture-based teleoperation pipeline (resolved lazily at runtime).
+            self.xr = XrCfg(
+                anchor_pos=(0.0, 0.0, 0.0),
+                anchor_rot=(0.0, 0.0, 0.0, 1.0),
+            )
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=_build_g1_inspire_pickplace_pipeline,
+                sim_device=self.sim.device,
+                xr_cfg=self.xr,
+            )

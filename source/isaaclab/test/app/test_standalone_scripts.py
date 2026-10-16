@@ -22,8 +22,12 @@ launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 import ast
 import os
 import re
+import runpy
+import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
@@ -81,6 +85,129 @@ def _python(source: str) -> list[str]:
 # Script contracts.
 
 
+def test_haply_scene_config_stays_lazy_until_scene_construction():
+    """The Haply module must configure its robot without constructing an articulation."""
+    script = script_cases.ROOT / "examples" / "haply_teleoperation.py"
+    code = """
+import runpy
+import sys
+
+from isaaclab.assets import ArticulationCfg
+
+script = sys.argv[1]
+sys.argv = [script, '--physics', 'newton_mjwarp', '--visualizer', 'none']
+namespace = runpy.run_path(script)
+scene_cfg = namespace['FrankaHaplySceneCfg'](num_envs=1, env_spacing=2.0)
+assert isinstance(scene_cfg.robot, ArticulationCfg)
+assert scene_cfg.robot.init_state.pos == (-0.02, 0.0, 1.05)
+assert scene_cfg.robot.spawn.activate_contact_sensors is True
+assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "script_path",
+    [
+        "scripts/tutorials/08_mpm/material_parameters.py",
+        "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
+        "scripts/tutorials/08_mpm/surface_reconstruction.py",
+        "examples/demos/teapot_fill.py",
+        "examples/mpm/newton_mpm_granular.py",
+        "examples/mpm/newton_mpm_twoway_coupling.py",
+        "examples/mpm/g1_coupling.py",
+    ],
+)
+def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
+    """Selecting both Newton viewers must preserve each requested configuration."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("isaaclab_visualizers")
+    if script_path.endswith("g1_coupling.py"):
+        pytest.importorskip("isaaclab_tasks")
+        pytest.importorskip("isaaclab_contrib")
+    script = script_cases.ROOT / script_path
+    code = """
+import runpy
+import sys
+
+script = sys.argv[1]
+sys.argv = [script, '--visualizer', 'newton_gl,newton_rtx']
+if not script.endswith('surface_reconstruction.py'):
+    sys.argv.extend(['--voxel_size', '0.1'])
+namespace = runpy.run_path(script)
+if 'create_visualizer_cfgs' in namespace:
+    configs = namespace['create_visualizer_cfgs']()
+else:
+    import isaaclab_tasks
+    from isaaclab_tasks.utils import resolve_task_config
+    env_cfg, _ = resolve_task_config(
+        namespace['TASK'], 'rsl_rl_cfg_entry_point', play_mode=True,
+        overrides=('physics=newton_mjwarp',),
+    )
+    namespace['configure_environment'](env_cfg)
+    configs = env_cfg.sim.visualizer_cfgs
+assert [type(cfg).__name__ for cfg in configs] == ['NewtonGLVisualizerCfg', 'NewtonRTXVisualizerCfg']
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_mpm_surface_reconstruction_defaults_to_newton_gl():
+    """The surface example must launch with base Newton dependencies by default."""
+    script = script_cases.ROOT / "scripts" / "tutorials" / "08_mpm" / "surface_reconstruction.py"
+    code = """
+import runpy
+import sys
+
+script = sys.argv[1]
+sys.argv = [script]
+namespace = runpy.run_path(script)
+assert namespace['args_cli'].visualizer == ['newton_gl']
+sys.argv = [script, '--visualizer', 'newton_rtx']
+namespace = runpy.run_path(script)
+assert namespace['args_cli'].visualizer == ['newton_rtx']
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.parametrize(
+    "script_path",
+    [
+        "examples/mpm/newton_mpm_granular.py",
+        "scripts/tutorials/08_mpm/material_parameters.py",
+        "scripts/tutorials/08_mpm/surface_reconstruction.py",
+    ],
+)
+def test_mpm_demos_use_solver_contact_response(script_path):
+    """Physical-response examples must not opt into post-step particle projection."""
+    pytest.importorskip("isaaclab_newton")
+    script = script_cases.ROOT / script_path
+    code = """
+import runpy
+import sys
+
+script = sys.argv[1]
+sys.argv = [script, '--visualizer', 'none']
+if script.endswith('surface_reconstruction.py'):
+    sys.argv.extend(['--fluid_render_mode', 'particles'])
+namespace = runpy.run_path(script)
+config = namespace['create_sim_cfg']()
+assert config.physics.solver_cfg.project_outside_colliders is False
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 def test_every_standalone_script_has_a_launch_contract_or_exemption():
     """Packaged programs must stop themselves; other scripts must be runnable or explicitly exempted."""
     not_finite = [spec.relative_path for spec in SPECS if spec.program is not None and not spec.finite]
@@ -131,6 +258,56 @@ def test_demo_browser_documents_options_for_each_demo():
         assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
         )
+
+
+@pytest.fixture(scope="module")
+def nist_demo():
+    return runpy.run_path(str(script_cases.ROOT / "examples/demos/nist.py"))
+
+
+def test_nist_demo_does_not_depend_on_training_packages():
+    """The demo keeps one composition root and leaves episode resets to the RL environment."""
+    path = script_cases.ROOT / "examples/demos/nist.py"
+    nodes = list(ast.walk(ast.parse(path.read_text(encoding="utf-8"))))
+    imports = []
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports.append(node.module or "")
+    assert not any(name.startswith(("isaaclab_tasks", "isaaclab_rl", "rsl_rl")) for name in imports)
+    assert not any(isinstance(node, ast.Attribute) and node.attr == "_reset_idx" for node in nodes)
+
+
+def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
+    """Partial resets place separated parts across a square in their own environment."""
+    demo = nist_demo
+    torch = demo["torch"]
+    assemblies = demo["ASSEMBLIES"][:10]
+    num_envs, env_ids = 64, torch.arange(1, 64, 2)
+
+    class Scene(dict):
+        env_origins = torch.arange(num_envs)[:, None].expand(-1, 3) * 2.0
+
+    names = {"nistboard", *(f"fixed_{part.socket}" for part in assemblies), *(f"held_{slot:02d}" for slot in range(10))}
+    scene = Scene({name: Mock() for name in names | {"robot"}})
+    for name in names:
+        scene[name].data.default_root_pose.torch = torch.tensor([0.0, 0, 0, 0, 0, 0, 1]).repeat(num_envs, 1)
+    scene["robot"].data.default_joint_pos.torch = torch.zeros((num_envs, 9))
+    board_pose = torch.tensor([0.452824, 0.19145, 0.0206, 0, 1, 0, 0])
+    scene["nistboard"].data.default_root_pose.torch = board_pose.repeat(num_envs, 1)
+    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
+    torch.manual_seed(1701)
+    demo["reset_parts"](env, slice(1, None, 2), assemblies)
+    writes = [scene[f"held_{slot:02d}"].write_root_link_pose_to_sim_index.call_args.kwargs for slot in range(10)]
+    assert all(torch.equal(write["env_ids"], env_ids) for write in writes)
+    positions = torch.stack([write["root_pose"][:, :3] for write in writes], dim=1) - scene.env_origins[env_ids, None]
+    assert (positions >= torch.tensor([0.15, -0.35, 0.12]) - 1e-5).all()
+    assert (positions <= torch.tensor([0.85, 0.35, 0.14]) + 1e-5).all()
+    assert (positions[..., 1].abs() < 0.2).any()
+    distances = torch.cdist(positions[..., :2], positions[..., :2])
+    distances[:, torch.arange(10), torch.arange(10)] = float("inf")
+    assert distances.min() >= 0.1 - 1e-5
 
 
 # Launch matrix selection.

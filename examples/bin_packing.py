@@ -296,6 +296,53 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
         self.clone_cfg.clone_combinations = self.clone_cfg.clone_combinations[: self.num_envs]
 
 
+@wp.kernel(enable_backward=False)
+def _set_grocery_transforms(
+    transforms: wp.array2d(dtype=wp.float32),
+    indices: wp.array(dtype=wp.int32),
+    body_ids: wp.array(dtype=wp.int32),
+    body_q: wp.array(dtype=wp.transform),
+):
+    position = indices[wp.tid()]
+    body_q[body_ids[position]] = wp.transform(
+        wp.vec3(transforms[position, 0], transforms[position, 1], transforms[position, 2]),
+        wp.quat(transforms[position, 3], transforms[position, 4], transforms[position, 5], transforms[position, 6]),
+    )
+
+
+@wp.kernel(enable_backward=False)
+def _set_grocery_velocities(
+    velocities: wp.array2d(dtype=wp.float32),
+    indices: wp.array(dtype=wp.int32),
+    body_ids: wp.array(dtype=wp.int32),
+    body_qd: wp.array(dtype=wp.spatial_vector),
+):
+    position = indices[wp.tid()]
+    body_qd[body_ids[position]] = wp.spatial_vector(
+        velocities[position, 0],
+        velocities[position, 1],
+        velocities[position, 2],
+        velocities[position, 3],
+        velocities[position, 4],
+        velocities[position, 5],
+    )
+
+
+@wp.kernel(enable_backward=False)
+def _set_grocery_masses(
+    masses: wp.array(dtype=wp.float32),
+    indices: wp.array(dtype=wp.int32),
+    body_ids: wp.array(dtype=wp.int32),
+    body_mass: wp.array(dtype=wp.float32),
+    body_inv_mass: wp.array(dtype=wp.float32),
+):
+    position = indices[wp.tid()]
+    body = body_ids[position]
+    mass = masses[position]
+    body_mass[body] = mass
+    body_inv_mass[body] = 1.0 / mass
+
+
 class _NewtonGroceryView:
     """Flat access to groceries in Newton's heterogeneous worlds."""
 
@@ -311,42 +358,45 @@ class _NewtonGroceryView:
         ]
         self.prim_paths = [path for _, path in matches]
         self.count = len(matches)
-        self._body_ids = torch.tensor([index for index, _ in matches], device=str(model.device))
+        self._body_ids = wp.array([index for index, _ in matches], dtype=wp.int32, device=model.device)
         self._model = model
         self._manager = NewtonManager
         self._mass_change_flag = ModelFlags.BODY_INERTIAL_PROPERTIES
 
-    def _selection(self, indices: wp.array) -> tuple[torch.Tensor, torch.Tensor]:
-        positions = wp.to_torch(indices).to(device=self._body_ids.device, dtype=torch.long)
-        return positions, self._body_ids[positions]
-
     def get_transforms(self) -> torch.Tensor:
-        return wp.to_torch(self._manager.get_state_0().body_q)[self._body_ids]
+        return wp.to_torch(self._manager.get_state_0().body_q)[wp.to_torch(self._body_ids)]
 
     def set_transforms(self, transforms: wp.array, indices: wp.array) -> None:
-        positions, body_ids = self._selection(indices)
-        wp.to_torch(self._manager.get_state_0().body_q)[body_ids] = wp.to_torch(transforms)[positions]
+        wp.launch(
+            _set_grocery_transforms,
+            dim=indices.shape[0],
+            inputs=[transforms, indices.to(self._model.device), self._body_ids],
+            outputs=[self._manager.get_state_0().body_q],
+            device=self._model.device,
+        )
         self._manager.invalidate_body_state()
 
     def get_velocities(self) -> torch.Tensor:
-        velocity = wp.to_torch(self._manager.get_state_0().body_qd)[self._body_ids]
-        return torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
+        return wp.to_torch(self._manager.get_state_0().body_qd)[wp.to_torch(self._body_ids)]
 
     def set_velocities(self, velocities: wp.array, indices: wp.array) -> None:
-        positions, body_ids = self._selection(indices)
-        velocity = wp.to_torch(velocities)[positions]
-        wp.to_torch(self._manager.get_state_0().body_qd)[body_ids] = torch.cat(
-            (velocity[:, 3:], velocity[:, :3]), dim=-1
+        wp.launch(
+            _set_grocery_velocities,
+            dim=indices.shape[0],
+            inputs=[velocities, indices.to(self._model.device), self._body_ids],
+            outputs=[self._manager.get_state_0().body_qd],
+            device=self._model.device,
         )
         self._manager.invalidate_body_state()
 
     def set_masses(self, masses: wp.array, indices: wp.array) -> None:
-        positions, body_ids = self._selection(indices)
-        mass = wp.to_torch(self._model.body_mass)
-        inverse_mass = wp.to_torch(self._model.body_inv_mass)
-        new_mass = wp.to_torch(masses).flatten().to(mass.device)[positions]
-        mass[body_ids] = new_mass
-        inverse_mass[body_ids] = 1.0 / new_mass
+        wp.launch(
+            _set_grocery_masses,
+            dim=indices.shape[0],
+            inputs=[masses.flatten().to(self._model.device), indices.to(self._model.device), self._body_ids],
+            outputs=[self._model.body_mass, self._model.body_inv_mass],
+            device=self._model.device,
+        )
         self._manager.add_model_change(self._mass_change_flag)
 
 

@@ -788,7 +788,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Clear constitutive/contact/collider history for exactly the reset worlds.
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
-        index_fill_(world_mask, env_ids, True)
+        index_fill_(world_mask[: self.num_envs], env_ids, True)
         NewtonMPMManager.reset_solver_state(
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,

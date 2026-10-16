@@ -103,6 +103,19 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def resize_render_product(self, render_data: Any, *, width: int, height: int) -> None:
+        """Resize a viewer-owned product without replacing its camera.
+
+        The caller must replace output buffers through :meth:`set_outputs` after resizing.
+        Scene-camera sensors retain their configured resolution and do not call this method.
+
+        Args:
+            render_data: Renderer-owned resources for one perspective view.
+            width: Output width in pixels.
+            height: Output height in pixels.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support resizable render products.")
+
     @abstractmethod
     def set_outputs(self, render_data: Any, output_data: dict[str, ProxyArray]) -> None:
         """Store reference to output buffers for writing during render.

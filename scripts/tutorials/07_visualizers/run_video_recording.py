@@ -49,6 +49,8 @@ import sys
 import gymnasium as gym
 import torch
 
+from isaaclab.visualizers import WindowCfg
+
 import isaaclab_tasks  # noqa: F401
 
 with contextlib.suppress(ImportError):
@@ -153,15 +155,14 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # No streaming_sensor_prim_path/streaming_cam_target_prim_path: adopts the existing
+        # No streaming_sensor_prim_path: selects the existing
         # tiled_camera sensor automatically, so the streaming panel shows the same
         # RTX-rendered views as source="sensor:tiled_camera".
     )
     newton_cfg = NewtonGLVisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
-        window_width=1280,
-        window_height=720,
+        window=WindowCfg(size=(1280, 720)),
         focal_length=25.0,
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]

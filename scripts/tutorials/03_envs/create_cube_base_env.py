@@ -184,7 +184,6 @@ class MySceneCfg(InteractiveSceneCfg):
             size=(0.2, 0.2, 0.2),
             rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
             mass_props=sim_utils.MassCfg(mass=1.0),
-            physics_material=sim_utils.RigidBodyMaterialCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
