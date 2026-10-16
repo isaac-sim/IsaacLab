@@ -214,6 +214,9 @@ class _OvPhysxRayCasterMixin:
         """Refresh dynamic multi-mesh target poses from their ovphysx bindings."""
         if not hasattr(self, "_mesh_views"):
             return
+        # Tracked targets can be articulation links with pending writes.
+        if any(target_cfg.track_mesh_transforms for target_cfg in self._raycast_targets_cfg):
+            OvPhysxManager.update_kinematics()
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
@@ -229,8 +232,6 @@ class _OvPhysxRayCasterMixin:
                 buf = wp.zeros(view.shape, dtype=wp.float32, device=self._device)
                 self._mesh_view_bufs[id(view)] = buf
 
-            # Tracked targets can be articulation links with pending writes.
-            OvPhysxManager.update_kinematics()
             view.read(buf)
             transforms_wp = wp.array(
                 ptr=buf.ptr,

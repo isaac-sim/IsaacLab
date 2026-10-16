@@ -141,14 +141,15 @@ class _PhysXRayCasterMixin:
         """Refresh dynamic multi-mesh targets directly from PhysX views."""
         if not hasattr(self, "_mesh_views"):
             return
+        # Tracked targets can be articulation links with pending writes.
+        if any(target_cfg.track_mesh_transforms for target_cfg in self._raycast_targets_cfg):
+            PhysxManager.update_kinematics()
         mesh_idx = 0
         for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
                 mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
 
-            # Tracked targets can be articulation links with pending writes.
-            PhysxManager.update_kinematics()
             transforms = view.get_transforms()
             transforms_wp = (
                 transforms.view(wp.transformf)
