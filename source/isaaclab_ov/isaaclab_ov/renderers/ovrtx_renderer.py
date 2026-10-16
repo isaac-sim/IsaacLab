@@ -74,7 +74,6 @@ except ModuleNotFoundError as exc:
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
@@ -181,6 +180,49 @@ def ovrtx_use_ovstage_enabled() -> bool:
     if value not in {"0", "1"}:
         raise ValueError(f"Invalid value for environment variable `{_USE_OVSTAGE_ENV}`: {value}. Expected 0 or 1.")
     return value == "1"
+
+
+# RTX has no native pre-exposure radiance output, so scene-linear camera inputs are derived by authoring
+# neutral exposure on the camera prim, which affects every output rendered from it. Temporary workaround:
+# remove once RTX provides a native radiance output (NVBug 6858736). The Isaac RTX renderer carries a copy.
+_CAMERA_EXPOSURE_SCHEMAS = ("OmniRtxCameraAutoExposureAPI_1", "OmniRtxCameraExposureAPI_1")
+_NEUTRAL_CAMERA_EXPOSURE: tuple[tuple[str, str, Any], ...] = (
+    ("exposure", "Float", 0.0),
+    ("exposure:fStop", "Float", 1.0),
+    ("exposure:iso", "Float", 0.0),
+    ("exposure:responsivity", "Float", 1.0),
+    ("exposure:time", "Float", 1.0),
+    ("omni:rtx:autoExposure:enabled", "Bool", False),
+)
+
+
+def _apply_rtx_exposure_overrides(stage: Any, prim_paths: list[str]) -> None:
+    """Disable RTX camera exposure so downstream processors receive scene-linear HDR.
+
+    Existing API schemas are preserved. Schema metadata is authored directly so the RTX schema
+    plugin does not need to be loaded yet.
+
+    Args:
+        stage: USD stage containing the camera prims.
+        prim_paths: Resolved camera prim paths.
+    """
+    from pxr import Sdf
+
+    value_types = {"Bool": Sdf.ValueTypeNames.Bool, "Float": Sdf.ValueTypeNames.Float}
+    for prim_path in prim_paths:
+        prim = stage.GetPrimAtPath(prim_path)
+        if not prim or not prim.IsValid():
+            continue
+        current = prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+        existing = list(current.prependedItems) + list(current.explicitItems) + list(current.appendedItems)
+        missing = [schema for schema in _CAMERA_EXPOSURE_SCHEMAS if schema not in existing]
+        if missing:
+            prim.SetMetadata("apiSchemas", Sdf.TokenListOp.Create(prependedItems=[*missing, *existing]))
+        for attr_name, sdf_type_name, value in _NEUTRAL_CAMERA_EXPOSURE:
+            attr = prim.GetAttribute(attr_name)
+            if not attr:
+                attr = prim.CreateAttribute(attr_name, value_types[sdf_type_name], custom=False)
+            attr.Set(value)
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:

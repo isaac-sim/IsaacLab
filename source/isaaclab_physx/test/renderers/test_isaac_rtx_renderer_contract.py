@@ -136,15 +136,25 @@ def test_prepare_cameras_neutralizes_exposure_for_radiance(monkeypatch, data_typ
 
     from pxr import Sdf, Usd, UsdGeom
 
+    authored = {"exposure": 2.0, "exposure:fStop": 2.8, "exposure:iso": 800.0, "exposure:responsivity": 0.5}
+    neutral = {"exposure": 0.0, "exposure:fStop": 1.0, "exposure:iso": 0.0, "exposure:responsivity": 1.0}
     stage = Usd.Stage.CreateInMemory()
     camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
-    camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
+    for name, value in authored.items():
+        camera.CreateAttribute(name, Sdf.ValueTypeNames.Float).Set(value)
+    camera.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
     spec = SimpleNamespace(
         cfg=SimpleNamespace(data_types=data_types, isp_cfg=None), camera_prim_paths=("/World/Camera",)
     )
     IsaacRtxRenderer.__new__(IsaacRtxRenderer).prepare_cameras(stage, spec)
 
-    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
+    radiance = "rgb_radiance" in data_types
+    for name, value in (neutral if radiance else authored).items():
+        assert camera.GetAttribute(name).Get() == value
+    assert camera.GetAttribute("omni:rtx:autoExposure:enabled").Get() is not radiance
+    schemas = camera.GetMetadata("apiSchemas")
+    applied = [] if schemas is None else [*schemas.prependedItems, *schemas.explicitItems, *schemas.appendedItems]
+    assert ({"OmniRtxCameraAutoExposureAPI_1", "OmniRtxCameraExposureAPI_1"} <= set(applied)) is radiance
 
 
 @pytest.mark.parametrize("data_types", [["rgb_radiance"], ["rgb_radiance", "rgb_hdr"]])
