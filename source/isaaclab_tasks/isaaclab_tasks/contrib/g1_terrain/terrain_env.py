@@ -118,16 +118,18 @@ class G1TerrainEnv(ManagerBasedRLEnv):
                 camera.CreateHorizontalApertureAttr(20.955)
                 camera.CreateVerticalApertureAttr(aperture)
                 camera.CreateFocalLengthAttr(aperture / (2 * math.tan(math.radians(self.cfg.camera_vfov) / 2)))
-        for _ in range(60):
-            self.sim.render()
-            if kit_visualizer is not None:
+        # Only Kit's RTX needs warm-up frames; on other backends queued renders would overlap the depth
+        # camera's first CUDA graph capture below.
+        if kit_visualizer is not None:
+            for _ in range(60):
+                self.sim.render()
                 kit_visualizer.render_rgb_array()
         self.sim.forward()
         self.scene.update(0.0)
         if self.cfg.scene.depth_camera is not None:
             self.scene["depth_camera"].update(0.0, force_recompute=True)
             separate_ramp_base(stage)
-        for _ in range(30):
-            self.sim.render()
-            if kit_visualizer is not None:
+        if kit_visualizer is not None:
+            for _ in range(30):
+                self.sim.render()
                 kit_visualizer.render_rgb_array()
