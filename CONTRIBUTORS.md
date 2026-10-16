@@ -92,6 +92,7 @@ Guidelines for modifications:
 * Donguk Kim
 * Dongxuan Fan
 * Dorsa Rohani
+* Dundy Pasupuleti
 * Ege Sekkin
 * Emily Sturman
 * Emmanuel Ferdman
