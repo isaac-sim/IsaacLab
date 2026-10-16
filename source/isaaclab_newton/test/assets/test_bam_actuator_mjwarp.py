@@ -10,6 +10,7 @@ from dataclasses import fields
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager, NewtonSolverCfg
 from isaaclab_newton.physics.mjwarp_actuator_bridge import MjWarpActuatorBridge
 from newton import ModelBuilder
@@ -85,6 +86,8 @@ def _make_cfg(**overrides) -> BamActuatorCfg:
     with np.load(retrieve_file_path(f"{BAM_DATA_DIR}/bam_xl330_m6_goldens.npz")) as data:
         params = {key.removeprefix("attr_"): data[key].item() for key in data.files if key.startswith("attr_")}
     params["resistance"] = params.pop("R")
+    # The pendulum's arm inertia already includes the reflected rotor inertia.
+    del params["armature"]
     motor = BamMotorCfg(model="m6", **{f.name: params[f.name] for f in fields(BamMotorCfg) if f.name in params})
     kwargs = {"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW}
     kwargs.update(overrides)
@@ -217,6 +220,49 @@ def test_robots_pair_with_their_own_actuators_across_hard_resets(native_sim, dev
         for robot in (robot_a, robot_c):
             assert robot.actuators["servo"].drive.external_torque is not None
         native_sim.step()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_reset_environment_starts_without_the_previous_episode_load(native_sim, device, pendulum_usd):
+    """The first step after a reset gathers no external load for the reset environment only.
+
+    The solver reset keeps the last solve's bias and constraint forces, which would otherwise feed the
+    terminated episode's load into the first friction budget.
+    """
+    (robot,) = _spawn_pendulums(native_sim, pendulum_usd, {"Robot": _make_cfg()})
+    actuator = robot.actuators["servo"]
+    for _ in range(4):
+        robot.write_data_to_sim()
+        native_sim.step()
+        robot.update(native_sim.get_physics_dt())
+    # What the next step gathers without a reset.
+    bridge = MjWarpActuatorBridge(NewtonManager._solver, NewtonManager.backend.model, actuator.indices, device)
+    last_load = wp.zeros_like(actuator.drive.external_torque)
+    bridge.gather_external_torque(last_load)
+    last_load = last_load.numpy()
+    reset = actuator.indices.numpy() // (NewtonManager.backend.model.joint_dof_count // NUM_ENVS) == 0
+    assert (last_load[reset] != 0.0).all(), "the pendulum must carry a load for the reset to clear"
+
+    robot.write_joint_position_to_sim_index(position=torch.full((1, 1), INITIAL_ANGLE, device=device), env_ids=[0])
+    robot.write_joint_velocity_to_sim_index(velocity=torch.zeros(1, 1, device=device), env_ids=[0])
+    robot.reset([0])
+    robot.write_data_to_sim()
+    native_sim.step()
+
+    external_torque = actuator.drive.external_torque.numpy()
+    np.testing.assert_array_equal(external_torque[reset], 0.0)
+    np.testing.assert_array_equal(external_torque[~reset], last_load[~reset])
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_motor_fit_armature_applies_unless_the_group_sets_one(native_sim, device, pendulum_usd):
+    """The motor fit's armature replaces the USD joint armature, and an explicit group armature wins."""
+    cfgs = {"FitRobot": _make_cfg(), "GroupRobot": _make_cfg(armature=0.004)}
+    for cfg in cfgs.values():
+        cfg.motor.armature = 0.003
+    for robot, expected in zip(_spawn_pendulums(native_sim, pendulum_usd, cfgs), (0.003, 0.004)):
+        armature = robot.data.joint_armature.torch
+        torch.testing.assert_close(armature, torch.full_like(armature, expected))
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))

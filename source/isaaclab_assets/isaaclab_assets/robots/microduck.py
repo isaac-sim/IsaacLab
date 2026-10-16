@@ -32,6 +32,7 @@ _XL330_MOTOR_CFG = BamMotorCfg(
     max_current=1.75,
     friction_base=0.004771183165566,
     friction_viscous=0.005359668274599504,
+    armature=0.0018077432831600838,
     friction_stribeck=0.004676345799486616,
     dtheta_stribeck=2.890372094130307,
     alpha=8.683259907618984,
