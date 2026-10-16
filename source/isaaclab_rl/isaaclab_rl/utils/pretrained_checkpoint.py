@@ -133,8 +133,7 @@ def get_pretrained_checkpoint_preset_names(task_name: str, overrides: Sequence[s
     Returns:
         Selected non-default domain preset names in canonical order.
     """
-    from isaaclab_tasks.utils.hydra import collect_presets
-    from isaaclab_tasks.utils.preset_target import PresetTarget
+    from isaaclab_tasks.utils.hydra import PresetTarget, collect_presets
 
     selected_names = []
     for override in sys.argv[1:] if overrides is None else overrides:

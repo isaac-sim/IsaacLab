@@ -12,6 +12,7 @@ __all__ = [
     "launch_simulation",
     "scan",
     "Scan",
+    "validate_launch",
     "LoadingScreen",
     "report_activity",
 ]
@@ -25,4 +26,5 @@ from .sim_launcher import (
     add_launcher_args,
     launch_simulation,
     scan,
+    validate_launch,
 )

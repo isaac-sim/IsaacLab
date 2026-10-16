@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING
+import signal
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import torch
@@ -45,6 +46,9 @@ _BACKEND_DISPLAY_NAMES = {
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
+    _timeline_auto_update: ClassVar[bool | None] = None
+    _timeline_control_owner_count: ClassVar[int] = 0
+
     def __init__(self, cfg: KitVisualizerCfg):
         """Initialize Kit visualizer state.
 
@@ -76,6 +80,8 @@ class KitVisualizer(BaseVisualizer):
         # Guard flag: True once app.update() has been called in the current step() invocation.
         # render_rgb_array() skips its own pump when the step already pumped the app.
         self._app_pumped_this_step: bool = False
+        self._controls_kit_timeline = False
+        self._owns_kit_timeline = False
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
@@ -149,6 +155,9 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
+        self._controls_kit_timeline = sim.has_gui and self.physics_backend not in ("physx", "ovphysx")
+        if self._controls_kit_timeline:
+            self.play()
 
     def step(self, dt: float) -> None:
         """Advance visualizer/UI updates for one simulation step.
@@ -170,22 +179,7 @@ class KitVisualizer(BaseVisualizer):
         self._fabric.update_geometries(provider, self._sim.render_generation)
         if self.cfg.origin_type == "asset":
             self._update_asset_tracking_camera()
-        _externally_paused = self.is_training_paused()
-        if not _externally_paused:
-            try:
-                import omni.kit.app
-
-                app = omni.kit.app.get_app()
-                if app is not None and app.is_running():
-                    # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
-                    # Disable playSimulations around app.update() so Kit does not advance its own physics here.
-                    settings = get_settings_manager()
-                    settings.set("/app/player/playSimulations", False)
-                    app.update()
-                    settings.set("/app/player/playSimulations", True)
-                    self._app_pumped_this_step = True
-            except (ImportError, AttributeError) as exc:
-                logger.debug("[KitVisualizer] App update skipped: %s", exc)
+        self._app_pumped_this_step = self._pump_kit_app_update()
         if self._camera_image_provider is not None:
             image = self.current_image_view.frame.data if self.is_training_paused() else self.render_tiled_rgba_array()
             if image is not None:
@@ -206,27 +200,79 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
-        self._teardown_backend_menubar_label()
-        self._restore_env_visibility()
-        self._viewport_camera_xform_ops.clear()
-        self._viewport_camera_pose_cache.clear()
-        self._camera_image_provider = None
-        self._camera_image_window = None
-        self._simulation_app = None
-        self._viewport_window = None
-        self._viewport_api = None
-        import contextlib
+        try:
+            if self._owns_kit_timeline:
+                self.stop()
+        finally:
+            self._teardown_backend_menubar_label()
+            self._restore_env_visibility()
+            self._viewport_camera_xform_ops.clear()
+            self._viewport_camera_pose_cache.clear()
+            self._camera_image_provider = None
+            self._camera_image_window = None
+            self._simulation_app = None
+            self._viewport_window = None
+            self._viewport_api = None
+            import contextlib
 
-        if self._rgb_annotator is not None:
-            with contextlib.suppress(Exception):
-                self._rgb_annotator.detach()
-        if self._rgb_render_product is not None:
-            with contextlib.suppress(Exception):
-                self._rgb_render_product.destroy()
-        self._rgb_annotator = None
-        self._rgb_render_product = None
-        self._is_initialized = False
-        super().close()
+            if self._rgb_annotator is not None:
+                with contextlib.suppress(Exception):
+                    self._rgb_annotator.detach()
+            if self._rgb_render_product is not None:
+                with contextlib.suppress(Exception):
+                    self._rgb_render_product.destroy()
+            self._rgb_annotator = None
+            self._rgb_render_product = None
+            self._controls_kit_timeline = False
+            self._is_initialized = False
+            super().close()
+
+    def play(self) -> None:
+        """Show the running state in Kit's toolbar without advancing Kit physics."""
+        if not self._controls_kit_timeline:
+            return
+        import omni.timeline
+
+        timeline = omni.timeline.get_timeline_interface()
+        if not self._owns_kit_timeline:
+            if KitVisualizer._timeline_control_owner_count == 0:
+                KitVisualizer._timeline_auto_update = timeline.is_auto_updating()
+            KitVisualizer._timeline_control_owner_count += 1
+            self._owns_kit_timeline = True
+        # The toolbar still reflects play/pause while the selected backend remains the only time owner.
+        timeline.set_auto_update(False)
+        timeline.play()
+        self._pump_kit_app_update()
+
+    def pause(self) -> None:
+        """Show the paused state in Kit's toolbar without advancing Kit physics."""
+        if not self._controls_kit_timeline:
+            return
+        import omni.timeline
+
+        omni.timeline.get_timeline_interface().pause()
+        self._pump_kit_app_update()
+
+    def stop(self) -> None:
+        """Show the stopped state in Kit's toolbar without advancing Kit physics."""
+        if not self._controls_kit_timeline or not self._owns_kit_timeline:
+            return
+        import omni.timeline
+
+        timeline = omni.timeline.get_timeline_interface()
+        is_last_owner = KitVisualizer._timeline_control_owner_count == 1
+        try:
+            if is_last_owner:
+                timeline.stop()
+                self._pump_kit_app_update()
+        finally:
+            KitVisualizer._timeline_control_owner_count -= 1
+            self._owns_kit_timeline = False
+            if is_last_owner:
+                timeline_auto_update = KitVisualizer._timeline_auto_update
+                KitVisualizer._timeline_auto_update = None
+                if timeline_auto_update is not None:
+                    timeline.set_auto_update(timeline_auto_update)
 
     def render_rgb_array(self) -> np.ndarray:
         """Return an RGB frame captured from the Kit viewport camera.
@@ -239,7 +285,6 @@ class KitVisualizer(BaseVisualizer):
         Returns:
             RGB image array of shape ``(window_height, window_width, 3)``, dtype ``uint8``.
         """
-        import omni.kit.app
         import omni.replicator.core as rep
 
         if not self._sim.is_rendering:
@@ -269,11 +314,7 @@ class KitVisualizer(BaseVisualizer):
                 self._rgb_render_product.resume()
 
         if not self._app_pumped_this_step:
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            settings.set("/app/player/playSimulations", False)
-            omni.kit.app.get_app().update()
-            settings.set("/app/player/playSimulations", bool(play_flag))
+            self._pump_kit_app_update()
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):
@@ -315,11 +356,14 @@ class KitVisualizer(BaseVisualizer):
             return False
 
     def is_training_paused(self) -> bool:
-        """Return whether simulation play flag is paused in Kit settings."""
+        """Return whether the Kit timeline is paused by its toolbar controls."""
+        if not self._controls_kit_timeline:
+            return False
         try:
-            settings = get_settings_manager()
-            play_flag = settings.get("/app/player/playSimulations")
-            return play_flag is False
+            import omni.timeline
+
+            timeline = omni.timeline.get_timeline_interface()
+            return not timeline.is_playing() and not timeline.is_stopped()
         except Exception:
             return False
 
@@ -422,6 +466,44 @@ class KitVisualizer(BaseVisualizer):
         return self._viewer_origin
 
     # ---- Viewport + camera ----------------------------------------------------------------
+
+    def _pump_kit_app_update(self) -> bool:
+        """Process one Kit UI update without letting Kit advance physics."""
+        try:
+            import omni.kit.app
+
+            app = omni.kit.app.get_app()
+            if app is None or not app.is_running():
+                return False
+            settings = get_settings_manager()
+            play_flag = settings.get("/app/player/playSimulations")
+            settings.set("/app/player/playSimulations", False)
+            interrupted = False
+
+            def defer_interrupt(_signum, _frame):
+                nonlocal interrupted
+                interrupted = True
+                # Let a second Ctrl+C terminate the process if app.update() does not return.
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+            previous_handler = signal.getsignal(signal.SIGINT)
+            defer_interrupts = previous_handler != signal.SIG_DFL
+            if defer_interrupts:
+                signal.signal(signal.SIGINT, defer_interrupt)
+            try:
+                # Kit can swallow KeyboardInterrupt when SIGINT lands in a Python event callback.
+                # Record it without raising until update() returns to this call site.
+                app.update()
+            finally:
+                if defer_interrupts:
+                    signal.signal(signal.SIGINT, previous_handler)
+                settings.set("/app/player/playSimulations", True if play_flag is None else bool(play_flag))
+                if interrupted:
+                    raise KeyboardInterrupt
+            return True
+        except (ImportError, AttributeError) as exc:
+            logger.debug("[KitVisualizer] App update skipped: %s", exc)
+            return False
 
     def _setup_backend_menubar_label(self) -> None:
         """Add a read-only backend label to the viewport menubar and hide the PhysX Simulation menu."""
@@ -667,7 +749,9 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_api is None:
             # Without a viewport, Kit does not create its default perspective
             # camera, so author it explicitly before render products use it.
-            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
+            # Kit stores existing camera transforms in the stronger session layer.
+            with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+                self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
             return
 
         try:

@@ -53,4 +53,4 @@ Keep this workflow synchronized with the environment-browser markers, the regist
 - [Environment documentation collector](../../../tools/environ_docs.py)
 - [Environment documentation updater](../../../tools/update_environments_rst.py)
 - [Environment list script](../../../scripts/environments/list_envs.py)
-- [Preset CLI](../../../source/isaaclab_tasks/isaaclab_tasks/utils/preset_cli.py)
+- [Preset CLI](../../../source/isaaclab_tasks/isaaclab_tasks/utils/hydra.py)

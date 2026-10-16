@@ -15,16 +15,25 @@ from __future__ import annotations
 
 import collections
 import contextlib
+import itertools
 import json
+import multiprocessing
+import os
 import re
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
-from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
-from isaaclab_tasks.utils.preset_target import PresetTarget
+from isaaclab_tasks.utils.hydra import (
+    _LEGACY_PRESET_ALIASES,
+    PresetTarget,
+    enumerate_task_presets,
+    is_task_run_launchable,
+)
 
 if TYPE_CHECKING:
     from gymnasium.envs.registration import EnvSpec
@@ -43,8 +52,8 @@ _BACKEND_MIRROR_NAMES = frozenset(
         "ovrtx",
         "physx",
         "rtx",
-        *PresetTarget.all_legacy_aliases().keys(),
-        *PresetTarget.all_legacy_aliases().values(),
+        *_LEGACY_PRESET_ALIASES,
+        *_LEGACY_PRESET_ALIASES.values(),
     }
 )
 
@@ -133,10 +142,20 @@ class EnvironmentDocRow:
     supports_warp_frontend: bool = False
     pretrained_checkpoint_preset_compatibility: dict[str, tuple[str, ...]] = field(default_factory=dict)
     required_extras: tuple[str, ...] = ()
+    # None reuses all domain presets; an empty tuple allows only the default.
+    warp_presets: tuple[str, ...] | None = None
+    # Launchable (physics, renderer, presets) combinations of the displayed names, ``None`` leaving an
+    # axis to the config. Empty for tasks with nothing to select.
+    launchable_runs: tuple[tuple[str | None, str | None, str | None], ...] = ()
 
 
-def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetTarget, list[str]] | None) -> bool:
-    """Return whether a task can run through ``--frontend warp``."""
+def _supports_warp_frontend(
+    task_name: str,
+    workflow: str,
+    presets: dict[PresetTarget, list[str]] | None,
+    domain_preset: str | None = None,
+) -> bool:
+    """Return whether a task configuration can run through ``--frontend warp``."""
     if presets is None or "newton_mjwarp" not in presets.get(PresetTarget.PHYSICS, []):
         return False
 
@@ -145,7 +164,10 @@ def _supports_warp_frontend(task_name: str, workflow: str, presets: dict[PresetT
 
         from isaaclab_tasks.utils import resolve_task_config
 
-        cfg, _ = resolve_task_config(task_name, "", overrides=("physics=newton_mjwarp",))
+        overrides = ("physics=newton_mjwarp",)
+        if domain_preset is not None:
+            overrides += (f"presets={domain_preset}",)
+        cfg, _ = resolve_task_config(task_name, "", overrides=overrides)
         if workflow == "Direct":
             try:
                 return WarpFrontend._resolve_direct_warp_class(task_name, cfg) is not None
@@ -344,6 +366,14 @@ def _selector_names_for_docs(
         PresetTarget.RENDERER: _filter_selector_names(PresetTarget.RENDERER, preset_map.get(PresetTarget.RENDERER, [])),
         PresetTarget.DOMAIN: _filter_selector_names(PresetTarget.DOMAIN, _domain_presets_for_docs(preset_map)),
     }
+
+
+def _import_task_packages() -> None:
+    """Register the Isaac Lab tasks in a launch-check worker process."""
+    import isaaclab_tasks  # noqa: F401
+
+    with contextlib.suppress(ImportError):
+        import isaaclab_tasks_experimental  # noqa: F401
 
 
 def format_presets_rst(preset_map: dict[PresetTarget, list[str]] | None) -> str:
@@ -614,16 +644,37 @@ def collect_environment_doc_rows(
         specs = list(gym.registry.values())
 
     rows: list[EnvironmentDocRow] = []
+    # Each launch check resolves a full env config; workers spread them out. Each worker imports Isaac Lab,
+    # so their number is capped, and they are spawned because forking this multi-threaded process can deadlock.
+    pool = ProcessPoolExecutor(
+        max_workers=min(os.cpu_count() or 1, 8),
+        mp_context=multiprocessing.get_context("spawn"),
+        initializer=_import_task_packages,
+    )
 
     for spec in specs:
         if not is_training_task(spec.id) or spec.kwargs.get("deprecated"):
             continue
 
         preset_map = enumerate_task_presets(spec.id)
+        launchable_runs = ()
         if preset_map is not None:
             preset_map = dict(preset_map)
             preset_map[PresetTarget.PHYSICS] = _physics_names_for_docs(spec.id, preset_map)
             preset_map = _apply_preset_exclusions(spec.id, preset_map)
+            targets = (PresetTarget.PHYSICS, PresetTarget.RENDERER, PresetTarget.DOMAIN)
+            selectors = _selector_names_for_docs(preset_map)
+            options = [sorted(selectors[target]) for target in targets]
+            if any(options):
+                combinations = list(itertools.product(*([None, *names] for names in options)))
+                launchable = pool.map(partial(is_task_run_launchable, spec.id), combinations)
+                launchable_runs = tuple(run for run, ok in zip(combinations, launchable) if ok)
+                if not launchable_runs:
+                    raise ValueError(f"{spec.id}: no displayed preset combination can launch.")
+                # A displayed name no launchable combination uses can never produce a working command.
+                for axis, (target, names) in enumerate(zip(targets, options)):
+                    unreachable = {name for name in names if all(run[axis] != name for run in launchable_runs)}
+                    preset_map[target] = [name for name in preset_map[target] if name not in unreachable]
         agents = apply_rl_library_overrides(spec.id, parse_rl_libraries_from_kwargs(spec.kwargs))
         visible_domain_presets = set(_selector_names_for_docs(preset_map)[PresetTarget.DOMAIN])
         default_checkpoint_presets = ()
@@ -641,18 +692,30 @@ def collect_environment_doc_rows(
             checkpoint_preset_compatibility["*"] = default_checkpoint_presets
 
         workflow = get_workflow(spec.entry_point)
+        supports_warp_frontend = _supports_warp_frontend(spec.id, workflow, preset_map)
+        warp_presets = None
+        if supports_warp_frontend and visible_domain_presets:
+            domain_presets = tuple(sorted(visible_domain_presets))
+            compatible_presets = tuple(
+                name for name in domain_presets if _supports_warp_frontend(spec.id, workflow, preset_map, name)
+            )
+            if compatible_presets != domain_presets:
+                warp_presets = compatible_presets
         rows.append(
             EnvironmentDocRow(
                 task_name=spec.id,
                 workflow=workflow,
                 rl_libraries=agents,
                 presets=preset_map,
-                supports_warp_frontend=_supports_warp_frontend(spec.id, workflow, preset_map),
+                supports_warp_frontend=supports_warp_frontend,
                 pretrained_checkpoint_preset_compatibility=checkpoint_preset_compatibility,
                 required_extras=TASK_REQUIRED_EXTRAS.get(spec.id, ()),
+                warp_presets=warp_presets,
+                launchable_runs=launchable_runs,
             )
         )
 
+    pool.shutdown()
     rows.sort(key=_task_sort_key)
     return rows
 
@@ -741,8 +804,10 @@ def render_environment_browser_task_rows(
             row.pretrained_checkpoint_preset_compatibility,
             default_algorithms,
             ",".join(row.required_extras),
+            row.warp_presets,
+            ["|".join(name or "" for name in run) for run in row.launchable_runs],
         ]
-        optional_defaults = ["", False, {}, {}, ""]
+        optional_defaults = ["", False, {}, {}, "", None, []]
         last_value = next(
             (
                 index

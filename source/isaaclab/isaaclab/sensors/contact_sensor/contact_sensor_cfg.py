@@ -37,10 +37,11 @@ class ContactSensorCfg(SensorBaseCfg):
     track_friction_forces: bool = False
     """Whether to track friction contact forces. Defaults to False.
 
-    Newton and OVPhysX report aggregate friction forces without requiring filters and additionally
-    report per-filter friction when :attr:`filter_prim_paths_expr` is configured. Their total-force
-    buffers include friction regardless of this option. Isaac Sim PhysX reports per-filter friction
-    forces only and therefore requires filters.
+    Newton, OVPhysX, and Isaac Sim PhysX 6.2 or later report aggregate friction forces without
+    requiring filters and additionally report per-filter friction when
+    :attr:`filter_prim_paths_expr` is configured. Their total-force buffers include friction
+    regardless of this option. Isaac Sim PhysX 6.1 reports per-filter friction forces only and
+    therefore requires filters.
     """
 
     max_contact_data_count_per_prim: int | None = None
@@ -49,8 +50,9 @@ class ContactSensorCfg(SensorBaseCfg):
     This parameter sets the total maximum counts of the simulation across all bodies and environments. The total number
     of contacts allowed is max_contact_data_count_per_prim*num_envs*num_sensor_bodies.
 
-    OVPhysX requires a positive capacity only for :attr:`track_contact_points`; aggregate and
-    filtered force reporting do not depend on this capacity.
+    OVPhysX and Isaac Sim PhysX 6.2 or later require a positive capacity only for
+    :attr:`track_contact_points`; aggregate and filtered force reporting do not depend on this
+    capacity. Isaac Sim PhysX 6.1 also uses this capacity for filtered friction data.
 
     .. note::
 
