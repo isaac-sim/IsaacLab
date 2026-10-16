@@ -3,24 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp kernels for the BAM parts Newton does not provide: command lag, gearbox friction, position-only backlash."""
+"""Warp kernels for the BAM parts Newton does not provide: command lag and gearbox friction."""
 
 from __future__ import annotations
 
 import warp as wp
-
-
-@wp.kernel
-def position_backlash_kernel(
-    positions: wp.array[float],
-    pos_indices: wp.array[wp.uint32],
-    sim_positions: wp.array[float],
-    backlash_pos_indices: wp.array[wp.uint32],
-    out_pos: wp.array[float],
-):
-    """Read the servo angle plus its play-hinge angle, at the servo's index."""
-    i = wp.tid()
-    out_pos[pos_indices[i]] = positions[pos_indices[i]] + sim_positions[backlash_pos_indices[i]]
 
 
 @wp.kernel

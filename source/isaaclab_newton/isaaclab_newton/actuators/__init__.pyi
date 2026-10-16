@@ -7,8 +7,7 @@ __all__ = [
     "BamCommandLag",
     "BamFriction",
     "BamGroup",
-    "InputProcessorPositionBacklash",
     "get_bam_group",
 ]
 
-from .bam import BamCommandLag, BamFriction, BamGroup, InputProcessorPositionBacklash, get_bam_group
+from .bam import BamCommandLag, BamFriction, BamGroup, get_bam_group

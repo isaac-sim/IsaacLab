@@ -33,12 +33,7 @@ import torch
 
 from pxr import Sdf, Usd, UsdPhysics, Vt
 
-from ...actuators.actuator_bam_cfg import (
-    BAM_POSITION_BACKLASH_API,
-    BAM_STIFF_SOLIMP_FRICTION,
-    BAM_STIFF_SOLREF_FRICTION,
-    BamActuatorCfg,
-)
+from ...actuators.actuator_bam_cfg import BAM_STIFF_SOLIMP_FRICTION, BAM_STIFF_SOLREF_FRICTION, BamActuatorCfg
 from ...actuators.actuator_base import ActuatorBase
 from ...actuators.actuator_base_cfg import ActuatorBaseCfg, _is_implicit_actuator_cfg
 from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP
@@ -392,9 +387,8 @@ def author_actuator_prims(
                     attrs["max_delay"] = delay_steps
 
             if is_bam and cfg.backlash_joint_template is not None:
-                schemas.append(
-                    "NewtonActuatorBacklashAPI" if cfg.backlash_velocity_feedback else BAM_POSITION_BACKLASH_API
-                )
+                schemas.append("NewtonActuatorBacklashAPI")
+                attrs["velocity_feedback"] = bool(cfg.backlash_velocity_feedback)
                 relationships["backlash_joint"] = _bam_play_hinge_path(
                     stage, joint_prim_path, cfg.backlash_joint_template.format(jname)
                 )

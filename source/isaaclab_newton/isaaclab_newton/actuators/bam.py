@@ -6,84 +6,34 @@
 """The BAM servo parts that Newton's native BAM path does not provide.
 
 Newton runs the firmware and motor (:class:`~newton.actuators.DriveBAM`), the supply
-(:class:`~newton.actuators.Battery`), the command ring (:class:`~newton.actuators.InputProcessorDelay`)
-and the effort clamp. Isaac Lab adds a per-environment random command lag, the gearbox friction that MJWarp
-applies as a DOF friction constraint, and an encoder that reads the play angle but not its velocity.
-
-Importing this module registers :class:`InputProcessorPositionBacklash` under the ``IsaacLabPositionBacklashAPI``
-USD token.
+(:class:`~newton.actuators.Battery`), the command ring (:class:`~newton.actuators.InputProcessorDelay`),
+the play-angle read (:class:`~newton.actuators.InputProcessorBacklash`) and the effort clamp. Isaac Lab adds a
+per-environment random command lag and the gearbox friction that MJWarp applies as a DOF friction constraint.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 import warp as wp
-from newton.actuators import (
-    ComponentKind,
-    InputProcessorBacklash,
-    InputProcessorBase,
-    InputProcessorDelay,
-    register_actuator_component,
-)
+from newton.actuators import InputProcessorDelay
 
-from isaaclab.actuators.actuator_bam_cfg import BAM_MODEL_FLAGS, BAM_POSITION_BACKLASH_API, BamMotorCfg
+from isaaclab.actuators.actuator_bam_cfg import BAM_MODEL_FLAGS, BamMotorCfg
 
 from .bam_kernels import (
     bam_command_lag_kernel,
     bam_command_lag_reset_kernel,
     bam_friction_budget_kernel,
     gather_dof_values_kernel,
-    position_backlash_kernel,
     zero_masked_envs_kernel,
 )
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import Articulation
-
-
-class InputProcessorPositionBacklash(InputProcessorBacklash):
-    """Measure position on the link side of a backlash joint and velocity on the actuated joint.
-
-    Unlike :class:`~newton.actuators.InputProcessorBacklash`, the drive reads
-
-    .. math::
-
-        q = q_{\\text{actuated}} + q_{\\text{backlash}}, \\qquad \\dot q = \\dot q_{\\text{actuated}}
-
-    as the BAM reference does: the encoder sits on the output, while back-EMF and the current limiter follow
-    the rotor.
-
-    The sums are written into an array shaped like the incoming positions, at the actuated indices, so the drive
-    keeps indexing ``joint_qd``-shaped custom inputs, such as the supply voltage, with the original indices.
-    """
-
-    def finalize(self, device: wp.Device, num_actuators: int, requires_grad: bool = False) -> None:
-        super().finalize(device, num_actuators, requires_grad)
-        self._requires_grad = requires_grad
-        self._positions: wp.array | None = None
-
-    def process(self, inputs: InputProcessorBase.Inputs, state: None, dt: float | None) -> InputProcessorBase.Inputs:
-        device = self.backlash_joint_pos_indices.device
-        if self._positions is None or self._positions.shape != inputs.positions.shape:
-            self._positions = wp.zeros(
-                inputs.positions.shape, dtype=wp.float32, device=device, requires_grad=self._requires_grad
-            )
-        wp.launch(
-            kernel=position_backlash_kernel,
-            dim=len(self.backlash_joint_pos_indices),
-            inputs=[inputs.positions, inputs.pos_indices, inputs.sim_positions, self.backlash_joint_pos_indices],
-            outputs=[self._positions],
-            device=device,
-        )
-        return replace(inputs, positions=self._positions)
-
-
-register_actuator_component(BAM_POSITION_BACKLASH_API, InputProcessorPositionBacklash, ComponentKind.INPUT_PROCESSOR)
 
 
 class BamCommandLag:

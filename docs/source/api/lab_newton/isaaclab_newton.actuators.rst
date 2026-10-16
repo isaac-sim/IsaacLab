@@ -11,7 +11,6 @@ isaaclab_newton.actuators
    BamCommandLag
    BamFriction
    BamGroup
-   InputProcessorPositionBacklash
    get_bam_group
 
 BAM Servo Runtime
@@ -27,10 +26,3 @@ BAM Servo Runtime
     :members:
 
 .. autofunction:: get_bam_group
-
-Input Processors
-----------------
-
-.. autoclass:: InputProcessorPositionBacklash
-    :members:
-    :show-inheritance:

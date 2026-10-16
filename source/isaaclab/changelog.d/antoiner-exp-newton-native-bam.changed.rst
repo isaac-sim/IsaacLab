@@ -1,7 +1,8 @@
 * Changed :class:`~isaaclab.actuators.BamActuatorCfg` authoring to Newton's native BAM composition:
   ``NewtonBAMControlAPI`` reading its supply from the control (``newton:supplyFromControl``),
-  ``NewtonMaxEffortClampingAPI``, a ``NewtonActuatorDelayAPI`` buffer sized by ``max_delay``, and a
-  backlash input processor bound through ``newton:backlashJoint``. The stiff friction
+  ``NewtonMaxEffortClampingAPI``, a ``NewtonActuatorDelayAPI`` buffer sized by ``max_delay``, and
+  ``NewtonActuatorBacklashAPI`` bound through ``newton:backlashJoint``, with ``newton:velocityFeedback`` set from
+  :attr:`~isaaclab.actuators.BamActuatorCfg.backlash_velocity_feedback`. The stiff friction
   constraint is authored as the servo joints' ``mjc:solreffriction`` and ``mjc:solimpfriction``. Gearbox
   friction, supply sag and the command lag are no longer authored; Isaac Lab runs them from the configuration.
 * Changed :class:`~isaaclab.actuators.newton.NewtonActuatorAdapter` to build Newton actuators with
