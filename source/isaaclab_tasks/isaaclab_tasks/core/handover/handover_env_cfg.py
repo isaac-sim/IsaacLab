@@ -222,5 +222,5 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     """Start each episode with the object in a random hand, the first goal at the other; else always right to left."""
     # reward-related scales
     dist_reward_scale = 20.0
-    action_rate_penalty_scale: float = 1e-3
-    """Per-hand penalty on the squared change of its actions between policy steps."""
+    action_rate_penalty_scale: float = 0.0
+    """Per-hand penalty on the squared change of its actions between policy steps; 0 disables it."""
