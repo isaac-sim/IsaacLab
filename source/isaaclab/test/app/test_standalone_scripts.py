@@ -371,8 +371,8 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
     }
 
 
-def test_demo_browser_documents_options_for_each_demo():
-    """Every demo card must match a demo and offer exactly the options the demo accepts."""
+def test_demo_browser_documents_options_for_each_program():
+    """Every command-builder card must match a program and document its fixed backend correctly."""
     docs_source = script_cases.ROOT / "docs/source"
     demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
     documented_entries = {}
@@ -396,6 +396,25 @@ def test_demo_browser_documents_options_for_each_demo():
         # the demo browser offers the visualizer types; omitting --viz is not a menu entry
         assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
+        )
+
+    documented_examples = {}
+    for card in re.findall(r'(?s)<button[^>]+data-example-id="[^"]+"[^>]*>', demos_page):
+        example_name = re.search(r'data-example-id="([^"]+)"', card).group(1)
+        attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))
+        assert example_name not in documented_examples, f"demo browser contains a duplicate card for {example_name}"
+        documented_examples[example_name] = attributes
+    assert documented_examples, "demo browser must include its featured examples"
+
+    example_specs = {
+        spec.program[1]: spec for spec in SPECS if spec.program is not None and spec.program[0] == "example"
+    }
+    assert documented_examples.keys() <= example_specs.keys()
+    for example_name, entry in documented_examples.items():
+        spec = example_specs[example_name]
+        assert entry["fixed-physics"] == "true"
+        assert entry["physics"] == spec.physics_backends[0][1], (
+            f"{example_name} documents an incorrect fixed physics backend"
         )
 
 
