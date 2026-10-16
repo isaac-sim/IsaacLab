@@ -713,7 +713,7 @@ staging.
     * - :class:`~isaaclab.actuators.BamActuatorCfg`
       - ``NewtonBamDriveAPI`` (Newton only; see :ref:`actuators-bam-paths`)
 
-.. _actuators-usd-overlay:
+.. _actuators-usd-override:
 
 **Existing USD actuators.** An asset can ship its actuators as ``NewtonActuator`` prims, for example
 an identified servo fit. Joints not covered by an explicit Lab actuator config keep them unchanged.
@@ -827,7 +827,7 @@ then reads servo angle plus play angle; missing or non-revolute pairs raise befo
 every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.
 
 Like other explicit actuators, BAM is authored onto the joints' existing BAM actuator prims (see
-:ref:`Existing USD actuators <actuators-usd-overlay>`). A field left as ``None``, here or in
+:ref:`Existing USD actuators <actuators-usd-override>`). A field left as ``None``, here or in
 ``motor``, keeps the asset's value, so a task can change one setting of a fitted servo asset:
 
 .. code-block:: python

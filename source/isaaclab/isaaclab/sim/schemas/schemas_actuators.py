@@ -111,7 +111,7 @@ def define_actuator_properties(
     Every joint covered by an explicit (non-implicit) Lab actuator config ends up with one
     active ``NewtonActuator`` prim. A config is authored onto the joint's USD actuator when
     its drive matches, so values the config leaves unset keep the asset's value; otherwise
-    the USD actuators are replaced by a new prim. See :ref:`USD actuator overrides <actuators-usd-overlay>` for the
+    the USD actuators are replaced by a new prim. See :ref:`USD actuator overrides <actuators-usd-override>` for the
     rules and the schemas each config type authors. Joints **not** covered by any Lab
     config keep their USD-authored actuators unchanged.
 
@@ -161,7 +161,17 @@ def author_actuator_prims(
     articulation_prim_path: str,
     actuator_cfgs: dict[str, ActuatorBaseCfg],
 ) -> None:
-    """Author the ``NewtonActuator`` prims of one articulation."""
+    """Author the ``NewtonActuator`` prims of one articulation.
+
+    Args:
+        stage: USD stage to author on.
+        articulation_prim_path: Root prim path of one articulation.
+        actuator_cfgs: Mapping of group name to actuator config.
+
+    Raises:
+        ValueError: If the articulation prim is missing, a config is unsupported, a mapping pattern matches no
+            joint, or an actuator component the config adds lacks a required value.
+    """
     art_prim = stage.GetPrimAtPath(articulation_prim_path)
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
@@ -243,7 +253,7 @@ class _ActuatorField:
     required: bool = False
     """Whether a component the config adds needs the value; Newton validates the components a USD prim keeps."""
 
-    disabled_by: Any = None
+    disabled_by: int | None = None
     """Configured value that removes :attr:`schema` instead of authoring the attribute."""
 
     def configured(self, cfg: ActuatorBaseCfg, joint_names: list[str]) -> dict[str, Any]:
@@ -288,7 +298,7 @@ def _author_group(
     allowed = {layout.drive, *(field.schema for field in layout.fields)}
     for joint_name, joint_prim in joints.items():
         existing = actuator_prims.get(str(joint_prim.GetPath()), [])
-        prim, reason = _overlay_target(existing, layout.drive)
+        prim, reason = _override_target(existing, layout.drive)
         present = _applied_schemas(prim) if prim is not None else set()
         disabled = {
             field.schema
@@ -345,7 +355,7 @@ def _author_group(
             joint_prim.CreateAttribute(name, type_name).Set(value)
 
 
-def _overlay_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None, str | None]:
+def _override_target(prims: list[Usd.Prim], drive: str) -> tuple[Usd.Prim | None, str | None]:
     """Choose the USD actuator prim a config with *drive* is authored onto.
 
     Returns:

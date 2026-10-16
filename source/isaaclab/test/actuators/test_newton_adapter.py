@@ -421,8 +421,8 @@ def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
     ],
     ids=["unsupported_cfgs", "unmatched_effort_limit", "new_prim_without_saturation"],
 )
-def test_rejected_config_leaves_the_stage_untouched(tmp_path, make_stage, groups, match):
-    """A config Newton cannot author, or one that leaves a required value unset, raises before it edits the stage."""
+def test_rejected_config_raises_before_editing_the_joint(tmp_path, make_stage, groups, match):
+    """A config Newton cannot author, or one that leaves a required value unset, raises before it edits the joint."""
     stage = make_stage(tmp_path)
     before = stage.GetRootLayer().ExportToString()
 

@@ -419,8 +419,7 @@ def _resolve_matching_values_dense(value: dict[str, float | int] | float | int, 
     Scalars broadcast to every name. Mapping entries resolve through
     :func:`resolve_matching_names_values`; names not matched by any pattern
     resolve to zero. This zero fill is the shared contract for actuator
-    configuration values across model parsing, alias comparison, and USD
-    authoring.
+    configuration values across model parsing and alias comparison.
     """
     if isinstance(value, (float, int)):
         return (float(value),) * len(names)
