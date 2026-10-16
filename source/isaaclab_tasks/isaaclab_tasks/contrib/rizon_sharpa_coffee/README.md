@@ -88,15 +88,10 @@ Props are authored in metres with Z up; their default
 prim is `/Asset`. The exact concave spoon triangles and material groups are
 required for MPM contact. Assets load without runtime generation.
 
-For the internal development bundle, override the asset root with:
-
-```bash
-export ISAACLAB_COFFEE_ASSET_ROOT=omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Environments/RizonSharpaCoffee
-```
-
-The variable also accepts a local copy of the complete bundle. Preserve relative
-paths when copying it. A missing or inaccessible bundle fails through the
-standard asset loader; the demo does not generate replacements.
+Set `ISAACLAB_COFFEE_ASSET_ROOT` to use an alternate accessible asset root or a
+local copy of the complete bundle. Preserve relative paths when copying it. A
+missing or inaccessible bundle fails through the standard asset loader; the
+demo does not generate replacements.
 
 The prepared Rizon/Sharpa robot reuses the licensed Fabrics-Sim USD and textures
 from the RJ45 insertion scene, with two malformed visual normals arrays blocked
