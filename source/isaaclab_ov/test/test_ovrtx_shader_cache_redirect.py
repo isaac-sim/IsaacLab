@@ -11,18 +11,13 @@ nothing louder than a slow test. These cover that boundary with a fake settings
 applier: no GPU, no ovrtx runtime, no renderer.
 """
 
+from types import SimpleNamespace
+
 import pytest
 from isaaclab_ov.renderers import ovrtx_shader_cache
-from isaaclab_ov.renderers.ovrtx_shader_cache import (
-    SHADER_CACHE_PATH_ENV,
-    apply_shader_cache_settings,
-    redirect_shader_cache,
-)
+from isaaclab_ov.renderers.ovrtx_shader_cache import SHADER_CACHE_PATH_ENV, redirect_shader_cache
 
 _CACHE_PATH = "/tmp/isaaclab-ovrtx-kitless-cache"
-
-# Only ever forwarded to the patched applier factory, so its contents never matter.
-_CONFIG = object()
 
 
 class _RecordingApplier:
@@ -38,13 +33,14 @@ class _RecordingApplier:
 
 
 @pytest.mark.parametrize("rejected", ["driverShaderCachePath", "driverAppShaderCachePath"])
-def test_apply_settings_raises_when_a_setting_is_rejected(rejected, caplog):
+def test_redirect_raises_when_a_setting_is_rejected(rejected, monkeypatch, caplog):
     """A rejected setting must fail loudly, and must not be reported as a working redirect."""
-    applier = _RecordingApplier(reject=rejected)
+    monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
+    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda: _RecordingApplier(reject=rejected))
 
     with caplog.at_level("INFO", logger=ovrtx_shader_cache.__name__):
         with pytest.raises(RuntimeError, match=rejected):
-            apply_shader_cache_settings(applier, _CACHE_PATH)
+            redirect_shader_cache()
 
     assert "redirected" not in caplog.text
 
@@ -55,31 +51,20 @@ def test_redirect_is_skipped_when_env_var_is_unset(monkeypatch):
     monkeypatch.setattr(
         ovrtx_shader_cache,
         "_acquire_settings_applier",
-        lambda config: pytest.fail("settings must not be queried when the env var is unset"),
+        lambda: pytest.fail("settings must not be queried when the env var is unset"),
     )
 
-    redirect_shader_cache(_CONFIG)
+    redirect_shader_cache()
 
 
-def test_redirect_applies_settings_with_the_renderer_config(monkeypatch):
-    """The requested path must reach both settings, and the renderer's config the applier.
-
-    The applier factory is what initializes the ovrtx library, and initialization
-    runs once per process, so a config dropped here is a config the renderer never
-    gets - losing its log sink and level with no other symptom.
-    """
+def test_redirect_applies_the_requested_path_to_both_settings(monkeypatch):
+    """The requested path must reach both shader-cache settings."""
     applier = _RecordingApplier()
-    seen = []
     monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
-    monkeypatch.setattr(
-        ovrtx_shader_cache,
-        "_acquire_settings_applier",
-        lambda config: seen.append(config) or applier,
-    )
+    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda: applier)
 
-    redirect_shader_cache(_CONFIG)
+    redirect_shader_cache()
 
-    assert seen == [_CONFIG]
     assert applier.applied == [
         f"--/rtx/shaderDb/driverShaderCachePath={_CACHE_PATH}",
         f"--/rtx/shaderDb/driverAppShaderCachePath={_CACHE_PATH}",
@@ -93,7 +78,29 @@ def test_redirect_raises_when_settings_extension_is_unavailable(monkeypatch):
     restore as a hit even though nothing was redirected.
     """
     monkeypatch.setenv(SHADER_CACHE_PATH_ENV, _CACHE_PATH)
-    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda config: None)
+    monkeypatch.setattr(ovrtx_shader_cache, "_acquire_settings_applier", lambda: None)
 
     with pytest.raises(RuntimeError, match=SHADER_CACHE_PATH_ENV):
-        redirect_shader_cache(_CONFIG)
+        redirect_shader_cache()
+
+
+def test_settings_applier_loads_ovrtx_without_initializing_it(monkeypatch):
+    """The redirect only needs the settings extension; initialization and its config stay with the renderer."""
+    bindings = pytest.importorskip("ovrtx._src.bindings")
+    loaded = []
+
+    class _QueryExtension:
+        def __call__(self, name, out):
+            return SimpleNamespace(status=bindings.OVRTX_API_SUCCESS + 1)
+
+    loader = SimpleNamespace(
+        _lib=None,
+        _load_library=lambda paths: loaded.append(paths) or SimpleNamespace(ovrtx_query_extension=_QueryExtension()),
+        create_bindings=lambda config: pytest.fail("the redirect must not initialize ovrtx"),
+    )
+    monkeypatch.setattr(bindings, "_ovrtx_loader", loader)
+    monkeypatch.setattr(bindings, "OVRTX_LIBRARY_PATH_HINT", None)
+
+    assert ovrtx_shader_cache._acquire_settings_applier() is None
+    assert loaded == [None]
+    assert loader._lib is None

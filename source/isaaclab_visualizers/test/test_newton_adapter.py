@@ -1309,3 +1309,16 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+def test_newton_rtx_viewer_redirects_shader_cache_before_creating_renderer(monkeypatch):
+    """Redirect the OVRTX shader cache before Newton creates its renderer."""
+    from isaaclab_ov.renderers import ovrtx_shader_cache
+
+    calls = []
+    monkeypatch.setattr(ovrtx_shader_cache, "redirect_shader_cache", lambda: calls.append("redirect"))
+    monkeypatch.setattr(newton_visualizer_module.ViewerRTX, "_init_ovrtx", lambda self: calls.append("renderer"))
+
+    newton_visualizer_module.NewtonViewerRTX._init_ovrtx(object.__new__(newton_visualizer_module.NewtonViewerRTX))
+
+    assert calls == ["redirect", "renderer"]
