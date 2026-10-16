@@ -391,8 +391,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
 
 
 @pytest.mark.parametrize("suffix", ["", "/Robot"])
-@pytest.mark.parametrize("use_ovstage", [False, True], ids=["legacy", "ovstage"])
-def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix, use_ovstage):
+def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatch, suffix):
     """Keep prototype contents and material bindings, retaining only needed destination ancestors."""
     stage = _make_multi_env_stage(3)
     for env_id in range(3):
@@ -406,7 +405,6 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
     plan = make_clone_plan((asset,), ((0,),), 3, positions=np.zeros((3, 3), dtype=np.float32))
     _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._use_ovstage = use_ovstage
     renderer.prepare_stage(stage, 3)
     exported = Usd.Stage.CreateInMemory()
     assert exported.GetRootLayer().ImportFromString(renderer._exported_usd_string)
