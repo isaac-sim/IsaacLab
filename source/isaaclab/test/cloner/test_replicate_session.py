@@ -24,6 +24,7 @@ from isaaclab.cloner import (
 )
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
+from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 
@@ -96,6 +97,8 @@ def test_empty_and_shared_only_worlds(simulation, shared):
 def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_env_0):
     """Camera requirements enter both workflows; an attached ray caster does not own a clone source."""
     constructed = []
+    provider = SceneDataProvider(SimpleNamespace())
+    assert provider.num_envs == 0
 
     def factory(cfg, *, sim):
         constructed.append(cfg)
@@ -124,6 +127,8 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     assert camera.prim_path == "/Lab/Cell[^/]+/Camera"
     assert camera.spawn.spawn_path == "/Lab/Cell0/Camera"
     assert plan.env_template == "/Lab/Cell{}"
+    # USD holds only the authored prototype; scene consumers need the complete planned count.
+    assert provider.num_envs == 3
     assert ground.spawn.spawn_path == "/Lab/Ground"
     assert prop.spawn.spawn_path is None and prop.spawn.spawn_paths == ["/Lab/Cell0/Prop"]
     templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
@@ -145,9 +150,6 @@ def test_dispatch_order_and_usd_scope(simulation):
     class Early(_Context):
         replicate_priority = -1
 
-    with pytest.raises(TypeError, match="ReplicateContext subclasses"):
-        replicate_session.prepare_clone_contexts(simulation, {object: set()})
-
     contexts = UsdReplicateContext, Late, Early
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=contexts)
     with ReplicateSession((cfg,), 2, 1.0) as session:
@@ -162,6 +164,9 @@ def test_dispatch_order_and_usd_scope(simulation):
         np.testing.assert_array_equal(
             UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation(), position
         )
+    cfg.cloning_contexts = (object,)
+    with pytest.raises(TypeError, match="ReplicateContext subclasses"):
+        replicate_session.replicate(session.plan)
 
 
 def test_shared_context_replaces_native_routes_with_their_union(simulation, monkeypatch):

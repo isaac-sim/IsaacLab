@@ -569,7 +569,13 @@ class SimulationContext:
             soft: If True, skip full reinitialization.
         """
         # Standalone cameras may register after scene construction but before the first reset.
-        cloner.prepare_clone_contexts(self)
+        routing = {
+            string_to_callable(context) if isinstance(context, str) else context: set()
+            for context in self._render_context.clone_contexts
+        }
+        for context in tuple(routing):
+            if context in routing:
+                context.prepare(self, routing)
         self.physics_manager.reset(soft)
         for _, resource in self._backend_registry:
             if isinstance(resource, ImageView):

@@ -124,34 +124,17 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
         for context in contexts:
             routing.setdefault(context, set()).add(index)
 
-    prepare_clone_contexts(sim, routing)
+    for context in tuple(routing):
+        if not isinstance(context, type) or not issubclass(context, ReplicateContext):
+            raise TypeError("cloning_contexts must contain ReplicateContext subclasses.")
+        if context in routing:
+            context.prepare(sim, routing)
     for context in routing:
         if context not in sim.clone_contexts:
             sim.clone_contexts[context] = context(sim)
     for context in sorted(routing, key=lambda context: context.replicate_priority):
         if replicate_physics or context is not physics_context:
             sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))
-
-
-def prepare_clone_contexts(
-    sim: sim_utils.SimulationContext, routing: dict[type[ReplicateContext], set[int]] | None = None
-) -> None:
-    """Resolve consumer requirements before clone dispatch or a standalone simulation reset.
-
-    Args:
-        sim: Simulation owning the consumers and native resources.
-        routing: Mutable asset routes; omitted when preparing registered renderers before reset.
-    """
-    if routing is None:
-        routing = {
-            string_to_callable(context) if isinstance(context, str) else context: set()
-            for context in sim.render_context.clone_contexts
-        }
-    for context in tuple(routing):
-        if not isinstance(context, type) or not issubclass(context, ReplicateContext):
-            raise TypeError("cloning_contexts must contain ReplicateContext subclasses.")
-        if context in routing:
-            context.prepare(sim, routing)
 
 
 def clone_plan_from_env_0(

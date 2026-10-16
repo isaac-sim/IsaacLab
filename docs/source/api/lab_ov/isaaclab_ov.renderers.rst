@@ -39,4 +39,4 @@ backend initialization. OVPhysX retains a separate physics stage and native repl
    :show-inheritance:
 
 .. autoclass:: isaaclab_ov.stage.OvstageBackend
-   :members: populate, query, commit, reset, close
+   :members: populate, query, commit, close

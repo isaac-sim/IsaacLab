@@ -7,7 +7,8 @@
   Converted camera poses directly into retained matrix buffers and shared unscaled SDP publications between renderers.
   Paired query and path-list lifetimes on the stage backend, including material updates, and decoded segmentation
   labels once per frame. Removed duplicate USD scene-partition authoring; camera registration authored
-  the runtime attributes.
+  the runtime attributes. Created missing environment partition attributes during native setup so sensor cameras
+  continued to exclude neighboring environments.
 * Created native environment frames only in private USD exports and placed OVPhysX originals from the clone plan.
   Replaced recursive export filtering with a pruned USD traversal while retaining routed prototype selection.
 * Moved scene selection from renderer construction into clone preparation. OVRTX configurations

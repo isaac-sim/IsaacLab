@@ -223,12 +223,10 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     assert set(sim.clone_contexts) == expected_contexts
     assert {source for source, _ in renderer.scene.clone_copies} == {"/World/envs/env_0/Visual"}
     assert bool(sim.physics_manager._clone_recipes) is with_physics
-    # Once prepared, hard/soft reset must retain the selected resource identity.
-    from isaaclab.cloner.replicate_session import prepare_clone_contexts
-
+    # Repeated preparation retains the selected resource identity.
     resources = tuple(sim._backend_registry)
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
-    prepare_clone_contexts(sim)
+    OvrtxReplicateContext.prepare(sim, {OvrtxReplicateContext: set()})
     assert tuple(sim._backend_registry) == resources
     if use_ovstage:
         assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.RENDERING

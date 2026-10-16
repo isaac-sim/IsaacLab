@@ -17,6 +17,7 @@ import warp as wp
 
 from .. import cloner
 from ..sensors.camera.camera_data import CameraData
+from ..utils.string import string_to_callable
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
 
@@ -124,7 +125,13 @@ class RenderContext:
         """Include a newly registry-owned renderer in cloning and post-physics initialization."""
         self.clone_contexts.update(cfg.cloning_contexts)
         if self._physics_initialized:
-            cloner.prepare_clone_contexts(renderer._sim)
+            routing = {
+                string_to_callable(context) if isinstance(context, str) else context: set()
+                for context in cfg.cloning_contexts
+            }
+            for context in tuple(routing):
+                if context in routing:
+                    context.prepare(renderer._sim, routing)
             renderer.initialize()
 
     def ensure_initialize(self) -> None:

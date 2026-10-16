@@ -429,9 +429,11 @@ class OVRTXRenderer(BaseRenderer):
             self.backend.renderer.open_usd_from_string(usd)
             ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
             if env_paths:
+                # EXISTING_ONLY skips frames without an authored partition attribute.
                 self.backend.renderer.write_attribute(
-                    env_paths, "primvars:omni:scenePartition", tokens, semantic=Semantic.TOKEN_STRING
-                )
+                    env_paths, "primvars:omni:scenePartition", tokens,
+                    semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
+                )  # fmt: skip
         self._setup_xform_bindings(stage)
         self._setup_geometry_bindings()
         if self._use_ovstage:
