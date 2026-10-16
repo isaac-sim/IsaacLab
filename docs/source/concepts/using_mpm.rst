@@ -191,7 +191,7 @@ capture-stable storage:
 
 * a ``"fixed"`` grid with a positive ``max_active_cell_count``; or
 * a ``"sparse"`` grid with a positive ``max_active_cell_count``,
-  ``grid_padding=0``, and the ``"Q1"`` velocity basis. The strain basis must
+  ``grid_padding=0``, and a ``"Q1"`` or ``"B2"`` velocity basis. The strain basis must
   start with ``"pic"`` or be one of ``"P0"``, ``"P1d"``, ``"Q1d"``, or
   ``"Q1"``. The collider basis must start with ``"pic"`` or be one of
   ``"Q1"``, ``"S2"``, or ``"S3"``.
@@ -234,12 +234,14 @@ material behavior. Run the teapot demo to compare the available modes:
    # Path-traced translucent surface
    uv run --extra ovrtx isaaclab demo teapot-fill \
      --visualizer newton_rtx --fluid_render_mode surface
+   # Isaac Sim Kit surface
+   uv run --extra isaacsim isaaclab demo teapot-fill \
+     --visualizer kit --fluid_render_mode surface
 
 The teapot demo defaults to the reconstructed surface. Select ``particles`` or
-``both`` to inspect the source MPM state in Newton GL or Newton RTX.
+``both`` to inspect the source MPM state in Kit, Newton GL, or Newton RTX.
 
-Surface rendering is available in the Newton GL and Newton RTX visualizers.
-The Kit visualizer continues to render the MPM particles directly.
+Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers.
 
 .. raw:: html
 
@@ -266,15 +268,18 @@ Tune reconstruction independently from the simulation:
 * Anisotropic kernels preserve sheets and stretched fluid features better, but
   cost more than isotropic kernels.
 
-The teapot demo handles CUDA graph capture, empty surfaces, inactive particles,
-and dynamic topology:
+To render a surface in your own scene, pass the configured
+``newton.geometry.ParticleSurface`` to ``ParticleSurfaceRenderer`` after
+``sim.reset()``. Call ``update()`` before ``sim.render()`` to extract and stage
+the current mesh. The renderer handles CUDA graph capture, empty surfaces,
+inactive particles, and dynamic topology:
 
-.. dropdown:: Teapot surface renderer implementation
+.. dropdown:: ``ParticleSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../examples/demos/teapot_fill.py
+   .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/particle_surface.py
       :language: python
-      :pyobject: FluidSurfaceRenderer
+      :pyobject: ParticleSurfaceRenderer
 
 
 Examples and tasks

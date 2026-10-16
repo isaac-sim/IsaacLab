@@ -105,10 +105,11 @@ articulation so the mimic constraint can move it.
 Articulation joint and body ordering
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-PhysX and MJWarp may order joints and bodies differently for branched robots. For cross-backend
-playback, set **both** ``joint_ordering`` and ``body_ordering`` to the backend used for training;
-``physics=`` still selects the target backend. The task table below lists which tasks need the
-overrides and which do not.
+PhysX and MJWarp may order joints and bodies differently for branched robots. Set **both**
+``joint_ordering`` and ``body_ordering`` to one convention for training and for every playback;
+``physics=`` still selects the backend. Train in PhysX with ``physx`` and keep it on both PhysX and
+Newton playback. A Newton-trained checkpoint already uses ``mjwarp`` order, so set ``mjwarp`` on the
+PhysX playback. The task table below lists which tasks need the overrides and which do not.
 
 See :ref:`joint-and-body-ordering` for the full
 ordering contract, accepted values, and troubleshooting.
@@ -221,14 +222,16 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 
 .. code-block:: bash
 
-   uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx
+   uv run isaaclab train --rl_library rsl_rl --task TRAIN_TASK physics=isaacsim_physx \
+       env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 
 **PP: reproduce source baseline in PhysX**
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task PLAY_TASK \
-       --checkpoint logs/rsl_rl/EXPERIMENT_DIRECTORY/RUN_DIRECTORY/model_ITERATION.pt physics=isaacsim_physx
+       --checkpoint logs/rsl_rl/EXPERIMENT_DIRECTORY/RUN_DIRECTORY/model_ITERATION.pt physics=isaacsim_physx \
+       env.scene.robot.joint_ordering=physx env.scene.robot.body_ordering=physx
 
 **PN: deploy PhysX checkpoint in Newton**
 
@@ -262,6 +265,13 @@ The exact entry point can vary by RL library. With the unified Isaac Lab entry p
 Drop the two ordering overrides when the task's joint and body order already agrees across
 backends. See `Articulation joint and body ordering`_.
 
+A checkpoint trained in PhysX without ``physx`` set uses Isaac Sim PhysX's own order, which can
+differ from ``physx``. To replay it, record ``joint_names`` and ``body_names`` from a PhysX run
+without an ordering, using the same asset and Isaac Sim version, and set them as explicit
+``joint_ordering`` and ``body_ordering`` lists. The lists must match the target backend's names
+exactly, so assets whose backends name joints or bodies differently, such as Humanoid-AMP's
+multi-axis joints, or that repeat a body name on Newton, cannot be replayed this way.
+
 
 Validated transfer examples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -283,8 +293,7 @@ generic commands above.
        ``play`` entry point applies ``play_mode`` overrides automatically.
    * - ``Isaac-Velocity-Rough-G1``
      - ``g1_rough``
-     - Branched topology: add ``env.scene.robot.joint_ordering=physx
-       env.scene.robot.body_ordering=physx`` for PN, and the ``mjwarp`` equivalents for NP.
+     - Branched topology: set the ordering overrides shown in the generic commands above.
    * - ``Isaac-Velocity-Rough-AnymalD``
      - ``anymal_d_rough``
      - Branched topology: same ordering overrides as G1.
@@ -301,17 +310,13 @@ They do not represent full PP/PN/NN/NP validation. The backends are shown side b
 
 .. raw:: html
 
-   <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer_10s_trimmed.mp4" type="video/mp4">
-   </video>
+   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_anymal_d_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 **Allegro hand cube reorientation** (``Isaac-Reorient-Cube-Allegro``, PhysX-to-Newton direction only)
 
 .. raw:: html
 
-   <video controls preload="metadata" style="width:100%; max-width:960px; margin-bottom:1.5em;">
-     <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer_trimmed.mp4" type="video/mp4">
-   </video>
+   <img src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/sim2sim_allegro_transfer.gif" alt="" style="width:100%; max-width:960px; margin-bottom:1.5em;">
 
 .. tip::
 
@@ -349,6 +354,11 @@ The backend selection described in :ref:`backend-architecture` controls which
 native view is created. The
 ordering selection controls how the high-level API presents that view.
 
+The two PhysX backends also differ from each other. Both list links breadth-first,
+but Isaac Sim PhysX visits the child links of each link in authored joint-prim
+order, while OVPhysX visits them by joint type, then joint prim path. They agree
+whenever sibling joints are authored in that order.
+
 
 Public and backend order
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -357,7 +367,13 @@ Set ``joint_ordering`` and ``body_ordering`` on
 :class:`~isaaclab.assets.ArticulationCfg`. Each field accepts one of:
 
 * ``None`` -- backend-native order and the zero-conversion default (see below).
-* ``"physx"`` -- PhysX or OVPhysX articulation-view order.
+* ``"physx"`` -- OVPhysX articulation-view order. Other backends, Isaac Sim PhysX
+  included, resolve it from the asset with Newton's USD parser and map their own
+  order to it. Resolution raises when it cannot reproduce that order: Newton
+  cannot import the asset, the backends name its joints or bodies differently,
+  or a floating articulation rooted on a container prim has tied graph centers,
+  nested bodies or loop-closing joints. Keep ``None`` or set explicit name lists
+  for those articulations.
 * ``"mjwarp"`` -- Newton or MJWarp articulation-view order.
 * ``"robot_schema"`` -- the order authored on the asset's
   ``isaac:physics:robotJoints`` (joints) or ``isaac:physics:robotLinks``

@@ -23,9 +23,11 @@ from isaaclab_visualizers.newton import (
     NewtonGLVisualizerCfg,
     NewtonRTXVisualizer,
     NewtonRTXVisualizerCfg,
+    ParticleSurfaceRenderer,
 )
 from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton import newton_visualizer as newton_visualizer_module
+from isaaclab_visualizers.newton import particle_surface as particle_surface_module
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
@@ -85,6 +87,56 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
 
     with pytest.raises(RuntimeError, match="must be initialized"):
         visualizer.log_mesh("/surface", points, indices)
+
+
+@pytest.mark.parametrize("visualizer_cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
+def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(
+    monkeypatch: pytest.MonkeyPatch, visualizer_cfg_type
+):
+    """A reusable extractor must stage visible and empty meshes through the viewer API."""
+    model = SimpleNamespace(
+        device=wp.get_device("cpu"),
+        particle_radius=object(),
+        particle_flags=object(),
+        particle_world=object(),
+    )
+    state = SimpleNamespace(particle_q=object())
+    monkeypatch.setattr(particle_surface_module.NewtonManager, "get_model", lambda: model)
+    monkeypatch.setattr(particle_surface_module.NewtonManager, "get_state_0", lambda: state)
+
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer, cfg=visualizer_cfg_type(enable_markers=False))
+    surface = Mock(world_count=2)
+    mesh = surface.extract.return_value
+    vertices = wp.zeros(4, dtype=wp.vec3)
+    indices = wp.zeros(6, dtype=wp.int32)
+    normals = wp.zeros(4, dtype=wp.vec3)
+    mesh.to_arrays.side_effect = [(vertices, indices, normals), (None, None, None)]
+    renderer = ParticleSurfaceRenderer(
+        [visualizer], surface, path="/water", color=(0.1, 0.2, 0.8), opacity=0.65, use_cuda_graph=False
+    )
+
+    assert viewer.events == []
+    assert renderer.update() == 2
+    assert viewer.events == []
+    surface.extract.assert_called_with(
+        state.particle_q,
+        model.particle_radius,
+        particle_flags=model.particle_flags,
+        particle_world=model.particle_world,
+    )
+    visualizer.step(0.1)
+    assert viewer.logged_mesh[0] == "/water"
+    assert viewer.logged_mesh[1] is vertices
+    assert viewer.logged_mesh[3]["dynamic"] and not viewer.logged_mesh[3]["hidden"]
+    assert viewer.logged_mesh[3]["opacity"] == 0.65
+    assert viewer.events == ["begin_frame", "log_state", "log_mesh", "end_frame"]
+
+    assert renderer.update() == 0
+    visualizer.step(0.1)
+    assert viewer.logged_mesh[3]["hidden"]
+    assert viewer.logged_mesh[1].shape[0] == 0
+    assert viewer.logged_mesh[2].shape[0] == 0
 
 
 class _MarkerRegistry:
@@ -295,6 +347,7 @@ def test_newton_viewer_camera_keys_ignore_mouse_capture(monkeypatch):
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
     viewer.camera = Camera(width=64, height=64, up_axis="Z")
     viewer._camera_speed = 1.0
+    viewer._paused = False
     viewer.renderer = SimpleNamespace(is_key_down=lambda symbol: symbol == key.W)
 
     gui = ViewerGui.__new__(ViewerGui)
@@ -561,9 +614,13 @@ class _ContactSensor:
 class _SceneDataProvider:
     def __init__(self, contact_sensors=None):
         self._contact_sensors = contact_sensors or {}
+        self.backend = SimpleNamespace(geometry_timestamp=0)
 
     def get_contact_sensors(self):
         return self._contact_sensors
+
+    def get_geometry_points(self):
+        return {}
 
     def create_mapping(self, paths):
         return None
@@ -601,7 +658,7 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
     view.render = visualizer._capture_perspective
     visualizer.current_image_view, visualizer._image_views = view, [view]
-    if viewer is not None:
+    if viewer is not None and isinstance(visualizer, NewtonGLVisualizer):
         visualizer._viewer_picking_binding.bind(viewer)
     return visualizer
 
