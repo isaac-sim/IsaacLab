@@ -14,37 +14,37 @@ import torch
 from .. import configclass
 
 if TYPE_CHECKING:
-    from .modifier import DigitalFilter, Integrator
-    from .modifier_base import ModifierBase
+    from .processors import DigitalFilter, Integrator
+    from .tensor_processor import TensorProcessor
 
 
 @configclass
-class ModifierCfg:
-    """Configuration parameters for function and class modifiers."""
+class TensorProcessorCfg:
+    """Configuration parameters for function and class tensor processors."""
 
-    func: Callable[..., torch.Tensor] | type[ModifierBase] | str = MISSING
-    """Function or :class:`ModifierBase` class used by the modifier.
+    func: Callable[..., torch.Tensor] | type[TensorProcessor] | str = MISSING
+    """Function or :class:`TensorProcessor` class used by the processor.
 
-    Functions must take a tensor as their first argument. Classes must inherit from :class:`ModifierBase`; the
+    Functions must take a tensor as their first argument. Classes must inherit from :class:`TensorProcessor`; the
     observation manager constructs them with the configuration, observation dimensions, and device.
     """
 
     params: dict[str, Any] = {}
-    """Parameters used by the modifier. Defaults to an empty dictionary.
+    """Parameters used by the processor. Defaults to an empty dictionary.
 
-    Function modifiers receive them as keyword arguments on each call. Class modifiers access them through this
+    Functions receive them as keyword arguments on each call. Classes access them through this
     configuration during construction; they are not forwarded to the constructed instance.
     """
 
 
 @configclass
-class DigitalFilterCfg(ModifierCfg):
-    """Configuration parameters for a digital filter modifier.
+class DigitalFilterCfg(TensorProcessorCfg):
+    """Configuration parameters for a digital filter processor.
 
     For more information, please check the :class:`DigitalFilter` class.
     """
 
-    func: type[DigitalFilter] | str = "{DIR}.modifier:DigitalFilter"
+    func: type[DigitalFilter] | str = "{DIR}.processors:DigitalFilter"
     """The digital filter function to be called for applying the filter."""
 
     A: list[float] = MISSING
@@ -69,13 +69,13 @@ class DigitalFilterCfg(ModifierCfg):
 
 
 @configclass
-class IntegratorCfg(ModifierCfg):
-    """Configuration parameters for an integrator modifier.
+class IntegratorCfg(TensorProcessorCfg):
+    """Configuration parameters for an integrator processor.
 
     For more information, please check the :class:`Integrator` class.
     """
 
-    func: type[Integrator] | str = "{DIR}.modifier:Integrator"
+    func: type[Integrator] | str = "{DIR}.processors:Integrator"
     """The integrator function to be called for applying the integrator."""
 
     dt: float = MISSING

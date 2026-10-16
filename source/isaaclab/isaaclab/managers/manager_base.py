@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from ..physics import PhysicsEvent, PhysicsManager
 from ..utils import string as string_utils
 from ..utils import string_to_callable, to_dict
-from ..utils.modifiers import ModifierCfg
+from ..utils.tensor_processors import TensorProcessorCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
@@ -434,7 +434,7 @@ class ManagerBase(ABC):
             self._scene_entity_cfgs.append(value)
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
-        elif isinstance(value, ModifierCfg):
+        elif isinstance(value, TensorProcessorCfg):
             for field in fields(value):
                 field_value = getattr(value, field.name)
                 resolved_value = self._resolve_param_value(

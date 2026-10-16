@@ -3,56 +3,49 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing different modifiers implementations.
+"""Deprecated import path for tensor processors."""
 
-Modifiers are used to apply stateful or stateless modifications to tensor data. They take
-in a tensor and a configuration and return a tensor with the modification applied. This way users
-can define custom operations to apply to a tensor. For instance, a modifier can be used to normalize
-the input data or to apply a rolling average.
+import sys
+import warnings
+from types import ModuleType
 
-They are primarily used to apply custom operations in the :class:`~isaaclab.managers.ObservationManager`
-as an alternative to the built-in noise, clip and scale post-processing operations. For more details, see
-the :class:`~isaaclab.managers.ObservationTermCfg` class.
+from .. import tensor_processors
 
-Usage with a function modifier:
-
-.. code-block:: python
-
-    import torch
-    from isaaclab.utils import modifiers
-
-    # create a random tensor
-    my_tensor = torch.rand(256, 128, device="cuda")
-
-    # create a modifier configuration
-    cfg = modifiers.ModifierCfg(func=modifiers.clip, params={"bounds": (0.0, torch.inf)})
-
-    # apply the modifier
-    my_modified_tensor = cfg.func(my_tensor, cfg)
+__all__ = [
+    "ModifierCfg",
+    "DigitalFilterCfg",
+    "IntegratorCfg",
+    "ModifierBase",
+    "DigitalFilter",
+    "Integrator",
+    "bias",
+    "clip",
+    "scale",
+]
 
 
-Usage with a class modifier:
+def _install_aliases(module_name: str, processors: ModuleType) -> None:
+    """Preserve legacy package and submodule imports without loading processor implementations."""
+    module = sys.modules[module_name]
+    renamed = {"ModifierBase": "TensorProcessor", "ModifierCfg": "TensorProcessorCfg"}
 
-.. code-block:: python
+    def __getattr__(name: str):
+        if name not in module.__all__:
+            raise AttributeError(f"module {module_name!r} has no attribute {name!r}")
+        return getattr(processors, renamed.get(name, name))
 
-    import torch
-    from isaaclab.utils import modifiers
+    module.__getattr__ = __getattr__
+    module.__dir__ = lambda: sorted(set(module.__dict__) | set(module.__all__))
+    for name in ("modifier", "modifier_base", "modifier_cfg"):
+        sys.modules[f"{module_name}.{name}"] = module
+        setattr(module, name, module)
 
-    # create a random tensor
-    my_tensor = torch.rand(256, 128, device="cuda")
 
-    # create a modifier configuration
-    # a digital filter with a simple delay of 1 timestep
-    cfg = modifiers.DigitalFilterCfg(A=[0.0], B=[0.0, 1.0])
+warnings.warn(
+    "isaaclab.utils.modifiers, isaaclab_experimental.utils.modifiers, and ObservationTermCfg.modifiers are deprecated."
+    " Use the corresponding tensor_processors APIs instead.",
+    FutureWarning,
+    stacklevel=2,
+)
 
-    # create the modifier instance
-    my_modifier = modifiers.DigitalFilter(cfg, my_tensor.shape, "cuda")
-
-    # apply the modifier as a callable object
-    my_modified_tensor = my_modifier(my_tensor)
-
-"""
-
-from ..module import lazy_export
-
-lazy_export()
+_install_aliases(__name__, tensor_processors)

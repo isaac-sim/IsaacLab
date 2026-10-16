@@ -24,7 +24,7 @@ from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
-from isaaclab.utils import configclass, modifiers, to_dict, update_from_dict
+from isaaclab.utils import configclass, tensor_processors, to_dict, update_from_dict
 
 pytestmark = pytest.mark.unit
 
@@ -84,7 +84,7 @@ class NestedFieldTermCfg(ManagerTermBaseCfg):
     """Manager term with owned and opaque fields outside ``params``."""
 
     nested_term: ManagerTermBaseCfg = ManagerTermBaseCfg(func=increment_dummy1_by_one)
-    modifier: modifiers.ModifierCfg = modifiers.ModifierCfg(func=increment_dummy1_by_one)
+    modifier: tensor_processors.TensorProcessorCfg = tensor_processors.TensorProcessorCfg(func=increment_dummy1_by_one)
     metadata: dict[str, str] = {"func": f"{__name__}:reset_dummy2_to_zero"}
     opaque: OpaqueCfg = OpaqueCfg()
 

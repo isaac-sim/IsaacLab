@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, modifiers, noise, to_dict
+from ..utils import instantiate, noise, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -58,8 +58,8 @@ class ObservationManager(ManagerBase):
     called in the order of the terms in the group. The functions are expected to return a tensor with shape
     (num_envs, ...).
 
-    If a noise model or custom modifier is registered for a term, the function is called to corrupt
-    the observation. The corruption function is expected to return a tensor with the same shape as the observation.
+    If a noise model or custom tensor processor is registered for a term, it transforms
+    the observation and returns a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
 
     Returned observations are independent snapshots, including dictionary entries and history.
@@ -277,7 +277,7 @@ class ObservationManager(ManagerBase):
                     for k, v in term_cfg.__dict__.items():
                         # For now we do not add the noise modifier
                         if k in [
-                            "modifiers",
+                            "tensor_processors",
                             "clip",
                             "scale",
                             "delay_min_lag",
@@ -315,7 +315,7 @@ class ObservationManager(ManagerBase):
                         "flatten_history_dim",
                     ]:
                         formatted_item["overloads"][k] = v
-                    elif k in ["modifiers", "description", "units"]:
+                    elif k in ["tensor_processors", "description", "units"]:
                         formatted_item["extras"][k] = v
                     else:
                         formatted_item[k] = v
@@ -338,7 +338,7 @@ class ObservationManager(ManagerBase):
                     self._group_obs_term_delay_buffer[group_name][term_name].reset(env_ids)
                 if term_name in self._group_obs_term_history_buffer[group_name]:
                     self._group_obs_term_history_buffer[group_name][term_name].reset(batch_ids=env_ids)
-        # call all modifiers that are classes
+        # call all tensor_processors that are classes
         for mod in self._group_obs_class_instances:
             mod.reset(env_ids=env_ids)
 
@@ -382,7 +382,7 @@ class ObservationManager(ManagerBase):
         The following steps are performed for each observation term:
 
         1. Compute observation term by calling the function
-        2. Apply custom modifiers in the order specified in :attr:`ObservationTermCfg.modifiers`
+        2. Apply custom tensor processors in the order specified in :attr:`ObservationTermCfg.tensor_processors`
         3. Apply corruption/noise model based on :attr:`ObservationTermCfg.noise`
         4. Apply clipping based on :attr:`ObservationTermCfg.clip`
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`
@@ -419,7 +419,7 @@ class ObservationManager(ManagerBase):
         term_cfgs = self._group_obs_term_cfgs[group_name]
         obs_terms = zip(group_term_names, term_cfgs)
 
-        # evaluate terms: compute, add noise, clip, scale, custom modifiers
+        # evaluate terms: compute, add noise, clip, scale, custom tensor_processors
         for term_name, term_cfg in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
@@ -433,12 +433,12 @@ class ObservationManager(ManagerBase):
             else:
                 obs = term_cfg.func(self._env, **term_cfg.params)
             # apply post-processing
-            if term_cfg.modifiers is not None:
-                for modifier in term_cfg.modifiers:
+            if term_cfg.tensor_processors is not None:
+                for modifier in term_cfg.tensor_processors:
                     owned = False
                     # Custom callbacks may modify or retain their input.
                     obs = obs.clone()
-                    if isinstance(modifier.func, modifiers.ModifierBase):
+                    if isinstance(modifier.func, tensor_processors.TensorProcessor):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
@@ -564,9 +564,9 @@ class ObservationManager(ManagerBase):
 
         self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
-        # create a list to store classes instances, e.g., for modifiers and noise models
+        # create a list to store classes instances, e.g., for tensor_processors and noise models
         # we store it as a separate list to only call reset on them and prevent unnecessary calls
-        self._group_obs_class_instances: list[modifiers.ModifierBase | noise.NoiseModel] = []
+        self._group_obs_class_instances: list[tensor_processors.TensorProcessor | noise.NoiseModel] = []
 
         # make sure the simulation is playing since we compute obs dims which needs asset quantities
         if not self._env.sim.is_playing():
@@ -642,6 +642,7 @@ class ObservationManager(ManagerBase):
                         f"Configuration for the term '{term_name}' is not of type ObservationTermCfg."
                         f" Received: '{type(term_cfg)}'."
                     )
+                term_cfg._migrate_modifiers()
                 term_cfg.validate_config()
                 # resolve common terms in the config
                 self._resolve_common_term_cfg(f"{group_name}/{term_name}", term_cfg, min_argc=1)
@@ -676,23 +677,23 @@ class ObservationManager(ManagerBase):
                     # cast the scale into torch tensor
                     term_cfg.scale = torch.tensor(term_cfg.scale, dtype=torch.float, device=self._env.device)
 
-                # prepare modifiers for each observation
-                if term_cfg.modifiers is not None:
-                    # initialize list of modifiers for term
-                    for mod_cfg in term_cfg.modifiers:
-                        if not isinstance(mod_cfg, modifiers.ModifierCfg):
+                # prepare tensor_processors for each observation
+                if term_cfg.tensor_processors is not None:
+                    # initialize list of tensor_processors for term
+                    for mod_cfg in term_cfg.tensor_processors:
+                        if not isinstance(mod_cfg, tensor_processors.TensorProcessorCfg):
                             raise TypeError(
                                 f"Modifier configuration '{mod_cfg}' of observation term '{term_name}' is not of"
-                                f" required type ModifierCfg, Received: '{type(mod_cfg)}'"
+                                f" required type TensorProcessorCfg, Received: '{type(mod_cfg)}'"
                             )
 
-                        # construct stateful modifiers with the observation size
+                        # construct stateful tensor_processors with the observation size
                         if inspect.isclass(mod_cfg.func):
                             mod_cfg.func = mod_cfg.func(cfg=mod_cfg, data_dim=obs_dims, device=self._env.device)
-                            if not isinstance(mod_cfg.func, modifiers.ModifierBase):
+                            if not isinstance(mod_cfg.func, tensor_processors.TensorProcessor):
                                 raise TypeError(
                                     f"Modifier function '{mod_cfg.func}' for observation term '{term_name}'"
-                                    f" is not an instance of 'ModifierBase'. Received: '{type(mod_cfg.func)}'."
+                                    f" is not an instance of 'TensorProcessor'. Received: '{type(mod_cfg.func)}'."
                                 )
                             self._group_obs_class_instances.append(mod_cfg.func)
 
