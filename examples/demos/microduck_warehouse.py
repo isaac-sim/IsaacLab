@@ -115,7 +115,7 @@ class WarehouseDemoCfg(ManagerBasedEnvCfg):
         ),
         default_visualizer_cfg=VisualizerCfg(cameras=[SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Camera")]),
     )
-    camera_exposure_iso = preset(default=6400.0, isaacsim_rtx=None, newton_renderer=None)
+    camera_exposure_iso = preset(default=3200.0, isaacsim_rtx=None, newton_renderer=None)
     camera_path = preset(
         default="/RoofReview/Cameras/duck_showcase_animation",
         poster="/RoofReview/Cameras/duck_showcase_animation",
