@@ -9,16 +9,19 @@ import logging
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 import torch
 import warp as wp
 
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
-from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
 from isaaclab_physx.physics import PhysxManager
+
+from .kernels import copy_view_rows_to_mesh_table_kernel
 
 if TYPE_CHECKING:
     from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
@@ -124,6 +127,41 @@ class _PhysXRayCasterMixin:
             transforms_t = transforms_t[idx]
         return SimpleNamespace(torch=transforms_t[:, 0:3]), SimpleNamespace(torch=transforms_t[:, 3:7])
 
+    def _initialize_warp_meshes(self: Any) -> None:
+        """Build the mesh table and map its tracked entries to the rows of their rigid-body views."""
+        super()._initialize_warp_meshes()
+        # only multi-mesh ray casters have mesh views
+        self._mesh_view_rows = [
+            None if view is None else self._map_view_rows(view) for view in getattr(self, "_mesh_views", [])
+        ]
+
+    def _map_view_rows(self: Any, view) -> wp.array:
+        """Return the view row of each mesh-table entry of a tracked target.
+
+        The view lists the bodies of one pattern after another, while the mesh table lists the meshes of each
+        environment in target order. The rows are therefore grouped by the environment of their prim path,
+        keeping the pattern order within an environment. Bodies outside the environments are assigned to the
+        environments in view order, and a single body is shared by all of them.
+
+        Returns:
+            View rows, shape ``[num_envs, max_entries]``; ``-1`` for the entries of environments with fewer bodies.
+        """
+        if view.count == 1:
+            rows_per_env = [[0]] * self._num_envs
+        else:
+            plan = sim_utils.SimulationContext.instance().get_clone_plan()
+            meshes_per_env = max(view.count // self._num_envs, 1)
+            rows_per_env = [[] for _ in range(self._num_envs)]
+            for row, path in enumerate(view.prim_paths):
+                matched = None if plan is None else cloner.path.match(path, plan.env_template)
+                env_id = row // meshes_per_env if matched is None else int(matched.instance)
+                if env_id < self._num_envs:
+                    rows_per_env[env_id].append(row)
+        view_rows = np.full((self._num_envs, max(map(len, rows_per_env))), -1, dtype=np.int32)
+        for env_id, rows in enumerate(rows_per_env):
+            view_rows[env_id, : len(rows)] = rows
+        return wp.array(view_rows, dtype=wp.int32, device=self._device)
+
     def _create_tracked_target_view(self: Any, target_prim_paths: str | list[str]):
         """Create a PhysX rigid-body view for dynamic multi-mesh targets."""
         if isinstance(target_prim_paths, str):
@@ -137,10 +175,10 @@ class _PhysXRayCasterMixin:
 
     def _update_mesh_transforms(self: Any) -> None:
         """Refresh dynamic multi-mesh targets directly from PhysX views."""
-        if not hasattr(self, "_mesh_views"):
+        if not hasattr(self, "_mesh_view_rows"):
             return
         mesh_idx = 0
-        for view, target_cfg in zip(self._mesh_views, self._raycast_targets_cfg):
+        for view, view_rows, target_cfg in zip(self._mesh_views, self._mesh_view_rows, self._raycast_targets_cfg):
             if not target_cfg.track_mesh_transforms:
                 mesh_idx += self._num_meshes_per_env[target_cfg.prim_expr]
                 continue
@@ -152,20 +190,13 @@ class _PhysXRayCasterMixin:
                 else wp.from_torch(transforms.contiguous()).view(wp.transformf)
             )
 
-            view_count = view.count
-            meshes_per_env = view_count
-            if view_count != 1:
-                # PhysX views return a flat list across envs; the mesh table is indexed per env.
-                meshes_per_env = view_count // self._num_envs
-
             wp.launch(
-                copy_mesh_transforms_to_table_kernel,
-                dim=(self._num_envs, meshes_per_env),
+                copy_view_rows_to_mesh_table_kernel,
+                dim=(self._num_envs, min(view_rows.shape[1], self._num_meshes_per_env[target_cfg.prim_expr])),
                 inputs=[
                     transforms_wp,
-                    int(meshes_per_env),
+                    view_rows,
                     int(mesh_idx),
-                    bool(view_count == 1),
                     self._mesh_positions_w,
                     self._mesh_orientations_w,
                 ],

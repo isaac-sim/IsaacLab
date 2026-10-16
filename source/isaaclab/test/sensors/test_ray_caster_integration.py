@@ -355,6 +355,76 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
 
 
 @pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("env_1_links", [("link_a", "link_b"), ("link_a",)], ids=["same_links", "fewer_links"])
+def test_multi_mesh_tracks_articulation_links_per_env(sim_ground, env_1_links):
+    """Each environment's rays hit its own links of a tracked multi-link articulation.
+
+    Each env holds a fixed-base chain of 0.1 m cubes at x = 0, 0.5 and 1.0 m and z = 1 m, scanned by one
+    downward ray over each of ``link_a`` and ``link_b``. Env 1 is its own prototype and may lack ``link_b``.
+    """
+    sim = sim_ground
+    num_envs = 3
+    stage = sim_utils.get_current_stage()
+
+    sim_utils.create_prim("/World/envs", "Xform", stage=stage)
+    for env_id in range(num_envs):
+        env_path = f"/World/envs/env_{env_id}"
+        sim_utils.create_prim(env_path, "Xform", translation=(3.0 * env_id, 0.0, 0.0), stage=stage)
+        sim_utils.create_prim(f"{env_path}/Sensor", "Xform", translation=(0.75, 0.0, 2.0), stage=stage)
+        sim_utils.create_prim(f"{env_path}/Chain", "Xform", stage=stage)
+        UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath(f"{env_path}/Chain"))
+        links = ("base", *(env_1_links if env_id == 1 else ("link_a", "link_b")))
+        for index, link in enumerate(links):
+            link_path = f"{env_path}/Chain/{link}"
+            sim_utils.create_prim(link_path, "Xform", translation=(0.5 * index, 0.0, 1.0), stage=stage)
+            UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath(link_path))
+            box = cast(Any, UsdGeom.Cube.Define(stage, f"{link_path}/Box"))
+            box.CreateSizeAttr().Set(0.1)
+            UsdPhysics.CollisionAPI.Apply(box.GetPrim())
+            # the base is fixed to the world, every link to the previous one
+            joint = cast(Any, UsdPhysics.FixedJoint.Define(stage, f"{env_path}/Chain/joint_{link}"))
+            if index == 0:
+                joint.CreateLocalPos0Attr().Set((3.0 * env_id, 0.0, 1.0))
+            else:
+                joint.CreateBody0Rel().SetTargets([f"{env_path}/Chain/{links[index - 1]}"])
+                joint.CreateLocalPos0Attr().Set((0.5, 0.0, 0.0))
+            joint.CreateBody1Rel().SetTargets([link_path])
+
+    plan = ClonePlan(
+        PrototypeWorldTopology(
+            num_asset_prototypes=2,
+            world_prototypes=np.array([0, 1]),
+            world_prototype_starts=np.array([0, 0, 1, 2]),
+            world_prototype_layout=np.array([0, 1, 0]),
+        ),
+        asset_cfgs=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Chain"),) * 2,
+    )
+    sim.set_clone_plan(plan)
+
+    cfg = MultiMeshRayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/Sensor",
+        mesh_prim_paths=[
+            MultiMeshRayCasterCfg.RaycastTargetCfg(
+                prim_expr="{ENV_REGEX_NS}/Chain/link_[^/]*",
+                track_mesh_transforms=True,
+            ),
+        ],
+        update_period=0,
+        debug_vis=False,
+        pattern_cfg=patterns.GridPatternCfg(resolution=0.5, size=(0.5, 0.0), direction=(0.0, 0.0, -1.0)),
+        ray_alignment="world",
+    )
+    sensor = MultiMeshRayCaster(cfg)
+    sim.reset()
+    sensor.update(_DT, force_recompute=True)
+
+    expected = torch.tensor([[[3.0 * env_id + x, 0.0, 1.05] for x in (0.5, 1.0)] for env_id in range(num_envs)])
+    if "link_b" not in env_1_links:
+        expected[1, 1] = float("inf")
+    torch.testing.assert_close(sensor.data.ray_hits_w.torch.cpu(), expected, atol=1e-3, rtol=0.0)
+
+
+@pytest.mark.isaacsim_ci
 def test_multi_mesh_env_mask_preserves_masked_buffers(sim_ground):
     """Masked environments must retain their pre-update buffer values.
 
