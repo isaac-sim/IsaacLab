@@ -302,6 +302,13 @@ class Camera(SensorBase):
         self._renderer: BaseRenderer | None = None
         if sim_ctx is not None:
             self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+            # Author camera overrides before a shared physics/rendering stage is populated.
+            paths = tuple(str(prim.GetPath()) for prim in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
+            plan = sim_ctx.get_clone_plan()
+            count = len(plan.topology.world_prototype_layout) if plan is not None else len(paths)
+            self._renderer.prepare_cameras(
+                self.stage, CameraRenderSpec(self.cfg, sim_ctx.cfg.device, count, paths, count)
+            )
             with force_log_level(logging.INFO):
                 logger.info("Using renderer: %s", type(self._renderer).__name__)
         # Render data — assigned in _initialize_impl.
@@ -692,10 +699,6 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
-        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
-        if self._renderer is None:
-            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-
         sim_ctx.get_scene_data_provider().cameras[self.cfg.prim_path] = self
 
         # Build the render spec early — both the wrapper ISP (which delegates
@@ -710,11 +713,10 @@ class Camera(SensorBase):
             view_count=self._num_envs,
         )
 
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
-        self._renderer.prepare_cameras(self.stage, render_spec)
+        # Cameras constructed without a simulation must still prepare before renderer population.
+        if self._renderer is None:
+            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+            self._renderer.prepare_cameras(self.stage, render_spec)
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.

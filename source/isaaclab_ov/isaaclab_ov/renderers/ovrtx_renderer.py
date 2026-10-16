@@ -216,6 +216,8 @@ class OVRTXBackend:
 
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
+        self.attached = False
+        self.render_products: set[str] = set()
         # Resolve the wheel's native dependency here, including callers without a viewer.
         dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
         if dependency.exists():
@@ -225,8 +227,8 @@ class OVRTXBackend:
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
             active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
-            log_file_path=cfg.renderer_cfg.log_file_path,
-            log_level=cfg.renderer_cfg.log_level,
+            log_file_path=cfg.log_file_path,
+            log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
             keep_system_alive=True,
             suppress_deprecation_warnings=True,
@@ -438,7 +440,9 @@ class OVRTXRenderer(BaseRenderer):
         self._setup_geometry_bindings()
         if self._use_ovstage:
             self.scene.commit()
-            self.backend.renderer.attach_ovstage(self.scene.stage)
+            if not self.backend.attached:
+                self.backend.renderer.attach_ovstage(self.scene.stage)
+                self.backend.attached = True
         self._initialized_scene = True
 
     def _setup_xform_bindings(self, stage: Usd.Stage) -> None:
@@ -643,6 +647,8 @@ class OVRTXRenderer(BaseRenderer):
             raise
         self.scene.next_camera_id += 1
         self._camera_render_data.append(render_data)
+        self.backend.render_products.add(render_data.render_product_path)
+        render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
         return render_data
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
@@ -1134,7 +1140,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or not self._camera_render_data:
             return
-        products = {data.render_product_path for data in self._camera_render_data}
+        products = self.backend.render_products.copy()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:

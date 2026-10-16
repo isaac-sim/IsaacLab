@@ -127,7 +127,7 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
 def _prepare_clones(renderer, plan, routed=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
-    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
+    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
     if renderer._use_ovstage:
         from isaaclab_ov.stage import OvstageBackendCfg
 
@@ -499,9 +499,9 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
 
     renderer_cfg = OVRTXRendererCfg()
     configs = (
-        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
+        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
         OvstageBackendCfg(scene_key=renderer_cfg),
-        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
+        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
     )
     for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
         backends = [SimpleNamespace() for _ in configs]

@@ -231,6 +231,15 @@ class OvstageBackend:
         self._resources.close()
         self.stage = self.paths = None
 
+    def reset(self) -> None:
+        """Recreate the native stage after all consumers detach, retaining the prepared clone operations."""
+        self.close()
+        self.ordinal = self.next_camera_id = 0
+        with contextlib.ExitStack() as resources:
+            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
+            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
+            self._resources = resources.pop_all()
+
 
 def export_stage_to_string(
     stage: Usd.Stage,

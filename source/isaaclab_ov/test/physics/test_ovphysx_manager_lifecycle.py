@@ -50,6 +50,7 @@ def manager_module(monkeypatch):
     cfg = OvPhysxBackendCfg(device="cpu")
     sim = SimpleNamespace(_backend_registry=[], physics_manager=module.OvPhysxManager)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
+    sim.get_backends = SimulationContext.get_backends.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     with monkeypatch.context() as construction:
         construction.setattr(module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
