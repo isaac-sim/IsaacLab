@@ -229,15 +229,16 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         has a delay, and per-DOF friction state. Their resets follow every adapter reset.
 
         Raises:
-            RuntimeError: If a group's DOFs are not driven by Newton's BAM drive with its authored delay and
-                exactly its configured backlash processor.
+            RuntimeError: If a group's DOFs are not driven by Newton's BAM drive reading its battery, with its
+                authored delay and exactly its configured backlash processor.
         """
         dofs_per_env = adapter.num_joints
         bam_dofs: set[int] = set()
         delay_slots: dict[int, tuple[InputProcessorDelay, int]] = {}
         backlash_types: dict[int, list[type]] = {}
         for actuator in adapter.actuators:
-            if not isinstance(actuator.drive, DriveBAM):
+            # A drive on its own supply voltage would ignore the group's battery.
+            if not isinstance(actuator.drive, DriveBAM) or not actuator.drive.supply_from_control:
                 continue
             indices = actuator.indices.numpy().tolist()
             bam_dofs.update(indices)
@@ -261,7 +262,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         for name, cfg in self._bam_cfgs.items():
             dofs = env_offsets + local_dofs[name]
             if not bam_dofs.issuperset(dofs.ravel().tolist()):
-                raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM.")
+                raise RuntimeError(f"BAM group '{name}' is not driven by Newton's DriveBAM with supply_from_control.")
             # Newton skips an unregistered processor token silently, and a stale one would read a play hinge.
             backlash = InputProcessorBacklash if cfg.backlash_velocity_feedback else InputProcessorPositionBacklash
             expected = [] if cfg.backlash_joint_template is None else [backlash]

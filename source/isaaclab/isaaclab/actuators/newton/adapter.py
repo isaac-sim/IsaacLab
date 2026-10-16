@@ -50,6 +50,21 @@ from .kernels import (
 if TYPE_CHECKING:
     from .. import ActuatorCollection
 
+_SUPPLY_VOLTAGE = "supply_voltage"
+"""Name of the ``sim_control`` array a :class:`~newton.actuators.Battery` writes and supply-reading drives read."""
+
+
+@dataclass(frozen=True)
+class _BatteryLoad:
+    """The arrays :meth:`newton.actuators.Battery.refresh` reads and writes, in place of a ``Control``."""
+
+    joint_f: wp.array
+    """Effort drawn from the batteries [N·m], flat over the adapter's DOFs."""
+
+    supply_voltage: wp.array
+    """Supply voltage of each DOF's battery [V], flat over the adapter's DOFs. Written by the refresh."""
+
+
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
 # ---------------------------------------------------------------------------
@@ -138,7 +153,7 @@ class NewtonActuatorAdapter:
 
     @property
     def battery(self) -> Battery | None:
-        """Batteries passed to every actuator step, or None until :meth:`add_batteries` is called."""
+        """Batteries refreshed before every actuator step, or None until :meth:`add_batteries` is called."""
         return self._battery
 
     def add_batteries(
@@ -150,10 +165,12 @@ class NewtonActuatorAdapter:
     ) -> int:
         """Add one battery per environment, shared by the given DOFs of that environment.
 
-        Drives that use a battery, such as :class:`~newton.actuators.DriveBAM`, read its voltage
-        instead of their own supply voltage. :meth:`step` refreshes the batteries before the
-        actuators, and :meth:`reset` restores the batteries of the reset environments. Add
-        batteries before the first step: this reallocates the battery arrays.
+        Before the actuators, :meth:`step` computes each battery's voltage from the pre-clamp effort
+        its DOFs drew on the previous step and writes it into ``sim_control.supply_voltage``. Drives
+        that read the supply from there, such as :class:`~newton.actuators.DriveBAM` with
+        ``supply_from_control=True``, then use it instead of their own supply voltage. :meth:`reset`
+        restores the batteries of the reset environments. Add batteries before the first step: this
+        reallocates the battery arrays.
 
         Args:
             dof_indices: DOF indices in the layout of the actuators' ``indices``, shape
@@ -216,7 +233,10 @@ class NewtonActuatorAdapter:
         self._reset_callbacks.append(callback)
 
     def finalize(self, sim_control: Any) -> None:
-        """Bind the pre-clamp computed-effort buffer onto ``sim_control``.
+        """Bind the pre-clamp computed-effort buffer onto ``sim_control``, and the supply voltage if missing.
+
+        Newton's model builder registers ``supply_voltage`` on its ``Control`` when a drive reads the
+        supply from there. Other ``sim_control`` objects get a zeroed array from the adapter.
 
         Args:
             sim_control: The ``sim_control`` object that will be passed
@@ -226,6 +246,9 @@ class NewtonActuatorAdapter:
                 on the PhysX backend.
         """
         sim_control.joint_computed_f = self._computed_effort
+        reads_supply = any(_SUPPLY_VOLTAGE in act.drive.custom_inputs for act in self.actuators)
+        if reads_supply and getattr(sim_control, _SUPPLY_VOLTAGE, None) is None:
+            setattr(sim_control, _SUPPLY_VOLTAGE, wp.zeros_like(self._computed_effort))
 
     def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
         """Refresh the batteries, zero actuated DOFs, step all actuators, and advance state buffers.
@@ -238,15 +261,17 @@ class NewtonActuatorAdapter:
             sim_control: Object with ``joint_f``, ``joint_target_q``, etc.
                 Newton ``Control`` on the Newton backend,
                 :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
-                on the PhysX backend.
+                on the PhysX backend. Needs ``supply_voltage`` once batteries are added.
             dt: Physics timestep [s].
             swap_state: Swap state buffers after stepping. Set to ``False`` on the last step
                 of an odd-length graph to copy the output back into the input buffers instead,
                 keeping their addresses stable across replays.
         """
-        # The supply voltage of this step follows from the torque drawn on the previous one.
+        # The supply voltage of this step follows from the motor torque drawn on the previous one, before the
+        # effort clamp as in the BAM reference. sim_control.joint_f does not keep it: the articulations write their
+        # effort targets there before each simulation step.
         if self._battery is not None:
-            self._battery.refresh()
+            self._battery.refresh(_BatteryLoad(self._computed_effort, getattr(sim_control, _SUPPLY_VOLTAGE, None)))
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
         for act in self.actuators:
@@ -256,7 +281,7 @@ class NewtonActuatorAdapter:
                 inputs=[sim_control.joint_f, act.indices],
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            act.step(sim_state, sim_control, sa, sb, dt=dt, battery=self._battery)
+            act.step(sim_state, sim_control, sa, sb, dt=dt)
         if swap_state:
             self._swap_state_buffers()
         else:

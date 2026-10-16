@@ -55,6 +55,9 @@ VIN = 7.4
 KP_FW = 200.0
 """Firmware proportional gain [-]."""
 
+BAM_DRIVE_KWARGS = {"kp", "kt", "resistance", "vin", "max_pwm", "max_current", "supply_from_control"}
+"""Drive attributes BAM authoring sets on each actuator prim."""
+
 
 @wp.kernel
 def _reference_lag_kernel(seed: int, step: int, min_delay: int, max_delay: int, lags: wp.array[wp.int32]):
@@ -96,8 +99,20 @@ def make_stage(servo_usd: str, cfg: BamActuatorCfg | None = None) -> Usd.Stage:
     return stage
 
 
-def make_actuator(servo_usd: str, cfg: BamActuatorCfg, num_envs: int, device: str) -> SimpleNamespace:
-    """Build the fixture's BAM actuator with flat joint-state buffers the test writes into."""
+def make_actuator(
+    servo_usd: str,
+    cfg: BamActuatorCfg,
+    num_envs: int,
+    device: str,
+    vin: float | np.ndarray = VIN,
+    sag_gain: float | np.ndarray = 0.0,
+    vin_min: float = 0.0,
+) -> SimpleNamespace:
+    """Build the fixture's BAM actuator with flat joint-state buffers the test writes into.
+
+    As on the articulation path, each environment's servos draw from one battery, by default at :data:`VIN`
+    without sag.
+    """
     adapter = NewtonActuatorAdapter.from_usd(
         stage=make_stage(servo_usd, cfg),
         joint_names=JOINT_NAMES,
@@ -119,10 +134,13 @@ def make_actuator(servo_usd: str, cfg: BamActuatorCfg, num_envs: int, device: st
     control.joint_target_vel = wp.zeros(num_envs * len(JOINT_NAMES), dtype=wp.float32, device=device)
     control.joint_act = None
     adapter.finalize(control)
+    dofs = np.arange(num_envs * len(JOINT_NAMES)).reshape(shape)
+    f32 = lambda values: wp.array(np.broadcast_to(values, num_envs).astype(np.float32), device=device)  # noqa: E731
+    adapter.add_batteries(dofs, f32(vin), f32(sag_gain), min_voltage=max(vin_min, 0.0))
     return SimpleNamespace(
         adapter=adapter,
         actuator=actuator,
-        dofs=np.arange(num_envs * len(JOINT_NAMES)).reshape(shape),
+        dofs=dofs,
         state=state,
         control=control,
         joint_pos=joint_pos,
@@ -131,13 +149,6 @@ def make_actuator(servo_usd: str, cfg: BamActuatorCfg, num_envs: int, device: st
         friction=None,
         device=device,
     )
-
-
-def add_supply(bam: SimpleNamespace, vin: np.ndarray, sag_gain: np.ndarray, vin_min: float) -> None:
-    """Power each environment's servos from one battery."""
-    num_envs = bam.dofs.shape[0]
-    f32 = lambda values: wp.array(np.broadcast_to(values, num_envs).astype(np.float32), device=bam.device)  # noqa: E731
-    bam.adapter.add_batteries(bam.dofs, f32(vin), f32(sag_gain), min_voltage=max(vin_min, 0.0))
 
 
 def add_friction(bam: SimpleNamespace, motor: BamMotorCfg) -> BamFriction:
@@ -239,8 +250,9 @@ def test_authored_prim_composes_native_components(goldens, servo_usd, limit, vol
         prim = stage.GetPrimAtPath(f"/Robot/servo_{name}_actuator")
         entry = parse_actuator_prim(prim)
         assert entry.drive_class is DriveBAM
-        assert set(entry.drive_kwargs) == {"kp", "kt", "resistance", "vin", "max_pwm", "max_current"}
+        assert set(entry.drive_kwargs) == BAM_DRIVE_KWARGS
         resolved = DriveBAM.resolve_arguments(dict(entry.drive_kwargs))
+        assert resolved["supply_from_control"] is True
         assert resolved["kp"] == pytest.approx(KP_FW * cfg.motor.error_gain)
         assert resolved["kt"] == pytest.approx(cfg.motor.kt)
         assert resolved["vin"] == pytest.approx(VIN)
@@ -285,7 +297,7 @@ def test_configuration_replaces_existing_usd_values(tmp_path, goldens, servo_usd
     for entry in parsed:
         assert entry.drive_class is DriveBAM
         # Without a registered schema Newton reads every authored attribute, so the stale ones must be blocked.
-        assert set(entry.drive_kwargs) == {"kp", "kt", "resistance", "vin", "max_pwm", "max_current"}
+        assert set(entry.drive_kwargs) == BAM_DRIVE_KWARGS
         assert entry.drive_kwargs["kt"] == pytest.approx(goldens["attr_kt"].item())
         assert entry.drive_kwargs["kp"] == pytest.approx(123.5 * goldens["attr_error_gain"].item())
         assert [component for component, _ in entry.component_specs] == [ClampingMaxEffort]
@@ -320,8 +332,15 @@ def test_motor_and_friction_match_upstream_goldens(goldens, servo_usd, device):
 def test_battery_sag_matches_upstream_supply_recording(goldens, servo_usd, device):
     """Voltage and raw torque match a recording of upstream BAM's stateful compute method."""
     shape = goldens["sag_q"].shape[1:]
-    bam = make_actuator(servo_usd, make_cfg(goldens), num_envs=shape[0], device=device)
-    add_supply(bam, goldens["sag_vin"][:, 0], goldens["sag_gain"][:, 0], float(goldens["sag_vin_min"]))
+    bam = make_actuator(
+        servo_usd,
+        make_cfg(goldens),
+        num_envs=shape[0],
+        device=device,
+        vin=goldens["sag_vin"][:, 0],
+        sag_gain=goldens["sag_gain"][:, 0],
+        vin_min=float(goldens["sag_vin_min"]),
+    )
     for index, (pos, vel, target) in enumerate(zip(goldens["sag_q"], goldens["sag_dq"], goldens["sag_target"])):
         step(bam, pos, vel, target)
         np.testing.assert_allclose(
@@ -385,8 +404,7 @@ def test_backlash_feeds_back_the_play_angle(goldens, device, processor):
 def test_effort_feedback_and_supply_floor(goldens, servo_usd, device):
     """Friction feeds back the clamped effort and sag the raw torque until a reset; an exhausted supply only brakes."""
     cfg = make_cfg(goldens, actuator_effort_limit=0.05)
-    bam = make_actuator(servo_usd, cfg, num_envs=2, device=device)
-    add_supply(bam, VIN, 0.1, vin_min=-np.inf)
+    bam = make_actuator(servo_usd, cfg, num_envs=2, device=device, sag_gain=0.1, vin_min=-np.inf)
     friction = add_friction(bam, cfg.motor)
     pos, vel, zeros = np.array([[0.3, -0.1]] * 2), np.array([[0.5, -0.4]] * 2), np.zeros((2, 2))
     effort = step(bam, pos, vel, zeros)
