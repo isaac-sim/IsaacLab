@@ -17,7 +17,7 @@
       logger
       math
       mesh
-      modifiers
+      tensor_processors
       noise
       seed
       sensors
@@ -124,10 +124,25 @@ Mesh operations
    :imported-members:
    :show-inheritance:
 
-Modifier operations
-~~~~~~~~~~~~~~~~~~~
+Tensor processors
+~~~~~~~~~~~~~~~~~
 
-.. automodule:: isaaclab.utils.modifiers
+The processor interfaces live together in :mod:`isaaclab.utils.tensor_processors`:
+
+* ``TensorProcessor``: tensor to tensor.
+* ``DictTensorProcessor``: dictionary of named tensors to dictionary of named tensors.
+
+Dictionary tensors use ``ProxyArray`` for Warp and Torch access without copying. Processors own
+any persistent outputs and state. ``DictTensorProcessorCfg`` declares input/output keys so consumers
+can resolve dependencies before allocating buffers. Composition preserves untouched keys.
+
+Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
+``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from
+``isaaclab.utils.modifiers``. Replace ``ObservationTermCfg.modifiers`` with
+``ObservationTermCfg.tensor_processors``. The processing order and tensor shapes are unchanged.
+The old imports and configuration field remain available with a deprecation warning; do not set both fields.
+
+.. automodule:: isaaclab.utils.tensor_processors
    :members:
    :imported-members:
    :special-members: __call__

@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp-native modifier implementations (experimental).
+"""Deprecated import path for Warp-native tensor processors."""
 
-Re-exports stable configs and base classes, then overrides the function-based
-modifiers (``scale``, ``bias``, ``clip``) with Warp-native versions that
-operate in-place on ``wp.array``.
+import warnings
 
-Calling convention (matches Warp MDP terms)::
+from .modifier import bias, clip, scale
+from .modifier_base import ModifierBase
+from .modifier_cfg import ModifierCfg
 
-    modifier.func(data_wp, **params) -> None   # in-place on wp.array
-"""
+__all__ = ["ModifierBase", "ModifierCfg", "bias", "clip", "scale"]
 
-from .modifier import bias, clip, scale  # noqa: F401
-from .modifier_base import ModifierBase  # noqa: F401
-
-# Override with Warp-native implementations
-from .modifier_cfg import ModifierCfg  # noqa: F401
+warnings.warn(
+    "isaaclab_experimental.utils.modifiers is deprecated."
+    " Use isaaclab_experimental.utils.tensor_processors instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
