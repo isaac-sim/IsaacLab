@@ -296,6 +296,8 @@ def author_actuator_prims(
                 "vin": float(cfg.vin),
                 "max_pwm": float(cfg.motor.max_pwm),
                 "max_current": float(cfg.motor.max_current),
+                # Isaac Lab powers every BAM group from a battery, which writes the voltage the drive reads.
+                "supply_from_control": True,
             }
             # Default to the stall torque at the highest sampled voltage.
             voltage = max(cfg.vin_range) if cfg.vin_range is not None else cfg.vin
@@ -342,7 +344,7 @@ def author_actuator_prims(
             joint_prim_path = joint_inventory[jname]
 
             schemas: list[str] = []
-            attrs: dict[str, float | int] = {}
+            attrs: dict[str, bool | float | int] = {}
             array_attrs: dict[str, list[float]] = {}
             relationships: dict[str, str] = {"targets": joint_prim_path}
 
@@ -445,7 +447,7 @@ class ActuatorField:
 
 def _set_actuator_properties(
     act_prim: Usd.Prim,
-    attrs: dict[str, float | int],
+    attrs: dict[str, bool | float | int],
     array_attrs: dict[str, list[float]],
     relationships: dict[str, str],
     model_path: str | None,
@@ -462,7 +464,9 @@ def _set_actuator_properties(
 
     for attr_name, attr_val in attrs.items():
         usd_name = f"newton:{to_camel_case(attr_name)}"
-        if isinstance(attr_val, int):
+        if isinstance(attr_val, bool):
+            act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Bool).Set(attr_val)
+        elif isinstance(attr_val, int):
             act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Int).Set(attr_val)
         else:
             act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Float).Set(float(attr_val))

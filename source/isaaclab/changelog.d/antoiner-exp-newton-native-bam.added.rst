@@ -1,6 +1,8 @@
 * Added :meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.add_batteries` and
   :attr:`~isaaclab.actuators.newton.NewtonActuatorAdapter.battery` to power Newton drives, such as
   :class:`~newton.actuators.DriveBAM`, from per-environment :class:`~newton.actuators.Battery` supplies.
+  The adapter refreshes them from the previous step's pre-clamp effort into the ``supply_voltage`` control
+  input that drives with ``supply_from_control`` read.
 * Added :meth:`~isaaclab.actuators.newton.NewtonActuatorAdapter.register_reset_callback` to reset
   per-environment actuator state kept outside the Newton actuators.
 * Added :attr:`~isaaclab.actuators.BamActuatorCfg.backlash_velocity_feedback` to also feed the play-hinge
