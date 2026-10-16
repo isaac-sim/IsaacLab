@@ -172,31 +172,27 @@ def _replicate_newton(
     source_paths = list(dict.fromkeys(source for source in routed_sources if source in needed))
     # A parent source also owns deformables declared beneath it, even when the child has its own asset config.
     entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
-    if simulation:
-        ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
-        ignore_paths.extend((*exclude_paths, *(entry.root_path for entry in entries)))
-    else:
-        ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
-
+    ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
     stage_info = None
     if simulation:
+        ignore_paths.extend(manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths))
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
-    if simulation:
-        for entry in entries:
-            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
-            owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
-            if not owners:
-                raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
-            for source in owners:
-                add_deformable_from_usd(source, stage, entry)
-    else:
-        add_visual_deformables_to_sources(source_builders, entries)
-
+    # Imports contain authored USD poses, which need not include the planned world placement.
+    source_inverse = {}
+    xforms = UsdGeom.XformCache()
+    for source in source_builders:
+        transform = wp.transform()
+        if (match := cloner_path.match(source, plan.env_template)) is not None:
+            anchor = stage.GetPrimAtPath(plan.env_template.format(match.instance))
+            frame = xforms.GetLocalToWorldTransform(anchor).RemoveScaleShear().GetInverse()
+            rotation = frame.ExtractRotationQuat()
+            transform = wp.transform(frame.ExtractTranslation(), (*rotation.GetImaginary(), rotation.GetReal()))
+        source_inverse[source] = np.asarray(transform, dtype=np.float32)
     # Resolve native capsule indices once per source, not by rediscovering labels after cloning.
     source_cables = {}
     for source, imported in import_results.items():
@@ -211,8 +207,16 @@ def _replicate_newton(
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
     if simulation:
+        for entry in entries:
+            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
+            owners = [source_builders[str(path)] for path in ancestors if str(path) in source_builders]
+            if not owners:
+                raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
+            for source in owners:
+                add_deformable_from_usd(source, stage, entry)
         global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
     else:
+        add_visual_deformables_to_sources(source_builders, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
             imported.shape_collision_filter_pairs = []
@@ -243,7 +247,7 @@ def _replicate_newton(
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None
     local_site_map, world_xforms = replicate_builder_mapping(
-        builder, plan, positions, quaternions, source_builders, **options
+        builder, plan, positions, quaternions, source_builders, source_inverse=source_inverse, **options
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
