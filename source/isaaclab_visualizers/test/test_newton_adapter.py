@@ -1314,3 +1314,16 @@ def test_newton_rtx_visualizer_rejects_kit_physics_backend():
 
     with pytest.raises(RuntimeError, match="Newton RTX"):
         visualizer.initialize(sim, cameras=[])
+
+
+def test_tracking_does_not_move_selected_newton_sensor_view():
+    """A Newton scene-camera selection replaces the perspective view and remains sensor-owned."""
+    viz = _make_newton_visualizer(None, cfg=NewtonGLVisualizerCfg(origin_type="asset", origin_track_path="robot"))
+    viz._tracking_asset = SimpleNamespace(
+        is_initialized=True,
+        data=SimpleNamespace(root_pos_w=ProxyArray(wp.array([[1.0, 2.0, 3.0]], dtype=wp.vec3, device="cpu"))),
+    )
+    viz.current_image_view = SimpleNamespace(camera=object())
+    viz.set_camera_view = Mock()
+    viz.update_camera_tracking()
+    viz.set_camera_view.assert_not_called()

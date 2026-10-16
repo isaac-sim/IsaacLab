@@ -547,6 +547,8 @@ class SimulationContext:
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
         self.physics_manager.forward()
+        for visualizer in self._visualizers:
+            visualizer.invalidate_camera_tracking()
 
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
@@ -688,6 +690,7 @@ class SimulationContext:
                 if viz.is_training_paused():
                     viz.step(0.0)
                     continue
+                viz.update_camera_tracking()
                 viz.step(dt)
             except Exception as exc:
                 logger.error("Error stepping visualizer '%s': %s", type(viz).__name__, exc)

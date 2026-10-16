@@ -61,6 +61,11 @@ class BaseVisualizer(ABC):
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
         self._sim_time = 0.0
+        self._viewer_origin: list[float] | None = None
+        self._tracking_asset = None
+        self._tracking_body_id: int | None = None
+        self._camera_origin_applied = False
+        self._camera_tracking_step = -1
         self.current_image_view: ImageView | None = None
         self._image_views: list[ImageView] = []
 
@@ -82,6 +87,8 @@ class BaseVisualizer(ABC):
         """
         scene_data_provider = sim.get_scene_data_provider()
         self._sim = sim
+        if self.cfg.origin_type != "world":
+            self._setup_initial_camera_view()
 
         num_envs = scene_data_provider.num_envs
         self._env_ids = None
@@ -102,6 +109,8 @@ class BaseVisualizer(ABC):
             if isinstance(self.cfg.view.source, str):
                 camera = scene_data_provider.get_camera_sensors().get(self.cfg.view.source)
             self.current_image_view = sim.get_or_create_backend(self.cfg.view, camera=camera)
+            if camera is None:
+                self.current_image_view.update_camera_pose = self.update_camera_tracking
             self._image_views.append(self.current_image_view)
             return
         env_ids = []
@@ -117,6 +126,7 @@ class BaseVisualizer(ABC):
                 if self.cfg.visualizer_type not in ("newton_gl", "newton_rtx"):
                     continue
                 view = sim.get_or_create_backend(ImageViewCfg(source=camera))
+                view.update_camera_pose = self.update_camera_tracking
             else:
                 view_cfg = ImageViewCfg(
                     source=camera.cfg.prim_path, envs=(0,) if camera.num_instances == 1 else tuple(map(int, env_ids)),
@@ -157,8 +167,13 @@ class BaseVisualizer(ABC):
         Subclasses must call ``super().close()`` when their resource teardown finishes, including on failure.
         """
         self.current_image_view = None
+        for view in self._image_views:
+            if view.update_camera_pose == self.update_camera_tracking:
+                view.update_camera_pose = None
         self._image_views.clear()
         self._sim = None
+        self._tracking_asset = None
+        self._viewer_origin = None
         self._is_closed = True
 
     @abstractmethod
@@ -333,6 +348,96 @@ class BaseVisualizer(ABC):
         """
         pass
 
+    def _setup_initial_camera_view(self) -> None:
+        """Resolve the configured origin; defer asset state reads until the first render."""
+        self._tracking_asset = None
+        self._tracking_body_id = None
+        self._camera_origin_applied = False
+        self._camera_tracking_step = -1
+        self._viewer_origin = None
+        if self.cfg.origin_type == "world":
+            self._viewer_origin = [0.0, 0.0, 0.0]
+        elif self.cfg.origin_type in ("env", "asset"):
+            scene = self._sim.get_scene_data_provider().get_interactive_scene()
+            if scene is None:
+                logger.warning("Camera origin tracking requires an interactive scene; using world origin.")
+                self._viewer_origin = [0.0, 0.0, 0.0]
+                if self.is_initialized:
+                    self._apply_viewer_origin_to_camera()
+                return
+            if not 0 <= self.cfg.origin_env_index < scene.num_envs:
+                raise ValueError("Camera origin_env_index is outside the scene's environment range.")
+            if self.cfg.origin_type == "env":
+                self._viewer_origin = scene.env_origins[self.cfg.origin_env_index].tolist()
+            else:
+                if not self.cfg.origin_track_path:
+                    raise ValueError("Camera origin_type='asset' requires origin_track_path.")
+                asset_name, _, _ = self.cfg.origin_track_path.partition("/")
+                try:
+                    self._tracking_asset = scene[asset_name]
+                except KeyError:
+                    return
+                return
+        else:
+            logger.warning("Unknown camera origin_type %r; using world origin.", self.cfg.origin_type)
+            self._viewer_origin = [0.0, 0.0, 0.0]
+        if self.is_initialized:
+            self._apply_viewer_origin_to_camera()
+
+    def update_camera_tracking(self) -> None:
+        """Apply perspective camera tracking before rendering a frame.
+
+        SimulationContext calls this before step(), so display and recording use the same
+        camera pose. ImageView also calls this before on-demand perspective capture.
+        Updates are shared within a physics step so recording preserves the displayed frame.
+        Fixed world cameras incur no scene reads.
+        """
+        if not self.is_initialized or self.cfg.origin_type == "world":
+            return
+        step = self._sim.get_physics_step_count()
+        if self._camera_tracking_step == step:
+            return
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
+        elif not self._camera_origin_applied:
+            self._apply_viewer_origin_to_camera()
+        if self._camera_origin_applied:
+            self._camera_tracking_step = step
+
+    def _update_asset_tracking_camera(self) -> None:
+        """Read the selected asset position and translate the perspective camera offsets."""
+        asset = self._tracking_asset
+        if asset is None or not asset.is_initialized:
+            return
+        _, _, body_name = self.cfg.origin_track_path.partition("/")
+        env_index = self.cfg.origin_env_index
+        if body_name:
+            if self._tracking_body_id is None:
+                body_ids, _ = asset.find_bodies(body_name)
+                if not body_ids:
+                    raise ValueError(f"Camera tracking body {body_name!r} did not match a body.")
+                self._tracking_body_id = body_ids[0]
+            position = asset.data.body_pos_w.warp[env_index : env_index + 1, self._tracking_body_id]
+        else:
+            position = asset.data.root_pos_w.warp[env_index : env_index + 1]
+        self._viewer_origin = position.numpy().squeeze(axis=0).tolist()
+        self._apply_viewer_origin_to_camera()
+
+    def _apply_viewer_origin_to_camera(self) -> None:
+        """Set the absolute camera pose while preserving the configured relative offsets."""
+        if self._viewer_origin is None:
+            return
+        origin = self._viewer_origin
+        eye_offset, target_offset = self.cfg.eye, self.cfg.lookat
+        eye = tuple(float(position + offset) for position, offset in zip(origin, eye_offset))
+        target = tuple(float(position + offset) for position, offset in zip(origin, target_offset))
+        try:
+            self.set_camera_view(eye, target)
+        finally:
+            # Some adapters store the absolute pose in cfg; tracking must retain its offsets.
+            self.cfg.eye, self.cfg.lookat = eye_offset, target_offset
+        self._camera_origin_applied = True
+
     def _focal_length_to_vertical_fov_degrees(self) -> float:
         """Convert cfg focal length to vertical FOV using USD's default aperture."""
         focal_length = float(self.cfg.focal_length)
@@ -340,13 +445,20 @@ class BaseVisualizer(ABC):
             raise ValueError("VisualizerCfg.focal_length must be positive.")
         return math.degrees(2.0 * math.atan(_USD_DEFAULT_VERTICAL_APERTURE_MM / (2.0 * focal_length)))
 
+    def invalidate_camera_tracking(self) -> None:
+        """Refresh the origin after poses change without advancing physics."""
+        self._camera_tracking_step = -1
+        for view in self._image_views:
+            if view.camera is None:
+                view.invalidate()
+
     def reset(self, soft: bool = False) -> None:
         """Reset visualizer state.
 
         Args:
             soft: Whether to perform a soft reset.
         """
-        pass
+        self._camera_tracking_step = -1
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.

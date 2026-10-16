@@ -8,12 +8,14 @@
 import contextlib
 import signal
 import sys
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import MagicMock
 
 import isaaclab_visualizers.kit.kit_visualizer as kit_visualizer_module
+import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationMarkers
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
@@ -22,6 +24,7 @@ import omni
 from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.utils.warp import ProxyArray
 
 
 @pytest.fixture(autouse=True)
@@ -55,6 +58,54 @@ def kit_timeline(monkeypatch):
     monkeypatch.setitem(sys.modules, "omni.timeline", timeline_module)
     monkeypatch.setattr(omni, "timeline", timeline_module, raising=False)
     return timeline
+
+
+def test_reapply_origin_keeps_viewport_and_renderer_camera_aligned(monkeypatch):
+    """Shared CPU origins move both Kit cameras without accumulating offsets."""
+    visualizer = KitVisualizer(
+        KitVisualizerCfg(eye=(2.0, 2.0, 2.0), lookat=(0.0, 0.0, 0.0), origin_type="env", origin_env_index=1)
+    )
+    visualizer._is_initialized = True
+    visualizer._sim = MagicMock()
+    scene = visualizer._sim.get_scene_data_provider.return_value.get_interactive_scene.return_value
+    scene.num_envs = 2
+    scene.env_origins = np.array([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]])
+    viewport = MagicMock()
+    monkeypatch.setattr(visualizer, "_set_viewport_camera", viewport)
+    renderer_module = ModuleType("isaaclab_physx.renderers.kit_viewport_utils")
+    renderer_module.set_kit_renderer_camera_view = renderer_camera = MagicMock()
+    monkeypatch.setitem(sys.modules, renderer_module.__name__, renderer_module)
+
+    visualizer.reapply_origin()
+
+    viewport.assert_called_once_with((12.0, 22.0, 2.0), (10.0, 20.0, 0.0))
+    np.testing.assert_array_equal(renderer_camera.call_args.kwargs["eye"], [12.0, 22.0, 2.0])
+    np.testing.assert_array_equal(renderer_camera.call_args.kwargs["target"], [10.0, 20.0, 0.0])
+    np.testing.assert_array_equal(visualizer.viewer_origin, [10.0, 20.0, 0.0])
+
+    assert isinstance(visualizer.viewer_origin, torch.Tensor)
+    visualizer.cfg.origin_type = "asset"
+    visualizer.cfg.origin_track_path = "robot"
+    asset = SimpleNamespace(
+        is_initialized=True,
+        data=SimpleNamespace(
+            root_pos_w=ProxyArray(wp.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=wp.vec3, device="cpu"))
+        ),
+    )
+    scene.__getitem__.side_effect = {"robot": asset}.__getitem__
+    # Kit's sensor panel must not disable its independent perspective viewport.
+    sensor = MagicMock()
+    visualizer.current_image_view = SimpleNamespace(camera=sensor)
+    visualizer.reapply_origin()
+    visualizer.update_camera_tracking()
+    sensor.set_world_poses.assert_not_called()
+    assert visualizer.viewer_origin.device == asset.data.root_pos_w.torch.device
+
+    viewport.assert_called_with((3.0, 4.0, 5.0), (1.0, 2.0, 3.0))
+    np.testing.assert_array_equal(renderer_camera.call_args.kwargs["eye"], [3.0, 4.0, 5.0])
+    np.testing.assert_array_equal(renderer_camera.call_args.kwargs["target"], [1.0, 2.0, 3.0])
+    assert visualizer.cfg.eye == (2.0, 2.0, 2.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 0.0)
 
 
 @pytest.mark.parametrize("headless", [False, True])
