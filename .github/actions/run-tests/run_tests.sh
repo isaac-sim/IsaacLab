@@ -233,14 +233,15 @@ run_tests() {
     # the Isaac Lab source tree. Provide writable runtime storage for
     # host-uid test runs, mirroring the compose/singularity mounts.
     docker_runtime_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/isaaclab-docker-runtime.XXXXXX")"
+    docker_user_home_dir="${docker_runtime_dir}/user-home"
     mkdir -p \
-      "${docker_runtime_dir}/home/.cache" \
-      "${docker_runtime_dir}/home/.local/share/ov/data" \
-      "${docker_runtime_dir}/home/.local/share/ov/pkg" \
-      "${docker_runtime_dir}/home/.nv/ComputeCache" \
-      "${docker_runtime_dir}/home/.nvidia-omniverse/config" \
-      "${docker_runtime_dir}/home/.nvidia-omniverse/logs" \
-      "${docker_runtime_dir}/home/Documents/Kit/shared" \
+      "${docker_user_home_dir}/.cache" \
+      "${docker_user_home_dir}/.local/share/ov/data" \
+      "${docker_user_home_dir}/.local/share/ov/pkg" \
+      "${docker_user_home_dir}/.nv/ComputeCache" \
+      "${docker_user_home_dir}/.nvidia-omniverse/config" \
+      "${docker_user_home_dir}/.nvidia-omniverse/logs" \
+      "${docker_user_home_dir}/Documents/Kit/shared" \
       "${docker_runtime_dir}/isaac-sim/kit/cache" \
       "${docker_runtime_dir}/isaac-sim/kit/data" \
       "${docker_runtime_dir}/isaac-sim/kit/logs" \
@@ -254,7 +255,7 @@ run_tests() {
       -v "${volume_mount_source}:/workspace/isaaclab:rw"
       # Hide .git as the images do: the checkout's config requires Git LFS, which they do not ship.
       --tmpfs /workspace/isaaclab/.git
-      -v "${docker_runtime_dir}/home:/tmp/isaaclab-ci-home:rw"
+      -v "${docker_user_home_dir}:/tmp/isaaclab-ci-home:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/cache:/isaac-sim/kit/cache:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/data:/isaac-sim/kit/data:rw"
       -v "${docker_runtime_dir}/isaac-sim/kit/logs:/isaac-sim/kit/logs:rw"

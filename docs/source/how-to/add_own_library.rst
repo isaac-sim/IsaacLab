@@ -46,7 +46,7 @@ command:
    python -m pip show rsl-rl-lib
 
 This should now show the location of the ``rsl-rl`` library as the directory where you cloned the library.
-For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output of the above command should be:
+For instance, if you cloned the library to ``/workspace/rsl_rl``, the output of the above command should be:
 
 .. code-block:: bash
 
@@ -57,7 +57,7 @@ For instance, if you cloned the library to ``/home/user/git/rsl_rl``, the output
    Author: ETH Zurich, NVIDIA CORPORATION
    Author-email:
    License: BSD-3
-   Location: /home/user/git/rsl_rl
+   Location: /workspace/rsl_rl
    Requires: torch, torchvision, numpy, GitPython, onnx
    Required-by:
 

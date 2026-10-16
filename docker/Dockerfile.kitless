@@ -101,7 +101,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 # Build arg like Dockerfile.base, so the image home and the Compose mounts
 # derived from DOCKER_USER_HOME cannot drift apart.
-ARG DOCKER_USER_HOME_ARG=/home/isaaclab
+ARG DOCKER_USER_HOME_ARG=/opt/isaaclab-user
 ARG VENV_PATH_ARG=/opt/isaaclab-venv
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 ENV HOME=${DOCKER_USER_HOME}

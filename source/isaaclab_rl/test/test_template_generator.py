@@ -487,7 +487,7 @@ def test_editor_setup_combines_simulator_local_and_installed_paths(tmp_path, mon
     ]
 
 
-@pytest.mark.parametrize("interpreter", [sys.executable, r"C:\Users\me\.venv\Scripts\python.exe"])
+@pytest.mark.parametrize("interpreter", [sys.executable, r"C:\workspace\.venv\Scripts\python.exe"])
 def test_editor_setup_uses_workspace_templates(tmp_path, monkeypatch, interpreter):
     """Editor setup must generate valid workspace files without a project-local Python wrapper."""
     monkeypatch.setattr(sys, "executable", interpreter)
