@@ -1,5 +1,5 @@
-* **Breaking:** Replaced ``CameraCfg.isp_cfg`` with reusable buffer pipelines. Configure camera
-  processing with ``CameraCfg.pipeline=[PpispStepCfg(...)]``; use ``mdp.processed_sensor`` or
-  ``ProcessingBufferPipeModifierCfg`` for observation processing with the same operations. The shared
-  ``isaaclab.utils.processing.ProcessingBufferPipe`` accepts named ``ProxyArray`` buffers for both image and
-  nonvisual sensor data.
+* **Breaking:** Added ``DictTensorProcessor`` for named buffers and renamed the modifiers API to
+  ``tensor_processors``, ``TensorProcessor``, and ``TensorProcessorCfg``. Replace observation
+  ``modifiers`` with ``tensor_processors``; use ``DictTensorProcessorAdapterCfg`` for dictionary operations.
+* Replaced renderer-owned PPISP with camera and observation processors consuming ``rgb_hdr``.
+  Set ``CameraCfg.exposure=CameraExposureCfg()`` explicitly for neutral RTX HDR before PPISP.

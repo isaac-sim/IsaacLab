@@ -1,3 +1,3 @@
-* **Breaking:** Moved PPISP processing from the renderer to ``CameraCfg.pipeline``.
-  Replace ``CameraCfg.isp_cfg`` with ``PpispStepCfg``; its ``rgb_radiance`` input neutralizes
-  exposure for all color outputs sharing the camera prim.
+* **Breaking:** Replaced renderer-owned PPISP with ``DictTensorProcessor`` operations.
+  Replace ``CameraCfg.isp_cfg`` with ``PpispStepCfg`` and configure
+  ``CameraCfg.exposure=CameraExposureCfg()`` for neutral RTX ``rgb_hdr`` input.

@@ -537,7 +537,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     assert renderer._camera_render_data == []
 
 
-@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
+@pytest.mark.parametrize("data_types", [["rgb_hdr"]])
 def test_ovrtx_hdr_color_fills_requested_hdr_outputs(monkeypatch, data_types):
     """Radiance and HDR read one HdrColor var into the camera's own buffer."""
     renderer = _make_ovrtx_renderer_without_backend()
@@ -563,9 +563,9 @@ def test_ovrtx_hdr_color_fills_requested_hdr_outputs(monkeypatch, data_types):
         np.testing.assert_array_equal(data.output[name].warp.numpy(), 2.0)
 
 
-@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"]])
-def test_ovrtx_prepare_cameras_neutralizes_exposure_for_radiance(data_types):
-    """Radiance neutralizes camera exposure; standalone HDR keeps the authored camera settings."""
+@pytest.mark.parametrize("data_types", [["rgb"], ["rgb_hdr"]])
+def test_ovrtx_prepare_cameras_preserves_authored_exposure(data_types):
+    """Selecting render outputs preserves authored camera exposure."""
     from pxr import Sdf, Usd, UsdGeom
 
     stage = Usd.Stage.CreateInMemory()
@@ -574,7 +574,7 @@ def test_ovrtx_prepare_cameras_neutralizes_exposure_for_radiance(data_types):
     spec = types.SimpleNamespace(cfg=types.SimpleNamespace(data_types=data_types), camera_prim_paths=("/World/Camera",))
     _make_ovrtx_renderer_without_backend().prepare_cameras(stage, spec)
 
-    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
+    assert camera.GetAttribute("exposure:iso").Get() == 100.0
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
@@ -705,7 +705,7 @@ def test_ovrtx_radiance_is_extracted_on_the_output_device(monkeypatch):
     renderer._device = "cpu"
     render_data = _make_ovrtx_camera_render_data()
     data = CameraData.allocate(
-        data_types=["rgb_radiance"],
+        data_types=["rgb_hdr"],
         height=8,
         width=16,
         num_views=2,
@@ -734,7 +734,7 @@ def test_ovrtx_radiance_is_extracted_on_the_output_device(monkeypatch):
     frame = types.SimpleNamespace(render_vars={render_data.render_var_keys["HdrColor"]: source})
     renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
 
-    np.testing.assert_array_equal(data.output["rgb_radiance"].warp.numpy(), 2.0)
+    np.testing.assert_array_equal(data.output["rgb_hdr"].warp.numpy(), 2.0)
 
 
 def test_launch_extract_all_tiles_rejects_wider_output_channels():

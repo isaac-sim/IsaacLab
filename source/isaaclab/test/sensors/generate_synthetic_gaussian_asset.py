@@ -31,7 +31,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sensors.camera import Camera, CameraCfg, CameraExposureCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -727,6 +727,7 @@ def render_synthetic_gaussian_scene(
             width=width,
             data_types=data_types,
             spawn=None,
+            exposure=CameraExposureCfg(),
             pipeline=[PpispStepCfg(params={"cfg": isp_cfg})],
             renderer_cfg=renderer_cfg,
         )
@@ -819,6 +820,7 @@ def _render_synthetic_gaussian_camera(
         width=width,
         data_types=data_types,
         spawn=None,
+        exposure=CameraExposureCfg(),
         pipeline=[PpispStepCfg(params={"cfg": ppisp_cfg})],
         renderer_cfg=renderer_cfg,
     )

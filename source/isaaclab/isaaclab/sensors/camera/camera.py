@@ -28,7 +28,7 @@ from ...utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from ...utils.processing import ProcessingBufferPipe
+from ...utils.processing import DictTensorProcessor
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
@@ -253,7 +253,7 @@ class Camera(SensorBase):
 
         # Renderer requirements include private pipeline inputs and exclude produced public outputs.
         self._render_cfg = replace(self.cfg, data_types=self.cfg.render_data_types(), pipeline=[])
-        self._buffer_pipe: ProcessingBufferPipe | None = None
+        self._buffer_pipe: DictTensorProcessor | None = None
         self._pipeline_capture: object | None = None
         self._render_camera_data: CameraData | None = None
         self._render_outputs: dict[str, ProxyArray] = {}
@@ -703,6 +703,10 @@ class Camera(SensorBase):
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
         )
+        if self.cfg.exposure is not None:
+            from .camera_exposure import apply_camera_exposure
+
+            apply_camera_exposure(self.stage, list(cam_paths), self.cfg.exposure)
         self._renderer.prepare_cameras(self.stage, render_spec)
 
         # Stage preprocessing must happen before creating the view because the view keeps
@@ -900,7 +904,7 @@ class Camera(SensorBase):
         self._close_pipeline()
         self._pipeline_capture = None
         if self.cfg.pipeline:
-            self._buffer_pipe = ProcessingBufferPipe(self._render_outputs, self.cfg.pipeline)
+            self._buffer_pipe = DictTensorProcessor(self._render_outputs, self.cfg.pipeline)
             try:
                 outputs = dict(self._buffer_pipe.outputs)
                 alias_rgb = (
@@ -1195,6 +1199,10 @@ class Camera(SensorBase):
             camera_prim_paths=cam_paths,
             view_count=num_views,
         )
+        if self.cfg.exposure is not None:
+            from .camera_exposure import apply_camera_exposure
+
+            apply_camera_exposure(self.stage, list(cam_paths), self.cfg.exposure)
         self._renderer.prepare_cameras(self.stage, render_spec)
 
     def _invalidate_initialize_callback(self, event):

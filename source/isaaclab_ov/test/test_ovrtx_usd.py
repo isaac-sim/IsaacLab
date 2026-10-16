@@ -219,10 +219,10 @@ def test_ovrtx_authors_one_render_var_per_requested_data_type():
 
 
 def test_ovrtx_data_types_sharing_a_source_author_one_render_var():
-    """``rgb``/``rgba``, ``depth``/``distance_to_image_plane``, and ``rgb_hdr``/``rgb_radiance`` collapse onto one
+    """``rgb``/``rgba``, ``depth``/``distance_to_image_plane``, and ``rgb_hdr`` collapse onto one
     render var each."""
     render_var_configs = get_render_var_configs(
-        ["rgb", "rgba", "depth", "distance_to_image_plane", "rgb_hdr", "rgb_radiance"],
+        ["rgb", "rgba", "depth", "distance_to_image_plane", "rgb_hdr"],
         render_scope_name="RenderCamera_0",
     )
 
@@ -312,7 +312,7 @@ def test_render_product_pins_device_ids_to_the_requested_cuda_device(camera_spec
 
 @pytest.mark.parametrize(
     ("data_types", "routes_hdr"),
-    [(["rgb"], False), (["rgb", "rgb_hdr"], True), (["rgb", "rgb_radiance"], True)],
+    [(["rgb"], False), (["rgb", "rgb_hdr"], True)],
 )
 def test_render_product_routes_gaussian_hdr_only_for_hdr_outputs(camera_spec, render_data, data_types, routes_hdr):
     """Route Gaussian HDR when an HDR output is requested, without changing the camera outputs."""

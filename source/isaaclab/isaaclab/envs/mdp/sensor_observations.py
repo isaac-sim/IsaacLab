@@ -14,7 +14,7 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.processing import ProcessingBufferPipe, ProcessingBufferStepCfg
+from isaaclab.utils.processing import DictTensorProcessor, DictTensorProcessorStepCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -34,8 +34,8 @@ class processed_sensor(ManagerTermBase):
     returned tensors are snapshots, so later evaluations cannot overwrite retained history.
 
     Use this term for multiple render inputs or changed buffer dimensions. To process other
-    sensor data or the result of earlier observation modifiers, use
-    :class:`~isaaclab.utils.modifiers.ProcessingBufferPipeModifier` on an observation tensor.
+    sensor data or the result of earlier observation tensor_processors, use
+    :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorAdapter` on an observation tensor.
     To read a camera's already processed public output, use the existing image observation terms.
     """
 
@@ -43,7 +43,7 @@ class processed_sensor(ManagerTermBase):
     def prepare_scene(cls, cfg: ObservationTermCfg, env: ManagerBasedEnv) -> None:
         sensor_cfg = cfg.params.get("sensor_cfg", SceneEntityCfg("camera"))
         output_name = cfg.params.get("output_name", "rgb")
-        requirements = ProcessingBufferPipe.required_source_names(cfg.params["pipeline"], [output_name])
+        requirements = DictTensorProcessor.required_source_names(cfg.params["pipeline"], [output_name])
         env.scene.sensors[sensor_cfg.name].request_render_inputs(requirements)
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedEnv):
@@ -54,7 +54,7 @@ class processed_sensor(ManagerTermBase):
         device = wp.get_device(self.device)
         stream = wp.stream_from_torch(torch.cuda.current_stream(str(device))) if device.is_cuda else None
         with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-            self._pipe = ProcessingBufferPipe(buffers, cfg.params["pipeline"])
+            self._pipe = DictTensorProcessor(buffers, cfg.params["pipeline"])
         if self._output_name not in self._pipe.outputs:
             self._pipe.close()
             raise ValueError(f"Buffer processing does not provide output {self._output_name!r}.")
@@ -62,7 +62,7 @@ class processed_sensor(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedEnv,
-        pipeline: Sequence[ProcessingBufferStepCfg],
+        pipeline: Sequence[DictTensorProcessorStepCfg],
         sensor_cfg: SceneEntityCfg = SceneEntityCfg("camera"),
         output_name: str = "rgb",
         *,

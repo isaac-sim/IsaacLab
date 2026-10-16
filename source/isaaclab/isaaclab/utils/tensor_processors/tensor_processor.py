@@ -12,57 +12,59 @@ from typing import TYPE_CHECKING
 import torch
 
 if TYPE_CHECKING:
-    from .modifier_cfg import ModifierCfg
+    from .tensor_processor_cfg import TensorProcessorCfg
 
 
-class ModifierBase(ABC):
-    """Base class for modifiers implemented as classes.
+class TensorProcessor(ABC):
+    """Base class for tensor_processors implemented as classes.
 
-    Modifiers implementations can be functions or classes. If a modifier is a class, it should
+    Tensor processors implementations can be functions or classes. If a processor is a class, it should
     inherit from this class and implement the required methods.
 
-    A class implementation of a modifier can be used to store state information between calls.
-    This is useful for modifiers that require stateful operations, such as rolling averages
+    A class implementation of a processor can be used to store state information between calls.
+    This is useful for tensor_processors that require stateful operations, such as rolling averages
     or delays or decaying filters.
 
     Example pseudo-code to create and use the class:
 
     .. code-block:: python
 
-        from isaaclab.utils import modifiers
+        from isaaclab.utils import tensor_processors
 
-        # define custom keyword arguments to pass to ModifierCfg
+        # define custom keyword arguments to pass to TensorProcessorCfg
         kwarg_dict = {"arg_1": VAL_1, "arg_2": VAL_2}
 
-        # create modifier configuration object
-        # func is the class name of the modifier and params is the dictionary of arguments
-        modifier_config = modifiers.ModifierCfg(func=modifiers.ModifierBase, params=kwarg_dict)
+        # create processor configuration object
+        # func is the class name of the processor and params is the dictionary of arguments
+        processor_config = tensor_processors.TensorProcessorCfg(
+            func=tensor_processors.TensorProcessor, params=kwarg_dict
+        )
 
-        # define modifier instance
-        my_modifier = modifiers.ModifierBase(cfg=modifier_config)
+        # define processor instance
+        my_processor = MyProcessor(processor_config, data_dim=(32, 4), device="cpu")
 
     """
 
-    def __init__(self, cfg: ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
-        """Initializes the modifier class.
+    def __init__(self, cfg: TensorProcessorCfg, data_dim: tuple[int, ...], device: str) -> None:
+        """Initializes the processor class.
 
         Args:
             cfg: Configuration parameters.
             data_dim: The dimensions of the data to be modified. First element is the batch size
                 which usually corresponds to number of environments in the simulation.
-            device: The device to run the modifier on.
+            device: The device to run the processor on.
         """
         self._cfg = cfg
         self._data_dim = data_dim
         self._device = device
 
     def close(self) -> None:
-        """Release resources owned by this modifier."""
+        """Release resources owned by this processor."""
         pass
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
-        """Resets the Modifier.
+        """Resets the Processor.
 
         Args:
             env_ids: The environment ids. Defaults to None, in which case

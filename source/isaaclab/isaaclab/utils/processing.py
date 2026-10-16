@@ -39,7 +39,7 @@ class PreparedBufferOperation:
 
 
 @configclass
-class ProcessingBufferStepCfg:
+class DictTensorProcessorStepCfg:
     """Bind named buffers to the input/output roles of one processing operation.
 
     The factory ``prepare(inputs, **params)`` runs once during pipe construction and returns
@@ -68,7 +68,7 @@ class ProcessingBufferStepCfg:
     """
 
 
-class ProcessingBufferPipe:
+class DictTensorProcessor:
     """Apply an ordered sequence of operations to named :class:`ProxyArray` buffers.
 
     Buffers may hold images, LiDAR points, or other sensor and observation data. The pipe imposes
@@ -88,7 +88,7 @@ class ProcessingBufferPipe:
         steps: Ordered operation configurations.
     """
 
-    def __init__(self, source_buffers: Mapping[str, ProxyArray], steps: Sequence[ProcessingBufferStepCfg]):
+    def __init__(self, source_buffers: Mapping[str, ProxyArray], steps: Sequence[DictTensorProcessorStepCfg]):
         self._source_buffers = dict(source_buffers)
         self.required_inputs = self.required_source_names(steps)
         self._operations: list[
@@ -153,7 +153,7 @@ class ProcessingBufferPipe:
 
     @staticmethod
     def required_source_names(
-        steps: Sequence[ProcessingBufferStepCfg], published_names: Sequence[str] = ()
+        steps: Sequence[DictTensorProcessorStepCfg], published_names: Sequence[str] = ()
     ) -> frozenset[str]:
         """Resolve external names without constructing operations or allocating buffer storage.
 

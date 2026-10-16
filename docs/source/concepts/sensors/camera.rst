@@ -170,9 +170,6 @@ produce additional output names; its operation factories allocate those buffers.
    * - ``rgb_hdr``
      - 3, ``float32``
      - High-dynamic-range RGB using the active camera settings
-   * - ``rgb_radiance``
-     - 3, ``float32``
-     - Scene-linear RGB before exposure and response, in renderer-relative intensity units
    * - ``albedo``
      - 4, ``uint8``
      - Material base color
@@ -202,15 +199,11 @@ produce additional output names; its operation factories allocate those buffers.
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
 
-``rgb_hdr`` does not request exposure neutralization. ``rgb_radiance`` is the input for image
-processing that applies its own exposure and camera response, such as PPISP.
-A PPISP pipeline requests ``rgb_radiance`` as a private input automatically; add it to
-``CameraCfg.data_types`` only when it should also be published in ``camera.data.output``.
-
-If both ``rgb_hdr`` and ``rgb_radiance`` are requested, they share the same scene-linear buffer.
-On Isaac RTX and OVRTX, requesting radiance neutralizes exposure for the entire camera prim, so
-``rgb_hdr`` also contains neutralized color. Use separate camera prims to obtain radiance and color
-with the authored exposure; see the limitation in :ref:`camera-supported-annotators`.
+``rgb_hdr`` uses the camera's active exposure settings. PPISP requires scene-linear HDR;
+set ``CameraCfg.exposure=CameraExposureCfg()`` explicitly to disable RTX automatic exposure and
+use neutral exposure. Leaving ``exposure=None`` preserves authored camera settings. Selecting an
+output never changes exposure. PPISP requests ``rgb_hdr`` privately; include it in ``data_types``
+only to publish the raw input as well.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center
@@ -248,10 +241,6 @@ current support matrix is:
      - Yes
      - Yes
      - Yes
-   * - ``rgb_radiance``
-     - Derived (see below)
-     - Derived (see below)
-     - Yes
    * - ``depth`` and both distance outputs
      - Yes
      - Yes
@@ -283,13 +272,9 @@ current support matrix is:
 
 .. note::
 
-   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
-   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
-   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
-   applies to other camera sensors that share the prim. A single render product cannot return both
-   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
-   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
-   been requested from the RTX team (NVBug 6858736).
+   Explicit exposure settings affect every output from the camera prim, including other sensors
+   sharing it. Use separate camera prims when different exposures are required. Newton's HDR
+   output is already scene-linear and does not consume RTX exposure attributes.
 
 Querying an unsupported output fails during camera initialization. Renderer configuration controls
 semantic filters, segmentation colorization, and depth clipping where those options are
@@ -326,6 +311,7 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 
 .. code-block:: python
 
+   from isaaclab.sensors.camera import CameraExposureCfg
    from isaaclab.utils import replace
 
    mask_camera = replace(front_camera, background_color=(0.0, 0.0, 0.0))
@@ -337,25 +323,27 @@ Post-render image processing
 ----------------------------
 
 :attr:`~sensors.CameraCfg.pipeline` applies an ordered sequence of operations to named image buffers.
-Each :class:`~isaaclab.utils.processing.ProcessingBufferStepCfg` maps operation input and output roles to buffer
+Each :class:`~isaaclab.utils.processing.DictTensorProcessorStepCfg` maps operation input and output roles to buffer
 names. A step can read several channels, such as radiance and depth, and later steps read the preceding
-step's results. The same :class:`~isaaclab.utils.processing.ProcessingBufferPipe` can run independently or serve
+step's results. The same :class:`~isaaclab.utils.processing.DictTensorProcessor` can run independently or serve
 an observation consumer; operations receive explicit buffers and resources without discovering a camera,
 environment, or simulation singleton. The shared pipe accepts named ``ProxyArray`` buffers, including
 nonvisual sensor data; image layout and pixel meaning are requirements of individual operations.
 
 The camera resolves external inputs before renderer initialization, including inputs needed only by the
 pipeline. It publishes the names in ``data_types`` after processing. For example, this camera requests
-private ``rgb_radiance`` from its renderer and publishes PPISP's processed ``rgb``:
+private ``rgb_hdr`` from its renderer and publishes PPISP's processed ``rgb``:
 
 .. code-block:: python
 
+   from isaaclab.sensors.camera import CameraExposureCfg
    from isaaclab.utils import replace
    from isaaclab_ppisp import PpispCfg, PpispStepCfg
 
    processed_camera = replace(
        front_camera,
        data_types=["rgb"],
+       exposure=CameraExposureCfg(),
        pipeline=[PpispStepCfg(params={"cfg": PpispCfg(inputs={"exposureOffset": 1.5})})],
    )
 
@@ -408,6 +396,7 @@ through their ``request_render_inputs()`` and ``render_outputs`` interface:
    from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
    from isaaclab_ppisp import PpispStepCfg
 
+   front_camera.exposure = CameraExposureCfg()
    policy_image = ObservationTermCfg(
        func=mdp.processed_sensor,
        params={
@@ -424,27 +413,27 @@ camera's published processed output, use an existing image term such as ``mdp.im
 The observation pipe executes on every term evaluation and returns a snapshot; its state belongs to
 that term rather than the camera's capture cadence.
 
-For a single incoming tensor, :class:`~isaaclab.utils.modifiers.ProcessingBufferPipeModifierCfg` uses the
+For a single incoming tensor, :class:`~isaaclab.utils.tensor_processors.DictTensorProcessorAdapterCfg` uses the
 same operations while preserving preceding observation transformations. This includes nonvisual
 observation tensors from sensors without the render-input interface. This form must preserve shape;
 use ``processed_sensor`` for multiple render inputs or changes to render-output shapes, or construct
-a ``ProcessingBufferPipe`` directly for other named buffers. The first incoming tensor prepares the
+a ``DictTensorProcessor`` directly for other named buffers. The first incoming tensor prepares the
 operations; later calls reuse their output storage. Its values must meet the operation's documented
-input requirements, including any transformations from preceding modifiers:
+input requirements, including any transformations from preceding tensor processors:
 
 .. code-block:: python
 
-   from isaaclab.utils import modifiers
+   from isaaclab.utils import tensor_processors
 
    # This camera publishes radiance for the ordinary image term to read.
-   raw_camera = replace(front_camera, data_types=["rgb_radiance"], pipeline=[])
+   raw_camera = replace(front_camera, data_types=["rgb_hdr"], exposure=CameraExposureCfg(), pipeline=[])
    policy_image = ObservationTermCfg(
        func=mdp.image_rgb,
-       params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_radiance", "normalize": False},
-       modifiers=[
-           modifiers.ProcessingBufferPipeModifierCfg(
+       params={"sensor_cfg": SceneEntityCfg("front_camera"), "data_type": "rgb_hdr", "normalize": False},
+       tensor_processors=[
+           tensor_processors.DictTensorProcessorAdapterCfg(
                pipeline=[PpispStepCfg()],
-               input_name="rgb_radiance",
+               input_name="rgb_hdr",
                output_name="rgb",
            )
        ],
@@ -466,6 +455,7 @@ operation:
    discovered_camera = replace(
        front_camera,
        data_types=["rgb"],
+       exposure=CameraExposureCfg(),
        pipeline=[PpispStepCfg(params={"cfg": ppisp_cfg})] if ppisp_cfg is not None else [],
    )
 
@@ -475,9 +465,10 @@ on the supplied stage. Alternatively, pass an already resolved camera prim to
 the operation. Static coefficients apply to the whole camera batch; controller weights may predict
 per-view exposure and color parameters.
 
-Requesting ``rgb_radiance``, including a private pipeline request, still neutralizes camera exposure on
-Isaac RTX and OVRTX as described in :ref:`camera-supported-annotators`. Processing configuration itself
-does not change renderer settings. Newton Warp has no exposure model.
+For either processing attachment, configure the source camera with
+``exposure=CameraExposureCfg()`` before simulation initialization. PPISP's own exposure is set
+through ``PpispCfg.inputs["exposureOffset"]`` (stops). Processing does not discover or change
+renderer exposure settings.
 
 Run the ``ppisp-camera`` example for a complete PPISP workflow. It supports
 ``--renderer newton_renderer`` (Newton Warp, the default) and ``--renderer isaac_rtx`` (Isaac RTX).
@@ -546,3 +537,9 @@ A runnable camera example is available as ``camera``:
 
 For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
 and customization, see :doc:`/source/how-to/configure_rendering`.
+
+The observation processor API is ``isaaclab.utils.tensor_processors``. Custom stateful processors
+inherit ``TensorProcessor`` and use ``TensorProcessorCfg``; attach configurations through
+``ObservationTermCfg.tensor_processors``. These replace ``ModifierBase``, ``ModifierCfg``, and
+``ObservationTermCfg.modifiers`` respectively. ``DictTensorProcessorAdapterCfg`` adapts a dictionary
+processor pipeline to that single-tensor interface.

@@ -20,8 +20,8 @@ from isaaclab.managers import (
     ObservationManager,
     ObservationTermCfg,
 )
-from isaaclab.utils import configclass, modifiers
-from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferStepCfg
+from isaaclab.utils import configclass, tensor_processors
+from isaaclab.utils.processing import DictTensorProcessorStepCfg, PreparedBufferOperation
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -107,7 +107,7 @@ class _NestedImage(ManagerTermBase):
 
 
 def test_pipe_modifier_uses_preceding_modifier_output():
-    """A pipe consumes the current non-image observation after preceding modifiers."""
+    """A pipe consumes the current non-image observation after preceding tensor_processors."""
     ranges = torch.ones((2, 4))
     preparations = []
 
@@ -125,11 +125,11 @@ def test_pipe_modifier_uses_preceding_modifier_output():
         concatenate_terms = False
         ranges = ObservationTermCfg(
             func=_read_ranges,
-            modifiers=[
-                modifiers.ModifierCfg(func=modifiers.bias, params={"value": 3.0}),
-                modifiers.ProcessingBufferPipeModifierCfg(
+            tensor_processors=[
+                tensor_processors.TensorProcessorCfg(func=tensor_processors.bias, params={"value": 3.0}),
+                tensor_processors.DictTensorProcessorAdapterCfg(
                     pipeline=[
-                        ProcessingBufferStepCfg(
+                        DictTensorProcessorStepCfg(
                             prepare=prepare,
                             inputs={"ranges": "ranges"},
                             outputs={"ranges": "ranges"},
@@ -172,10 +172,10 @@ def test_pipe_modifier_retries_failed_preparation_and_stays_closed():
         )
         return PreparedBufferOperation({"color": output}, operation.apply, close=lambda: lifecycle.append("close"))
 
-    cfg = modifiers.ProcessingBufferPipeModifierCfg(
-        pipeline=[ProcessingBufferStepCfg(prepare=prepare, inputs={"color": "rgb"}, outputs={"color": "rgb"})]
+    cfg = tensor_processors.DictTensorProcessorAdapterCfg(
+        pipeline=[DictTensorProcessorStepCfg(prepare=prepare, inputs={"color": "rgb"}, outputs={"color": "rgb"})]
     )
-    modifier = modifiers.ProcessingBufferPipeModifier(cfg, tuple(image.shape), "cpu")
+    modifier = tensor_processors.DictTensorProcessorAdapter(cfg, tuple(image.shape), "cpu")
     modifier.reset([1])
     with pytest.raises(ValueError, match="input shape"):
         modifier(image[:, :, ::2])
@@ -191,7 +191,7 @@ def test_pipe_modifier_retries_failed_preparation_and_stays_closed():
         modifier(image)
     assert lifecycle == ["prepare", "close", "prepare", "close"]
 
-    unused_modifier = modifiers.ProcessingBufferPipeModifier(cfg, tuple(image.shape), "cpu")
+    unused_modifier = tensor_processors.DictTensorProcessorAdapter(cfg, tuple(image.shape), "cpu")
     unused_modifier.close()
     with pytest.raises(RuntimeError, match="closed"):
         unused_modifier(image)
@@ -231,7 +231,7 @@ def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape(
     requests = []
     camera = SimpleNamespace(
         request_render_inputs=lambda names: requests.append(set(names)),
-        render_outputs={"rgb_radiance": ProxyArray(wp.from_torch(radiance)), "depth": ProxyArray(wp.from_torch(depth))},
+        render_outputs={"rgb_hdr": ProxyArray(wp.from_torch(radiance)), "depth": ProxyArray(wp.from_torch(depth))},
     )
     sensors = {"camera": camera}
     env = _env(scene=SimpleNamespace(sensors=sensors, keys=sensors.keys), lifecycle=lifecycle)
@@ -248,9 +248,9 @@ def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape(
                             func="isaaclab.envs.mdp:processed_sensor",
                             params={
                                 "pipeline": [
-                                    ProcessingBufferStepCfg(
+                                    DictTensorProcessorStepCfg(
                                         prepare=prepare,
-                                        inputs={"color": "rgb_radiance", "depth": "depth"},
+                                        inputs={"color": "rgb_hdr", "depth": "depth"},
                                         outputs={"color": "rgb"},
                                     )
                                 ]
@@ -267,7 +267,7 @@ def test_processed_sensor_declares_private_inputs_and_reports_transformed_shape(
 
     cfg = Observations()
     ObservationManager.prepare_scene(cfg, env)
-    assert requests == [{"rgb_radiance", "depth"}]
+    assert requests == [{"rgb_hdr", "depth"}]
     manager = ObservationManager(cfg, env)
     assert manager.group_obs_dim["policy"] == [(2, 2, 3)]
     result = manager.compute()["policy"]["image"]

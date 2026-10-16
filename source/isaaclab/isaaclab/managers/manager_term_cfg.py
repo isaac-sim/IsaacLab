@@ -14,8 +14,8 @@ from typing import TYPE_CHECKING, Any, Literal
 import torch
 
 from ..utils import configclass
-from ..utils.modifiers import ModifierCfg
 from ..utils.noise import NoiseCfg, NoiseModelCfg
+from ..utils.tensor_processors import TensorProcessorCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -167,15 +167,15 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     shape (num_envs, obs_term_dim).
     """
 
-    modifiers: list[ModifierCfg] | None = None
-    """The list of data modifiers to apply to the observation in order. Defaults to None,
+    tensor_processors: list[TensorProcessorCfg] | None = None
+    """The list of tensor processors to apply to the observation in order. Defaults to None,
     in which case no modifications will be applied.
 
-    Modifiers are applied in the order they are specified in the list. They can be stateless
+    Processors are applied in the order they are specified in the list. They can be stateless
     or stateful, and can be used to apply transformations to the observation data. For example,
-    a modifier can be used to normalize the observation data or to apply a rolling average.
+    a processor can be used to normalize the observation data or to apply a rolling average.
 
-    For more information on modifiers, see the :class:`~isaaclab.utils.modifiers.ModifierCfg` class.
+    For more information, see :class:`~isaaclab.utils.tensor_processors.TensorProcessorCfg`.
     """
 
     noise: NoiseCfg | NoiseModelCfg | None = None
@@ -206,7 +206,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     delay_max_lag: int = 0
     """Maximum observation delay, counted in recorded samples. Zero disables delay.
 
-    Set both lag bounds equal for a constant delay. Delay is applied after modifiers, noise, clipping, and
+    Set both lag bounds equal for a constant delay. Delay is applied after tensor processors, noise, clipping, and
     scaling, before observation history. Until enough samples have been recorded, the oldest available
     sample is returned. After reset, no data from the previous episode is returned.
     """

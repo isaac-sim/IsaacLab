@@ -39,7 +39,7 @@ Notes:
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
     HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP camera pipeline
-    requests its private ``"rgb_radiance"`` input automatically, so
+    requests its private ``"rgb_hdr"`` input automatically, so
     ``"rgb_hdr"`` is not required just to enable PPISP.
 """
 
@@ -91,7 +91,7 @@ MULTI_TILE_COUNT = 4
 def _ovrtx_ppisp_cfg() -> PpispCfg:
     """Expose the unexposed scene-linear Gaussian signal into the CRF's useful range."""
     cfg = make_aggressive_ppisp_cfg()
-    # rgb_radiance has a center near 0.12; +2 EV places it near 0.48 before the
+    # rgb_hdr has a center near 0.12; +2 EV places it near 0.48 before the
     # response curve. The shared fixture's -5 EV targets legacy exposed HDR.
     cfg.inputs["exposureOffset"] = 2.0
     return cfg

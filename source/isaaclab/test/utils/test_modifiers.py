@@ -8,7 +8,7 @@ from dataclasses import MISSING
 import pytest
 import torch
 
-import isaaclab.utils.modifiers as modifiers
+import isaaclab.utils.tensor_processors as tensor_processors
 from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass
 
@@ -17,9 +17,9 @@ pytestmark = pytest.mark.unit
 
 @configclass
 class ModifierTestCfg:
-    """Configuration for testing modifiers."""
+    """Configuration for testing tensor_processors."""
 
-    cfg: modifiers.ModifierCfg = MISSING
+    cfg: tensor_processors.TensorProcessorCfg = MISSING
     init_data: torch.Tensor = MISSING
     result: torch.Tensor = MISSING
     num_iter: int = 10
@@ -28,17 +28,17 @@ class ModifierTestCfg:
 @pytest.mark.parametrize(
     "func, params, result",
     [
-        (modifiers.scale, {"multiplier": 2.0}, [2.0, 4.0, 6.0]),
-        (modifiers.bias, {"value": 1.0}, [2.0, 3.0, 4.0]),
-        (modifiers.clip, {"bounds": (1.5, 2.5)}, [1.5, 2.0, 2.5]),
-        (modifiers.clip, {"bounds": (1.5, None)}, [1.5, 2.0, 3.0]),
-        (modifiers.clip, {"bounds": (None, 2.5)}, [1.0, 2.0, 2.5]),
+        (tensor_processors.scale, {"multiplier": 2.0}, [2.0, 4.0, 6.0]),
+        (tensor_processors.bias, {"value": 1.0}, [2.0, 3.0, 4.0]),
+        (tensor_processors.clip, {"bounds": (1.5, 2.5)}, [1.5, 2.0, 2.5]),
+        (tensor_processors.clip, {"bounds": (1.5, None)}, [1.5, 2.0, 3.0]),
+        (tensor_processors.clip, {"bounds": (None, 2.5)}, [1.0, 2.0, 2.5]),
     ],
     ids=["scale", "bias", "clip", "clip_no_upper_bound", "clip_no_lower_bound"],
 )
-def test_stateless_modifiers(func, params, result):
-    """Test the stateless scale, bias, and clip modifiers."""
-    cfg = modifiers.ModifierCfg(func=func, params=params)
+def test_stateless_tensor_processors(func, params, result):
+    """Test the stateless scale, bias, and clip tensor_processors."""
+    cfg = tensor_processors.TensorProcessorCfg(func=func, params=params)
     output = cfg.func(torch.tensor([1.0, 2.0, 3.0]), **cfg.params)
     assert torch.allclose(output, torch.tensor(result))
 
@@ -54,7 +54,7 @@ def test_digital_filter(device):
 
     # create test config
     test_cfg = ModifierTestCfg(
-        cfg=modifiers.DigitalFilterCfg(A=A, B=B), init_data=init_data, result=result, num_iter=16
+        cfg=tensor_processors.DigitalFilterCfg(A=A, B=B), init_data=init_data, result=result, num_iter=16
     )
 
     # create a modifier instance
@@ -89,7 +89,7 @@ def test_integral(device):
 
     # create test config
     test_cfg = ModifierTestCfg(
-        cfg=modifiers.IntegratorCfg(dt=dt),
+        cfg=tensor_processors.IntegratorCfg(dt=dt),
         init_data=init_data,
         result=result,
         num_iter=6,

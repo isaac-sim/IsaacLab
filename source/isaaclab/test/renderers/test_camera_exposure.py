@@ -5,12 +5,16 @@
 
 """Tests for the RTX camera-exposure overrides used for scene-linear color outputs."""
 
+import pytest
+
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
+from isaaclab.sensors.camera import CameraExposureCfg
+from isaaclab.sensors.camera.camera_exposure import apply_camera_exposure
 
 
-def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
+@pytest.mark.parametrize("exposure, iso", [(0.0, 0.0), (2.0, 200.0)])
+def test_camera_exposure_applies_explicit_settings(exposure, iso):
     """Scene-linear outputs require neutral RTX-side exposure on the camera prim."""
     stage = Usd.Stage.CreateInMemory()
     cam = UsdGeom.Camera.Define(stage, "/World/Camera")
@@ -23,11 +27,11 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     prim.CreateAttribute("exposure:time", Sdf.ValueTypeNames.Float).Set(1.0 / 60.0)
     prim.CreateAttribute("omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool).Set(True)
 
-    _apply_rtx_exposure_overrides(stage, ["/World/Camera"])
+    apply_camera_exposure(stage, ["/World/Camera"], CameraExposureCfg(exposure=exposure, iso=iso))
 
-    assert prim.GetAttribute("exposure").Get() == 0.0
+    assert prim.GetAttribute("exposure").Get() == exposure
     assert prim.GetAttribute("exposure:fStop").Get() == 1.0
-    assert prim.GetAttribute("exposure:iso").Get() == 0.0
+    assert prim.GetAttribute("exposure:iso").Get() == iso
     assert prim.GetAttribute("exposure:responsivity").Get() == 1.0
     assert prim.GetAttribute("exposure:time").Get() == 1.0
     assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False

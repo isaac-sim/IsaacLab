@@ -24,7 +24,6 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
@@ -50,8 +49,8 @@ if TYPE_CHECKING:
 
 from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
-# Outputs read from the HdrColor AOV. Radiance differs only by the neutral camera exposure.
-_HDR_DATA_TYPES = frozenset({str(RenderBufferKind.RGB_HDR), str(RenderBufferKind.RGB_RADIANCE)})
+# Outputs read from the HdrColor AOV.
+_HDR_DATA_TYPES = frozenset({str(RenderBufferKind.RGB_HDR)})
 
 # RTX simple-shading constants.
 #
@@ -194,20 +193,10 @@ class IsaacRtxRenderer(BaseRenderer):
         return FabricVisualMaterialWriter
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Neutralize camera exposure when ``rgb_radiance`` is requested.
-
-        RTX has no pre-exposure radiance output, so neutral ``exposure:*`` values and
-        ``OmniRtxCameraExposureAPI_1`` are authored on the camera prims. Otherwise, the
-        camera prim's authored exposure is left alone.
-
-        :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
-        per-render-product in :meth:`create_render_data` via USD attributes.
-        """
+        """Route Gaussian HDR through the camera HDR output."""
         if not _HDR_DATA_TYPES.isdisjoint(spec.cfg.data_types):
             # Gaussian splats otherwise skip tonemapping and never reach the HdrColor AOV.
             get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        if "rgb_radiance" in spec.cfg.data_types and spec.camera_prim_paths:
-            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.
@@ -293,8 +282,7 @@ class IsaacRtxRenderer(BaseRenderer):
         if isaac_sim_version.major >= 6:
             simple_shading_mode = self._resolve_simple_shading_mode(spec)
             needs_color_render = any(
-                data_type in spec.cfg.data_types
-                for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR), str(RenderBufferKind.RGB_RADIANCE))
+                data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
             )
             has_gui = settings.get("/isaaclab/has_gui")
             if simple_shading_mode is None and (not needs_color_render or has_gui):
@@ -514,9 +502,6 @@ class IsaacRtxRenderer(BaseRenderer):
     def set_outputs(self, render_data: IsaacRtxRenderData, output_data: dict[str, ProxyArray]):
         """Store reference to output buffers for writing during render.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
-        radiance = output_data.get(str(RenderBufferKind.RGB_RADIANCE))
-        if radiance is not None and str(RenderBufferKind.RGB_HDR) not in output_data:
-            output_data = {**output_data, str(RenderBufferKind.RGB_HDR): radiance}
         render_data.output_data = output_data
 
     def update_transforms(self) -> None:

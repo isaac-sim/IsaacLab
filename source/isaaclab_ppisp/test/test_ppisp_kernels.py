@@ -41,7 +41,7 @@ from isaaclab_ppisp.kernels import (
 )
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils.processing import ProcessingBufferPipe
+from isaaclab.utils.processing import DictTensorProcessor
 from isaaclab.utils.warp import ProxyArray
 
 wp.init()
@@ -289,7 +289,8 @@ def _crf_reference(x, toe_raw: float, shoulder_raw: float, gamma_raw: float, cen
     return np.maximum(y, 0.0) ** gamma
 
 
-def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference():
+@pytest.mark.parametrize("attachment", ["dictionary", "tensor"])
+def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference(attachment):
     """A CPU RGB pipe preserves the reference curve, including saturated CRF centers."""
     import numpy as np
 
@@ -313,12 +314,24 @@ def test_ppisp_pipe_rgb_crf_extreme_centers_match_reference():
         )
     )
 
-    pipe = ProcessingBufferPipe(
-        {"rgb_radiance": ProxyArray(hdr_color)},
+    pipe = DictTensorProcessor(
+        {"rgb_hdr": ProxyArray(hdr_color)},
         [PpispStepCfg(params={"cfg": cfg})],
     )
-    rgb = pipe({"rgb_radiance": ProxyArray(hdr_color)})["rgb"]
-    rgb_np = rgb.warp.numpy()[0, 0]
+    if attachment == "dictionary":
+        rgb_np = pipe({"rgb_hdr": ProxyArray(hdr_color)})["rgb"].warp.numpy()[0, 0]
+    else:
+        from isaaclab.utils.tensor_processors import DictTensorProcessorAdapter, DictTensorProcessorAdapterCfg
+
+        processor = DictTensorProcessorAdapter(
+            DictTensorProcessorAdapterCfg(
+                pipeline=[PpispStepCfg(params={"cfg": cfg})], input_name="rgb_hdr", output_name="rgb"
+            ),
+            hdr_data.shape,
+            "cpu",
+        )
+        rgb_np = processor(wp.to_torch(hdr_color)).numpy()[0, 0]
+        processor.close()
     for channel, suffix in enumerate("RGB"):
         expected = _crf_reference(
             ramp,
@@ -348,8 +361,8 @@ def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
     cfg = PpispCfg()
     shared_weights = PpispControllerWeights(weights)
     pipes = [
-        ProcessingBufferPipe(
-            {"rgb_radiance": ProxyArray(hdr)},
+        DictTensorProcessor(
+            {"rgb_hdr": ProxyArray(hdr)},
             [PpispStepCfg(params={"cfg": cfg, "channels": channels, "controller_weights": shared_weights})],
         )
         for channels in (3, 4)
@@ -357,16 +370,16 @@ def test_ppisp_controller_pipes_share_weights_for_rgb_and_rgba(device):
     # Use different pixels from preparation and honor prior work on a non-default Torch stream.
     with torch.cuda.stream(torch.cuda.Stream(device=device)):
         incoming = torch.from_numpy(hdr_data * 0.5).to(device) * 3.0
-        observation = pipes[0].apply_to_tensor(incoming, input_name="rgb_radiance", output_name="rgb")
+        observation = pipes[0].apply_to_tensor(incoming, input_name="rgb_hdr", output_name="rgb")
         results = [observation.cpu().numpy()]
-    results.append(pipes[1]({"rgb_radiance": ProxyArray(hdr)})["rgb"].warp.numpy())
+    results.append(pipes[1]({"rgb_hdr": ProxyArray(hdr)})["rgb"].warp.numpy())
     for result, input_scale in zip(results, (1.5, 1.0), strict=True):
         expected = np.floor(_crf_reference(ramp * input_scale * 2.0, 0.013659, 0.013659, 0.378165, 0.0) * 255.0)
         np.testing.assert_allclose(result[0, 0, :, :3].astype(float), np.repeat(expected[:, None], 3, axis=1), atol=1.0)
     assert (results[1][..., 3] == 255).all()
     pipes[0].close()
     hdr.zero_()
-    np.testing.assert_array_equal(pipes[1]({"rgb_radiance": ProxyArray(hdr)})["rgb"].warp.numpy()[..., :3], 0)
+    np.testing.assert_array_equal(pipes[1]({"rgb_hdr": ProxyArray(hdr)})["rgb"].warp.numpy()[..., :3], 0)
     np.testing.assert_array_equal(weights.numpy(), weights_np)
     pipes[1].close()
 
@@ -379,13 +392,13 @@ def test_ppisp_pipe_rejects_incompatible_input_storage(shape, dtype, message):
     """Reject invalid image channels and scalar types before preparing numerical execution."""
     source = ProxyArray(wp.empty(shape, dtype=dtype, device="cpu"))
     with pytest.raises(ValueError, match=message):
-        ProcessingBufferPipe({"rgb_radiance": source}, [PpispStepCfg()])
+        DictTensorProcessor({"rgb_hdr": source}, [PpispStepCfg()])
 
 
 def test_ppisp_pipe_requires_resolved_configuration():
     """An image operation must not discover its settings from a camera during preparation."""
     source = ProxyArray(wp.empty((1, 2, 2, 3), dtype=wp.float32, device="cpu"))
     with pytest.raises(ValueError, match="resolve USD camera attributes"):
-        ProcessingBufferPipe(
-            {"rgb_radiance": source}, [PpispStepCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]
+        DictTensorProcessor(
+            {"rgb_hdr": source}, [PpispStepCfg(params={"cfg": PpispCfg(camera_prim_path="/World/Camera")})]
         )

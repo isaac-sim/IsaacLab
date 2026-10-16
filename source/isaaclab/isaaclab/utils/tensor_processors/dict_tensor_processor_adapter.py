@@ -13,46 +13,46 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from ..processing import ProcessingBufferPipe
+from ..processing import DictTensorProcessor
 from ..warp import ProxyArray
-from .modifier_base import ModifierBase
+from .tensor_processor import TensorProcessor
 
 if TYPE_CHECKING:
-    from .modifier_cfg import ProcessingBufferPipeModifierCfg
+    from .tensor_processor_cfg import DictTensorProcessorAdapterCfg
 
 
-class ProcessingBufferPipeModifier(ModifierBase):
-    """Apply a buffer pipe to the tensor received from the preceding modifier.
+class DictTensorProcessorAdapter(TensorProcessor):
+    """Apply a buffer pipe to the tensor received from the preceding processor.
 
-    The modifier owns a pipe and returns a snapshot. Its output must preserve the input
-    shape, as required by :class:`ModifierBase`. The first incoming tensor prepares the pipe;
+    The processor owns a pipe and returns a snapshot. Its output must preserve the input
+    shape, as required by :class:`TensorProcessor`. The first incoming tensor prepares the pipe;
     subsequent calls reuse its output storage. Inputs may represent images or nonvisual sensor
     observations. For multiple render inputs or shape changes to render outputs, use
     :class:`~isaaclab.envs.mdp.processed_sensor` instead.
     """
 
-    def __init__(self, cfg: ProcessingBufferPipeModifierCfg, data_dim: tuple[int, ...], device: str):
+    def __init__(self, cfg: DictTensorProcessorAdapterCfg, data_dim: tuple[int, ...], device: str):
         super().__init__(cfg, data_dim, device)
-        self._pipe: ProcessingBufferPipe | None = None
+        self._pipe: DictTensorProcessor | None = None
         self._closed = False
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         if self._closed:
-            raise RuntimeError("The buffer pipe modifier is closed.")
+            raise RuntimeError("The buffer pipe processor is closed.")
         if tuple(data.shape) != tuple(self._data_dim):
             raise ValueError(
-                f"Observation modifier input shape must be {tuple(self._data_dim)}, got {tuple(data.shape)}."
+                f"Observation processor input shape must be {tuple(self._data_dim)}, got {tuple(data.shape)}."
             )
         if self._pipe is None:
             stream = wp.stream_from_torch(torch.cuda.current_stream(data.device)) if data.is_cuda else None
             with wp.ScopedStream(stream, sync_enter=True, sync_exit=True):
-                pipe = ProcessingBufferPipe({self._cfg.input_name: ProxyArray(wp.from_torch(data))}, self._cfg.pipeline)
+                pipe = DictTensorProcessor({self._cfg.input_name: ProxyArray(wp.from_torch(data))}, self._cfg.pipeline)
                 try:
                     if self._cfg.output_name not in pipe.outputs:
                         raise ValueError(f"Buffer processing does not provide output {self._cfg.output_name!r}.")
                     if pipe.outputs[self._cfg.output_name].shape != tuple(self._data_dim):
                         raise ValueError(
-                            "Observation modifiers must preserve shape;"
+                            "Observation tensor_processors must preserve shape;"
                             " use a processing observation term for shape changes."
                         )
                 except Exception:

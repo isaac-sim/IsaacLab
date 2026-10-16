@@ -11,7 +11,7 @@ import pytest
 import torch
 import warp as wp
 
-from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferPipe, ProcessingBufferStepCfg
+from isaaclab.utils.processing import DictTensorProcessor, DictTensorProcessorStepCfg, PreparedBufferOperation
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
@@ -48,15 +48,15 @@ def composite_pipe():
         "range": ProxyArray(wp.zeros((2, 2, 2, 1), dtype=wp.float32, device="cpu")),
     }
     steps = [
-        ProcessingBufferStepCfg(prepare=_prepare_scale, inputs={"value": "raw_color"}, outputs={"value": "color"}),
-        ProcessingBufferStepCfg(
+        DictTensorProcessorStepCfg(prepare=_prepare_scale, inputs={"value": "raw_color"}, outputs={"value": "color"}),
+        DictTensorProcessorStepCfg(
             prepare=_prepare_composite,
             inputs={"color": "color", "depth": "range"},
             outputs={"value": "color"},
         ),
     ]
-    assert ProcessingBufferPipe.required_source_names(steps, ["color", "labels"]) == {"raw_color", "range", "labels"}
-    pipe = ProcessingBufferPipe(sources, steps)
+    assert DictTensorProcessor.required_source_names(steps, ["color", "labels"]) == {"raw_color", "range", "labels"}
+    pipe = DictTensorProcessor(sources, steps)
     yield pipe
     pipe.close()
 
@@ -115,7 +115,7 @@ def test_tensor_adapter_preserves_incoming_transformations_and_returns_snapshots
 def test_tensor_snapshot_accepts_passthrough_buffer_omitted_from_previous_call():
     """Optional pass-through buffers can return after a call that did not supply them."""
     original = ProxyArray(wp.zeros((2,), dtype=wp.float32, device="cpu"))
-    pipe = ProcessingBufferPipe({"value": original}, [])
+    pipe = DictTensorProcessor({"value": original}, [])
     try:
         pipe({})
         current = ProxyArray(wp.full((2,), 3.0, dtype=wp.float32, device="cpu"))
@@ -136,9 +136,9 @@ def test_invalid_source_buffers_are_rejected_before_processing(invalid):
         destination = ProxyArray(wp.empty_like(inputs["value"].warp))
         return PreparedBufferOperation({"value": destination}, lambda *_: calls.append(True))
 
-    pipe = ProcessingBufferPipe(
+    pipe = DictTensorProcessor(
         {"source": source},
-        [ProcessingBufferStepCfg(prepare=prepare, inputs={"value": "source"}, outputs={"value": "result"})],
+        [DictTensorProcessorStepCfg(prepare=prepare, inputs={"value": "source"}, outputs={"value": "result"})],
     )
     try:
         shape = (1, 1, 1, 1) if invalid == "shape" else source.shape
@@ -163,10 +163,10 @@ def test_invalid_bindings_release_prepared_operations(invalid):
             destination = destination.warp
         return PreparedBufferOperation({"value": destination}, lambda *_: None, close=lambda: closed.append(name))
 
-    first = ProcessingBufferStepCfg(
+    first = DictTensorProcessorStepCfg(
         prepare=prepare, inputs={"value": "source"}, outputs={"value": "middle"}, params={"name": "first"}
     )
-    second = ProcessingBufferStepCfg(
+    second = DictTensorProcessorStepCfg(
         prepare=prepare, inputs={"value": "middle"}, outputs={"value": "result"}, params={"name": "second"}
     )
     if invalid == "missing_dependency":
@@ -181,7 +181,7 @@ def test_invalid_bindings_release_prepared_operations(invalid):
     else:
         message = "outputs must be ProxyArray"
     with pytest.raises(TypeError if invalid == "output_type" else ValueError, match=message):
-        ProcessingBufferPipe({"source": source}, [first, second])
+        DictTensorProcessor({"source": source}, [first, second])
     assert closed == (["second", "first"] if invalid in ("output_roles", "output_type") else ["first"])
 
 
@@ -209,10 +209,10 @@ def test_reset_selects_batch_entries_and_close_releases_operations_in_reverse_or
 
         return PreparedBufferOperation({"value": destination}, apply, reset=reset, close=close)
 
-    pipe = ProcessingBufferPipe(
+    pipe = DictTensorProcessor(
         {"value": source},
         [
-            ProcessingBufferStepCfg(
+            DictTensorProcessorStepCfg(
                 prepare=prepare, inputs={"value": "value"}, outputs={"value": "value"}, params={"name": name}
             )
             for name in ("first", "second")

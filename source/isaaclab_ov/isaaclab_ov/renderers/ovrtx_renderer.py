@@ -74,7 +74,6 @@ except ModuleNotFoundError as exc:
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
-from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
@@ -415,16 +414,6 @@ class OVRTXRenderer(BaseRenderer):
     def visual_material_writer(self):
         """Return a writer factory once this renderer has a scene consumer."""
         return self._create_visual_material_writer if self._initialized_scene else None
-
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Neutralize camera exposure when ``rgb_radiance`` is requested.
-
-        The RTX core OVRTX embeds has no pre-exposure radiance output, so neutral ``exposure:*``
-        values and ``OmniRtxCameraExposureAPI_1`` are authored on the camera prims. Otherwise, the
-        camera prim's authored exposure is left alone.
-        """
-        if "rgb_radiance" in spec.cfg.data_types and spec.camera_prim_paths:
-            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
@@ -863,10 +852,6 @@ class OVRTXRenderer(BaseRenderer):
         render_data.warp_buffers = {
             name: proxy.warp for name, proxy in output_data.items() if name != str(RenderBufferKind.RGB)
         }
-        # Radiance reads the same HdrColor var; exposure is neutralized in :meth:`prepare_cameras`.
-        radiance = render_data.warp_buffers.get(str(RenderBufferKind.RGB_RADIANCE))
-        if radiance is not None:
-            render_data.warp_buffers.setdefault(str(RenderBufferKind.RGB_HDR), radiance)
 
     def _update_camera_legacy(
         self,

@@ -64,7 +64,6 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch, isaac_sim
         specs = renderer.supported_output_types()
 
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
-    assert specs[RenderBufferKind.RGB_RADIANCE] == specs[RenderBufferKind.RGB_HDR]
     requires_6_0 = [
         RenderBufferKind.ALBEDO,
         RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE,
@@ -107,9 +106,7 @@ def test_renderer_marks_rtx_sensor_rendering_when_created(monkeypatch):
     settings.set.assert_any_call("/physics/fabricUpdateTransformations", True)
 
 
-@pytest.mark.parametrize(
-    ("data_types", "routes_hdr"), [(["rgb"], False), (["rgb_hdr"], True), (["rgb_radiance"], True)]
-)
+@pytest.mark.parametrize(("data_types", "routes_hdr"), [(["rgb"], False), (["rgb_hdr"], True)])
 def test_prepare_cameras_routes_gaussian_hdr_for_hdr_cameras(monkeypatch, data_types, routes_hdr):
     """Gaussian HDR routing is enabled only for cameras that read HDR color."""
     _install_omni_stubs(monkeypatch)
@@ -124,9 +121,9 @@ def test_prepare_cameras_routes_gaussian_hdr_for_hdr_cameras(monkeypatch, data_t
     assert (hdr_call in settings.set.call_args_list) is routes_hdr
 
 
-@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"]])
-def test_prepare_cameras_neutralizes_exposure_for_radiance(monkeypatch, data_types):
-    """Radiance neutralizes camera exposure; standalone HDR keeps the authored camera settings."""
+@pytest.mark.parametrize("data_types", [["rgb"], ["rgb_hdr"]])
+def test_prepare_cameras_preserves_authored_exposure(monkeypatch, data_types):
+    """Selecting render outputs preserves authored camera exposure."""
     _install_omni_stubs(monkeypatch)
     from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
 
@@ -138,12 +135,12 @@ def test_prepare_cameras_neutralizes_exposure_for_radiance(monkeypatch, data_typ
     spec = SimpleNamespace(cfg=SimpleNamespace(data_types=data_types), camera_prim_paths=("/World/Camera",))
     IsaacRtxRenderer.__new__(IsaacRtxRenderer).prepare_cameras(stage, spec)
 
-    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
+    assert camera.GetAttribute("exposure:iso").Get() == 100.0
 
 
-@pytest.mark.parametrize("data_types", [["rgb_radiance"], ["rgb_radiance", "rgb_hdr"]])
-def test_radiance_reads_the_hdr_annotator_into_its_output(monkeypatch, data_types):
-    """Radiance and HDR attach one HdrColor annotator and extract it into the camera's own buffers."""
+@pytest.mark.parametrize("data_types", [["rgb_hdr"]])
+def test_hdr_reads_the_hdr_annotator_into_its_output(monkeypatch, data_types):
+    """HDR attaches one HdrColor annotator and extract it into the camera's own buffers."""
     replicator, syntheticdata = _install_omni_stubs(monkeypatch)
     monkeypatch.setattr(syntheticdata, "SyntheticData", MagicMock(), raising=False)
 
@@ -290,7 +287,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         pytest.param(["rgb", "simple_shading_full_mdl"], 3, False, id="rgb_keeps_path_tracing"),
         pytest.param(["rgba", "simple_shading_full_mdl"], 3, False, id="rgba_keeps_path_tracing"),
         pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, False, id="rgb_hdr_keeps_path_tracing"),
-        pytest.param(["rgb_radiance", "simple_shading_full_mdl"], 3, False, id="radiance_keeps_path_tracing"),
+        pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, False, id="radiance_keeps_path_tracing"),
     ],
 )
 def test_simple_shading_configures_its_render_product(

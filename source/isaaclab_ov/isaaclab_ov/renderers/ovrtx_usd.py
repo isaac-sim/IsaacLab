@@ -32,7 +32,6 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     "simple_shading_diffuse_mdl": ("LdrColor", "LdrColor"),
     "simple_shading_full_mdl": ("LdrColor", "LdrColor"),
     "rgb_hdr": ("HdrColor", "HdrColor"),
-    "rgb_radiance": ("HdrColor", "HdrColor"),
     "albedo": ("albedo", "DiffuseAlbedoSD"),
     "depth": ("depth", "DistanceToImagePlaneSD"),
     "distance_to_image_plane": ("depth", "DistanceToImagePlaneSD"),
@@ -198,7 +197,7 @@ def build_render_product_as_string(
     # Workaround: ovrtx 0.5 misses GPU-read transform changes, so eco mode freezes output after 500 frames.
     render_mode_lines.append("bool omni:rtx:rt:ecoMode:enabled = false")
     api_schemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
-    if not {"rgb_hdr", "rgb_radiance"}.isdisjoint(data_types):
+    if "rgb_hdr" in data_types:
         # OVRTX 0.5 reads this per product. Its default bypasses HdrColor for Gaussian pixels.
         api_schemas.append("OmniRtxSettingsParticleFieldAPI_1")
         render_mode_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false")

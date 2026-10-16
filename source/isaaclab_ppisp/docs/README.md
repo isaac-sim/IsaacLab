@@ -3,10 +3,14 @@
 This extension provides PPISP (Physically Plausible Image Signal Processing) as
 an operation in the shared buffer pipeline used by cameras and observations.
 
-`PpispStepCfg` reads scene-linear `rgb_radiance` from a float32 `ProxyArray` with
+`PpispStepCfg` reads scene-linear `rgb_hdr` from a float32 `ProxyArray` with
 shape `(N, H, W, 3)` and writes uint8 `rgb`. For camera processing, configure
 `CameraCfg.pipeline=[PpispStepCfg(params={"cfg": ppisp_cfg})]`. The camera requests
-required radiance internally; only the requested public outputs are published.
+required HDR internally; only the requested public outputs are published. Set
+`CameraCfg.exposure=CameraExposureCfg()` (from `isaaclab.sensors.camera`) before initialization
+for neutral RTX HDR input. Output selection does not alter exposure. The same setting is required
+when PPISP runs only as an observation tensor processor through `DictTensorProcessorAdapterCfg`.
+Set PPISP exposure in stops through `PpispCfg.inputs["exposureOffset"]`.
 
 Resolve authored settings explicitly before constructing the pipeline:
 
@@ -17,8 +21,8 @@ ppisp_cfg = ppisp_cfg_from_usd_camera(source_camera_prim)
 step = PpispStepCfg(params={"cfg": ppisp_cfg})
 ```
 
-The same step can run in `isaaclab.utils.processing.ProcessingBufferPipe` outside a camera:
-`ProcessingBufferPipe({"rgb_radiance": radiance_buffer}, [step])`, where `radiance_buffer`
+The same step can run in `isaaclab.utils.processing.DictTensorProcessor` outside a camera:
+`DictTensorProcessor({"rgb_hdr": radiance_buffer}, [step])`, where `radiance_buffer`
 is an allocated `ProxyArray`. Preparation validates its shape and dtype and allocates
 the persistent output once on the same device. Input/output bindings can be changed
 independently of PPISP math. For RGBA,

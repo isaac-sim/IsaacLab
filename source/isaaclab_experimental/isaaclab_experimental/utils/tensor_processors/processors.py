@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Warp-native function-based modifiers (experimental).
+"""Warp-native function-based tensor_processors (experimental).
 
-Each modifier takes a ``wp.array`` as its first argument and operates **in-place**
+Each processor takes a ``wp.array`` as its first argument and operates **in-place**
 via ``wp.launch``.  The calling convention mirrors Warp MDP terms::
 
-    modifier.func(data_wp, **params) -> None
+    processor.func(data_wp, **params) -> None
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ def _scale_kernel(data: wp.array(dtype=wp.float32, ndim=2), multiplier: wp.float
 def scale(data: wp.array, multiplier: float) -> None:
     """Scale all elements of *data* by *multiplier* in-place.
 
-    Warp-native drop-in replacement for :func:`isaaclab.utils.modifiers.scale`.
+    Warp-native drop-in replacement for :func:`isaaclab.utils.tensor_processors.scale`.
 
     Args:
         data: The observation buffer to modify. Shape ``(num_envs, D)``.
@@ -48,7 +48,7 @@ def _bias_kernel(data: wp.array(dtype=wp.float32, ndim=2), value: wp.float32):
 def bias(data: wp.array, value: float) -> None:
     """Add a uniform *value* to all elements of *data* in-place.
 
-    Warp-native drop-in replacement for :func:`isaaclab.utils.modifiers.bias`.
+    Warp-native drop-in replacement for :func:`isaaclab.utils.tensor_processors.bias`.
 
     Args:
         data: The observation buffer to modify. Shape ``(num_envs, D)``.
@@ -69,7 +69,7 @@ def _clip_kernel(data: wp.array(dtype=wp.float32, ndim=2), lo: wp.float32, hi: w
 def clip(data: wp.array, bounds: tuple[float | None, float | None]) -> None:
     """Clamp all elements of *data* to [lo, hi] in-place.
 
-    Warp-native drop-in replacement for :func:`isaaclab.utils.modifiers.clip`.
+    Warp-native drop-in replacement for :func:`isaaclab.utils.tensor_processors.clip`.
 
     Args:
         data: The observation buffer to modify. Shape ``(num_envs, D)``.

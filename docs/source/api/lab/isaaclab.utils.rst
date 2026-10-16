@@ -17,7 +17,7 @@
       logger
       math
       mesh
-      modifiers
+      tensor_processors
       noise
       processing
       seed
@@ -125,10 +125,10 @@ Mesh operations
    :imported-members:
    :show-inheritance:
 
-Modifier operations
-~~~~~~~~~~~~~~~~~~~
+Tensor processors
+~~~~~~~~~~~~~~~~~
 
-.. automodule:: isaaclab.utils.modifiers
+.. automodule:: isaaclab.utils.tensor_processors
    :members:
    :imported-members:
    :special-members: __call__
@@ -151,17 +151,17 @@ Processing operations
 
 .. automodule:: isaaclab.utils.processing
 
-``ProcessingBufferPipe`` processes named ``ProxyArray`` buffers, including camera outputs and nonvisual
+``DictTensorProcessor`` processes named ``ProxyArray`` buffers, including camera outputs and nonvisual
 sensor data. Operations define their own input shape, dtype, and semantic requirements.
 
 .. autoclass:: isaaclab.utils.processing.PreparedBufferOperation
    :members:
 
-.. autoclass:: isaaclab.utils.processing.ProcessingBufferStepCfg
+.. autoclass:: isaaclab.utils.processing.DictTensorProcessorStepCfg
    :members:
    :exclude-members: __init__
 
-.. autoclass:: isaaclab.utils.processing.ProcessingBufferPipe
+.. autoclass:: isaaclab.utils.processing.DictTensorProcessor
    :members:
    :special-members: __call__
 

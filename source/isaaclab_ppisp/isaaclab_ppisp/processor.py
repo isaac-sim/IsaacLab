@@ -14,7 +14,7 @@ from typing import Any
 import warp as wp
 
 from isaaclab.utils import configclass
-from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferStepCfg
+from isaaclab.utils.processing import DictTensorProcessorStepCfg, PreparedBufferOperation
 from isaaclab.utils.warp import ProxyArray
 
 from .cfg import PpispCfg
@@ -71,7 +71,7 @@ def prepare_ppisp(
 
 
 @configclass
-class PpispStepCfg(ProcessingBufferStepCfg):
+class PpispStepCfg(DictTensorProcessorStepCfg):
     """Route scene-linear radiance through PPISP into a public RGB buffer.
 
     Supply concrete settings with ``params={"cfg": ppisp_cfg}``. To produce RGBA, set
@@ -80,6 +80,6 @@ class PpispStepCfg(ProcessingBufferStepCfg):
     """
 
     prepare = "isaaclab_ppisp:prepare_ppisp"
-    inputs: dict[str, str] = {"radiance": "rgb_radiance"}
+    inputs: dict[str, str] = {"radiance": "rgb_hdr"}
     outputs: dict[str, str] = {"color": "rgb"}
     params: dict[str, Any] = {"cfg": PpispCfg()}

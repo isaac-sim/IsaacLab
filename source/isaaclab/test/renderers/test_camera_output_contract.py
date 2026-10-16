@@ -25,7 +25,7 @@ from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, Re
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import clone, validate
-from isaaclab.utils.processing import PreparedBufferOperation, ProcessingBufferStepCfg
+from isaaclab.utils.processing import DictTensorProcessorStepCfg, PreparedBufferOperation
 from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
@@ -192,7 +192,6 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
         RenderBufferKind.RGB_HDR,
-        RenderBufferKind.RGB_RADIANCE,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
         RenderBufferKind.DISTANCE_TO_CAMERA,
@@ -202,7 +201,6 @@ def test_newton_warp_supported_output_types_key_set():
         RenderBufferKind.INSTANCE_SEGMENTATION,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
-    assert specs[RenderBufferKind.RGB_RADIANCE] == specs[RenderBufferKind.RGB_HDR]
 
 
 def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
@@ -248,7 +246,7 @@ def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
         assert specs[kind] == expected
 
 
-@pytest.mark.parametrize("data_type", [RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE])
+@pytest.mark.parametrize("data_type", [RenderBufferKind.RGB_HDR])
 def test_newton_warp_wraps_requested_hdr_output(data_type):
     """Newton wires both linear color outputs to its HDR output slot."""
     pytest.importorskip("isaaclab_newton")
@@ -280,13 +278,12 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 
 def test_camera_data_allocates_supported_subset_and_aliases_color():
-    """CameraData allocates requested + supported outputs, aliasing rgb into rgba and rgb_hdr into rgb_radiance."""
-    cfg = _make_camera_cfg(["rgb", "rgba", "rgb_hdr", "rgb_radiance", "depth", "instance_segmentation"])
+    """CameraData allocates requested + supported outputs, aliasing rgb into rgba."""
+    cfg = _make_camera_cfg(["rgb", "rgba", "rgb_hdr", "depth", "instance_segmentation"])
     specs = {
         RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
         RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
         RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
-        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
         RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
         RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
     }
@@ -294,15 +291,14 @@ def test_camera_data_allocates_supported_subset_and_aliases_color():
         data_types=cfg.data_types, height=8, width=16, num_views=2, device="cpu", supported_specs=specs
     )
 
-    assert set(data.output.keys()) == {"rgba", "rgb", "rgb_hdr", "rgb_radiance", "depth"}
+    assert set(data.output.keys()) == {"rgba", "rgb", "rgb_hdr", "depth"}
     assert data.output["rgba"].shape == (2, 8, 16, 4)
     assert data.output["rgba"].dtype == wp.uint8
     assert data.output["depth"].shape == (2, 8, 16, 1)
     assert data.output["depth"].dtype == wp.float32
     assert data.output["rgb"].warp.ptr == data.output["rgba"].warp.ptr
-    assert data.output["rgb_hdr"] is data.output["rgb_radiance"]
-    assert data.output["rgb_radiance"].shape == (2, 8, 16, 3)
-    assert data.output["rgb_radiance"].dtype == wp.float32
+    assert data.output["rgb_hdr"].shape == (2, 8, 16, 3)
+    assert data.output["rgb_hdr"].dtype == wp.float32
     assert data.image_shape == (8, 16)
     assert data.info == dict.fromkeys(data.output)
 
@@ -335,15 +331,14 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
 
     from isaaclab.physics import PhysicsEvent
     from isaaclab.renderers import RendererCfg
-    from isaaclab.renderers.rtx_camera_overrides import _apply_rtx_exposure_overrides
-    from isaaclab.sensors.camera import Camera
+    from isaaclab.sensors.camera import Camera, CameraExposureCfg
     from isaaclab.sensors.camera import camera as camera_module
     from isaaclab.sensors.sensor_base import SensorBase
 
     specs = {
         RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
         RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
+        RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
     }
     exported_iso = []
     prepare_error = None
@@ -351,8 +346,6 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
     def prepare_cameras(stage, spec):
         if prepare_error is not None:
             raise prepare_error
-        if "rgb_radiance" in spec.cfg.data_types:
-            _apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def export_stage(stage, num_envs):
         exported_iso.append(prims[1].GetAttribute("exposure:iso").Get())
@@ -387,7 +380,7 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
     def make_camera(prim, data_types):
         camera = Camera.__new__(Camera)
         pipeline = (
-            [ProcessingBufferStepCfg(prepare_identity, {"image": "rgb_radiance"}, {"image": "processed_radiance"})]
+            [DictTensorProcessorStepCfg(prepare_identity, {"image": "rgb_hdr"}, {"image": "processed_radiance"})]
             if data_types == ["processed_radiance"]
             else []
         )
@@ -398,6 +391,7 @@ def test_every_camera_prepares_before_the_shared_stage_export(monkeypatch):
             width=3,
             spawn=None,
             pipeline=pipeline,
+            exposure=CameraExposureCfg() if pipeline else None,
             renderer_cfg=renderer_cfg,
         )
         camera._render_cfg = replace(camera.cfg, data_types=camera.cfg.render_data_types(), pipeline=[])
@@ -486,18 +480,18 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
         width=1,
         data_types=["rgb", "depth"],
         pipeline=[
-            ProcessingBufferStepCfg(prepare_color, {"radiance": "rgb_radiance", "range": "depth"}, {"color": "rgba"})
+            DictTensorProcessorStepCfg(prepare_color, {"radiance": "rgb_hdr", "range": "depth"}, {"color": "rgba"})
         ],
     )
     specs = {
-        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
+        RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
         RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
     }
     capture = {"frame": 1}
     radiance = 0.2
 
     def read_output(render_data, camera_data):
-        camera_data.output["rgb_radiance"].torch.fill_(radiance)
+        camera_data.output["rgb_hdr"].torch.fill_(radiance)
         camera_data.output["depth"].torch.fill_(0.5)
         for name in camera_data.info:
             camera_data.info[name] = {"capture": capture}
@@ -530,9 +524,9 @@ def test_camera_pipeline_keeps_raw_inputs_and_processes_only_new_captures(monkey
     camera._update_buffers_impl(mask)
 
     assert set(camera.data.output) == {"rgb", "depth"}
-    assert set(camera.render_outputs) == {"rgb_radiance", "depth"}
+    assert set(camera.render_outputs) == {"rgb_hdr", "depth"}
     torch.testing.assert_close(camera.data.output["rgb"].torch, torch.full((2, 1, 1, 3), 70, dtype=torch.uint8))
-    torch.testing.assert_close(camera.render_outputs["rgb_radiance"].torch, torch.full((2, 1, 1, 3), 0.2))
+    torch.testing.assert_close(camera.render_outputs["rgb_hdr"].torch, torch.full((2, 1, 1, 3), 0.2))
     assert camera.data.output["depth"] is camera.render_outputs["depth"]
     assert camera.data.info["rgb"]["capture"] is capture
 
@@ -583,9 +577,9 @@ def test_camera_requests_private_observation_inputs_before_initialization():
     camera._render_outputs = {}
     camera._is_initialized = False
     camera._clear_callbacks = lambda: None
-    camera.request_render_inputs(["depth", "rgb_radiance"])
+    camera.request_render_inputs(["depth", "rgb_hdr"])
     assert camera.cfg.data_types == ["rgb"]
-    assert set(camera._render_cfg.data_types) == {"rgb", "depth", "rgb_radiance"}
+    assert set(camera._render_cfg.data_types) == {"rgb", "depth", "rgb_hdr"}
     camera._is_initialized = True
     camera.request_render_inputs(["depth"])
     with pytest.raises(RuntimeError, match="before initialization"):
