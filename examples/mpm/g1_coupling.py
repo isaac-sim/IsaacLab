@@ -508,13 +508,18 @@ def main() -> None:
     with launch_simulation(env_cfg, args_cli):
         agent_cfg.device = env_cfg.sim.device
         import torch
-        from rsl_rl.runners import OnPolicyRunner
 
         from isaaclab.envs import ManagerBasedRLEnv
-        from isaaclab.utils import to_dict
         from isaaclab.utils.seed import configure_seed
 
-        from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
+        from isaaclab_rl.rsl_rl import (
+            RslRlVecEnvWrapper,
+            check_rsl_rl_version,
+            create_rsl_rl_runner,
+            handle_deprecated_rsl_rl_cfg,
+        )
+
+        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, check_rsl_rl_version())
 
         if checkpoint is None:
             from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
@@ -529,7 +534,7 @@ def main() -> None:
 
         base_env = ManagerBasedRLEnv(cfg=env_cfg)
         env = RslRlVecEnvWrapper(base_env, clip_actions=agent_cfg.clip_actions)
-        runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+        runner = create_rsl_rl_runner(env, agent_cfg)
         if args_cli.deterministic:
             configure_seed(args_cli.seed, torch_deterministic=True)
         runner.load(str(checkpoint))

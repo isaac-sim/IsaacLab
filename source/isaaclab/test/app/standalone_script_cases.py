@@ -226,8 +226,7 @@ OVERRIDES = {
         required_modules=("isaaclab_contrib",),
     ),
     "examples/mpm/g1_coupling.py": ScriptOverride(
-        args=("--max_steps", "2"),
-        skip_reason="downloads a published policy",
+        args=("--max_steps", "2", "--voxel_size", "0.1"),
         fixed_physics_backend="newton_coupler",
         visualizers=("none", "kit", "newton_gl", "newton_rtx"),
         required_modules=("isaaclab_contrib", "rsl_rl"),
