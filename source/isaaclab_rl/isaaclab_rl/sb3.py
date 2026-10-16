@@ -72,7 +72,9 @@ def process_sb3_cfg(cfg: dict, num_envs: int) -> dict:
                         _, initial_value = value.split("_")
                         initial_value = float(initial_value)
                         # bind the value now; a closure over the loop variable would share the last parsed value
-                        hyperparams[key] = lambda progress_remaining, v=initial_value: progress_remaining * v
+                        hyperparams[key] = lambda progress_remaining, initial_value=initial_value: (
+                            progress_remaining * initial_value
+                        )
                     elif isinstance(value, (float, int)):
                         # negative value: ignore (ex: for clipping)
                         if value < 0:

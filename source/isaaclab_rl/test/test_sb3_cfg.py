@@ -7,6 +7,7 @@
 
 import pytest
 
+pytest.importorskip("stable_baselines3")
 from isaaclab_rl.sb3 import process_sb3_cfg
 
 pytestmark = pytest.mark.unit
