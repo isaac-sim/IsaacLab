@@ -21,7 +21,6 @@ SHELL ["/bin/bash", "-c"]
 
 LABEL description="Container for installation CI tests."
 
-ARG ISAACLAB_USER_HOME=/opt/isaaclab-user
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -90,12 +89,12 @@ RUN find ${ISAACLAB_PATH} -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 RUN if getent passwd ubuntu >/dev/null; then userdel -r ubuntu; fi \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
- && useradd --uid 1000 --gid 1000 --home-dir ${ISAACLAB_USER_HOME} --create-home --shell /bin/bash isaaclab \
- && mkdir -p ${ISAACLAB_USER_HOME}/.cache/uv ${ISAACLAB_USER_HOME}/.cache/pip \
- && chown -R isaaclab:isaaclab ${ISAACLAB_USER_HOME} \
+ && useradd --uid 1000 --gid 1000 -m -s /bin/bash isaaclab \
+ && chown isaaclab:isaaclab /home/isaaclab \
+ && mkdir -p /home/isaaclab/.cache/uv /home/isaaclab/.cache/pip \
+ && chown -R isaaclab:isaaclab /home/isaaclab/.cache \
  && chown -R isaaclab:isaaclab ${ISAACLAB_PATH}
 
-ENV HOME=${ISAACLAB_USER_HOME}
 USER isaaclab
 
 WORKDIR ${ISAACLAB_PATH}

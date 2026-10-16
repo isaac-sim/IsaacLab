@@ -54,7 +54,6 @@ from pathlib import Path
 _DIM = "\033[2m"
 _MAGENTA = "\033[95m"
 _RESET = "\033[0m"
-_INSTALL_CI_USER_HOME = "/opt/isaaclab-user"
 
 # Controls whether run_cmd() streams output by default.
 stream_output: bool = False
@@ -329,11 +328,11 @@ def _cmd_docker(args: argparse.Namespace) -> int:
 
     # Persist pip and uv caches across runs via named Docker volumes.
     # The container runs as the non-root 'isaaclab' user (uid 1000), so caches
-    # must live under its writable service home rather than /root.
+    # must live under /home/isaaclab rather than /root.
     if not args.no_pip_cache:
-        docker_run_cmd.extend(["-v", f"isaaclab-install-ci-pip-cache:{_INSTALL_CI_USER_HOME}/.cache/pip"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-pip-cache:/home/isaaclab/.cache/pip"])
     if not args.no_uv_cache:
-        docker_run_cmd.extend(["-v", f"isaaclab-install-ci-uv-cache:{_INSTALL_CI_USER_HOME}/.cache/uv"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-uv-cache:/home/isaaclab/.cache/uv"])
 
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])

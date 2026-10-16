@@ -38,7 +38,7 @@ def container_context(tmp_path: Path) -> Path:
             (
                 "KITLESS_BASE_IMAGE=ubuntu:24.04",
                 "DOCKER_ISAACLAB_PATH=/workspace/isaaclab",
-                "DOCKER_USER_HOME=/opt/isaaclab-user",
+                "DOCKER_USER_HOME=/home/isaaclab",
             )
         ),
         encoding="utf-8",
@@ -82,7 +82,7 @@ def test_build_uses_profile_dependency_chain(
     ]
     if profile == "kitless":
         assert "ISAACSIM_BASE_IMAGE" not in interface.dot_vars
-        assert interface.dot_vars["DOCKER_USER_HOME"] == "/opt/isaaclab-user"
+        assert interface.dot_vars["DOCKER_USER_HOME"] == "/home/isaaclab"
 
 
 def test_kitless_start_does_not_build_base(
@@ -248,13 +248,13 @@ def test_image_is_verified_before_it_is_published():
 def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.MonkeyPatch):
     """The explicit kit-less volume key resolves the paths prepared by its Dockerfile."""
     monkeypatch.setenv("DOCKER_ISAACLAB_PATH", "/workspace/isaaclab")
-    monkeypatch.setenv("DOCKER_USER_HOME", "/opt/isaaclab-user")
+    monkeypatch.setenv("DOCKER_USER_HOME", "/home/isaaclab")
 
     targets = volume_mounts.resolved_targets(DOCKER_DIR / "docker-compose.yaml", "x-kitless-isaac-lab-volumes")
 
     assert targets == [
-        "/opt/isaaclab-user/.cache/uv",
-        "/opt/isaaclab-user/.cache/warp",
+        "/home/isaaclab/.cache/uv",
+        "/home/isaaclab/.cache/warp",
         "/workspace/isaaclab/docs/_build",
         "/workspace/isaaclab/logs",
         "/workspace/isaaclab/data_storage",
