@@ -838,8 +838,9 @@ A joint without a BAM actuator gets a new one, which needs the motor fit (``mode
 ``resistance``, ``error_gain``, ``max_current``, and ``friction_base``), ``kp_fw``, and ``vin``;
 if one is missing, authoring raises before it changes that joint's actuators. On an asset that
 models gearbox backlash, also set ``backlash_joint_template``. A configuration that changes only
-part of ``vin``, ``vin_range``, ``kt`` and ``resistance`` keeps the asset's torque limit and warns;
-set ``actuator_effort_limit`` to change the limit.
+part of ``vin``, ``vin_range``, ``kt`` and ``resistance`` warns: the limit stays the asset's authored
+one or, without it, the drive's ``vin * kt / resistance`` default, which ignores ``vin_range``. Set
+``actuator_effort_limit`` to choose the limit.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -873,7 +874,7 @@ set ``actuator_effort_limit`` to change the limit.
 
 Without an explicit ``actuator_effort_limit``, motor torque is capped at the stall torque
 ``max(vin_range) * motor.kt / motor.resistance``; if the config does not set the fit and voltage, the
-asset's cap applies. ``joint_effort_limit`` is unchanged; keep it at
+asset's authored cap applies, or the drive's ``vin * kt / resistance`` default when it has none. ``joint_effort_limit`` is unchanged; keep it at
 least as large as the actuator cap.
 
 .. _actuators-bam-paths:

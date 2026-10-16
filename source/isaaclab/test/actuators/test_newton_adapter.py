@@ -334,7 +334,7 @@ def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
         author_actuator_prims(stage, "/World/Robot", cfgs)
     # A warning names each joint whose asset components the config type does not model.
     assert {name for name in _JOINT_NAMES if f"of joint '{name}'" in caplog.text} == {"dc_a", "remote_a", "remote_b"}
-    # Authoring again overlays the same prims, so the stage does not change.
+    # Authoring again overrides the same prims, so the stage does not change.
     authored = stage.GetRootLayer().ExportToString()
     author_actuator_prims(stage, "/World/Robot", cfgs)
     assert stage.GetRootLayer().ExportToString() == authored
