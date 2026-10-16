@@ -17,6 +17,7 @@ from newton.solvers import SolverMuJoCo
 from isaaclab.physics import PhysicsManager
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .mjwarp_manager_kernels import clear_last_solve_load_kernel
 from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
 
@@ -114,6 +115,13 @@ class NewtonMJWarpManager(NewtonManager):
         solver substep warm-starts from the NaN — the world is then permanently
         dead.  See https://github.com/newton-physics/newton/issues/1266.
 
+        The reset keeps the previous solve's ``qfrc_bias``, ``qfrc_constraint``
+        and ``nefc``, which MuJoCo Warp recomputes before use but
+        :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`
+        reads as the external load ahead of the first solve. They are zeroed for
+        the flagged worlds so a reset environment does not start with the
+        terminated episode's load.
+
         With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
         and its reset path is not mask-aware — it clears the buffers for every
         world.  Since this hook can fire with an all-``False`` mask (e.g. on
@@ -133,6 +141,16 @@ class NewtonMJWarpManager(NewtonManager):
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
         cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        if cls._solver.use_mujoco_cpu:
+            return
+        data = cls._solver.mjw_data
+        wp.launch(
+            clear_last_solve_load_kernel,
+            dim=data.qfrc_bias.shape,
+            inputs=[world_mask],
+            outputs=[data.qfrc_bias, data.qfrc_constraint, data.nefc],
+            device=PhysicsManager._device,
+        )
 
     @classmethod
     def _log_solver_debug(cls) -> None:

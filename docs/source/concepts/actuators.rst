@@ -842,10 +842,11 @@ MJWarp coupling
 
 Each physics step the drive writes its friction budget into MuJoCo's ``dof_frictionloss``, so the
 solver resolves static friction with the other constraints. The external load is the previous
-solve's bias and constraint forces without the drive's own friction; applied body wrenches are not
-included. The viscous coefficient is applied once as passive joint damping and is visible through
-``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` uses a stiff friction-constraint
-reference to reduce creep, since MJWarp has no noslip solver.
+solve's bias and constraint forces without the drive's own friction, and zero on the first step after
+an environment reset; applied body wrenches are not included. The viscous coefficient is applied once
+as passive joint damping and is visible through ``data.joint_viscous_friction_coeff``.
+``stiff_frictionloss=True`` uses a stiff friction-constraint reference to reduce creep, since MJWarp
+has no noslip solver.
 
 :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports motor torque only, and
 ``data.joint_friction`` reports the authored seed. Read the live budget with
