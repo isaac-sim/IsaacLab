@@ -69,7 +69,7 @@ except ModuleNotFoundError as exc:
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
         "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install 'ovrtx==0.5.1.385782')."
+        "(or, manually: python -m pip install 'ovrtx==0.6.0.1791947691')."
     ) from exc
 
 from PIL import Image

@@ -61,7 +61,7 @@ COPY source/ source/
 # Install the locked dependency graph and its resolver overrides. The curated all extra
 # excludes Isaac Sim; importers adds the standalone importers. UV_PYTHON pins the
 # environment to the runtime stage's Python ABI.
-# OVRTX caches shaders, textures and derived data inside its own site-packages, and a
+# Older OVRTX releases cache shaders, textures and derived data inside site-packages, and a
 # volume-mounted run executes as the runner's uid rather than the image's, so those paths must be
 # writable by a uid the image cannot know. Widened here rather than bind-mounted: the write targets
 # sit alongside shipped content such as ``cache/shadercache``, which a mount would hide.
@@ -127,6 +127,8 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
 # but libOpenGL.so.0 and libEGL.so.1 need libopengl0 and libegl1. libxrender1 is
 # for the Newton GL viewer: pyglet's xlib backend resolves libXrender.so.1 via
 # ctypes at import time and nothing else in this list pulls it in transitively.
+# Own the cache parent before creating volume directories below: OVRTX 0.6 creates
+# its runtime caches in HOME/.cache/ovrtx, alongside the uv and Warp volumes.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -149,7 +151,7 @@ RUN apt-get update \
  && if getent group ubuntu >/dev/null; then groupdel ubuntu; fi \
  && groupadd --gid 1000 isaaclab \
  && useradd --uid 1000 --gid 1000 --home-dir "${HOME}" --create-home --shell /bin/bash isaaclab \
- && mkdir -p "${HOME}" \
+ && mkdir -p "${HOME}/.cache" \
  && chown -R isaaclab:isaaclab "${HOME}" \
  && chmod 750 "${HOME}"
 

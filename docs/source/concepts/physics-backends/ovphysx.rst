@@ -119,7 +119,7 @@ cloner.
 Installation
 ------------
 
-The ``ovphysx`` extra requires OvPhysX 0.6.4.72118723. Install it from the repository root with:
+The ``ovphysx`` extra requires OvPhysX |ovphysx_version|. Install it from the repository root with:
 
 .. code-block:: bash
 
@@ -127,21 +127,18 @@ The ``ovphysx`` extra requires OvPhysX 0.6.4.72118723. Install it from the repos
 
 The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
-extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
-with this runtime combination.
+extra pairs OVRTX 0.6.0.1791947691 with OVStage 0.3.0.1791986420. Upgrade these
+runtimes together; older release sets are not interchangeable.
 
-Opt-in OVPhysX 0.7 support
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+OVPhysX 0.7 support
+~~~~~~~~~~~~~~~~~~~
 
-The default dependency pins remain on OVPhysX 0.6.4. The backend also accepts
-OVPhysX 0.7, including development builds. It selects task completion, stage
+The default dependency pins use OVPhysX 0.7. The backend selects task completion, stage
 teardown, scene reads and schema discovery from the installed runtime version.
-Tensor and contact bindings remain in use on both versions.
+Tensor and contact bindings remain in use.
 
-OVPhysX 0.7 no longer bundles PhysX USD schemas. Install ``physx-usd-schemas>=25.11.2``
-into the simulation environment before startup. Use ``uv run --no-sync`` with an
-opt-in environment to avoid restoring the project's default dependency pins.
-Isaac Lab locates
+OVPhysX 0.7 no longer bundles PhysX USD schemas. The ``ov`` and ``ovphysx`` extras
+install ``physx-usd-schemas==25.11.2.72696984`` before startup. Isaac Lab locates
 both PhysX and deformable schema directories without importing the provider,
 then registers them before USD population. The already-installed Newton schemas
 are also registered. Do not suppress schema-registration errors: late registration
