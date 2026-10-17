@@ -1154,7 +1154,11 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
 
 
 def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
-    """Initial and hard resets realize native layouts before consumers and picking."""
+    """Initial and hard resets realize native layouts before consumers and picking.
+
+    Pending FK and graph-replay invalidation from before a hard reset belong to the discarded model, so the new
+    model's consumers can read transforms before the solver is rebuilt.
+    """
     events: list[str] = []
     allocations = []
     sim_cfg = SimulationCfg(
@@ -1188,6 +1192,8 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
         )
 
         sim.reset()
+        NewtonManager.invalidate_fk()  # as a state write does
+        monkeypatch.setattr(NewtonManager, "transforms_may_change_on_graph_replay", True)  # as a graphed write does
         sim.reset()
 
     assert events == ["ready", "prepare"] * 2

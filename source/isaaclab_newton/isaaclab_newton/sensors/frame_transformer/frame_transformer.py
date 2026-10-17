@@ -314,6 +314,9 @@ class FrameTransformer(BaseFrameTransformer):
             raise RuntimeError(f"FrameTransformer '{self.cfg.prim_path}': sensor is not initialized")
         state = NewtonManager.get_state_0()
         device = state.body_q.device
+        if not device.is_capturing:
+            # State writes, such as resets inside ``env.step()``, defer FK; resolve it outside the sampling graph.
+            NewtonManager.forward()
         if device.is_cuda and not device.is_capturing:
             pointers = state.body_q.ptr, env_mask.ptr
             if self._update_graph is None or self._update_graph[0] != pointers:

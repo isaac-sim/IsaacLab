@@ -222,3 +222,23 @@ def test_no_stale_data_after_scene_reset(sim):
     quat = pva.data.quat_w.torch
     expected_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=quat.dtype, device=quat.device).repeat(2, 1)
     torch.testing.assert_close(quat, expected_quat)
+
+
+def test_reads_state_written_since_last_step(sim):
+    """A read right after a root state write, such as a push event, reports the written pose and velocity."""
+    scene = InteractiveScene(PvaTestSceneCfg(num_envs=2))
+    sim.reset()
+    pva: Pva = scene["pva"]
+    cube: RigidObject = scene["cube"]
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    root_pose = cube.data.root_pose_w.torch.clone()
+    root_pose[:, 0] += 1.0
+    root_pose[:, 3:] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=root_pose.device)
+    root_vel = torch.zeros(2, 6, device=root_pose.device)
+    root_vel[:, 1] = 2.0
+    cube.write_root_pose_to_sim_index(root_pose=root_pose)
+    cube.write_root_velocity_to_sim_index(root_velocity=root_vel)
+    torch.testing.assert_close(pva.data.pos_w.torch, root_pose[:, :3])
+    torch.testing.assert_close(pva.data.lin_vel_b.torch, root_vel[:, :3])
