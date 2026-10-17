@@ -92,7 +92,6 @@ TIMEOUT_RETRIES = 0
 PROCESS_FAILURE_RETRIES_BY_FILE = {
     "test_visualizer_integration_physx.py": 4,
     "test_visualizer_integration_newton.py": 4,
-    "test_visualizer_tiled_integration_physx.py": 4,
 }
 """Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
@@ -714,6 +713,15 @@ def _unslugify_queue_entry(entry_name):
     return entry_name.replace("__", "/")
 
 
+def _queue_shard():
+    """Name of this shard's ``inflight/`` and ``done/`` subdirs in the work queue.
+
+    ``ISAACLAB_TEST_QUEUE_SHARD`` when set, so two shards testing the same device index on
+    different physical GPUs report separately; otherwise the shard's device, e.g. ``cuda-1``.
+    """
+    return os.environ.get("ISAACLAB_TEST_QUEUE_SHARD") or resolve_test_sim_device().replace(":", "-")
+
+
 def _claim_queued_file(queue_dir):
     """Atomically claim one pending test from the work-queue directory.
 
@@ -737,7 +745,7 @@ def _claim_queued_file(queue_dir):
         The decoded test path for the claimed file, or ``None`` when the
         queue is empty.
     """
-    shard = resolve_test_sim_device().replace(":", "-")
+    shard = _queue_shard()
     pending_dir = os.path.join(queue_dir, "queue")
     inflight_dir = os.path.join(queue_dir, "inflight", shard)
     os.makedirs(inflight_dir, exist_ok=True)
@@ -774,7 +782,7 @@ def _mark_queued_file_done(queue_dir, test_path):
     The inflight residual is what the post-run reconciler uses to detect
     crashed shards: anything still in ``inflight/`` at job-end is an orphan.
     """
-    shard = resolve_test_sim_device().replace(":", "-")
+    shard = _queue_shard()
     entry = _slugify_test_path(test_path)
     src = os.path.join(queue_dir, "inflight", shard, entry)
     dst_dir = os.path.join(queue_dir, "done", shard)
@@ -1394,8 +1402,15 @@ def _run_one_pass(
 
 
 def _starts_renderer(test_content: str) -> bool:
-    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX."""
-    return "enable_cameras=True" in test_content or "ovrtx" in test_content.lower()
+    """Return whether a test file's source starts an RTX renderer: Kit's, by enabling cameras, or OVRTX.
+
+    Files built on ``rendering_test_utils`` pick their renderer through its helpers, so they name neither.
+    """
+    return (
+        "enable_cameras=True" in test_content
+        or "ovrtx" in test_content.lower()
+        or "rendering_test_utils" in test_content
+    )
 
 
 def _test_file_job(test_file: str, max_slots: int) -> TestFileJob:

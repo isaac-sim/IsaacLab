@@ -102,8 +102,8 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
 
-    __backend_native_orderings__: tuple[str, ...] = ("physx",)
-    """PhysX tensor-view order already matches the ``"physx"`` convention."""
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """None: Isaac Sim PhysX visits sibling links in authored joint-prim order, which can differ from ``"physx"``."""
 
     actuators: dict
     """Dictionary of actuator instances for the articulation.
@@ -943,8 +943,8 @@ class Articulation(BaseArticulation):
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
-        # set into simulation
-        self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=sim_env_ids)
+        # PhysX root velocities are measured at the root link's center of mass.
+        self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=sim_env_ids)
 
     def write_root_link_velocity_to_sim_mask(
         self,

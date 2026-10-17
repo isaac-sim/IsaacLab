@@ -34,19 +34,37 @@ The coupling model
 
 A coupled simulation starts from one Newton model. Instead of giving the whole
 model to one solver, Isaac Lab partitions it into named entries. Each entry
-selects a solver and owns a disjoint part of the model:
+selects a solver and owns a disjoint part of the model.
 
-.. code-block:: text
+The animation below shows how source-owned gripper bodies interact with
+material owned by a destination solver through local proxies:
 
-   Shared Newton model
-   ├── "rigid" entry → MJWarp owns robot bodies, joints, and shapes
-   ├── "soft" entry  → VBD owns deformable particles and static shapes
-   └── interface     → proxy or ADMM coupling connects the entries
+.. raw:: html
 
-Each solver receives a view of the shared model and advances only the elements
-owned by its entry. An element can belong to at most one entry; unassigned
-elements remain outside the nested solvers. Keep each articulation in a single
-entry.
+   <figure>
+     <video controls playsinline preload="none" width="1280" height="866"
+            style="width:100%;height:auto;"
+            poster="../../_static/newton/proxy-coupling.jpg"
+            aria-label="Proxy coupling between source and destination solvers"
+            aria-describedby="coupling-animation-caption">
+       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4" type="video/mp4">
+       <a href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4">Watch the proxy coupling animation.</a>
+     </video>
+     <figcaption id="coupling-animation-caption">
+       <p>Filled teal fingers belong to the source solver; outlined blue fingers are
+         destination-local proxies of those same bodies. The blue object represents
+         material owned by the destination solver.</p>
+       <p>The upper arrow synchronizes source state with the proxies, including pose
+         and velocity. Contact produces the force and torque feedback shown by the
+         lower arrow, which returns to a later source solve or coupling iteration.</p>
+       <p><a href="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/proxy-coupling-explainer.mp4">Open the animation</a> to pause or scrub through the exchange.</p>
+     </figcaption>
+   </figure>
+
+Each solver receives a view of the shared model. Only the elements owned by
+its entry are reconciled into the final shared state. An element can belong to
+at most one entry; unassigned elements remain outside the nested solvers.
+Keep each articulation in a single entry.
 
 Isaac Lab resolves ownership selectors, constructs the Newton entry views, and
 runs the coupled solver through the normal Newton backend lifecycle. Newton

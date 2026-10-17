@@ -16,7 +16,6 @@ import torch
 import warp as wp
 from flaky import flaky
 from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, VBDSolverCfg
-from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
@@ -62,7 +61,7 @@ def generate_cubes_scene(num_cubes: int = 1, height: float = 1.0) -> DeformableO
         prim_path="/World/env_[^/]+/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.1, 0.1, 0.1),
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            volume_deformable_props=[],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2)),
             physics_material=NewtonDeformableBodyMaterialCfg(
                 density=500.0,
@@ -101,7 +100,7 @@ def generate_cloth_scene(num_cloths: int = 1, height: float = 1.0) -> Deformable
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
             edge_refinement=3,
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            surface_deformable_props=[],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.8)),
             physics_material=NewtonSurfaceDeformableBodyMaterialCfg(density=0.02, particle_radius=0.005),
         ),
@@ -131,7 +130,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
         prim_path="/World/env_[^/]+/Cuboid",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.16, 0.08, 0.12),
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            volume_deformable_props=[],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.8, 0.2)),
             physics_material=NewtonDeformableBodyMaterialCfg(
                 density=500.0,
@@ -146,7 +145,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
         spawn=sim_utils.MeshCylinderCfg(
             radius=0.06,
             height=0.14,
-            deformable_props=NewtonDeformableBodyPropertiesCfg(),
+            volume_deformable_props=[],
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.2, 0.2)),
             physics_material=NewtonDeformableBodyMaterialCfg(
                 density=500.0,
@@ -480,12 +479,19 @@ def test_freefall_analytical(num_substeps, use_cuda_graph):
         cube_object.update(sim.cfg.dt)
         torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, first_pos, rtol=1e-5, atol=1e-5)
 
-        sim.reset()
+        callback_count = len(NewtonManager._callbacks)
+        for _ in range(2):
+            old_data = cube_object.data
+            sim.reset()
+            assert cube_object.data is not old_data
+            assert len(NewtonManager._callbacks) == callback_count
 
-        second_pos = initial_pos + torch.tensor([0.0, -0.1, 0.2], device=sim.device)
-        cube_object.write_nodal_pos_to_sim_index(second_pos)
-        cube_object.update(sim.cfg.dt)
-        torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, second_pos, rtol=1e-5, atol=1e-5)
+            second_pos = initial_pos + torch.tensor([0.0, -0.1, 0.2], device=sim.device)
+            cube_object.write_nodal_pos_to_sim_index(second_pos)
+            sim.step()
+            cube_object.update(sim.cfg.dt)
+            second_pos[..., 2] += expected_dz
+            torch.testing.assert_close(cube_object.data.nodal_pos_w.torch, second_pos, rtol=1e-5, atol=1e-5)
 
 
 def test_set_kinematic_targets(sim):

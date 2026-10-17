@@ -3,6 +3,31 @@ Changelog
 
 .. towncrier release notes start
 
+2.1.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added MicroDuck backlash configurations for the walking and all-collisions variants, with
+  fourteen passive gearbox-play hinges per robot.
+* Added configurations for the Pollen Robotics MicroDuck walking and all-collisions variants with
+  BAM servos, and :data:`~isaaclab_assets.robots.microduck.MICRODUCK_JOINT_NAMES` with its leg and
+  head subsets in the robot's servo order. The configurations require native Newton actuator
+  execution with the MJWarp solver.
+* Added robot-owned OVPhysX friction migration profiles derived from Allegro, Kuka-Allegro, and Shadow Hand actuator settings.
+
+
+2.0.1 (2026-10-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Disney Research legs and four-bar pole configurations to load their USD over HTTPS when spawned,
+  instead of cloning the Newton asset repository on import.
+
+
 2.0.0 (2026-10-02)
 ~~~~~~~~~~~~~~~~~~
 

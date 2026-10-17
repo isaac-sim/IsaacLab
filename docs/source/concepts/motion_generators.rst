@@ -1,5 +1,5 @@
-Motion Generators
-=================
+Controllers
+===========
 
 .. currentmodule:: isaaclab.controllers
 
@@ -35,6 +35,83 @@ broadly categorized into:
     To provide an even broader set of motion generators, we welcome contributions from the
     community. If you are interested, please open an issue to start a discussion!
 
+
+Choosing a controller
+---------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 24 20 34
+
+   * - Controller
+     - Input command
+     - Output
+     - Required state
+   * - :class:`DifferentialIKController`
+     - End-effector position or pose, absolute or relative
+     - Joint position targets
+     - Joint positions, end-effector pose, and Jacobian in a consistent frame
+   * - :class:`OperationalSpaceController`
+     - End-effector pose and/or wrench, optionally stiffness and damping ratios
+     - Joint efforts
+     - Jacobian; pose and velocity for motion control; mass matrix for inertial decoupling;
+       gravity vector, contact force, and joint state as required by enabled features
+
+Basic joint-space control sets joint targets directly on the actuators.
+For joint-space impedance control, use :class:`JointImpedanceController`
+(see `Joint-space controllers`_).
+
+Start with differential IK for reaching or teleoperation with position-controlled
+actuators. Choose OSC when you need torque commands, task-space compliance, or
+simultaneous motion and contact force control. For example, wiping a table requires
+motion along its surface while maintaining a force normal to it.
+
+The :doc:`IK walkthrough <../how-to/run_diff_ik>` and
+:doc:`OSC walkthrough <../how-to/run_osc>` provide complete scenes, state extraction,
+and runnable demonstrations. Both tutorial scripts use Isaac Sim PhysX and require
+an Isaac Sim installation.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item::
+
+      .. image:: ../_static/tutorials/tutorial_task_space_controller_crop.jpg
+         :alt: Franka arms on stands with coordinate-frame markers at their end effectors.
+
+      **IK: reach a pose.** Each arm tracks an end-effector goal through joint
+      position targets. :doc:`Run the IK demonstration <../how-to/run_diff_ik>`
+      to watch the measured and desired frame markers converge.
+
+   .. grid-item::
+
+      .. image:: ../_static/tutorials/tutorial_operational_space_controller.jpg
+         :alt: Franka arms touching translucent red tilted walls with their fingertips.
+
+      **OSC: control motion and contact force.** The tilted-wall example
+      commands 10 N along the wall normal while tracking pose in the other
+      directions. :doc:`Run the OSC demonstration <../how-to/run_osc>`.
+
+.. _controller-control-loop:
+
+The control loop
+----------------
+
+The IK and OSC instances compute targets from state supplied by the caller;
+they do not read the simulation or submit actuator commands.
+:meth:`~DifferentialIKController.set_command` stores a goal until it is replaced,
+and every control cycle reads fresh state, calls ``compute()``, stages the targets,
+and steps the simulation; see :ref:`controller-api-examples` for the loop from the
+IK walkthrough. IK targets are joint positions that the configured position
+actuator tracks. OSC targets are joint efforts, so configure zero actuator
+stiffness and damping to keep actuator feedback from adding to them.
+
+Keep the command, end-effector pose, and Jacobian in a consistent coordinate frame.
+The tutorials use the suffix ``_b`` for the robot base frame and ``_w`` for the
+world frame; these names do not transform the data.
+Absolute poses contain position followed by a quaternion in ``(x, y, z, w)`` order.
+For OSC, commands and axis selections can use a separate task frame, while state
+passed to ``compute()`` remains in the base frame.
 
 Joint-space controllers
 -----------------------
@@ -141,7 +218,7 @@ Differential inverse kinematics (IK)
 Action dimensions:  ``"3"`` (relative/absolute position), ``"6"`` (relative pose), or ``"7"`` (absolute pose)
 
 Inverse kinematics converts the task-space tracking error to joint-space error. In its most typical implementation,
-the pose error in the task-sace, :math:`\Delta \chi_e = (\Delta p_e, \Delta \phi_e)`, is computed as the cartesian
+the pose error in the task-space, :math:`\Delta \chi_e = (\Delta p_e, \Delta \phi_e)`, is computed as the Cartesian
 distance between the desired and current task-space positions, and the shortest distance in :math:`\mathbb{SO}(3)`
 between the desired and current task-space orientations.
 
@@ -156,10 +233,13 @@ where :math:`\eta` is a scaling parameter and :math:`J_{eO}^{-}` is the pseudo-i
 
 It is possible to compute the pseudo-inverse of the Jacobian using different formulations:
 
-* Moore-Penrose pseduo-inverse: :math:`A^{-} = A^T(AA^T)^{-1}`.
-* Levenberg-Marquardt pseduo-inverse (damped least-squares): :math:`A^{-} = A^T (AA^T + \lambda \mathbb{I})^{-1}`.
-* Tanspose pseudo-inverse: :math:`A^{-} = A^T`.
-* Adaptive singular-vale decomposition (SVD) pseduo-inverse from :cite:t:`buss2004ik`.
+* Moore-Penrose pseudo-inverse (``"pinv"``): :math:`A^{-} = A^T(AA^T)^{-1}`.
+* Levenberg-Marquardt pseudo-inverse (damped least-squares, ``"dls"``):
+  :math:`A^{-} = A^T (AA^T + \lambda^2 \mathbb{I})^{-1}`.
+* Transpose pseudo-inverse (``"trans"``): :math:`A^{-} = A^T`.
+* Adaptive singular-value decomposition (SVD) pseudo-inverse (``"svd"``) from :cite:t:`buss2004ik`.
+* Manipulability-aware damped least-squares (``"adaptive_dls"``): the damping :math:`\lambda`
+  increases as the Jacobian approaches a singularity.
 
 These implementations are available through the :class:`DifferentialIKController` class.
 See :doc:`../how-to/run_diff_ik` for a runnable example.
@@ -167,8 +247,7 @@ See :doc:`../how-to/run_diff_ik` for a runnable example.
 Impedance controller
 ~~~~~~~~~~~~~~~~~~~~
 
-
-It uses task-space pose error and Jacobian to compute join torques through mass-spring-damper system
+It uses task-space pose error and Jacobian to compute joint torques through mass-spring-damper system
 with a) fixed stiffness, b) variable stiffness (stiffness control),
 and c) variable stiffness and damping (impedance control).
 
@@ -192,7 +271,78 @@ Hybrid force-motion controller
 It combines closed-loop force control
 and operational-space motion control to compute the desired wrench at
 the end-effector. It uses selection matrices that define the
-unconstrainted and constrained task directions.
+unconstrained and constrained task directions.
+
+
+.. _controller-api-examples:
+
+Practical API examples
+----------------------
+
+Joint targets
+~~~~~~~~~~~~~
+
+These alternative command examples assume an initialized ``robot`` and resolved
+``arm_joint_ids``. Each target has shape ``(num_envs, len(arm_joint_ids))``.
+Set position or velocity feedback gains in the actuator configuration; for direct
+effort control, set actuator stiffness and damping to zero. See
+:ref:`actuators-runtime-api` for the command API and :doc:`actuators` for gains.
+
+.. tab-set::
+
+   .. tab-item:: Position
+
+      .. code-block:: python
+
+         joint_pos_target = robot.data.default_joint_pos.torch[:, arm_joint_ids].clone()
+         robot.actuators.target_command.set_position_index(value=joint_pos_target, joint_ids=arm_joint_ids)
+         robot.write_data_to_sim()
+
+   .. tab-item:: Velocity
+
+      .. code-block:: python
+
+         joint_vel_target = robot.data.default_joint_vel.torch[:, arm_joint_ids].clone()
+         robot.actuators.target_command.set_velocity_index(value=joint_vel_target, joint_ids=arm_joint_ids)
+         robot.write_data_to_sim()
+
+   .. tab-item:: Effort
+
+      .. code-block:: python
+
+         import torch
+
+         joint_effort_target = torch.zeros_like(robot.data.joint_pos.torch[:, arm_joint_ids])
+         robot.actuators.target_command.set_effort_index(value=joint_effort_target, joint_ids=arm_joint_ids)
+         robot.write_data_to_sim()
+
+These calls stage and submit commands. Advance physics and update the scene on
+each cycle as shown in :ref:`controller-control-loop`.
+
+Task-space goals
+~~~~~~~~~~~~~~~~
+
+The :doc:`IK walkthrough <../how-to/run_diff_ik>` resets the robot and changes the goal every
+150 steps. On intermediate steps, it reads fresh state and computes joint position targets;
+every step applies the targets and advances the simulation:
+
+.. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
+   :language: python
+   :caption: scripts/tutorials/05_controllers/run_diff_ik.py
+   :start-at: if count % 150 == 0:
+   :end-at: scene.update(sim_dt)
+   :dedent: 8
+
+Relative commands also need the measured pose in
+:meth:`DifferentialIKController.set_command` to resolve the delta at command time.
+
+An :class:`OperationalSpaceController` instance ``osc`` similarly stores its
+motion/force goal with :meth:`OperationalSpaceController.set_command`, but
+:meth:`OperationalSpaceController.compute` returns efforts to stage with
+``set_effort_index``. Its required state depends on the configured features.
+Use the :doc:`IK walkthrough <../how-to/run_diff_ik>` and
+:doc:`OSC walkthrough <../how-to/run_osc>` for controller construction, state
+extraction, and complete repeated loops.
 
 
 Reactive planners

@@ -250,7 +250,8 @@ class walk_success_rate(ManagerTermBase):
             & (contact >= self._contact_match_threshold)
         )
         log = self._env.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = success.float().mean().item()
+        # The velocity command term owns Metrics/success_rate and uses a looser threshold.
+        log["Metrics/walk_success_rate"] = success.float().mean().item()
         log["Metrics/error_vel_xy"] = err_xy.mean().item()
         log["Metrics/error_vel_yaw"] = err_yaw.mean().item()
         log["Metrics/contact_match_rate"] = contact.mean().item()

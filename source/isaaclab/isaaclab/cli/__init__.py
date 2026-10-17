@@ -37,8 +37,12 @@ def _exit_on_error(status: int) -> None:
         raise SystemExit(status)
 
 
-def _load_external_tasks() -> None:
-    """Import task packages registered by installed downstream projects."""
+def load_external_tasks() -> None:
+    """Import task packages registered by installed downstream projects.
+
+    Load the ``isaaclab.tasks`` entry points before looking up registered task IDs.
+    Entry points should reference modules so repeated discovery uses Python's import cache.
+    """
     for entry_point in importlib.metadata.entry_points(group=_TASK_ENTRY_POINT_GROUP):
         entry_point.load()
 
@@ -206,7 +210,7 @@ def cli() -> None:
         example(sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
-        _load_external_tasks()
+        load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
         return
     if len(sys.argv) > 1 and sys.argv[1] == "teleop":
@@ -240,8 +244,9 @@ def cli() -> None:
     parser.add_argument(
         "-f",
         "--format",
-        action="store_true",
-        help="Run pre-commit to format the code and check lints.",
+        nargs="*",
+        metavar="FILE",
+        help="Run pre-commit on selected files, or on all tracked files when none are supplied.",
     )
     parser.add_argument(
         "-p",
@@ -301,7 +306,7 @@ def cli() -> None:
     args = parser.parse_args()
 
     if (
-        args.format
+        args.format is not None
         or args.docs
         or args.docs_multi
         or args.docker is not None
@@ -310,8 +315,8 @@ def cli() -> None:
     ) and not (ISAACLAB_ROOT / "pyproject.toml").is_file():
         parser.error("This command requires an Isaac Lab source checkout. Run it with uv run isaaclab from that checkout.")
 
-    if args.format:
-        command_format()
+    if args.format is not None:
+        command_format(args.format)
 
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)
