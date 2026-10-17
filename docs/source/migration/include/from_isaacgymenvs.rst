@@ -557,8 +557,7 @@ and :isaaclab-source:`Cartpole environment <source/isaaclab_tasks/isaaclab_tasks
 |   resetDist: 3.0                                       |     cart_dof_name = "slider_to_cart"                                |
 |   maxEffort: 400.0                                     |     pole_dof_name = "cart_to_pole"                                  |
 |                                                        |     scene: CartpoleSceneCfg = CartpoleSceneCfg(                     |
-|   clipObservations: 5.0                                |         num_envs=4096, env_spacing=4.0, replicate_physics=True,     |
-|                                                        |         clone_in_fabric=True)                                       |
+|   clipObservations: 5.0                                |         num_envs=4096, env_spacing=4.0)                             |
 |   clipActions: 1.0                                     |     # env                                                           |
 |                                                        |     decimation = 2                                                  |
 |   asset:                                               |     episode_length_s = 5.0                                          |

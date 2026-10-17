@@ -1343,7 +1343,7 @@ def main() -> None:
                 scene.extras[name] = instantiate(cfg)
         contact_hook = partial(_prepare_contacts, device=sim.device, mesh_sdf_cache={})
         with newton_builder_world_hook(contact_hook):
-            cloner.replicate(plan, replicate_physics=scene.cfg.replicate_physics)
+            cloner.replicate(plan)
         sim.reset()
         robot = scene["robot"]
         robot.write_joint_state_to_sim_index(

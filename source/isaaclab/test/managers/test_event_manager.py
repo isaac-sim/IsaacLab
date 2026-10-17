@@ -176,7 +176,7 @@ def test_class_terms(env):
 def test_class_terms_are_initialized_with_defaults_and_reset(env, monkeypatch, mode, playing):
     """Both construction paths populate defaults and register class terms for reset."""
     monkeypatch.setattr(env.sim, "is_playing", lambda: playing)
-    env = SimpleNamespace(**env._asdict(), scene=SimpleNamespace(cfg=SimpleNamespace(replicate_physics=False)))
+    env = SimpleNamespace(**env._asdict(), scene=SimpleNamespace(cfg=SimpleNamespace()))
     event_man = EventManager({"term": EventTermCfg(func=reset_dummy2_to_zero_class, mode=mode)}, env)
     assert event_man.get_term_cfg("term").func.initial_value == 0.0
     reset_calls = []

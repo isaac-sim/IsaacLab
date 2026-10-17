@@ -121,8 +121,9 @@ and experimental features are qualified in each cell.
      - :doc:`VBD </source/how-to/solver_tuning_vbd>`
      - :doc:`MPM </source/how-to/solver_tuning_mpm>`
 
-PhysX surface and volume deformables use an experimental asset API, require
-CUDA, and need ``scene.replicate_physics=False``. Nodal kinematic targets are
+PhysX surface and volume deformables use an experimental asset API and require
+CUDA. Their assets use ``UsdReplicateContext`` so PhysX can parse each environment's deformable from USD
+within the scene clone plan. Nodal kinematic targets are
 supported for volume deformables only. See :doc:`/source/concepts/deformables`
 and :class:`~isaaclab_physx.assets.DeformableObject` for the asset requirements.
 
