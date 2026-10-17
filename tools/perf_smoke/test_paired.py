@@ -165,6 +165,21 @@ class PairedTests(unittest.TestCase):
             capture_output=True,
         )
 
+    def _capture_args(self, output, role="current", image="same-image", legs=None):
+        return [
+            "capture",
+            "--checkout-root",
+            str(self.checkout),
+            "--output-dir",
+            str(output),
+            "--image",
+            image,
+            "--role",
+            role,
+            "--legs",
+            str(self.legs if legs is None else legs),
+        ]
+
     def test_resolve_immutable_merge_first_parent_despite_stale_event_and_moving_target(self):
         base, _, merge, latest = self._moving_merge()
         self.assertNotEqual(base, self.event["pull_request"]["base"]["sha"])
@@ -247,21 +262,7 @@ class PairedTests(unittest.TestCase):
             for failure in ("image", "image_shape", "context_write"):
                 with self.subTest(optional_failure=failure):
                     output = self.root / failure
-                    result = paired.main(
-                        [
-                            "capture",
-                            "--checkout-root",
-                            str(self.checkout),
-                            "--output-dir",
-                            str(output),
-                            "--image",
-                            "same-image",
-                            "--role",
-                            "current",
-                            "--legs",
-                            str(self.legs),
-                        ]
-                    )
+                    result = paired.main(self._capture_args(output))
                     self.assertEqual(result, 0)
                     manifest = json.loads((output / "source-manifest.json").read_text())
                     self.assertEqual(manifest["commit"], merge)
@@ -283,19 +284,7 @@ class PairedTests(unittest.TestCase):
                 for role, commit in (("baseline", base), ("current", merge)):
                     self._git("checkout", "--quiet", "--detach", commit)
                     output = self.root / role
-                    args = [
-                        "capture",
-                        "--checkout-root",
-                        str(self.checkout),
-                        "--output-dir",
-                        str(output),
-                        "--image",
-                        "fixture",
-                        "--role",
-                        role,
-                        "--legs",
-                        str(self.legs),
-                    ]
+                    args = self._capture_args(output, role=role, image="fixture")
                     self.assertEqual(paired.main(args), 0)
                     manifest = json.loads((output / "source-manifest.json").read_text())
                     context = json.loads((output / "build-context.json").read_text())
@@ -348,19 +337,7 @@ class PairedTests(unittest.TestCase):
                 self.event["pull_request"]["head"]["sha"] = HEAD if mismatch == "head" else head
                 output = self.root / mismatch
                 result = self._cli(
-                    [
-                        "capture",
-                        "--checkout-root",
-                        str(self.checkout),
-                        "--output-dir",
-                        str(output),
-                        "--image",
-                        "unused",
-                        "--role",
-                        "current",
-                        "--legs",
-                        str(self.root / "unused.tsv"),
-                    ],
+                    self._capture_args(output, image="unused", legs=self.root / "unused.tsv"),
                     GITHUB_SHA=tested,
                     PERF_BASE_COMMIT="",
                 )
@@ -443,21 +420,7 @@ class PairedTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Checked-out Python source differs"):
                 paired.capture_context(self.checkout, invalid, "same-image", "current", self.event, self.legs)
             self.assertFalse((invalid / "source-manifest.json").exists())
-            captured = paired.main(
-                [
-                    "capture",
-                    "--checkout-root",
-                    str(self.checkout),
-                    "--output-dir",
-                    str(self.output),
-                    "--image",
-                    "same-image",
-                    "--role",
-                    "current",
-                    "--legs",
-                    str(self.legs),
-                ]
-            )
+            captured = paired.main(self._capture_args(self.output))
             self.assertNotEqual(captured, 0)
             expected = json.loads(encoded(original))
             expected["source"].update(commit=merge, commit_parents=[base, head])
@@ -979,6 +942,7 @@ class PairedTests(unittest.TestCase):
         artifact["expired"] = True
         _, result, markdown = self._run_report(attempt=2)
         self.assertIsNone(result["baseline"])
+        self.assertEqual(result["selection"]["reason_code"], "expired")
         self.assertEqual(result["selection"]["unavailable_evidence"]["artifact_id"], artifact["id"])
         self.assertTrue(all(row["candidate"]["median"] == 80 for row in result["rows"]))
         self.assertTrue(all(row["change_pct"] is None for row in result["rows"]))
@@ -1066,15 +1030,6 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(by_leg["first"]["change_pct"], 0)
         self.assertEqual(by_leg["second"]["status"], "partial")
         self.assertIsNone(by_leg["second"]["change_pct"])
-
-    def test_expired_pinned_baseline_never_falls_back_to_history(self):
-        artifact = self._add_baseline(run_id=20)
-        artifact["expired"] = True
-        evidence, metadata = paired.select_pr_baseline(self.client, self._candidate(self._origin(artifact)))
-        self.assertIsNone(evidence)
-        self.assertEqual(metadata["reason_code"], "expired")
-        self.assertEqual(metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
-        self.assertEqual(self.client.pages_requested, [])
 
     def test_bind_rejects_selection_for_another_resolved_base(self):
         self._restore()
