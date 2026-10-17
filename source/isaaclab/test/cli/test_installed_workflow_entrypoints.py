@@ -165,7 +165,7 @@ def test_example_catalog_lists_packaged_examples(capsys):
 def _visualizer(visualizer_type: str) -> mock.Mock:
     """Return a visualizer stand-in of the given type."""
     visualizer = mock.Mock()
-    visualizer.cfg.visualizer_type = visualizer_type
+    visualizer.cfg.backend.visualizer_type = visualizer_type
     return visualizer
 
 

@@ -45,6 +45,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass, index_fill_, instantiate, replace
 from isaaclab.utils.math import sample_uniform
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 
@@ -104,7 +105,7 @@ class PickAndPlaceEnvCfg(DirectRLEnvCfg):
         render_interval=decimation,
         use_fabric=True,
         enable_scene_query_support=True,
-        default_visualizer_cfg=KitVisualizerCfg(origin_type="env", origin_env_index=0),
+        visualizer_cfgs=VisualizerCfg(backend=KitVisualizerCfg(origin_type="env", origin_env_index=0)),
     )
     debug_vis = True
 

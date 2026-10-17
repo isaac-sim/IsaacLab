@@ -19,6 +19,8 @@ from isaaclab_visualizers.viser import ViserVisualizer, ViserVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer import NewtonViewerViser
 from newton.viewer import ViewerRerun
 
+from isaaclab.visualizers import VisualizerCfg
+
 
 def test_viser_missing_dependency_propagates_import_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "viser", None)
@@ -30,7 +32,7 @@ def test_viser_missing_dependency_propagates_import_error(monkeypatch):
 
 def test_rerun_visualizer_set_camera_view():
     # No viewer: must not raise.
-    visualizer = RerunVisualizer(RerunVisualizerCfg())
+    visualizer = RerunVisualizer(VisualizerCfg(backend=RerunVisualizerCfg()))
     visualizer.set_camera_view((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
 
     # A selected scene camera short-circuits _apply_camera_pose before it calls into the
@@ -76,7 +78,7 @@ def test_rerun_viewer_skips_unchanged_instance_appearance(monkeypatch):
 
 
 def test_viser_visualizer_set_camera_view():
-    visualizer = ViserVisualizer(ViserVisualizerCfg())
+    visualizer = ViserVisualizer(VisualizerCfg(backend=ViserVisualizerCfg()))
     visualizer.set_camera_view([1, 2, 3], [0, 0, 0])
     assert visualizer._pending_camera_pose == ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0))
 

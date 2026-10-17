@@ -249,9 +249,9 @@ def configure_scene(cfg: CoffeeDemoEnvCfg) -> None:
     if not math.isfinite(cfg.min_delivered_mass) or cfg.min_delivered_mass <= 0.0:
         raise ValueError("min_delivered_mass must be finite and positive.")
     backdrops = {
-        visualizer.backdrop
+        visualizer.backend.backdrop
         for visualizer in cfg.sim.visualizer_cfgs
-        if isinstance(visualizer, (CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg))
+        if isinstance(visualizer.backend, (CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg))
     }
     if len(backdrops) > 1:
         raise ValueError("Coffee renderers sharing a scene must use the same backdrop.")

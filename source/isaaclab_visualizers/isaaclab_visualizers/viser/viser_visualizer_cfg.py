@@ -10,14 +10,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg
 
 if TYPE_CHECKING:
     from .viser_visualizer import ViserVisualizer
 
 
 @configclass
-class ViserVisualizerCfg(VisualizerCfg):
+class ViserVisualizerCfg(VisualizerBackendCfg):
     """Configuration for Viser visualizer (web-based visualization)."""
 
     class_type: type[ViserVisualizer] | str = "{DIR}.viser_visualizer:ViserVisualizer"

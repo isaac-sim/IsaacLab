@@ -26,9 +26,14 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
@@ -291,29 +296,12 @@ def _configure_common_environment(env_cfg: Any) -> None:
     env_cfg.rewards.feet_air_time = None
     env_cfg.rewards.feet_slide = None
 
-    requested_visualizers = args_cli.visualizer or []
-    visualizer_cfgs = []
-    if "kit" in requested_visualizers:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-
-        visualizer_cfgs.append(KitVisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET, focal_length=CAMERA_FOCAL_LENGTH))
-    if {"newton", "newton_gl", "newton_rtx"}.intersection(requested_visualizers):
-        from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-        for name in requested_visualizers:
-            if name not in {"newton", "newton_gl", "newton_rtx"}:
-                continue
-            cfg_type = NewtonRTXVisualizerCfg if name == "newton_rtx" else NewtonGLVisualizerCfg
-            visualizer_kwargs = {} if name == "newton_rtx" else {"show_particles": True}
-            visualizer_cfgs.append(
-                cfg_type(
-                    eye=CAMERA_EYE,
-                    lookat=CAMERA_TARGET,
-                    streaming_view=False,
-                    **visualizer_kwargs,
-                )
-            )
-    env_cfg.sim.visualizer_cfgs = visualizer_cfgs
+    env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+        eye=CAMERA_EYE,
+        lookat=CAMERA_TARGET,
+        focal_length=CAMERA_FOCAL_LENGTH,
+        backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(show_particles=True)),
+    )
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",
         spawn=sim_utils.GroundPlaneCfg(size=(20.0, 16.0)),
@@ -502,6 +490,7 @@ def main() -> None:
         if not checkpoint.is_file():
             raise FileNotFoundError(f"G1 checkpoint not found: {checkpoint}")
     configure_environment(env_cfg)
+    resolve_presets(env_cfg, overrides={"sim.visualizer_cfgs.backend": args_cli.visualizer})
     logger.info("Configured G1 rigid/MPM environment; launching visualizer.")
     env_cfg.seed = args_cli.seed
     agent_cfg.seed = args_cli.seed

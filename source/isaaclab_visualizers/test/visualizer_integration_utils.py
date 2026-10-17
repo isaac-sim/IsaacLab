@@ -57,7 +57,7 @@ from isaaclab.utils.math import (
     quat_from_matrix,
     quat_mul,
 )
-from isaaclab.visualizers import WindowCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
@@ -340,7 +340,7 @@ def _declare_streaming_cameras(
         convention="opengl",
     )
     for cfg in cfgs:
-        name = f"streaming_{cfg.visualizer_type}"
+        name = f"streaming_{cfg.backend.visualizer_type}"
         camera = CameraCfg(
             prim_path=f"{robot_cfg.prim_path}/{body}/{name}",
             width=200,
@@ -350,7 +350,9 @@ def _declare_streaming_cameras(
             spawn=sim_utils.PinholeCameraCfg(
                 focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 1.0e5)
             ),
-            renderer_cfg=IsaacRtxRendererCfg() if isinstance(cfg, KitVisualizerCfg) else NewtonWarpRendererCfg(),
+            renderer_cfg=IsaacRtxRendererCfg()
+            if isinstance(cfg.backend, KitVisualizerCfg)
+            else NewtonWarpRendererCfg(),
         )
         setattr(scene_cfg, name, camera)
         cfg.streaming_sensor_prim_path = camera.prim_path
@@ -373,12 +375,13 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         __import__("newton")
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
         return (
-            NewtonGLVisualizerCfg(
+            VisualizerCfg(
                 headless=True,
                 window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **tiled_cam,
                 **cam,
+                backend=NewtonGLVisualizerCfg(),
             ),
             NewtonVisualizer,
         )
@@ -387,11 +390,12 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
         nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
         # The RTX viewer has no tiled camera panel, so no streaming kwargs here.
         return (
-            NewtonRTXVisualizerCfg(
+            VisualizerCfg(
                 headless=True,
                 window=WindowCfg(size=(nw, nh)),
                 randomly_sample_visible_envs=False,
                 **cam,
+                backend=NewtonRTXVisualizerCfg(),
             ),
             NewtonRTXVisualizer,
         )
@@ -402,7 +406,9 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
 
         port = _find_free_tcp_port(host="127.0.0.1")
         return (
-            ViserVisualizerCfg(open_browser=False, port=port, randomly_sample_visible_envs=False, **cam),
+            VisualizerCfg(
+                randomly_sample_visible_envs=False, **cam, backend=ViserVisualizerCfg(open_browser=False, port=port)
+            ),
             ViserVisualizer,
         )
     if visualizer_kind == "rerun":
@@ -411,22 +417,22 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
 
         web_port, grpc_port = _allocate_rerun_test_ports(host="127.0.0.1")
         return (
-            RerunVisualizerCfg(
-                bind_address="127.0.0.1",
-                open_browser=False,
-                web_port=web_port,
-                grpc_port=grpc_port,
+            VisualizerCfg(
                 randomly_sample_visible_envs=False,
                 **cam,
+                backend=RerunVisualizerCfg(
+                    bind_address="127.0.0.1", open_browser=False, web_port=web_port, grpc_port=grpc_port
+                ),
             ),
             RerunVisualizer,
         )
     return (
-        KitVisualizerCfg(
+        VisualizerCfg(
             window=WindowCfg(size=_CARTPOLE_KIT_INTEGRATION_RENDER_RESOLUTION),
             randomly_sample_visible_envs=False,
             **tiled_cam,
             **cam,
+            backend=KitVisualizerCfg(),
         ),
         KitVisualizer,
     )
@@ -1516,21 +1522,23 @@ def _make_shadow_hand_env(
             __import__("newton")
             nw, nh = _SHADOW_HAND_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonGLVisualizerCfg(
+                VisualizerCfg(
                     headless=True,
                     window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
+                    backend=NewtonGLVisualizerCfg(),
                 )
             )
         else:
             visualizer_cfgs.append(
-                KitVisualizerCfg(
+                VisualizerCfg(
                     window=WindowCfg(size=_SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
+                    backend=KitVisualizerCfg(),
                 )
             )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs
@@ -1581,21 +1589,23 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
             __import__("newton")
             nw, nh = _ANYMAL_D_NEWTON_INTEGRATION_WINDOW_SIZE
             visualizer_cfgs.append(
-                NewtonGLVisualizerCfg(
+                VisualizerCfg(
                     headless=True,
                     window=WindowCfg(size=(nw, nh)),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
+                    backend=NewtonGLVisualizerCfg(),
                 )
             )
         else:
             visualizer_cfgs.append(
-                KitVisualizerCfg(
+                VisualizerCfg(
                     window=WindowCfg(size=_ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION),
                     randomly_sample_visible_envs=False,
                     **tiled_cam,
                     **cam,
+                    backend=KitVisualizerCfg(),
                 )
             )
     env_cfg.sim.visualizer_cfgs = visualizer_cfgs[0] if len(visualizer_cfgs) == 1 else visualizer_cfgs

@@ -13,6 +13,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -225,7 +226,7 @@ def test_visual_colors_select_bodies_and_rebind(
     env = event_env
     model = env.sim.backend_manager.get_model()
     if consumer == "visualizer":
-        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(visualizer_type="newton_gl")])
+        monkeypatch.setattr(env.sim.cfg, "visualizer_cfgs", [VisualizerCfg(backend=NewtonGLVisualizerCfg())])
     else:
         monkeypatch.setattr(
             env.sim, "_render_context", RenderContext([(RendererCfg(renderer_type="newton_warp"), None)])

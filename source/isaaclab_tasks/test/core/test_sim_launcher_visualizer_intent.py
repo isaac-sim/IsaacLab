@@ -19,6 +19,7 @@ from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher
 from isaaclab.sim import SimulationCfg
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import resolve_presets, resolve_task_config, setup_preset_cli
 from isaaclab_tasks.utils.hydra import register_task
@@ -45,10 +46,10 @@ def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):
         selected = cfg.sim.visualizer_cfgs
         selected = selected if isinstance(selected, list) else [selected]
         expected = [] if selection == "none" else selection.split(",")
-        assert [viewer.visualizer_type for viewer in selected] == expected
         assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
         with sim_launcher.launch_simulation(cfg, args):
-            assert cfg.sim.visualizer_cfgs == selected
+            assert [viewer.backend.visualizer_type for viewer in cfg.sim.visualizer_cfgs] == expected
+            assert all(viewer.eye == (20.0, 20.0, 20.0) for viewer in cfg.sim.visualizer_cfgs)
         assert cfg.sim.physics is physics and isinstance(physics, NewtonCfg)
         assert cfg.scene.tiled_camera.renderer_cfg is renderer and renderer.renderer_type == "newton_warp"
         if selection == "none":
@@ -62,18 +63,15 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
     cfg = SimulationCfg(
         physics=NewtonCfg(),
         device="cpu",
-        visualizer_cfgs=MultiBackendVisualizerCfg(
-            kit=KitVisualizerCfg(streaming_view=True),
-            newton_gl=NewtonGLVisualizerCfg(max_visible_envs=2, show_particles=True, particle_color=(0.7, 0.6, 0.4)),
-        ),
+        visualizer_cfgs=VisualizerCfg(max_visible_envs=16, backend=MultiBackendVisualizerCfg()),
     )
-    viewer = cfg.visualizer_cfgs.newton_gl
-    assert resolve_presets(cfg, overrides={"visualizer_cfgs": "newton_gl"}) is cfg
+    viewer = cfg.visualizer_cfgs
+    assert resolve_presets(cfg, overrides={"visualizer_cfgs.backend": "newton_gl"}) is cfg
     assert cfg.visualizer_cfgs is viewer
-    assert viewer.show_particles and viewer.particle_color == (0.7, 0.6, 0.4)
+    assert isinstance(viewer.backend, NewtonGLVisualizerCfg)
+    assert viewer.max_visible_envs == 16
     with sim_launcher.launch_simulation(cfg, {"max_visible_envs": 3}):
         assert cfg.visualizer_cfgs == [viewer]
-        assert cfg.visualizer_cfgs[0] is viewer
         assert viewer.max_visible_envs == 3
     with pytest.raises(ValueError, match="Unknown preset"):
         resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "missing"})
@@ -82,12 +80,13 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
     assert isinstance(viewer, NewtonGLVisualizerCfg)
     assert resolve_presets(MultiBackendVisualizerCfg(), selected=["newton"]) is None
 
-    other = NewtonGLVisualizerCfg(max_visible_envs=5)
+    viewer = VisualizerCfg(max_visible_envs=3, backend=viewer)
+    other = VisualizerCfg(max_visible_envs=5, backend=NewtonGLVisualizerCfg())
     for declaration, overrides, expected in (
         ([viewer, other], ["visualizer=newton_gl"], [viewer, other]),
         (
-            MultiBackendVisualizerCfg(newton_gl=viewer),
-            ["visualizer=kit", "env.sim.visualizer_cfgs=newton_gl"],
+            VisualizerCfg(max_visible_envs=3, backend=MultiBackendVisualizerCfg(newton_gl=viewer.backend)),
+            ["visualizer=kit", "env.sim.visualizer_cfgs.backend=newton_gl"],
             [viewer],
         ),
     ):
@@ -111,7 +110,10 @@ def test_launch_simulation_uses_configured_viewers_and_releases_runtime(monkeypa
             closed.append(exit_code)
 
     monkeypatch.setattr(physx_app, "KitLauncher", KitRuntime)
-    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg(), NewtonGLVisualizerCfg()])
+    cfg = SimulationCfg(
+        physics=NewtonCfg(),
+        visualizer_cfgs=[VisualizerCfg(backend=KitVisualizerCfg()), VisualizerCfg(backend=NewtonGLVisualizerCfg())],
+    )
     args = argparse.Namespace(max_visible_envs=3)
     with sim_launcher.launch_simulation(cfg, args):
         assert launches == [vars(args)]

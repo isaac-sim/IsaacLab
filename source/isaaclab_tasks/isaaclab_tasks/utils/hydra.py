@@ -53,7 +53,7 @@ from isaaclab.utils import (
     update_from_dict,
     validate,
 )
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
@@ -71,7 +71,7 @@ class PresetTarget(enum.Enum):
 
     PHYSICS = ("physics", (PhysicsCfg,))
     RENDERER = ("renderer", (RendererCfg,))
-    VISUALIZER = ("visualizer", (VisualizerCfg,))
+    VISUALIZER = ("visualizer", (VisualizerBackendCfg,))
     DOMAIN = ("presets", ())
 
     def __new__(cls, label: str, base_classes: tuple[type, ...]):
@@ -640,17 +640,16 @@ def register_task(
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
         from .presets import MultiBackendVisualizerCfg
 
-        selected = resolve_presets(
-            MultiBackendVisualizerCfg(), overrides={"": selectors[PresetTarget.VISUALIZER.matches]}
-        )
-        selected = selected if isinstance(selected, list) else [selected] if selected else []
         viewers = env_cfg.sim.visualizer_cfgs
-        viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
-        env_cfg.sim.visualizer_cfgs = [
-            viewer
-            for choice in selected
-            for viewer in [v for v in viewers if v.visualizer_type == choice.visualizer_type] or [choice]
-        ]
+        viewers = viewers if isinstance(viewers, list) else [viewers]
+        if not viewers:
+            viewers = [VisualizerCfg()]
+        for viewer in viewers:
+            choices = MultiBackendVisualizerCfg()
+            if viewer.backend is not None:
+                vars(choices)[viewer.backend.visualizer_type] = viewer.backend
+            viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
+        env_cfg.sim.visualizer_cfgs = viewers
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win

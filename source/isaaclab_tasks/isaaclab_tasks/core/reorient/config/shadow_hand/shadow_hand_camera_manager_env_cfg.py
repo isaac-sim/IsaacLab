@@ -126,7 +126,7 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
         super().play_mode()
         # the tiled camera needs more environments than the shared play default
         self.scene.num_envs = 64
-        self.sim.default_visualizer_cfg = clone(CAMERA_VISUALIZER_CFG)
+        self.sim.visualizer_cfgs = clone(CAMERA_VISUALIZER_CFG)
         # mutate rather than replace: subclasses may have disabled the CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

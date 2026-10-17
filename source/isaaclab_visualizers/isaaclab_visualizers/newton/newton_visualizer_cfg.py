@@ -13,14 +13,14 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 
 @configclass
-class NewtonVisualizerCfg(VisualizerCfg):
+class NewtonVisualizerCfg(VisualizerBackendCfg):
     """Deprecated configuration base for the Newton GL visualizer.
 
     .. deprecated::
@@ -37,7 +37,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
 
     def __post_init__(self) -> None:
-        super().__post_init__()
         if type(self) is NewtonVisualizerCfg:
             warnings.warn(
                 "NewtonVisualizerCfg is deprecated and will be removed in a future release. "
@@ -120,15 +119,9 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     visualizer_type: str = "newton_gl"
     """Visualizer selector identifier. Do not change."""
 
-    streaming_view: bool = True
-    """Make scene cameras available in the view selector.
-
-    A SceneCameraCfg selection enables this automatically. Otherwise the viewer starts in perspective.
-    """
-
 
 @configclass
-class NewtonRTXVisualizerCfg(VisualizerCfg):
+class NewtonRTXVisualizerCfg(VisualizerBackendCfg):
     """Simulation-owned OVRTX rendering displayed in a Newton GL window.
 
     Launch preparation expands perspective sources into ordinary scene CameraCfg entries.
@@ -160,6 +153,3 @@ class NewtonRTXVisualizerCfg(VisualizerCfg):
 
     Used when declaring perspective CameraCfg entries. SceneCameraCfg retains its sensor's renderer.
     """
-
-    streaming_view: bool = True
-    """Display the cameras declared by :attr:`view` or :attr:`cameras`; default to a perspective camera."""

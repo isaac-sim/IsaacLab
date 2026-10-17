@@ -621,61 +621,67 @@ def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
     if _hero_headless():
         # streaming_cam_target_prim_path follows the robot via a separate "Streaming View"
         # panel, captured through the standard VideoRecorderCfg path.
-        return KitVisualizerCfg(
+        return VisualizerCfg(
             headless=True,
             window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
             streaming_view=True,
             streaming_envs=1,
-            streaming_cam_target_prim_path=_HERO_STREAMING_TARGET_PRIM,
-            streaming_cam_eye=_HERO_KIT_EYE_OFFSET,
             enable_markers=True,
+            backend=KitVisualizerCfg(
+                streaming_cam_target_prim_path=_HERO_STREAMING_TARGET_PRIM, streaming_cam_eye=_HERO_KIT_EYE_OFFSET
+            ),
         )
     # Windowed capture records the "Viewport" tab, not "Streaming View", so it follows via
     # _follow_camera instead, like the other _HERO_FOLLOW_CAM_VISUALIZERS.
-    return KitVisualizerCfg(
+    return VisualizerCfg(
         headless=False,
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         streaming_view=False,
         eye=_HERO_KIT_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         enable_markers=True,
+        backend=KitVisualizerCfg(),
     )
 
 
 def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
     # No streaming_view: markers aren't drawn into that camera sensor (see module docstring).
     # eye/lookat seed the initial pose before _follow_camera takes over.
-    return NewtonGLVisualizerCfg(
+    return VisualizerCfg(
         headless=_hero_headless(),
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
-        sky_upper_color=_HERO_SKY_UPPER_COLOR,
-        sky_lower_color=_HERO_SKY_LOWER_COLOR,
         enable_markers=True,
+        backend=NewtonGLVisualizerCfg(sky_upper_color=_HERO_SKY_UPPER_COLOR, sky_lower_color=_HERO_SKY_LOWER_COLOR),
     )
 
 
 def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
     # The perspective view uses the scene's authored lighting and native debug markers.
-    return NewtonRTXVisualizerCfg(
+    return VisualizerCfg(
         headless=_hero_headless(),
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_RTX_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
         focal_length=_HERO_NARROW_FOCAL_LENGTH,
+        backend=NewtonRTXVisualizerCfg(),
     )
 
 
 def _hero_make_rerun_visualizer_cfg() -> VisualizerCfg:
     # No streaming_view: captures its own native 3D view (see module docstring).
-    return RerunVisualizerCfg(eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True)
+    return VisualizerCfg(
+        eye=_HERO_BROWSER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=RerunVisualizerCfg()
+    )
 
 
 def _hero_make_viser_visualizer_cfg() -> VisualizerCfg:
     # Same switch to native-view capture as Rerun; see _hero_make_rerun_visualizer_cfg().
-    return ViserVisualizerCfg(eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True)
+    return VisualizerCfg(
+        eye=_HERO_VISER_FOLLOW_EYE_OFFSET, lookat=(0.0, 0.0, 0.0), enable_markers=True, backend=ViserVisualizerCfg()
+    )
 
 
 _HERO_VISUALIZER_BUILDERS = {
@@ -1406,48 +1412,58 @@ def _showcase_headless() -> bool:
 
 
 def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
-    return KitVisualizerCfg(
+    return VisualizerCfg(
         headless=_showcase_headless(),
         window=WindowCfg(size=(_SHOWCASE_WINDOW_WIDTH, _SHOWCASE_WINDOW_HEIGHT)),
         eye=_SHOWCASE_REACH_EYE,
         lookat=_SHOWCASE_REACH_LOOKAT,
         enable_markers=True,
+        backend=KitVisualizerCfg(),
     )
 
 
 def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
     # streaming_view defaults to True; this showcase only wants the interactive camera.
-    return NewtonGLVisualizerCfg(
+    return VisualizerCfg(
         headless=_showcase_headless(),
         window=WindowCfg(size=(_SHOWCASE_NEWTON_GL_WINDOW_WIDTH, _SHOWCASE_NEWTON_GL_WINDOW_HEIGHT)),
         streaming_view=False,
         eye=_SHOWCASE_NEWTON_GL_EYE,
         lookat=_SHOWCASE_NEWTON_GL_LOOKAT,
         enable_markers=True,
+        backend=NewtonGLVisualizerCfg(),
     )
 
 
 def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
     # Markers are hard-blocked in NewtonRTXVisualizer for the kitless viewer.
-    return NewtonRTXVisualizerCfg(
+    return VisualizerCfg(
         headless=_showcase_headless(),
         window=WindowCfg(size=(_SHOWCASE_H1_STAIRS_WINDOW_WIDTH, _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT)),
         eye=_SHOWCASE_H1_STAIRS_EYE_OFFSET,
         lookat=_SHOWCASE_WIDE_LOOKAT,
+        backend=NewtonRTXVisualizerCfg(),
     )
 
 
 def _showcase_make_rerun_visualizer_cfg() -> VisualizerCfg:
     # Live plots disabled: not useful in a short clip, and adds overhead to an already
     # browser-bottlenecked capture.
-    return RerunVisualizerCfg(
-        eye=_SHOWCASE_SHADOW_HAND_EYE, lookat=_SHOWCASE_SHADOW_HAND_LOOKAT, enable_markers=True, enable_live_plots=False
+    return VisualizerCfg(
+        eye=_SHOWCASE_SHADOW_HAND_EYE,
+        lookat=_SHOWCASE_SHADOW_HAND_LOOKAT,
+        enable_markers=True,
+        enable_live_plots=False,
+        backend=RerunVisualizerCfg(),
     )
 
 
 def _showcase_make_viser_visualizer_cfg() -> VisualizerCfg:
-    return ViserVisualizerCfg(
-        eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE, lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT, enable_markers=True
+    return VisualizerCfg(
+        eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE,
+        lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT,
+        enable_markers=True,
+        backend=ViserVisualizerCfg(),
     )
 
 
@@ -2199,18 +2215,17 @@ def _streaming_headless() -> bool:
 
 
 def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
-    return KitVisualizerCfg(
+    return VisualizerCfg(
         headless=_streaming_headless(),
         window=WindowCfg(size=(_STREAMING_WINDOW_WIDTH, _STREAMING_WINDOW_HEIGHT)),
         eye=_STREAMING_INTERACTIVE_EYE,
         lookat=_STREAMING_INTERACTIVE_LOOKAT,
-        # Toggled per capture run (see _main_streaming()) -- panel docks as a second tab, not
-        # side by side.
         streaming_view=os.environ.get("STREAMING_KIT_SHOW_PANEL") == "1",
         streaming_envs=_STREAMING_ENVS,
-        streaming_cam_eye=_STREAMING_CAM_EYE,
-        streaming_cam_target_prim_path=_STREAMING_CAM_TARGET_PRIM_PATH,
         enable_markers=False,
+        backend=KitVisualizerCfg(
+            streaming_cam_eye=_STREAMING_CAM_EYE, streaming_cam_target_prim_path=_STREAMING_CAM_TARGET_PRIM_PATH
+        ),
     )
 
 
@@ -2280,7 +2295,7 @@ def _streaming_resolve_env_regex_path(prim_path: str) -> str:
 
 def _streaming_make_newton_gl_visualizer_cfg(env_cfg):
     """Matches run_tiled_camera_visualizer.py's _make_newton_visualizer_cfg for this task."""
-    cfg = NewtonGLVisualizerCfg()
+    cfg = VisualizerCfg(backend=NewtonGLVisualizerCfg())
     cfg.streaming_view = True
     cfg.streaming_envs = _STREAMING_NEWTON_GL_STREAMING_ENVS
 
