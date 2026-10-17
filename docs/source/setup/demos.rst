@@ -251,16 +251,23 @@ Focused examples
 
       .. image:: ../_static/examples/tablecloth_h2.jpg
          :width: 100%
-         :alt: Five side-by-side H2 Plus robots pulling red tablecloths at different speeds.
+         :alt: Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina.
 
-      Five H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
-      different speeds using GPU-captured Newton VBD and scripted Newton IK.
-      This is calibrated fixed-base manipulation, not balance or an RL task;
-      the settings favor contact accuracy over real-time throughput.
+      Three H2 Plus robots with SHARPA hands pull tablecloths at different speeds
+      in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,
+      tableware, and contact-driven grasps; scripted IK controls the fixed-base robots.
+      The contact settings prioritize accuracy over real-time throughput.
 
       .. code-block:: bash
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
+
+      Newton GL is the default visualizer. For the Isaac Sim RTX viewport,
+      install the ``isaacsim`` extra and select ``--visualizer kit``.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example tablecloth --device cuda:0 --visualizer kit
 
       Kit videos: `five-speed overview
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__
