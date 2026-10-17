@@ -60,10 +60,10 @@ class InteractiveScene:
 
     The interactive scene parses the :class:`InteractiveSceneCfg` class to create the scene.
     Based on the specified number of environments, it clones the entities and groups them into different
-    categories (e.g., articulations, sensors, etc.). Physics is always replicated from one environment
-    across the rest; heterogeneous per-environment assets are declared through
-    :attr:`~isaaclab.scene.InteractiveSceneCfg.clone_cfg` (:class:`~isaaclab.cloner.CloneCfg.clone_combinations`)
-    instead of opting out of replication.
+    categories (e.g., articulations, sensors, etc.). It builds one clone plan for all environments and
+    dispatches each asset to its declared clone contexts. Heterogeneous per-environment assets are
+    declared through :attr:`~isaaclab.scene.InteractiveSceneCfg.clone_cfg` and
+    :attr:`~isaaclab.cloner.CloneCfg.clone_combinations`.
 
     Each entity is registered to scene based on its name in the configuration class. For example, if the user
     specifies a robot in the configuration class as follows:

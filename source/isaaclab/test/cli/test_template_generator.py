@@ -411,3 +411,12 @@ def test_internal_task_keeps_repository_layout(tmp_path):
     task_dir = tmp_path / "test_task" / "config" / "cartpole"
     assert task["id"] == "Isaac-Test-Task"
     assert (task_dir / "test_task_env_cfg.py").is_file()
+
+
+@pytest.mark.parametrize("workflow_type", ["single-agent", "multi-agent"])
+def test_generated_direct_tasks_do_not_restore_removed_replication_switch(tmp_path, workflow_type):
+    specification = _external_specification(tmp_path)
+    specification["workflows"] = [{"name": "direct", "type": workflow_type}]
+    task = _GENERATOR._generate_tasks(specification, str(tmp_path))[0]["task"]
+    env_cfg = Path(task["dir"]) / f"{task['env_cfg_filename']}.py"
+    assert "replicate_physics" not in env_cfg.read_text()

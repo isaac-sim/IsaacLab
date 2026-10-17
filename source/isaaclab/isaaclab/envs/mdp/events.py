@@ -64,19 +64,18 @@ def randomize_rigid_body_scale(
     .. attention::
         Since this function modifies USD properties that are parsed by the physics engine once the simulation
         starts, the term should only be used before the simulation starts playing. This corresponds to the
-        event mode named "usd". Using it at simulation time, may lead to unpredictable behaviors.
+        event mode named "prestartup". Using it at simulation time may lead to unpredictable behaviors.
 
     .. note::
-        Scenes always replicate physics now; to randomize the scale of individual assets, declare the
-        variants as separate per-environment prototypes via
-        :attr:`isaaclab.scene.InteractiveSceneCfg.clone_cfg` (:class:`~isaaclab.cloner.CloneCfg.clone_combinations`)
-        instead of relying on non-replicated USD parsing.
+        In scenes with multiple environments, physics replication does not parse independent USD scale
+        overrides. Declare size variants with :class:`~isaaclab.sim.MultiAssetSpawnerCfg` and select
+        world compositions with :class:`~isaaclab.cloner.CloneCfg.clone_combinations` when needed.
     """
     # check if sim is running
     if env.sim.is_playing():
         raise RuntimeError(
             "Randomizing scale while simulation is running leads to unpredictable behaviors."
-            " Please ensure that the event term is called before the simulation starts by using the 'usd' mode."
+            " Please ensure that the event term is called before the simulation starts by using the 'prestartup' mode."
         )
 
     from ...assets import BaseArticulation  # noqa: PLC0415
@@ -99,9 +98,15 @@ def randomize_rigid_body_scale(
     else:
         env_ids = env_ids.cpu()
 
+    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
+    if len(prim_paths) > 1:
+        raise RuntimeError(
+            "Per-environment rigid-body scale randomization is unsupported with replicated physics. "
+            "Declare size variants with MultiAssetSpawnerCfg instead."
+        )
+
     # acquire stage
     stage = env.sim.stage
-    prim_paths = sim_utils.find_matching_prim_paths(asset.cfg.prim_path)
 
     if isinstance(scale_range, dict):
         range_list = [scale_range.get(key, (1.0, 1.0)) for key in ["x", "y", "z"]]

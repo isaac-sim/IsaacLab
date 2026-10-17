@@ -5,6 +5,7 @@
 
 """Clone lifecycle routing, authoring, and dispatch without a simulator runtime."""
 
+import inspect
 from types import SimpleNamespace
 
 import numpy as np
@@ -24,6 +25,7 @@ from isaaclab.cloner import (
 )
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
@@ -36,6 +38,14 @@ class _Context(ReplicateContext):
 
 class _RenderContext(_Context):
     pass
+
+
+def test_replication_policy_has_no_scene_or_cloner_switch():
+    """A scene and clone plan cannot select the removed non-replicated path."""
+    assert "replicate_physics" not in InteractiveSceneCfg.__dataclass_fields__
+    assert "replicate_physics" not in CloneCfg.__dataclass_fields__
+    assert "replicate_physics" not in inspect.signature(replicate_session.replicate).parameters
+    assert "replicate_physics" not in inspect.signature(ReplicateSession).parameters
 
 
 @pytest.fixture

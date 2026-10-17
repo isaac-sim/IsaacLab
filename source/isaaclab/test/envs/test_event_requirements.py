@@ -12,11 +12,13 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.envs.mdp import (
     randomize_fixed_tendon_parameters,
     randomize_physics_scene_gravity,
     randomize_rigid_body_mass,
+    randomize_rigid_body_scale,
     randomize_visual_color,
     randomize_visual_shape,
 )
@@ -76,6 +78,16 @@ def test_replicator_event_rejects_kitless_runtime() -> None:
     env = SimpleNamespace(cfg=ManagerBasedEnvCfg(scene=InteractiveSceneCfg(num_envs=1, env_spacing=1.0)))
     with pytest.raises(NotImplementedError, match="require Isaac Sim"):
         randomize_visual_color(cfg, env)
+
+
+def test_scale_event_rejects_per_environment_usd_edits_after_replication(monkeypatch):
+    """Authored scales cannot imply independent PhysX shapes after scene replication."""
+    asset = SimpleNamespace(cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Cube"))
+    env = SimpleNamespace(sim=SimpleNamespace(is_playing=lambda: False), scene={"cube": asset})
+    paths = ["/World/envs/env_0/Cube", "/World/envs/env_1/Cube"]
+    monkeypatch.setattr(sim_utils, "find_matching_prim_paths", lambda _: paths)
+    with pytest.raises(RuntimeError, match="Per-environment rigid-body scale randomization is unsupported"):
+        randomize_rigid_body_scale(env, torch.tensor([0, 1]), (0.5, 1.5), SceneEntityCfg("cube"))
 
 
 def test_unknown_physics_configuration_fails_at_term_construction():

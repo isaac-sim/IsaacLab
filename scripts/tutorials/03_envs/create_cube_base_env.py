@@ -11,17 +11,10 @@ While going through this tutorial, we recommend you to pay attention to how a cu
 is defined. The action term is responsible for processing the raw actions and applying them to the
 scene entities.
 
-We also define an event term called 'randomize_scale' that randomizes the scale of
-the cube. This event term has the mode 'prestartup', which means that it is applied on the USD stage
-before the simulation starts.
+The cube has three declared size variants distributed across the environments. The reset event
+changes its starting position, and a 'prestartup' event changes its visual color before simulation.
 
-.. attention::
-    Scenes always replicate physics now, so a 'prestartup' USD edit like this one applies to the
-    shared prototype rather than to each environment's cube independently. Declaring per-environment
-    scale variants through :attr:`isaaclab.scene.InteractiveSceneCfg.clone_cfg`
-    (:class:`~isaaclab.cloner.CloneCfg.clone_combinations`) is the supported replacement for
-    heterogeneous per-environment assets, but it targets discrete asset variants rather than a
-    continuously sampled attribute like this tutorial's scale randomization.
+Physics replication uses the declared cube variants to preserve each environment's size in simulation.
 
 The rest of the environment is similar to the previous tutorials.
 
@@ -186,11 +179,16 @@ class MySceneCfg(InteractiveSceneCfg):
     # add cube
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/cube",
-        spawn=sim_utils.CuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+        spawn=sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(
+                    size=(edge, edge, edge),
+                    rigid_props=PhysxRigidBodyCfg(max_depenetration_velocity=1.0, disable_gravity=True),
+                    mass_props=sim_utils.MassCfg(mass=1.0),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 0.0)),
+                )
+                for edge in (0.12, 0.20, 0.28)
+            ]
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 5)),
     )
@@ -250,18 +248,6 @@ class EventCfg:
                 "y": (-0.5, 0.5),
                 "z": (-0.5, 0.5),
             },
-            "asset_cfg": SceneEntityCfg("cube"),
-        },
-    )
-
-    # This event term randomizes the scale of the cube.
-    # The mode is set to 'prestartup', which means that the scale is randomize on the USD stage before the
-    # simulation starts.
-    randomize_scale = EventTerm(
-        func=mdp.randomize_rigid_body_scale,
-        mode="prestartup",
-        params={
-            "scale_range": {"x": (0.5, 1.5), "y": (0.5, 1.5), "z": (0.5, 1.5)},
             "asset_cfg": SceneEntityCfg("cube"),
         },
     )

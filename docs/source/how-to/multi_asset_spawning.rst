@@ -105,10 +105,10 @@ retaining a compatible rigid-body layout. Model structurally different assets as
 Clone planning and physics replication
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~scene.InteractiveScene` represents multi-asset variants as clone-plan prototypes and replicates each
-prototype only to its assigned environments; physics is always replicated this way, including for scenes that use
-a multi-asset spawner. Declare per-environment stage differences as :class:`~isaaclab.cloner.CloneCfg.clone_combinations`
-prototypes instead of opting out of replication.
+:class:`~scene.InteractiveScene` represents multi-asset variants as clone-plan prototypes and dispatches each
+prototype only to its assigned environments. Physics assets use their declared clone contexts, including native
+physics replication by default. Declare per-environment stage differences as
+:attr:`~isaaclab.cloner.CloneCfg.clone_combinations` prototypes.
 
 The example relies on physics replication. For Newton, it also narrows the standalone object and articulation to one
 variant because their batched Newton views currently require a uniform body layout across worlds:

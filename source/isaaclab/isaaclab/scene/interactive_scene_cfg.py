@@ -108,9 +108,8 @@ class InteractiveSceneCfg:
     If False, the simulation will generate collisions between environments.
 
     .. note::
-        Collisions can only be filtered automatically in direct workflows when physics replication is enabled.
-        If :attr:`replicated_physics` is ``False`` and collision filtering is desired, make sure to call
-        ``scene.filter_collisions()``.
+        Direct workflows that add assets after scene construction must call ``scene.filter_collisions()``
+        to filter those assets.
     """
 
     clone_in_fabric: bool = False
