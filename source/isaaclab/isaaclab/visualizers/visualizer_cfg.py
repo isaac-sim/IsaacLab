@@ -10,12 +10,14 @@ from __future__ import annotations
 import argparse
 import math
 import warnings
+from copy import deepcopy
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
 
 if TYPE_CHECKING:
+    from ..cloner import ReplicateContext
     from .base_visualizer import BaseVisualizer
 
 
@@ -60,7 +62,10 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
 
 @configclass
 class PerspectiveCameraCfg:
-    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+    """Initial pose and optics for an interactive perspective camera.
+
+    Newton RTX launch preparation expands this declaration into a scene CameraCfg. Newton GL
+    uses its native viewer camera."""
 
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye position in world coordinates [m]."""
@@ -95,7 +100,7 @@ class ImageViewCfg:
     """Runtime image selection and composition."""
 
     source: str | PerspectiveCameraCfg = MISSING
-    """Scene sensor name, or the initial camera for a visualizer-owned perspective render product."""
+    """Scene sensor name, or an interactive perspective camera declaration."""
 
     envs: tuple[int, ...] = (0,)
     """Sensor rows to display, in the requested order."""
@@ -166,7 +171,7 @@ class VisualizerCfg:
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
-    cloning_contexts: tuple[type | str, ...] = ()
+    cloning_contexts: tuple[type[ReplicateContext] | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     view: ImageViewCfg | None = None
@@ -302,3 +307,17 @@ class VisualizerCfg:
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
+
+
+def _apply_visualizer_defaults(visualizer: VisualizerCfg, defaults: VisualizerCfg | None) -> None:
+    """Copy non-default shared values into fields still at their backend defaults, including window fields."""
+    if defaults is None:
+        return
+    for source, target in ((defaults, visualizer), (defaults.window, visualizer.window)):
+        source_values, target_values = vars(source), vars(target)
+        target_defaults = vars(type(target)())
+        for name, default in vars(type(source)()).items():
+            if name in ("class_type", "visualizer_type", "window") or name not in target_defaults:
+                continue
+            if source_values[name] != default and target_values[name] == target_defaults[name]:
+                target_values[name] = deepcopy(source_values[name])

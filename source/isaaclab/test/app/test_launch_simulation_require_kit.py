@@ -22,6 +22,8 @@ import types
 import isaaclab_physx.app as physx_app
 import pytest
 
+from pxr import Gf
+
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
@@ -117,6 +119,47 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
         calls.append("user")
 
     assert calls == ["register", "storage", "user"]
+
+
+@pytest.mark.parametrize("channels", [("rgb",), ("rgb", "depth")])
+def test_rtx_perspective_configuration_declares_scene_cameras(channels):
+    """Launch declares selected cameras without adding unrelated sensors to the window."""
+    from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+
+    from isaaclab.scene import InteractiveSceneCfg
+    from isaaclab.sim import SimulationCfg
+    from isaaclab.visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg, WindowCfg
+
+    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(0.0, -5.0, 0.0), lookat=(0.0, 0.0, 0.0)))
+    cfg = types.SimpleNamespace(
+        sim=SimulationCfg(
+            physics=sim_launcher.NewtonCfg(),
+            default_visualizer_cfg=VisualizerCfg(window=WindowCfg(size=(160, 120))),
+            visualizer_cfgs=[NewtonRTXVisualizerCfg(streaming_gt_types=channels), NewtonRTXVisualizerCfg(view=view)],
+        ),
+        scene=InteractiveSceneCfg(num_envs=2, env_spacing=4.0),
+    )
+    cfg.scene.observation_camera = sim_launcher.CameraCfg(
+        prim_path="{ENV_REGEX_NS}/ObservationCamera", width=64, height=48,
+        data_types=["rgba", "depth"], renderer_cfg=sim_launcher.OVRTXRendererCfg(),
+    )  # fmt: skip
+    prepared = sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
+    cameras = [sensor for sensor in vars(cfg.scene).values() if isinstance(sensor, sim_launcher.CameraCfg)]
+    assert cameras[0] is cfg.scene.observation_camera
+    assert len(cameras) == 3
+    assert prepared.visualizer_cfgs[0].cameras == [SceneCameraCfg(prim_path=cameras[1].prim_path)]
+    assert vars(cfg.scene)[view.source] is cameras[2]
+    assert cameras[2].offset.pos == (0.0, -5.0, 0.0)
+    assert cameras[2].offset.rot == pytest.approx((2**-0.5, 0.0, 0.0, 2**-0.5))
+    assert cameras[1].offset.pos == NewtonRTXVisualizerCfg().eye
+    assert cameras[1].data_types == ["rgba" if channel == "rgb" else channel for channel in channels]
+    assert all((camera.width, camera.height) == (160, 120) for camera in cameras[1:])
+    for camera in cameras[1:]:
+        assert camera.spawn.vertical_aperture == pytest.approx(Gf.Camera().verticalAperture)
+        assert camera.spawn.horizontal_aperture / camera.spawn.vertical_aperture == pytest.approx(160 / 120)
+    assert all(camera.renderer_cfg == prepared.visualizer_cfgs[0].renderer_cfg for camera in cameras[1:])
+    sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
+    assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
 
 
 @pytest.mark.parametrize("interrupt", [False, True])

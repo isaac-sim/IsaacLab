@@ -37,6 +37,20 @@ Kit-only demos are not shown.
 For cloth and rigid-soft contact guidance, see :ref:`newton-using-vbd`.
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
+MicroDuck Warehouse rendering
+-----------------------------
+
+View the static MicroDuck Warehouse through selectable renderers and saved cameras, without advancing physics.
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab demo microduck-warehouse
+   uv run --extra isaacsim isaaclab demo microduck-warehouse renderer=isaacsim_rtx presets=path_traced
+   uv run isaaclab demo microduck-warehouse renderer=newton_renderer presets=aisle,depth
+
+Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
+For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
+
 Command Builder
 ---------------
 
@@ -96,6 +110,15 @@ Command Builder
          <span>Zoo</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
+               data-demo-physics="isaacsim_physx"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
+         <img src="../../_static/browser_demos/previews/microduck.jpg"
+              alt="MicroDuck warehouse scene" loading="lazy">
+         <span>MicroDuck Warehouse</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
                data-demo-physics="isaacsim_physx,newton_mjwarp"
                data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
@@ -108,7 +131,9 @@ Command Builder
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="SONIC" data-demo-id="sonic"
                data-demo-physics="newton_mjwarp,isaacsim_physx"
-               data-demo-visualizers="kit"
+               data-demo-visualizers="newton_gl,kit,newton_rtx,rerun,viser"
+               data-demo-visualizers-isaacsim-physx="kit,newton_gl,rerun,viser"
+               data-demo-visualizers-newton-mjwarp="newton_gl,kit,newton_rtx,rerun,viser"
                data-demo-description="Record G1 traversing deformable gravel and sand with released SONIC policies.">
          <img src="../../_static/browser_demos/previews/g1.jpg" alt="G1 humanoid robot in Isaac Lab" loading="lazy">
          <span>SONIC</span>
@@ -195,12 +220,17 @@ Run either backend:
      --physics newton_mjwarp --output logs/sonic_newton
 
    uv run --extra isaacsim --extra video isaaclab demo sonic \
-     --physics isaacsim_physx --output logs/sonic_physx
+     --physics isaacsim_physx --video --output logs/sonic_physx
 
-Newton records offscreen; PhysX opens a window to synchronize robot and particle
-visuals. Both save ``video.mp4`` in the selected output directory. Recording advances
+Without ``--viz``, Newton records offscreen with Kit/RTX and opens no simulation window;
+PhysX opens Kit and records only with ``--video``. Both commands above save
+``sonic_0000.mp4`` in the selected output directory (``logs/sonic`` when ``--output`` is omitted).
+The terminal reports simulation progress. Recording advances
 in simulation time, so the full MPM scene can take substantially longer than the video
 duration. Pass ``--seconds`` to change the simulation duration.
+
+Pass ``--viz newton_gl`` or ``--viz kit`` to open a Newton simulation window instead.
+With an explicit ``--viz`` selection, recording is opt-in via ``--video``.
 
 Append ``env.sim.device=cuda:1`` to select a different CUDA device for physics and SONIC
 inference. PhysX keeps state buffers on the CPU for USD readback while particle
@@ -221,16 +251,23 @@ Focused examples
 
       .. image:: ../_static/examples/tablecloth_h2.jpg
          :width: 100%
-         :alt: Five side-by-side H2 Plus robots pulling red tablecloths at different speeds.
+         :alt: Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina.
 
-      Five H2 Plus robots with SHARPA hands compare contact-only cloth pulls at
-      different speeds using GPU-captured Newton VBD and scripted Newton IK.
-      This is calibrated fixed-base manipulation, not balance or an RL task;
-      the settings favor contact accuracy over real-time throughput.
+      Three H2 Plus robots with SHARPA hands pull tablecloths at different speeds
+      in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,
+      tableware, and contact-driven grasps; scripted IK controls the fixed-base robots.
+      The contact settings prioritize accuracy over real-time throughput.
 
       .. code-block:: bash
 
          uvx --torch-backend cu130 isaaclab example tablecloth --device cuda:0
+
+      Newton GL is the default visualizer. For the Isaac Sim RTX viewport,
+      install the ``isaacsim`` extra and select ``--visualizer kit``.
+
+      .. code-block:: bash
+
+         uvx --torch-backend cu130 --from 'isaaclab[isaacsim]' isaaclab example tablecloth --device cuda:0 --visualizer kit
 
       Kit videos: `five-speed overview
       <https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2>`__

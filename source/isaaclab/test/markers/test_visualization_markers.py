@@ -523,6 +523,7 @@ def _make_newton_marker_for_render(
     visible: bool = True,
 ):
     marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
+    marker._registry = None
     marker_cfg_type = type("MarkerCfg", (), {"visual_material": None})
     marker.cfg = type("Cfg", (), {"markers": {name: marker_cfg_type() for name in marker_names}})()
     marker.group_id = "/Visuals/marker::test"
