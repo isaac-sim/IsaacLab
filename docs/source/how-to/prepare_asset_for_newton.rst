@@ -10,7 +10,7 @@
 Prepare an Asset for Newton with MJWarp
 =======================================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-preparing-assets-for-newton`` agent skill
    (`skill source

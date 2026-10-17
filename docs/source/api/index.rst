@@ -95,7 +95,7 @@ isaaclab_tasks extension
 ------------------------
 
 This package ``isaaclab_tasks`` contains the tasks that are available in the Isaac Lab.
-For more information, browse the registered tasks in :doc:`/source/setup/environments`.
+For more information, browse the registered tasks in :doc:`/source/isaaclab/environments`.
 
 It includes the following modules:
 
@@ -229,7 +229,7 @@ isaaclab_tasks_experimental extension
 
 The package ``isaaclab_tasks_experimental`` contains experimental task implementations
 under active development, not yet part of the stable task suite.
-For the list of available environments, please refer to :doc:`/source/setup/environments`.
+For the list of available environments, please refer to :doc:`/source/isaaclab/environments`.
 
 
 Additional public API modules

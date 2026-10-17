@@ -12,7 +12,7 @@ Setup:
     - uv pip install --reinstall-package torch --reinstall-package torchvision
         torch==<pinned> torchvision==<pinned> --index-url https://download.pytorch.org/whl/cu130
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
-        (per docs/source/setup/installation/index.rst; reinstall after the wheel install to select the CUDA build.)
+        (per docs/source/isaaclab/installation.rst; reinstall after the wheel install to select the CUDA build.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - python -c "from isaaclab_physx.app import KitLauncher" -> verify the Kit launcher is importable
@@ -74,7 +74,7 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
         )
 
         # 3. Reinstall CUDA-matched torch to swap out the CPU torch unsafe-best-match picked above.
-        #    Mirrors docs/source/setup/installation/index.rst.
+        #    Mirrors docs/source/isaaclab/installation.rst.
         result = self.run_in_uv_env(
             [
                 "uv",

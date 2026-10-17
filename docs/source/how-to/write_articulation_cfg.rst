@@ -62,9 +62,8 @@ For common USD properties, use classes from ``isaaclab.sim.schemas``, such as
 :class:`~sim.schemas.RigidBodyBaseCfg` and :class:`~sim.schemas.ArticulationRootBaseCfg`.
 Use ``isaaclab_physx.sim.schemas.Physx*Cfg`` for PhysX tuning and
 ``isaaclab_newton.sim.schemas.Newton*Cfg`` / ``Mujoco*Cfg`` for Newton and MJWarp-specific
-settings. The :ref:`schema-cfgs` guide explains the available classes and their USD namespaces;
-:doc:`../concepts/schema_fragments` shows how to author both backends' attributes
-in one spawn configuration.
+settings. See :ref:`schema-cfgs` for the available classes and how to combine
+backend-specific settings in one spawn configuration.
 
 The Cartpole below uses the compatibility names ``RigidBodyPropertiesCfg`` and
 ``ArticulationRootPropertiesCfg``. Its PhysX solver iterations and sleep thresholds do not

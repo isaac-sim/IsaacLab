@@ -11,7 +11,7 @@ Setup:
     - uv pip install --reinstall-package torch --reinstall-package torchvision
         torch==<pinned> torchvision==<pinned> --index-url https://download.pytorch.org/whl/cu130
         (versions read from [tool.isaaclab.versions] in the root pyproject.)
-        (per docs/source/setup/installation/index.rst; reinstall after the wheel install to select the CUDA build.)
+        (per docs/source/isaaclab/installation.rst; reinstall after the wheel install to select the CUDA build.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
     - python -c "import importlib.metadata as m; assert m.version('newton') == '1.6.1'"

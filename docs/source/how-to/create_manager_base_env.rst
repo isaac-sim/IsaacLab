@@ -1,6 +1,6 @@
 :orphan:
 
-.. seealso::
+.. Maintenance notes
 
    This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
    (:isaaclab-source:`skills/user/domain-randomization-events/ <skills/user/domain-randomization-events/SKILL.md>`).
@@ -14,21 +14,13 @@ Creating a Manager-Based Base Environment
 
 .. currentmodule:: isaaclab
 
-Environments bring together different aspects of the simulation such as
-the scene, observations and actions spaces, reset events etc. to create a
-coherent interface for various applications. In Isaac Lab, manager-based environments are
-implemented as :class:`envs.ManagerBasedEnv` and :class:`envs.ManagerBasedRLEnv` classes.
-The two classes are very similar, but :class:`envs.ManagerBasedRLEnv` is useful for
-reinforcement learning tasks and contains rewards, terminations, curriculum
-and command generation. The :class:`envs.ManagerBasedEnv` class is useful for
-traditional robot control and doesn't contain rewards and terminations.
+This tutorial builds a Cartpole environment with :class:`envs.ManagerBasedEnv`
+and :class:`envs.ManagerBasedEnvCfg`. The configuration brings together the scene,
+actions, observations, and reset events. Managers execute the configured terms.
 
-In this tutorial, we will look at the base class :class:`envs.ManagerBasedEnv` and its
-corresponding configuration class :class:`envs.ManagerBasedEnvCfg` for the manager-based workflow.
-We will use the
-cartpole environment from earlier to illustrate the different components
-in creating a new :class:`envs.ManagerBasedEnv` environment.
-
+For rewards and episode termination, continue with
+:ref:`tutorial-create-manager-rl-env`. See :ref:`feature-workflows` for the
+difference between direct and manager-based environments.
 
 The Code
 ~~~~~~~~

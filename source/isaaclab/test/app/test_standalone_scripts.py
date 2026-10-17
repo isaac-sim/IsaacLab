@@ -230,7 +230,7 @@ def test_every_packaged_script_is_registered_for_cli_launch():
 def test_demo_browser_documents_options_for_each_demo():
     """Every demo card must match a demo and offer exactly the options the demo accepts."""
     docs_source = script_cases.ROOT / "docs/source"
-    demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
+    demos_page = (docs_source / "isaaclab/demos.rst").read_text(encoding="utf-8")
     documented_entries = {}
     for card in re.findall(r'(?s)<button[^>]+data-demo-id="[^"]+"[^>]*>', demos_page):
         attributes = dict(re.findall(r'data-demo-([\w-]+)="([^"]*)"', card))

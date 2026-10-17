@@ -3,19 +3,17 @@ Hydra Configuration System
 
 .. currentmodule:: isaaclab
 
-Isaac Lab supports the `Hydra <https://hydra.cc/docs/intro/>`_ configuration system to modify the task's
-configuration using command line arguments, which can be useful to automate experiments and perform hyperparameter tuning.
+Use `Hydra <https://hydra.cc/docs/intro/>`_ overrides to change task and agent
+settings from the command line, without editing Python.
 
-Any parameter of the environment can be modified by adding one or multiple elements of the form ``env.a.b.param1=value``
-to the command line input, where ``a.b.param1`` reflects the parameter's hierarchy, for example ``env.actions.joint_effort.scale=10.0``.
-Similarly, the agent's parameters can be modified by using the ``agent`` prefix, for example ``agent.seed=2024``.
+Append ``env.<path>=<value>`` for environment settings, such as
+``env.actions.joint_effort.scale=10.0``. Use the ``agent`` prefix for training
+settings, such as ``agent.seed=2024``.
 
-The way these command line arguments are set follow the exact structure of the configuration files. Since the different
-RL frameworks use different conventions, there might be differences in the way the parameters are set. For example,
-with *rl_games* the seed will be set with ``agent.params.seed``, while with *rsl_rl*, *skrl* and *sb3* it will be set with
-``agent.seed``.
+Paths follow the configuration structure of each RL library. For example, RL-Games
+uses ``agent.params.seed``; RSL-RL, skrl, and SB3 use ``agent.seed``.
 
-As a result, training with hydra arguments can be run with the following syntax:
+For example:
 
 .. tab-set::
     :sync-group: rl-train
@@ -104,8 +102,7 @@ Modifying advanced parameters
 Callables
 ^^^^^^^^^
 
-It is possible to modify functions and classes in the configuration files by using the syntax ``module:attribute_name``.
-For example, in the Cartpole environment:
+Use ``module:attribute_name`` to select a function or class. For example, in Cartpole:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
     :language: python
@@ -142,9 +139,8 @@ This example shows two noteworthy points:
 Modifying inter-dependent parameters
 ------------------------------------
 
-Particular care should be taken when modifying the parameters using command line arguments. Some of the configurations
-perform intermediate computations based on other parameters. These computations will not be updated when the parameters
-are modified.
+Overrides do not recompute values derived earlier from other settings. Update
+those dependent values too, unless the environment recomputes them at runtime.
 
 For example, for the configuration of the Cartpole camera environment:
 
@@ -327,13 +323,11 @@ is the solver configuration: ``newton_mjwarp`` uses
 Kamino is therefore a solver preset, not a separate Isaac Lab backend. The same
 Newton assets, sensors, renderers, and visualizers are used after the preset is
 resolved. It is a Proximal Alternating Direction Method of Multipliers (P-ADMM)
-based solver for constrained rigid multi-body dynamics, and its Isaac Lab support
-is currently beta.
+based solver for constrained rigid multi-body dynamics.
 
 .. note::
 
-    Kamino support is experimental and currently depends on the asset being
-    structured in a way that Kamino can consume. Assets that work with the
+    Kamino requires assets with a compatible model structure. Assets that work with the
     MuJoCo-Warp or PhysX presets may still require model-structure updates before
     they work with ``physics=newton_kamino``.
 
@@ -369,8 +363,8 @@ For simple values (scalars, lists) that don't warrant a full subclass, use the
         default=0.0, isaacsim_physx=0.0, newton_mjwarp=0.01, physx=0.0
     )
 
-This is equivalent to defining a ``PresetCfg`` subclass with the same ``float``
-fields, but without the ceremony. The ``default`` keyword is required.
+This creates the same fields as a ``PresetCfg`` subclass. The ``default`` argument
+is required.
 
 ``preset()`` works for any value type -- scalars, lists, or even config
 instances:
@@ -447,7 +441,7 @@ task-specific modes.
    * - ``newton_mjwarp``
      - Newton physics with the MuJoCo-Warp solver
    * - ``newton_kamino``
-     - Newton physics with the Kamino solver (beta; limited tasks — see :ref:`hydra-backend-solver-presets`)
+     - Newton physics with the Kamino solver (selected tasks — see :ref:`hydra-backend-solver-presets`)
    * - ``ovphysx``
      - Concrete OvPhysX configuration for supported kit-less tasks
 

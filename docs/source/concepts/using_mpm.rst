@@ -8,30 +8,113 @@ such as sand, snow, and other granular media. Isaac Lab integrates it as a
 Newton solver configuration, a particle asset type, and an optional coupling
 with rigid-body solvers. MPM support and rigid--MPM coupling are experimental.
 
-This page explains how the integration works. For runnable scenes, see
-`Examples and tasks`_. For resolution, convergence, and material studies, and
-the nearly rigid MPM limit, see :ref:`newton-tuning-mpm`.
+Start with `Examples and tasks`_ for runnable scenes. See :ref:`newton-tuning-mpm`
+for resolution, convergence, material settings, and the nearly rigid MPM limit.
 
 
-How MPM fits into the Newton backend
-------------------------------------
+Examples and tasks
+------------------
 
-Selecting :class:`~isaaclab_newton.physics.MPMSolverCfg` as the ``solver_cfg`` of
-:class:`~isaaclab_newton.physics.NewtonCfg` installs
-:class:`~isaaclab_newton.physics.NewtonMPMManager`, a specialization of the
-Newton manager that constructs Newton's ``SolverImplicitMPM``. The solver
-represents material as particles and solves its rheology implicitly on a
-background voxel grid. The MPM manager configures the Newton manager as
-follows:
+These examples and demos introduce MPM construction and interaction. They
+default to Newton GL for interactive viewing. The launcher uses ``cuda:0`` by
+default. Pass ``--device cuda:N`` to select a different GPU.
 
-* It advances particles in place on a single Newton state rather than double
-  buffering state.
-* It resolves collider contact inside the implicit solve. It does not use
-  Newton's collision pipeline.
-* It treats rigid geometry as colliders. It is not a rigid-body or
-  articulation dynamics solver, and it does not accept external rigid-body
-  forces. Kinematic bodies are given zero mass before the model is finalized,
-  and convex meshes are passed to the solver as triangle meshes.
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: Granular drop
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_granular.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab example mpm-granular
+
+   .. grid-item-card:: Two-way sphere pit
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_two_way.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab example mpm-two-way-coupling
+
+   .. grid-item-card:: Snowball smash
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab demo snowball-smash
+
+   .. grid-item-card:: Teapot fill
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
+         </video>
+
+      .. code-block:: bash
+
+         uv run isaaclab demo teapot-fill --fluid_render_mode particles
+
+.. _franka-pour-reset-artifact:
+
+Franka Pour
+^^^^^^^^^^^
+
+The ``IsaacContrib-Franka-Pour`` task restores episodes from a reset artifact
+containing the connected 14-phase reset distribution. The canonical 20,000-row
+artifact downloads from the standard Isaac Lab asset root on first use, so
+training needs no artifact setup:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --num_envs 2048
+
+The checked-in generator remains the executable reference for reproducing or
+customizing the distribution. It takes about two minutes on an L40S-class GPU
+and writes a local artifact that can be selected explicitly:
+
+.. code-block:: bash
+
+   uv run python scripts/tools/generate_franka_pour_reset_dataset.py
+   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --num_envs 2048 \
+     env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
+
+The task validates the payload's stored content digest automatically. Setting
+``ISAACSIM_ASSET_ROOT`` redirects the canonical artifact to a compatible local
+or self-hosted asset tree. Digest pinning remains available for custom
+reproducible experiments.
+
+The source uses a non-colliding analytic fill volume whose height is controlled
+by ``env.source_fill_level`` in ``(0, 1]``. The default ``0.70`` fills roughly
+70% of the cup height; the particle count follows the requested fill level
+while voxel size and particle spacing stay fixed.
+``env.pour_target_frac`` independently controls the fraction of that live
+payload that must reach the receiver.
+
+Play a checkpoint in Kit with the canonical task configuration; no external
+callback or particle override is required:
+
+.. code-block:: bash
+
+   uv run --extra isaacsim isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --checkpoint /path/to/model.pt --num_envs 1 --visualizer kit
 
 
 Coupling with rigid bodies
@@ -280,109 +363,25 @@ inactive particles, and dynamic topology:
       :pyobject: ParticleSurfaceRenderer
 
 
-Examples and tasks
-------------------
+How MPM fits into the Newton backend
+------------------------------------
 
-These examples and demos introduce MPM construction and interaction. They
-default to Newton GL for interactive viewing. The launcher uses ``cuda:0`` by
-default. Pass ``--device cuda:N`` to select a different GPU.
+Selecting :class:`~isaaclab_newton.physics.MPMSolverCfg` as the ``solver_cfg`` of
+:class:`~isaaclab_newton.physics.NewtonCfg` installs
+:class:`~isaaclab_newton.physics.NewtonMPMManager`, a specialization of the
+Newton manager that constructs Newton's ``SolverImplicitMPM``. The solver
+represents material as particles and solves its rheology implicitly on a
+background voxel grid. The MPM manager configures the Newton manager as
+follows:
 
-.. grid:: 1 1 2 2
-   :gutter: 2
-
-   .. grid-item-card:: Granular drop
-
-      .. raw:: html
-
-         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_granular.mp4" type="video/mp4">
-         </video>
-
-      .. code-block:: bash
-
-         uv run isaaclab example mpm-granular
-
-   .. grid-item-card:: Two-way sphere pit
-
-      .. raw:: html
-
-         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_two_way.mp4" type="video/mp4">
-         </video>
-
-      .. code-block:: bash
-
-         uv run isaaclab example mpm-two-way-coupling
-
-   .. grid-item-card:: Snowball smash
-
-      .. raw:: html
-
-         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_snowball.mp4" type="video/mp4">
-         </video>
-
-      .. code-block:: bash
-
-         uv run isaaclab demo snowball-smash
-
-   .. grid-item-card:: Teapot fill
-
-      .. raw:: html
-
-         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
-           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_teapot_particles.mp4" type="video/mp4">
-         </video>
-
-      .. code-block:: bash
-
-         uv run isaaclab demo teapot-fill --fluid_render_mode particles
-
-.. _franka-pour-reset-artifact:
-
-Franka Pour
-^^^^^^^^^^^
-
-The ``IsaacContrib-Franka-Pour`` task restores episodes from a reset artifact
-containing the connected 14-phase reset distribution. The canonical 20,000-row
-artifact downloads from the standard Isaac Lab asset root on first use, so
-training needs no artifact setup:
-
-.. code-block:: bash
-
-   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --num_envs 2048
-
-The checked-in generator remains the executable reference for reproducing or
-customizing the distribution. It takes about two minutes on an L40S-class GPU
-and writes a local artifact that can be selected explicitly:
-
-.. code-block:: bash
-
-   uv run python scripts/tools/generate_franka_pour_reset_dataset.py
-   uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --num_envs 2048 \
-     env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
-
-The task validates the payload's stored content digest automatically. Setting
-``ISAACSIM_ASSET_ROOT`` redirects the canonical artifact to a compatible local
-or self-hosted asset tree. Digest pinning remains available for custom
-reproducible experiments.
-
-The source uses a non-colliding analytic fill volume whose height is controlled
-by ``env.source_fill_level`` in ``(0, 1]``. The default ``0.70`` fills roughly
-70% of the cup height; the particle count follows the requested fill level
-while voxel size and particle spacing stay fixed.
-``env.pour_target_frac`` independently controls the fraction of that live
-payload that must reach the receiver.
-
-Play a checkpoint in Kit with the canonical task configuration; no external
-callback or particle override is required:
-
-.. code-block:: bash
-
-   uv run --extra isaacsim isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --checkpoint /path/to/model.pt --num_envs 1 --visualizer kit
+* It advances particles in place on a single Newton state rather than double
+  buffering state.
+* It resolves collider contact inside the implicit solve. It does not use
+  Newton's collision pipeline.
+* It treats rigid geometry as colliders. It is not a rigid-body or
+  articulation dynamics solver, and it does not accept external rigid-body
+  forces. Kinematic bodies are given zero mass before the model is finalized,
+  and convex meshes are passed to the solver as triangle meshes.
 
 
 Limitations
