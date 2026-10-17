@@ -11,8 +11,9 @@
 Every environment holds a rigid-object cube and a three-cube collection, all locally spawned shapes. The cube
 also stands beside the collection as an unrelated rigid body, so the collection view must select exactly its
 configured bodies. Scene gravity is off; a test that needs gravity applies it to every world for its own duration.
-Configurations that fail initialization and the single-instance cases build their own scenes. Only one simulation
-context can be alive, so those tests come first and fail if selected after a shared-scene test.
+Configurations that fail initialization, VBD state publication, and the single-instance cases build their own
+scenes. Only one simulation context can be alive, so those tests come first and fail if selected after a
+shared-scene test.
 """
 
 from isaaclab_newton.physics import NewtonCfg
@@ -33,6 +34,7 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import RigidObject, RigidObjectCollection
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics import VBDSolverCfg
 from newton import ModelFlags
 from newton_test_utils import env_origins, local_usd, newton_sim_cfg, spawn_assets, world_gravity
 
@@ -111,6 +113,49 @@ def _collection_cfg(
 ##
 
 
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("state_owner", ["vbd", "body-only", "external"])
+def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) -> None:
+    """Publish VBD body motion unless joint-state ownership is explicitly delegated."""
+    sim_cfg = SimulationCfg(
+        device=device,
+        physics=NewtonCfg(
+            solver_cfg=VBDSolverCfg(
+                iterations=5,
+                rigid_compliant_alm=True,
+                update_joint_state=state_owner != "body-only",
+                integrate_with_external_rigid_solver=state_owner == "external",
+            )
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        cube_object = spawn_assets({"cube": _cube_cfg()}, num_envs=1)["cube"]
+        sim.reset()
+
+        initial_height = cube_object.data.root_link_pose_w.torch[0, 2].item()
+        if state_owner == "external":
+            # An external rigid solver owns these generalized velocities, not VBD's body buffers.
+            SimulationManager.get_state_0().joint_qd.fill_(0.125)
+            SimulationManager.get_state_1().joint_qd.fill_(0.125)
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        body_pose = cube_object.data.body_link_pose_w.torch[:, 0]
+        body_velocity = cube_object.data.body_com_vel_w.torch[:, 0]
+        if state_owner == "external":
+            assert body_pose[0, 2].item() == initial_height
+            torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, torch.full_like(body_velocity, 0.125))
+            return
+        assert body_pose[0, 2] < initial_height
+        assert body_velocity[0, 2] < 0.0
+        if state_owner == "vbd":
+            torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, body_pose)
+            torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, body_velocity)
+        else:
+            assert cube_object.data.root_link_pose_w.torch[0, 2].item() == initial_height
+            assert torch.count_nonzero(cube_object.data.root_com_vel_w.torch) == 0
+
+
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("api", ["none", "articulation"])
 def test_initialization_rejects_non_rigid_body_prims(api: str) -> None:
@@ -171,7 +216,7 @@ def test_collection_initialization_with_no_rigid_body() -> None:
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_collection_single_instance_initialization(device: str) -> None:
-    """A single-environment, single-body collection initializes with singleton buffers."""
+    """A singleton collection keeps working after repeated hard resets without accumulating callbacks."""
     with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
         object_collection = spawn_assets({"collection": _collection_cfg(1)}, num_envs=1)["collection"]
         sim.reset()
@@ -184,6 +229,23 @@ def test_collection_single_instance_initialization(device: str) -> None:
         assert object_collection.data.body_link_quat_w.torch.shape == (1, 1, 4)
         assert object_collection.data.body_mass.torch.shape == (1, 1)
         assert object_collection.data.body_inertia.torch.shape == (1, 1, 9)
+
+        callback_count = len(SimulationManager._callbacks)
+        for _ in range(2):
+            old_data = object_collection.data
+            sim.reset()
+            assert object_collection.data is not old_data
+            assert len(SimulationManager._callbacks) == callback_count
+
+            pose = object_collection.data.default_body_pose.torch.clone()
+            velocity = torch.zeros((1, 1, 6), device=device)
+            velocity[..., 0] = 0.5
+            object_collection.write_body_pose_to_sim_index(body_poses=pose)
+            object_collection.write_body_velocity_to_sim_index(body_velocities=velocity)
+            sim.step(render=False)
+            object_collection.update(sim.cfg.dt)
+            pose[..., 0] += 0.5 * sim.cfg.dt
+            torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, pose)
 
 
 ##

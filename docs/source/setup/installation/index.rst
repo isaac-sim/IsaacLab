@@ -3,9 +3,9 @@
 Installation
 ============
 
-.. image:: https://img.shields.io/badge/IsaacSim-6.1.0-silver.svg
+.. image:: https://img.shields.io/badge/IsaacSim-6.2.0-silver.svg
    :target: https://developer.nvidia.com/isaac-sim
-   :alt: Isaac Sim 6.1.0
+   :alt: Isaac Sim 6.2.0
 
 .. image:: https://img.shields.io/badge/python-3.12-blue.svg
    :target: https://www.python.org/downloads/release/python-3120/
@@ -34,11 +34,11 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 `Omniverse technical requirements
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
 
-Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
+Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.2 with Python 3.12.
 The Isaac Sim wheels require GLIBC 2.35 or newer on Linux.
 
 The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
-``580.88`` or newer on Windows, as documented in the `PyTorch 2.12 release announcement
+``580.88`` or newer on Windows, as documented in the `PyTorch CUDA 13.0 requirements
 <https://pytorch.org/blog/pytorch-2-12-release-blog/>`__. CUDA 13.0 wheels support Blackwell GPUs.
 
 Use the latest NVIDIA production branch driver. Version ``580.95.05`` or later is recommended on
@@ -102,7 +102,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
@@ -128,7 +128,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          # Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
       .. note::
 
@@ -167,7 +167,7 @@ Install ``uv``, clone Isaac Lab, and start a workflow:
             --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
          :: Play a policy
-         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton
+         uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole-Direct --viz newton_gl
 
 ``uv run`` installs the core dependencies automatically. The ``--extra <name>``
 option includes the selected optional integration in the command's environment. Place it
@@ -175,7 +175,7 @@ before ``isaaclab``; for example, ``--extra ov`` installs both ovphysx and ovrtx
 backends. Pass a comma-separated list or repeat ``--extra``. No extras conflict, so
 any combination resolves into one environment. The ``--extra all`` shortcut installs the
 curated ``ov``, ``rl-games``, ``sb3``, ``skrl``, ``rsl-rl``, ``rerun``, and ``viser`` extras.
-It does not include Isaac Sim or the specialized ``rlinf``, ``mimic``, ``teleop``,
+It does not include Isaac Sim or the specialized ``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``,
 ``tetrahedralization``, ``video``, and ``leapp`` extras; request them by name:
 
 .. code-block:: bash
@@ -190,8 +190,9 @@ and then runs the command.
 
 The source checkout selects PyTorch's CUDA 13.0 build on Linux x86_64, Linux aarch64, and Windows.
 No additional command flags are needed.
-The published wheel pins the PyTorch versions, but downstream uv projects must configure their own
-PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sources`` settings.
+The aggregate wheel pins the PyTorch versions using registry-compatible metadata. Its published-wheel
+commands select the CUDA 13.0 build at install time. The wheel supports Python 3.12, matching the source
+checkout.
 
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
@@ -259,13 +260,25 @@ updating the lockfile can then select a newer Isaac Lab revision and dependency 
 Installing the published wheel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not use the
-``[tool.uv.sources]`` Git entry from the previous workflow when installing the published wheel.
+Use NVIDIA's package index for the |isaaclab_wheel_version| prerelease. Do not point Isaac Lab at
+the Git source from the previous workflow when installing the published wheel.
 
-Choose how you want uv to manage the dependency. Both workflows start with the base
-``isaaclab`` package; add optional capabilities only when your project needs them.
+Run the published package directly or install it into a persistent environment. All workflows start
+with the base ``isaaclab`` package; add optional capabilities only when your project needs them.
 
 .. tab-set::
+
+   .. tab-item:: Direct uvx command
+
+      .. code-block:: bash
+
+         uvx --index https://pypi.nvidia.com \
+            --torch-backend cu130 \
+            --from "isaaclab==3.0.0rc1" \
+            isaaclab demo zoo
+
+      This resolves the published wheel from the package index into an isolated environment. It does
+      not require a source checkout, wheel download, or project file.
 
    .. tab-item:: uv project dependency
 
@@ -273,7 +286,14 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
          uv init --python 3.12 my_isaaclab_project
          cd my_isaaclab_project
-         uv add --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+         uv add \
+            --index-strategy unsafe-best-match \
+            --index pytorch-cu130=https://download.pytorch.org/whl/cu130 \
+            torch==2.11.0 torchvision==0.26.0
+         uv add \
+            --index-strategy unsafe-best-match \
+            --index nvidia=https://pypi.nvidia.com \
+            isaaclab==3.0.0rc1
 
    .. tab-item:: Standalone uv environment
 
@@ -287,7 +307,9 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+               uv pip install isaaclab==3.0.0rc1 \
+                  --index https://pypi.nvidia.com \
+                  --torch-backend cu130
 
          .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
             :sync: windows-x86_64
@@ -296,7 +318,9 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                env_isaaclab\Scripts\activate
-               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+               uv pip install isaaclab==3.0.0rc1 ^
+                  --index https://pypi.nvidia.com ^
+                  --torch-backend cu130
 
          .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
             :sync: linux-aarch64
@@ -305,11 +329,14 @@ Choose how you want uv to manage the dependency. Both workflows start with the b
 
                uv venv --python 3.12 env_isaaclab
                source env_isaaclab/bin/activate
-               uv pip install --index https://pypi.nvidia.com isaaclab==3.0.0rc1
+               uv pip install isaaclab==3.0.0rc1 \
+                  --index https://pypi.nvidia.com \
+                  --torch-backend cu130
 
-The project workflow records the dependency in ``pyproject.toml`` and updates ``uv.lock``. Use it
-when Isaac Lab is part of an application you maintain; use a standalone environment for exploratory
-or temporary work.
+The project workflow records the dependencies, package indexes, and lockfile for an application you
+maintain; the commands make those project-file changes, so no manual editing is required. Use ``uvx``
+for one-off commands or a standalone environment for exploratory work that needs an activated Python
+environment. Pass the same index strategy when adding or upgrading dependencies in the project.
 
 .. _installation-optional-extras:
 
@@ -336,6 +363,8 @@ have dedicated commands below.
      - OV PhysX only / OV RTX only.
    * - ``sb3`` / ``skrl`` / ``rsl-rl`` / ``rlinf`` / ``torchrl``
      - The corresponding RL framework.
+   * - ``skrl-jax``
+     - skrl with CUDA-enabled JAX.
    * - ``rerun`` / ``viser``
      - The corresponding visualizer.
    * - ``mimic`` / ``teleop``
@@ -353,8 +382,8 @@ have dedicated commands below.
      - Developer test and documentation tooling.
 
 Use ``all`` for the curated list above. Isaac Sim, standalone importers, specialized extras
-(``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and the
-developer ``test`` tooling remain opt-in.
+(``skrl-jax``, ``rlinf``, ``mimic``, ``teleop``, ``tetrahedralization``, ``video``, ``leapp``), and
+the developer ``test`` tooling remain opt-in.
 
 .. note::
 
@@ -385,7 +414,7 @@ Install this extra to convert URDF and MJCF files without Isaac Sim.
 Installing the ``isaacsim`` extra
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Isaac Sim 6.1 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
+Isaac Sim 6.2 pins dependencies that conflict with Isaac Lab. Install the ``isaacsim`` extra with
 the tested overrides:
 
 .. isaaclab-uv-isaacsim-wheel-install::
@@ -396,7 +425,9 @@ Add other extras inside the brackets when needed; for example, use
 Installing CUDA-enabled PyTorch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Install the CUDA 13.0 PyTorch build using the commands for your platform:
+The published-wheel commands above select the CUDA 13.0 PyTorch build during dependency
+resolution. To update an existing standalone environment that was installed without the CUDA
+index, use the command for your platform:
 
 .. tab-set::
    :sync-group: pip-platform
@@ -564,130 +595,10 @@ Preserve the ``state`` directory because it contains the deployment metadata.
 See :ref:`docker-cloud-cloud` for credentials, provider options, connection methods, data transfer,
 and the complete workstation lifecycle.
 
-Asset caching
--------------
+Next steps
+----------
 
-Isaac Lab assets are hosted on AWS S3. Enable Hub Workstation Cache when repeated downloads are
-slow or the workstation has intermittent network access.
-
-Launch Isaac Sim:
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         uv run --extra isaacsim isaaclab -s
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         uv run --extra isaacsim isaaclab -s
-
-Select the ``CACHE:`` message in the upper-right corner and enable `Hub Workstation Cache
-<https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html>`__. The first load
-still downloads each asset; later runs use the local cache.
-
-.. figure:: /source/_static/setup/asset_caching.jpg
-   :align: center
-   :figwidth: 100%
-   :alt: Isaac Sim cache status message.
-
-.. dropdown:: Detailed asset caching and Nucleus migration notes
-
-   .. include:: asset_caching_details.inc
-
-Omniverse Nucleus and Omniverse Launcher are deprecated starting with Isaac Sim 4.5. Existing local
-Nucleus installations continue to work.
-
-.. _installation-asset-region-profiles:
-
-Asset Region Profiles
----------------------
-
-An Asset Region Profile selects a compatible asset root and configures any storage settings required
-for that service. Isaac Lab provides these profiles:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 80
-
-   * - Profile
-     - Use
-   * - ``us``
-     - Primary public asset service and explicit switchback profile.
-   * - ``china``
-     - Regional asset service for users in mainland China.
-
-Set the profile before launching Isaac Lab. Clear ``ISAACSIM_ASSET_ROOT`` first because an explicit
-asset-root override takes precedence over the selected profile.
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         unset ISAACSIM_ASSET_ROOT
-         export ISAACSIM_ASSET_REGION_PROFILE=china
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         set ISAACSIM_ASSET_ROOT=
-         set ISAACSIM_ASSET_REGION_PROFILE=china
-
-Isaac Lab launchers and asset helpers apply the profile automatically. The same variable also selects
-the profile when Isaac Lab launches Isaac Sim. In kitless mode, Isaac Lab configures the required
-``omni.client`` routing without requiring Isaac Sim.
-
-A standalone kitless script that calls ``omni.client`` before launching an Isaac Lab runtime must
-initialize the profile first:
-
-.. code-block:: python
-
-   from isaaclab.utils.assets import configure_asset_region_profile
-
-   configure_asset_region_profile()
-
-To return to the primary service, clear ``ISAACSIM_ASSET_ROOT`` and select the ``us`` profile.
-
-The ``china`` profile publishes an
-`asset availability manifest <https://assets.simready.cn/manifests/isaac/6.1/asset-availability.csv>`__.
-The ``isaac_version`` field identifies the asset release. Each ``asset_path`` is the full path to a
-file relative to the versioned asset root's ``Isaac`` directory. A ``status`` value of ``available``
-reports that the file is mirrored, ``reason_code`` explains other statuses when provided, and
-``checked_at`` records when the status last changed. A path with no row is not mirrored. The manifest
-does not confirm the availability of paths outside the root's ``Isaac`` directory.
-
-Build paths from profile-resolved constants such as
-:attr:`~isaaclab.utils.assets.ISAAC_NUCLEUS_DIR` and
-:attr:`~isaaclab.utils.assets.ISAACLAB_NUCLEUS_DIR`. Do not hardcode the profile's storage endpoint or
-derive direct object URLs from the manifest. Opening an object-storage URL directly in a browser or
-with ``curl`` can return HTTP 403 because it bypasses the profile's CDN routing.
-
-Troubleshooting
----------------
-
-If Isaac Sim fails to launch, use the `Isaac Sim compatibility checker
-<https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_workstation.html#isaac-sim-compatibility-checker>`__,
-review the `Linux troubleshooting guide
-<https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__, or report the
-issue through the `Isaac Sim forums
-<https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html>`__.
-
-.. seealso::
-
-   Installation docs are the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
-   (`skills/user/setup-troubleshooting/ <../../../../skills/user/setup-troubleshooting/SKILL.md>`__).
-   When you change this page, update the skill so agent guidance stays in sync. See
-   :doc:`/source/developer-tools/agent_skills`.
+Continue with the :doc:`quickstart </source/setup/quickstart>` to run a task and train a policy.
+For asset caching, Nucleus migration, and regional asset services, see
+:doc:`/source/how-to/manage_asset_downloads`. For setup, launch, and performance problems, use the
+:doc:`troubleshooting reference </source/refs/troubleshooting>`.

@@ -73,8 +73,7 @@ For example, on Isaac Sim PhysX:
          OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl \
              --task <TASK_NAME> \
              --checkpoint <PATH_TO_CHECKPOINT> \
-             --export_save_path <EXPORT_PATH> \
-             physics=isaacsim_physx
+             --export_save_path <EXPORT_PATH>
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -89,8 +88,7 @@ For example, on Isaac Sim PhysX:
          uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
              --task <TASK_NAME> ^
              --checkpoint <PATH_TO_CHECKPOINT> ^
-             --export_save_path <EXPORT_PATH> ^
-             physics=isaacsim_physx
+             --export_save_path <EXPORT_PATH>
 
 The ``--task`` argument is the registered task name, such as
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument

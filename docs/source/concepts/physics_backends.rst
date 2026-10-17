@@ -64,8 +64,7 @@ same process.
 For the general PhysX--Newton policy validation workflow, see
 :doc:`/source/how-to/transfer_policies_between_physx_and_newton`. When a
 checkpoint's joint or body ordering differs from the target backend, use the
-:doc:`articulation ordering guide
-</source/concepts/joint_and_body_ordering>`.
+:ref:`articulation ordering guide <joint-and-body-ordering>`.
 
 
 .. _physics-backends-physx:
@@ -87,7 +86,11 @@ authoritative field list. Per-actor physical properties remain on the USD
 schema configuration described in
 :doc:`/source/concepts/schema_cfgs`.
 For a diagnose-first workflow covering solver selection, iterations, contacts,
-stability, and GPU capacities, see :ref:`physx-solver-tuning`.
+stability, and GPU capacities, see :ref:`physx-solver-tuning`. For how the
+backend starts Isaac Sim, owns the simulation lifecycle, and exposes PhysX
+tensor views, see :doc:`the PhysX backend page
+</source/concepts/physics-backends/physx>`. For direct native access, see
+:ref:`PhysX Tensor API access <physx-native-access>`.
 
 
 .. _physics-backends-newton:
@@ -96,23 +99,9 @@ Newton
 ------
 
 Newton is a Warp-native backend that can run without Isaac Sim. Its Isaac Lab
-integration is beta and supports multiple solver families rather than one
-fixed solver. Configure the backend with
-:class:`~isaaclab_newton.physics.NewtonCfg` and select a solver configuration
-such as :class:`~isaaclab_newton.physics.MJWarpSolverCfg`.
-
-Task and component coverage is narrower and task-specific. Check task
-``--help`` and :doc:`the environment catalog </source/setup/environments>`
-for current presets, the generated configuration APIs for available symbols,
-and the specialist guides below for solver-specific workflows and limitations.
-
-Start with :doc:`/source/how-to/prepare_asset_for_newton`, then use
-:doc:`/source/concepts/solver-tuning/tune_mjwarp` for the primary validated solver path or
-:doc:`/source/concepts/solver-tuning/tune_kamino` for the beta Kamino path. Experimental
-specialist guides cover :ref:`newton-using-vbd`, :ref:`newton-using-mpm`,
-:ref:`deformables`, :ref:`warp-environments`, and
-:ref:`warp-env-migration`. Backend developers can also read
-:doc:`/source/developer-tools/extending_newton_solvers`.
+integration is beta, with MJWarp as the primary validated solver path. See
+:doc:`the Newton backend page </source/concepts/physics-backends/newton>` for
+solver options, task support, and links to Newton's own solver documentation.
 
 
 .. _physics-backends-ovphysx:
@@ -128,7 +117,7 @@ for those fields.
 
 Feature coverage is still evolving. See the
 :doc:`OvPhysX specialist page
-</source/concepts/ovphysx>` for current
+</source/concepts/physics-backends/ovphysx>` for current
 limitations and runtime constraints.
 
 
@@ -155,8 +144,7 @@ follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 .. toctree::
    :hidden:
 
-   /source/concepts/joint_and_body_ordering
-   /source/concepts/ovphysx
-   /source/concepts/using_mpm
+   /source/concepts/physics-backends/physx
+   /source/concepts/physics-backends/newton
+   /source/concepts/physics-backends/ovphysx
    /source/concepts/warp_environments
-   /source/concepts/warp_environment_migration

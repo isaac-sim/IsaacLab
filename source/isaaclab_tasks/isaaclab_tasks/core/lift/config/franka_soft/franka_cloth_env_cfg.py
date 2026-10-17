@@ -106,7 +106,7 @@ SUPPORT_SPAWN_CFG = sim_utils.CuboidCfg(
     rigid_props=[sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True), PhysxRigidBodyCfg(disable_gravity=True)],
     mass_props=sim_utils.MassCfg(mass=1.0),
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=0.01, dynamic_friction=0.01),
+    physics_material=sim_utils.RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.2, 0.2, 0.25)),
 )
 """Kinematic support block the cloth is draped over."""
@@ -138,6 +138,7 @@ class DeformableCfg(PresetCfg):
 
     physx: DeformableObjectCfg = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Deformable",
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.102), rot=(0.70710678, 0.0, 0.0, 0.70710678)),
         spawn=sim_utils.MeshRectangleCfg(
             size=(0.2, 0.2),
@@ -193,12 +194,10 @@ class FrankaClothSceneCfg(soft.FrankaSoftBaseSceneCfg):
 class FrankaClothScenePresetCfg(PresetCfg):
     """Preset config for the Franka surface deformable scene."""
 
-    newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(
-        num_envs=2048, env_spacing=2.0, replicate_physics=True
-    )
+    newton_mjwarp_vbd_proxy: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0)
 
-    # Isaac Sim PhysX does not support replicating physics for deformable objects
-    physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=False)
+    # The PhysX deformable asset uses USD replication; other scene assets keep their backend route.
+    physx: FrankaClothSceneCfg = FrankaClothSceneCfg(num_envs=2048, env_spacing=2.0)
     isaacsim_physx = physx
 
     default = newton_mjwarp_vbd_proxy
@@ -215,10 +214,8 @@ class FrankaClothCameraSceneCfg(FrankaClothSceneCfg):
 class FrankaClothCameraScenePresetCfg(PresetCfg):
     """Scene presets for visual Franka cloth lifting."""
 
-    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(
-        num_envs=128, env_spacing=2.5, replicate_physics=True
-    )
-    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5, replicate_physics=False)
+    newton_mjwarp_vbd_proxy: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5)
+    physx: FrankaClothCameraSceneCfg = FrankaClothCameraSceneCfg(num_envs=128, env_spacing=2.5)
     isaacsim_physx = physx
     default = newton_mjwarp_vbd_proxy
 
