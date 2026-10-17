@@ -8,11 +8,29 @@ isaaclab_newton.actuators
 .. autosummary::
    :nosignatures:
 
-   DriveBam
+   BamCommandLag
+   BamFriction
+   BamGroup
+   InputProcessorPositionBacklash
+   get_bam_group
 
-BAM Servo Drive
----------------
+BAM Servo Runtime
+-----------------
 
-.. autoclass:: DriveBam
+.. autoclass:: BamCommandLag
+    :members:
+
+.. autoclass:: BamFriction
+    :members:
+
+.. autoclass:: BamGroup
+    :members:
+
+.. autofunction:: get_bam_group
+
+Input Processors
+----------------
+
+.. autoclass:: InputProcessorPositionBacklash
     :members:
     :show-inheritance:
