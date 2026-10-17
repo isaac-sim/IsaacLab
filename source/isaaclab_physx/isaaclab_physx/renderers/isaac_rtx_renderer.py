@@ -13,7 +13,7 @@ import math
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
@@ -50,21 +50,6 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
-
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
-    "with `uv pip install isaaclab`."
-)
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
-
 
 # RTX simple-shading constants.
 #
@@ -207,32 +192,6 @@ class IsaacRtxRenderer(BaseRenderer):
     def visual_material_writer(self):
         """Write material channels directly through Fabric."""
         return FabricVisualMaterialWriter
-
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
-
-        When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
-        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
-        :mod:`isaaclab` does not need to know about PPISP. Then pins
-        ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
-        RTX's physical-camera exposure model does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
-
-        :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
-        per-render-product in :meth:`create_render_data` via USD attributes.
-        """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output Replicator layout this RTX backend writes.
@@ -484,10 +443,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
+            from isaaclab_ppisp import PpispPipeline
 
             ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
