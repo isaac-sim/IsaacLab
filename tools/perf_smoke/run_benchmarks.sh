@@ -11,7 +11,7 @@ set -uo pipefail
 : "${GITHUB_RUN_ID:?}" "${GITHUB_RUN_ATTEMPT:?}"
 
 install -d -m 0777 "${JIT_CACHE_ROOT}/warp" "${JIT_CACHE_ROOT}/nv"
-# Restored cache files and directories need to be writable by the container user.
+# Make restored cache files and folders writable inside Docker.
 chmod -R a+rwX "${JIT_CACHE_ROOT}" || exit 1
 
 container=""
@@ -80,7 +80,7 @@ while IFS='|' read -r leg task num_envs bench_timeout_s args; do
   echo "::group::performance-smoke: ${leg}"
   install -d -m 0777 "${BENCHMARK_OUTPUT}/${leg}"
   leg_ok=true
-  # ASV uses three runs per workload and rolling history to check whether FPS changes exceed normal variation.
+  # Repeat each benchmark three times to measure variation between runs.
   for sample in 1 2 3; do
     mkdir -p "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}"
     if ! run_attempt 1; then
