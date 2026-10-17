@@ -7,6 +7,7 @@
 
 import importlib.util
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -41,27 +42,62 @@ else:
     OvPhysxCfg = None
 
 
-@pytest.mark.parametrize(
-    "use_ovstage",
-    [
-        pytest.param(False, id="legacy"),
-        pytest.param(
-            True,
-            id="ovstage",
-            marks=pytest.mark.skipif(not _OVSTAGE_AVAILABLE, reason="requires optional module: ovstage"),
-        ),
-    ],
-)
-def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch, use_ovstage: bool) -> None:
-    """Kinematic OVPhysX transforms and root scale must reach OVRTX."""
-    assert OVRTXRendererCfg is not None
-    assert OvPhysxCfg is not None
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(use_ovstage)))
+def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An isolated rendering OVStage preserves native physics cloning and rendered poses and scale."""
+    import ovphysx
+    import ovrtx
+    import ovstage
+
+    monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
+    copies, physics_copies, attached = [], [], []
+    clone_physics = ovphysx.PhysX.clone
+    clone = ovstage.Stage.clone
+    attach_physics = ovphysx.PhysX.attach_ovstage
+    attach_renderer = ovrtx.Renderer.attach_ovstage
+
+    def record_clone(stage, source, targets, **kwargs):
+        copies.extend((source, target) for target in targets)
+        return clone(stage, source, targets, **kwargs)
+
+    def attach_physx(physics, stage, **kwargs):
+        attached.append(stage)
+        return attach_physics(physics, stage, **kwargs)
+
+    def attach_rtx(renderer, stage):
+        assert len(attached) == 1 and attached[0] is not stage
+        return attach_renderer(renderer, stage)
+
+    def record_physics_clone(*args, **kwargs):
+        physics_copies.append((args, kwargs))
+        return clone_physics(*args, **kwargs)
+
+    def reject_native_clone(*args, **kwargs):
+        pytest.fail("OVRTX must use its isolated OVStage cloning path")
+
+    monkeypatch.setattr(ovstage.Stage, "clone", record_clone)
+    monkeypatch.setattr(ovphysx.PhysX, "clone", record_physics_clone)
+    monkeypatch.setattr(ovrtx.Renderer, "clone_usd", reject_native_clone)
+    monkeypatch.setattr(ovphysx.PhysX, "attach_ovstage", attach_physx)
+    monkeypatch.setattr(ovrtx.Renderer, "attach_ovstage", attach_rtx)
     sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
+
+    @contextmanager
+    def simulation():
+        with build_simulation_context(sim_cfg=sim_cfg) as sim:
+            yield sim
+            from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext, OvstageReplicateContext
+
+            assert OvstageReplicateContext in sim.clone_contexts
+            assert OvPhysxReplicateContext in sim.clone_contexts
+            assert OvrtxReplicateContext not in sim.clone_contexts
+
     run_rigid_object_scale_and_pose_rendering_contract(
         RigidObjectRenderingBackend(
-            name=f"ovrtx (OVPhysX, {'ovstage' if use_ovstage else 'legacy'})",
-            simulation_context_factory=lambda: build_simulation_context(sim_cfg=sim_cfg),
+            name="OVPhysX + isolated OVRTX stage",
+            simulation_context_factory=simulation,
             renderer_cfg=OVRTXRendererCfg(),
+            with_articulation=True,
         )
     )
+    assert physics_copies
+    assert copies and len(copies) == len(set(copies))

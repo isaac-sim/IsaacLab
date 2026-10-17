@@ -64,7 +64,6 @@ class SceneDataProvider:
             backend: The simulation backend that supplies raw transform data.
         """
         self.backend = backend
-        self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
         self.cameras: WeakValueDictionary[str, camera.Camera] = WeakValueDictionary()
         """Borrowed cameras by prim expression, including cameras spawned without an InteractiveScene."""
@@ -201,15 +200,9 @@ class SceneDataProvider:
 
     @property
     def num_envs(self) -> int:
-        """Number of environments discovered from ``/World/envs/env_<id>`` prims.
-
-        Cached on first call. Returns ``0`` when no USD stage is available or when
-        no ``/World/envs/env_<id>`` prims exist.
-        """
-        if self._num_envs_cache is not None:
-            return self._num_envs_cache
-        self._num_envs_cache = _discover_num_envs(sim_utils.SimulationContext.instance().stage)
-        return self._num_envs_cache
+        """Number of worlds in the clone plan, or ``0`` before a plan is published."""
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        return 0 if plan is None else len(plan.topology.world_prototype_layout)
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
         """Per-camera, per-environment world transforms discovered from USD.
@@ -636,29 +629,7 @@ class ConversionKernels:
             output.matrices[idx] = input.matrices[tid]
 
 
-_ENV_NAME_RE = re.compile(r"^env_(\d+)$")
 _ENV_PATH_RE = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
-
-
-def _discover_num_envs(stage: Usd.Stage | None) -> int:
-    """Infer environment count from ``/World/envs/env_<id>`` prim names on ``stage``.
-
-    Args:
-        stage: USD stage to inspect, or ``None``.
-
-    Returns:
-        Number of environments discovered, or ``0`` when ``stage`` is ``None`` or no
-        ``/World/envs/env_<id>`` prims exist.
-    """
-    if stage is None:
-        return 0
-    max_env_id = -1
-    envs_root = stage.GetPrimAtPath("/World/envs")
-    if envs_root.IsValid():
-        for child in envs_root.GetChildren():
-            if match := _ENV_NAME_RE.match(child.GetName()):
-                max_env_id = max(max_env_id, int(match.group(1)))
-    return max_env_id + 1 if max_env_id >= 0 else 0
 
 
 def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
