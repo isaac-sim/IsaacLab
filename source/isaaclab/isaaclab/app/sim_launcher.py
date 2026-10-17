@@ -42,8 +42,8 @@ from ..utils.device import set_cuda_device
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
-from ..visualizers import ImageViewCfg, VisualizerCfg
-from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES
+from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
+from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, _apply_visualizer_defaults
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -117,7 +117,7 @@ def fuse_kit_args(argv: list[str]) -> list[str]:
 
 def _iter_cfg_items(cfg):
     """Visit declared configuration fields and container entries."""
-    if is_dataclass(cfg) and not isinstance(cfg, type) or isinstance(cfg, (argparse.Namespace, SimpleNamespace)):
+    if is_dataclass(cfg) or isinstance(cfg, (argparse.Namespace, SimpleNamespace)):
         return ((name, value) for name, value in vars(cfg).items() if not name.startswith("_"))
     if isinstance(cfg, Mapping):
         return cfg.items()
@@ -134,7 +134,10 @@ def _iter_runtime_configs(cfg: Any) -> Iterator[Any]:
         if callable(node) or id(node) in visited:
             return
         visited.add(id(node))
-        if isinstance(node, (SimulationCfg, PhysicsCfg, RendererCfg, VisualizerCfg, CameraCfg, VideoRecorderCfg)):
+        if isinstance(
+            node,
+            (SimulationCfg, InteractiveSceneCfg, PhysicsCfg, RendererCfg, VisualizerCfg, CameraCfg, VideoRecorderCfg),
+        ):
             yield node
         if not isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
             for name, child in _iter_cfg_items(node):
@@ -142,39 +145,6 @@ def _iter_runtime_configs(cfg: Any) -> Iterator[Any]:
                     yield from visit(child)
 
     yield from visit(cfg)
-
-
-def _livestream_mode(args: dict) -> int:
-    """Read the CLI/environment streaming choice without changing the caller's arguments."""
-    mode = args.get("livestream", -1)
-    mode = int(os.environ.get("LIVESTREAM", 0) if mode is None or int(mode) < 0 else mode)
-    if mode not in (0, 1, 2):
-        raise ValueError(f"Invalid livestream mode: {mode}. Expected 0 (disabled), 1, or 2.")
-    return mode
-
-
-def _kit_runtime_sources(configs: tuple, args: dict) -> tuple[str, ...]:
-    """Name the declared requirements that select Kit, before resolving automatic backends."""
-    sources = []
-    if not any(isinstance(cfg, PhysicsCfg) for cfg in configs):
-        sources.append("the default Isaac Sim / Kit runtime")
-    for cfg in configs:
-        if isinstance(cfg, PhysxCfg) or isinstance(cfg, PhysxAutoCfg) and cfg.ovphysx is None:
-            sources.append("Isaac Sim PhysX physics (PhysxCfg)")
-        elif isinstance(cfg, CameraCfg) and (
-            cfg.renderer_cfg is None or cfg.renderer_cfg.renderer_type in ("default", "isaac_rtx")
-        ):
-            sources.append("a Kit-based renderer (IsaacRtxRendererCfg)")
-        elif isinstance(cfg, (PhysicsCfg, RendererCfg, VisualizerCfg)) and cfg.launcher_type == _KIT_LAUNCHER:
-            sources.append("the Kit visualizer" if isinstance(cfg, VisualizerCfg) else type(cfg).__name__)
-    for enabled, source in (
-        (args.get("experience"), "an explicit Kit experience"),
-        (_livestream_mode(args), "livestreaming"),
-        (args.get("require_kit"), "the caller's explicit Kit requirement"),
-    ):
-        if enabled:
-            sources.append(source)
-    return tuple(dict.fromkeys(sources))
 
 
 def _replace_configs(cfg: Any, replacements: dict[int, Any]) -> Any:
@@ -192,56 +162,47 @@ def _replace_configs(cfg: Any, replacements: dict[int, Any]) -> Any:
         if callable(node) or isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
             return node
         if isinstance(node, tuple):
-            resolved[id(node)] = tuple(replace(child) for child in node)
+            children = tuple(replace(child) for child in node)
+            resolved[id(node)] = node if all(old is new for old, new in zip(node, children, strict=True)) else children
             return resolved[id(node)]
         resolved[id(node)] = node
         for name, child in _iter_cfg_items(node):
-            if name != "default_visualizer_cfg":
-                if isinstance(node, (dict, list)):
-                    node[name] = replace(child)
-                else:
-                    vars(node)[name] = replace(child)
+            if isinstance(node, (dict, list)):
+                node[name] = replace(child)
+            else:
+                vars(node)[name] = replace(child)
         return node
 
     return replace(cfg)
 
 
-@contextmanager
-def launch_simulation(  # noqa: C901
-    cfg,
-    launcher_args: argparse.Namespace | dict | None = None,
-) -> Generator[PhysicsCfg | None, None, None]:
-    """Context manager that launches the appropriate simulation runtime for *cfg*.
+def validate_launch(  # noqa: C901
+    cfg, launcher_args: argparse.Namespace | dict | None = None
+) -> tuple[tuple[Any, ...], tuple[str, ...]]:
+    """Prepare configured consumers and reject incompatible runtimes without starting them.
 
-    Resolves configured consumers before starting their required runtimes. Each runtime starts
-    once and closes on exit. Cameras are auto-enabled for Kit-renderer sensors.
-
-    Resolve viewer and physics choices on the same config used to construct the simulation::
-
-        sim_cfg = SimulationCfg()
-        with launch_simulation(sim_cfg, args_cli):
-            sim = SimulationContext(sim_cfg)
-
-    Yields the resolved physics config when a caller needs to adjust solver settings before construction.
+    Applies launcher selections and resolves automatic physics/renderer configurations in place.
+    Task-run enumeration and :func:`launch_simulation` use this same preparation step.
 
     Args:
-        cfg: Concrete config tree declaring backend, renderer, and sensor requirements.
-        launcher_args: Parsed launcher arguments, typically the script's ``args_cli``. Besides the
-            arguments added by :func:`add_launcher_args`, the following keys are read when a script
-            contributes them:
+        cfg: Configuration tree declaring physics, renderers, visualizers, and recorders.
+        launcher_args: Parsed launcher arguments; derived runtime options are written back.
 
-            * ``physics``: Backend selector applied to every physics config in *cfg*.
-            * ``require_kit``: Whether the caller needs Kit for a reason *cfg* cannot express, e.g.
-              a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
-              kitless launch into a Kit one, never the reverse, so a config that already needs Kit
-              still launches it when the key is absent or ``False``.
+    Returns:
+        Resolved runtime configurations and the components requiring Isaac Sim / Kit.
+
+    Raises:
+        ValueError: If selections are invalid or configured runtimes cannot share one process.
     """
     launcher_args = {} if launcher_args is None else launcher_args
     launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
     max_visible = launcher_args.get("max_visible_envs")
     if max_visible is not None and max_visible < 0:
         raise ValueError("--max_visible_envs must be non-negative.")
-    livestream = _livestream_mode(launcher_args)
+    livestream = launcher_args.get("livestream", -1)
+    livestream = int(os.environ.get("LIVESTREAM", 0) if livestream is None or int(livestream) < 0 else livestream)
+    if livestream not in (0, 1, 2):
+        raise ValueError(f"Invalid livestream mode: {livestream}. Expected 0 (disabled), 1, or 2.")
     cfg = SimulationCfg() if cfg is None else cfg
     physics = None
     if launcher_args.get("physics"):
@@ -301,6 +262,7 @@ def launch_simulation(  # noqa: C901
             if not any(viewer.launcher_type == _KIT_LAUNCHER for viewer in node.visualizer_cfgs):
                 node.visualizer_cfgs.append(KitVisualizerCfg(headless=bool(launcher_args.get("xr", False))))
 
+    viewers = [viewer for sim in simulations for viewer in sim.visualizer_cfgs]
     for recorder in (node for node in configs if isinstance(node, VideoRecorderCfg)):
         if isinstance(recorder.source, ImageViewCfg):
             if isinstance(recorder.source.source, str):
@@ -308,14 +270,14 @@ def launch_simulation(  # noqa: C901
             owners = [viewer for viewer in configured if viewer.view is recorder.source]
             if len(owners) != 1:
                 raise ValueError("A recorded perspective view requires exactly one configured visualizer.")
-            producer = owners[0]
+            producer = next((viewer for viewer in viewers if viewer.view is recorder.source), owners[0])
         else:
             kind, name, channel = parse_video_source(recorder.source)
             if kind == "sensor":
                 continue
-            viewers = [viewer for sim in simulations for viewer in sim.visualizer_cfgs]
             name = name or next(
-                (v.visualizer_type for v in viewers if v.visualizer_type in CAPTURE_VISUALIZER_TYPES), "newton_gl"
+                (v.visualizer_type for v in viewers if v.visualizer_type in CAPTURE_VISUALIZER_TYPES),
+                "newton_gl",
             )
             if name not in CAPTURE_VISUALIZER_TYPES:
                 raise ValueError(
@@ -326,13 +288,87 @@ def launch_simulation(  # noqa: C901
             producer = next((viewer for viewer in viewers + configured if viewer.visualizer_type == name), None)
             if producer is None:
                 producer = visualizer_types[name]()
-        if not any(viewer is producer for sim in simulations for viewer in sim.visualizer_cfgs):
-            simulations[0].visualizer_cfgs.append(producer.replace(headless=True))
+            if channel == "streaming_view":
+                producer.streaming_view = True
+            if name == "kit":
+                launcher_args["enable_cameras"] = True
+        if not any(viewer is producer for viewer in viewers):
+            producer = producer.replace(headless=True)
+            simulations[0].visualizer_cfgs.append(producer)
+            viewers.append(producer)
+
+    for simulation in simulations:
+        for visualizer in simulation.visualizer_cfgs:
+            _apply_visualizer_defaults(visualizer, simulation.default_visualizer_cfg)
+
+    # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
+    scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
+    for viewer_index, visualizer in enumerate(viewers):
+        if not isinstance(visualizer, NewtonRTXVisualizerCfg) or scene_cfg is None:
+            continue
+        sources = (
+            [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
+                PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
+            ])
+        )  # fmt: skip
+        for camera_index, source in enumerate(sources):
+            if not isinstance(source, PerspectiveCameraCfg):
+                continue
+            name = f"viewer_camera_{viewer_index}_{camera_index}"
+            width, height = visualizer.window.size
+            channels = visualizer.view.channels if visualizer.view is not None else visualizer.streaming_gt_types
+            rotation = quat_from_matrix(create_rotation_matrix_from_view(
+                torch.tensor([source.eye]), torch.tensor([source.lookat]), "Z", device="cpu"
+            ))[0].tolist()  # fmt: skip
+            camera = CameraCfg(
+                prim_path=f"/World/{name}", width=width, height=height,
+                data_types=["rgba" if channel == "rgb" else sensor_key_for_gt_type(channel) for channel in channels],
+                spawn=PinholeCameraCfg(
+                    focal_length=source.focal_length, vertical_aperture=15.2908,
+                    horizontal_aperture=15.2908 * width / height,
+                ),
+                offset=CameraCfg.OffsetCfg(pos=source.eye, rot=tuple(rotation), convention="opengl"),
+                renderer_cfg=visualizer.renderer_cfg, background_color=visualizer.background_color,
+                render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.render_settings},
+            )  # fmt: skip
+            vars(scene_cfg)[name] = camera
+            if visualizer.view is not None:
+                visualizer.view.source = name
+            else:
+                sources[camera_index] = SceneCameraCfg(prim_path=camera.prim_path)
+        if visualizer.view is None:
+            visualizer.cameras = sources
+            visualizer.streaming_view = True
 
     configs = tuple(_iter_runtime_configs(cfg))
     replacements = {id(node): physics for node in configs if isinstance(node, PhysicsCfg) and physics is not None}
     configs = tuple(replacements.get(id(node), node) for node in configs)
-    kit_sources = _kit_runtime_sources(configs, launcher_args)
+    # Decide the process runtime before resolving automatic physics and renderer backends.
+    kit_sources = []
+    launcher_args["kit_visualizer"] = False
+    launcher_args.setdefault("enable_cameras", False)
+    if not any(isinstance(node, PhysicsCfg) for node in configs):
+        kit_sources.append("the default Isaac Sim / Kit runtime")
+    for node in configs:
+        if isinstance(node, PhysxAutoCfg) and node.ovphysx is None:
+            kit_sources.append("Isaac Sim PhysX physics (PhysxCfg)")
+        elif isinstance(node, CameraCfg) and (
+            node.renderer_cfg is None or node.renderer_cfg.renderer_type in ("default", "isaac_rtx")
+        ):
+            kit_sources.append("a Kit-based renderer (IsaacRtxRendererCfg)")
+        elif isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)) and node.launcher_type == _KIT_LAUNCHER:
+            kit_sources.append("the Kit visualizer" if isinstance(node, VisualizerCfg) else type(node).__name__)
+        if isinstance(node, KitVisualizerCfg):
+            launcher_args["kit_visualizer"] |= not node.headless
+            launcher_args["enable_cameras"] |= node.streaming_view or node.headless
+    for enabled, source in (
+        (launcher_args.get("experience"), "an explicit Kit experience"),
+        (livestream, "livestreaming"),
+        (launcher_args.get("require_kit"), "the caller's explicit Kit requirement"),
+    ):
+        if enabled:
+            kit_sources.append(source)
+    kit_sources = tuple(dict.fromkeys(kit_sources))
     for node in configs:
         if isinstance(node, PhysxAutoCfg):
             replacements[id(node)] = _resolve_physx_auto_cfg(node, bool(kit_sources))
@@ -347,7 +383,7 @@ def launch_simulation(  # noqa: C901
         for node in configs:
             if isinstance(node, OvPhysxCfg):
                 conflict = "OvPhysX physics (OvPhysxCfg)"
-            elif isinstance(node, RendererCfg | VisualizerCfg) and node.launcher_type == OVRTXRendererCfg.launcher_type:
+            elif isinstance(node, (OVRTXRendererCfg, NewtonRTXVisualizerCfg)):
                 conflict = "the OVRTX runtime (OVRTXRendererCfg or the newton_rtx visualizer)"
             else:
                 continue
@@ -356,24 +392,51 @@ def launch_simulation(  # noqa: C901
                 f"({', '.join(kit_sources)}). Use Kit-compatible physics with IsaacRtxRendererCfg, "
                 "or remove the Kit requirements and use a kitless renderer/visualizer."
             )
+    launcher_args["livestream"] = livestream
+    launcher_args["enable_cameras"] |= any(
+        isinstance(node, CameraCfg)
+        and (node.renderer_cfg is None or node.renderer_cfg.renderer_type in ("default", "isaac_rtx"))
+        for node in configs
+    )
+
+    return configs, kit_sources
+
+
+@contextmanager
+def launch_simulation(
+    cfg,
+    launcher_args: argparse.Namespace | dict | None = None,
+) -> Generator[PhysicsCfg | None, None, None]:
+    """Context manager that launches the appropriate simulation runtime for *cfg*.
+
+    Resolves configured consumers before starting their required runtimes. Each runtime starts
+    once and closes on exit. Cameras are auto-enabled for Kit-renderer sensors.
+
+    Resolve viewer and physics choices on the same config used to construct the simulation::
+
+        sim_cfg = SimulationCfg()
+        with launch_simulation(sim_cfg, args_cli):
+            sim = SimulationContext(sim_cfg)
+
+    Yields the resolved physics config when a caller needs to adjust solver settings before construction.
+
+    Args:
+        cfg: Concrete config tree declaring backend, renderer, and sensor requirements.
+        launcher_args: Parsed launcher arguments, typically the script's ``args_cli``. Besides the
+            arguments added by :func:`add_launcher_args`, the following keys are read when a script
+            contributes them:
+
+            * ``physics``: Backend selector applied to every physics config in *cfg*.
+            * ``require_kit``: Whether the caller needs Kit for a reason *cfg* cannot express, e.g.
+              a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
+              kitless launch into a Kit one, never the reverse, so a config that already needs Kit
+              still launches it when the key is absent or ``False``.
+    """
+    launcher_args = {} if launcher_args is None else launcher_args
+    launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
+    configs, kit_sources = validate_launch(cfg, launcher_args)
     sim_cfg = next((node for node in configs if isinstance(node, SimulationCfg)), None)
     physics_cfg = next((node for node in configs if isinstance(node, PhysicsCfg)), None)
-    kit_viewers = [node for node in configs if isinstance(node, KitVisualizerCfg)]
-    launcher_args["livestream"] = livestream
-    launcher_args["kit_visualizer"] = any(not viewer.headless for viewer in kit_viewers)
-    launcher_args["enable_cameras"] = (
-        launcher_args.get("enable_cameras", False)
-        or any(
-            isinstance(node, CameraCfg)
-            and (node.renderer_cfg is None or node.renderer_cfg.renderer_type in ("default", "isaac_rtx"))
-            for node in configs
-        )
-        or any(viewer.streaming_view or viewer.headless for viewer in kit_viewers)
-        or any(
-            isinstance(node, VideoRecorderCfg) and isinstance(node.source, str) and node.source.startswith("viz:kit")
-            for node in configs
-        )
-    )
 
     python_logging_level = resolve_python_logging_level(launcher_args)
     apply_python_logging_level(python_logging_level)

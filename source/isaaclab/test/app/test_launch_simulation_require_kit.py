@@ -146,11 +146,11 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
         prim_path="{ENV_REGEX_NS}/ObservationCamera", width=64, height=48,
         data_types=["rgba", "depth"], renderer_cfg=sim_launcher.OVRTXRendererCfg(),
     )  # fmt: skip
-    prepared = sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
+    sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
     cameras = [sensor for sensor in vars(cfg.scene).values() if isinstance(sensor, sim_launcher.CameraCfg)]
     assert cameras[0] is cfg.scene.observation_camera
     assert len(cameras) == 3
-    assert prepared.visualizer_cfgs[0].cameras == [SceneCameraCfg(prim_path=cameras[1].prim_path)]
+    assert cfg.sim.visualizer_cfgs[0].cameras == [SceneCameraCfg(prim_path=cameras[1].prim_path)]
     assert vars(cfg.scene)[view.source] is cameras[2]
     assert cameras[2].offset.pos == (0.0, -5.0, 0.0)
     assert cameras[2].offset.rot == pytest.approx((2**-0.5, 0.0, 0.0, 2**-0.5))
@@ -160,8 +160,8 @@ def test_rtx_perspective_configuration_declares_scene_cameras(channels):
     for camera in cameras[1:]:
         assert camera.spawn.vertical_aperture == pytest.approx(Gf.Camera().verticalAperture)
         assert camera.spawn.horizontal_aperture / camera.spawn.vertical_aperture == pytest.approx(160 / 120)
-    assert all(camera.renderer_cfg == prepared.visualizer_cfgs[0].renderer_cfg for camera in cameras[1:])
-    sim_launcher.scan(cfg, {"visualizer": ["newton_rtx"]})
+    assert all(camera.renderer_cfg == cfg.sim.visualizer_cfgs[0].renderer_cfg for camera in cameras[1:])
+    sim_launcher.validate_launch(cfg, {"visualizer": ["newton_rtx"]})
     assert [item for item in vars(cfg.scene).values() if isinstance(item, sim_launcher.CameraCfg)] == cameras
 
 
@@ -198,7 +198,7 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
 
 @pytest.mark.parametrize("producer_count", [0, 1, 2])
 def test_shared_view_recording_selects_its_producer_without_a_window(producer_count):
-    """Retain each recorded perspective producer, including when viewers share the same backend."""
+    """Share each perspective producer across recorders, independently of other same-backend viewers."""
     from types import SimpleNamespace
 
     from isaaclab_newton.physics import NewtonCfg
@@ -216,13 +216,15 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
         visualizers.insert(0, NewtonGLVisualizerCfg())  # An unrelated viewer of the same backend must stay inactive.
     cfg = SimpleNamespace(
         sim=SimulationCfg(device="cpu", physics=NewtonCfg(), visualizer_cfgs=visualizers),
-        video_recorders=[VideoRecorderCfg(source=view) for view in views or [ImageViewCfg(source="front")]],
+        video_recorders=[
+            VideoRecorderCfg(source=view) for view in views or [ImageViewCfg(source="front")] for _ in range(2)
+        ],
     )
     with launch_simulation(cfg, {"visualizer": [], "headless": True}):
         assert len(cfg.sim.visualizer_cfgs) == producer_count
-        for producer, recorder in zip(cfg.sim.visualizer_cfgs, cfg.video_recorders):
+        for producer, view in zip(cfg.sim.visualizer_cfgs, views, strict=True):
             assert producer.headless
-            assert producer.view is recorder.source
+            assert producer.view is view
             assert producer.window.size == (128, 96)
 
 

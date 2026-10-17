@@ -10,6 +10,7 @@ __all__ = [
     "get_settings_manager",
     "add_launcher_args",
     "launch_simulation",
+    "validate_launch",
     "LoadingScreen",
     "report_activity",
 ]
@@ -21,4 +22,5 @@ from .sim_launcher import (
     SimulationLauncher,
     add_launcher_args,
     launch_simulation,
+    validate_launch,
 )

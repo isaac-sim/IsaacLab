@@ -22,8 +22,7 @@ from typing import Literal
 import gymnasium as gym
 import pytest
 
-from isaaclab.app.sim_launcher import _iter_runtime_configs, _kit_runtime_sources
-from isaaclab.sensors import CameraCfg
+from isaaclab.app import validate_launch
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -55,15 +54,11 @@ def _skip_reason(task_name: str) -> str | None:
 
 def task_runtime(task_name: str) -> Runtime:
     """Return the runtime an environment's default configuration launches with."""
-    configs = tuple(_iter_runtime_configs(parse_env_cfg(task_name)))
-    if not _kit_runtime_sources(configs, {}):
+    args = {}
+    _, kit_sources = validate_launch(parse_env_cfg(task_name), args)
+    if not kit_sources:
         return "kitless"
-    for cfg in configs:
-        if isinstance(cfg, CameraCfg) and (
-            cfg.renderer_cfg is None or cfg.renderer_cfg.renderer_type in ("default", "isaac_rtx", "auto_rtx")
-        ):
-            return "kit_cameras"
-    return "kit"
+    return "kit_cameras" if args["enable_cameras"] else "kit"
 
 
 def _variant_family(task_name: str) -> tuple[str, str]:

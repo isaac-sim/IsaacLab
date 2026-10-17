@@ -936,7 +936,7 @@ def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str 
         env_cfg = _launchable_env_cfg(task_name, run)
         if env_cfg is None:
             continue
-        # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
+        # Fingerprint after launch validation resolves automatic selectors to concrete configs.
         key = repr(to_dict(env_cfg))
         if run == (None, None, None):
             default_key = key

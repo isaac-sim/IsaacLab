@@ -31,12 +31,11 @@ from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
 from ..utils import instantiate
 from ..utils.device import reserve_cuda_graph_memory
 from ..utils.images import sensor_key_for_gt_type
-from ..utils.string import clear_resolve_matching_names_cache
+from ..utils.string import clear_resolve_matching_names_cache, string_to_callable
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
-    VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
     _apply_visualizer_defaults,
