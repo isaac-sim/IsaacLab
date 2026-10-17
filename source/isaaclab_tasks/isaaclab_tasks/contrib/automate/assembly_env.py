@@ -269,7 +269,8 @@ class AssemblyEnv(DirectRLEnv):
         self.left_finger_jacobian = jacobians[:, self.left_finger_body_idx - 1, 0:6, 0:7]
         self.right_finger_jacobian = jacobians[:, self.right_finger_body_idx - 1, 0:6, 0:7]
         self.fingertip_midpoint_jacobian = (self.left_finger_jacobian + self.right_finger_jacobian) * 0.5
-        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7]
+        self.arm_mass_matrix = self._robot.data.mass_matrix.torch[:, 0:7, 0:7].clone()
+        self.arm_mass_matrix.diagonal(dim1=-2, dim2=-1).add_(self._robot.data.joint_armature.torch[:, 0:7])
         self.joint_pos = self._robot.data.joint_pos.torch.clone()
         self.joint_vel = self._robot.data.joint_vel.torch.clone()
 

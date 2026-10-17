@@ -316,12 +316,16 @@ class NewtonOperationalSpaceControllerAction(_NewtonTaskSpaceAction):
             self._ee_wrench_b[:, 3:] = ee_wrench_des[:, 3:]
             ee_wrench = self._ee_wrench_b
         joint_ids = self._jacobi_joint_ids
+        mass_matrix = None
+        if cfg.use_inertia_decoupling:
+            mass_matrix = data.mass_matrix.torch[:, joint_ids][:, :, joint_ids]
+            mass_matrix.diagonal(dim1=-2, dim2=-1).add_(data.joint_armature.torch[:, self._joint_ids])
         efforts = self._controller.compute(
             self._compute_ee_jacobian(),
             ee_pose,
             self._compute_ee_velocity(),
             self._ee_pose_des,
-            mass_matrix=data.mass_matrix.torch[:, joint_ids][:, :, joint_ids] if cfg.use_inertia_decoupling else None,
+            mass_matrix=mass_matrix,
             gravity=data.gravity_compensation_forces.torch[:, joint_ids] if cfg.use_gravity_compensation else None,
             ee_wrench_des=ee_wrench_des,
             ee_wrench=ee_wrench,
