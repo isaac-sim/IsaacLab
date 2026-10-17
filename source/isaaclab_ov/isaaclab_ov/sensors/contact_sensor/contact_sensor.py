@@ -13,7 +13,7 @@ import logging
 import re
 from collections.abc import Sequence
 from fnmatch import fnmatchcase
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
 
@@ -74,6 +74,8 @@ class ContactSensor(BaseContactSensor):
 
     __backend_name__: str = "ovphysx"
     """The name of the backend for the contact sensor."""
+
+    _skips_unstepped_envs: ClassVar[bool] = True
 
     def __init__(self, cfg: ContactSensorCfg):
         """Initializes the contact sensor object.
