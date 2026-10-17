@@ -525,5 +525,5 @@ Core concepts
 Where to go next
 ----------------
 
-- :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows from physics backends to renderers
+- :doc:`/source/concepts/scene_data_providers`: how scene data flows from physics backends to renderers
 - :doc:`/source/concepts/visualization` — lightweight visualizer backends for interactive feedback

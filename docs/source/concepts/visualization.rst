@@ -1022,6 +1022,6 @@ Where to go next
 - :doc:`/source/how-to/create_visualization_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows to visualizers
+- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/isaaclab/migrating`: visualizer migration reference

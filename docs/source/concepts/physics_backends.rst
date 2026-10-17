@@ -3,6 +3,7 @@
 ..
 .. SPDX-License-Identifier: BSD-3-Clause
 
+.. _native-physics-api:
 .. _physics-backends:
 
 Physics Backends
@@ -108,8 +109,9 @@ choices:
       --task Isaac-Cartpole-Direct --help
 
 The help output is the source of truth for that task's ``physics=`` choices.
-For native solver data and views, see
-:doc:`/source/concepts/native-physics-api/index`. For field-level configuration,
+For native solver data and views, see the :ref:`PhysX <physx-native-access>`,
+:ref:`Newton <newton-native-access>`, and :ref:`OvPhysX <ovphysx-native-access>`
+access guides. For field-level configuration,
 follow the generated API links for :class:`~isaaclab_physx.physics.PhysxCfg`,
 :class:`~isaaclab_newton.physics.NewtonCfg`, its solver configurations, and
 :class:`~isaaclab_ov.physics.OvPhysxCfg`.

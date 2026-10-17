@@ -129,7 +129,7 @@ Table of Contents
    source/concepts/deformables
    source/concepts/coupled_solvers
    source/concepts/schema_cfgs
-   source/concepts/native-physics-api/index
+   source/concepts/scene_data_providers
 
 
 .. toctree::

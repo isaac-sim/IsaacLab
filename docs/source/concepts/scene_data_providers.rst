@@ -1,9 +1,13 @@
+.. _scene-data-provider:
+
 Scene Data Provider
 ===================
 
 :class:`~isaaclab.scene_data.SceneDataProvider` supplies body transforms and visual
 geometry to renderers and visualizers. It reads from the active physics backend
-and converts or reorders Warp arrays as needed.
+and converts or reorders Warp arrays as needed. Use it when building a renderer,
+visualizer, or another consumer of scene transforms and geometry. Task code usually
+reads state through the asset and sensor APIs instead.
 
 Overview
 --------
