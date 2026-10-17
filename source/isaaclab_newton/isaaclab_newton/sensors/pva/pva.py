@@ -240,7 +240,11 @@ class Pva(BasePva):
         )
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references for re-initialization and re-registers with NewtonManager."""
+        """Clears references for re-initialization and requests the ``body_qdd`` attribute again.
+
+        The site is not registered again: a hard reset keeps the builder that holds it, so the
+        label from :meth:`__init__` stays valid.
+        """
         super()._invalidate_initialize_callback(event)
         self._newton_model = None
         self._site_indices = None
@@ -259,7 +263,4 @@ class Pva(BasePva):
             if buf is not None:
                 buf.zero_()
 
-        # Re-register so a subsequent start_simulation picks them up.
-        offset_xform = wp.transform(self.cfg.offset.pos, self.cfg.offset.rot)
-        self._site_label = NewtonManager.cl_register_site(self.cfg.prim_path, offset_xform)
         NewtonManager.request_extended_state_attribute("body_qdd")

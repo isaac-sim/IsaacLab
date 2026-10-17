@@ -141,11 +141,12 @@ class FrameTransformer(BaseFrameTransformer):
             num_envs,
         )
 
-        # Expand targets and build sensor index lists
+        # Expand targets and build sensor index lists. The configured names come from the cfg, since the name
+        # lists hold the expanded names after the first initialization.
         expanded_names, target_indices_per_target, shapes_list, references_list = self._build_sensor_index_lists(
             source_indices,
             target_per_world,
-            self._target_frame_body_names,
+            [t.name or split_path_expr(t.prim_path)[-1] for t in self.cfg.target_frames],
             NewtonManager.backend.model.shape_label,
             world_origin_idx,
             num_envs,
@@ -338,26 +339,13 @@ class FrameTransformer(BaseFrameTransformer):
     """
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native sensor and re-registers sites.
+        """Clears references to the native sensor.
 
-        Re-registering here ensures sites survive a non-teardown stop/reinit cycle.
-        During ``NewtonManager.close()``, Newton state is cleared after ``STOP`` so
-        stale registrations from old sensors cannot leak into the next context.
+        The sites are not registered again: a hard reset keeps the builder that holds them, so
+        the labels from :meth:`__init__` stay valid.
         """
         super()._invalidate_initialize_callback(event)
         self._update_graph = None
         self._newton_sensor = None
         self._newton_transforms = None
         self._sensor_index = None
-
-        # Re-register sites so a subsequent start_simulation picks them up.
-        self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
-
-        source_offset = wp.transform(self.cfg.source_frame_offset.pos, self.cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(self.cfg.prim_path, source_offset)
-
-        self._target_labels = []
-        for target_frame in self.cfg.target_frames:
-            target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
-            self._target_labels.append(label)
