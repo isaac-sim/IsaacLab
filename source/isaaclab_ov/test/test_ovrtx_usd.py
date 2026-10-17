@@ -31,7 +31,7 @@ if not _MISSING_MODULES:
     )
     from isaaclab_ov.stage import export_stage_to_string  # noqa: E402
 
-    from pxr import Gf, Sdf, Usd, UsdGeom, UsdRender  # noqa: E402
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux, UsdRender  # noqa: E402
 
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec  # noqa: E402
     from isaaclab.sensors.camera import CameraCfg  # noqa: E402
@@ -485,6 +485,19 @@ def test_export_stage_preserves_authored_scene(settings_path):
     """Renderer settings and clone trimming are confined to the exported scene."""
     num_envs = 4
     stage = _make_multi_env_stage(num_envs)
+    asset = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(asset, "/Fixture")
+    UsdLux.DiskLight.Define(asset, "/Fixture/Light")
+    UsdGeom.Xform.Define(asset, "/Geometry")
+    UsdGeom.Cube.Define(asset, "/Geometry/Mesh")
+    fixture_path = "/World/envs/env_0/Fixture"
+    fixture = UsdGeom.Xform.Define(stage, fixture_path).GetPrim()
+    fixture.GetReferences().AddReference(asset.GetRootLayer().identifier, "/Fixture")
+    fixture.SetInstanceable(True)
+    geometry_path = "/World/envs/env_0/Geometry"
+    geometry = UsdGeom.Xform.Define(stage, geometry_path).GetPrim()
+    geometry.GetReferences().AddReference(asset.GetRootLayer().identifier, "/Geometry")
+    geometry.SetInstanceable(True)
     if settings_path is not None:
         settings = UsdRender.Settings.Define(stage, settings_path)
         settings.CreateResolutionAttr(Gf.Vec2i(1280, 720))
@@ -497,6 +510,7 @@ def test_export_stage_preserves_authored_scene(settings_path):
             num_envs,
             source_paths=("/World/envs/env_0",),
             show_all_partitions_by_default=settings_path is not None,
+            editable_prim_paths=(fixture_path + "/Light",),
         )
     )
     exported = Usd.Stage.Open(layer)
@@ -508,4 +522,7 @@ def test_export_stage_preserves_authored_scene(settings_path):
         assert settings.GetPath() == settings_path
         assert settings.GetAttribute("resolution").Get() == (1280, 720)
     assert stage.ExportToString() == before
+    assert stage.GetPrimAtPath(fixture_path + "/Light").IsInstanceProxy()
+    assert not exported.GetPrimAtPath(fixture_path + "/Light").IsInstanceProxy()
+    assert exported.GetPrimAtPath(geometry_path).IsInstance()
     assert not exported.GetPrimAtPath("/World/envs/env_1/Robot")

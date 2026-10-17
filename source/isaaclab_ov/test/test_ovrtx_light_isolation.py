@@ -27,9 +27,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacs
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("use_ovstage", [False, True])
-def test_per_environment_light_resets(monkeypatch: pytest.MonkeyPatch, device: str, use_ovstage: bool) -> None:
+def test_per_environment_light_resets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, device: str, use_ovstage: bool
+) -> None:
     """Native clones and detached OVStage copies both preserve independent lighting."""
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if use_ovstage else "0")
     cfg = SimulationCfg(device=device, physics=NewtonCfg())
     with build_simulation_context(sim_cfg=cfg) as sim:
-        run_light_isolation_contract(sim, OVRTXRendererCfg(show_all_partitions_by_default=False))
+        run_light_isolation_contract(sim, OVRTXRendererCfg(show_all_partitions_by_default=False), tmp_path)

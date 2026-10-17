@@ -5,8 +5,12 @@
 
 """Rendered contract for independent light resets in cloned environments."""
 
+from pathlib import Path
+
 import numpy as np
 import torch
+
+from pxr import Usd, UsdGeom, UsdLux
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
@@ -20,11 +24,26 @@ from isaaclab.utils import configclass
 def run_light_isolation_contract(
     sim: SimulationContext,
     renderer_cfg: RendererCfg,
+    tmp_path: Path,
     *,
     per_environment_domes: bool = True,
     env_spacing: float = 0.0,
 ) -> None:
     """Reset one dome and one analytic light, checking every untouched camera frame."""
+
+    asset_path = tmp_path / "light_fixture.usda"
+    asset = Usd.Stage.CreateNew(str(asset_path))
+    UsdGeom.Xform.Define(asset, "/Source")
+    light = UsdLux.DiskLight.Define(asset, "/Source/Light")
+    light.CreateIntensityAttr(1000.0)
+    light.CreateRadiusAttr(0.5)
+    light.CreateColorAttr((1.0, 1.0, 1.0))
+    fixture = UsdGeom.Xform.Define(asset, "/Fixture").GetPrim()
+    fixture.GetReferences().AddInternalReference("/Source")
+    fixture.SetInstanceable(True)
+    asset.SetDefaultPrim(fixture)
+    assert asset.GetPrimAtPath("/Fixture/Light").IsInstanceProxy()
+    asset.GetRootLayer().Save()
 
     @configclass
     class SceneCfg(InteractiveSceneCfg):
@@ -34,7 +53,7 @@ def run_light_isolation_contract(
         )
         ceiling = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/Ceiling",
-            spawn=sim_utils.DiskLightCfg(intensity=1000.0, radius=0.5),
+            spawn=sim_utils.UsdFileCfg(usd_path=str(asset_path)),
             init_state=AssetBaseCfg.InitialStateCfg(pos=(1.0, 0.0, 1.3), rot=(0.0, 0.3826834324, 0.0, 0.9238795325)),
         )
         cube = RigidObjectCfg(
@@ -83,6 +102,18 @@ def run_light_isolation_contract(
     ordinary = capture()
     before = ordinary[-12:].mean(axis=0)
     noise = np.abs(ordinary - baseline).mean(axis=(2, 3, 4)).max(axis=0)
+    # Query implementations may reorder prim paths; each row must still reach its requested light.
+    paths = ["/World/envs/env_2/Ceiling/Light", "/World/envs/env_0/Ceiling/Light"]
+    sim.render_context.write_light_properties(paths, {"color": np.array([[0.02, 0.02, 1.0], [1.0, 0.02, 0.02]])})
+    batched = capture()
+    colors = batched[-12:, :, 32:64, 32:64].mean(axis=(0, 2, 3))
+    assert colors[2, 2] - colors[2, 0] > 5.0, f"Environment 2 did not receive blue: {colors}"
+    assert colors[0, 0] - colors[0, 2] > 5.0, f"Environment 0 did not receive red: {colors}"
+    delta = np.abs(batched[:, 1] - before[1]).mean(axis=(1, 2, 3))
+    assert np.all(delta <= max(3.0, 4.0 * noise[1])), f"Batched edit changed the untouched view: {delta}"
+    sim.render_context.write_light_properties(paths, {"color": np.ones((2, 3))})
+    ordinary = capture()
+    before = ordinary[-12:].mean(axis=0)
     if per_environment_domes:
         sim.render_context.write_light_properties(
             ["/World/envs/env_0/Dome"], {"color": np.asarray([[0.9, 0.02, 0.02]], dtype=np.float32)}
@@ -99,7 +130,7 @@ def run_light_isolation_contract(
     # Inspect the object rather than diluting its illumination change with the dome background.
     before = changed[-12:, :, 32:64, 32:64].mean(axis=0)
     noise = np.abs(changed[:, :, 32:64, 32:64] - before).mean(axis=(2, 3, 4)).max(axis=0)
-    sim.render_context.write_light_properties(["/World/envs/env_1/Ceiling"], {"intensity": np.zeros(1)})
+    sim.render_context.write_light_properties(["/World/envs/env_1/Ceiling/Light"], {"intensity": np.zeros(1)})
     changed = capture()[:, :, 32:64, 32:64]
     delta = np.abs(changed - before).mean(axis=(2, 3, 4))
     assert delta[-12:, 1].mean() > 3.0, f"Selected analytic light update was not rendered: {delta[-12:].mean(axis=0)}"
@@ -116,12 +147,12 @@ def run_light_isolation_contract(
     origin = scene.env_origins[1].cpu().numpy()
     transform[0, 3, :3] = origin + (100.0, 0.0, 1.3)
     sim.render_context.write_light_properties(
-        ["/World/envs/env_1/Ceiling"], {"intensity": np.full(1, 1000.0), "transform": transform}
+        ["/World/envs/env_1/Ceiling/Light"], {"intensity": np.full(1, 1000.0), "transform": transform}
     )
     moved = capture()[-12:, :, 32:64, 32:64].mean(axis=0)
     assert np.all(np.abs(moved - off).mean(axis=(1, 2, 3)) < 3.0), "Light world transform was not rendered."
     transform[0, 3, :3] = origin + (1.0, 0.0, 1.3)
-    sim.render_context.write_light_properties(["/World/envs/env_1/Ceiling"], {"transform": transform})
+    sim.render_context.write_light_properties(["/World/envs/env_1/Ceiling/Light"], {"transform": transform})
     restored = capture()[-12:, :, 32:64, 32:64].mean(axis=0)
     assert np.all(np.abs(restored - before).mean(axis=(1, 2, 3)) < 3.0), "Light did not return to its initial pose."
 

@@ -9,7 +9,7 @@ import pytest
 
 from pxr import Usd, UsdGeom, UsdLux
 
-from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled, scene_partition_attributes
 
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 
@@ -42,14 +42,18 @@ def test_scene_partitioning_rejects_invalid_override(monkeypatch: pytest.MonkeyP
 
 def test_scene_partitions_include_lights_and_remap_native_copies() -> None:
     """Light selectors follow destination worlds while global lights remain shared."""
-    from isaaclab.utils.renderers import scene_partition_attributes
-
     stage = Usd.Stage.CreateInMemory()
+    asset = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(asset, "/Fixture")
+    UsdGeom.Camera.Define(asset, "/Fixture/Camera")
+    UsdLux.RectLight.Define(asset, "/Fixture/Ceiling")
     UsdLux.DomeLight.Define(stage, "/World/Shared")
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Camera.Define(stage, "/World/envs/env_0/Rig/Camera")
     UsdLux.DomeLight.Define(stage, "/World/envs/env_0/Rig/Dome")
-    UsdLux.RectLight.Define(stage, "/World/envs/env_0/Rig/Ceiling")
+    fixture = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Rig/Fixture").GetPrim()
+    fixture.GetReferences().AddReference(asset.GetRootLayer().identifier, "/Fixture")
+    fixture.SetInstanceable(True)
+    assert stage.GetPrimAtPath("/World/envs/env_0/Rig/Fixture/Ceiling").IsInstanceProxy()
     UsdGeom.Cube.Define(stage, "/World/envs/env_0/Rig/Object")
     env_paths = [f"/World/envs/env_{i}" for i in range(3)]
     assignments = scene_partition_attributes(
@@ -59,5 +63,7 @@ def test_scene_partitions_include_lights_and_remap_native_copies() -> None:
     )
     assert assignments["primvars:omni:scenePartition"] == dict(zip(env_paths, ("env_0", "env_1", "env_2")))
     assert assignments["omni:scenePartition"] == {
-        f"/World/envs/env_{i}/Rig/{name}": f"env_{i}" for i in range(3) for name in ("Camera", "Dome", "Ceiling")
+        f"/World/envs/env_{i}/Rig/{name}": f"env_{i}"
+        for i in range(3)
+        for name in ("Fixture/Camera", "Dome", "Fixture/Ceiling")
     }

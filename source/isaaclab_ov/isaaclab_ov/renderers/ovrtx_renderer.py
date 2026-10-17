@@ -377,7 +377,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders()
         if errors:
             raise ExceptionGroup("OVRTX renders failed before light updates", errors)
-        writes = dict(attributes)
+        writes = attributes
         if "omni:xform" in writes:
             writes = {"omni:resetXformStack": np.ones(len(prim_paths), dtype=np.bool_), **writes}
         if self._use_ovstage:
@@ -435,15 +435,16 @@ class OVRTXRenderer(BaseRenderer):
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
         logger.info("Preparing stage (%d envs)...", num_envs)
+        env_paths = self.scene.clone_env_paths
+        partitions = scene_partition_attributes(stage, env_paths, copies=self.scene.clone_copies)
         usd = export_stage_to_string(
             stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
             keep_env_roots=False, env_paths=self.scene.population_env_paths,
             show_all_partitions_by_default=self.cfg.show_all_partitions_by_default,
+            editable_prim_paths=tuple(path for path in partitions["omni:scenePartition"] if stage.GetPrimAtPath(path)),
         )  # fmt: skip
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
-        env_paths = self.scene.clone_env_paths
-        partitions = scene_partition_attributes(stage, env_paths, copies=self.scene.clone_copies)
         if self._use_ovstage:
             self.scene.populate(usd)
             for attribute_name, assignments in partitions.items():

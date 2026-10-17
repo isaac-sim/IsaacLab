@@ -303,8 +303,8 @@ under **Benchmarks**. These camera benchmarks compare Newton Warp ``rgb`` with O
 closest to Newton Warp's direct-lighting RGB. In the release benchmarks, Newton Warp has the highest
 throughput, and OVRTX outperforms Isaac RTX.
 
-Per-environment Isaac RTX scene partitioning
----------------------------------------------
+Per-environment scene partitioning and lighting
+-----------------------------------------------
 
 The Isaac RTX renderer enables per-environment scene partitioning by default. It assigns
 matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy, its
@@ -341,6 +341,11 @@ Prims outside the environment hierarchies remain in the shared background partit
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
 
+Cameras and lights below USD instances receive independent selectors and reset values.
+Setup expands only their ancestor instances, preserving geometry-only nested instances
+and siblings. OVRTX applies these changes to its private export without modifying the
+simulation's source USD stage.
+
 Updating lights during resets
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -370,7 +375,8 @@ per-step animation requiring device-resident light buffers.
 
 With OVRTX, each environment can own an independently controlled dome light. Isaac Sim
 6.2's Isaac RTX renderer still shares dome backgrounds across cameras even with explicit
-light partition selectors. For Isaac RTX, use a shared dome with per-environment analytic
+light partition selectors (tracked in `issue #8705 <https://github.com/isaac-sim/IsaacLab/issues/8705>`__).
+For Isaac RTX, use a shared dome with per-environment analytic
 lights until the renderer supports isolated dome backgrounds. Keep these environments
 spatially separated: overlapping environments can still affect one another's lighting in
 Isaac RTX even when the all-environment spectator layout is disabled.

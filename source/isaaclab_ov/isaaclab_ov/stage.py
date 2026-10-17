@@ -22,6 +22,7 @@ from pxr import Sdf, Usd, UsdRender
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.renderers import make_render_prims_editable
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +241,7 @@ def export_stage_to_string(
     *,
     env_paths: Sequence[str] = (),
     show_all_partitions_by_default: bool = True,
+    editable_prim_paths: Sequence[str] = (),
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
@@ -255,6 +257,8 @@ def export_stage_to_string(
         env_paths: Environment frames to create in the private export before native cloning.
         show_all_partitions_by_default: Enable the all-environment spectator layout. Camera
             renderers disable it to isolate environments with overlapping world-space bounds.
+        editable_prim_paths: Authored cameras and lights requiring independent attributes.
+            Only their ancestor instances are expanded, in the private export stage.
 
     Returns:
         USDA text containing the selected prototypes.
@@ -263,6 +267,7 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
+    make_render_prims_editable(export_stage, editable_prim_paths)
     # Spectator layout requires disjoint world-space partition bounds, including sensor views.
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)

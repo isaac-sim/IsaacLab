@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -18,6 +18,26 @@ ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING = "/rtx/scenePartitioning/showA
 """RTX setting that exposes partitioned content to cameras without a partition token."""
 
 _SCENE_PARTITION_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
+
+
+def make_render_prims_editable(stage: Usd.Stage, prim_paths: Iterable[str]) -> None:
+    """Expand ancestor instances so selected cameras and lights can carry independent opinions.
+
+    Geometry-only siblings and nested instances remain shared. Changes are authored to the
+    current edit target; detached renderers should use their private export stage.
+
+    Args:
+        stage: Stage containing the selected prims.
+        prim_paths: Existing camera or light paths to make independently editable.
+    """
+    from pxr import Sdf
+
+    for path in prim_paths:
+        # Recompose outer instances first so nested instance roots become editable.
+        for ancestor in Sdf.Path(path).GetPrefixes()[:-1]:
+            prim = stage.GetPrimAtPath(ancestor)
+            if prim.IsInstance():
+                prim.SetInstanceable(False)
 
 
 def scene_partition_attributes(
@@ -52,7 +72,7 @@ def scene_partition_attributes(
         root = stage.GetPrimAtPath(source)
         if not root:
             raise ValueError(f"Scene partition source {source!r} does not exist.")
-        for prim in Usd.PrimRange(root):
+        for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
             if not (prim.IsA(UsdGeom.Camera) or prim.HasAPI(UsdLux.LightAPI)):
                 continue
             path = prim.GetPath()

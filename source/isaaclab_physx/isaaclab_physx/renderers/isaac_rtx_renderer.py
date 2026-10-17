@@ -26,7 +26,7 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
-from isaaclab.utils.renderers import scene_partition_attributes
+from isaaclab.utils.renderers import make_render_prims_editable, scene_partition_attributes
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
@@ -304,6 +304,7 @@ class IsaacRtxRenderer(BaseRenderer):
         token_type = Sdf.ValueTypeNames.Token
         env_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
         partitions = scene_partition_attributes(stage, env_paths)
+        make_render_prims_editable(stage, partitions["omni:scenePartition"])
         with Sdf.ChangeBlock():
             for attribute_name, assignments in partitions.items():
                 for prim_path, token in assignments.items():

@@ -57,6 +57,46 @@ def test_light_updates_preserve_unselected_lights_and_use_world_transforms(monke
     assert tuple(UsdGeom.XformCache().GetLocalToWorldTransform(changed).ExtractTranslation()) == (11.0, 2.0, 3.0)
 
 
+def test_partitioned_instance_lights_are_editable_without_expanding_geometry(monkeypatch):
+    """Nested referenced lights get independent selectors and resets; mesh-only instances stay shared."""
+    from pxr import Usd, UsdGeom, UsdLux
+
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from isaaclab.renderers import RenderContext
+
+    asset = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(asset, "/LightRig")
+    UsdLux.RectLight.Define(asset, "/LightRig/Light").CreateIntensityAttr(300.0)
+    UsdGeom.Xform.Define(asset, "/Geometry")
+    UsdGeom.Cube.Define(asset, "/Geometry/Mesh")
+    for name, source in (("Fixture", "/LightRig"), ("Geometry", "/Geometry")):
+        prim = UsdGeom.Xform.Define(asset, f"/Asset/{name}").GetPrim()
+        prim.GetReferences().AddInternalReference(source)
+        prim.SetInstanceable(True)
+    stage = Usd.Stage.CreateInMemory()
+    for i in range(3):
+        prim = UsdGeom.Xform.Define(stage, f"/World/envs/env_{i}/Asset").GetPrim()
+        prim.GetReferences().AddReference(asset.GetRootLayer().identifier, "/Asset")
+        prim.SetInstanceable(True)
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer._sim = SimpleNamespace(stage=stage)
+    renderer.cfg = IsaacRtxRendererCfg()
+    renderer.prepare_stage(stage, 3)
+    paths = [f"/World/envs/env_{i}/Asset/Fixture/Light" for i in range(3)]
+    for i, path in enumerate(paths):
+        light = stage.GetPrimAtPath(path)
+        assert not light.IsInstanceProxy()
+        assert light.GetAttribute("omni:scenePartition").Get() == f"env_{i}"
+        assert stage.GetPrimAtPath(f"/World/envs/env_{i}/Asset/Geometry").IsInstance()
+    RenderContext([(renderer.cfg, renderer)]).write_light_properties(
+        [paths[2], paths[0]], {"intensity": np.array([700.0, 100.0])}
+    )
+    assert [stage.GetPrimAtPath(path).GetAttribute("inputs:intensity").Get() for path in paths] == [100.0, 300.0, 700.0]
+
+
 def _install_omni_stubs(monkeypatch):
     sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
