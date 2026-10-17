@@ -33,3 +33,18 @@ class RigidObjectCfg(AssetBaseCfg):
 
     init_state: InitialStateCfg = InitialStateCfg()
     """Initial state of the rigid object. Defaults to identity pose with zero velocity."""
+
+    mesh_variants_enabled: bool = False
+    """Prepare multi-asset collision meshes for reset-time selection.
+
+    Newton MJWarp requires one rigid body and the same number of mesh colliders in every variant.
+    Clone planning authors every variant's source so the model owns its mesh and SDF resources,
+    including variants not initially selected by any environment. Selection updates collision geometry,
+    mass, and inertia. Newton OpenGL and Viser visualizers follow the selection without rewriting USD.
+    Selection requires Newton external contacts and disabled sleeping; MuJoCo's compiled meshes are
+    not updated. Internal MuJoCo contacts and geometry-dependent MuJoCo queries are unsupported.
+    PhysX ignores this option; Newton solvers other than MJWarp reject it. Defaults to ``False``.
+    """
+
+    mesh_variant_inertia_diagonal_offset: float = 0.0
+    """Diagonal inertia added to every mesh variant [kg·m²]. Defaults to ``0.0``."""

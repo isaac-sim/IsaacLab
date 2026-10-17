@@ -66,6 +66,14 @@ class CloneCfg:
     empty list keeps the homogeneous/default behavior.
     """
 
+    valid_set: list[list[int]] | None = None
+    """Explicit spawn-variant rows passed to clone planning.
+
+    Each row contains one variant index per environment-scoped spawned asset, in scene
+    declaration order. Use ``-1`` to omit an asset. This bypasses Cartesian expansion and
+    takes precedence over :attr:`clone_combinations`.
+    """
+
     clone_template: str = DEFAULT_ENV_TEMPLATE
     """Path template for every replicated env prim, where ``{}`` is the environment index.
 

@@ -16,7 +16,7 @@ from isaaclab.utils import configclass
 # ``Offset`` lives in the shared util layer — pure rigid-body math, no
 # assembly semantics. Re-exported here for backwards compatibility with
 # call sites that ``from .assembly_keypoints import Offset``.
-from isaaclab_tasks.contrib.nist.utils.pose_offset import Offset
+from .utils.pose_offset import Offset
 
 __all__ = ["Offset"]
 
@@ -31,6 +31,23 @@ class NistBoardKeyPointsCfg:
 
     nist_board_center: Offset = Offset(pos=(0.197176, -0.19145, 0.0))
 
+    bnc_plug: Offset = Offset(pos=(0.2797, -0.1915, 0.0), quat=(0.7071, 0.7071, 0.0, 0.0))
+    bnc_socket: Offset = Offset(pos=(0.2797, -0.1915, 0.0), quat=(0.7071, 0.7071, 0.0, 0.0))
+    dsub_plug: Offset = Offset(pos=(0.2129, -0.2659, -0.019), quat=(0.7071, -0.7071, 0.0, 0.0))
+    dsub_socket: Offset = Offset(pos=(0.2129, -0.2659, -0.019), quat=(0.7071, -0.7071, 0.0, 0.0))
+    rj45_plug: Offset = Offset(pos=(0.3473, -0.3415, 0.0), quat=(0.0, 1.0, 0.0, 0.0))
+    rj45_socket: Offset = Offset(pos=(0.3473, -0.3415, 0.0), quat=(0.0, 1.0, 0.0, 0.0))
+    waterproof_plug: Offset = Offset(pos=(0.1981, -0.1166, -0.0002), quat=(0.0, 1.0, 0.0, 0.0))
+    waterproof_socket: Offset = Offset(pos=(0.1981, -0.1166, -0.0002), quat=(0.0, 1.0, 0.0, 0.0))
+    usba_plug: Offset = Offset(pos=(0.2721, -0.0415, -0.0001), quat=(0.7071, 0.7071, 0.0, 0.0))
+    usba_socket: Offset = Offset(pos=(0.2721, -0.0415, -0.0001), quat=(0.7071, 0.7071, 0.0, 0.0))
+
+    nut_m4: Offset = Offset(pos=(0.1223, -0.1914, 0.004), quat=(1.0, 0.0, 0.0, 0.0))
+    bolt_m4: Offset = Offset(pos=(0.1223, -0.1914, 0.0131), quat=(1.0, 0.0, 0.0, 0.0))
+    nut_m8: Offset = Offset(pos=(0.0473, -0.0407, 0.0085), quat=(1.0, 0.0, 0.0, 0.0))
+    bolt_m8: Offset = Offset(pos=(0.0473, -0.0407, 0.0172), quat=(1.0, 0.0, 0.0, 0.0))
+    nut_m12: Offset = Offset(pos=(0.3473, -0.2665, 0.0123), quat=(1.0, 0.0, 0.0, 0.0))
+    bolt_m12: Offset = Offset(pos=(0.3473, -0.2665, 0.0212), quat=(1.0, 0.0, 0.0, 0.0))
     nut_m16: Offset = Offset(pos=(0.04715, -0.3416, 0.0094), quat=(1.0, 0.0, 0.0, 0.0))
     bolt_m16: Offset = Offset(pos=(0.04715, -0.3416, 0.0194), quat=(1.0, 0.0, 0.0, 0.0))
 
@@ -80,6 +97,35 @@ class BoltM16KeyPointsCfg:
     full_thread: Offset = Offset(pos=(0.0, 0.0, 0.01))
 
 
+@configclass
+class BoltM12KeyPointsCfg:
+    bolt_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.035))
+    second_thread: Offset = Offset(pos=(0.0, 0.0, 0.0285))
+    fully_screwed_nut_offset: Offset = Offset(pos=(0.0, 0.0, 0.0218))
+    seventh_thread: Offset = Offset(pos=(0.0, 0.0, 0.0215))
+    head: Offset = Offset(pos=(0.0, 0.0, 0.0))
+
+
+@configclass
+class BoltM8KeyPointsCfg:
+    bolt_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.026))
+    second_thread: Offset = Offset(pos=(0.0, 0.0, 0.0242))
+    seventh_thread: Offset = Offset(pos=(0.0, 0.0, 0.0182))
+    fully_screwed_nut_offset: Offset = Offset(pos=(0.0, 0.0, 0.018))
+    full_thread: Offset = Offset(pos=(0.0, 0.0, 0.0084))
+    head: Offset = Offset(pos=(0.0, 0.0, 0.0))
+
+
+@configclass
+class BoltM4KeyPointsCfg:
+    bolt_tip_offset: Offset = Offset(pos=(0.0, 0.0, 0.02))
+    second_thread: Offset = Offset(pos=(0.0, 0.0, 0.0189))
+    fully_screwed_nut_offset: Offset = Offset(pos=(0.0, 0.0, 0.01318))
+    tenth_thread: Offset = Offset(pos=(0.0, 0.0, 0.0134))
+    full_thread: Offset = Offset(pos=(0.0, 0.0, 0.0044))
+    head: Offset = Offset(pos=(0.0, 0.0, 0.0))
+
+
 # =============================================================================
 # Nut keypoints (all sizes)
 # =============================================================================
@@ -100,6 +146,36 @@ class NutM16KeyPointsCfg:
     center_axis_middle: Offset = Offset(pos=(0.0, 0.0, 0.0165))
     center_axis_top: Offset = Offset(pos=(0.0, 0.0, 0.023))
     screw_ratio: float = 0.002
+
+
+@configclass
+class NutM12KeyPointsCfg:
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.013), quat=(0.0, 0.0, -0.7071, 0.7071))
+    grasp_diameter: float = 0.019
+    center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.013))
+    center_axis_middle: Offset = Offset(pos=(0.0, 0.0, 0.018))
+    center_axis_top: Offset = Offset(pos=(0.0, 0.0, 0.023))
+    screw_ratio: float = 0.00175
+
+
+@configclass
+class NutM8KeyPointsCfg:
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0093), quat=(0.0, 0.0, -0.7071, 0.7071))
+    grasp_diameter: float = 0.013
+    center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0093))
+    center_axis_middle: Offset = Offset(pos=(0.0, 0.0, 0.0126))
+    center_axis_top: Offset = Offset(pos=(0.0, 0.0, 0.016))
+    screw_ratio: float = 0.00125
+
+
+@configclass
+class NutM4KeyPointsCfg:
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0046), quat=(0.0, 0.0, -0.7071, 0.7071))
+    grasp_diameter: float = 0.007
+    center_axis_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0048))
+    center_axis_middle: Offset = Offset(pos=(0.0, 0.0, 0.0064))
+    center_axis_top: Offset = Offset(pos=(0.0, 0.0, 0.0082))
+    screw_ratio: float = 0.0007
 
 
 # =============================================================================
@@ -136,7 +212,7 @@ class MediumGearKeyPointsCfg:
     center_axis_bottom: Offset = Offset(pos=(0.02025, 0.0, 0.005))
     center_axis_top: Offset = Offset(pos=(0.02025, 0.0, 0.03))
     grasp_point: Offset = Offset(pos=(0.02025, 0.0, 0.022))
-    grasp_diameter: float = 0.03
+    grasp_diameter: float = 0.0295
 
 
 @configclass
@@ -144,7 +220,7 @@ class LargeGearKeyPointsCfg:
     center_axis_bottom: Offset = Offset(pos=(-0.0303, 0.0, 0.005))
     center_axis_top: Offset = Offset(pos=(-0.0303, 0.0, 0.03))
     grasp_point: Offset = Offset(pos=(-0.0303, 0.0, 0.022))
-    grasp_diameter: float = 0.03
+    grasp_diameter: float = 0.037
 
 
 # =============================================================================
@@ -278,6 +354,84 @@ class RectangularHole4MMKeyPointsCfg:
 
 
 # =============================================================================
+# Connector keypoints
+# =============================================================================
+
+
+@configclass
+class USBAPlugKeyPointsCfg:
+    insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.0335))
+    tail: Offset = Offset(pos=(0.0, 0.0, 0.093))
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0563))
+    grasp_diameter: float = 0.0152
+
+
+@configclass
+class USBASocketKeyPointsCfg:
+    entry: Offset = Offset(pos=(0.0, 0.0, 0.0416))
+    plug_assembled: Offset = Offset(pos=(0.0, 0.0, 0.0335))
+    housing_bottom: Offset = Offset(pos=(0.0, 0.0, 0.0))
+
+
+@configclass
+class WaterproofPlugKeyPointsCfg:
+    insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.021))
+    tail: Offset = Offset(pos=(0.0, 0.0, 0.0589))
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.044))
+    grasp_diameter: float = 0.03152
+
+
+@configclass
+class WaterproofSocketKeyPointsCfg:
+    entry: Offset = Offset(pos=(0.0, 0.0, 0.034))
+    plug_assembled: Offset = Offset(pos=(0.0, 0.0, 0.021))
+
+
+@configclass
+class BNCPlugKeyPointsCfg:
+    insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.0107))
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0197))
+    grasp_diameter: float = 0.0143
+    screw_ratio: float = 0.0066
+
+
+@configclass
+class BNCSocketKeyPointsCfg:
+    entry: Offset = Offset(pos=(0.0, 0.0, 0.0212), quat=(0.0, 0.0, 0.70711, 0.7071))
+    insert_start: Offset = Offset(pos=(0.0, 0.0, 0.01235), quat=(0.0, 0.0, 0.70711, 0.7071))
+    plug_assembled: Offset = Offset(pos=(0.0, 0.0, 0.0107))
+
+
+@configclass
+class DSUBPlugKeyPointsCfg:
+    insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.0))
+    grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.0125))
+    # The finite finger pads can reach the wider flange during the allowed grasp-pose jitter.
+    grasp_diameter: float = 0.01285
+
+
+@configclass
+class DSUBSocketKeyPointsCfg:
+    plug_assembled: Offset = Offset(pos=(0.0, 0.0, 0.0))
+    entry: Offset = Offset(pos=(0.0, 0.0, 0.0061))
+
+
+@configclass
+class RJ45PlugKeyPointsCfg:
+    insertion_tip: Offset = Offset(pos=(0.0, 0.0, 0.015))
+    tail: Offset = Offset(pos=(0.0, 0.0, 0.0771))
+    # Center the closing-axis span [-5.2, 5.8] mm at the grasp height.
+    grasp_point: Offset = Offset(pos=(0.0, 0.0003, 0.0388))
+    grasp_diameter: float = 0.011
+
+
+@configclass
+class RJ45SocketKeyPointsCfg:
+    entry: Offset = Offset(pos=(0.0, 0.0, 0.028))
+    plug_assembled: Offset = Offset(pos=(0.0, 0.0, 0.015))
+
+
+# =============================================================================
 # Robot keypoints
 # =============================================================================
 
@@ -290,8 +444,8 @@ class PandaHandKeyPointsCfg:
     for top-down grasps.
     """
 
-    gripper_center_grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.107), quat=(0.0, 1.0, 0.0, 0.0))
-    gripper_tip_grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.112), quat=(0.0, 1.0, 0.0, 0.0))
+    gripper_center_grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.107), quat=(0.0, -1.0, 0.0, 0.0))
+    gripper_tip_grasp_point: Offset = Offset(pos=(0.0, 0.0, 0.112), quat=(0.0, -1.0, 0.0, 0.0))
 
 
 @configclass
@@ -304,8 +458,16 @@ class RobotRootKeyPointsCfg:
 # =============================================================================
 
 NIST_BOARD_CFG = NistBoardKeyPointsCfg()
+
 BOLT_M16 = BoltM16KeyPointsCfg()
 NUT_M16 = NutM16KeyPointsCfg()
+BOLT_M12 = BoltM12KeyPointsCfg()
+NUT_M12 = NutM12KeyPointsCfg()
+BOLT_M8 = BoltM8KeyPointsCfg()
+NUT_M8 = NutM8KeyPointsCfg()
+BOLT_M4 = BoltM4KeyPointsCfg()
+NUT_M4 = NutM4KeyPointsCfg()
+
 RECTANGULAR_PEG_16MM = RectangularPeg16MMKeyPointsCfg()
 RECTANGULAR_HOLE_16MM = RectangularHole16MMKeyPointsCfg()
 RECTANGULAR_PEG_12MM = RectangularPeg12MMKeyPointsCfg()
@@ -328,6 +490,17 @@ GEAR_BASE = GearBaseKeyPointsCfg()
 SMALL_GEAR = SmallGearKeyPointsCfg()
 MEDIUM_GEAR = MediumGearKeyPointsCfg()
 LARGE_GEAR = LargeGearKeyPointsCfg()
+
+USB_A_SOCKET = USBASocketKeyPointsCfg()
+USB_A_PLUG = USBAPlugKeyPointsCfg()
+WATERPROOF_PLUG = WaterproofPlugKeyPointsCfg()
+WATERPROOF_SOCKET = WaterproofSocketKeyPointsCfg()
+D_SUB_PLUG = DSUBPlugKeyPointsCfg()
+D_SUB_SOCKET = DSUBSocketKeyPointsCfg()
+BNC_PLUG = BNCPlugKeyPointsCfg()
+BNC_SOCKET = BNCSocketKeyPointsCfg()
+RJ45_PLUG = RJ45PlugKeyPointsCfg()
+RJ45_SOCKET = RJ45SocketKeyPointsCfg()
 
 PANDA_HAND = PandaHandKeyPointsCfg()
 ROBOT = RobotRootKeyPointsCfg()

@@ -224,6 +224,20 @@ class InteractiveScene:
                 prototype_indices.extend(range(prototype_count, prototype_count + count))
             prototype_count += count
 
+        if self.cloner_cfg.valid_set is not None:
+            variants = np.asarray(self.cloner_cfg.valid_set)
+            if variants.ndim != 2 or variants.shape[1] != len(variant_counts):
+                raise ValueError("valid_set requires one variant index per environment-scoped spawned asset.")
+            if not np.issubdtype(variants.dtype, np.integer):
+                raise ValueError("valid_set variant indices must be integers.")
+            if np.any(variants < -1) or np.any(variants >= np.asarray(variant_counts)) or not len(variants):
+                raise ValueError("valid_set must contain valid variant indices or -1 to omit an asset.")
+            offsets = np.cumsum([0, *variant_counts[:-1]])
+            worlds = tuple(
+                tuple(prototype_indices[start + value] for start, value in zip(offsets, row, strict=True) if value >= 0)
+                for row in variants
+            )
+            return cfgs, worlds, np.ones(len(worlds), dtype=np.float64)
         combinations = self.cloner_cfg.clone_combinations
         if combinations and clone_asset_names:
             worlds, weights = cloner.make_valid_clone_combinations(

@@ -169,3 +169,33 @@ Available Tasks
      <div class="environment-task-list" data-task-list></div>
      <p class="environment-empty-state" data-task-empty hidden>No tasks match this search.</p>
    </div>
+
+NIST assembly variants
+----------------------
+
+``IsaacContrib-Factory-Variant-Franka`` trains a single-component policy across
+twenty assembly pairs. Each environment contains one fixed part and one movable
+part. Resets select a matching pair and restore its geometry, inertial properties,
+and cached starting state. This task does not assemble several components in one
+episode.
+
+The variant task selects Newton MJWarp internally; no ``physics=`` selector is
+needed. For example::
+
+   uv run isaaclab train --task IsaacContrib-Factory-Variant-Franka --rl_library rsl_rl
+   uv run isaaclab play --task IsaacContrib-Factory-Variant-Franka --rl_library rsl_rl --checkpoint /path/to/model.pt --visualizer newton_gl
+
+Training samples cached loose-part, grasped, and partially assembled states with
+beta sampling. Play mode uses uniformly sampled random-start states. Checkpoints
+must match this task's observation and policy configuration; multi-component
+checkpoints are not interchangeable with this task.
+
+Reset-time geometry switching uses Newton's external contact pipeline with
+sleeping disabled. Mesh resources are loaded once; changing the selected variant
+does not require a custom Newton solver or its precaching API. MuJoCo's compiled
+geometry is not replaced, so internal MuJoCo contacts and geometry-dependent
+MuJoCo queries are not supported for switched assets. Newton OpenGL and Viser
+display the selected variants; RTX rendering of switched variants is not supported.
+
+The existing ``IsaacContrib-Factory-Franka`` task remains available for a fixed
+assembly chosen through a domain preset, such as ``presets=peg_insert_8mm``.
