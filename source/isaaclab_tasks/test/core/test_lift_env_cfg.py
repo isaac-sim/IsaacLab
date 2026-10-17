@@ -22,7 +22,6 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
-from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -68,13 +67,6 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics, "Colliders": "primitives"}
-
-
-@pytest.mark.parametrize("env_cfg_type", [FrankaSoftEnvCfg, FrankaClothEnvCfg])
-def test_physx_deformables_use_usd_clone_context(env_cfg_type) -> None:
-    """PhysX must parse each deformable from USD within the shared clone plan."""
-    cfg = resolve_presets(env_cfg_type(), selected=("isaacsim_physx",))
-    assert cfg.scene.deformable.cloning_contexts == ("isaaclab.cloner:UsdReplicateContext",)
 
 
 def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:

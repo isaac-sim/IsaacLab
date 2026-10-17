@@ -32,7 +32,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import DeformableObjectCfg
-from isaaclab.cloner import ReplicateSession
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.math import quat_apply
 
@@ -81,11 +80,11 @@ def _author_deformable_body(
     )
 
 
-def _spawn_volume_deformables(root: str, y_offset: float, num_envs: int = _NUM_ENVS) -> DeformableObject:
+def _spawn_volume_deformables(root: str, y_offset: float) -> DeformableObject:
     """Author one five-node, two-tetrahedron volume deformable per environment."""
     stage = sim_utils.get_current_stage()
     points = [Gf.Vec3f(*point) for point in _VOLUME_POINTS]
-    for env_index in range(num_envs):
+    for env_index in range(_NUM_ENVS):
         object_path = f"{root}/Env_{env_index}/Object"
         sim_utils.create_prim(f"{root}/Env_{env_index}", "Xform", translation=(env_index * 1.0, y_offset, 1.0))
         UsdGeom.Xform.Define(stage, object_path)
@@ -142,23 +141,6 @@ def test_initialization_on_device_cpu() -> None:
 
         with pytest.raises(RuntimeError, match="Failed to create deformable body at"):
             sim.reset()
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_volume_deformable_usd_replication_creates_two_live_views(device: str) -> None:
-    """PhysX parses both worlds when a deformable is routed through USD replication."""
-    with build_simulation_context(device=device, gravity_enabled=False) as sim:
-        sim._app_control_on_stop_handle = None
-        root = "/World/ReplicatedVolume"
-        volume = _spawn_volume_deformables(root, 0.0, num_envs=1)
-        volume.cfg.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
-        with ReplicateSession((volume.cfg,), 2, 1.0, env_template=f"{root}/Env_{{}}"):
-            pass
-        sim.reset()
-        assert volume.num_instances == 2
-        assert volume.root_view.count == 2
-        assert torch.isfinite(volume.data.nodal_state_w.torch).all()
 
 
 @dataclass

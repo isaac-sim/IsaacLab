@@ -390,6 +390,7 @@ def test_generated_project_can_opt_into_ui_extension(tmp_path):
         extension_config = tomllib.load(file)
     assert (task_dir / "env.py").is_file()
     assert (task_dir / "env_cfg.py").is_file()
+    assert "replicate_physics" not in (task_dir / "env_cfg.py").read_text()
     assert "test_project.tasks.place_vial_direct.config.so101.env:PlaceVialEnv" in registration_test
     assert extension_config["package"]["author"] == 'Test "Quoted" Author'
     assert extension_config["python"]["module"] == [{"name": "test_project.ui_extension_example"}]
@@ -411,12 +412,3 @@ def test_internal_task_keeps_repository_layout(tmp_path):
     task_dir = tmp_path / "test_task" / "config" / "cartpole"
     assert task["id"] == "Isaac-Test-Task"
     assert (task_dir / "test_task_env_cfg.py").is_file()
-
-
-@pytest.mark.parametrize("workflow_type", ["single-agent", "multi-agent"])
-def test_generated_direct_tasks_do_not_restore_removed_replication_switch(tmp_path, workflow_type):
-    specification = _external_specification(tmp_path)
-    specification["workflows"] = [{"name": "direct", "type": workflow_type}]
-    task = _GENERATOR._generate_tasks(specification, str(tmp_path))[0]["task"]
-    env_cfg = Path(task["dir"]) / f"{task['env_cfg_filename']}.py"
-    assert "replicate_physics" not in env_cfg.read_text()

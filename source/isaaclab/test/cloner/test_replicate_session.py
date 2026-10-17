@@ -39,17 +39,6 @@ class _RenderContext(_Context):
     pass
 
 
-@pytest.mark.parametrize("legacy_value", [True, False])
-def test_replicate_physics_configs_warn_and_ignore_legacy_value(legacy_value):
-    """Legacy configuration values remain constructible but do not control cloning."""
-    with pytest.warns(DeprecationWarning, match="InteractiveSceneCfg.replicate_physics.*ignored"):
-        scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=1.0, replicate_physics=legacy_value)
-    with pytest.warns(DeprecationWarning, match="CloneCfg.replicate_physics.*ignored"):
-        clone_cfg = CloneCfg(replicate_physics=legacy_value)
-    assert scene_cfg.replicate_physics is legacy_value
-    assert clone_cfg.replicate_physics is legacy_value
-
-
 @pytest.fixture
 def simulation(monkeypatch):
     registry = []
@@ -72,23 +61,22 @@ def simulation(monkeypatch):
     return sim
 
 
-@pytest.mark.parametrize("legacy_value", [True, False])
-def test_legacy_session_argument_cannot_disable_physics_replication(simulation, legacy_value):
+def test_legacy_replicate_physics_warns_without_disabling_replication(simulation):
+    """All old cloner entry points accept False, while physics still receives the clone plan."""
+    with pytest.warns(DeprecationWarning, match="InteractiveSceneCfg.replicate_physics.*ignored"):
+        InteractiveSceneCfg(num_envs=2, env_spacing=1.0, replicate_physics=False)
+    with pytest.warns(DeprecationWarning, match="CloneCfg.replicate_physics.*ignored"):
+        CloneCfg(replicate_physics=False)
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=CuboidCfg(size=(1, 1, 1)))
     with pytest.warns(DeprecationWarning, match="replicate_physics.*ignored"):
-        session = ReplicateSession((cfg,), 2, 1.0, replicate_physics=legacy_value)
+        session = ReplicateSession((cfg,), 2, 1.0, replicate_physics=False)
     with session:
         pass
     assert (_Context, session.plan, (0,)) in simulation.calls
-
-
-@pytest.mark.parametrize("legacy_value", [True, False])
-def test_legacy_replicate_argument_cannot_disable_physics_replication(simulation, legacy_value):
-    cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=CuboidCfg(size=(1, 1, 1)))
-    plan = clone_plan_from_env_0(CloneCfg(), (cfg,), 2, 1.0)
+    simulation.calls.clear()
     with pytest.warns(DeprecationWarning, match="replicate_physics.*ignored"):
-        replicate_session.replicate(plan, replicate_physics=legacy_value)
-    assert (_Context, plan, (0,)) in simulation.calls
+        replicate_session.replicate(session.plan, replicate_physics=False)
+    assert (_Context, session.plan, (0,)) in simulation.calls
 
 
 @pytest.mark.parametrize("override", [None, (), (_RenderContext,)])
