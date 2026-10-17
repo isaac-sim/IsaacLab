@@ -107,6 +107,18 @@ sets actuator targets before physics. Both modes still step physics. Direct posi
 requires ``scene.lazy_sensor_update=True``. With Isaac RTX, omit ``--visualizer``
 in this mode: a Kit visualizer would render before the pose write.
 
+``Isaac-Reach-Franka-Kitchen-Camera`` renders the Kitchen Set, which is not part of the
+Isaac Lab assets. Pass the path of its ``Kitchen_set.usda``, and select the camera data type
+and resolution with a preset named like the Kuka-Allegro camera presets:
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab benchmark runtime \
+       --task Isaac-Reach-Franka-Kitchen-Camera \
+       --num_envs 256 \
+       physics=newton_mjwarp renderer=ovrtx presets=simple_shading_full_mdl64 \
+       env.scene.kitchen.spawn.usd_path=/path/to/KitchenSet/Kitchen_set.usda
+
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
 the runtime measurement loop. The benchmark wraps the selected physics
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
