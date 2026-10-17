@@ -24,6 +24,7 @@ import warp as wp
 from isaaclab.utils import clone, validate
 
 from .. import sim as sim_utils
+from ..cloner import path as cloner_path
 from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
@@ -189,7 +190,13 @@ class SensorBase(ABC):
         wp.launch(
             reset_envs_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
+            inputs=[
+                env_mask,
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                self._elapsed_since_update,
+            ],
             device=self._device,
         )
         self._data_dirty = True
@@ -203,7 +210,13 @@ class SensorBase(ABC):
         wp.launch(
             update_timestamp_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, dt, self.cfg.update_period],
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._elapsed_since_update,
+                dt,
+                self.cfg.update_period - 1e-6,
+            ],
             device=self._device,
         )
         # Update the buffers; debug visualization refreshes lazily from its callback.
@@ -255,7 +268,10 @@ class SensorBase(ABC):
         self._sim_physics_dt = sim.get_physics_dt()
         # Native clones need not have corresponding USD prims.
         clone_plan = sim.get_clone_plan()
-        if clone_plan is not None:
+        self._is_global = (
+            clone_plan is not None and cloner_path.match(self.cfg.prim_path, clone_plan.env_template) is None
+        )
+        if clone_plan is not None and not self._is_global:
             self._num_envs = len(clone_plan.topology.world_prototype_layout)
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
@@ -265,10 +281,7 @@ class SensorBase(ABC):
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
-        # timestamp and outdated flags
-        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-        self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._create_timing_buffers()
         self._data_dirty = True
 
         # Initialize debug visualization handle
@@ -418,6 +431,18 @@ class SensorBase(ABC):
     Helper functions.
     """
 
+    def _create_timing_buffers(self) -> None:
+        """Allocates the per-environment outdated flags, timestamps and elapsed times used to schedule updates.
+
+        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again, after
+        reallocating their environment masks.
+        """
+        # timestamp and outdated flags
+        self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
+        self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
+        self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+
     def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
         if not force_recompute and not self._data_dirty:
@@ -431,7 +456,7 @@ class SensorBase(ABC):
         wp.launch(
             update_outdated_envs_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
             device=self._device,
         )
         self._data_dirty = False

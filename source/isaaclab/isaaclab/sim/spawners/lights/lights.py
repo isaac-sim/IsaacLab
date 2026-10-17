@@ -41,7 +41,6 @@ def spawn_light(
         translation: The translation of the prim. Defaults to None, in which case this is set to the origin.
         orientation: The orientation of the prim as (x, y, z, w). Defaults to None, in which case this
             is set to identity.
-        **kwargs: Additional keyword arguments, like ``clone_in_fabric``.
 
     Raises:
         ValueError:  When a prim already exists at the specified prim path.

@@ -325,6 +325,59 @@ def scene(request) -> Iterator[_Scene]:
         )
 
 
+# Run before the other composite-scene tests read the collection COM cache.
+def test_collection_inertial_properties_reach_selected_view_entries(scene: _Scene) -> None:
+    """Mass, center-of-mass, and inertia writes to a non-sorted subset reach only the selected body-major entries."""
+    device = scene.device
+    collection = scene.collection
+    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
+    body_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    initial = {
+        "masses": collection.data.body_mass.torch.clone(),
+        "coms": wp.to_torch(collection.root_view.get_coms())
+        .to(device)
+        .reshape(_NUM_CUBES, _NUM_ENVS, 7)
+        .transpose(0, 1)
+        .clone(),
+        "inertias": collection.data.body_inertia.torch.clone(),
+    }
+    values = {name: value[env_ids][:, body_ids].clone() for name, value in initial.items()}
+    values["masses"][:, 0] = torch.tensor([5.0, 7.0], device=device)
+    values["coms"][:, 0, :3] = torch.tensor([[0.02, 0.03, 0.04], [-0.01, 0.01, 0.02]], device=device)
+    values["inertias"][:] = torch.tensor([3.0, 1.0, 0.0, 1.0, 3.0, 0.0, 0.0, 0.0, 5.0], device=device)
+    values["inertias"][1] *= 2.0
+    collection.set_masses_index(masses=values["masses"], env_ids=env_ids, body_ids=body_ids)
+    collection.set_coms_index(coms=values["coms"], env_ids=env_ids, body_ids=body_ids)
+    # Check the partial write before any COM cache read, then prime the derived pose before changing inertia.
+    expected_coms = initial["coms"].clone()
+    expected_coms[env_ids[:, None], body_ids] = values["coms"]
+    torch.testing.assert_close(collection.data.body_com_pose_b.torch, expected_coms)
+    expected_com_pose_w = collection.data.body_com_pose_w.torch.clone()
+    collection.set_inertias_index(inertias=values["inertias"], env_ids=env_ids, body_ids=body_ids)
+    updated_coms = (
+        wp.to_torch(collection.root_view.get_coms()).to(device).reshape(_NUM_CUBES, _NUM_ENVS, 7).transpose(0, 1)
+    )
+    assert not torch.allclose(updated_coms[0, 1, 3:], expected_coms[0, 1, 3:])
+    values["coms"][..., 3:] = updated_coms[env_ids[:, None], body_ids, 3:]
+    expected_com_pose_w[..., 3:] = quat_mul(collection.data.body_link_quat_w.torch, updated_coms[..., 3:])
+    torch.testing.assert_close(collection.data.body_com_pose_w.torch, expected_com_pose_w)
+    for name, data, raw in (
+        ("masses", collection.data.body_mass, collection.root_view.get_masses()),
+        ("coms", collection.data.body_com_pose_b, collection.root_view.get_coms().view(wp.float32)),
+        ("inertias", collection.data.body_inertia, collection.root_view.get_inertias()),
+    ):
+        expected = initial[name].clone()
+        expected[env_ids[:, None], body_ids] = values[name]
+        torch.testing.assert_close(data.torch, expected)
+        # The view is body-major: (num_cubes * num_envs, ...).
+        raw = wp.to_torch(raw).to(device).reshape(_NUM_CUBES, _NUM_ENVS, -1).transpose(0, 1)
+        torch.testing.assert_close(raw, expected.reshape(_NUM_ENVS, _NUM_CUBES, -1))
+    # Restore the initial properties for the wrench checks.
+    collection.set_masses_index(masses=initial["masses"])
+    collection.set_coms_index(coms=initial["coms"])
+    collection.set_inertias_index(inertias=initial["inertias"])
+
+
 @pytest.mark.isaacsim_ci
 def test_initialization(scene: _Scene) -> None:
     """Initialize local rigid objects and collections, including a single-cube collection; under gravity, kinematic
@@ -724,42 +777,6 @@ def test_collection_state_writes(scene: _Scene) -> None:
         torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_object_gt, atol=1e-4, rtol=1e-3)
         # ang_vel will always match
         torch.testing.assert_close(object_com_vel_w[..., 3:], object_link_vel_w[..., 3:])
-
-
-def test_collection_inertial_properties_reach_selected_view_entries(scene: _Scene) -> None:
-    """Mass, center-of-mass, and inertia writes to a non-sorted subset reach only the selected body-major entries."""
-    device = scene.device
-    collection = scene.collection
-    env_ids = torch.tensor([1, 0], dtype=torch.int32, device=device)
-    body_ids = torch.tensor([1], dtype=torch.int32, device=device)
-    initial = {
-        "masses": collection.data.body_mass.torch.clone(),
-        "coms": collection.data.body_com_pose_b.torch.clone(),
-        "inertias": collection.data.body_inertia.torch.clone(),
-    }
-    values = {name: value[env_ids][:, body_ids].clone() for name, value in initial.items()}
-    values["masses"][:, 0] = torch.tensor([5.0, 7.0], device=device)
-    values["coms"][:, 0, :3] = torch.tensor([[0.02, 0.03, 0.04], [-0.01, 0.01, 0.02]], device=device)
-    values["inertias"][0, 0, [0, 4, 8]] *= 1.5
-    values["inertias"][1, 0, [0, 4, 8]] *= 2.0
-    collection.set_masses_index(masses=values["masses"], env_ids=env_ids, body_ids=body_ids)
-    collection.set_coms_index(coms=values["coms"], env_ids=env_ids, body_ids=body_ids)
-    collection.set_inertias_index(inertias=values["inertias"], env_ids=env_ids, body_ids=body_ids)
-    for name, data, raw in (
-        ("masses", collection.data.body_mass, collection.root_view.get_masses()),
-        ("coms", collection.data.body_com_pose_b, collection.root_view.get_coms().view(wp.float32)),
-        ("inertias", collection.data.body_inertia, collection.root_view.get_inertias()),
-    ):
-        expected = initial[name].clone()
-        expected[env_ids[:, None], body_ids] = values[name]
-        torch.testing.assert_close(data.torch, expected)
-        # The view is body-major: (num_cubes * num_envs, ...).
-        raw = wp.to_torch(raw).to(device).reshape(_NUM_CUBES, _NUM_ENVS, -1).transpose(0, 1)
-        torch.testing.assert_close(raw, expected.reshape(_NUM_ENVS, _NUM_CUBES, -1))
-    # Restore the initial properties for the wrench checks.
-    collection.set_masses_index(masses=initial["masses"])
-    collection.set_coms_index(coms=initial["coms"])
-    collection.set_inertias_index(inertias=initial["inertias"])
 
 
 def test_collection_wrench_delivery_and_reset(scene: _Scene) -> None:

@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import gymnasium as gym
@@ -63,7 +65,7 @@ from environ_docs import (  # noqa: E402
 from isaaclab.envs import ManagerBasedRLEnv  # noqa: E402
 
 import isaaclab_tasks  # noqa: E402, F401
-from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
+from isaaclab_tasks.utils.hydra import PresetTarget  # noqa: E402
 
 
 def test_is_training_task_filters_non_training_variants():
@@ -291,6 +293,24 @@ def test_collect_environment_doc_rows_includes_checkpoint_preset_compatibility()
         "*": ("rgb",),
         "rl_games": ("depth",),
     }
+
+
+def test_franka_browser_presets_follow_frontend_and_publication_support():
+    """Holding remains selectable in Torch without advertising Warp support or an unpublished checkpoint."""
+    spec = gym.spec("Isaac-Reach-Franka")
+    kwargs = {key: value for key, value in spec.kwargs.items() if key != "pretrained_checkpoint_preset_compatibility"}
+    kwargs["pretrained_checkpoint_training_presets"] = {"rsl_rl": ("hold",)}
+    row = collect_environment_doc_rows([replace(spec, kwargs=kwargs)])[0]
+    rendered = render_environment_browser_task_rows([row])
+    browser_row = json.loads(rendered.splitlines()[1].strip().removesuffix(","))
+    torch_presets = browser_row[4].split(",")
+    warp_presets = browser_row[10] if len(browser_row) > 10 and browser_row[10] is not None else torch_presets
+
+    assert browser_row[6] is True
+    assert "hold" in torch_presets
+    assert "joint_pos" in warp_presets
+    assert "hold" not in warp_presets
+    assert "hold" not in browser_row[7].get("rsl_rl", ())
 
 
 @pytest.mark.parametrize("task_name", ["Isaac-Lift-Soft-Franka", "Isaac-Lift-Soft-Franka-Camera"])

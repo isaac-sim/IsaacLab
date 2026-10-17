@@ -1318,6 +1318,47 @@ def test_initialize_solver_populates_canonical_state(
         sim.step(render=False)
 
 
+def test_step_combines_pending_model_changes(monkeypatch, caplog):
+    """Queued property changes reach the solver together, once before the next step."""
+    sim_cfg = SimulationCfg(
+        device="cuda:0",
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        body = builder.add_link()
+        builder.add_shape_sphere(body, radius=0.05)
+        joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        builder.add_articulation([joint])
+        sim.reset()
+        solver = NewtonManager._solver
+        notify = solver.notify_model_changed
+        calls = []
+
+        def record_notification(flags):
+            calls.append(flags)
+            notify(flags)
+
+        monkeypatch.setattr(solver, "notify_model_changed", record_notification)
+        ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
+        monkeypatch.setattr(NewtonManager, "_ignored_model_changes", {ignored: "Test ignored model change"})
+        monkeypatch.setattr(NewtonManager, "_warned_model_changes", set())
+        flags = (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored)
+        for flag in flags:
+            NewtonManager.add_model_change(flag)
+        assert calls == []
+
+        with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager"):
+            sim.step(render=False)
+            sim.step(render=False)
+            assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES]
+            NewtonManager.add_model_change(ignored)
+            sim.step(render=False)
+
+        assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES, ignored]
+        assert sum(record.message == "Test ignored model change" for record in caplog.records) == 1
+
+
 def test_mjwarp_internal_contacts_with_collision_cfg_raises():
     """Combining ``use_mujoco_contacts=True`` with a ``collision_cfg`` is rejected.
 
@@ -1564,6 +1605,34 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
             assert NewtonManager._graph is not None
             np.testing.assert_allclose(NewtonManager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
+
+
+@pytest.mark.parametrize(
+    ("solver_cfg", "num_substeps", "decimation"),
+    [(MJWarpSolverCfg(use_mujoco_contacts=True), 2, 1), (KaminoPADMMSolverCfg(), 3, 2)],
+    ids=["single_state_substeps", "double_state_folded_decimation"],
+)
+def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps, decimation):
+    """A body force written before a step acts on every solver substep of every physics step in that step."""
+    sim_cfg = SimulationCfg(
+        dt=0.005,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder.add_body(mass=1.0)
+        sim.reset()
+        if decimation > 1:
+            # Newton runs the whole decimation loop inside one step() call.
+            NewtonManager.activate_newton_actuator_path()
+            NewtonManager.set_decimation(decimation)
+        NewtonManager.get_state_0().body_f.assign(
+            wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
+        )
+        sim.step(render=False)
+        np.testing.assert_allclose(NewtonManager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
 
 
 def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):

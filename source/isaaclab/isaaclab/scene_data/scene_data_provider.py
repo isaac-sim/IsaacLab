@@ -8,12 +8,13 @@ from __future__ import annotations
 import re
 from collections import deque
 from typing import TYPE_CHECKING, Any
-from weakref import ref
+from weakref import WeakValueDictionary, ref
 
 import numpy as np
 import warp as wp
 
 from .. import sim as sim_utils
+from ..sensors import camera, contact_sensor
 from ..utils.buffers import TimestampedBuffer
 from .geometry_points import convert_geometry_fabric_kernel, convert_geometry_points_kernel
 from .scene_data_backend import SceneDataBackend, SceneDataFormat
@@ -25,7 +26,7 @@ REQUIRES_STAGE_AND_MODEL: dict[str, tuple[bool, bool]] = {
     "kit": (True, False),
     "newton_gl": (False, True),
     "newton": (False, True),
-    "newton_rtx": (False, True),
+    "newton_rtx": (True, False),
     "rerun": (False, True),
     "viser": (False, True),
     "isaac_rtx": (True, False),
@@ -63,8 +64,9 @@ class SceneDataProvider:
             backend: The simulation backend that supplies raw transform data.
         """
         self.backend = backend
-        self._num_envs_cache: int | None = None
         self._interactive_scene: Any | None = None
+        self.cameras: WeakValueDictionary[str, camera.Camera] = WeakValueDictionary()
+        """Borrowed cameras by prim expression, including cameras spawned without an InteractiveScene."""
         self._cache: dict[Any, TimestampedBuffer] = {}
         self._transform_mappings: dict[tuple, wp.array | None] = {}
 
@@ -171,30 +173,24 @@ class SceneDataProvider:
         """Return the registered interactive scene, if available."""
         return self._interactive_scene
 
-    def get_camera_sensors(self) -> dict[str, Any]:
-        """Return Isaac Lab camera sensors keyed by scene sensor name."""
-        if self._interactive_scene is None:
-            return {}
-        try:
-            from isaaclab.sensors.camera import Camera
-        except ImportError:
-            return {}
-        return {
-            name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, Camera)
-        }
+    def get_camera_sensors(self) -> dict[str, camera.Camera]:
+        """Return cameras by scene name, or by prim expression for directly spawned cameras."""
+        cameras = dict(self.cameras)
+        if self._interactive_scene is not None:
+            for name, sensor in self._interactive_scene.sensors.items():
+                if isinstance(sensor, camera.Camera):
+                    cameras.pop(sensor.cfg.prim_path, None)
+                    cameras[name] = sensor
+        return cameras
 
-    def get_contact_sensors(self) -> dict[str, Any]:
+    def get_contact_sensors(self) -> dict[str, contact_sensor.BaseContactSensor]:
         """Return Isaac Lab contact sensors keyed by scene sensor name."""
         if self._interactive_scene is None:
             return {}
-        from isaaclab.sensors.contact_sensor import BaseContactSensor
-
         return {
             name: sensor
-            for name, sensor in getattr(self._interactive_scene, "sensors", {}).items()
-            if isinstance(sensor, BaseContactSensor)
+            for name, sensor in self._interactive_scene.sensors.items()
+            if isinstance(sensor, contact_sensor.BaseContactSensor)
         }
 
     @property
@@ -204,15 +200,9 @@ class SceneDataProvider:
 
     @property
     def num_envs(self) -> int:
-        """Number of environments discovered from ``/World/envs/env_<id>`` prims.
-
-        Cached on first call. Returns ``0`` when no USD stage is available or when
-        no ``/World/envs/env_<id>`` prims exist.
-        """
-        if self._num_envs_cache is not None:
-            return self._num_envs_cache
-        self._num_envs_cache = _discover_num_envs(sim_utils.SimulationContext.instance().stage)
-        return self._num_envs_cache
+        """Number of worlds in the clone plan, or ``0`` before a plan is published."""
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        return 0 if plan is None else len(plan.topology.world_prototype_layout)
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
         """Per-camera, per-environment world transforms discovered from USD.
@@ -639,29 +629,7 @@ class ConversionKernels:
             output.matrices[idx] = input.matrices[tid]
 
 
-_ENV_NAME_RE = re.compile(r"^env_(\d+)$")
 _ENV_PATH_RE = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
-
-
-def _discover_num_envs(stage: Usd.Stage | None) -> int:
-    """Infer environment count from ``/World/envs/env_<id>`` prim names on ``stage``.
-
-    Args:
-        stage: USD stage to inspect, or ``None``.
-
-    Returns:
-        Number of environments discovered, or ``0`` when ``stage`` is ``None`` or no
-        ``/World/envs/env_<id>`` prims exist.
-    """
-    if stage is None:
-        return 0
-    max_env_id = -1
-    envs_root = stage.GetPrimAtPath("/World/envs")
-    if envs_root.IsValid():
-        for child in envs_root.GetChildren():
-            if match := _ENV_NAME_RE.match(child.GetName()):
-                max_env_id = max(max_env_id, int(match.group(1)))
-    return max_env_id + 1 if max_env_id >= 0 else 0
 
 
 def _walk_camera_prims(stage: Usd.Stage | None) -> dict[str, Any] | None:
