@@ -25,3 +25,14 @@ gym.register(
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FactoryPPORunnerCfg",
     },
 )
+
+
+gym.register(
+    id="IsaacContrib-Factory-Variant-Franka",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": "isaaclab_tasks.contrib.nist.factory_variant_env_cfg:FactoryVariantEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FactoryVariantPPORunnerCfg",
+    },
+)

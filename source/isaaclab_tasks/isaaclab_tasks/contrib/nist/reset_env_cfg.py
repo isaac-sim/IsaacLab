@@ -6,22 +6,8 @@
 from __future__ import annotations
 
 from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
 
-from isaaclab_tasks.contrib.nist import mdp
-from isaaclab_tasks.contrib.nist.assembly_keypoints import PANDA_HAND
-from isaaclab_tasks.contrib.nist.factory_presets import (
-    AssemblyTipCfg,
-    FactoryAssemblyProfileCfg,
-    FixedAssetMapCfg,
-    GraspedPoseRangeCfg,
-    HeldAssetAlignOffsetCfg,
-    HeldAssetGraspDiameterCfg,
-    HeldAssetGraspMiddleCfg,
-    HeldAssetGraspPointCfg,
-    HeldAssetObstaclesCfg,
-    ResetAssetsCfg,
-)
 from isaaclab_tasks.contrib.nist.utils import (
     BetaSamplingStrategyCfg,
     SamplerCfg,
@@ -29,21 +15,47 @@ from isaaclab_tasks.contrib.nist.utils import (
 from isaaclab_tasks.utils import preset
 from isaaclab_tasks.utils.success_monitor import SuccessMonitorCfg
 
-_FRANKA_END_EFFECTOR = "panda_fingertip_centered"
-_FRANKA_ARM_JOINTS = ["panda_joint.*"]
-_FRANKA_GRIPPER_JOINTS = ["panda_finger_.*"]
+from . import mdp
+from .assembly_profile_cfg import UniformPoseNoiseCfg
+from .factory_presets import (
+    GRASPED_POSE_RANGE,
+    GRASPED_POSE_RANGE_CENTERED,
+    EndEffectorBodyCfg,
+    FactoryAssemblyProfileCfg,
+    FixedAssetMapCfg,
+    FixedAssetTipCfg,
+    GripperGraspOffsetCfg,
+    GripperJointNamesCfg,
+    HeldAssetAlignOffsetCfg,
+    HeldAssetGraspDiameterCfg,
+    HeldAssetGraspMiddleCfg,
+    HeldAssetGraspPointCfg,
+    HeldAssetObstaclesCfg,
+    IKJointNamesCfg,
+    ResetAssetsCfg,
+    RobotObstaclesCfg,
+)
 
-GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
+START_RANDOM = EventTerm(
     func=mdp.ChainedResetTerms,
     mode="reset",
     params={
         "terms": {
-            "reset_asset_in_air": EventTerm(
+            "reset_robot_joint": EventTerm(
+                func=mdp.reset_joints_by_offset,
+                mode="reset",
+                params={
+                    "position_range": (-0.0, 0.0),
+                    "velocity_range": (-0.0, 0.0),
+                    "asset_cfg": SceneEntityCfg("robot"),
+                },
+            ),
+            "reset_held_asset": EventTerm(
                 func=mdp.reset_root_state_uniform,
                 mode="reset",
                 params={
                     "pose_range": {
-                        "x": (-0.15, 0.5),
+                        "x": (0.0, 0.5),
                         "y": (-0.5, 0.5),
                         "z": (0.015, 0.2),
                         "roll": (-1.57, 1.57),
@@ -54,7 +66,7 @@ GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
                     "asset_cfg": SceneEntityCfg("held_asset"),
                 },
             ),
-            "reset_end_effector_around_held_asset": EventTerm(
+            "reset_end_effector": EventTerm(
                 func=mdp.reset_end_effector_around_asset,
                 mode="reset",
                 params={
@@ -64,23 +76,23 @@ GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
                         "x": (-0.005, 0.005),
                         "y": (-0.005, 0.005),
                         "z": (-0.015, 0.025),
-                        "roll": (3.141 - 0.1, 3.141 + 0.1),
+                        "roll": (-0.1, 0.1),
                         "pitch": (-0.5, 0.5),
                         "yaw": (-2.09, 2.09),
                     },
                     "robot_ik_cfg": SceneEntityCfg(
-                        "robot", joint_names=_FRANKA_ARM_JOINTS, body_names=_FRANKA_END_EFFECTOR
+                        "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
                     ),
-                    "ik_iterations": (5, 30),
+                    "robot_ik_body_offset": GripperGraspOffsetCfg(),
+                    "upright_gripper": True,
+                    "ik_iterations": (1, 30),
                 },
             ),
             "grasp_held_asset": EventTerm(
                 func=mdp.grasp_held_asset,
                 mode="reset",
                 params={
-                    "robot_cfg": SceneEntityCfg(
-                        "robot", joint_names=_FRANKA_GRIPPER_JOINTS, body_names=_FRANKA_END_EFFECTOR
-                    ),
+                    "robot_cfg": SceneEntityCfg("robot", joint_names=GripperJointNamesCfg()),
                     "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                 },
             ),
@@ -89,23 +101,34 @@ GRIPPER_GRASP_ASSET_IN_AIR = EventTerm(
 )
 
 
-ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE = EventTerm(
+START_ASSEMBLED = EventTerm(
     func=mdp.ChainedResetTerms,
     mode="reset",
     params={
         "terms": {
-            "reset_held_asset_on_fixed_asset": EventTerm(
+            "reset_robot_joint": EventTerm(
+                func=mdp.reset_joints_by_offset,
+                mode="reset",
+                params={
+                    "position_range": (-0.0, 0.0),
+                    "velocity_range": (-0.0, 0.0),
+                    "asset_cfg": SceneEntityCfg("robot"),
+                },
+            ),
+            "reset_held_asset": EventTerm(
                 func=mdp.reset_held_asset_on_fixed_asset,
                 mode="reset",
                 params={
                     "assembly_profile": FactoryAssemblyProfileCfg(),
                     "held_asset_align_offset": HeldAssetAlignOffsetCfg(),
-                    "assembly_fraction_range": (0.0, 1.1),
+                    # Stop at the entry: past it the part is no longer assembled, and that stretch
+                    # is what ``START_NEAR_ASSEMBLED`` below covers.
+                    "assembly_fraction_range": (0.0, 1.0),
                     "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
                     "held_asset_cfg": SceneEntityCfg("held_asset"),
                 },
             ),
-            "reset_end_effector_around_held_asset": EventTerm(
+            "reset_end_effector": EventTerm(
                 func=mdp.reset_end_effector_around_asset,
                 mode="reset",
                 params={
@@ -115,23 +138,25 @@ ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE = EventTerm(
                         "x": (-0.005, 0.005),
                         "y": (-0.005, 0.005),
                         "z": (-0.015, 0.025),
-                        "roll": (3.141 - 0.1, 3.141 + 0.1),
+                        "roll": (-0.1, 0.1),
                         "pitch": (-1.0, 1.0),
                         "yaw": (-2.09, 2.09),
                     },
                     "robot_ik_cfg": SceneEntityCfg(
-                        "robot", joint_names=_FRANKA_ARM_JOINTS, body_names=_FRANKA_END_EFFECTOR
+                        "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
                     ),
-                    "ik_iterations": (15, 25),
+                    "robot_ik_body_offset": GripperGraspOffsetCfg(),
+                    # The part is already seated, so the gripper has to arrive where it was sent or
+                    # it closes on nothing. Solve it out, and report the ones that still missed.
+                    "ik_iterations": (25, 35),
+                    "pose_tolerance": (0.001, 0.05),
                 },
             ),
             "grasp_held_asset": EventTerm(
                 func=mdp.grasp_held_asset,
                 mode="reset",
                 params={
-                    "robot_cfg": SceneEntityCfg(
-                        "robot", joint_names=_FRANKA_GRIPPER_JOINTS, body_names=_FRANKA_END_EFFECTOR
-                    ),
+                    "robot_cfg": SceneEntityCfg("robot", joint_names=GripperJointNamesCfg()),
                     "held_asset_diameter": HeldAssetGraspDiameterCfg(),
                 },
             ),
@@ -139,54 +164,121 @@ ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE = EventTerm(
     },
 )
 
-GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER = EventTerm(
+
+# Identical to START_ASSEMBLED but drawn from just past the entry rather than along the seated path,
+# with pose noise around it: the held asset's insertion point sits at the mouth of the fixed asset,
+# aligned and a hair short of going in.
+START_NEAR_ASSEMBLED = START_ASSEMBLED.copy()
+START_NEAR_ASSEMBLED.params["terms"]["reset_held_asset"].params.update(
+    assembly_fraction_range=(1.0, 1.1),
+    pose_noise=UniformPoseNoiseCfg(
+        x=(-0.002, 0.002),
+        y=(-0.002, 0.002),
+        z=(0.0, 0.01),
+        roll=(-0.3, 0.3),
+        pitch=(-0.3, 0.3),
+        yaw=(-0.5, 0.5),
+    ),
+)
+# Clear of the hole, the part has nothing under it, so the gripper has to be the thing holding it.
+# The flexible angle would leave it anywhere up to wide open, which drops the part on the first step.
+START_NEAR_ASSEMBLED.params["terms"]["grasp_held_asset"].params["flexible_angle"] = False
+
+start_near_grasped = EventTerm(
     func=mdp.ChainedResetTerms,
     mode="reset",
     params={
         "terms": {
-            "reset_end_effector_around_fixed_asset": EventTerm(
+            "reset_robot_joint": EventTerm(
+                func=mdp.reset_joints_by_offset,
+                mode="reset",
+                params={
+                    "position_range": (-0.0, 0.0),
+                    "velocity_range": (-0.0, 0.0),
+                    "asset_cfg": SceneEntityCfg("robot"),
+                },
+            ),
+            "reset_end_effector": EventTerm(
                 func=mdp.reset_end_effector_around_asset,
                 mode="reset",
                 params={
                     "fixed_asset_cfg": SceneEntityCfg("fixed_asset"),
-                    "fixed_asset_offset": AssemblyTipCfg(),
-                    "pose_range_b": GraspedPoseRangeCfg(),
+                    "fixed_asset_offset": FixedAssetTipCfg(),
+                    "pose_range_b": GRASPED_POSE_RANGE,
                     "robot_ik_cfg": SceneEntityCfg(
-                        "robot", joint_names=_FRANKA_ARM_JOINTS, body_names=_FRANKA_END_EFFECTOR
+                        "robot", joint_names=IKJointNamesCfg(), body_names=EndEffectorBodyCfg()
                     ),
+                    "robot_ik_body_offset": GripperGraspOffsetCfg(),
                     "ik_iterations": (10, 20),
                 },
             ),
-            "reset_held_asset_in_hand": EventTerm(
+            "reset_held_asset": EventTerm(
                 func=mdp.reset_held_asset_in_gripper,
                 mode="reset",
                 params={
-                    "holding_body_cfg": SceneEntityCfg("robot", body_names=_FRANKA_END_EFFECTOR),
+                    "holding_body_cfg": SceneEntityCfg("robot", body_names=EndEffectorBodyCfg()),
                     "held_asset_cfg": SceneEntityCfg("held_asset"),
                     "held_asset_graspable_offset": HeldAssetGraspPointCfg(),
                     "held_asset_inhand_range": {
                         "x": (-0.005, 0.005),
                         "y": (-0.005, 0.005),
-                        "z": (-0.000, 0.005),
-                        "pitch": (-1.0, 1.0),
+                        "z": (-0.005, 0.005),
+                        "pitch": (-2.0, 2.0),
                     },
-                    "gripper_grasp_offset": PANDA_HAND.gripper_center_grasp_point,
+                    "gripper_grasp_offset": GripperGraspOffsetCfg(),
                 },
             ),
             "grasp_held_asset": EventTerm(
                 func=mdp.grasp_held_asset,
                 mode="reset",
                 params={
-                    "robot_cfg": SceneEntityCfg(
-                        "robot", joint_names=_FRANKA_GRIPPER_JOINTS, body_names=_FRANKA_END_EFFECTOR
-                    ),
+                    "robot_cfg": SceneEntityCfg("robot", joint_names=GripperJointNamesCfg()),
                     "held_asset_diameter": HeldAssetGraspDiameterCfg(),
-                    "flexible_angle": False,
+                    "flexible_angle": True,
                 },
             ),
         }
     },
 )
+
+# Identical to start_near_grasped but with a fixed grasp angle.
+ASSET_IN_GRIPPER = start_near_grasped.copy()
+ASSET_IN_GRIPPER.params["terms"]["grasp_held_asset"].params["flexible_angle"] = False
+
+
+# Identical to ASSET_IN_GRIPPER but with the gripper sampled close to the fixed asset.
+GRASPED_NEAR_GOAL = ASSET_IN_GRIPPER.copy()
+GRASPED_NEAR_GOAL.params["terms"]["reset_end_effector"].params["pose_range_b"] = GRASPED_POSE_RANGE_CENTERED
+
+
+START_PICK = START_RANDOM.copy()
+_drop = START_PICK.params["terms"]["reset_held_asset"]
+_drop.params["pose_range"]["z"] = (0.03, 0.05)
+START_PICK.params["terms"]["reset_held_asset"] = EventTerm(
+    func=mdp.ChainedResetTerms,
+    mode="reset",
+    params={
+        "terms": {
+            "drop": _drop,
+            "settle": EventTerm(
+                func=mdp.settle_held_asset,
+                mode="reset",
+                params={
+                    "held_asset_cfg": SceneEntityCfg("held_asset"),
+                    "scene_assets": ResetAssetsCfg(),
+                    "num_steps": 20,
+                },
+            ),
+        }
+    },
+)
+START_PICK.params["terms"]["reset_end_effector"].params.update(
+    ik_iterations=(25, 35),
+    pose_tolerance=(0.001, 0.05),
+)
+START_PICK.params["terms"]["reset_end_effector"].params["pose_range_b"]["z"] = (0.00, 0.01)
+START_PICK.params["terms"]["reset_end_effector"].params["pose_range_b"]["yaw"] = (-0.3, 0.3)
+START_PICK.params["terms"]["grasp_held_asset"].params["flexible_angle"] = False
 
 
 SCENE_RESET = EventTerm(
@@ -203,9 +295,6 @@ SCENE_RESET = EventTerm(
                     "asset_cfg": SceneEntityCfg("robot"),
                 },
             ),
-            # Fixed asset first: sample a filled uniform x-y patch (+ full yaw) about its nominal
-            # board pose. Deriving the board from a yaw-randomized center used to smear the fixed
-            # asset over a ring/donut; placing it directly avoids that. Tune the x-y extent.
             "reset_fixed_asset": EventTerm(
                 func=mdp.reset_fixed_asset_uniform,
                 mode="reset",
@@ -227,9 +316,13 @@ SCENE_RESET = EventTerm(
                 mode="reset",
                 params={
                     "terms": {
-                        "grasp_asset_in_air": GRIPPER_GRASP_ASSET_IN_AIR,
-                        "start_assembled": ASSEMBLE_FIRST_THEN_GRIPPER_CLOSE,
-                        "start_grasped_then_assembled": GRIPPER_CLOSE_FIRST_THEN_ASSET_IN_GRIPPER,
+                        "start_random": START_RANDOM,
+                        "start_assembled": START_ASSEMBLED,
+                        "start_near_assembled": START_NEAR_ASSEMBLED,
+                        "start_pick": START_PICK,
+                        "grasped_near_goal": GRASPED_NEAR_GOAL,
+                        "start_grasped": ASSET_IN_GRIPPER,
+                        "start_near_grasped": start_near_grasped,
                     },
                     "sampling": SamplerCfg(
                         strategies=[BetaSamplingStrategyCfg(target=0.5, kappa=1.0, weight=1.0)],
@@ -261,17 +354,21 @@ ACCUMULATOR_RESET = EventTerm(
                 num_points=1024,
                 max_dist=0.5,
                 min_dist=-0.002,
-                asset_cfg=SceneEntityCfg("robot"),
-                obstacle_cfgs=[
-                    SceneEntityCfg("table"),
-                    SceneEntityCfg("nistboard"),
-                    SceneEntityCfg("fixed_asset"),
-                ],
+                asset_cfg=SceneEntityCfg("robot", body_names="panda_link[2-7]|panda_hand|panda_(left|right)finger"),
+                obstacle_cfgs=RobotObstaclesCfg(),
+            ),
+            "object_in_bound": ManagerTermBaseCfg(
+                func=mdp.in_bound,
+                params={
+                    "asset_cfg": SceneEntityCfg("held_asset"),
+                    "in_bound_range": {"x": (0.05, 1.0), "y": (-0.675, 0.675), "z": (-0.05, 1.0)},
+                },
             ),
         },
         "state_table_size": 32768,
         "state_tag_names_bind": "list(reset_term.func.terms['reset_strategies'].func.term_partitions.keys())",
         "state_tag_indices_bind": "reset_term.func.terms['reset_strategies'].func.term_samples",
+        "state_tag_weight_bind": "reset_term.func.terms['reset_strategies'].func.sampling_weight",
         "success_monitor_cfg": SuccessMonitorCfg(monitored_history_len=50),
         "sampling": SamplerCfg(
             strategies=[BetaSamplingStrategyCfg(target=0.66, kappa=1.0, weight=1.0)],

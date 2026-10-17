@@ -265,10 +265,17 @@ def _prepare_cloning(
         if spawn is None:
             continue
         paths = [source_paths[index] for index in indices]
+        if getattr(cfg, "mesh_variants_enabled", False):
+            # Retain every source without adding unused variants to world memberships.
+            paths = [
+                path or f"/World/IsaacLabPrototypes/asset_{index}" for index, path in zip(indices, paths, strict=True)
+            ]
         if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):
                 plan.asset_cfgs[index].spawn.spawn_paths = [path]
+                if len(indices) > 1:
+                    plan.asset_cfgs[index].spawn.spawn_path = path
         else:
             spawn.spawn_path = paths[0]
     sim.set_clone_plan(plan)

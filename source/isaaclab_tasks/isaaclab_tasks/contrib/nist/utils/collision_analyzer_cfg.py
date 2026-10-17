@@ -6,13 +6,25 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.managers import ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_tasks.contrib.nist.utils.collision_analyzer import CollisionAnalyzer
+    from .collision_analyzer import CollisionAnalyzer
+
+
+@configclass
+class CollisionGeometryCfg(SceneEntityCfg):
+    """Select an entity's bodies and geometry for reset safety checks."""
+
+    geometry_policy: Literal["collision", "collision_or_visual"] = "collision"
+    """Geometry selected independently for each rigid body.
+
+    ``collision`` uses enabled physical colliders. ``collision_or_visual`` uses those colliders when present,
+    otherwise visible meshes with default or render purpose. The fallback does not enable physics collisions.
+    """
 
 
 @configclass
@@ -23,6 +35,9 @@ class CollisionAnalyzerCfg(ManagerTermBaseCfg):
     geometry, then queries signed distances against every obstacle mesh each
     time it is called. An environment is considered collision-free when all
     sampled points are at least :attr:`min_dist` away from every obstacle.
+
+    Bare :class:`SceneEntityCfg` entries preserve all authored colliders, including disabled ones.
+    Use :class:`CollisionGeometryCfg` to select enabled colliders and optional visual fallback explicitly.
     """
 
     func: type[CollisionAnalyzer] | str = "{DIR}.collision_analyzer:CollisionAnalyzer"
@@ -39,8 +54,11 @@ class CollisionAnalyzerCfg(ManagerTermBaseCfg):
     """Minimum clearance threshold [m]. An environment is collision-free only
     when every sampled point has a signed distance >= this value."""
 
+    min_dist_by_obstacle: dict[str, float] = {}
+    """Minimum clearance overrides by obstacle scene-entity name [m]."""
+
     asset_cfg: SceneEntityCfg = MISSING
-    """Scene entity whose bodies are sampled for collision checking."""
+    """Scene entity whose bodies are sampled. Use :class:`CollisionGeometryCfg` to select visual fallback geometry."""
 
     obstacle_cfgs: list[SceneEntityCfg] = MISSING
-    """Scene entities treated as obstacles to check against."""
+    """Obstacle entities and body selections. :class:`CollisionGeometryCfg` also selects their geometry policy."""

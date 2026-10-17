@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from newton import Axis, ModelBuilder
+from newton import Axis, ModelBuilder, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom
 
@@ -97,7 +97,7 @@ def newton_builder_world_hook(
             hooks.remove(hook)
 
 
-def _replicate_newton(
+def _replicate_newton(  # noqa: C901 -- Resolve source ownership and native geometry in one clone pass.
     stage: Usd.Stage,
     env_ids: np.ndarray,
     sim: SimulationContext,
@@ -128,6 +128,11 @@ def _replicate_newton(
         if not any(cloner_path.relative_to(source, owner) is not None for owner in routed_sources)
     )
     simulation = isinstance(cfg, NewtonCfg)
+    variant_sources = tuple(
+        source
+        for asset, source in zip(plan.asset_cfgs, sources, strict=True)
+        if simulation and getattr(asset, "mesh_variants_enabled", False) and source is not None
+    )
     if positions is None:
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
     if quaternions is None:
@@ -169,7 +174,7 @@ def _replicate_newton(
                     f"Cannot clone {source!r} to {target!r}: {parent_target!r} already owns that subtree "
                     f"from {parent_source!r}. A nested Newton source must be {expected!r}."
                 )
-    source_paths = list(dict.fromkeys(source for source in routed_sources if source in needed))
+    source_paths = list(dict.fromkeys([*(source for source in routed_sources if source in needed), *variant_sources]))
     # A parent source also owns deformables declared beneath it, even when the child has its own asset config.
     entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
     ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
@@ -178,10 +183,26 @@ def _replicate_newton(
         ignore_paths.extend(manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths))
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 
+    ignore_paths = [path for path in ignore_paths if path not in variant_sources]
+
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    if simulation and load_visual_shapes and variant_sources:
+        # Collision topology stays strided; ragged visual geometry is a separate renderer projection.
+        NewtonManager._mesh_variant_visual_sources = {source: source_builders[source] for source in variant_sources}
+        collision_sources = build_source_builders(
+            stage,
+            variant_sources,
+            create_builder,
+            schema_resolvers,
+            ignore_paths=ignore_paths,
+            load_visual_shapes=False,
+        )
+        for source in collision_sources.values():
+            source.shape_flags = [flags & ~ShapeFlags.VISIBLE for flags in source.shape_flags]
+        source_builders.update(collision_sources)
     # Imports contain authored USD poses, which need not include the planned world placement.
     source_inverse = {}
     xforms = UsdGeom.XformCache()

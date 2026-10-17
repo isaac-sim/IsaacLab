@@ -11,11 +11,12 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model
+from newton import Contacts, Control, Model, State
 from newton.solvers import SolverMuJoCo
 
 from isaaclab.physics import PhysicsManager
 
+from .mesh_variants import build_mesh_variants
 from .mjwarp_manager_cfg import MJWarpSolverCfg
 from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
@@ -33,6 +34,8 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     _builder_attribute_solvers = (SolverMuJoCo,)
+    _supports_mesh_variants = True
+    _contact_observables: SolverMuJoCo.Observables | None = None
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
@@ -40,7 +43,12 @@ class NewtonMJWarpManager(NewtonManager):
         kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
-        return SolverMuJoCo(model, **kwargs)
+        if NewtonManager._mesh_variant_cfgs:
+            kwargs.update(separate_worlds=True, enable_sleeping=False)
+        solver = SolverMuJoCo(model, **kwargs)
+        if NewtonManager._mesh_variant_cfgs and solver.enable_sleeping:
+            raise ValueError("Mesh variants require disabled sleeping, including inherited asset settings.")
+        return solver
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
@@ -52,7 +60,22 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
+        sim = PhysicsManager._sim
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+        if NewtonManager._mesh_variant_cfgs and solver_cfg.use_mujoco_contacts:
+            raise ValueError("Mesh variants require Newton external contacts.")
+        variants, render_sets = build_mesh_variants(
+            NewtonManager._mesh_variant_cfgs,
+            model,
+            NewtonManager._cl_protos,
+            clone_plan,
+            NewtonManager._mesh_variant_visual_sources,
+            NewtonManager._mesh_variant_resource_shapes,
+        )
+        cls.backend.mesh_variants = variants
         NewtonManager._solver = cls._create_solver(model, solver_cfg)
+        cls.backend.mesh_variant_render_sets = render_sets
+        cls.backend.mesh_variant_ids = {name: selection.variant_ids for name, selection in variants.items()}
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
         NewtonManager._supports_rigid_body_force_input = True
@@ -89,8 +112,14 @@ class NewtonMJWarpManager(NewtonManager):
         maximum contact count; ``solver.update_contacts`` later populates it
         from MuJoCo data for contact-sensor reporting.
         """
+        cls._contact_observables = None
         if cls._needs_collision_pipeline:
             super()._initialize_contacts()
+            cls._contact_observables = (
+                cls._solver.observables([SolverMuJoCo.ObservableKind.CONTACT_F], contacts=cls._contacts)
+                if cls._report_contacts
+                else None
+            )
             return
         if cls._solver is not None:
             NewtonManager._contacts = Contacts(
@@ -99,6 +128,22 @@ class NewtonMJWarpManager(NewtonManager):
                 device=PhysicsManager._device,
                 requested_attributes=cls.backend.model.get_requested_contact_attributes(),
             )
+
+    @classmethod
+    def _step_solver(
+        cls, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
+    ) -> None:
+        """Use public force observables to preserve external collision row identities."""
+        cls._solver.step(state_0, state_1, control, contacts, substep_dt, observables=cls._contact_observables)
+
+    @classmethod
+    def _update_contacts_for_sensors(cls, contacts: Contacts) -> None:
+        if cls._contact_observables is None:
+            super()._update_contacts_for_sensors(contacts)
+
+    @classmethod
+    def _solver_specific_clear(cls) -> None:
+        cls._contact_observables = None
 
     @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
@@ -130,9 +175,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         if cls._solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
-        # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
-        # joint_q/joint_qd and has already written the authored reset pose.
-        cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        super()._reset_solver_internals(world_mask)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

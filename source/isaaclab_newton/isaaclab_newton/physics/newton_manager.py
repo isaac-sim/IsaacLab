@@ -75,6 +75,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
+    from isaaclab_newton.physics.mesh_variants import MeshVariantRenderSet, MeshVariants
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
@@ -196,12 +197,19 @@ class NewtonBackend:
         )
         self.bvh_refit = TimestampedBuffer()
 
+        self.mesh_variant_render_sets: tuple[MeshVariantRenderSet, ...] = ()
+        self.mesh_variants: dict[str, MeshVariants] = {}
+        self.mesh_variant_ids: dict[str, wp.array] = {}
+
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
         return VisualMaterialWriter(self.model, batches)
 
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
+        self.mesh_variant_render_sets = ()
+        self.mesh_variants.clear()
+        self.mesh_variant_ids.clear()
         self.control = self.state_1 = self.state_0 = self.model = None
         self.deformable_ranges.clear()
         self.particle_ranges = {}
@@ -494,6 +502,7 @@ class NewtonManager(PhysicsManager):
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     _supports_contact_sensors: bool = True
+    _supports_mesh_variants: bool = False
 
     # Per-world reset masks (allocated in start_simulation, consumed in step/forward).
     # Newton reserves the final slot for global entities in world -1.
@@ -563,6 +572,9 @@ class NewtonManager(PhysicsManager):
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
     # model from these using the asset prototype's native source path.
     _cl_protos: dict[str, ModelBuilder] = {}
+    _mesh_variant_cfgs: dict[str, Any] = {}
+    _mesh_variant_resource_shapes: dict[str, tuple[tuple[int, ...], ...]] = {}
+    _mesh_variant_visual_sources: dict[str, ModelBuilder] = {}
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
     @classmethod
@@ -873,6 +885,9 @@ class NewtonManager(PhysicsManager):
         NewtonManager._cl_site_index_map = {}
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
+        NewtonManager._mesh_variant_cfgs = {}
+        NewtonManager._mesh_variant_resource_shapes = {}
+        NewtonManager._mesh_variant_visual_sources = {}
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._active_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
@@ -882,6 +897,34 @@ class NewtonManager(PhysicsManager):
         if NewtonManager.backend is not None:
             SimulationContext.instance().close_backend(NewtonManager.backend)
             NewtonManager.backend = None
+
+    @classmethod
+    def _register_mesh_variant_cfg(cls, cfg: Any) -> str:
+        """Register one rigid object's reset-selectable sources."""
+        name = cfg.prim_path
+        existing = NewtonManager._mesh_variant_cfgs.get(name)
+        if existing is not None and existing is not cfg:
+            raise ValueError(f"Multiple mesh-variant rigid objects use prim path {name!r}.")
+        NewtonManager._mesh_variant_cfgs[name] = cfg
+        return name
+
+    @classmethod
+    def _mesh_variant_ids(cls, name: str) -> wp.array[wp.int32]:
+        """Return the persistent selected indices for every environment."""
+        if cls.backend is None:
+            raise RuntimeError("Mesh variants require an initialized Newton MJWarp solver.")
+        return cls.backend.mesh_variants[name].variant_ids
+
+    @classmethod
+    def _set_mesh_variant_index(
+        cls, name: str, *, variant_ids: wp.array[wp.int32], env_ids: wp.array[wp.int32]
+    ) -> None:
+        """Select native geometry and inertia, then publish a single model change."""
+        if cls.backend is None:
+            raise RuntimeError("Mesh variants require an initialized Newton MJWarp solver.")
+        cls.backend.mesh_variants[name].select(variant_ids, env_ids)
+        cls.add_model_change(ModelFlags.SHAPE_PROPERTIES | ModelFlags.BODY_INERTIAL_PROPERTIES)
+        cls.invalidate_body_state(env_ids=env_ids)
 
     @classmethod
     def create_builder(
@@ -1244,6 +1287,14 @@ class NewtonManager(PhysicsManager):
             NewtonManager._active_extended_state_attributes |= cls._pending_extended_state_attributes
             NewtonManager._pending_extended_state_attributes = set()
         cls._prepare_builder_for_finalize(builder)
+        from .mesh_variants import _disable_mesh_variant_resources, _prepare_mesh_variant_resources
+
+        sim = PhysicsManager._sim
+        clone_plan = sim.get_clone_plan() if sim is not None else None
+        if not NewtonManager._mesh_variant_resource_shapes:
+            NewtonManager._mesh_variant_resource_shapes = _prepare_mesh_variant_resources(
+                NewtonManager._mesh_variant_cfgs, builder, NewtonManager._cl_protos, clone_plan
+            )
         builder.request_contact_attributes(*sorted(cls._pending_extended_contact_attributes))
         with Timer(
             name="newton_finalize_builder",
@@ -1258,6 +1309,7 @@ class NewtonManager(PhysicsManager):
             if cls._num_envs is not None:
                 cls.backend.model.num_envs = cls._num_envs
             NewtonManager._num_envs = cls.backend.model.num_envs
+        _disable_mesh_variant_resources(cls.backend.model, NewtonManager._mesh_variant_resource_shapes)
         NewtonManager._pending_extended_contact_attributes = set()
         # The initial body-state update from joint coordinates is deferred to the tail of
         # initialize_solver(), where it runs through the solver-specialized FK delegate after the solver is initialized.
@@ -1597,6 +1649,8 @@ class NewtonManager(PhysicsManager):
         if world_mask is None:
             return
         cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        if cls._collision_pipeline is not None:
+            cls._collision_pipeline.reset_contact_matching(world_mask)
 
     # ----- Lifecycle orchestration ----------------------------------------
 
@@ -1626,6 +1680,9 @@ class NewtonManager(PhysicsManager):
             NewtonManager._deterministic_mode = deterministic_mode
             NewtonManager._solver_dt = cls.get_physics_dt() / cls._num_substeps
             NewtonManager._collision_cfg = cfg.collision_cfg  # type: ignore[union-attr]
+
+            if NewtonManager._mesh_variant_cfgs and not cls._supports_mesh_variants:
+                raise ValueError("mesh_variants_enabled is supported only by the Newton MJWarp solver.")
 
             cls._build_solver(cls.backend.model, cfg.solver_cfg)  # type: ignore[union-attr]
             if NewtonManager._solver is None:
@@ -1753,9 +1810,14 @@ class NewtonManager(PhysicsManager):
             sensor.update(cls.backend.state_0)
         if cls._report_contacts:
             eval_contacts = contacts if contacts is not None else cls._contacts
-            cls._solver.update_contacts(eval_contacts, cls.backend.state_0)
+            cls._update_contacts_for_sensors(eval_contacts)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls.backend.state_0, eval_contacts)
+
+    @classmethod
+    def _update_contacts_for_sensors(cls, contacts: Contacts) -> None:
+        """Publish solver contact data before the sensor reads it."""
+        cls._solver.update_contacts(contacts, cls.backend.state_0)
 
     # ------------------------------------------------------------------
     # Composite stepping routines
@@ -2127,7 +2189,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._report_contacts = True
 
         if cls._solver is not None and cls._contacts is not None and cls._contacts.force is None:
-            cls._initialize_contacts()
+            PhysicsManager._sim.physics_manager._initialize_contacts()
 
         return sensor_key
 
