@@ -271,7 +271,10 @@ def test_run_summary_reports_concrete_backends(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The summary reports the backends the launch resolved."""
-    from isaaclab.app import scan
+    import isaaclab_ov.app as ov_app
+    import isaaclab_physx.app as physx_app
+
+    from isaaclab.app import SimulationLauncher, launch_simulation
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
@@ -281,8 +284,10 @@ def test_run_summary_reports_concrete_backends(
     env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
     screen = _RecordingScreen()
     args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
-    # resolve the automatic selections as the launch does, without starting a runtime
-    scan(env_cfg, args_cli)
+    monkeypatch.setattr(physx_app, "KitLauncher", SimulationLauncher)
+    monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
+    with launch_simulation(env_cfg, args_cli):
+        pass
 
     rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
 

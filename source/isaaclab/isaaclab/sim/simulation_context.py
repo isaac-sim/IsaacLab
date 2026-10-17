@@ -36,7 +36,6 @@ from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
 from ..visualizers.visualizer_cfg import (
-    VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
     _apply_visualizer_defaults,
@@ -168,22 +167,8 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Bare-physics launches defer their CLI selection until this SimulationCfg exists.
         if not isinstance(self.cfg.visualizer_cfgs, list):
             self.cfg.visualizer_cfgs = [] if self.cfg.visualizer_cfgs is None else [self.cfg.visualizer_cfgs]
-        pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
-        if pending_visualizers:
-            names = pending_visualizers.split(",")
-            self.cfg.visualizer_cfgs = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type in names]
-            for name in names:
-                if not any(cfg.visualizer_type == name for cfg in self.cfg.visualizer_cfgs):
-                    self.cfg.visualizer_cfgs.append(
-                        string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")()
-                    )
-        max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        if max_visible_envs is not None and max_visible_envs >= 0:
-            for visualizer in self.cfg.visualizer_cfgs:
-                visualizer.max_visible_envs = int(max_visible_envs)
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()

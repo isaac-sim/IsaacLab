@@ -3,149 +3,113 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Integration-style tests for how the sim launcher selects and configures visualizers."""
 
-from __future__ import annotations
+"""Preset composition selects concrete viewers before any process runtime starts."""
 
 import argparse
-import logging
+import importlib.util
 
+import isaaclab_ov.app as ov_app
 import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
-from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.rerun import RerunVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-from isaaclab.app import SimulationLauncher, get_settings_manager
+from isaaclab.app import SimulationLauncher
 from isaaclab.sim import SimulationCfg
-from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_tasks.utils import resolve_presets, resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 
-def _force_kitless(monkeypatch):
-    """Wrap ``scan`` so the resulting scan reports ``needs_kit=False``."""
-    real_scan = sim_launcher.scan
+@pytest.mark.parametrize("selection", ["kit", "newton_gl", "newton_rtx", "rerun", "viser", "none", "kit,newton_gl"])
+def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):
+    """All selector spellings compose cameras and viewers before runtime selection."""
+    monkeypatch.setattr(physx_app.KitLauncher, "__init__", SimulationLauncher.__init__)
+    monkeypatch.setattr(physx_app.KitLauncher, "close", SimulationLauncher.close)
+    monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
+    options = (
+        ["physics=newton_mjwarp", "renderer=newton_renderer", f"visualizer={selection}"],
+        ["--physics", "newton_mjwarp", "--renderer", "newton_renderer", "--viz", selection],
+        ["--physics=newton_mjwarp", "--renderer=newton_renderer", "--visualizer", selection],
+    )
+    for option in options:
+        parser = argparse.ArgumentParser()
+        sim_launcher.add_launcher_args(parser)
+        args, remaining = setup_preset_cli(parser, option)
+        cfg, _ = resolve_task_config("Isaac-Cartpole-Camera-Direct", "", overrides=remaining)
+        physics, renderer = cfg.sim.physics, cfg.scene.tiled_camera.renderer_cfg
+        selected = cfg.sim.visualizer_cfgs
+        selected = selected if isinstance(selected, list) else [selected]
+        expected = [] if selection == "none" else selection.split(",")
+        assert [viewer.visualizer_type for viewer in selected] == expected
+        assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
+        with sim_launcher.launch_simulation(cfg, args):
+            assert cfg.sim.visualizer_cfgs == selected
+        assert cfg.sim.physics is physics and isinstance(physics, NewtonCfg)
+        assert cfg.scene.tiled_camera.renderer_cfg is renderer and renderer.renderer_type == "newton_warp"
+        if selection == "none":
+            with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
+                with sim_launcher.launch_simulation(cfg, {"livestream": 2, "visualizer": []}):
+                    pass
 
-    def fake_scan(*args, **kwargs):
-        result = real_scan(*args, **kwargs)
-        result.needs_kit = False
-        return result
 
-    monkeypatch.setattr(sim_launcher, "scan", fake_scan)
+def test_visualizer_preset_preserves_custom_settings_and_validates_selection():
+    """Preset selection preserves declared settings; physics aliases do not also select a viewer."""
+    assert importlib.util.find_spec("isaaclab.utils.presets") is None
+    assert importlib.util.find_spec("isaaclab_visualizers.presets") is None
+    assert "resolve_simulation_cfg" not in vars(sim_launcher)
+
+    cfg = SimulationCfg(
+        physics=NewtonCfg(),
+        device="cpu",
+        visualizer_cfgs=MultiBackendVisualizerCfg(
+            kit=KitVisualizerCfg(streaming_view=True),
+            newton_gl=NewtonGLVisualizerCfg(max_visible_envs=2, show_particles=True, particle_color=(0.7, 0.6, 0.4)),
+        ),
+    )
+    viewer = cfg.visualizer_cfgs.newton_gl
+    assert resolve_presets(cfg, overrides={"visualizer_cfgs": "newton_gl"}) is cfg
+    assert cfg.visualizer_cfgs is viewer
+    assert viewer.show_particles and viewer.particle_color == (0.7, 0.6, 0.4)
+    with sim_launcher.launch_simulation(cfg, {"max_visible_envs": 3}):
+        assert cfg.visualizer_cfgs == [viewer]
+        assert cfg.visualizer_cfgs[0] is viewer
+        assert viewer.max_visible_envs == 3
+    with pytest.raises(ValueError, match="Unknown preset"):
+        resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "missing"})
+    with pytest.warns(FutureWarning, match="newton_gl"):
+        viewer = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton"})
+    assert isinstance(viewer, NewtonGLVisualizerCfg)
+    assert resolve_presets(MultiBackendVisualizerCfg(), selected=["newton"]) is None
 
 
-class _DummyEnvCfg:
-    def __init__(self, sim_cfg):
-        self.sim = sim_cfg
+def test_launch_simulation_uses_configured_viewers_and_releases_runtime(monkeypatch):
+    """Runtime metadata belongs to the selected cfg, not settings or a caller-supplied intent dictionary."""
+    launches, closed = [], []
 
-
-@pytest.fixture
-def kit_launcher_args(monkeypatch) -> list:
-    """Record the launcher args of each Kit launch, without starting Kit."""
-    launches = []
-
-    class _FakeKitLauncher(SimulationLauncher):
+    class KitRuntime(SimulationLauncher):
         def __init__(self, launcher_args):
             launches.append(launcher_args)
 
-    monkeypatch.setattr(physx_app, "KitLauncher", _FakeKitLauncher)
-    return launches
+        def close(self, exit_code=0):
+            closed.append(exit_code)
 
+    monkeypatch.setattr(physx_app, "KitLauncher", KitRuntime)
+    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg(), NewtonGLVisualizerCfg()])
+    args = argparse.Namespace(max_visible_envs=3)
+    with sim_launcher.launch_simulation(cfg, args):
+        assert launches == [vars(args)]
+        assert args.kit_visualizer
+        assert all(viewer.max_visible_envs == 3 for viewer in cfg.visualizer_cfgs)
+    assert closed == [0]
 
-def test_cli_visualizer_selection_drops_configured_newton_rtx(kit_launcher_args, monkeypatch):
-    """``--viz kit`` drops a configured newton_rtx visualizer, so OVRTX neither conflicts with Kit nor starts."""
-    started = []
-    real_string_to_callable = sim_launcher.string_to_callable
-    monkeypatch.setattr(
-        sim_launcher, "string_to_callable", lambda name: started.append(name) or real_string_to_callable(name)
-    )
-    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[VisualizerCfg(visualizer_type="newton_rtx")])
-
-    with sim_launcher.launch_simulation(cfg, {"visualizer": ["kit"]}):
+    monkeypatch.setattr(sim_launcher, "resolve_python_logging_level", lambda _: 42)
+    levels = []
+    monkeypatch.setattr(sim_launcher, "apply_python_logging_level", levels.append)
+    with sim_launcher.launch_simulation(SimulationCfg(physics=NewtonCfg()), {}):
         pass
-
-    assert len(kit_launcher_args) == 1
-    assert sim_launcher.OVRTXRendererCfg.launcher_type not in started
-    assert [cfg.visualizer_type for cfg in cfg.visualizer_cfgs] == ["kit"]
-
-
-@pytest.mark.parametrize("require_kit", [False, True], ids=["kitless", "kit"])
-def test_launch_simulation_writes_max_visible_envs_without_visualizer(kit_launcher_args, require_kit):
-    """``--max_visible_envs`` reaches the settings with or without Kit, even when no visualizer is selected."""
-    settings = get_settings_manager()
-    settings.set("/isaaclab/visualizer/max_visible_envs", -1)
-
-    with sim_launcher.launch_simulation(NewtonCfg(), {"require_kit": require_kit, "max_visible_envs": 3}):
-        pass
-
-    assert len(kit_launcher_args) == int(require_kit)
-    assert settings.get("/isaaclab/visualizer/max_visible_envs") == 3
-    settings.set("/isaaclab/visualizer/max_visible_envs", -1)
-    settings.set("/isaaclab/visualizer/types", None)
-
-
-@pytest.mark.parametrize(
-    "physics_cfg, visualizer, expected_types",
-    [
-        (NewtonCfg(), None, []),
-        (OvPhysxCfg(), None, []),
-        (NewtonCfg(), ["kit"], ["kit"]),
-        (NewtonCfg(), ["rerun"], ["rerun"]),
-        (NewtonCfg(), ["newton_gl", "kit"], ["kit", "newton_gl"]),
-    ],
-    ids=["no-viz", "no-viz-ovphysx", "configured", "default", "configured-pair"],
-)
-def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, physics_cfg, visualizer, expected_types):
-    """The launch runs exactly the selected types, reusing a configured visualizer of each type with its settings.
-
-    Only a selected Kit visualizer starts Kit, with cameras for its ``streaming_view``.
-    """
-    sim_cfg = SimulationCfg(
-        physics=physics_cfg,
-        visualizer_cfgs=[
-            KitVisualizerCfg(streaming_view=True),
-            VisualizerCfg(visualizer_type="newton_gl", max_visible_envs=7),
-        ],
-    )
-    configured = {cfg.visualizer_type: cfg for cfg in sim_cfg.visualizer_cfgs}
-    settings = get_settings_manager()
-    # a selection an earlier launch without a SimulationCfg left in this process
-    settings.set("/isaaclab/visualizer/types", "rerun")
-
-    with sim_launcher.launch_simulation(_DummyEnvCfg(sim_cfg), {"visualizer": visualizer}):
-        pass
-
-    assert [cfg.visualizer_type for cfg in sim_cfg.visualizer_cfgs] == expected_types
-    for cfg in sim_cfg.visualizer_cfgs:
-        assert cfg is configured.get(cfg.visualizer_type) or isinstance(cfg, RerunVisualizerCfg)
-    assert [args["enable_cameras"] for args in kit_launcher_args] == [True] * ("kit" in expected_types)
-    # the launch clears it, so a SimulationContext keeps the visualizers its config lists
-    assert settings.get("/isaaclab/visualizer/types") == ""
-
-    # without a SimulationCfg to write into, the selection, possibly empty, reaches the SimulationContext
-    settings.set("/isaaclab/visualizer/types", None)
-    with sim_launcher.launch_simulation(physics_cfg, {"visualizer": visualizer}):
-        assert settings.get("/isaaclab/visualizer/types") == ",".join(visualizer or [])
-    settings.set("/isaaclab/visualizer/types", None)
-    settings.set("/isaaclab/visualizer/max_visible_envs", -1)
-
-
-def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
-    """Kitless mode should apply the resolved Python logging level before yielding."""
-    captured: dict[str, object] = {}
-
-    def fake_apply(level):
-        captured["applied_level"] = level
-
-    _force_kitless(monkeypatch)
-    monkeypatch.setattr(sim_launcher, "apply_python_logging_level", fake_apply)
-    monkeypatch.setattr(sim_launcher, "ensure_console_handlers", lambda level: captured.update(handlers_level=level))
-
-    env_cfg = _DummyEnvCfg(SimulationCfg(visualizer_cfgs=None))
-    launcher_args = argparse.Namespace(visualizer=None, verbose=True)
-    with sim_launcher.launch_simulation(env_cfg, launcher_args):
-        pass
-
-    assert captured["applied_level"] == logging.DEBUG
-    assert captured["handlers_level"] == logging.DEBUG
+    assert levels == [42]
+    assert len(launches) == 1
