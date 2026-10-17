@@ -43,7 +43,7 @@ from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import OvstageBackendCfg, create_ovstage, export_stage_to_string
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, create_ovstage, export_stage_to_string
 
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
@@ -313,7 +313,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 class OvPhysxBackend:
     """Own the native OVPhysX runtime and its attached OVStage for one simulation."""
 
-    def __init__(self, cfg: OvPhysxBackendCfg):
+    def __init__(self, cfg: OvPhysxBackendCfg, *, scene: OvstageBackend | None = None):
         ovphysx = import_ovphysx()
         ovphysx.bootstrap()
         is_gpu = cfg.device.startswith("cuda:")
@@ -337,7 +337,7 @@ class OvPhysxBackend:
             ),
             active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
         )
-        self.scene = SimulationContext.instance().get_or_create_backend(cfg.stage_cfg) if cfg.stage_cfg else None
+        self.scene = scene
         self.stage: Any = None
         self.rigid_body_view: Any = None
 
@@ -345,10 +345,9 @@ class OvPhysxBackend:
         """Release bindings, the runtime, and its stage in native teardown order."""
         physx = self.physx
         if physx is None:
-            if self.stage is not None:
-                if self.scene is None:
-                    self.stage.destroy()
-                self.stage = None
+            if self.stage is not None and self.scene is None:
+                self.stage.destroy()
+            self.stage = None
             return
 
         # Legacy release errors are terminal; current destroy errors may be retryable.
@@ -386,10 +385,9 @@ class OvPhysxBackend:
         finally:
             if release_owners:
                 self.physx = None
-                if self.stage is not None:
-                    if self.scene is None:
-                        self.stage.destroy()
-                    self.stage = None
+                if self.stage is not None and self.scene is None:
+                    self.stage.destroy()
+                self.stage = None
 
 
 class OvPhysxManager(PhysicsManager):
@@ -852,18 +850,17 @@ class OvPhysxManager(PhysicsManager):
             )
         cls._stage_usda = stage_usda
 
-        previous_backend = cls.backend
         cls.backend = sim.get_or_create_backend(
             OvPhysxBackendCfg(
                 device=PhysicsManager._device,
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
-                stage_cfg=shared_scene.cfg if shared_scene is not None else None,
-            )
+            ),
+            scene=shared_scene,
         )
         if not cls._atexit_registered:
             atexit.register(cls._close_at_exit)
             cls._atexit_registered = True
-        if cls.backend is previous_backend or cls.backend.stage is not None:
+        if cls.backend.stage is not None:
             # Bindings are tied to the realized objects of one stage. Invalidate
             # asset/sensor handles and drain generic views before resetting the
             # cached runtime; PHYSICS_READY after this method rebuilds them.

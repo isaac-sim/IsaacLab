@@ -175,14 +175,9 @@ class OvstageBackend:
         self.clone_env_paths: list[str] = []
         self.population_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
-        self.ordinal = 0
-        self.next_camera_id = 0
-        self.consumers = contextlib.ExitStack()
-        """Borrowers register teardown here so reset releases them before the native stage."""
-        with contextlib.ExitStack() as resources:
-            self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
-            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
-            self._resources = resources.pop_all()
+        self.resources = contextlib.ExitStack()
+        """Release borrowers before paths and stage, in reverse registration order."""
+        self.reset()
 
     def populate(self, usda: str) -> None:
         """Import the exported prototypes and apply the clone context's prepared operations.
@@ -230,8 +225,7 @@ class OvstageBackend:
 
     def close(self) -> None:
         """Release borrowers, then the path dictionary and stage."""
-        with self._resources:
-            self.consumers.close()
+        self.resources.close()
         self.stage = self.paths = None
 
     def reset(self) -> None:
@@ -241,7 +235,7 @@ class OvstageBackend:
         with contextlib.ExitStack() as resources:
             self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
             self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
-            self._resources = resources.pop_all()
+            self.resources = resources.pop_all()
 
 
 def export_stage_to_string(

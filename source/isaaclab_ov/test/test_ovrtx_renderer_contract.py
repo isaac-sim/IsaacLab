@@ -1194,9 +1194,8 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
             create_path_list_from_strings=lambda paths: paths[0],
             destroy_path_list=lambda paths: events.append(f"destroy_path_list:{paths}"),
         )
-        renderer.scene._resources = contextlib.ExitStack()
-        renderer.scene.consumers = contextlib.ExitStack()
-        renderer.scene._resources.callback(events.append, "close_stage")
+        renderer.scene.resources = contextlib.ExitStack()
+        renderer.scene.resources.callback(events.append, "close_stage")
         renderer.scene.ordinal = 7
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "camera")
         render_data.camera_xform_binding = render_data.resources.enter_context(query("camera"))

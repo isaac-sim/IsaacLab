@@ -246,13 +246,6 @@ class OVRTXBackend:
             self.clone_positions: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
 
-    def attach(self, scene: OvstageBackend) -> None:
-        """Borrow the stage until it releases its rendering consumers."""
-        if not self.attached:
-            self.renderer.attach_ovstage(scene.stage)
-            self.attached = True
-            scene.consumers.callback(self.detach)
-
     def detach(self) -> None:
         """Release the borrowed stage before it is rebuilt or destroyed."""
         if self.attached:
@@ -391,8 +384,6 @@ class OVRTXRenderer(BaseRenderer):
 
     def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
         """Create the detached-scene material writer after scene population."""
-        if not self._initialized_scene:
-            raise RuntimeError("OVRTX must ingest its detached scene before material writes are compiled.")
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
@@ -456,9 +447,12 @@ class OVRTXRenderer(BaseRenderer):
         self._setup_geometry_bindings()
         if self._use_ovstage:
             self.scene.commit()
-            self.backend.attach(self.scene)
-            self.scene.consumers.callback(self._sim.render_context.reset_stage_prepare_flag)
-            self.scene.consumers.callback(self.close)
+            if not self.backend.attached:
+                self.backend.renderer.attach_ovstage(self.scene.stage)
+                self.backend.attached = True
+                self.scene.resources.callback(self.backend.detach)
+            self.scene.resources.callback(self._sim.render_context.reset_stage_prepare_flag)
+            self.scene.resources.callback(self.close)
         self._initialized_scene = True
 
     def _setup_xform_bindings(self, stage: Usd.Stage) -> None:

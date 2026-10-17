@@ -749,7 +749,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         enable_scene_query_support=False,
     )
     sim.get_clone_plan = lambda: None
-    sim.get_or_create_backend = lambda cfg: backend
+    sim.get_or_create_backend = lambda cfg, *, scene: backend
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
     monkeypatch.setattr(PhysicsManager, "_cfg", None)
     monkeypatch.setattr(manager, "_clone_recipes", clones)
