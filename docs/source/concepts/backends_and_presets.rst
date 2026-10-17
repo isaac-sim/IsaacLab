@@ -427,7 +427,7 @@ converts and remaps that data for backend-independent consumers:
 
 This boundary lets renderers and visualizers consume a common Warp-native data
 path without knowing which physics engine owns the state. See
-:doc:`/source/concepts/native-physics-api/scene_data_providers` for the complete
+:doc:`/source/concepts/scene_data_providers` for the complete
 data-flow model.
 
 Native engine access boundary
@@ -435,10 +435,10 @@ Native engine access boundary
 
 The portable interfaces define the stable API boundary. Advanced code can use
 each engine's native low-level data API, but those APIs intentionally keep their
-own ownership and synchronization semantics. See
-:doc:`/source/concepts/native-physics-api/index`
-for PhysX typed views, Newton live model/state arrays and generic selections,
-and OvPhysX tensor bindings.
+own ownership and synchronization semantics. See the backend guides for
+:ref:`PhysX typed views <physx-native-access>`,
+:ref:`Newton model and state arrays <newton-native-access>`, and
+:ref:`OvPhysX tensor bindings <ovphysx-native-access>`.
 
 Design principles
 ^^^^^^^^^^^^^^^^^

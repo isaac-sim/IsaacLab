@@ -248,6 +248,11 @@ slower for large scenes.
 Tensor views and native access
 ------------------------------
 
+Use native access when the shared asset and sensor APIs do not expose the data
+or operation you need. Reuse an Isaac Lab-owned handle when its selection matches;
+create raw access only for additional capabilities. Native writes can bypass Isaac
+Lab's caches and validation, so follow the ownership and synchronization rules below.
+
 The PhysX Tensor API provides typed views for data paths and capabilities that
 require engine-native access.
 

@@ -1463,9 +1463,10 @@ Here's a complete example showing how to update your code:
 The concrete ``root_view`` type is backend-specific. The
 ``get_material_properties()`` call above reads each rigid shape's static friction,
 dynamic friction, and restitution through the PhysX Tensor API; Newton selections
-and OvPhysX bindings use different access methods. See
-:doc:`/source/concepts/native-physics-api/index`
-before using ``root_view`` in backend-portable code.
+and OvPhysX bindings use different access methods. Read the
+:ref:`PhysX <physx-native-access>`, :ref:`Newton <newton-native-access>`,
+and :ref:`OvPhysX <ovphysx-native-access>` native-access guides before using
+``root_view`` in backend-portable code.
 
 
 .. rubric:: Deformable Object API Changes

@@ -301,6 +301,11 @@ cloner.
 Native access
 -------------
 
+Use native access when the shared asset and sensor APIs do not expose the data
+or operation you need. Reuse an Isaac Lab-owned handle when its selection matches;
+create raw access only for additional capabilities. Native writes can bypass Isaac
+Lab's caches and validation, so follow the ownership and synchronization rules below.
+
 Mental model
 ~~~~~~~~~~~~
 
@@ -449,4 +454,4 @@ Where to go next
 
 * :doc:`/source/isaaclab/environments` — tasks and backend presets.
 * :ref:`backend-architecture` — shared factories and resource ownership.
-* :doc:`/source/concepts/native-physics-api/index` — native access across backends.
+* :doc:`/source/concepts/scene_data_providers` — shared scene data for renderers and visualizers.
