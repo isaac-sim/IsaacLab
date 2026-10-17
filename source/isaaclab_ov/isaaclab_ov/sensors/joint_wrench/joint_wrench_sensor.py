@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
 
@@ -52,6 +52,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
     __backend_name__: str = "ovphysx"
     """The name of the backend for the joint wrench sensor."""
+
+    _skips_unstepped_envs: ClassVar[bool] = True
 
     def __init__(self, cfg: JointWrenchSensorCfg):
         """Initialize the OVPhysX joint-wrench sensor.

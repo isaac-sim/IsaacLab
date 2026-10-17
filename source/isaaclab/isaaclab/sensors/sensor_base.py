@@ -17,7 +17,7 @@ import sys
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import warp as wp
 
@@ -47,6 +47,15 @@ class SensorBase(ABC):
 
     The sensor is updated at the specified update period. If the update period is zero, then the
     sensor is updated at every simulation step.
+    """
+
+    _skips_unstepped_envs: ClassVar[bool] = False
+    """Whether :meth:`_update_buffers_impl` skips environments not stepped since their last reset.
+
+    Sensors whose physics buffers are only refreshed by a physics step keep the reset values of such
+    environments, because the buffers still hold pre-reset data. These environments then stay outdated, so they
+    are captured after the next physics step instead of returning the reset values for another update period.
+    Their update period still counts from the reset, as for sensors that capture right after a reset.
     """
 
     def __init__(self, cfg: SensorBaseCfg):
@@ -196,6 +205,7 @@ class SensorBase(ABC):
                 self._timestamp,
                 self._timestamp_last_update,
                 self._elapsed_since_update,
+                self._period_offset,
             ],
             device=self._device,
         )
@@ -214,6 +224,7 @@ class SensorBase(ABC):
                 self._is_outdated,
                 self._timestamp,
                 self._elapsed_since_update,
+                self._period_offset,
                 dt,
                 self.cfg.update_period - 1e-6,
             ],
@@ -442,6 +453,7 @@ class SensorBase(ABC):
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
         self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+        self._period_offset = wp.full(self._num_envs, -1.0, dtype=wp.float64, device=self._device)
 
     def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
@@ -456,7 +468,14 @@ class SensorBase(ABC):
         wp.launch(
             update_outdated_envs_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                self._elapsed_since_update,
+                self._period_offset,
+                self._skips_unstepped_envs,
+            ],
             device=self._device,
         )
         self._data_dirty = False

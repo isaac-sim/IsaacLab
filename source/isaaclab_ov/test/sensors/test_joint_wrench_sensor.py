@@ -203,9 +203,12 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
     """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all.
 
     The public read after the full reset is also the regression for #4970: it must not surface the
-    pre-reset wrenches that OVPhysX still holds.
+    pre-reset wrenches that OVPhysX still holds. That read captures nothing, so with an update period
+    longer than a step the next physics step's read must still return fresh data.
     """
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
+    scene_cfg = _SingleJointSceneCfg(num_envs=4)
+    scene_cfg.wrench.update_period = 2 * sim.get_physics_dt()
+    scene = InteractiveScene(scene_cfg)
     sim.reset()
 
     sensor: JointWrenchSensor = scene["wrench"]
@@ -232,3 +235,8 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim, device):
     torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
     torch.testing.assert_close(sensor.data.force.torch, torch.zeros_like(force_after))
     torch.testing.assert_close(sensor.data.torque.torch, torch.zeros_like(torque_after))
+
+    sim.step()
+    scene.update(sim.get_physics_dt())
+    post_step_force = sensor.data.force.torch
+    assert torch.all(torch.any(post_step_force != 0, dim=(1, 2))), "Expected a fresh wrench in every env"

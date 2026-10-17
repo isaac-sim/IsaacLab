@@ -11,6 +11,8 @@ the ``1e-6`` due tolerance.
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import numpy as np
 import pytest
 import warp as wp
@@ -51,9 +53,30 @@ class _RefreshLogSensor(SensorBase):
             self.refreshes[env].append(self.step)
 
 
-def _run(sensor: _RefreshLogSensor, dts: list[float], read_every: int = 1) -> list[list[int]]:
-    """Calls ``update(dt)`` for each step and reads the data every ``read_every`` steps."""
-    for step, dt in enumerate(dts, start=1):
+class _SkippingLogSensor(_RefreshLogSensor):
+    """Sensor that skips environments not stepped since their last reset.
+
+    The contact, IMU, PVA and joint wrench sensors do the same. It also records the time since the last refresh
+    seen by each refresh, which contact sensors add to their air and contact times.
+    """
+
+    _skips_unstepped_envs: ClassVar[bool] = True
+
+    def __init__(self, update_period: float, device: str, num_envs: int = 2):
+        super().__init__(update_period, device, num_envs)
+        self.since_last_refresh = [[] for _ in range(num_envs)]
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        stepped = self._timestamp.numpy() > 0.0
+        elapsed = self._elapsed_since_update.numpy()
+        for env in np.flatnonzero(env_mask.numpy() & stepped):
+            self.refreshes[env].append(self.step)
+            self.since_last_refresh[env].append(round(float(elapsed[env]), 6))
+
+
+def _run(sensor: _RefreshLogSensor, dts: list[float], read_every: int = 1, start: int = 1) -> list[list[int]]:
+    """Calls ``update(dt)`` for each step, numbered from ``start``, and reads the data every ``read_every`` steps."""
+    for step, dt in enumerate(dts, start=start):
         sensor.update(dt)
         if step % read_every == 0:
             sensor.step = step
@@ -84,3 +107,27 @@ def test_refresh_follows_the_time_passed_to_update(device):
     sensor = _RefreshLogSensor(update_period=0.02, device=device)
     refreshes = _run(sensor, [0.005, 0.015] * 2000)
     assert refreshes == [list(range(1, 4001, 2))] * 2
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_skipped_read_after_reset_keeps_sensor_due(device):
+    """A read between a reset and the next step that captured nothing leaves the sensor due.
+
+    Sensors that skip environments not stepped since their last reset capture nothing at that read, so they
+    refresh at the first read after the next step instead of holding their reset values for another period.
+    Their period still counts from the reset, so the later refreshes match those of sensors that capture at the
+    reset. Another reset clears this, so the period then counts from the first refresh after that reset.
+    """
+    capturing = _RefreshLogSensor(update_period=0.02, device=device, num_envs=3)
+    skipping = _SkippingLogSensor(update_period=0.02, device=device, num_envs=3)
+    for sensor in (capturing, skipping):
+        _run(sensor, [0.005] * 6)
+        sensor.reset(env_mask=wp.array([True, False, True], dtype=wp.bool, device=device))
+        _ = sensor.data  # the observations read right after the reset, still at step 6
+        sensor.reset(env_mask=wp.array([False, False, True], dtype=wp.bool, device=device))  # not read
+        _run(sensor, [0.005] * 8, start=7)
+    assert capturing.refreshes == [[1, 5, 6, 10, 14], [1, 5, 9, 13], [1, 5, 6, 7, 11]]
+    assert skipping.refreshes == [[1, 5, 7, 10, 14], [1, 5, 9, 13], [1, 5, 7, 11]]
+    # the refresh at step 7 does not restart the period, but the next one only sees the time since step 7
+    assert skipping.since_last_refresh[0] == [0.005, 0.02, 0.005, 0.015, 0.02]
+    assert skipping.since_last_refresh[2] == [0.005, 0.02, 0.005, 0.02]
