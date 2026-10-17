@@ -124,7 +124,7 @@ Tasks can expose alternatives such as ``physics=physx``, ``physics=ovphysx``, or
 ``physics=newton_mjwarp`` without changing their asset import paths.
 
 For a comprehensive overview of the factory pattern and backend selection,
-see :doc:`/source/concepts/backend_architecture`. To add a new backend, see
+see :ref:`backend-architecture`. To add a new backend, see
 :doc:`/source/developer-tools/add_physics_backend`.
 
 
@@ -1171,9 +1171,11 @@ same resolution semantics as a standalone function:
 The backend articulation methods ``write_actuator_stiffness_to_sim`` and
 ``write_actuator_damping_to_sim`` are deprecated. Use
 :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` for managed gain randomization; it
-updates actuator-owned gains, implicit solver drives, or native-controller parameters as
-appropriate. For direct writes to a Newton-executed group's controller, use
-:func:`~isaaclab.actuators.newton.write_group_parameter`.
+updates actuator-owned gains, implicit solver drives, or native drive parameters as
+appropriate. For direct writes to a Newton-executed group's drive, use
+:func:`~isaaclab.actuators.newton.write_group_parameter` with the ``"drive"`` component. It was renamed
+from ``"controller"`` to follow the Newton 1.6 drive API. ``"controller"`` remains a deprecated alias that
+warns and will be removed in 3.2.
 
 Named regular-expression groups retain their configuration behavior. If both a deprecated name and
 its canonical replacement are present in the same group, use only the canonical name; equivalent
@@ -2652,6 +2654,8 @@ references before initialization. Code that initializes a visualizer directly mu
 ``PerspectiveCameraCfg`` objects and existing ``Camera`` sensors through ``cameras``.
 Call ``super().close()`` after releasing native viewer resources to drop borrowed scene references.
 GL and RTX image capture both require an initialized visualizer; capture after ``sim.reset()``.
+Downstream ``OvstageBackend.populate(stage, plan)`` calls must supply the declared ``ClonePlan``.
+Standalone scenes can obtain it with ``sim.get_clone_plan()`` after entering ``ReplicateSession``.
 The base ``initialize()`` also selects visible environments once. Pass ``get_visualized_env_ids()``
 to the viewer instead of calling ``newton_adapter.resolve_visible_env_indices`` or
 ``apply_viewer_visible_worlds``; both helpers have been removed. The returned selection already
@@ -2792,6 +2796,19 @@ and RTX ``world_spacing`` settings; author lights and transforms in the scene in
 scene stays unlit. ``background_color=None`` preserves the scene background; an explicit color
 changes only the visible background. Use Newton GL for model overlays, live plots, and rigid-body
 dragging; RTX retains visualization markers and camera controls.
+
+Newton RTX perspective declarations now become ordinary ``CameraCfg`` entries during
+``launch_simulation(env_cfg, ...)``, before scene construction. Pass the configuration containing
+both ``sim`` and ``scene`` to the launcher. Scripts without ``SceneCfg`` declare assets through
+``ReplicateSession``, call ``instantiate(camera_cfg)``, and select its prim path with ``SceneCameraCfg``;
+the visualizer no longer creates cameras or render products. See the standalone example in
+:doc:`/source/how-to/visualizer_streaming_camera_view`.
+Per-camera RTX product attributes can be declared in ``CameraCfg.render_settings``.
+
+Newton RTX no longer automatically offers scene sensors or reads ``streaming_sensor_prim_path``.
+Select them explicitly with ``cameras=[SceneCameraCfg(prim_path=...)]`` or
+``view=ImageViewCfg(source="scene_sensor_name")``; otherwise it declares one perspective camera.
+Set its initial pose and window size on the visualizer configuration, rather than deprecated ``env_cfg.viewer``.
 
 Sensor image dimensions remain configured on ``CameraCfg``. Newton RTX perspective resolution
 uses the initial ``WindowCfg.size`` and scales for later window resizes. Newton GL perspective

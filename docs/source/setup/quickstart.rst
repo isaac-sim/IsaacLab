@@ -64,7 +64,7 @@ VS Code uses Pylance. Cursor users should install basedpyright instead. See
      <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="Cartpole, G1 locomotion, and Kuka Allegro manipulation tasks running side by side">
-       <source src="../../_static/quickstart/task-sampler.mp4" type="video/mp4">
+       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/task-sampler.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>The same train and play workflow applies across classic control, locomotion,
@@ -170,8 +170,7 @@ complete training and playback reference.
      <video autoplay loop muted playsinline controls preload="metadata" width="3840" height="720"
             style="width:100%; height:auto; display:block;"
             aria-label="A Franka drawer-opening task controlled by the zero agent, random agent, and a trained policy side by side">
-       <source src="../../_static/quickstart/agent-comparison.mp4" type="video/mp4">
-       <a href="../../_static/quickstart/agent-comparison.mp4">Download the agent comparison video.</a>
+       <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/agent-comparison.mp4" type="video/mp4">
      </video>
      <figcaption>
        <p>On the same Franka drawer-opening task, <code class="docutils literal notranslate">zero_agent</code>
@@ -237,7 +236,7 @@ Many tasks default to Isaac Sim PhysX, which needs Isaac Sim, while others, such
 already default to Newton. Pick the setup path that matches your install and set its ``physics=``
 selector whenever a task's default backend doesn't match it. Add ``renderer=`` only for tasks
 with cameras or renderer presets, such as ``Isaac-Cartpole-Camera``; other tasks reject it. Run
-``uv run isaaclab list_envs --show_presets`` to see which presets a task declares:
+``uv run isaaclab list_envs --show_presets`` to see which combinations a task can launch:
 
 .. list-table::
    :widths: 24 38 38

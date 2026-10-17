@@ -8,6 +8,10 @@ renderers produce sensor data for training, visualizers give fast, lightweight f
 human monitoring and recording. Visualizers can also stream that same sensor data through the
 streaming camera panel.
 
+Try :ref:`Franka cube stacking <interactive-demo-franka-stack>` for a compact simulation
+running directly in the browser. Orbit its camera, watch the scripted grasp, or control
+the end effector in Manual mode.
+
 This page covers:
 
 - `Quick Start`_: launch a visualizer with ``--viz``
@@ -208,6 +212,9 @@ Visualizer Overview
              triggers the cascade across an NVIDIA-logo domino layout</p>
            </div>
          </div>
+
+      Try :ref:`Domino cascade <interactive-demo-dominoes>` for a compact 24-slab version running
+      locally in the browser, with friction and a repeatable toppling pulse.
 
       **Core configuration:**
 
@@ -798,6 +805,29 @@ To configure visualizer settings in code, pass ``VisualizerCfg`` instances to
 For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 
 
+.. _visualization-partial-visualization:
+
+Partial Visualization
+~~~~~~~~~~~~~~~~~~~~~
+
+Visualizers can be configured to visualize just a subset of environments.
+This is called partial visualization.
+
+There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments for partial visualization:
+
+- ``max_visible_envs`` caps how many envs are shown.
+- ``visible_env_indices`` explicitly selects the envs to visualize, in the order given. It takes precedence over
+  ``randomly_sample_visible_envs`` and is also capped by ``max_visible_envs``.
+- ``randomly_sample_visible_envs`` (default ``True``): when ``visible_env_indices`` is unset and ``max_visible_envs``
+  is set, enables randomly sampling the selected envs. If disabled, the first ``max_visible_envs`` envs are selected.
+
+Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
+
+.. note::
+
+   By default, selected envs keep their simulated positions, so a random sample or the first envs of a large grid can lie
+   outside the camera view. Choose indices near the camera target, or move ``eye`` and ``lookat``.
+
 Scene Background
 ~~~~~~~~~~~~~~~~
 
@@ -833,7 +863,7 @@ Performance
      - Lowest overhead; lower ``window.fps`` to limit wall-clock render frequency.
    * - Viser
      - Newton Warp renderer; use ``max_visible_envs`` to limit the number of rendered
-       environments.
+       environments (see :ref:`visualization-partial-visualization`).
    * - Newton RTX
      - Native Newton RTX rendering; reduce configured perspective resolution or lower ``window.fps``.
        Environment selection limits sensor display tiles; the perspective view shows the full scene.
@@ -841,7 +871,7 @@ Performance
      - Web viewer may slow down with many environments; use ``--num_envs`` to reduce load.
    * - Kit
      - Highest overhead of the five visualizers; reduce ``window.size``
-       or use ``--max_visible_envs``.
+       or use ``--max_visible_envs`` (see :ref:`visualization-partial-visualization`).
 
 
 Limitations
@@ -903,10 +933,11 @@ different across visualizers. Kit renders the scene's actual authored USD lights
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
 ``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX renders the
-authored scene through Newton's native RTX viewer, borrowing a simulation-owned OVStage.
-Body poses follow simulation updates; runtime material randomization is not yet propagated
-to the borrowed stage. Perspective resolution stays fixed when the window is resized; the
-window scales the image for presentation.
+authored scene through Isaac Lab's OVRTX renderer, shared with cameras using the same
+``OVRTXRendererCfg``. Newton GL displays the rendered GPU image and handles window controls;
+Newton's ``ViewerRTX`` is not constructed. Scene transforms, deformable geometry, and material
+updates follow the camera renderer's normal synchronization. Perspective resolution stays
+fixed when the window is resized; the window scales the image for presentation.
 Configure lights and environment placement in the scene. Viewer-only ``rtx_environment`` rigs
 and ``world_spacing`` are no longer supported: declare scene lights for studio lighting, remove
 scene lights for an unlit scene, and set ``InteractiveSceneCfg.env_spacing`` for world placement.

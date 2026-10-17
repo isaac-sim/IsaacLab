@@ -138,11 +138,15 @@ For documentation media, only small ``.jpg`` files should be committed directly 
 Upload larger images, videos, animations, and other media to an external hosting location, then link to or embed
 the externally hosted file from the documentation.
 
-Browser-demo deployment bundles are hosted as Isaac Lab GitHub release assets. The docs workflow downloads
-the pinned archive, verifies its SHA-256, and stages it under ``docs/_build/demos/`` before publishing
-the Pages artifact. The source tree contains the staging script, documentation links, and small thumbnails.
-When publishing a new bundle, retain earlier version directories and update the archive URL and checksum
-together in ``.github/actions/_lib/stage-browser-demos.sh``. Run the staging step from the repository root:
+Browser-demo bundles and exporter sources are distributed through the permanent
+`interactive-demos release <https://github.com/isaac-sim/IsaacLab/releases/tag/interactive-demos>`_.
+Reuse the ``interactive-releases`` publishing branch and upload commit-named archives to that same release.
+Keep earlier assets, then update the reviewed archive URL and SHA-256 together in
+``.github/actions/_lib/stage-browser-demos.sh``. No new release tag or numbered gallery is needed.
+The docs workflow downloads that archive, verifies its checksum, and stages its ``site/`` directory
+under ``docs/_build/demos/`` before publishing Pages. Keep the existing legacy directories: they provide shared
+assets and preserve older links. The development source tree contains the staging script, documentation links,
+and small thumbnails. Run the staging step from the repository root:
 
 .. code-block:: bash
 
@@ -156,7 +160,7 @@ complete site locally, serve ``docs/_build`` over HTTP:
    uv run --no-project python -m http.server 8000 --directory docs/_build
 
 Open ``http://localhost:8000/current/index.html`` for the docs or
-``http://localhost:8000/demos/v1/`` for the demos. Downloaded ``docs-html`` artifacts include
+``http://localhost:8000/demos/interactive/`` for the demos. Downloaded ``docs-html`` artifacts include
 ``PREVIEW.txt`` with the equivalent command to run from the extracted artifact's root directory.
 The browser must load the demos over HTTP so it can fetch their WebAssembly modules and data.
 
@@ -358,6 +362,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Complete shared resource initialization at its lifecycle boundary; registering the first consumer
+  should not initialize the shared resource or transfer its handles.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
   Keep a single representation of the active selection alongside its available choices. Detach borrowed
@@ -380,7 +386,12 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
-  finalization. See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
+  finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
+  not import renderer implementations or manipulate their attachment state.
+  Author camera and ISP settings during camera construction, before scene cloning or native import.
+  Renderer initialization consumes the prepared configuration; do not add feature-specific scene-authoring
+  hooks to ``BaseRenderer``.
+  See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
   clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
@@ -546,6 +557,12 @@ examples of both patterns.
 
 Configuration Operations
 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keep configuration classes declarative. Cross-config default merging and runtime wiring belong
+in launch preparation or construction code, not methods on config objects. Validation hooks may
+check a configuration's own fields.
+When changing ownership, use explicit declarations; do not add deprecated-selector translation
+or discover unselected scene entities to preserve earlier routing.
 
 Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
 

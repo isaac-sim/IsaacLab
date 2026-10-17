@@ -11,8 +11,6 @@ import re
 import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from copy import deepcopy
-from dataclasses import fields
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
@@ -20,6 +18,7 @@ import warp as wp
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
+from .. import cloner
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
 from ..cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE, expand_env_regex_ns
@@ -40,6 +39,7 @@ from ..visualizers.visualizer_cfg import (
     VISUALIZER_TYPES,
     PerspectiveCameraCfg,
     SceneCameraCfg,
+    _apply_visualizer_defaults,
 )
 from .utils import create_new_stage
 from .utils import stage as stage_utils
@@ -130,7 +130,7 @@ class SimulationContext:
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
         self._backend_registry: list[tuple[Any, Any]] = []
-        self.clone_contexts: dict[type, Any] = {}
+        self.clone_contexts: dict[type[cloner.ReplicateContext], cloner.ReplicateContext] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
@@ -399,33 +399,11 @@ class SimulationContext:
         """Returns a monotonic counter for render() executions."""
         return self._render_generation
 
-    def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
-        """Apply shared default visualizer settings to a backend-specific config.
-
-        Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
-        (i.e. differ from its own class defaults) and are still at the target cfg's
-        class defaults. Backend-specific defaults, such as the streaming renderer,
-        do not transfer between visualizer types.
-        """
-        default_cfg = self.cfg.default_visualizer_cfg
-        if default_cfg is None:
-            return
-        for source, target in ((default_cfg, cfg), (default_cfg.window, cfg.window)):
-            source_defaults, target_defaults = type(source)(), type(target)()
-            for field in fields(source):
-                if field.name in ("class_type", "visualizer_type", "window") or not hasattr(target, field.name):
-                    continue
-                default_val = getattr(source, field.name)
-                if default_val == getattr(source_defaults, field.name):
-                    continue
-                if getattr(target, field.name) == getattr(target_defaults, field.name):
-                    setattr(target, field.name, deepcopy(default_val))
-
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
         resolved = list(self.cfg.visualizer_cfgs)
         for cfg in resolved:
-            self._apply_default_visualizer_cfg(cfg)
+            _apply_visualizer_defaults(cfg, self.cfg.default_visualizer_cfg)
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if (
@@ -590,6 +568,14 @@ class SimulationContext:
         Args:
             soft: If True, skip full reinitialization.
         """
+        # Standalone cameras may register after scene construction but before the first reset.
+        routing = {
+            string_to_callable(context) if isinstance(context, str) else context: set()
+            for context in self._render_context.clone_contexts
+        }
+        for context in tuple(routing):
+            if context in routing:
+                context.prepare(self, routing)
         self.physics_manager.reset(soft)
         for _, resource in self._backend_registry:
             if isinstance(resource, ImageView):
@@ -790,6 +776,17 @@ class SimulationContext:
         """Get a setting value."""
         return self.settings.get(name)
 
+    def get_backends(self, cfg_type: type) -> tuple[Any, ...]:
+        """Return registered resources whose configurations have the requested type.
+
+        Args:
+            cfg_type: Configuration class, including its subclasses.
+
+        Returns:
+            A snapshot of matching resources in registration order.
+        """
+        return tuple(resource for cfg, resource in self._backend_registry if isinstance(cfg, cfg_type))
+
     def get_or_create_backend(self, cfg: Any, **kwargs: Any) -> Any:
         """Return the simulation-owned object for a construction configuration.
 
@@ -809,6 +806,7 @@ class SimulationContext:
                 return resource
         if isinstance(cfg, RendererCfg):
             self._render_context.validate_renderer_cfg(cfg)
+            kwargs["sim"] = self
         resource = instantiate(cfg, **kwargs)
         self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):

@@ -191,7 +191,7 @@ capture-stable storage:
 
 * a ``"fixed"`` grid with a positive ``max_active_cell_count``; or
 * a ``"sparse"`` grid with a positive ``max_active_cell_count``,
-  ``grid_padding=0``, and the ``"Q1"`` velocity basis. The strain basis must
+  ``grid_padding=0``, and a ``"Q1"`` or ``"B2"`` velocity basis. The strain basis must
   start with ``"pic"`` or be one of ``"P0"``, ``"P1d"``, ``"Q1d"``, or
   ``"Q1"``. The collider basis must start with ``"pic"`` or be one of
   ``"Q1"``, ``"S2"``, or ``"S3"``.
@@ -234,12 +234,14 @@ material behavior. Run the teapot demo to compare the available modes:
    # Path-traced translucent surface
    uv run --extra ovrtx isaaclab demo teapot-fill \
      --visualizer newton_rtx --fluid_render_mode surface
+   # Isaac Sim Kit surface
+   uv run --extra isaacsim isaaclab demo teapot-fill \
+     --visualizer kit --fluid_render_mode surface
 
 The teapot demo defaults to the reconstructed surface. Select ``particles`` or
-``both`` to inspect the source MPM state in Newton GL or Newton RTX.
+``both`` to inspect the source MPM state in Kit, Newton GL, or Newton RTX.
 
-Surface rendering is available in the Newton GL and Newton RTX visualizers.
-The Kit visualizer continues to render the MPM particles directly.
+Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers.
 
 .. raw:: html
 

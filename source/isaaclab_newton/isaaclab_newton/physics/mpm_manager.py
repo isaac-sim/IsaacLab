@@ -237,11 +237,18 @@ class NewtonMPMManager(NewtonManager):
         if sim is not None:
             scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
             _author_mpm_scene_config(scene_prim, solver_cfg)
-        return SolverImplicitMPM(
-            model,
-            _make_solver_config(solver_cfg, scene_prim),
-            temporary_store=TemporaryStore(),
-        )
+        return cls._instantiate_solver(model, _make_solver_config(solver_cfg, scene_prim), solver_cfg)
+
+    @classmethod
+    def _instantiate_solver(
+        cls, model: Model, config: SolverImplicitMPM.Config, solver_cfg: MPMSolverCfg
+    ) -> SolverImplicitMPM:
+        """Instantiate a solver after shared USD configuration has been resolved.
+
+        Subclasses may use their additional ``solver_cfg`` fields here while
+        retaining the preparation performed by :meth:`_create_solver`.
+        """
+        return SolverImplicitMPM(model, config, temporary_store=TemporaryStore())
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MPMSolverCfg) -> None:
@@ -289,7 +296,7 @@ class NewtonMPMManager(NewtonManager):
         return (
             solver.max_active_cell_count > 0
             and solver.grid_padding == 0
-            and solver.velocity_basis == "Q1"
+            and solver.velocity_basis in ("Q1", "B2")
             and strain_rebuild_safe
             and collider_rebuild_safe
         )
