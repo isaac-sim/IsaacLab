@@ -8,7 +8,7 @@
 Kept in a Kit-free module (no ``omni.*`` imports) so it can be unit-tested
 without booting Isaac Sim. Both Kit-driven Isaac RTX and Kit-less OVRTX embed
 the same RTX core and author the same exposure schema, so the helper lives
-here in :mod:`isaaclab_ppisp` and is called during each backend's camera setup.
+here in :mod:`isaaclab_ppisp` and is called during camera construction, before scene import.
 """
 
 from __future__ import annotations

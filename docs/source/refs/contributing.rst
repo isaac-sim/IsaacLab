@@ -388,6 +388,9 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
   not import renderer implementations or manipulate their attachment state.
+  Author camera and ISP settings during camera construction, before scene cloning or native import.
+  Renderer initialization consumes the prepared configuration; do not add feature-specific scene-authoring
+  hooks to ``BaseRenderer``.
   See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned

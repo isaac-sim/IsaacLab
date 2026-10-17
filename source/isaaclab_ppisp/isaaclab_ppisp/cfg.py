@@ -336,11 +336,8 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
       fills defaults, and merges camera-authored USD values when
       ``camera_prim_path`` is set).
 
-    This is the single entry point renderer backends call during camera setup
-    so :mod:`isaaclab.sensors.camera` does not need
-    to know about PPISP types at all. The returned cfg applies to the whole
-    Camera sensor batch; callers pass the first matched camera prim path for
-    the camera-local discovery phase.
+    Camera construction calls this before cloning or importing the scene. The returned cfg applies
+    to the whole Camera sensor batch; callers pass the first matched camera prim path for discovery.
 
     Args:
         isp_cfg: The Camera sensor's :attr:`isp_cfg` value (``None``, ``CameraISPMode``, or :class:`PpispCfg`).

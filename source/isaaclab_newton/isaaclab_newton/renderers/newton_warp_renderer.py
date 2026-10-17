@@ -11,7 +11,7 @@ import logging
 import warnings
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
 import newton
 import warp as wp
@@ -66,21 +66,6 @@ def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(
     )
     rays[0, y, x, 0] = wp.vec3f(0.0)
     rays[0, y, x, 1] = wp.normalize(direction)
-
-
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
-    "with `uv pip install isaaclab`."
-)
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
 class RenderData:
@@ -184,13 +169,10 @@ class RenderData:
         # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
         self._distortion = spawn.distortion if spawn is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
+        # Camera construction has already resolved the ISP configuration.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
+            from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
         self._hdr_scratch_wp: wp.array | None = None
@@ -510,16 +492,7 @@ class NewtonWarpRenderer(BaseRenderer):
         return self.cfg.supported_output_types()
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg before rendering.
-
-        :mod:`isaaclab.sensors.camera` does not depend on PPISP; the renderer
-        owns the sentinel-resolution + cfg-normalization step. Newton has no
-        USD-side overrides to author beyond this.
-
-        Also captures the USD ``stage`` so the segmentation mapper can read the scene's
-        :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
-
-        """
+        """Retain the stage for segmentation labels and check for unsupported authored lens distortion."""
         self._stage = stage
         if spec.cfg.spawn is None or spec.cfg.spawn.distortion is None:
             for path in spec.camera_prim_paths:
@@ -537,15 +510,6 @@ class NewtonWarpRenderer(BaseRenderer):
                         stacklevel=2,
                     )
                     break
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.

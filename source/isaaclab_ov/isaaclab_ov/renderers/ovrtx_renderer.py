@@ -69,9 +69,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData
-from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, find_matching_prims, use_stage
+from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.cloner import ovrtx_replicate
@@ -278,7 +277,7 @@ class OVRTXCameraRenderData:
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalized by ``author_camera`` by the time it reaches here.
+        # Camera construction has already resolved the ISP configuration.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
             from isaaclab_ppisp import PpispPipeline
@@ -359,26 +358,6 @@ class OVRTXRenderer(BaseRenderer):
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
-
-    def author_camera(self, stage: Usd.Stage, cfg: CameraCfg) -> None:
-        """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
-
-        When ``cfg.isp_cfg`` is set, resolves it (sentinel discovery +
-        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
-        :mod:`isaaclab` does not need to know about PPISP. Then pins
-        ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
-        the RTX exposure model OVRTX embeds does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
-        """
-        if cfg.isp_cfg is None:
-            return
-        from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-
-        paths = [str(prim.GetPath()) for prim in find_matching_prims(cfg.prim_path, stage)]
-        cfg.isp_cfg = resolve_and_normalize(cfg.isp_cfg, stage, paths[0])
-        if cfg.isp_cfg is None:
-            return
-        apply_rtx_exposure_overrides(stage, paths)
 
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""

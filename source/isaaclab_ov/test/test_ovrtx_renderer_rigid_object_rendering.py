@@ -112,6 +112,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     import ovrtx
     import torch
     from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
+    from isaaclab_ppisp import PpispCfg
 
     from pxr import UsdPhysics
 
@@ -154,6 +155,8 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
         other_camera = replace(
             camera,
             prim_path="{ENV_REGEX_NS}/OtherCamera",
+            data_types=["depth", "rgb", "rgb_hdr"],
+            isp_cfg=PpispCfg(),
             renderer_cfg=OVRTXRendererCfg(enable_shadows=True),
         )
 
@@ -171,6 +174,10 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
         scene = instantiate(SceneCfg(num_envs=2, env_spacing=0.0, filter_collisions=True))
         sim.register_interactive_scene(scene)
         try:
+            # PPISP owns exposure before physics imports the camera into the shared scene.
+            for prim in sim_utils.find_matching_prims(scene["other_camera"].cfg.prim_path, sim.stage):
+                assert prim.GetAttribute("exposure:iso").Get() == 0.0
+                assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
             # Full-stage consumers need authored copies, which prototype-only sharing cannot preserve.
             with monkeypatch.context() as full_stage:
                 full_stage.setattr(OvPhysxManager, "_requires_full_stage", True)
@@ -219,6 +226,8 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 sim.render()
                 scene.update(cfg.dt)
                 torch.testing.assert_close(camera.data.output["depth"].torch, other.data.output["depth"].torch)
+                assert other.data.output["rgb"].torch.shape == (2, 32, 32, 3)
+                assert torch.isfinite(other.data.output["rgb_hdr"].torch).all()
                 if not soft:
                     torch.testing.assert_close(
                         scene["body"].data.body_mass.torch, torch.full((2, 1), 2.0, device="cuda:0")

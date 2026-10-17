@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from ..sensors.camera.camera_cfg import CameraCfg
 from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
@@ -64,21 +63,12 @@ class BaseRenderer(ABC):
         """
         return None
 
-    def author_camera(self, stage: Any, cfg: CameraCfg) -> None:
-        """Author renderer-specific camera attributes before physics imports the USD scene.
-
-        Args:
-            stage: Authored scene containing the newly spawned camera.
-            cfg: Camera declaration; runtime views and buffers do not exist yet.
-        """
-
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Pre-render per-camera setup the backend needs.
+        """Perform per-camera runtime setup after physics initialization.
 
-        The default implementation is a no-op. Renderer subclasses override
-        to perform whatever per-camera initialization their backend requires
-        — e.g. authoring stage attributes on the resolved camera prims,
-        configuring per-tile GPU buffers, or any other state setup.
+        Camera construction has already authored camera and ISP settings before scene import.
+        Renderer subclasses may inspect the resolved prims or configure runtime state here.
+        The default implementation is a no-op.
 
         Args:
             stage: Scene stage the camera prims live on, or ``None``

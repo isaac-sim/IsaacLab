@@ -16,12 +16,13 @@ pytest.importorskip("isaaclab_physx")
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
+from isaaclab.renderers import BaseRenderer
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
+from isaaclab.sensors.camera import CameraCfg, CameraISPMode, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import clone, validate
+from isaaclab.utils import clone, instantiate, replace, validate
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -31,6 +32,43 @@ _SPAWN = PinholeCameraCfg(
     horizontal_aperture=20.955,
     clipping_range=(0.1, 1.0e5),
 )
+
+
+def test_camera_isp_is_resolved_during_construction():
+    """Authored and explicit ISP configurations are ready before physics or renderer initialization."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton.physics import NewtonCfg
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+    from isaaclab_ppisp import PpispCfg
+
+    from pxr import Sdf, UsdGeom
+
+    sim_cfg = sim_utils.SimulationCfg(device="cpu", physics=NewtonCfg())
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        prim = UsdGeom.Camera.Define(sim.stage, "/World/AuthoredCamera").GetPrim()
+        prim.CreateAttribute("ppisp:responsivity", Sdf.ValueTypeNames.Float).Set(3.0)
+        prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
+        cfg = CameraCfg(
+            prim_path="/World/AuthoredCamera", width=16, height=16, data_types=["rgb"],
+            spawn=None, isp_cfg=CameraISPMode.AUTO_CAMERA, renderer_cfg=NewtonWarpRendererCfg(),
+        )  # fmt: skip
+        authored = instantiate(cfg)
+        spawned = instantiate(replace(
+            cfg, prim_path="/World/SpawnedCamera", spawn=_SPAWN, isp_cfg=PpispCfg(inputs={"exposureOffset": 2.0}),
+        ))  # fmt: skip
+        without_isp = instantiate(replace(cfg, prim_path="/World/PlainCamera", spawn=_SPAWN))
+
+        assert isinstance(authored.cfg.isp_cfg, PpispCfg)
+        assert authored.cfg.isp_cfg.inputs["responsivity"] == 3.0
+        assert spawned.cfg.isp_cfg.inputs["exposureOffset"] == 2.0
+        assert spawned.cfg.isp_cfg.inputs["responsivity"] == 1.0
+        assert without_isp.cfg.isp_cfg is None
+        assert cfg.isp_cfg is CameraISPMode.AUTO_CAMERA
+        assert prim.GetAttribute("exposure").Get() == 2.0  # Newton does not use RTX exposure.
+        assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))
+        # Scene authoring belongs to camera construction, without a second renderer lifecycle.
+        assert not hasattr(BaseRenderer, "author_camera")
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])

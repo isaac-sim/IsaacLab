@@ -256,6 +256,15 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
+        # Complete camera authoring before cloning or importing the scene into a native backend.
+        if self.cfg.isp_cfg is not None:
+            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+
+            camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
+            self.cfg.isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, camera_paths[0])
+            if self.cfg.isp_cfg is not None and self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
+                apply_rtx_exposure_overrides(self.stage, camera_paths)
+
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
         # when the run is otherwise headless. This must happen before plan dispatch, which is why
         # it is here rather than in ``_initialize_impl``.
@@ -296,7 +305,6 @@ class Camera(SensorBase):
         self._data: CameraData | None = None
         # Register before clone dispatch; sensor initialization runs only after physics is ready.
         self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-        self._renderer.author_camera(self.stage, self.cfg)
         with force_log_level(logging.INFO):
             logger.info("Using renderer: %s", type(self._renderer).__name__)
         # Render data — assigned in _initialize_impl.
@@ -689,9 +697,7 @@ class Camera(SensorBase):
             raise RuntimeError("SimulationContext is not initialized.")
         sim_ctx.get_scene_data_provider().cameras[self.cfg.prim_path] = self
 
-        # Build the render spec early — both the wrapper ISP (which delegates
-        # any renderer-side per-camera setup) and ``create_render_data`` consume
-        # it, and the prims are already authored at this point.
+        # Runtime paths and instance counts are available after physics initialization.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         render_spec = CameraRenderSpec(
             cfg=self.cfg,

@@ -1,3 +1,4 @@
-* Added ``BaseRenderer.author_camera(stage, cfg)`` for USD overrides before physics population, so shared
-  stages included camera exposure settings at initial import. Kept ``prepare_cameras(stage, spec)`` at
-  initialization with the final runtime specification and retained the registry-owned renderer across resets.
+* Resolved ``CameraCfg.isp_cfg`` and authored RTX exposure overrides during camera construction, before
+  scene cloning or native import, including cameras with ``spawn=None``. Authored PPISP settings must be
+  present before constructing the sensor. Renderers now consumed the prepared configuration and retained
+  their normal runtime initialization; registry-owned renderers remained available across sensor resets.
