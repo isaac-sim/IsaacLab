@@ -4,11 +4,10 @@
 Actuators
 =========
 
-An articulated system moves through its actuated joints. Physical joints may use active components,
-such as electric or hydraulic motors, or passive components, such as springs and friction. These
-components can introduce finite torque, speed limits, delays, and gearbox effects.
+Actuators model how joints respond to commands, including torque and speed limits,
+delays, springs, friction, and gearbox effects.
 
-Isaac Lab exposes two ways to reproduce that behavior in simulation:
+Isaac Lab supports two approaches:
 
 * **Implicit actuators** pass position and velocity gains to the physics engine, which runs a
   spring-damper (PD) controller in its solver. This is a low-overhead option when the built-in PD
@@ -31,148 +30,6 @@ articulation setters; see :ref:`actuators-migrating-setters`.
     :local:
     :depth: 1
 
-
-Quick usage
------------
-
-Declare one or more actuator groups in the articulation config. Each group selects a disjoint set
-of joints by regular expression and chooses a model:
-
-.. code-block:: python
-
-    from isaaclab.actuators import ImplicitActuatorCfg
-    from isaaclab.assets import ArticulationCfg
-
-    robot_cfg = ArticulationCfg(
-        spawn=...,  # your USD / spawner config
-        actuators={
-            "legs": ImplicitActuatorCfg(
-                joint_names_expr=[".*_hip_.*", ".*_knee_.*"],
-                stiffness=40.0,
-                damping=2.0,
-                joint_effort_limit=80.0,
-            ),
-        },
-    )
-
-At runtime, send commands through :attr:`~isaaclab.actuators.ActuatorCollection.target_command`. Position
-and velocity commands are expressed in joint-side coordinates, and every command buffer is indexed
-by articulation joint. The setters are keyword-only and default to all environments and all joints:
-
-.. code-block:: python
-
-    import torch
-
-    # desired position for every joint of every environment
-    values = torch.full((robot.num_instances, robot.num_joints), 0.5, device=robot.device)
-    robot.actuators.target_command.set_position_index(value=values)
-
-The articulation stages and submits actuator commands inside
-:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Isaac Lab-managed models and the shared
-host adapter run during this call. Newton-native controllers finish processing inside the solver.
-The following sections describe this pipeline, the available models, and their parameters.
-
-
-.. _actuators-pipeline:
-
-The actuator pipeline
----------------------
-
-Setting an actuator command does not write directly to the solver. Commands first enter the
-collection. Each group then follows one of three execution paths:
-
-#. **Command view** -- ``actuators.target_command.set_*_index`` and ``_mask`` write desired position,
-   velocity, and effort into joint-indexed buffers.
-#. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
-   commands, and telemetry. Actuator models retain their own gains and temporary state.
-#. **Execution path** -- an Isaac Lab explicit model computes and clips effort, an implicit drive
-   applies targets with solver-side PD gains, or a native actuator runs through Newton or the shared
-   host adapter.
-
-For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
-velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
-submitted-command telemetry for them. PhysX and OVPhysX process commands during
-``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
-:ref:`actuators-native` for supported native models and limitations.
-
-.. figure:: ../_static/actuators/pipeline-light.png
-    :class: only-light
-    :align: center
-    :width: 90%
-    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
-        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
-        shared PhysX/OVPhysX host adapter before submission.
-
-.. figure:: ../_static/actuators/pipeline-dark.png
-    :class: only-dark
-    :align: center
-    :width: 90%
-    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
-        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
-        shared PhysX/OVPhysX host adapter before submission.
-
-Implicit and explicit groups store gains differently:
-
-* For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
-  :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written to the solver, which
-  runs the PD law. ``compute()`` passes the desired targets through unchanged while recording an
-  approximate torque for telemetry.
-* For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
-  solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
-  ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
-  actuator model, not the solver.
-
-Gains configured for an actuator group are separate from
-:attr:`~isaaclab.assets.ArticulationData.joint_stiffness` and
-:attr:`~isaaclab.assets.ArticulationData.joint_damping`. Those data fields report solver drive
-gains. They match implicit gains after initialization and are zero for explicit actuator joints.
-They do not mirror actuator-model gains.
-
-
-.. _actuators-joint-property-ownership:
-
-Joint and actuator property ownership
---------------------------------------
-
-An actuator configuration selects joints and can override their properties during construction.
-Isaac Lab resolves ``joint_effort_limit``, ``joint_velocity_limit``, armature, friction, and
-implicit drive gains when it builds the articulation.
-:class:`~isaaclab.assets.ArticulationData` holds the live values, including
-``joint_effort_limits``, ``joint_vel_limits``, ``joint_armature``, and supported friction
-properties. Use articulation data and joint writers to read or change them.
-:class:`~isaaclab.actuators.ActuatorCollection` has no joint-property API.
-
-The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
-``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
-from articulation data and use the corresponding joint writers. The deprecated
-``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
-See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
-
-Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
-delay, and motor curves. They do not store separate solver-limit or friction values. Because the
-backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
-live articulation properties; assigning to these properties is ignored with a warning — use the
-articulation joint writers or the ``randomize_actuator_gains`` event instead.
-
-Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
-Newton ``Actuator`` object, whose controller keeps its parameters separate from solver gains.
-Read or modify its components (``controller``, ``delay``, ``clamping``) directly for raw access,
-or use :func:`~isaaclab.actuators.newton.read_group_parameter` and
-:func:`~isaaclab.actuators.newton.write_group_parameter` for group-scoped access in
-public joint order with environment selection.
-
-``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
-``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
-different values. Explicit models clip output to ``actuator_effort_limit``;
-``joint_effort_limit`` limits the solver.
-``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
-implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
-enforce it differently, solver velocity limits are not portable clamps. ``effort_limit`` and
-``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
-resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``.
-An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
-to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
-live solver limit.
 
 Choosing a model
 -----------------
@@ -241,6 +98,174 @@ for linkages whose effective lever arm changes through their range of motion.
 **ActuatorNetMLP / ActuatorNetLSTM.** Learned torque models that use joint-position error and
 velocity history and clip output with the DC-motor envelope. They require a TorchScript checkpoint.
 See the :mod:`isaaclab.actuators` API reference for configuration details.
+
+
+Quick usage
+-----------
+
+Declare one or more actuator groups in the articulation config. Each group selects a disjoint set
+of joints by regular expression and chooses a model:
+
+.. code-block:: python
+
+    from isaaclab.actuators import ImplicitActuatorCfg
+    from isaaclab.assets import ArticulationCfg
+
+    robot_cfg = ArticulationCfg(
+        spawn=...,  # your USD / spawner config
+        actuators={
+            "legs": ImplicitActuatorCfg(
+                joint_names_expr=[".*_hip_.*", ".*_knee_.*"],
+                stiffness=40.0,
+                damping=2.0,
+                joint_effort_limit=80.0,
+            ),
+        },
+    )
+
+At runtime, send commands through :attr:`~isaaclab.actuators.ActuatorCollection.target_command`. Position
+and velocity commands are expressed in joint-side coordinates, and every command buffer is indexed
+by articulation joint. The setters are keyword-only and default to all environments and all joints:
+
+.. code-block:: python
+
+    import torch
+
+    # desired position for every joint of every environment
+    values = torch.full((robot.num_instances, robot.num_joints), 0.5, device=robot.device)
+    robot.actuators.target_command.set_position_index(value=values)
+
+The articulation stages and submits actuator commands inside
+:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Isaac Lab-managed models and the shared
+host adapter run during this call. Newton-native controllers finish processing inside the solver.
+See :ref:`actuators-pipeline` for the execution paths and backend details.
+
+
+.. _actuators-runtime-api:
+
+Runtime API: ``articulation.actuators``
+---------------------------------------
+
+Group access
+^^^^^^^^^^^^
+
+:attr:`~isaaclab.assets.Articulation.actuators` is an
+:class:`~isaaclab.actuators.ActuatorCollection`, a read-only ``Mapping`` from group name to
+whoever owns the group. Isaac Lab-executed groups map to their
+:class:`~isaaclab.actuators.ActuatorBase` model instances. Newton-executed groups map to the
+Newton ``Actuator`` objects that drive their joints — no Isaac Lab model exists for them, so
+their controller parameters are read and modified on the owning object (see
+:ref:`actuators-native`). Membership is fixed after construction, so you can look up and iterate
+groups but not add, replace, or delete them:
+
+.. code-block:: python
+
+    legs = robot.actuators["legs"]          # the group's owner: an ActuatorBase, or a
+                                            # Newton Actuator under use_newton_actuators=True
+    for name, actuator in robot.actuators.items():
+        print(name, type(actuator).__name__)
+
+Configure topology before creating the articulation:
+
+.. code-block:: python
+
+    robot_cfg.actuators["gripper"] = ImplicitActuatorCfg(...)
+    robot = Articulation(robot_cfg)
+
+At runtime, both ``robot.actuators["gripper"] = ...`` and
+``del robot.actuators["gripper"]`` raise :class:`TypeError`. Group membership and joint coverage
+are fixed when the articulation is created.
+
+Commands, telemetry, and lifecycle
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Setting actuator commands.** The mutable ``target_command`` view contains the desired position,
+velocity, and effort. Use index setters with environment or joint index lists and tensors. Use mask
+setters when you already have boolean Warp masks. All setters are keyword-only:
+
+.. code-block:: python
+
+    import torch
+
+    ids = torch.tensor([0, 1], device=robot.device)          # first two joints
+    env_ids = torch.arange(robot.num_instances, device=robot.device)
+    sub = torch.zeros((env_ids.numel(), ids.numel()), device=robot.device)
+    robot.actuators.target_command.set_position_index(value=sub, joint_ids=ids, env_ids=env_ids)
+
+``env_ids`` and ``joint_ids`` must not contain duplicates. Duplicate indices write to the same
+destination concurrently, so the result is undefined. Remove duplicates or use a boolean mask,
+which selects each destination at most once.
+
+By default, ``value`` has shape ``(len(env_ids), len(joint_ids))``. Pass ``full_data=True`` when
+``value`` already has shape ``(num_instances, num_joints)``. The setter then reads the selected
+values directly from the full buffer.
+
+**Reading commands and telemetry.** ``target_command`` contains the desired values staged for
+actuator processing. For Isaac Lab-managed models, ``output_command`` contains the processed joint
+commands.
+Native paths bypass this view, so it does not show submitted commands. Newton processes commands in
+the solver, while PhysX and OVPhysX process them through the shared host adapter during
+``write_data_to_sim()``. Access the arrays through ``.torch`` or ``.warp``:
+
+.. code-block:: python
+
+    desired_position = robot.actuators.target_command.position.torch
+    processed_effort = robot.actuators.output_command.effort.torch  # Isaac Lab-managed path
+    applied = robot.actuators.applied_effort.torch      # after clipping [N·m or N]
+    computed = robot.actuators.computed_effort.torch   # before clipping [N·m or N]
+
+:attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` is the model output before clipping.
+:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` is the value after clipping. For
+implicit actuators, these are approximate efforts recorded for rewards and telemetry.
+
+**Randomizing gains.** Gain updates depend on the actuator implementation. Managed environments
+should use the ``randomize_actuator_gains`` event. It updates actuator-owned gains, implicit solver
+drives, or native-controller parameters as appropriate. There is no generic collection-level
+stiffness or damping writer.
+
+**Lifecycle.** Do not call ``compute()`` or ``submit_commands()`` directly. The articulation resets
+actuators during environment resets. It runs actuator compute, staging, and submission from
+:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Call this method before advancing the
+simulation, or let the scene or environment loop call it. The effort telemetry reflects its most
+recent call. Newton-native processing continues inside the solver; host-adapter processing finishes
+during the call.
+
+.. _actuators-migrating-setters:
+
+.. rubric:: Migrating from the deprecated setters
+
+Joint commands were previously set on the articulation. Those methods now forward to the collection
+and emit a :class:`DeprecationWarning`:
+
+.. code-block:: python
+
+    # Before (deprecated)
+    robot.set_joint_position_target(target, joint_ids=ids)
+
+    # After
+    robot.actuators.target_command.set_position_index(value=target, joint_ids=ids)
+
+LEAPP-exported action terms must keep using the annotated articulation ``*_index`` or ``*_mask``
+setters until the exporter supports collection setters. Other runtime code should migrate to the
+collection API.
+
+The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
+``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
+``robot.actuators.computed_effort`` / ``robot.actuators.applied_effort``. See the
+:doc:`Isaac Lab 3.0 migration guide <../isaaclab/migrating>` for the full table.
+
+
+Value resolution: USD vs. ActuatorCfg
+-------------------------------------
+
+Gains and limits can come from the USD joint-drive prim or the actuator config. If a config field is
+``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
+schema supplies joint and body ordering, not actuator parameters.
+
+Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
+log the USD, configuration, and applied values for every joint when the sources differ or the
+configuration leaves a value unspecified. Unspecified values appear as ``Not Specified``. See
+:ref:`how-to-write-articulation-config` for examples and the limit table.
 
 
 .. _actuators-parameter-reference:
@@ -495,43 +520,64 @@ zero because the gains belong to the actuator model.
     :alt: Overlaid implicit and explicit PD step responses at identical gains.
 
 
-.. _actuators-runtime-api:
+.. _actuators-pipeline:
 
-Runtime API: ``articulation.actuators``
----------------------------------------
+The actuator pipeline
+---------------------
 
-Group access
-^^^^^^^^^^^^
+Setting an actuator command does not write directly to the solver. Commands first enter the
+collection. Each group then follows one of three execution paths:
 
-:attr:`~isaaclab.assets.Articulation.actuators` is an
-:class:`~isaaclab.actuators.ActuatorCollection`, a read-only ``Mapping`` from group name to
-whoever owns the group. Isaac Lab-executed groups map to their
-:class:`~isaaclab.actuators.ActuatorBase` model instances. Newton-executed groups map to the
-Newton ``Actuator`` objects that drive their joints — no Isaac Lab model exists for them, so
-their controller parameters are read and modified on the owning object (see
-:ref:`actuators-native`). Membership is fixed after construction, so you can look up and iterate
-groups but not add, replace, or delete them:
+#. **Command view** -- ``actuators.target_command.set_*_index`` and ``_mask`` write desired position,
+   velocity, and effort into joint-indexed buffers.
+#. **ActuatorCollection** -- routes groups and stages full-articulation commands, processed joint
+   commands, and telemetry. Actuator models retain their own gains and temporary state.
+#. **Execution path** -- an Isaac Lab explicit model computes and clips effort, an implicit drive
+   applies targets with solver-side PD gains, or a native actuator runs through Newton or the shared
+   host adapter.
 
-.. code-block:: python
+For Isaac Lab-managed models, ``actuators.output_command`` contains the processed position,
+velocity, and effort submitted to the backend. Native paths bypass this view, so it is not
+submitted-command telemetry for them. PhysX and OVPhysX process commands during
+``write_data_to_sim()``, while Newton-native controllers process them inside the solver. See
+:ref:`actuators-native` for supported native models and limitations.
 
-    legs = robot.actuators["legs"]          # the group's owner: an ActuatorBase, or a
-                                            # Newton Actuator under use_newton_actuators=True
-    for name, actuator in robot.actuators.items():
-        print(name, type(actuator).__name__)
+.. figure:: ../_static/actuators/pipeline-light.png
+    :class: only-light
+    :align: center
+    :width: 90%
+    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
+        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
+        shared PhysX/OVPhysX host adapter before submission.
 
-Configure topology before creating the articulation:
+.. figure:: ../_static/actuators/pipeline-dark.png
+    :class: only-dark
+    :align: center
+    :width: 90%
+    :alt: Three actuator paths: Lab-managed models execute before submission, implicit drives
+        execute in the solver, and native models execute in the Newton/MJWarp solver or in the
+        shared PhysX/OVPhysX host adapter before submission.
 
-.. code-block:: python
+Implicit and explicit groups store gains differently:
 
-    robot_cfg.actuators["gripper"] = ImplicitActuatorCfg(...)
-    robot = Articulation(robot_cfg)
+* For an **implicit** group, :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are written to the solver, which
+  runs the PD law. ``compute()`` passes the desired targets through unchanged while recording an
+  approximate torque for telemetry.
+* For an **explicit** group, the same gains are consumed by the model to compute a torque, and the
+  solver's own PD gains for those joints are set to zero. Reading ``data.joint_stiffness`` or
+  ``data.joint_damping`` on an explicit joint therefore returns **zero** -- the gains live in the
+  actuator model, not the solver.
 
-At runtime, both ``robot.actuators["gripper"] = ...`` and
-``del robot.actuators["gripper"]`` raise :class:`TypeError`. Group membership and joint coverage
-are fixed when the articulation is created.
+Gains configured for an actuator group are separate from
+:attr:`~isaaclab.assets.ArticulationData.joint_stiffness` and
+:attr:`~isaaclab.assets.ArticulationData.joint_damping`. Those data fields report solver drive
+gains. They match implicit gains after initialization and are zero for explicit actuator joints.
+They do not mirror actuator-model gains.
+
 
 Logical groups and execution batches
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Named groups such as ``hips`` and ``knees`` remain distinct when you configure or access them.
 A single internal executor computes all plain implicit groups in one fused kernel launch without
@@ -540,97 +586,54 @@ group; overlapping selections raise :class:`ValueError`. Explicit, stateful, neu
 subclassed groups execute one group at a time on the Isaac Lab path, and Newton-executed groups
 run inside the solver or host adapter. Fused execution is an internal optimization.
 
-Commands, telemetry, and lifecycle
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. _actuators-joint-property-ownership:
 
-**Setting actuator commands.** The mutable ``target_command`` view contains the desired position,
-velocity, and effort. Use index setters with environment or joint index lists and tensors. Use mask
-setters when you already have boolean Warp masks. All setters are keyword-only:
+Joint and actuator property ownership
+--------------------------------------
 
-.. code-block:: python
+An actuator configuration selects joints and can override their properties during construction.
+Isaac Lab resolves ``joint_effort_limit``, ``joint_velocity_limit``, armature, friction, and
+implicit drive gains when it builds the articulation.
+:class:`~isaaclab.assets.ArticulationData` holds the live values, including
+``joint_effort_limits``, ``joint_vel_limits``, ``joint_armature``, and supported friction
+properties. Use articulation data and joint writers to read or change them.
+:class:`~isaaclab.actuators.ActuatorCollection` has no joint-property API.
 
-    import torch
+The runtime group properties ``effort_limit_sim``, ``velocity_limit_sim``, ``armature``,
+``friction``, ``dynamic_friction``, and ``viscous_friction`` were removed. Read their live values
+from articulation data and use the corresponding joint writers. The deprecated
+``effort_limit_sim`` and ``velocity_limit_sim`` configuration aliases remain available through 3.x.
+See :ref:`actuators-solver-limit-migration` for replacement data views and writers.
 
-    ids = torch.tensor([0, 1], device=robot.device)          # first two joints
-    env_ids = torch.arange(robot.num_instances, device=robot.device)
-    sub = torch.zeros((env_ids.numel(), ids.numel()), device=robot.device)
-    robot.actuators.target_command.set_position_index(value=sub, joint_ids=ids, env_ids=env_ids)
+Explicit actuators store model state such as ``actuator_effort_limit``, rated ``actuator_velocity_limit``, gains,
+delay, and motor curves. They do not store separate solver-limit or friction values. Because the
+backend runs their drives, implicit actuators read stiffness, damping, and effort projection from
+live articulation properties; assigning to these properties is ignored with a warning — use the
+articulation joint writers or the ``randomize_actuator_gains`` event instead.
 
-``env_ids`` and ``joint_ids`` must not contain duplicates. Duplicate indices write to the same
-destination concurrently, so the result is undefined. Remove duplicates or use a boolean mask,
-which selects each destination at most once.
+Newton-executed groups have no Isaac Lab model at all: the collection mapping entry is the owning
+Newton ``Actuator`` object, whose controller keeps its parameters separate from solver gains.
+Read or modify its components (``controller``, ``delay``, ``clamping``) directly for raw access,
+or use :func:`~isaaclab.actuators.newton.read_group_parameter` and
+:func:`~isaaclab.actuators.newton.write_group_parameter` for group-scoped access in
+public joint order with environment selection.
 
-By default, ``value`` has shape ``(len(env_ids), len(joint_ids))``. Pass ``full_data=True`` when
-``value`` already has shape ``(num_instances, num_joints)``. The setter then reads the selected
-values directly from the full buffer.
+``actuator_effort_limit`` and ``actuator_velocity_limit`` apply to the actuator model.
+``joint_effort_limit`` and ``joint_velocity_limit`` apply to the joint or solver and can have
+different values. Explicit models clip output to ``actuator_effort_limit``;
+``joint_effort_limit`` limits the solver.
 
-**Reading commands and telemetry.** ``target_command`` contains the desired values staged for
-actuator processing. For Isaac Lab-managed models, ``output_command`` contains the processed joint
-commands.
-Native paths bypass this view, so it does not show submitted commands. Newton processes commands in
-the solver, while PhysX and OVPhysX process them through the shared host adapter during
-``write_data_to_sim()``. Access the arrays through ``.torch`` or ``.warp``:
+``actuator_velocity_limit`` is the model's rated joint-side speed, or a soft-limit snapshot for
+implicit actuators. ``joint_velocity_limit`` requests a solver constraint. Because backends
+enforce it differently, solver velocity limits are not portable clamps.
 
-.. code-block:: python
+``effort_limit`` and
+``velocity_limit`` are deprecated configuration and runtime group aliases. ``velocity_limit``
+resolves to ``actuator_velocity_limit``; ``effort_limit`` resolves to ``actuator_effort_limit``.
 
-    desired_position = robot.actuators.target_command.position.torch
-    processed_effort = robot.actuators.output_command.effort.torch  # Isaac Lab-managed path
-    applied = robot.actuators.applied_effort.torch      # after clipping [N·m or N]
-    computed = robot.actuators.computed_effort.torch   # before clipping [N·m or N]
-
-:attr:`~isaaclab.actuators.ActuatorCollection.computed_effort` is the model output before clipping.
-:attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` is the value after clipping. For
-implicit actuators, these are approximate efforts recorded for rewards and telemetry.
-
-**Randomizing gains.** Gain updates depend on the actuator implementation. Managed environments
-should use the ``randomize_actuator_gains`` event. It updates actuator-owned gains, implicit solver
-drives, or native-controller parameters as appropriate. There is no generic collection-level
-stiffness or damping writer.
-
-**Lifecycle.** Do not call ``compute()`` or ``submit_commands()`` directly. The articulation resets
-actuators during environment resets. It runs actuator compute, staging, and submission from
-:meth:`~isaaclab.assets.Articulation.write_data_to_sim`. Call this method before advancing the
-simulation, or let the scene or environment loop call it. The effort telemetry reflects its most
-recent call. Newton-native processing continues inside the solver; host-adapter processing finishes
-during the call.
-
-.. _actuators-migrating-setters:
-
-.. rubric:: Migrating from the deprecated setters
-
-Joint commands were previously set on the articulation. Those methods now forward to the collection
-and emit a :class:`DeprecationWarning`:
-
-.. code-block:: python
-
-    # Before (deprecated)
-    robot.set_joint_position_target(target, joint_ids=ids)
-
-    # After
-    robot.actuators.target_command.set_position_index(value=target, joint_ids=ids)
-
-LEAPP-exported action terms must keep using the annotated articulation ``*_index`` or ``*_mask``
-setters until the exporter supports collection setters. Other runtime code should migrate to the
-collection API.
-
-The data accessors also moved: ``articulation.data.joint_pos_target`` becomes
-``robot.actuators.target_command.position``, and ``data.computed_torque`` / ``data.applied_torque`` become
-``robot.actuators.computed_effort`` / ``robot.actuators.applied_effort``. See the
-:doc:`Isaac Lab 3.0 migration guide <../isaaclab/migrating>` for the full table.
-
-
-Value resolution: USD vs. ActuatorCfg
--------------------------------------
-
-Gains and limits can come from the USD joint-drive prim or the actuator config. If a config field is
-``None``, Isaac Lab uses the USD value. A value set in the config overrides the USD value. The robot
-schema supplies joint and body ordering, not actuator parameters.
-
-Set :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` to
-log the USD, configuration, and applied values for every joint when the sources differ or the
-configuration leaves a value unspecified. Unspecified values appear as ``Not Specified``. See
-:ref:`how-to-write-articulation-config` for examples and the limit table.
-
+An implicit group may configure ``actuator_effort_limit`` separately from ``joint_effort_limit``
+to keep a rated model-facing limit distinct from the solver clamp; when unset, it tracks the
+live solver limit.
 
 .. _actuators-native:
 
@@ -748,7 +751,8 @@ Submission differs by backend, but the collection interface is the same:
 For explicit actuators, solver stiffness and damping are zero on every backend because the actuator
 model owns the gains.
 
-This page does **not** cover:
+Where to go next
+----------------
 
 * Motion generators or low-level control modes -- see
   :doc:`/source/concepts/motion_generators`.

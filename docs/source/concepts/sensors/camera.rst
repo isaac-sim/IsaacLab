@@ -6,14 +6,12 @@
 Camera
 ======
 
-A :class:`~sensors.Camera` defines what to capture: camera pose, projection, resolution, sampling
-period, and output data types. A renderer defines how those images are produced. Keeping these
-responsibilities separate lets one camera configuration work with different physics and rendering
-backends.
+A :class:`~sensors.Camera` sets the pose, projection, resolution, sampling period,
+and outputs to capture. The renderer produces the images, so one camera
+configuration can work across supported physics and rendering backends.
 
-Camera data is expensive compared with low-dimensional state. Isaac Lab therefore batches the
-camera copies from cloned environments into tiled render passes and exposes the de-tiled result as
-one device-resident buffer per requested output.
+Isaac Lab batches camera views from cloned environments into tiled render passes.
+Each requested output is returned as one GPU buffer with a separate image per view.
 
 For silent black or corrupted RTX camera images when scaling the workload, see
 :ref:`known-issues-rtx-buffer-limit`.
@@ -213,9 +211,8 @@ non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path ma
 Renderer support
 ~~~~~~~~~~~~~~~~
 
-The common API does not imply that every renderer produces every output. For same-scene examples
-across these backends, see the :ref:`renderer visual comparison <renderer-visual-comparison>`. The
-current support matrix is:
+Supported outputs vary by renderer. See the table below and the
+:ref:`visual comparison <renderer-visual-comparison>` for examples.
 
 .. list-table::
    :header-rows: 1

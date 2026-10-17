@@ -22,11 +22,11 @@ The core objectives of the framework are:
 - **Batteries-included**: Include a number of environments, sensors, and tasks that are ready to use.
 
 Key features available in Isaac Lab include GPU-accelerated physics simulation with **PhysX** and
-**Newton**, an experimental **OvPhysX** backend, vectorized camera rendering with **Newton Warp** and
+**Newton**, the **OvPhysX** backend, vectorized camera rendering with **Newton Warp** and
 **RTX** renderers, domain randomization, and support for running in the cloud. Newton also supports
 soft bodies, cloth, and experimental cables through its VBD solver, along with experimental particle
 materials and coupled solvers for rigid--deformable interactions. See
-:doc:`source/concepts/physics_backends` for backend support and maturity.
+:doc:`source/concepts/physics_backends` for backend features and requirements.
 
 .. note::
 
@@ -116,21 +116,20 @@ Table of Contents
    :titlesonly:
    :caption: Concepts
 
+   source/concepts/task_workflows
+   source/concepts/reinforcement_learning
    source/concepts/backends_and_presets
    source/concepts/physics_backends
    source/concepts/solver_differences
-   source/concepts/native-physics-api/index
-   source/concepts/renderers
    source/concepts/actuators
-   source/concepts/sensors/index
-   source/concepts/coupled_solvers
-   source/concepts/visualization
-   source/concepts/reinforcement_learning
-   source/concepts/deformables
-   source/concepts/schema_cfgs
-   source/concepts/schema_fragments
-   source/concepts/task_workflows
    source/concepts/motion_generators
+   source/concepts/sensors/index
+   source/concepts/renderers
+   source/concepts/visualization
+   source/concepts/deformables
+   source/concepts/coupled_solvers
+   source/concepts/schema_cfgs
+   source/concepts/native-physics-api/index
 
 
 .. toctree::
@@ -153,10 +152,10 @@ Table of Contents
 
    source/developer-tools/editor_setup
    source/developer-tools/template_generator
+   source/developer-tools/benchmarking/index
+   source/developer-tools/agent_skills
    source/developer-tools/add_physics_backend
    source/developer-tools/extending_newton_solvers
-   source/developer-tools/agent_skills
-   source/developer-tools/benchmarking/index
 
 
 .. toctree::
@@ -165,6 +164,7 @@ Table of Contents
    :caption: Experimental Features
 
    source/experimental-features/bleeding-edge
+   source/concepts/warp_environments
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
@@ -180,16 +180,9 @@ Table of Contents
 .. toctree::
    :maxdepth: 1
    :titlesonly:
-   :caption: Source API
-
-   source/api/index
-
-.. toctree::
-   :maxdepth: 1
-   :titlesonly:
    :caption: References
 
-
+   source/api/index
    source/refs/additional_resources
    source/refs/contributing
    source/refs/troubleshooting

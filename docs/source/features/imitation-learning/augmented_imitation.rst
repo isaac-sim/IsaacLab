@@ -3,7 +3,8 @@
 Augmented Imitation Learning
 ============================
 
-This section describes how to use Isaac Lab's imitation learning capabilities with the visual augmentation capabilities of `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ models to generate demonstrations at scale to train visuomotor policies robust against visual variations.
+Use `Cosmos <https://www.nvidia.com/en-us/ai/cosmos/>`_ to add visual variation to
+Isaac Lab demonstrations, then train visuomotor policies on the augmented data.
 
 
 .. important::
@@ -12,12 +13,13 @@ This section describes how to use Isaac Lab's imitation learning capabilities wi
 Generating Demonstrations
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We use the Isaac Lab Mimic feature that allows the generation of additional demonstrations automatically from a handful of annotated demonstrations.
+Isaac Lab Mimic generates additional demonstrations from a small annotated dataset.
 
 .. note::
     This section assumes you already have an annotated dataset of collected demonstrations. If you don't, you can follow the instructions in :ref:`teleoperation-imitation-learning` to collect and annotate your own demonstrations.
 
-In the following example, we will show you how to use Isaac Lab Mimic to generate additional demonstrations that can be used to train a visuomotor policy directly or can be augmented with visual variations using Cosmos (using the ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0`` environment).
+Generate data with ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0``.
+You can train on it directly or augment its appearance with Cosmos.
 
 .. note::
     The ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0`` environment is similar to the standard visuomotor environment (``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Mimic-v0``), but with the addition of segmentation masks, depth maps, and normal maps in the generated dataset. These additional modalities are required to get the best results from the visual augmentation done using Cosmos.
@@ -207,9 +209,13 @@ In case you want to create your own prompts, we suggest you refer to the followi
 
 2. Try to keep the augmentation instructions as realistic and coherent as possible. The more unrealistic or unconventional the prompt is, the worse the model does at retaining key features of the input control video(s).
 
-3. Keep the augmentation instructions in-sync for each aspect. What we mean by this is that the augmentation for all the objects/regions of interest should be coherent and conventional with respect to each other. For example, it is better to have a prompt such as "The table is of old dark wood with faded polish and food stains and the background consists of a suburban home" instead of something like "The table is of old dark wood with faded polish and food stains and the background consists of a spaceship hurtling through space".
+3. Keep object and background descriptions consistent. For example, an old wooden
+   table fits naturally in a suburban home; an unrelated spaceship background may
+   produce a less coherent scene.
 
-4. It is vital to include details on key aspects of the input control video(s) that should be retained or left unchanged. In our prompts, we very clearly mention that the cube colors should be left unchanged such that the bottom cube is blue, the middle is red and the top is green. Note that we not only mention what should be left unchanged but also give details on what form that aspect currently has.
+4. State which details must stay unchanged and describe them explicitly. For this
+   task, preserve the cube colors: blue at the bottom, red in the middle, and green
+   at the top.
 
 Example command to use the Cosmos Transfer1 model for this usecase:
 

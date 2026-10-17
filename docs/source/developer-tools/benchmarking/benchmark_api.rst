@@ -3,11 +3,9 @@
 Use the benchmark API
 =====================
 
-This guide is for automation authors who need to run supported benchmarks from
-Python, consume typed results, or add a benchmark producer. For day-to-day
-benchmarking, start with the CLI workflows and interpretation guidance in
-:ref:`developer_tools_benchmarking_run`. To isolate one asset method, cached
-property, or sensor update, use :ref:`developer_tools_benchmarking_micro`.
+Use the Python API to run benchmarks, read typed results, or add a custom producer.
+For command-line workflows, see :ref:`developer_tools_benchmarking_run`. For
+individual asset operations and sensor updates, see :ref:`developer_tools_benchmarking_micro`.
 
 Run one workflow
 ----------------

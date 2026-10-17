@@ -11,7 +11,7 @@
 Tune Kamino
 ===========
 
-Kamino is a beta Newton solver selected through a task-exposed
+Kamino is a Newton solver selected through a task-exposed
 ``newton_kamino`` preset. This guide isolates and measures a reproducible
 problem before changing its solver settings. The generated API documentation
 for :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and

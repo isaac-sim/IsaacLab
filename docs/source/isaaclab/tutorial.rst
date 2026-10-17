@@ -458,6 +458,6 @@ Keep these invariants as the task evolves:
 * Tests cover observable task contracts, while a benchmark checks that changes did not move expensive work into the
   per-environment step loop.
 
-From here, use :ref:`Task Design Workflows <feature-workflows>` for the manager/direct architecture,
+From here, use :ref:`Direct and Manager MDP <feature-workflows>` for the manager/direct architecture,
 :ref:`Reinforcement Learning <rl-frameworks>` for framework details, and
 :doc:`Hydra Configuration System </source/features/hydra>` for command-line overrides.

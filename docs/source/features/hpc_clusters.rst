@@ -3,16 +3,12 @@
 Running on HPC Clusters
 =======================
 
-Clusters are a great way to speed up training and evaluation of learning algorithms.
-While the Isaac Lab Docker image can be used to run jobs on a cluster, many clusters only
-support singularity images. This is because `singularity`_ is designed for
-ease-of-use on shared multi-user systems and high performance computing (HPC) environments.
-It does not require root privileges to run containers and can be used to run user-defined
-containers.
+Many HPC clusters run containers through `singularity`_, which supports shared
+systems without requiring root privileges. Use the workflow below to run Isaac Lab
+training and evaluation jobs on these clusters.
 
-Singularity is compatible with all Docker images. This page describes how to convert the
-:ref:`Isaac Lab Docker image <deployment-docker>` into a singularity image and use it to submit jobs
-to a cluster.
+Convert the :ref:`Isaac Lab Docker image <deployment-docker>` to a Singularity
+image, upload it, and submit a job to your cluster.
 
 .. attention::
 
@@ -27,9 +23,8 @@ to a cluster.
 Prerequisites
 -------------
 
-In order to export the Docker Image to a singularity image, `apptainer`_ is required.
-A detailed overview of the installation procedure for ``apptainer`` can be found in its
-`documentation`_. For convenience, we summarize the steps here for a local installation:
+Install `apptainer`_ to export the image. The steps below install it locally; see
+its `documentation`_ for other installation options.
 
 .. code:: bash
 
@@ -39,9 +34,8 @@ A detailed overview of the installation procedure for ``apptainer`` can be found
     sudo apt update
     sudo apt install -y apptainer
 
-For simplicity, we recommend that an SSH connection is set up between the local
-development machine and the cluster. Such a connection will simplify the file transfer and prevent
-the user cluster password from being requested multiple times.
+Set up SSH access from your development machine to the cluster to simplify file
+transfers and avoid repeated password prompts.
 
 .. attention::
   The workflow has been tested with:
@@ -76,10 +70,8 @@ should be correct by default.
 Exporting the Apptainer image
 -----------------------------
 
-Next, we need to export the Docker image to a singularity image and upload
-it to the cluster. This step is only required once when the first job is submitted
-or when the Docker image is updated. For instance, due to an upgrade of the Isaac Sim
-version, or additional requirements for your project.
+Export and upload the image before your first job, then repeat this step whenever
+the Docker image changes, such as after an Isaac Sim or dependency update.
 
 To export to a singularity image, execute the following command:
 
@@ -163,7 +155,7 @@ node and ``CLUSTER_ISAACLAB_DIR``.
 
 ``[profile]`` is an optional argument that specifies which singularity image corresponding to the  container profile
 will be used. If no profile is specified, the default profile ``base`` will be used. The profile has be defined
-directlty after the ``job`` command. All other arguments are passed to the Python executable. If no profile is
+directly after the ``job`` command. All other arguments are passed to the Python executable. If no profile is
 defined, all arguments are passed to the Python executable.
 
 The training arguments are passed to the Python executable. As an example, the standard

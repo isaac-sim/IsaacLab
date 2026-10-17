@@ -10,18 +10,16 @@ Native Physics API Access
 
 .. warning::
 
-   Native physics APIs are backend-specific escape hatches. They can bypass
-   Isaac Lab's buffering, validation, ordering, and lifecycle management. Use
-   the unified asset and sensor APIs unless an engine-native capability or a
-   lower-overhead data path is required.
+   Native APIs can bypass Isaac Lab's buffering, validation, ordering, and lifecycle
+   management. Use them when the shared asset and sensor APIs lack the data or
+   performance you need.
 
 Choose an access level
 ----------------------
 
-Use native access only when the unified APIs do not provide a capability or
-data path that the workload needs. Keep it close to the component that owns the
-simulation state. For the portable API boundary and backend lifecycle, see
-:ref:`backend-architecture`.
+Keep native access in the component that owns the simulation state. Prefer the
+first option below that meets your needs. See :ref:`backend-architecture` for
+shared interfaces and resource lifetimes.
 
 #. Use the unified Isaac Lab data and write APIs for portable task code.
 #. Reuse an Isaac Lab-owned native handle when its selection already matches.

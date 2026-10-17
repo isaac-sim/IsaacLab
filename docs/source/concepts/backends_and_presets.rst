@@ -8,22 +8,12 @@
 Backends and Presets
 ====================
 
-.. seealso::
 
-   This page is the source of truth for the ``isaaclab-selecting-backends`` and
-   ``isaaclab-using-presets`` agent skills
-   (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
-   `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
-   When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/developer-tools/agent_skills`.
+An environment defines the robot, scene, sensors, and task. A **backend** runs the
+physics or rendering. A **preset** selects a named configuration, so you can switch
+backends or task modes without editing Python.
 
-An Isaac Lab environment describes the robot, scene, sensors, and task. A
-**backend** supplies the physics or rendering implementation that brings that
-description to life. A **preset** is a named, tested configuration choice that
-lets you switch implementations or task modes without editing Python.
-
-In practice, the same environment can run with a different physics engine,
-renderer, or observation mode by adding a short selector:
+To select a physics preset, add it to your launch command:
 
 .. code-block:: bash
 
@@ -34,11 +24,12 @@ The task stays ``Isaac-Cartpole-Direct``. The preset changes the configuration
 used to launch it.
 
 
-The mental model
-----------------
+.. _the-mental-model:
 
-Think of an environment as the experiment and presets as the knobs that select
-tested versions of its larger building blocks:
+What you can select
+-------------------
+
+Tasks can expose three kinds of choices:
 
 .. code-block:: text
 
@@ -47,14 +38,205 @@ tested versions of its larger building blocks:
    ├── renderer=...   Which renderer produces camera data?
    └── presets=...    Which task-specific mode or config bundle is used?
 
-After configuration is resolved, Isaac Lab's common asset, sensor, and scene
-APIs dispatch to the selected backend implementation. Environment code can use
-the same public API across PhysX, Newton, and OvPhysX instead of branching on
-the active engine throughout the task.
+The asset, sensor, and scene APIs stay the same across supported backends.
+See :ref:`backend-architecture` for how Isaac Lab selects the implementation.
 
 Physics, rendering, and visualization are separate choices. For example, a
 camera environment can use Newton physics with the Newton Warp renderer, while
 the visualizer is selected independently with ``--viz``.
+
+
+Find what a task supports
+-------------------------
+
+Check which presets a task supports with ``--help``:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera-Direct --help
+
+The help output groups names by ``physics=``, ``renderer=``, and ``presets=``.
+To list the combinations each registered environment can launch, run:
+
+.. code-block:: bash
+
+   uv run isaaclab list_envs --show_presets
+
+Each line lists a combination that passes configuration checks for a headless
+launch; ``[default]`` marks the task default. Some combinations are incompatible:
+OvPhysX and OVRTX cannot share a process with Isaac Sim / Kit, and tasks may impose
+other restrictions. Use ``--keyword`` to narrow the search; checking every
+combination takes a few seconds per task.
+
+A task listed only with ``(defaults)`` uses its registered default
+configuration and does not expose alternatives. Passing a name that a task does
+not list is unsupported and fails during configuration validation.
+
+
+Choose a selector
+-----------------
+
+.. list-table::
+   :widths: 23 32 45
+   :header-rows: 1
+
+   * - Selector
+     - Example
+     - What it changes
+   * - ``physics=NAME``
+     - ``physics=newton_mjwarp``
+     - Selects a physics configuration, including its backend and solver.
+   * - ``renderer=NAME``
+     - ``renderer=newton_renderer``
+     - Selects a renderer configuration for tasks that produce camera data.
+   * - ``presets=NAME[,NAME,...]``
+     - ``presets=rgb``
+     - Applies task-specific choices such as observation modes, camera layouts,
+       or compatible configuration bundles.
+
+These are Hydra tokens, so append them without leading dashes. They work with
+training, playback, and environment scripts that use Isaac Lab's task
+configuration launcher.
+
+Selectors can be combined. This command chooses Newton with the MuJoCo-Warp
+solver, the Newton Warp renderer, and RGB observations:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Camera-Direct \
+      physics=newton_mjwarp renderer=newton_renderer presets=rgb
+
+Use values listed for the task. Incompatible physics, renderer, sensor, or
+observation settings fail configuration validation.
+
+
+Common backend choices
+----------------------
+
+The exact list depends on the environment, but these names follow shared
+conventions:
+
+.. list-table:: Physics presets
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Name
+     - Meaning
+   * - ``isaacsim_physx``
+     - Isaac Sim PhysX. Some tasks use this as their default.
+   * - ``physx``
+     - Automatic PhysX-family selection. Isaac Sim PhysX is used when the
+       runtime needs Kit; a configured OvPhysX alternative can be used for
+       fully kit-less runs.
+   * - ``newton_mjwarp``
+     - Newton physics with the MuJoCo-Warp solver.
+   * - ``newton_kamino``
+     - Newton physics with the Kamino solver. Available for selected tasks
+       and compatible assets.
+   * - ``ovphysx``
+     - OvPhysX for supported tasks running without Kit.
+
+.. list-table:: Renderer presets
+   :widths: 30 70
+   :header-rows: 1
+
+   * - Name
+     - Meaning
+   * - ``isaacsim_rtx``
+     - Isaac Sim RTX renderer.
+   * - ``rtx``
+     - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
+       visualization, livestreaming, or another runtime choice requires Kit;
+       otherwise OVRTX is used for a fully kit-less run.
+   * - ``newton_renderer``
+     - Newton Warp renderer. This is the default for tasks that use the
+       multi-backend renderer preset.
+   * - ``ovrtx``
+     - OVRTX renderer for runs without Kit.
+
+Automatic selectors such as ``physics=physx`` and ``renderer=rtx`` are opt-in.
+Defaults are concrete so that running a task without selectors is predictable.
+A solver is not a separate backend: ``newton_mjwarp`` and ``newton_kamino``
+both use Newton but configure different solvers.
+
+
+Defaults, presets, and fine-tuning
+----------------------------------
+
+A preset replaces the complete configuration section at its location; it does
+not merge fields from two alternatives. Isaac Lab resolves configuration in
+this order:
+
+1. Apply each preset config's ``default`` choice.
+2. Apply global choices from ``presets=...``.
+3. Apply a preset targeted at a specific path, such as
+   ``env.sim.physics=newton_mjwarp``.
+4. Apply scalar Hydra overrides, such as ``env.sim.dt=0.002``.
+
+To change one value after selecting a preset:
+
+.. code-block:: bash
+
+   uv run isaaclab train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct \
+      physics=newton_mjwarp env.sim.dt=0.002
+
+Use ``physics=`` and ``renderer=`` for backend choices. Use ``presets=`` for task
+modes or to update several matching sections together. A path selector replaces
+only the named section.
+
+.. important::
+
+   Keep behavior-changing presets the same when loading a checkpoint. An
+   observation preset can change tensor shapes, and a policy trained with one
+   observation mode may not load with another.
+
+
+How task authors expose choices
+-------------------------------
+
+Task authors define alternatives with
+:class:`~isaaclab_tasks.utils.hydra.PresetCfg` and choose one as the default.
+For a multi-backend task, the preset wrapper belongs in
+:class:`~isaaclab.sim.SimulationCfg`:
+
+.. code-block:: python
+
+   from isaaclab.physics import PhysxAutoCfg
+   from isaaclab.sim import SimulationCfg
+   from isaaclab.utils import configclass
+   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+   from isaaclab_ov.physics import OvPhysxCfg
+   from isaaclab_physx.physics import PhysxCfg
+   from isaaclab_tasks.utils import PresetCfg
+
+
+   @configclass
+   class PhysicsCfg(PresetCfg):
+       isaacsim_physx = PhysxCfg()
+       ovphysx = OvPhysxCfg()
+       physx = PhysxAutoCfg(
+           isaacsim_physx=isaacsim_physx,
+           ovphysx=ovphysx,
+       )
+       default = isaacsim_physx
+       newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg())
+
+
+   @configclass
+   class MyEnvCfg:
+       sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
+Keep backend-specific values inside named configurations whenever possible.
+This keeps task logic shared and makes every supported choice visible from the
+command line.
+
+When backend selection must also change simulation-wide settings such as the
+time step, a physics preset may instead contain complete ``SimulationCfg``
+alternatives. The ``physics=`` selector recognizes these bundles from their
+``physics`` field and applies the complete matching simulation configuration.
 
 
 .. _backend-architecture:
@@ -82,8 +264,7 @@ Factory dispatch
 ^^^^^^^^^^^^^^^^
 
 All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`.
-They locate supported backend implementations through a core backend-key
-selector followed by package and module-path conventions:
+They select a backend key, then locate its implementation by module path:
 
 1. The name of ``SimulationContext.physics_manager`` is mapped to one of the
    backend keys recognized by ``FactoryBase._get_backend()``. Adding another
@@ -134,22 +315,23 @@ cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
 or shut down.
 The concrete ``close()`` implementation dispatches the ``STOP`` event.
 
-``SimulationContext`` owns native resources and renderer instances in one registry.
-``get_or_create_backend(backend_cfg)``
-reuses one resource for equal configurations of the same concrete type; a cache miss
-constructs ``instantiate(backend_cfg)``.
-:class:`~isaaclab.sim.BackendCfg` describes resource settings and identity, and
-:class:`~isaaclab.renderers.RendererCfg` extends it for renderer instances.
-``PhysicsCfg`` selects a physics manager. Finalize configurations before
-registration and treat them, including nested values, as read-only afterward.
-Use a new configuration for different settings. ``close_backend(backend)`` closes
-the exact registered object after all consumers have released their bindings;
-it does not compare or hash configurations. Resources declared through ``BackendCfg`` must
-implement ``close()``. Plain construction cfgs share Python-owned data without a teardown
-operation; removing the registry entry releases its reference. A failed close retains
-the entry for retry. After physics shutdown invalidates camera
-render data, simulation teardown closes material writers, renderer instances, visualizers,
-and remaining native resources, in that order, before closing the stage.
+``SimulationContext`` keeps native resources and renderers in one registry.
+``get_or_create_backend(backend_cfg)`` reuses a resource when the configuration
+and its concrete type match; otherwise it calls ``instantiate(backend_cfg)``.
+:class:`~isaaclab.sim.BackendCfg` defines resource settings and identity.
+:class:`~isaaclab.renderers.RendererCfg` extends it for renderers; ``PhysicsCfg``
+selects the physics manager.
+
+Finalize configurations before registration, then treat them and their nested
+values as read-only. Use a new configuration to request different settings.
+
+``close_backend(backend)`` closes the exact registered object after consumers
+release their bindings. It does not compare configurations. Resources described
+by ``BackendCfg`` must implement ``close()``; plain construction configs hold
+Python-owned data and need no teardown method. A failed close keeps the entry
+for retry. During simulation teardown, physics first invalidates camera data,
+then material writers, renderers, visualizers, and remaining native resources
+close before the stage.
 
 Managers and native renderers expose their borrowed resource through ``backend``.
 For example, ``NewtonManager.backend.model`` accesses the finalized native model.
@@ -260,204 +442,14 @@ Design principles
   not add dispatch logic to the simulation hot path.
 
 
-Find what a task supports
--------------------------
+.. Maintenance notes
 
-Preset support is task-specific. Before choosing a name, ask the task what it
-offers:
-
-.. code-block:: bash
-
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Camera-Direct --help
-
-The help output groups names by ``physics=``, ``renderer=``, and ``presets=``.
-To list the combinations each registered environment can launch, run:
-
-.. code-block:: bash
-
-   uv run isaaclab list_envs --show_presets
-
-Each line is one combination that resolves, passes the task's own configuration
-checks, and can launch headless; ``[default]`` marks the one the task uses when
-no names are passed. Not every pairing of declared names can run together:
-OvPhysX and OVRTX cannot share a process with Isaac Sim / Kit, and a task can
-reject a combination in its own configuration checks. Checking every
-combination takes a few seconds per task, so narrow the list with
-``--keyword``.
-
-A task listed only with ``(defaults)`` uses its registered default
-configuration and does not expose alternatives. Passing a name that a task does
-not list is unsupported and fails during configuration validation.
-
-
-Choose a selector
------------------
-
-.. list-table::
-   :widths: 23 32 45
-   :header-rows: 1
-
-   * - Selector
-     - Example
-     - What it changes
-   * - ``physics=NAME``
-     - ``physics=newton_mjwarp``
-     - Selects a physics configuration, including its backend and solver.
-   * - ``renderer=NAME``
-     - ``renderer=newton_renderer``
-     - Selects a renderer configuration for tasks that produce camera data.
-   * - ``presets=NAME[,NAME,...]``
-     - ``presets=rgb``
-     - Applies task-specific choices such as observation modes, camera layouts,
-       or compatible configuration bundles.
-
-These are Hydra tokens, so append them without leading dashes. They work with
-training, playback, and environment scripts that use Isaac Lab's task
-configuration launcher.
-
-Selectors can be combined. This command chooses Newton with the MuJoCo-Warp
-solver, the Newton Warp renderer, and RGB observations:
-
-.. code-block:: bash
-
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Camera-Direct \
-      physics=newton_mjwarp renderer=newton_renderer presets=rgb
-
-Only combine values listed for the task. Some physics, renderer, sensor, and
-observation configurations are incompatible, and the task may reject an
-invalid combination with a focused error message.
-
-
-Common backend choices
-----------------------
-
-The exact list depends on the environment, but these names follow shared
-conventions:
-
-.. list-table:: Physics presets
-   :widths: 30 70
-   :header-rows: 1
-
-   * - Name
-     - Meaning
-   * - ``isaacsim_physx``
-     - Concrete Isaac Sim PhysX configuration. This is the default for tasks
-       whose established default is Isaac Sim PhysX.
-   * - ``physx``
-     - Automatic PhysX-family selection. Isaac Sim PhysX is used when the
-       runtime needs Kit; a configured OvPhysX alternative can be used for
-       fully kit-less runs.
-   * - ``newton_mjwarp``
-     - Newton physics with the MuJoCo-Warp solver.
-   * - ``newton_kamino``
-     - Newton physics with the Kamino solver. Support is beta and currently
-       limited to selected tasks and compatible assets.
-   * - ``ovphysx``
-     - Concrete OvPhysX configuration for supported kit-less tasks.
-
-.. list-table:: Renderer presets
-   :widths: 30 70
-   :header-rows: 1
-
-   * - Name
-     - Meaning
-   * - ``isaacsim_rtx``
-     - Concrete Isaac Sim RTX renderer configuration.
-   * - ``rtx``
-     - Automatic RTX-family selection. Isaac Sim RTX is used when physics,
-       visualization, livestreaming, or another runtime choice requires Kit;
-       otherwise OVRTX is used for a fully kit-less run.
-   * - ``newton_renderer``
-     - Newton Warp renderer. This is the default for tasks that use the
-       multi-backend renderer preset.
-   * - ``ovrtx``
-     - Concrete OVRTX renderer configuration for supported kit-less workflows.
-
-Automatic selectors such as ``physics=physx`` and ``renderer=rtx`` are opt-in.
-Defaults are concrete so that running a task without selectors is predictable.
-A solver is not a separate backend: ``newton_mjwarp`` and ``newton_kamino``
-both use Newton but configure different solvers.
-
-
-Defaults, presets, and fine-tuning
-----------------------------------
-
-A preset replaces the complete configuration section at its location; it does
-not merge fields from two alternatives. Isaac Lab resolves configuration in
-this order:
-
-1. Apply each preset config's ``default`` choice.
-2. Apply global choices from ``presets=...``.
-3. Apply a preset targeted at a specific path, such as
-   ``env.sim.physics=newton_mjwarp``.
-4. Apply scalar Hydra overrides, such as ``env.sim.dt=0.002``.
-
-The last step makes it easy to start from a maintained preset and tune one
-value:
-
-.. code-block:: bash
-
-   uv run isaaclab train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct \
-      physics=newton_mjwarp env.sim.dt=0.002
-
-Prefer ``physics=`` and ``renderer=`` for backend choices because they state
-intent clearly. Use ``presets=`` for task-specific modes or when one name must
-update several matching sections together. Use a path selector only when you
-intend to replace one particular section.
-
-.. important::
-
-   Keep behavior-changing presets the same when loading a checkpoint. An
-   observation preset can change tensor shapes, and a policy trained with one
-   observation mode may not load with another.
-
-
-How task authors expose choices
--------------------------------
-
-Task authors define alternatives with
-:class:`~isaaclab_tasks.utils.hydra.PresetCfg` and choose one as the default.
-For a multi-backend task, the preset wrapper belongs in
-:class:`~isaaclab.sim.SimulationCfg`:
-
-.. code-block:: python
-
-   from isaaclab.physics import PhysxAutoCfg
-   from isaaclab.sim import SimulationCfg
-   from isaaclab.utils import configclass
-   from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-   from isaaclab_ov.physics import OvPhysxCfg
-   from isaaclab_physx.physics import PhysxCfg
-   from isaaclab_tasks.utils import PresetCfg
-
-
-   @configclass
-   class PhysicsCfg(PresetCfg):
-       isaacsim_physx = PhysxCfg()
-       ovphysx = OvPhysxCfg()
-       physx = PhysxAutoCfg(
-           isaacsim_physx=isaacsim_physx,
-           ovphysx=ovphysx,
-       )
-       default = isaacsim_physx
-       newton_mjwarp = NewtonCfg(solver_cfg=MJWarpSolverCfg())
-
-
-   @configclass
-   class MyEnvCfg:
-       sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
-
-Keep backend-specific values inside named configurations whenever possible.
-This keeps task logic shared and makes every supported choice visible from the
-command line.
-
-When backend selection must also change simulation-wide settings such as the
-time step, a physics preset may instead contain complete ``SimulationCfg``
-alternatives. The ``physics=`` selector recognizes these bundles from their
-``physics`` field and applies the complete matching simulation configuration.
+   This page is the source of truth for the ``isaaclab-selecting-backends`` and
+   ``isaaclab-using-presets`` agent skills
+   (`skills/user/select-backends/ <../../../skills/user/select-backends/SKILL.md>`__,
+   `skills/user/use-presets/ <../../../skills/user/use-presets/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/developer-tools/agent_skills`.
 
 
 Where to go next
@@ -468,6 +460,6 @@ Where to go next
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.
 - :ref:`physics-backends` compares physics backend runtime requirements,
-  maturity, solver families, and intended uses.
+  runtime requirements, solver families, and intended uses.
 - :doc:`/source/concepts/renderers` explains renderer selection and
   implementation details.

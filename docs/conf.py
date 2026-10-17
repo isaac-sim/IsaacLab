@@ -412,6 +412,7 @@ html_sidebars = {
 
 # Keep published links working after guide consolidation.
 isaaclab_doc_redirects = {
+    "source/concepts/schema_fragments": "source/concepts/schema_cfgs",
     "source/migration/migrating_to_isaaclab_3-0": "source/isaaclab/migrating",
     "source/setup/ecosystem": "source/isaaclab/ecosystem",
     "source/setup/environments": "source/isaaclab/environments",

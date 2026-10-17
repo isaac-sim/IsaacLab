@@ -8,12 +8,10 @@
 Write micro-benchmarks
 ======================
 
-Micro-benchmarks answer isolated performance questions. Asset benchmarks use
-backend-specific **mock views** to measure an asset method or data property.
-Sensor benchmarks use **live simulation scenes** to measure a production sensor
-update after physics has completed. Neither type predicts end-to-end environment
-or training throughput. Use :ref:`developer_tools_benchmarking_run` for
-environment logic, policy inference, learning, or application startup.
+Micro-benchmarks measure individual operations. Asset benchmarks use **mock views**
+to time methods and data properties; sensor benchmarks use **live scenes** to time
+updates after physics. For environment or training throughput and startup time,
+use :ref:`developer_tools_benchmarking_run`.
 
 .. seealso::
 
