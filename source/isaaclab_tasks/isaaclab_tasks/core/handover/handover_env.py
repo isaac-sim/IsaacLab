@@ -110,19 +110,22 @@ class HandoverEnv(DirectMARLEnv):
         )
         self.goal_pos = self._goal.position
         self._goal_distance = EpisodeErrorRecorder(self.num_envs, self.device)
+        self._action_rate = {agent: torch.zeros(self.num_envs, device=self.device) for agent in self.actions}
+        self._prev_actions = {agent: act.clone() for agent, act in self.actions.items()}
+        self._episode_start = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
         # unit tensors for sampling goal/object rotations about the x and y axes
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
     def _pre_physics_step(self, actions: dict[str, torch.Tensor]) -> None:
-        prev = getattr(self, "actions", None)
-        self._action_rate = {
-            agent: torch.zeros(self.num_envs, device=self.device)
-            if prev is None
-            else torch.sum(torch.square(act - prev[agent]), dim=-1)
-            for agent, act in actions.items()
-        }
+        if self.cfg.action_rate_penalty_scale:
+            for agent, act in actions.items():
+                # an episode's first action has no predecessor in that episode, so it is not penalized
+                torch.sum(torch.square(act - self._prev_actions[agent]), dim=-1, out=self._action_rate[agent])
+                self._action_rate[agent].masked_fill_(self._episode_start, 0.0)
+                self._prev_actions[agent].copy_(act)
+            self._episode_start.fill_(False)
         self.actions = actions
 
     def _apply_action(self) -> None:
@@ -276,6 +279,7 @@ class HandoverEnv(DirectMARLEnv):
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
+        self._episode_start[env_ids] = True
 
         # reset goals; the ball starts in the hand opposite the first goal
         self._reset_target_pose(env_ids)

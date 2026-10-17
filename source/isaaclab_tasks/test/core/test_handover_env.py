@@ -60,6 +60,35 @@ def test_handover_goal_random_start_places_first_goal_at_either_hand(device):
 
 @pytest.mark.parametrize("task_name", ("Isaac-Shadow-Handover-Direct", "Isaac-Shadow-Handover"))
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_handover_random_start_places_object_opposite_first_goal(task_name, device):
+    """With the default random start, each episode's object starts at the hold point of the hand opposite its goal."""
+    direct = task_name.endswith("-Direct")
+    num_envs = 16
+    cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+    goal_cfg = cfg if direct else cfg.commands.object_pose
+    assert goal_cfg.randomize_start_hand
+    goal_cfg.reset_position_noise = 0.0
+
+    with (
+        launch_simulation(cfg, {"device": device, "headless": True}),
+        gym.make(task_name, cfg=cfg) as wrapped,
+    ):
+        env = wrapped.unwrapped
+        observations, _ = env.reset(seed=42)
+        goals = observations["right_hand" if direct else "policy"][:, 146:149]
+        starts = env.scene["object"].data.root_pos_w.torch - env.scene.env_origins
+        # Each hand's hold point in the environment frame.
+        left = torch.tensor([0.0, -0.64, 0.54], device=device)
+        right = torch.tensor([0.0, -0.36, 0.54], device=device)
+        at_left = torch.isclose(goals, left.expand_as(goals), atol=1e-4).all(dim=-1)
+        at_right = torch.isclose(goals, right.expand_as(goals), atol=1e-4).all(dim=-1)
+        assert bool((at_left ^ at_right).all())
+        assert 0 < int(at_left.sum()) < num_envs
+        torch.testing.assert_close(starts, torch.where(at_left.unsqueeze(-1), right, left))
+
+
+@pytest.mark.parametrize("task_name", ("Isaac-Shadow-Handover-Direct", "Isaac-Shadow-Handover"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_handover_alternates_after_cumulative_success_steps_and_resets_one_episode(task_name, device):
     """A completed transfer changes the observed goal; drops reset only the affected episode."""
     direct = task_name.endswith("-Direct")

@@ -75,6 +75,11 @@ class HandoverGoal:
         self.success = SuccessTracker(num_envs, device)
         self._left = torch.ones(num_envs, dtype=torch.bool, device=device)
 
+    @property
+    def left(self) -> torch.Tensor:
+        """Whether each environment's current goal is at the left hand."""
+        return self._left
+
     def update(self, succeeded: torch.Tensor, steps_required: int) -> torch.Tensor:
         """Accumulate success steps, switch completed goals, and return the mask of switched environments.
 
@@ -102,16 +107,12 @@ class HandoverGoal:
         """
         return torch.where(self._left[env_ids].unsqueeze(-1), self._positions[0, env_ids], self._positions[1, env_ids])
 
-    @property
-    def left(self) -> torch.Tensor:
-        """Whether each environment's current goal is at the left hand."""
-        return self._left
-
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice) -> None:
         """Start a new episode with no success steps or transfers, its first goal at the left or a random hand."""
-        index_fill_(self._left, env_ids, True)
         if self._randomize_start:
-            self._left[env_ids] = torch.rand(self._left[env_ids].shape, device=self._left.device) < 0.5
+            self._left[env_ids] = torch.rand(self._left.shape, device=self._left.device)[env_ids] < 0.5
+        else:
+            index_fill_(self._left, env_ids, True)
         index_fill_(self.success_steps, env_ids, 0)
         self.position[env_ids] = torch.where(
             self._left[env_ids].unsqueeze(-1), self._positions[1, env_ids], self._positions[0, env_ids]
