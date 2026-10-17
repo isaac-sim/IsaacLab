@@ -130,7 +130,7 @@ def _simulation_registry(monkeypatch):
     "settings, with_physics, use_ovstage, shared_physics",
     [
         pytest.param((None, None), False, False, False, id="other-default"),
-        pytest.param((None, None), True, True, False, id="ovphysx-default"),
+        pytest.param((None, None), True, False, False, id="ovphysx-default"),
         pytest.param(("1", None), False, True, False, id="other-ovstage"),
         pytest.param(("1", None), True, True, False, id="ovphysx-render-only"),
         pytest.param(("0", None), True, False, False, id="ovphysx-native"),

@@ -16,8 +16,8 @@ Clone routing
 -------------
 
 ``OvrtxReplicateContext.prepare`` in ``isaaclab_ov/cloner/replicate.py`` selects the representation
-before native resource initialization. Without environment overrides, OVPhysX uses native physics
-cloning and an independent OVStage for OVRTX rendering; Newton uses native OVRTX cloning.
+before native resource initialization. Without environment overrides, OVRTX uses native cloning with
+both OVPhysX and Newton. OVPhysX also retains native physics cloning.
 
 ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` selects independent OVStage rendering with either physics backend;
 ``0`` selects native OVRTX cloning. Set the flag before creating the simulation. Reset retains the
