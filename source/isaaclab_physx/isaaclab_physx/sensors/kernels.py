@@ -40,3 +40,29 @@ def concat_pos_and_quat_to_pose_1d_kernel(
     """
     env = wp.tid()
     pose[env] = wp.transform(pos[env], quat[env])
+
+
+@wp.kernel
+def copy_view_rows_to_mesh_table_kernel(
+    transforms: wp.array(dtype=wp.transformf),
+    view_rows: wp.array2d(dtype=wp.int32),
+    mesh_offset: int,
+    mesh_positions: wp.array2d(dtype=wp.vec3f),
+    mesh_orientations: wp.array2d(dtype=wp.quatf),
+):
+    """Copy rigid-body view transforms into the per-env mesh table of a ray caster.
+
+    Args:
+        transforms: Transforms of the view rows. Shape is (R,).
+        view_rows: View row of each table entry of the target, or -1 for entries that keep their poses.
+            Shape is (N, M).
+        mesh_offset: Table index of the first entry of the target.
+        mesh_positions: Mesh positions of the table. Shape is (N, T).
+        mesh_orientations: Mesh orientations of the table. Shape is (N, T).
+    """
+    env, mesh = wp.tid()
+    row = view_rows[env, mesh]
+    if row < 0:
+        return
+    mesh_positions[env, mesh_offset + mesh] = wp.transform_get_translation(transforms[row])
+    mesh_orientations[env, mesh_offset + mesh] = wp.transform_get_rotation(transforms[row])

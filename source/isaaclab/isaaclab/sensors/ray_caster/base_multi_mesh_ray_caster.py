@@ -151,10 +151,12 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         target_records_by_expr = {}
         dummy_mesh_id: int | None = None
         self._mesh_views = []
+        # Per target and env, the prim path of the tracked body of each mesh entry.
+        self._mesh_body_paths: list[list[list[str]]] = []
 
         # Build one per-env mesh list for each configured raycast target.
         for target_cfg in self._raycast_targets_cfg:
-            records_per_env, dummy_mesh_id, tracked_target_exprs = self._build_mesh_records(
+            records_per_env, dummy_mesh_id, tracked_target_exprs, body_paths_per_env = self._build_mesh_records(
                 target_cfg, plan, dummy_mesh_id
             )
             self._num_meshes_per_env[target_cfg.prim_expr] = max(len(records) for records in records_per_env)
@@ -162,6 +164,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             self._mesh_views.append(
                 self._create_tracked_target_view(tracked_target_exprs) if target_cfg.track_mesh_transforms else None
             )
+            self._mesh_body_paths.append(body_paths_per_env)
 
         if dummy_mesh_id is None:
             raise RuntimeError(
@@ -201,8 +204,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         plan: cloner.ClonePlan | None,
         dummy_mesh_id: int | None,
     ):
-        """Build mesh records for the target configuration."""
+        """Build mesh records for the target configuration, with the tracked body path of each record."""
         records_per_env = [[] for _ in range(self._num_envs)]
+        body_paths_per_env = [[] for _ in range(self._num_envs)]
         target_in_plan = False
         tracked_target_exprs: list[str] = [target_cfg.prim_expr]
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
@@ -242,6 +246,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                     raise RuntimeError(f"No ClonePlan source prims matched '{source_path}'.")
 
                 mesh_ids: list[int] = []
+                owner_suffixes: list[str] = []
                 row_tracked_target_exprs: list[str] = []
                 for source_prim in source_prims:
                     source_prim_path = str(source_prim.GetPath())
@@ -274,6 +279,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                                 f"Tracked target owner '{owner_path}' is not under ClonePlan source root "
                                 f"'{source_root}'."
                             )
+                        owner_suffixes.append(owner_suffix)
                         row_tracked_target_exprs.append(destination_template.format("[^/]+") + owner_suffix)
 
                 if len(row_tracked_target_exprs) > len(plan_tracked_target_exprs):
@@ -283,13 +289,14 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                 for env_id in env_ids:
                     for mesh_id in mesh_ids:
                         records_per_env[env_id].append((mesh_id, (1.0e9, 1.0e9, 1.0e9), (0.0, 0.0, 0.0, 1.0)))
+                    body_paths_per_env[env_id] += [destination_template.format(env_id) + s for s in owner_suffixes]
 
             if target_in_plan:
                 if not plan_tracked_target_exprs:
                     raise RuntimeError(
                         f"No tracked body expressions were resolved for target '{target_cfg.prim_expr}'."
                     )
-                return records_per_env, dummy_mesh_id, plan_tracked_target_exprs
+                return records_per_env, dummy_mesh_id, plan_tracked_target_exprs, body_paths_per_env
 
         # Fall back to authored USD prims for global targets and scenes without ClonePlan data.
         target_prims = sim_utils.find_matching_prims(target_cfg.prim_expr)
@@ -314,7 +321,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             records.append((mesh_id, *sim_utils.resolve_prim_pose(reference_prim)))
 
         if len(records) == 1:
-            return [list(records) for _ in range(self._num_envs)], dummy_mesh_id, tracked_target_exprs
+            records_per_env = [list(records) for _ in range(self._num_envs)]
+            body_paths_per_env = [list(tracked_target_exprs) for _ in range(self._num_envs)]
+            return records_per_env, dummy_mesh_id, tracked_target_exprs, body_paths_per_env
 
         # Multiple USD matches are expected to be laid out evenly by environment.
         if len(records) % self._num_envs != 0:
@@ -324,8 +333,11 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             )
         n_meshes = len(records) // self._num_envs
         records_per_env = [records[env_id * n_meshes : (env_id + 1) * n_meshes] for env_id in range(self._num_envs)]
+        body_paths_per_env = [
+            tracked_target_exprs[env_id * n_meshes : (env_id + 1) * n_meshes] for env_id in range(self._num_envs)
+        ]
 
-        return records_per_env, dummy_mesh_id, tracked_target_exprs
+        return records_per_env, dummy_mesh_id, tracked_target_exprs, body_paths_per_env
 
     def _load_target_prim_warp_mesh(self, target_prim, target_cfg, reference_prim=None) -> int:
         reference_prim = target_prim if reference_prim is None else reference_prim
