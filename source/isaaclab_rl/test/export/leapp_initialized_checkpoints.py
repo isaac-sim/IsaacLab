@@ -12,7 +12,6 @@ from pathlib import Path
 import gymnasium as gym
 import numpy as np
 import torch
-from leapp_direct_env import DIRECT_TASK
 from leapp_test_tasks import MANAGER_TASK
 from tensordict import TensorDict
 
@@ -39,9 +38,6 @@ class _CheckpointEnv(gym.Env):
         elif task == "Isaac-Reach-UR10":
             self.num_actions = 6
             shapes = {"policy": (24,)}  # Six positions, two velocity frames, and six previous actions.
-        elif task == DIRECT_TASK:
-            self.num_actions = 12
-            shapes = {"policy": (48,)}  # The direct ANYmal C tutorial's flat observation and action spaces.
         else:
             raise ValueError(f"No checkpoint spaces defined for {task}")
         self._observations = TensorDict({key: torch.zeros(1, *shape) for key, shape in shapes.items()}, batch_size=[1])

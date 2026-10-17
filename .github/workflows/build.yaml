@@ -503,36 +503,10 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
-        exclude-pattern: "test_leapp_export_tutorial.py"
         extra-pip-packages: "leapp==0.7.2 torchrl>=0.13"
         warp-cache: restore
         test-jobs: "4"
         container-name: isaac-lab-rl-test
-
-  test-isaaclab-rl-leapp-tutorial:
-    name: isaaclab_rl LEAPP direct tutorial
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 60
-    needs: [build, config]
-    if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-      needs.build.result == 'success'
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-    - uses: ./.github/actions/run-package-tests
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}
-        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
-        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
-        filter-pattern: "isaaclab_rl"
-        include-files: "test_leapp_export_tutorial.py"
-        extra-pip-packages: "leapp==0.7.2 torchrl>=0.13"
-        warp-cache: restore
-        test-jobs: "1"
-        container-name: isaac-lab-rl-leapp-tutorial-test
 
   test-isaaclab-mimic:
     name: isaaclab_mimic
