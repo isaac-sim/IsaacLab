@@ -71,6 +71,14 @@ class OVRTXRendererCfg(RendererCfg):
     The ovstage path does not support pipelining and renders synchronously.
     """
 
+    show_all_partitions_by_default: bool = True
+    """Enable the all-environment spectator layout in this renderer's scene.
+
+    Defaults to True, preserving spectator visibility. Disable for isolated sensor views. When enabled,
+    environment bounds must be spatially separated to avoid cross-environment visibility.
+    The setting is local to this renderer's detached scene.
+    """
+
     temp_usd_dir: str | None = None
     """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 

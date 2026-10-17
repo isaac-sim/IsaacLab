@@ -239,6 +239,7 @@ def export_stage_to_string(
     keep_env_roots: bool = True,
     *,
     env_paths: Sequence[str] = (),
+    show_all_partitions_by_default: bool = True,
 ) -> str:
     """Export routed prototypes without mutating the simulation's authored USD stage.
 
@@ -252,6 +253,8 @@ def export_stage_to_string(
         source_paths: Prototype subtrees retained with their materials and descendants.
         keep_env_roots: Whether to retain non-source environment roots and their transforms.
         env_paths: Environment frames to create in the private export before native cloning.
+        show_all_partitions_by_default: Enable the all-environment spectator layout. Camera
+            renderers disable it to isolate environments with overlapping world-space bounds.
 
     Returns:
         USDA text containing the selected prototypes.
@@ -260,13 +263,13 @@ def export_stage_to_string(
     export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
     export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
     export_stage.SetEditTarget(export_session)
-    # Perspective cameras see every partition; sensor cameras retain their explicit partition.
+    # Spectator layout requires disjoint world-space partition bounds, including sensor views.
     settings_path = export_stage.GetMetadata("renderSettingsPrimPath") or "/Render/IsaacLabSettings"
     settings = UsdRender.Settings.Define(export_stage, settings_path)
     settings.GetPrim().AddAppliedSchema("OmniRtxSettingsGlobalCommonAPI_1")
     settings.GetPrim().CreateAttribute(
         "omni:rtx:scenePartitioning:showAllPartitionsByDefault", Sdf.ValueTypeNames.Bool
-    ).Set(True)
+    ).Set(show_all_partitions_by_default)
     export_stage.SetMetadata("renderSettingsPrimPath", settings_path)
     if num_envs > 1:
         envs_path = Sdf.Path("/World/envs")

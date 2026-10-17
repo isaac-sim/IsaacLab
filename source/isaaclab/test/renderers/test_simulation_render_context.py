@@ -116,6 +116,21 @@ def test_conflicting_global_settings_are_rejected_before_construction(sim):
     assert sim.render_context.renderer_types == ("isaac_rtx",)
 
 
+def test_light_updates_validate_all_properties_and_consumers_before_writing(sim):
+    """Malformed reset data and unsupported consumers cannot leave partially updated lights."""
+    renderer = sim.get_or_create_backend(IsaacRtxRendererCfg(class_type=_renderer))
+    renderer.light_writer = Mock()
+    paths = ["/World/envs/env_1/Dome"]
+    with pytest.raises(ValueError, match="color.*shape"):
+        sim.render_context.write_light_properties(paths, {"intensity": np.ones(1), "color": np.ones((2, 3))})
+    renderer.light_writer.assert_not_called()
+    unsupported = sim.get_or_create_backend(NewtonWarpRendererCfg(class_type=_renderer))
+    unsupported.light_writer = None
+    with pytest.raises(RuntimeError, match="newton_warp"):
+        sim.render_context.write_light_properties(paths, {"intensity": np.ones(1)})
+    renderer.light_writer.assert_not_called()
+
+
 @pytest.mark.parametrize("has_materials", [False, True])
 def test_finalized_consumers_allow_cache_hits_but_reject_new_renderers_with_materials(sim, has_materials):
     constructor = Mock(side_effect=_renderer)

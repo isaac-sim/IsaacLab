@@ -81,6 +81,7 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import PreviewSurfaceCfg, SimulationContext, use_stage
+from isaaclab.utils.renderers import scene_partition_attributes
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.cloner import ovrtx_replicate
@@ -368,6 +369,32 @@ class OVRTXRenderer(BaseRenderer):
         self._bindings = contextlib.ExitStack()
 
     @property
+    def light_writer(self) -> Callable[[Sequence[str], dict[str, np.ndarray]], None] | None:
+        """Publish selected light attributes after the detached scene has been populated."""
+        return self._write_light_properties if self._initialized_scene else None
+
+    def _write_light_properties(self, prim_paths: Sequence[str], attributes: dict[str, np.ndarray]) -> None:
+        errors = self.drain_pending_renders()
+        if errors:
+            raise ExceptionGroup("OVRTX renders failed before light updates", errors)
+        writes = dict(attributes)
+        if "omni:xform" in writes:
+            writes = {"omni:resetXformStack": np.ones(len(prim_paths), dtype=np.bool_), **writes}
+        if self._use_ovstage:
+            with self.scene.query(prim_paths) as query:
+                for name, values in writes.items():
+                    tensor = xform_tensor_from_numpy(values) if name == "omni:xform" else values
+                    self.scene.stage.write_attribute(
+                        query, name, ordinal=self.scene.ordinal, tensors=tensor, is_array=False,
+                    ).wait()  # fmt: skip
+        else:
+            for name, values in writes.items():
+                semantic = Semantic.XFORM_MAT4x4 if name == "omni:xform" else Semantic.NONE
+                self.backend.renderer.write_attribute(
+                    list(prim_paths), name, values, semantic=semantic, prim_mode=PrimMode.MUST_EXIST
+                )
+
+    @property
     def visual_material_writer(self):
         """Return a writer factory once this renderer has a scene consumer."""
         return self._create_visual_material_writer if self._initialized_scene else None
@@ -411,27 +438,35 @@ class OVRTXRenderer(BaseRenderer):
         usd = export_stage_to_string(
             stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
             keep_env_roots=False, env_paths=self.scene.population_env_paths,
+            show_all_partitions_by_default=self.cfg.show_all_partitions_by_default,
         )  # fmt: skip
         if self.cfg.temp_usd_dir is not None:
             _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
         env_paths = self.scene.clone_env_paths
-        tokens = [f"env_{i}" for i in range(len(env_paths))]
+        partitions = scene_partition_attributes(stage, env_paths, copies=self.scene.clone_copies)
         if self._use_ovstage:
             self.scene.populate(usd)
-            if env_paths:
-                with self.scene.query(env_paths) as query:
+            for attribute_name, assignments in partitions.items():
+                if not assignments:
+                    continue
+                with self.scene.query(list(assignments)) as query:
+                    tokens = np.array(
+                        [self.scene.paths.intern_token(token) for token in assignments.values()], np.uint64
+                    )
                     self.scene.stage.write_attribute(
-                        query, "primvars:omni:scenePartition", ordinal=self.scene.ordinal,
-                        tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
+                        query, attribute_name, ordinal=self.scene.ordinal,
+                        tensors=tokens,
                         is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()  # fmt: skip
         else:
             self.backend.renderer.open_usd_from_string(usd)
             ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
-            if env_paths:
-                # EXISTING_ONLY skips frames without an authored partition attribute.
+            for attribute_name, assignments in partitions.items():
+                if not assignments:
+                    continue
+                # Native copies need their own selectors, including attributes absent on prototypes.
                 self.backend.renderer.write_attribute(
-                    env_paths, "primvars:omni:scenePartition", tokens,
+                    list(assignments), attribute_name, list(assignments.values()),
                     semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
                 )  # fmt: skip
         self._setup_xform_bindings(stage)

@@ -7,6 +7,8 @@
 
 import pytest
 
+from pxr import Usd, UsdGeom, UsdLux
+
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 _ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
@@ -36,3 +38,26 @@ def test_scene_partitioning_rejects_invalid_override(monkeypatch: pytest.MonkeyP
 
     with pytest.raises(ValueError, match=f"Invalid value for {_ENV_VAR}"):
         isaac_rtx_per_env_scene_partition_enabled()
+
+
+def test_scene_partitions_include_lights_and_remap_native_copies() -> None:
+    """Light selectors follow destination worlds while global lights remain shared."""
+    from isaaclab.utils.renderers import scene_partition_attributes
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdLux.DomeLight.Define(stage, "/World/Shared")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
+    UsdGeom.Camera.Define(stage, "/World/envs/env_0/Rig/Camera")
+    UsdLux.DomeLight.Define(stage, "/World/envs/env_0/Rig/Dome")
+    UsdLux.RectLight.Define(stage, "/World/envs/env_0/Rig/Ceiling")
+    UsdGeom.Cube.Define(stage, "/World/envs/env_0/Rig/Object")
+    env_paths = [f"/World/envs/env_{i}" for i in range(3)]
+    assignments = scene_partition_attributes(
+        stage,
+        env_paths,
+        copies=[("/World/envs/env_0/Rig", ["/World/envs/env_2/Rig", "/World/envs/env_1/Rig"])],
+    )
+    assert assignments["primvars:omni:scenePartition"] == dict(zip(env_paths, ("env_0", "env_1", "env_2")))
+    assert assignments["omni:scenePartition"] == {
+        f"/World/envs/env_{i}/Rig/{name}": f"env_{i}" for i in range(3) for name in ("Camera", "Dome", "Ceiling")
+    }

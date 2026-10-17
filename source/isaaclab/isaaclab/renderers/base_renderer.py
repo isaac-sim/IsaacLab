@@ -17,6 +17,7 @@ from .output_contract import RenderBufferKind, RenderBufferSpec
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    import numpy as np
     import torch
     import warp as wp
 
@@ -53,6 +54,16 @@ class BaseRenderer(ABC):
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""
         return
+
+    @property
+    def light_writer(self) -> Callable[[Sequence[str], dict[str, np.ndarray]], None] | None:
+        """Return the reset-time light writer once the backend scene is ready, if supported.
+
+        The writer receives selected prim paths and validated USD attribute arrays from
+        :meth:`~isaaclab.renderers.RenderContext.write_light_properties`.
+        It consumes the arrays before returning.
+        """
+        return None
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
