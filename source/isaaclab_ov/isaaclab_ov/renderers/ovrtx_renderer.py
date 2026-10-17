@@ -33,7 +33,7 @@ from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +51,17 @@ import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 
-try:
-    from ovrtx import (
-        BindingFlag,
-        DataAccess,
-        Device,
-        PrimMode,
-        Renderer,
-        RendererConfig,
-        RenderProductSetOutputs,
-        Semantic,
-        TextureStreamingMode,
-    )
-except ModuleNotFoundError as exc:
-    if exc.name != "ovrtx":
-        raise
-    raise ModuleNotFoundError(
-        "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
-        "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install 'ovrtx==0.5.1.385782')."
-    ) from exc
-
+from ovrtx import (
+    BindingFlag,
+    DataAccess,
+    Device,
+    PrimMode,
+    Renderer,
+    RendererConfig,
+    RenderProductSetOutputs,
+    Semantic,
+    TextureStreamingMode,
+)
 from PIL import Image
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
@@ -154,24 +144,9 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
 }
 
 
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
-    "with `uv pip install isaaclab`."
-)
-
-
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
 def _gpu_side_render_var_sync_enabled() -> bool:
@@ -216,6 +191,8 @@ class OVRTXBackend:
 
     def __init__(self, cfg: OVRTXBackendCfg):
         self.cfg = cfg
+        self.attached = False
+        self.render_products: set[str] = set()
         # Resolve the wheel's native dependency here, including callers without a viewer.
         dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
         if dependency.exists():
@@ -225,8 +202,8 @@ class OVRTXBackend:
         sim_device = wp.get_device(cfg.device)
         native_cfg = RendererConfig(
             active_cuda_gpus=str(sim_device.ordinal) if sim_device.is_cuda else None,
-            log_file_path=cfg.renderer_cfg.log_file_path,
-            log_level=cfg.renderer_cfg.log_level,
+            log_file_path=cfg.log_file_path,
+            log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
             keep_system_alive=True,
             suppress_deprecation_warnings=True,
@@ -243,12 +220,19 @@ class OVRTXBackend:
             self.clone_positions: np.ndarray | None = None
         self.renderer = Renderer(native_cfg)
 
+    def detach(self) -> None:
+        """Release the borrowed stage before it is rebuilt or destroyed."""
+        if self.attached:
+            self.renderer.detach_ovstage()
+            self.attached = False
+
     def close(self) -> None:
         """Destroy the engine; the simulation's backend registry releases any borrowed stage afterward."""
         if self.renderer is not None:
             # The SDK destroys bindings and detaches only if attached, including partial initialization.
             self.renderer.destroy()
             self.renderer = None
+            self.attached = False
 
 
 class OVRTXCameraRenderData:
@@ -293,13 +277,10 @@ class OVRTXCameraRenderData:
         # "instance_segmentation" (with "idToLabels" and "idToSemantics" mappings).
         self.renderer_info: dict[str, Any] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
+        # Camera construction has already resolved the ISP configuration.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
+            from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
@@ -374,62 +355,38 @@ class OVRTXRenderer(BaseRenderer):
 
     def _create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
         """Create the detached-scene material writer after scene population."""
-        if not self._initialized_scene:
-            raise RuntimeError("OVRTX must ingest its detached scene before material writes are compiled.")
         writer = OVRTXVisualMaterialWriter(self, batches)
         self._visual_material_writer_ref = weakref.ref(writer)
         return writer
 
-    def prepare_cameras(self, stage: Usd.Stage, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg and apply OVRTX-specific USD overrides.
-
-        When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
-        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
-        :mod:`isaaclab` does not need to know about PPISP. Then pins
-        ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
-        the RTX exposure model OVRTX embeds does not compound on top of the
-        ISP. Without an ISP, the camera prim's authored exposure is left alone.
-        """
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0]
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
-        if spec.cfg.isp_cfg is None:
-            return
-        apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
-
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Load, clone, and bind the shared scene before any camera products are registered."""
-        if self.cfg.temp_usd_dir is not None:
-            _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
         logger.info("Preparing stage (%d envs)...", num_envs)
-        usd = export_stage_to_string(
-            stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
-            keep_env_roots=False, env_paths=self.scene.population_env_paths,
-        )  # fmt: skip
-        if self.cfg.temp_usd_dir is not None:
-            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
         env_paths = self.scene.clone_env_paths
+        if self.cfg.temp_usd_dir is not None or not self._use_ovstage or not self.scene.ordinal:
+            if self.cfg.temp_usd_dir is not None:
+                _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
+            usd = export_stage_to_string(
+                stage, num_envs, source_paths=tuple(source for source, _ in self.scene.clone_copies),
+                keep_env_roots=False, env_paths=self.scene.population_env_paths,
+            )  # fmt: skip
+            if self.cfg.temp_usd_dir is not None:
+                _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", usd)
+            if self._use_ovstage:
+                self.scene.populate(usd)
+            else:
+                self.backend.renderer.open_usd_from_string(usd)
+                ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
         tokens = [f"env_{i}" for i in range(len(env_paths))]
-        if self._use_ovstage:
-            self.scene.populate(usd)
-            if env_paths:
+        if env_paths:
+            if self._use_ovstage:
                 with self.scene.query(env_paths) as query:
                     self.scene.stage.write_attribute(
                         query, "primvars:omni:scenePartition", ordinal=self.scene.ordinal,
                         tensors=np.array([self.scene.paths.intern_token(token) for token in tokens], np.uint64),
                         is_array=False, semantic=ovstage.AttributeSemantic.TOKEN_ID,
                     ).wait()  # fmt: skip
-        else:
-            self.backend.renderer.open_usd_from_string(usd)
-            ovrtx_replicate(self.backend.renderer, self.scene.clone_copies, env_paths, self.scene.clone_positions)
-            if env_paths:
-                # EXISTING_ONLY skips frames without an authored partition attribute.
+            else:
                 self.backend.renderer.write_attribute(
                     env_paths, "primvars:omni:scenePartition", tokens,
                     semantic=Semantic.TOKEN_STRING, prim_mode=PrimMode.CREATE_NEW,
@@ -438,7 +395,12 @@ class OVRTXRenderer(BaseRenderer):
         self._setup_geometry_bindings()
         if self._use_ovstage:
             self.scene.commit()
-            self.backend.renderer.attach_ovstage(self.scene.stage)
+            if not self.backend.attached:
+                self.backend.renderer.attach_ovstage(self.scene.stage)
+                self.backend.attached = True
+                self.scene.resources.callback(self.backend.detach)
+            self.scene.resources.callback(self._sim.render_context.reset_stage_prepare_flag)
+            self.scene.resources.callback(self.close)
         self._initialized_scene = True
 
     def _setup_xform_bindings(self, stage: Usd.Stage) -> None:
@@ -643,6 +605,8 @@ class OVRTXRenderer(BaseRenderer):
             raise
         self.scene.next_camera_id += 1
         self._camera_render_data.append(render_data)
+        self.backend.render_products.add(render_data.render_product_path)
+        render_data.resources.callback(self.backend.render_products.discard, render_data.render_product_path)
         return render_data
 
     def set_outputs(self, render_data: OVRTXCameraRenderData, output_data: dict[str, ProxyArray]) -> None:
@@ -1134,7 +1098,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self.backend.renderer is None or not self._camera_render_data:
             return
-        products = {data.render_product_path for data in self._camera_render_data}
+        products = self.backend.render_products.copy()
         material_writer = self._visual_material_writer_ref() if self._visual_material_writer_ref is not None else None
         try:
             if material_writer is not None:
@@ -1200,6 +1164,7 @@ class OVRTXRenderer(BaseRenderer):
         """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
         try:
             with contextlib.ExitStack() as resources:
+                resources.callback(self._bindings.close)
                 resources.callback(self._transform_writes.close)
                 resources.callback(self._geometry_writes.close)
                 resources.callback(self.geometry_resources.close)
@@ -1208,11 +1173,6 @@ class OVRTXRenderer(BaseRenderer):
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
         finally:
-            try:
-                self._bindings.close()
-            except Exception as exc:
-                if "destroyed" not in str(exc).lower():
-                    logger.warning("Error releasing OVRTX bindings: %s", exc)
             self._object_xform_binding = self._geometry_points_binding = None
             self._object_scales = None
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))

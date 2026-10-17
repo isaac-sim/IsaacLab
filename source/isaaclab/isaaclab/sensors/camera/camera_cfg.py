@@ -216,7 +216,7 @@ class CameraCfg(SensorBaseCfg):
 
     * ``None`` — ISP disabled. No HDR AOV is requested and no RTX-side
       tonemapping flags are flipped.
-    * A :class:`CameraISPMode` sentinel — the renderer backend walks the USD stage to
+    * A :class:`CameraISPMode` sentinel — camera construction walks the USD stage to
       discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
     * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
 
@@ -224,9 +224,11 @@ class CameraCfg(SensorBaseCfg):
     scalar coefficients, so every cloned view in a tiled batch shares the same
     ISP configuration — there is no per-view ISP today.
 
-    :mod:`isaaclab.sensors.camera` does not depend on any ISP implementation; the
-    annotation is intentionally loose (``Any``) so the sensor layer can carry the
-    cfg through to a renderer that knows what to do with it.
+    Camera construction resolves the configuration and, for RTX renderers, neutralizes the
+    camera prim's exposure before the scene is cloned or imported. This also applies to existing
+    camera prims with ``spawn=None``; author their PPISP attributes before constructing the sensor.
+    Renderers receive the resolved configuration and apply PPISP to their HDR output. The PPISP
+    package is imported only when this option is enabled.
     """
 
     def __post_init__(self):

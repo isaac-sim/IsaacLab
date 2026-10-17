@@ -390,6 +390,7 @@ def test_generated_project_can_opt_into_ui_extension(tmp_path):
         extension_config = tomllib.load(file)
     assert (task_dir / "env.py").is_file()
     assert (task_dir / "env_cfg.py").is_file()
+    assert "replicate_physics" not in (task_dir / "env_cfg.py").read_text()
     assert "test_project.tasks.place_vial_direct.config.so101.env:PlaceVialEnv" in registration_test
     assert extension_config["package"]["author"] == 'Test "Quoted" Author'
     assert extension_config["python"]["module"] == [{"name": "test_project.ui_extension_example"}]

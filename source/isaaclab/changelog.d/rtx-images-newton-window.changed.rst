@@ -1,6 +1,0 @@
-* Expanded RTX perspective declarations into ordinary scene cameras during launch configuration. Scripts without a scene configuration must declare assets through ``ReplicateSession``, call ``instantiate(camera_cfg)``, and select the camera with ``SceneCameraCfg``. Set initial pose and resolution on the visualizer configuration instead of deprecated ``env_cfg.viewer``. Removed the Newton-model requirement for RTX visualization.
-* Supported global cameras outside replicated environments, including partial scene resets and direct camera discovery. Added ``CameraCfg.render_settings`` for per-camera OVRTX product attributes.
-* Preserved renderer stage preparation across physics resets while rebuilding physics-dependent resources and material writers.
-* Preserved the perspective field of view when expanding visualizer declarations into scene cameras.
-* Moved global-camera reset handling into the camera lifecycle. Reset IDs and masks remained selective for replicated cameras and refreshed global cameras as a whole. Invalidated camera images after intrinsic updates.
-* Passed the owning simulation explicitly to renderer constructors instead of discovering it through the simulation singleton.

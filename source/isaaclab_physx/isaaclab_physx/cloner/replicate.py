@@ -14,6 +14,7 @@ from omni.physx import get_physx_replicator_interface
 from pxr import Sdf, Usd, UsdUtils
 
 from isaaclab import cloner
+from isaaclab.assets import DeformableObjectCfg
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -29,6 +30,11 @@ class PhysxReplicateContext(cloner.ReplicateContext):
             plan: Replication layout shared by every clone backend.
             asset_prototype_ids: Asset definitions routed to PhysX.
         """
+        # PhysX's native replicator does not attach surface or volume deformables, even
+        # when those assets are copied through USD. All spawned assets already have USD
+        # copies, so let PhysX discover the complete scene without a replicator hook.
+        if any(isinstance(cfg, DeformableObjectCfg) for cfg in plan.asset_cfgs):
+            return
         sources = cloner.path.get_asset_prototype_paths(plan)
         templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
             plan, include_world_indices=True

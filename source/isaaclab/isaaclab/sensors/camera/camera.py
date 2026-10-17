@@ -256,25 +256,28 @@ class Camera(SensorBase):
             if not sim_utils.find_matching_prims(spawn_target):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
 
+        # Complete camera authoring before cloning or importing the scene into a native backend.
+        if self.cfg.isp_cfg is not None:
+            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+
+            camera_paths = [str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage)]
+            self.cfg.isp_cfg = resolve_and_normalize(self.cfg.isp_cfg, self.stage, camera_paths[0])
+            if self.cfg.isp_cfg is not None and self.cfg.renderer_cfg.renderer_type in ("isaac_rtx", "ovrtx"):
+                apply_rtx_exposure_overrides(self.stage, camera_paths)
+
         # Every renderer backend draws the visual-only geometry, so it must survive cloning even
         # when the run is otherwise headless. This must happen before plan dispatch, which is why
         # it is here rather than in ``_initialize_impl``.
         sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.require_visual_shapes()
+        sim_ctx.require_visual_shapes()
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
         # HDR-routing flag flipped on the RTX-bearing backends.
         require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
 
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
-        renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
-        if renderer_type == "isaac_rtx":
+        # Rendering policy is read before the first reset, so configure it during camera construction.
+        if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
             from ...app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
@@ -282,7 +285,7 @@ class Camera(SensorBase):
             settings.set("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
                 settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-        elif renderer_type == "ovrtx" and require_hdr_output:
+        elif self.cfg.renderer_cfg.renderer_type == "ovrtx" and require_hdr_output:
             from ...app.settings_manager import get_settings_manager
 
             get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
@@ -296,14 +299,10 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
-        # ``sim.reset()``; sensor initialization only runs on ``PhysicsEvent.PHYSICS_READY``, which is
-        # too late. Backends are shared per renderer config, so this stays cheap for many cameras.
-        self._renderer: BaseRenderer | None = None
-        if sim_ctx is not None:
-            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-            with force_log_level(logging.INFO):
-                logger.info("Using renderer: %s", type(self._renderer).__name__)
+        # Register before clone dispatch; sensor initialization runs only after physics is ready.
+        self._renderer: BaseRenderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+        with force_log_level(logging.INFO):
+            logger.info("Using renderer: %s", type(self._renderer).__name__)
         # Render data — assigned in _initialize_impl.
         self._render_data = None
         # Frame view — assigned in _initialize_impl.
@@ -324,7 +323,7 @@ class Camera(SensorBase):
         if getattr(self, "_view", None) is not None:
             self._view.close()
             self._view = None
-        # cleanup render resources (renderer may be None if never initialized)
+        # cleanup render resources, allowing construction to have failed before renderer creation
         if getattr(self, "_renderer", None) is not None:
             self._renderer.cleanup(getattr(self, "_render_data", None))
 
@@ -692,15 +691,9 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
-        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
-        if self._renderer is None:
-            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-
         sim_ctx.get_scene_data_provider().cameras[self.cfg.prim_path] = self
 
-        # Build the render spec early — both the wrapper ISP (which delegates
-        # any renderer-side per-camera setup) and ``create_render_data`` consume
-        # it, and the prims are already authored at this point.
+        # Runtime paths and instance counts are available after physics initialization.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
@@ -709,12 +702,6 @@ class Camera(SensorBase):
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
         )
-
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
-        self._renderer.prepare_cameras(self.stage, render_spec)
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
@@ -1086,10 +1073,9 @@ class Camera(SensorBase):
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
-        if self._renderer is not None and self._render_data is not None:
+        if self._render_data is not None:
             self._renderer.cleanup(self._render_data)
         self._render_data = None
-        self._renderer = None
         # call parent
         super()._invalidate_initialize_callback(event)
         # release backend state deterministically, then invalidate the view

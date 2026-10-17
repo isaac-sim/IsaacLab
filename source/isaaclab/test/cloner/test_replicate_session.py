@@ -5,6 +5,7 @@
 
 """Clone lifecycle routing, authoring, and dispatch without a simulator runtime."""
 
+import inspect
 from types import SimpleNamespace
 
 import numpy as np
@@ -24,9 +25,11 @@ from isaaclab.cloner import (
 )
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
+from isaaclab.sim.spawners.wrappers import spawn_multi_asset, spawn_multi_usd_file
 
 
 class _Context(ReplicateContext):
@@ -60,19 +63,39 @@ def simulation(monkeypatch):
     return sim
 
 
+def test_legacy_replicate_physics_warns_without_disabling_replication(simulation):
+    """All old cloner entry points accept False, while physics still receives the clone plan."""
+    assert "clone_in_fabric" not in InteractiveSceneCfg.__dataclass_fields__
+    assert "clone_in_fabric" not in inspect.signature(spawn_multi_asset).parameters
+    assert "clone_in_fabric" not in inspect.signature(spawn_multi_usd_file).parameters
+    with pytest.warns(DeprecationWarning, match="InteractiveSceneCfg.replicate_physics.*ignored"):
+        InteractiveSceneCfg(num_envs=2, env_spacing=1.0, replicate_physics=False)
+    with pytest.warns(DeprecationWarning, match="CloneCfg.replicate_physics.*ignored"):
+        CloneCfg(replicate_physics=False)
+    cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=CuboidCfg(size=(1, 1, 1)))
+    with pytest.warns(DeprecationWarning, match="replicate_physics.*ignored"):
+        session = ReplicateSession((cfg,), 2, 1.0, replicate_physics=False)
+    with session:
+        pass
+    assert (_Context, session.plan, (0,)) in simulation.calls
+    simulation.calls.clear()
+    with pytest.warns(DeprecationWarning, match="replicate_physics.*ignored"):
+        replicate_session.replicate(session.plan, replicate_physics=False)
+    assert (_Context, session.plan, (0,)) in simulation.calls
+
+
 @pytest.mark.parametrize("override", [None, (), (_RenderContext,)])
-@pytest.mark.parametrize("replicate_physics", [True, False])
-def test_asset_routing_preserves_explicit_overrides(simulation, override, replicate_physics):
-    """Rendering requirements augment asset policy; disabling physics leaves rendering active."""
+def test_asset_routing_preserves_explicit_overrides(simulation, override):
+    """Rendering requirements augment asset policy; physics replication is always active."""
     simulation.render_context.clone_contexts.add(_RenderContext)
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=override)
     cfg.spawn.spawn_path = "/Previous/Robot"
-    with ReplicateSession((cfg,), 2, 1.0, replicate_physics=replicate_physics) as session:
+    with ReplicateSession((cfg,), 2, 1.0) as session:
         assert simulation.plan is session.plan
         assert cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
         assert not simulation.calls
     expected = {_RenderContext}
-    if override is None and replicate_physics:
+    if override is None:
         expected.add(_Context)
     assert {context for context, _, _ in simulation.calls} == expected
     assert all(plan is session.plan and ids == (0,) for _, plan, ids in simulation.calls)
