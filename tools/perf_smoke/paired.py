@@ -46,7 +46,7 @@ def _checkout_source(root: Path) -> tuple[str, list[str]]:
 
 
 def resolve_base(root: Path, event: dict) -> dict:
-    """Resolve A from the immutable tested merge, retaining the event's original base."""
+    """Resolve the base commit from the tested PR merge."""
     commit, parents = _checkout_source(root)
     tested = os.environ.get("GITHUB_SHA")
     pr = event["pull_request"]
@@ -55,12 +55,7 @@ def resolve_base(root: Path, event: dict) -> dict:
         raise ValueError("Checked-out PR revision does not match the immutable tested merge GITHUB_SHA.")
     if len(parents) != 2 or parents[1] != head:
         raise ValueError("Tested PR merge does not have the event's head commit as its second parent.")
-    return {
-        "base_commit": parents[0],
-        "tested_commit": commit,
-        "requested_head_commit": head,
-        "event_base_commit": pr["base"]["sha"],
-    }
+    return {"base_commit": parents[0], "tested_commit": commit}
 
 
 def _resolved_base(commit: str | None = None) -> str:
@@ -250,7 +245,6 @@ def restore_baseline(
         workflow_id = current_run.get("workflow_id")
         if not isinstance(workflow_id, int) or workflow_id <= 0:
             raise baseline_mod.EvidenceError("identity_mismatch", "The producing workflow identity is unavailable.")
-        selection["workflow_id"] = workflow_id
         runs = client.paginate(
             f"/repos/{client.repository}/actions/workflows/{workflow_id}/runs",
             "workflow_runs",
@@ -414,8 +408,7 @@ def bind_baseline(
     if selection.get("reference_commit") != _resolved_base():
         raise ValueError("Baseline selection does not match the tested PR merge's resolved first parent.")
     if artifact_id or reuse_confirmed is False:
-        # An interrupted restore may leave an old reuse selection even though CI measured a fresh baseline.
-        # Clear it even when the new upload fails.
+        # Clear stale reuse state on the fresh-baseline path, even if upload failed.
         selection["baseline_reused"] = False
         selection["baseline_origin"] = None
     if not selection["baseline_reused"]:
@@ -508,7 +501,7 @@ def select_pr_baseline(
                 raise baseline_mod.EvidenceError(
                     "measurement_order", "Fresh baseline did not finish before the PR measurement."
                 )
-        selection.update(baseline_origin=baseline.identity, selected=baseline.identity)
+        selection["baseline_origin"] = baseline.identity
         return baseline, selection
     except baseline_mod.EvidenceError as exc:
         selection.update(

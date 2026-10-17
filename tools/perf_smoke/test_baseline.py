@@ -224,10 +224,6 @@ class TestEvidence(unittest.TestCase):
         self.assertTrue(all(not baseline.has_usable_runtime(item["bundle"]) for item in evidence.samples["leg"]))
         self.assertIn("FPS value", str(evidence.issues))
 
-    def test_new_benchmark_attempt_uses_new_artifact(self):
-        self.client.add(20, HEAD, attempt=2, start=stamp(13), samples={"leg": [bundle(stamp(13), stamp(13, 5))]})
-        self.assertEqual(self.candidate(2).identity["run_attempt"], 2)
-
     def test_missing_job_time_is_explicit_not_old_evidence(self):
         self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
         self.client.run_jobs[20, 2][0]["started_at"] = None

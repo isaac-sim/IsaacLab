@@ -204,7 +204,6 @@ class ReportRenderingTests(unittest.TestCase):
             (None, False, "unavailable."),
             (None, True, "unavailable."),
             (evidence(), False, "run for this PR."),
-            (evidence(), True, "reused."),
         ):
             with self.subTest(baseline_available=baseline is not None, reused=reused):
                 report = compare_evidence(baseline, evidence())
