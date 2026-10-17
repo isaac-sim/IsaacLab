@@ -3,6 +3,34 @@ Changelog
 
 .. towncrier release notes start
 
+25.2.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.utils.hydra.is_task_run_launchable` to check one exact preset combination of a task.
+* Added :func:`~isaaclab_tasks.utils.hydra.resolve_task_runs` to list the preset combinations a task can
+  launch, one per distinct resolved config, rejecting those the env config or the launcher refuses.
+
+Changed
+^^^^^^^
+
+* Removed the cabinet visual material overrides from the direct and manager-based cabinet tasks to use the original asset materials.
+
+Fixed
+^^^^^
+
+* Fixed SO-101 keyboard resets under PhysX when each environment contains multiple keyboard articulations, and aligned the keyboard pool with the 19 training variants.
+* Fixed overly sensitive keyboard, gamepad, and SpaceMouse teleoperation in ``Isaac-Reach-Franka`` with the
+  ``diffik`` and ``newton_ik`` presets. Full device input now commands 0.025 m and 0.025 rad per step, the
+  same end-effector motion as ``IsaacContrib-Stack-Cube-Franka-IK-Rel``.
+* Improved typed backend selector errors for tasks that did not expose selectable backend presets.
+* Allowed stack, pick-place, and locomanipulation environments to load without the optional
+  ``isaaclab_teleop`` package while preserving non-XR Isaac Teleop pipelines when it is installed.
+* Fixed the Spot velocity environment's advertised Newton presets by removing the nonfunctional Kamino option.
+
+
 25.1.0 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~~
 

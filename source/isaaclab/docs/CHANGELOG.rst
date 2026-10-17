@@ -3,6 +3,40 @@ Changelog
 
 .. towncrier release notes start
 
+28.0.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.app.validate_launch` to check whether a configuration's physics, renderer and
+  visualizer combination can launch, without starting a runtime. :func:`~isaaclab.app.launch_simulation`
+  runs it first.
+
+Changed
+^^^^^^^
+
+* Changed ``isaaclab list_envs --show_presets`` to list the preset combinations each task can launch headless,
+  one per line with the default marked, instead of the preset names it declares.
+
+Fixed
+^^^^^
+
+* **Breaking:** Fixed the ``"physx"`` convention to mean the OVPhysX order on every backend: breadth-first from
+  the root PhysX elects, visiting child links by joint type, then joint prim path. ``"physx"`` on Newton changes for
+  the joints of Digit and for the bodies of Go2, G1, Galbot and the Franka mimic asset, and now resolves when
+  ``articulation_root_prim_path`` is a pattern. It roots at the ``ArticulationRootAPI`` body before any world joint,
+  and raises instead of guessing when a floating articulation rooted on a container prim has a tied graph center, as
+  Humanoid-AMP does, nested bodies or loop-closing joints.
+* Fixed viewer defaults in :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+  unexpectedly starting Isaac Sim or the RTX runtime when no visualizer was selected.
+* Fixed the Haply teleoperation example instantiating its robot before the simulation stage was created.
+* Raised the PyJWT minimum to 2.15.1 for the Isaac Sim extra and the virtualenv minimum to 21.7.13
+  for the RLInf extra to select upstream security fixes in source and wheel installations.
+* Fixed the ``newton-dominoes`` example failing to initialize before simulation startup.
+* Fixed the G1 rigid/MPM coupling example failing to load its policy on Isaac Lab 3.0.
+
+
 27.2.0 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~~
 

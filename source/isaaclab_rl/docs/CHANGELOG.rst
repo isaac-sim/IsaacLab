@@ -3,6 +3,15 @@ Changelog
 
 .. towncrier release notes start
 
+1.5.1 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed random-agent playback for direct multi-agent tasks by generating batched actions for each agent.
+
+
 1.5.0 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~
 
