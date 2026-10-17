@@ -3,8 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 from isaaclab.test.utils import launch_test_simulation
-from isaaclab.utils import clone, instantiate
+from isaaclab.utils import clone
+from isaaclab.visualizers import VisualizerCfg
 
 launch_test_simulation()
 
@@ -77,10 +79,31 @@ class _FakeMarkerVisualizer:
         (False, False, True, False, [], ["kit"]),
         (False, False, False, True, [], ["kit"]),
         (False, False, False, False, [], []),
-        (False, False, False, False, [KitVisualizer(KitVisualizerCfg())], ["kit"]),
-        (False, False, False, False, [newton_visualizer.NewtonGLVisualizer(NewtonGLVisualizerCfg())], ["newton"]),
-        (False, False, False, False, [rerun_visualizer.RerunVisualizer(RerunVisualizerCfg())], ["newton"]),
-        (False, False, False, False, [viser_visualizer.ViserVisualizer(ViserVisualizerCfg())], ["newton"]),
+        (False, False, False, False, [KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg()))], ["kit"]),
+        (
+            False,
+            False,
+            False,
+            False,
+            [newton_visualizer.NewtonGLVisualizer(VisualizerCfg(backend=NewtonGLVisualizerCfg()))],
+            ["newton"],
+        ),
+        (
+            False,
+            False,
+            False,
+            False,
+            [rerun_visualizer.RerunVisualizer(VisualizerCfg(backend=RerunVisualizerCfg()))],
+            ["newton"],
+        ),
+        (
+            False,
+            False,
+            False,
+            False,
+            [viser_visualizer.ViserVisualizer(VisualizerCfg(backend=ViserVisualizerCfg()))],
+            ["newton"],
+        ),
     ],
 )
 def test_marker_backend_selection(
@@ -401,8 +424,8 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     )
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
     monkeypatch.setattr(newton_visualizer.NewtonManager, "get_contacts", lambda: None)
-    cfg = cfg_type()
-    visualizer = instantiate(cfg)
+    cfg = VisualizerCfg(backend=cfg_type())
+    visualizer = cfg.backend.class_type(cfg)
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()

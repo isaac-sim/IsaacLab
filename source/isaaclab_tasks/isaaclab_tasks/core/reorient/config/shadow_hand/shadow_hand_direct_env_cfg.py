@@ -99,4 +99,4 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     def play_mode(self) -> None:
         """Frame one hand after applying the shared play-mode scene size."""
         super().play_mode()
-        self.sim.default_visualizer_cfg = clone(VISUALIZER_CFG)
+        self.sim.visualizer_cfgs = clone(VISUALIZER_CFG)

@@ -231,15 +231,17 @@ material behavior. Run the teapot demo to compare the available modes:
    # Surface and source particles together
    uv run isaaclab demo teapot-fill \
      --visualizer newton_gl --fluid_render_mode both
-   # Path-traced translucent surface
-   uv run --extra ovrtx isaaclab demo teapot-fill \
-     --visualizer newton_rtx --fluid_render_mode surface
-   # Isaac Sim Kit surface
-   uv run --extra isaacsim isaaclab demo teapot-fill \
-     --visualizer kit --fluid_render_mode surface
 
-The teapot demo defaults to the reconstructed surface. Select ``particles`` or
-``both`` to inspect the source MPM state in Kit, Newton GL, or Newton RTX.
+The teapot demo uses Newton GL and defaults to the reconstructed surface. Select
+``particles`` or ``both`` to inspect the source MPM state. Its ``--visualizer`` / ``--viz``
+option accepts only ``newton_gl``; omit the option to use that default.
+
+For a path-traced surface, use the surface-reconstruction tutorial:
+
+.. code-block:: bash
+
+   uv run --extra ovrtx python scripts/tutorials/08_mpm/surface_reconstruction.py \
+     --visualizer newton_rtx --fluid_render_mode surface
 
 Surface rendering is available in the Kit, Newton GL, and Newton RTX visualizers.
 

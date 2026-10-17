@@ -181,4 +181,4 @@ class CartpoleEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.physics = CartpolePhysicsCfg()
         # visualizer settings
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(8.0, 0.0, 5.0))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(8.0, 0.0, 5.0))

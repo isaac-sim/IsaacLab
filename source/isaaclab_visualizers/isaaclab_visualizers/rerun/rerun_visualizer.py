@@ -26,13 +26,12 @@ from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
-
-from .rerun_visualizer_cfg import RerunVisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera import Camera
@@ -305,14 +304,13 @@ class NewtonViewerRerun(ViewerRerun):
 class RerunVisualizer(BaseVisualizer):
     """Rerun visualizer for Isaac Lab."""
 
-    def __init__(self, cfg: RerunVisualizerCfg):
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize Rerun visualizer state.
 
         Args:
             cfg: Rerun visualizer configuration.
         """
         super().__init__(cfg)
-        self.cfg: RerunVisualizerCfg = cfg
         self._viewer: NewtonViewerRerun | None = None
         self._backend_display: str | None = None
         self._step_counter = 0
@@ -336,11 +334,11 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
-        grpc_port = int(self.cfg.grpc_port)
-        web_port = int(self.cfg.web_port)
-        bind_address = self.cfg.bind_address or "0.0.0.0"
+        grpc_port = int(self.cfg.backend.grpc_port)
+        web_port = int(self.cfg.backend.web_port)
+        bind_address = self.cfg.backend.bind_address or "0.0.0.0"
         rerun_address, start_server_in_viewer = _ensure_rerun_server(
-            app_id=self.cfg.app_id,
+            app_id=self.cfg.backend.app_id,
             bind_address=bind_address,
             grpc_port=grpc_port,
             web_port=web_port,
@@ -350,15 +348,15 @@ class RerunVisualizer(BaseVisualizer):
 
         viewer_address = None if start_server_in_viewer else rerun_address
         self._viewer = NewtonViewerRerun(
-            app_id=self.cfg.app_id,
+            app_id=self.cfg.backend.app_id,
             address=viewer_address,
             serve_web_viewer=start_server_in_viewer,
             web_port=web_port,
             grpc_port=grpc_port,
-            keep_historical_data=self.cfg.keep_historical_data,
-            keep_scalar_history=self.cfg.keep_scalar_history or self.cfg.enable_live_plots,
-            record_to_rrd=self.cfg.record_to_rrd,
-            open_browser=self.cfg.open_browser,
+            keep_historical_data=self.cfg.backend.keep_historical_data,
+            keep_scalar_history=self.cfg.backend.keep_scalar_history or self.cfg.enable_live_plots,
+            record_to_rrd=self.cfg.backend.record_to_rrd,
+            open_browser=self.cfg.backend.open_browser,
             streaming_view=(self.current_image_view is not None and self.current_image_view.camera is not None),
         )
         self._viewer.marker_groups = sim.vis_marker_registry.get_groups().values()
@@ -368,10 +366,10 @@ class RerunVisualizer(BaseVisualizer):
         viewer_url = _rerun_web_viewer_url(viewer_host, web_port, rerun_address)
         print()
         self._log_viewer_url("RerunVisualizer", viewer_url)
-        if self.cfg.open_browser and not start_server_in_viewer:
+        if self.cfg.backend.open_browser and not start_server_in_viewer:
             _open_rerun_web_viewer(viewer_host, web_port, rerun_address)
         self._viewer.set_model(self.backend.model)
-        self._viewer.show_particles = self.cfg.show_particles
+        self._viewer.show_particles = self.cfg.backend.show_particles
         self._viewer.set_visible_worlds(self._env_ids)
         # Preserve simulation world positions (env_spacing) rather than adding viewer-side offsets.
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
@@ -395,9 +393,9 @@ class RerunVisualizer(BaseVisualizer):
                 ("bind_address", bind_address),
                 ("grpc_port", grpc_port),
                 ("web_port", web_port),
-                ("open_browser", self.cfg.open_browser),
-                ("show_particles", self.cfg.show_particles),
-                ("record_to_rrd", self.cfg.record_to_rrd or "<none>"),
+                ("open_browser", self.cfg.backend.open_browser),
+                ("show_particles", self.cfg.backend.show_particles),
+                ("record_to_rrd", self.cfg.backend.record_to_rrd or "<none>"),
             ],
         )
 

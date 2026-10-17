@@ -250,9 +250,11 @@ configure both; the recorder adds the Newton visualizer, headless:
     from isaaclab_visualizers.kit import KitVisualizerCfg
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
+    from isaaclab.visualizers import VisualizerCfg
+
     env_cfg.sim.visualizer_cfgs = [
-        KitVisualizerCfg(eye=(4.0, 4.0, 2.0)),
-        NewtonGLVisualizerCfg(eye=(12.0, 0.0, 6.0)),
+        VisualizerCfg(eye=(4.0, 4.0, 2.0), backend=KitVisualizerCfg()),
+        VisualizerCfg(eye=(12.0, 0.0, 6.0), backend=NewtonGLVisualizerCfg()),
     ]
     env_cfg.video_recorders = [
         VideoRecorderCfg(source="viz:newton_gl", output_dir="videos/"),

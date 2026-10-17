@@ -2540,7 +2540,7 @@ Update interactive viewing, headless rendering, camera configuration, and video 
 
       .. code-block:: python
 
-         sim.default_visualizer_cfg.eye = (7.5, 7.5, 7.5)
+         sim.visualizer_cfgs.eye = (7.5, 7.5, 7.5)
          env_cfg.video_recorders = [VideoRecorderCfg(...)]
 
 
@@ -2557,18 +2557,71 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
   ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
-- If omitted, no visualizer runs. ``SimulationCfg.visualizer_cfgs`` only configures the visualizers
-  ``--viz`` selects: a selected type uses the configured visualizer of that type, with its settings, or
-  else its default config.
+- ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=None)``. A concrete backend
+  runs as declared; ``--viz`` selects backends while preserving the common view and window settings.
+- Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
+  in ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``; pass configured instances instead
+  of subclassing it. ``resolve_task_config`` selects these alternatives before launch. Standalone
+  scripts using task presets must call ``isaaclab_tasks.utils.resolve_presets`` first.
+
+``launch_simulation`` now owns the runtime decisions previously exposed through ``scan`` and ``Scan``.
+Read physics, renderer, and visualizer choices directly from the config inside the launch context.
+Pass the same ``SimulationCfg`` (or enclosing environment config) to launch and simulation construction.
+Bare physics launches no longer transfer viewer names through global settings.
+``validate_launch`` remains available for checking a configuration without starting runtimes;
+it returns the resolved configuration objects and Kit requirements instead of a ``Scan`` object.
 
 For the full behavior of visualizer resolution with the visualizer CLI argument and visualizer configs,
 see :ref:`visualization-common-modes`.
 
+**Breaking change — common visualizer settings moved outside backend configurations.**
+
+Replace ``default_visualizer_cfg`` and backend configs containing common settings with one
+``VisualizerCfg`` declaration. Its ``backend`` selects the implementation; its view, window,
+camera pose, and environment visibility remain unchanged when the selected backend changes.
+There is no defaults-merging pass.
+
+.. code-block:: python
+
+   # Before
+   sim_cfg = SimulationCfg(
+       default_visualizer_cfg=VisualizerCfg(max_visible_envs=16),
+       visualizer_cfgs=NewtonGLVisualizerCfg(window=WindowCfg(size=(1280, 720))),
+   )
+
+   # After: select visualizer=newton_gl at the task entry point.
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=VisualizerCfg(
+           max_visible_envs=16,
+           window=WindowCfg(size=(1280, 720)),
+           backend=MultiBackendVisualizerCfg(),
+       ),
+   )
+
+Select several backends with ``visualizer=rerun,newton_gl``; they share this single
+``VisualizerCfg`` declaration. Standalone scripts resolve the backend declaration with
+``isaaclab_tasks.utils.resolve_presets`` before launch, just like renderer presets.
+Without a selection, ``MultiBackendVisualizerCfg()`` leaves viewers inactive.
+
+Backend configs now contain only implementation-specific options. For example, move ``eye``,
+``max_visible_envs``, ``window``, and ``streaming_view`` from ``NewtonGLVisualizerCfg`` to its
+containing ``VisualizerCfg``. Custom backend configs inherit ``VisualizerBackendCfg``;
+constructors receive the complete ``VisualizerCfg`` and read implementation options from ``cfg.backend``.
+
+All backends use the common ``WindowCfg`` default of 1920 by 1080; set ``window.size=(1280, 720)``
+explicitly to retain Kit's previous default. Automatic scene-camera discovery is now explicitly
+enabled with ``streaming_view=True`` on the common config, including for Newton GL and RTX.
+Explicit ``SceneCameraCfg`` selections continue to enable it automatically.
+Recording with ``--video viz:newton_gl:streaming_view`` also enables the requested camera view,
+with or without a visible ``--viz newton_gl`` window.
+
 **Breaking change — ``--headless`` is removed.**
 
 In Isaac Lab 2.x, passing ``--headless`` disabled all visualizers regardless of ``--viz``.
-In Isaac Lab 3.0 the flag is removed: a run opens windows only for the visualizers ``--viz`` selects,
-and runs without visualizers when ``--viz`` is omitted. To keep a selected visualizer windowless, e.g. on a
+In Isaac Lab 3.0 the flag is removed: a run opens windows for the visualizers selected by CLI or config,
+with no visualizers selected by default. To keep a selected visualizer windowless, e.g. on a
 machine without a display, set ``HEADLESS=1``: ``--viz kit`` then renders through the Replicator offscreen
 renderer and ``--viz newton_gl`` through pyglet's EGL backend.
 
@@ -2610,7 +2663,7 @@ The ``viewer`` field (type :class:`~isaaclab.envs.common.ViewerCfg`) is deprecat
 :class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.ManagerBasedEnvCfg`, and
 :class:`~isaaclab.envs.DirectMARLEnvCfg`.  A backward-compatibility shim re-routes
 ``viewer.*`` assignments for one release, but the field will be removed in a future version.
-Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg`
+Configure the viewport camera through :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`
 on the sim config instead.
 
 Similarly, :class:`~isaaclab.envs.ui.ViewportCameraController` is deprecated.  A shim class
@@ -2627,7 +2680,8 @@ construction.  Camera tracking is now handled directly by
 
    # After (Isaac Lab 3.x)
    from isaaclab.visualizers import VisualizerCfg
-   env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
+
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(eye=(4.5, 0.0, 6.0), lookat=(0.0, 0.0, 2.0))
 
 For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body"``), use
 :class:`~isaaclab_visualizers.kit.KitVisualizerCfg` with ``origin_type="asset"`` and
@@ -2635,13 +2689,20 @@ For asset-body tracking (previously ``origin_type="asset_root"`` / ``"asset_body
 
 .. code-block:: python
 
+   from isaaclab.visualizers import VisualizerCfg
+
    # Before (Isaac Lab 2.x)
    env_cfg.viewer.origin_type = "asset_root"
    env_cfg.viewer.asset_name = "robot"
 
    # After (Isaac Lab 3.x)
    from isaaclab_visualizers.kit import KitVisualizerCfg
-   env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(origin_type="asset", origin_track_path="robot")]  # --viz kit
+
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+       backend=MultiBackendVisualizerCfg(kit=KitVisualizerCfg(origin_type="asset", origin_track_path="robot")),
+   )  # visualizer=kit
 
 The :class:`~isaaclab.envs.ui.ViewportCameraController` class is also deprecated; camera
 tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`.
@@ -2702,8 +2763,11 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
 
 .. code-block:: python
 
+   from isaaclab.visualizers import VisualizerCfg
+
    # Before (Isaac Lab 2.x)
    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
    cfg = NewtonVisualizerCfg(
        tiled_cam_view=True,
        tiled_cam_num=16,
@@ -2711,11 +2775,13 @@ camera, force a capture, or remove camera prims on close. See :ref:`visualizatio
    )
 
    # After (Isaac Lab 3.x)
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-   cfg = NewtonGLVisualizerCfg(
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   cfg = VisualizerCfg(
        streaming_view=True,
        streaming_envs=16,
        streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+       backend=MultiBackendVisualizerCfg(),
    )
 
 .. note::
@@ -2754,18 +2820,6 @@ Update scripts and config files to use the explicit form:
    # After (Isaac Lab 3.x)
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz newton_gl
 
-Similarly, when importing the config class directly:
-
-.. code-block:: python
-
-   # Before (Isaac Lab 2.x)
-   from isaaclab_visualizers.newton import NewtonVisualizerCfg
-   cfg = NewtonVisualizerCfg()
-
-   # After (Isaac Lab 3.x)
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
-   cfg = NewtonGLVisualizerCfg()
-
 The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
 ``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
 ``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
@@ -2778,14 +2832,19 @@ Move Newton's ``window_width`` and ``window_height`` into ``WindowCfg.size``. Re
 
 .. code-block:: python
 
+   from isaaclab.visualizers import VisualizerCfg
+
    # Before
    viewer = NewtonGLVisualizerCfg(window_width=1920, window_height=1080, update_frequency=2)
 
    # After
    from isaaclab.visualizers import WindowCfg
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-   viewer = NewtonGLVisualizerCfg(window=WindowCfg(size=(1920, 1080), fps=30.0))
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   viewer = VisualizerCfg(
+       window=WindowCfg(size=(1920, 1080), fps=30.0), backend=MultiBackendVisualizerCfg(),
+   )
 
 ``fps`` limits presentation by elapsed wall-clock time, rather than rendering every N simulation
 steps. Choose the desired display rate; there is no fixed conversion from ``update_frequency``
@@ -2847,7 +2906,7 @@ Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton_gl"``, ``
 ``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. ``visualizer`` is accepted as the long
 form of ``viz``; the ``newton`` type remains a deprecated alias of ``newton_gl``.
 The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
-camera via ``sim.default_visualizer_cfg`` instead.
+camera via ``sim.visualizer_cfgs`` instead.
 
 The ``isaaclab.envs.utils.recording_hooks`` module has been removed.  Physics-backend recording
 hooks are now registered via :meth:`~isaaclab.sim.SimulationContext.add_render_callback`.
@@ -3233,9 +3292,9 @@ RL libraries.
 
 **Running Benchmarks**
 
-The physics (and rendering) backend is selected with Hydra preset tokens — ``presets=``,
-exactly as for the training workflow. There is no ``--physics`` or ``--render`` flag; pass
-``presets=physx``, ``presets=newton_mjwarp``, etc. to choose the backend.
+Physics and rendering use task presets, as in training: ``physics=newton_mjwarp`` and
+``renderer=newton_renderer``. The equivalent flags are ``--physics newton_mjwarp`` and
+``--renderer newton_renderer``; there is no ``--render`` flag.
 
 **Before (Isaac Lab 2.x):**
 

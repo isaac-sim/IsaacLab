@@ -143,8 +143,8 @@ def _parse_args():
         parser.error("--video_fps must divide the control rate (60 Hz at 120 Hz physics, otherwise 100 Hz).")
     if args.visualizer is None:
         args.visualizer = ["newton_rtx" if args.video else "newton_gl"]
-    if any(name not in ("newton_gl", "newton_rtx", "kit") for name in args.visualizer):
-        parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx or kit.")
+    if any(name not in ("newton_gl", "newton_rtx", "kit", "none") for name in args.visualizer):
+        parser.error("This demo's grain/surface presentation supports newton_gl, newton_rtx, kit or none.")
     if args.keep_open and args.headless:
         parser.error("--keep_open requires a desktop viewer.")
     if args.render_samples < 1:
@@ -153,7 +153,16 @@ def _parse_args():
 
 
 def _make_env_cfg(args, video_stride):
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeDemoEnvCfg
+    from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+    from isaaclab.visualizers import VisualizerCfg, WindowCfg
+
+    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import (
+        CoffeeDemoEnvCfg,
+        CoffeeKitVisualizerCfg,
+        CoffeeRTXVisualizerCfg,
+    )
 
     cfg = CoffeeDemoEnvCfg(water_enabled=args.water)
     cfg.seed = 7
@@ -186,19 +195,7 @@ def _make_env_cfg(args, video_stride):
                 fps=args.video_fps,
             )
         ]
-    cfg.sim.visualizer_cfgs = _make_visualizers(args)
-    return cfg
-
-
-def _make_visualizers(args):
-    from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
-
-    from isaaclab.visualizers import WindowCfg
-
-    from isaaclab_tasks.contrib.rizon_sharpa_coffee.demo_env_cfg import CoffeeKitVisualizerCfg, CoffeeRTXVisualizerCfg
-
-    camera_cfg = dict(
+    view = VisualizerCfg(
         headless=args.headless,
         window=WindowCfg(size=(args.width, args.height)),
         eye=(0.95, -0.65, 0.66),
@@ -206,56 +203,50 @@ def _make_visualizers(args):
         focal_length=24.0,
         background_color=(0.008, 0.014, 0.022),
     )
-    rtx_camera = camera_cfg.copy()
-    if args.backdrop == "kitchen":
-        rtx_camera.update(eye=(0.86, -0.61, 0.70), lookat=(0.53, -0.03, 0.10))
-    visualizers = [
-        NewtonGLVisualizerCfg(
-            class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
-            show_particles=args.grains_per_particle == 0,
-            particle_color=(0.095, 0.029, 0.010) if not args.water else None,
-            enable_picking=False,
-            enable_sky=False,
-            **camera_cfg,
+    cfg.sim.visualizer_cfgs = [
+        view.replace(
+            backend=NewtonGLVisualizerCfg(
+                class_type="isaaclab_tasks.contrib.rizon_sharpa_coffee.rendering:CoffeeGLVisualizer",
+                show_particles=args.grains_per_particle == 0,
+                particle_color=(0.095, 0.029, 0.010) if not args.water else None,
+                enable_picking=False,
+                enable_sky=False,
+            )
         ),
-        CoffeeRTXVisualizerCfg(
-            backdrop=args.backdrop,
-            render_settings={
-                "omni:rtx:rtpt:spp": ("Int", args.render_samples),
-                "omni:rtx:rtpt:maxBounces": ("UInt", 8),
-                "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
-                "omni:rtx:directLighting:sampledLighting:denoisingTechnique": ("Token", "NRD ReLAX"),
-                "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
-                "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
-            },
-            **rtx_camera,
-        ),
-        CoffeeKitVisualizerCfg(
-            backdrop=args.backdrop,
-            render_settings=IsaacRtxRendererGlobalSettingsCfg(
-                enable_translucency=True,
-                max_bounces=12,
-                split_glass=False,
-                carb_settings={
-                    "/rtx/rtpt/spp": args.render_samples,
-                    "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
+        view.replace(
+            backend=CoffeeRTXVisualizerCfg(
+                backdrop=args.backdrop,
+                render_settings={
+                    "omni:rtx:rtpt:spp": ("Int", args.render_samples),
+                    "omni:rtx:rtpt:maxBounces": ("UInt", 8),
+                    "omni:rtx:rtpt:extraSpecularAndTransmissiveBounces": ("UInt", 4),
+                    "omni:rtx:directLighting:sampledLighting:denoisingTechnique": ("Token", "NRD ReLAX"),
+                    "omni:rtx:reflections:denoiser:enabled": ("Bool", True),
+                    "omni:rtx:indirectDiffuse:denoiser:enabled": ("Bool", True),
                 },
-            ),
+            )
+        ),
+        view.replace(
             enable_markers=False,
             enable_live_plots=False,
-            **rtx_camera,
+            backend=CoffeeKitVisualizerCfg(
+                backdrop=args.backdrop,
+                render_settings=IsaacRtxRendererGlobalSettingsCfg(
+                    enable_translucency=True,
+                    max_bounces=12,
+                    split_glass=False,
+                    carb_settings={
+                        "/rtx/rtpt/spp": args.render_samples,
+                        "/rtx/rtpt/extraSpecularAndTransmissiveBounces": 8,
+                    },
+                ),
+            ),
         ),
     ]
-    # The native recorder's bare "viz" source uses the first selected producer.
-    # Declare all supported configurations while preserving the requested order.
-    return sorted(
-        visualizers,
-        key=lambda cfg: (
-            args.visualizer.index(cfg.visualizer_type)
-            if cfg.visualizer_type in args.visualizer
-            else len(args.visualizer)
-        ),
-    )
+    if args.backdrop == "kitchen":
+        for visualizer in cfg.sim.visualizer_cfgs[1:]:
+            visualizer.eye, visualizer.lookat = (0.86, -0.61, 0.70), (0.53, -0.03, 0.10)
+    return cfg
 
 
 class _SpoonCamera:

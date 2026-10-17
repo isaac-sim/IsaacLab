@@ -21,7 +21,7 @@ from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, VideoRecorder
 from isaaclab.managers import EventTermCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers import WindowCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg import FrankaCabinetEnvCfg
@@ -172,13 +172,13 @@ def _configure_resolved_sim(
 ):
     """Attach a headless 1280 by 720 OVRTX visualizer with task-specific framing."""
     sim_cfg.visualizer_cfgs = [
-        NewtonRTXVisualizerCfg(
+        VisualizerCfg(
             eye=eye,
             lookat=lookat,
             focal_length=focal_length,
             window=WindowCfg(size=(1280, 720)),
             headless=True,
-            render_settings={"omni:rtx:quality": ("Int", 100)},
+            backend=NewtonRTXVisualizerCfg(render_settings={"omni:rtx:quality": ("Int", 100)}),
         )
     ]
 

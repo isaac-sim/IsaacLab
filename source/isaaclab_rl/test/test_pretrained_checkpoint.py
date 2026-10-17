@@ -17,6 +17,7 @@ from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_rl.utils import pretrained_checkpoint
 
@@ -96,7 +97,9 @@ def test_get_pretrained_checkpoint_filename_requires_both_backends():
         )
 
 
-@pytest.mark.parametrize("visualizer_cfgs", [[], [NewtonGLVisualizerCfg()]], ids=["no-visualizer", "visualizer"])
+@pytest.mark.parametrize(
+    "visualizer_cfgs", [[], [VisualizerCfg(backend=NewtonGLVisualizerCfg())]], ids=["no-visualizer", "visualizer"]
+)
 def test_get_pretrained_checkpoint_backend_names_identifies_physx_without_renderer(visualizer_cfgs):
     """Test backend discovery for a state-only PhysX task; a visualizer's renderer does not count."""
     env_cfg = _EnvCfg(sim=SimulationCfg(physics=PhysxCfg(), visualizer_cfgs=visualizer_cfgs))

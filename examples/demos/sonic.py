@@ -40,7 +40,6 @@ from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 from isaaclab_tasks.contrib.g1_terrain.agents.sonic_policy import SonicPolicy
 from isaaclab_tasks.utils.hydra import resolve_task_config, setup_preset_cli
@@ -90,9 +89,9 @@ def main() -> None:
     overrides.insert(0, "presets=granular")
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     is_physx = isinstance(cfg.sim.physics, PhysxCfg)
-    offline_default = not is_physx and args.visualizer is None
-    if args.visualizer is None:
-        args.visualizer = ["kit"] if is_physx else []
+    if not isinstance(cfg.sim.visualizer_cfgs, list):
+        cfg.sim.visualizer_cfgs = [cfg.sim.visualizer_cfgs]
+    offline_default = not is_physx and all(viewer.backend is None for viewer in cfg.sim.visualizer_cfgs)
     args.video = args.video or offline_default
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation
@@ -130,21 +129,16 @@ def main() -> None:
         ],
     )
     aperture = 20.955 * args.height / args.width
-    cfg.sim.default_visualizer_cfg = VisualizerCfg(
-        window=WindowCfg(size=(args.width, args.height)),
-        eye=cfg.camera_eye,
-        lookat=cfg.camera_target,
-        focal_length=aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2)),
-        enable_markers=False,
-        enable_live_plots=False,
-    )
-    cfg.sim.visualizer_cfgs = [
-        NewtonGLVisualizerCfg(show_particles=True, window=WindowCfg(size=(args.width, args.height))),
-        KitVisualizerCfg(
-            window=WindowCfg(size=(args.width, args.height)),
-            streaming_view=False,
-        ),
-    ]
+    for viewer in cfg.sim.visualizer_cfgs:
+        viewer.window.size = (args.width, args.height)
+        viewer.eye, viewer.lookat = cfg.camera_eye, cfg.camera_target
+        viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
+        viewer.enable_markers = viewer.enable_live_plots = viewer.streaming_view = False
+        if is_physx and viewer.backend is None:
+            viewer.backend = KitVisualizerCfg()
+        for backend in viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]:
+            if isinstance(backend, NewtonGLVisualizerCfg):
+                backend.show_particles = True
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped
@@ -152,7 +146,8 @@ def main() -> None:
             env.reset()
             robot = env.scene["robot"]
             kit_visualizer = next(
-                (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.visualizer_type == "kit"), None
+                (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.backend.visualizer_type == "kit"),
+                None,
             )
             env.prepare_view(kit_visualizer)
             policy_ids = [robot.joint_names.index(name) for name in SonicPolicy.joint_names]

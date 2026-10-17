@@ -198,7 +198,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
         # scene
         self.scene.num_envs = 64
-        self.sim.default_visualizer_cfg = clone(CAMERA_VISUALIZER_CFG)
+        self.sim.visualizer_cfgs = clone(CAMERA_VISUALIZER_CFG)
         # inference for CNN
         self.feature_extractor.train = False
         self.feature_extractor.load_checkpoint = True

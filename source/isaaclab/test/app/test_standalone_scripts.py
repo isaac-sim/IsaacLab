@@ -19,7 +19,6 @@ run the corresponding backend-runtime group.
 launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 """
 
-import argparse
 import ast
 import os
 import re
@@ -33,8 +32,6 @@ from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
-from isaaclab_newton.physics import NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
 from standalone_script_cases import (
     OVERRIDES,
     SmokeResult,
@@ -119,41 +116,94 @@ assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
         "scripts/tutorials/08_mpm/material_parameters.py",
         "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
         "scripts/tutorials/08_mpm/surface_reconstruction.py",
-        "examples/demos/teapot_fill.py",
+        "examples/demos/snowball_smash.py",
         "examples/mpm/newton_mpm_granular.py",
         "examples/mpm/newton_mpm_twoway_coupling.py",
         "examples/mpm/g1_coupling.py",
     ],
 )
 def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
-    """Selecting both Newton viewers must preserve each requested configuration."""
+    """One shared declaration selects both Newton viewers before launching the runtime."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("isaaclab_visualizers")
+    pytest.importorskip("isaaclab_tasks")
     if script_path.endswith("g1_coupling.py"):
-        pytest.importorskip("isaaclab_tasks")
         pytest.importorskip("isaaclab_contrib")
     script = script_cases.ROOT / script_path
     code = """
 import runpy
 import sys
 
+import isaaclab.app
+from isaaclab.sim import SimulationCfg
+from isaaclab.visualizers import VisualizerCfg
+
+def check_launch(cfg, args):
+    simulation = cfg if isinstance(cfg, SimulationCfg) else cfg.sim
+    shared = simulation.visualizer_cfgs
+    assert isinstance(shared, VisualizerCfg)
+    assert [backend.visualizer_type for backend in shared.backend] == ['newton_gl', 'newton_rtx']
+    configs, _ = isaaclab.app.validate_launch(cfg, args)
+    viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
+    assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']
+    assert all(viewer.eye == shared.eye and viewer.focal_length == shared.focal_length for viewer in viewers)
+    assert viewers[0].backend.show_particles
+    if script.endswith('surface_reconstruction.py'):
+        assert viewers[1].backend.render_settings['omni:rtx:quality'] == ('Int', 2)
+    raise SystemExit(0)
+
+isaaclab.app.launch_simulation = check_launch
 script = sys.argv[1]
 sys.argv = [script, '--visualizer', 'newton_gl,newton_rtx']
-if not script.endswith('surface_reconstruction.py'):
-    sys.argv.extend(['--voxel_size', '0.1'])
-namespace = runpy.run_path(script)
-if 'create_visualizer_cfgs' in namespace:
-    configs = namespace['create_visualizer_cfgs']()
+if script.endswith('surface_reconstruction.py'):
+    sys.argv.extend(['--fluid_render_mode', 'both', '--rtx_quality', '2'])
 else:
-    import isaaclab_tasks
-    from isaaclab_tasks.utils import resolve_task_config
-    env_cfg, _ = resolve_task_config(
-        namespace['TASK'], 'rsl_rl_cfg_entry_point', play_mode=True,
-        overrides=('physics=newton_mjwarp',),
+    sys.argv.extend(['--voxel_size', '0.1'])
+runpy.run_path(script, run_name='__main__')
+raise AssertionError('The program did not reach launch_simulation')
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
     )
-    namespace['configure_environment'](env_cfg)
-    configs = env_cfg.sim.visualizer_cfgs
-assert [type(cfg).__name__ for cfg in configs] == ['NewtonGLVisualizerCfg', 'NewtonRTXVisualizerCfg']
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_teapot_uses_only_newton_gl():
+    """The GL-only demo rejects other backends before launch and needs no task presets."""
+    script = script_cases.ROOT / "examples/demos/teapot_fill.py"
+    code = """
+import runpy
+import sys
+
+import isaaclab.app
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+def check_launch(cfg, args):
+    assert isinstance(cfg.visualizer_cfgs.backend, NewtonGLVisualizerCfg)
+    assert cfg.visualizer_cfgs.backend.show_particles
+    assert 'isaaclab_tasks' not in sys.modules
+    isaaclab.app.validate_launch(cfg, args)
+    assert [view.backend.visualizer_type for view in cfg.visualizer_cfgs] == ['newton_gl']
+    raise SystemExit(0)
+
+isaaclab.app.launch_simulation = check_launch
+script = sys.argv[1]
+sys.argv = [script, '--visualizer', 'newton_gl', '--fluid_render_mode', 'both']
+namespace = runpy.run_path(script)
+parser = namespace['parser']
+for option, value in (
+    ('--visualizer', 'newton_rtx'), ('--viz', 'kit'), ('--viz', 'newton_gl,rerun'), ('--viz', 'none')
+):
+    try:
+        parser.parse_args([option, value])
+    except SystemExit as error:
+        assert error.code == 2
+    else:
+        raise AssertionError(f'Teapot accepted unsupported visualizer: {value}')
+assert parser.parse_args([]).visualizer == 'newton_gl'
+assert parser.parse_args(['--viz', 'newton_gl']).visualizer == 'newton_gl'
+namespace['main']()
+raise AssertionError('The demo did not reach launch_simulation')
 """
     result = subprocess.run(
         [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
@@ -237,44 +287,37 @@ def test_every_packaged_script_is_registered_for_cli_launch():
 
 
 @pytest.mark.parametrize(
-    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides"),
+    ("extra_args", "expected_visualizers", "expected_overrides"),
     [
-        ((), NewtonCfg(), ["newton_gl"], ["presets=platforms"]),
-        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
-        (("--viz", "none"), NewtonCfg(), [], ["presets=platforms"]),
+        ((), ["newton_gl"], ["presets=platforms"]),
+        (("physics=isaacsim_physx",), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        (("--viz", "none"), [], ["presets=platforms", "visualizer=none"]),
     ],
     ids=("newton-default", "physx-default", "explicit-none"),
 )
-def test_g1_terrain_forwards_visualizer_selection(
-    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides
-):
+def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expected_visualizers, expected_overrides):
     """The G1 example must choose its backend default without overriding explicit visualizer intent."""
     script = script_cases.ROOT / "examples" / "g1_terrain.py"
     namespace = runpy.run_path(str(script))
     main = namespace["main"]
-    cfg = SimpleNamespace(
-        sim=SimpleNamespace(physics=physics_cfg, dt=0.005),
-        policy=SimpleNamespace(checkpoint="checkpoint.pt"),
-        duration=1.0,
-        decimation=4,
-        camera_eye=(4.0, -4.0, 3.0),
-        camera_target=(0.0, 0.0, 0.0),
-        camera_vfov=45.0,
-    )
+    resolve_config = main.__globals__["resolve_task_config"]
     captured = {}
 
     def resolve_task_config(_task, _agent, *, overrides):
         captured["overrides"] = overrides
-        return cfg, None
+        return resolve_config(_task, _agent, overrides=overrides)
 
     class LaunchReached(Exception):
         pass
 
     @contextmanager
     def launch_simulation(_cfg, launcher_args):
-        captured["visualizers"] = (
-            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
-        )
+        captured["visualizers"] = [
+            backend.visualizer_type
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
+            if backend is not None
+        ]
         raise LaunchReached
         yield
 
@@ -290,16 +333,15 @@ def test_g1_terrain_forwards_visualizer_selection(
 
 
 @pytest.mark.parametrize(
-    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    ("extra_args", "expected_visualizers", "expected_overrides", "expected_video_source"),
     [
-        ((), NewtonCfg(), [], ["presets=granular"], "viz:kit"),
-        (("--viz", "newton_gl"), NewtonCfg(), ["newton_gl"], ["presets=granular"], None),
-        (("--viz", "none"), NewtonCfg(), [], ["presets=granular"], None),
-        (("--viz", "rerun", "--video"), NewtonCfg(), ["rerun"], ["presets=granular"], "viz"),
-        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
+        ((), [], ["presets=granular"], "viz:kit"),
+        (("--viz", "newton_gl"), ["newton_gl"], ["presets=granular", "visualizer=newton_gl"], None),
+        (("--viz", "none"), [], ["presets=granular", "visualizer=none"], None),
+        (("--viz", "rerun", "--video"), ["rerun"], ["presets=granular", "visualizer=rerun"], "viz"),
+        (("physics=isaacsim_physx",), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
         (
             ("--physics", "isaacsim_physx", "--video"),
-            PhysxCfg(),
             ["kit"],
             ["presets=granular", "physics=isaacsim_physx"],
             "viz:kit",
@@ -315,37 +357,30 @@ def test_g1_terrain_forwards_visualizer_selection(
     ),
 )
 def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
-    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides, expected_video_source
+    monkeypatch, extra_args, expected_visualizers, expected_overrides, expected_video_source
 ):
     """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
     script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
     namespace = runpy.run_path(str(script))
     main = namespace["main"]
-    cfg = SimpleNamespace(
-        sim=SimpleNamespace(physics=physics_cfg, dt=0.005, visualizer_cfgs=[]),
-        video_recorders=[],
-        policy_repo="nvidia/GEAR-SONIC",
-        policy_revision="revision",
-        duration=1.0,
-        decimation=4,
-        camera_eye=(4.0, -4.0, 3.0),
-        camera_target=(0.0, 0.0, 0.0),
-        camera_vfov=45.0,
-    )
+    resolve_config = main.__globals__["resolve_task_config"]
     captured = {}
 
     def resolve_task_config(_task, _agent, *, overrides):
         captured["overrides"] = overrides
-        return cfg, None
+        return resolve_config(_task, _agent, overrides=overrides)
 
     class LaunchReached(Exception):
         pass
 
     @contextmanager
     def launch_simulation(_cfg, launcher_args):
-        captured["visualizers"] = (
-            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
-        )
+        captured["visualizers"] = [
+            backend.visualizer_type
+            for viewer in _cfg.sim.visualizer_cfgs
+            for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
+            if backend is not None
+        ]
         captured["launch_physics"] = getattr(launcher_args, "physics", None)
         captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
         raise LaunchReached

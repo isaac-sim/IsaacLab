@@ -34,6 +34,7 @@ import warnings
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import is_dataclass
 from types import SimpleNamespace
+from typing import ClassVar
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -52,6 +53,7 @@ from isaaclab.utils import (
     update_from_dict,
     validate,
 )
+from isaaclab.visualizers import VisualizerBackendCfg, VisualizerCfg
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
@@ -69,6 +71,7 @@ class PresetTarget(enum.Enum):
 
     PHYSICS = ("physics", (PhysicsCfg,))
     RENDERER = ("renderer", (RendererCfg,))
+    VISUALIZER = ("visualizer", (VisualizerBackendCfg,))
     DOMAIN = ("presets", ())
 
     def __new__(cls, label: str, base_classes: tuple[type, ...]):
@@ -116,7 +119,7 @@ def user_stacklevel() -> int:
     return level
 
 
-def _normalize_preset_name(name: str, known_names: set[str]) -> str:
+def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[str, str] | None = None) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 
     Returns ``name`` unchanged when:
@@ -126,7 +129,7 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
         * ``name`` is itself a real field in ``known_names`` (a user-defined preset
           legitimately reusing the deprecated spelling shadows the alias).
     """
-    replacement = _LEGACY_PRESET_ALIASES.get(name)
+    replacement = (aliases or {}).get(name, _LEGACY_PRESET_ALIASES.get(name))
     if replacement is None or replacement not in known_names or name in known_names:
         return name
     warnings.warn(
@@ -173,6 +176,8 @@ class PresetCfg:
             default = rgb
     """
 
+    _aliases: ClassVar[dict[str, str]] = {}
+
     def __getattr__(self, name: str):
         """Alias a deprecated preset name to its replacement field.
 
@@ -182,7 +187,7 @@ class PresetCfg:
         real field on the subclass, so a user redefining the deprecated name
         shadows the alias.
         """
-        replacement = _LEGACY_PRESET_ALIASES.get(name)
+        replacement = self._aliases.get(name, _LEGACY_PRESET_ALIASES.get(name))
         fields = self.__dataclass_fields__
         if replacement is not None and replacement in fields and name not in fields:
             warnings.warn(
@@ -290,7 +295,7 @@ def _pick_alternative(
     preset_obj: PresetCfg,
     selected,
     path: str = "",
-    explicit_name: str | None = None,
+    explicit_name: str | Sequence[str] | None = None,
     consumed_selected: set[str] | None = None,
     on_selected: Callable[[str, object], None] | None = None,
 ):
@@ -302,10 +307,18 @@ def _pick_alternative(
     Raises:
         ValueError: If no matching name and no ``default`` field exists.
     """
+    if explicit_name is not None and not isinstance(explicit_name, str):
+        choices = [
+            _pick_alternative(preset_obj, selected, path, name, consumed_selected, on_selected)
+            for name in explicit_name
+        ]
+        if len(choices) > 1 and any(choice is None or (isinstance(choice, list) and not choice) for choice in choices):
+            raise ValueError("An empty preset choice cannot be combined with other choices.")
+        return choices[0] if len(choices) == 1 else choices
     fields = _preset_fields(preset_obj)
     field_names = set(fields)
     if explicit_name is not None:
-        explicit_name = _normalize_preset_name(explicit_name, field_names)
+        explicit_name = _normalize_preset_name(explicit_name, field_names, preset_obj._aliases)
         if explicit_name in fields:
             return fields[explicit_name]
         avail = list(fields)
@@ -351,12 +364,14 @@ def _pick_alternative(
 def _resolve_active_presets(
     cfg,
     selected=(),
-    explicit: dict[str, str] | None = None,
+    explicit: dict[str, str | Sequence[str]] | None = None,
     *,
     strict_explicit: bool = True,
     consumed_selected: set[str] | None = None,
     on_selected: Callable[[str, object], None] | None = None,
     consumed_explicit: set[str] | None = None,
+    selectors: Mapping[Callable[[object], bool], str | Sequence[str]] | None = None,
+    consumed_selectors: set[Callable] | None = None,
 ):
     """Resolve presets by walking only the currently active tree.
 
@@ -364,6 +379,7 @@ def _resolve_active_presets(
     """
     explicit = explicit or {}
     consumed_explicit = consumed_explicit if consumed_explicit is not None else set()
+    consumed_selectors = consumed_selectors if consumed_selectors is not None else set()
 
     def resolve(value, path):
         seen = set()
@@ -376,6 +392,12 @@ def _resolve_active_presets(
             choice = explicit.get(path)
             if choice is not None:
                 consumed_explicit.add(path)
+            else:
+                alternatives = _preset_fields(value).values()
+                for matches, names in (selectors or {}).items():
+                    if any(matches(alternative) for alternative in alternatives):
+                        choice = names
+                        consumed_selectors.add(matches)
             value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
         if isinstance(value, tuple):
             return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
@@ -396,7 +418,12 @@ def _resolve_active_presets(
     return cfg
 
 
-def resolve_presets(cfg, selected=()):
+def resolve_presets(
+    cfg,
+    selected=(),
+    *,
+    overrides: dict[str, str | Sequence[str]] | None = None,
+):
     """Replace every :class:`PresetCfg` in the tree with the best alternative.
 
     For each ``PresetCfg`` found in the active configuration tree:
@@ -410,12 +437,13 @@ def resolve_presets(cfg, selected=()):
         cfg: A configclass, dict, or PresetCfg to resolve in-place.
         selected: Set of preset names chosen by the user (e.g. from CLI
             ``presets=peg_insert_4mm,eval``).
+        overrides: Path-specific choices. A list of names selects a list of configurations.
 
     Returns:
         The resolved ``cfg`` (possibly a different object if the root itself
         was a PresetCfg).
     """
-    return _resolve_active_presets(cfg, selected)
+    return _resolve_active_presets(cfg, selected, explicit=overrides)
 
 
 # ============================================================================
@@ -509,6 +537,8 @@ def register_task(
     typed_labels = {target.value: target for target in PresetTarget if target.base_classes}
     global_presets: list[str] = []
     requested_targets: dict[PresetTarget, set[str]] = {}
+    selectors = {}
+    consumed_selectors = set()
     override_items: list[tuple[str, str, str]] = []
     hydra_args: list[str] = []
     for arg in sys.argv[1:] if overrides is None else overrides:
@@ -519,6 +549,11 @@ def register_task(
         token = key.lstrip("-")
         if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+        elif token == PresetTarget.VISUALIZER.value:
+            names = [name.strip() for name in val.split(",") if name.strip()]
+            if not names:
+                raise ValueError("visualizer= requires a preset name; use visualizer=none to disable viewers.")
+            selectors[PresetTarget.VISUALIZER.matches] = names if len(names) > 1 else names[0]
         elif token in typed_labels:
             for name in (v.strip() for v in val.split(",") if v.strip()):
                 global_presets.append(name)
@@ -545,6 +580,8 @@ def register_task(
         consumed_selected=consumed_presets,
         on_selected=record_selection,
         consumed_explicit=consumed_explicit,
+        selectors=selectors,
+        consumed_selectors=consumed_selectors,
     )
     env_cfg, agent_cfg = cfgs["env"], cfgs["agent"]
 
@@ -601,6 +638,20 @@ def register_task(
             f"'{task_name}'. Choose a declared preset, or remove the selector(s) to use its registered default "
             "configuration."
         )
+    if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
+        from .presets import MultiBackendVisualizerCfg
+
+        viewers = env_cfg.sim.visualizer_cfgs
+        viewers = viewers if isinstance(viewers, list) else [viewers]
+        if not viewers:
+            viewers = [VisualizerCfg()]
+        for viewer in viewers:
+            choices = MultiBackendVisualizerCfg()
+            if viewer.backend is not None:
+                vars(choices)[viewer.backend.visualizer_type] = viewer.backend
+            viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
+        env_cfg.sim.visualizer_cfgs = viewers
+
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win
     if play_mode and hasattr(env_cfg, "play_mode"):
@@ -660,34 +711,26 @@ def setup_preset_cli(
     registered on ``parser`` -- otherwise those unknown tokens land in
     ``parse_known_args``'s remainder.
 
-    The returned remainder contains the user-typed ``physics=`` / ``renderer=``
-    / ``presets=`` tokens verbatim, alongside any Hydra path overrides and any
-    unknown argparse flags, ready to assign to ``sys.argv`` for hydra to parse.
+    The remainder contains canonical preset selectors, Hydra path overrides,
+    and unknown flags. Launcher arguments, including ``--kit_args``, are parsed
+    first so their values are never interpreted as task selectors.
 
     Does not mutate ``sys.argv``; the caller assigns
     ``sys.argv = [sys.argv[0]] + remaining`` when ready, so any argv-aware logic
     that re-reads ``sys.argv`` (e.g. an external callback) runs against the
     user's original command line first.
 
-    A Hydra override is never the value of an option whose value is optional
-    (``nargs="?"``): ``--video presets=newton_mjwarp`` records video with the
-    option's default source and passes the override on. Overrides always
-    contain ``=``, so such an option followed by a token with ``=`` takes its
-    ``const`` instead.
-
     Args:
         parser: Caller's argument parser. An ``argument_group`` is attached
             for help-time variant discovery. No preset selector arguments are
             added, so the Namespace gains no preset attributes.
         argv: Arguments to parse, including help-time task selection. Defaults to ``sys.argv[1:]``.
-
     Returns:
-        ``(args, remaining)`` where ``remaining`` is the verbatim output of
-        ``parser.parse_known_args(argv)``, ready to hand to Hydra via
-        ``sys.argv``.
+        Parsed launcher arguments and normalized task overrides, ready to hand
+        to Hydra via ``sys.argv`` or :func:`~isaaclab_tasks.utils.hydra.resolve_task_config`.
 
     Raises:
-        SystemExit: If ``argv`` requests help, after printing it.
+        SystemExit: If help is requested or selector arguments are missing or conflicting.
     """
     args_to_parse = sys.argv[1:] if argv is None else argv
     help_requested = "-h" in args_to_parse or "--help" in args_to_parse
@@ -704,7 +747,7 @@ def setup_preset_cli(
     description = ["Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"]
     for target in PresetTarget:
         syntax = f"{target.value}=NAME"
-        if target is PresetTarget.DOMAIN:
+        if target in (PresetTarget.VISUALIZER, PresetTarget.DOMAIN):
             syntax += "[,NAME,...]"
         meaning = (
             f"(typed) selects a {target.value} backend"
@@ -718,7 +761,10 @@ def setup_preset_cli(
                 description.append("                              (none)")
     if variants is None:
         description.append("\nPass `--task=X` along with `--help` to see preset variants available for that task.")
-    description.append("\nHydra also accepts path-targeted overrides like env.sim.physics=NAME.")
+    description.append(
+        "\nAliases: --physics NAME, --renderer NAME, --visualizer NAME (--viz).\n"
+        "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
+    )
     parser.add_argument_group("preset selection", description="\n".join(description))
     if help_requested:
         parser.print_help()
@@ -734,7 +780,31 @@ def setup_preset_cli(
         f"{token}={optional_value_consts[token]}" if token in optional_value_consts and "=" in next_token else token
         for token, next_token in zip(args_to_parse, [*args_to_parse[1:], ""])
     ]
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+    overrides = []
+    tokens = iter(remaining)
+    for token in tokens:
+        key, separator, value = token.partition("=")
+        if key in ("--physics", "--renderer", "--visualizer", "--viz"):
+            value = value if separator else next(tokens, "")
+            if not value or value.startswith("-") or "=" in value:
+                parser.error(f"{key} requires a preset name.")
+            key = "visualizer" if key == "--viz" else key[2:]
+            token = f"{key}={value}"
+        overrides.append(token)
+
+    for key in ("physics", "renderer", "visualizer"):
+        selected = {token[len(key) + 1 :] for token in overrides if token.startswith(f"{key}=")}
+        value = vars(args).pop(key, None)
+        explicit = vars(args).pop(f"{key}_explicit", False)
+        if value is not None or explicit:
+            value = (",".join(value) if isinstance(value, list) else value) or "none"
+            if (explicit or not selected) and value not in selected:
+                overrides.append(f"{key}={value}")
+                selected.add(value)
+        if len(selected) > 1:
+            parser.error(f"Conflicting {key} selections: {', '.join(sorted(selected))}.")
+    return args, overrides
 
 
 def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | None:
@@ -777,11 +847,20 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, list[str]]:
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in collect_presets(env_cfg).values():
+        families = {target for target in typed_targets if any(target.matches(cfg) for cfg in path_dict.values())}
         for name, cfg in path_dict.items():
             if name == "default":
                 continue
             matched = next((target for target in typed_targets if target.matches(cfg)), PresetTarget.DOMAIN)
+            if (cfg is None or (isinstance(cfg, list) and not cfg)) and len(families) == 1:
+                matched = next(iter(families))
             result[matched].add(name)
+    if not result[PresetTarget.VISUALIZER]:
+        from .presets import MultiBackendVisualizerCfg
+
+        result[PresetTarget.VISUALIZER].update(
+            name for name in collect_presets(MultiBackendVisualizerCfg())[""] if name != "default"
+        )
     return {target: sorted(names) for target, names in result.items()}
 
 
@@ -853,7 +932,7 @@ def resolve_task_runs(task_name: str) -> list[tuple[str | None, str | None, str 
         env_cfg = _launchable_env_cfg(task_name, run)
         if env_cfg is None:
             continue
-        # Fingerprint after the launch scan, which resolves automatic selectors to concrete configs.
+        # Fingerprint after launch validation resolves automatic selectors to concrete configs.
         key = repr(to_dict(env_cfg))
         if run == (None, None, None):
             default_key = key

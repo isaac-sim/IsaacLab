@@ -35,12 +35,7 @@ from ..utils.string import clear_resolve_matching_names_cache, string_to_callabl
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
 from ..visualizers.image_view import ImageView
-from ..visualizers.visualizer_cfg import (
-    VISUALIZER_TYPES,
-    PerspectiveCameraCfg,
-    SceneCameraCfg,
-    _apply_visualizer_defaults,
-)
+from ..visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -53,16 +48,6 @@ from .simulation_cfg import BackendCfg, SimulationCfg
 from .spawners import DomeLightCfg, GroundPlaneCfg
 
 logger = logging.getLogger(__name__)
-
-
-def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
-    """Resolve a simulation physics config to a concrete backend."""
-    if physics_cfg is None:
-        physics_cfg = PhysxCfg()
-    elif not isinstance(physics_cfg, PhysicsCfg):
-        raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
-
-    return _resolve_physx_auto_cfg(physics_cfg, use_isaac_sim=use_isaac_sim)
 
 
 class SimulationContext:
@@ -134,7 +119,13 @@ class SimulationContext:
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
-        self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
+        if self.cfg.physics is None:
+            self.cfg.physics = PhysxCfg()
+        elif not isinstance(self.cfg.physics, PhysicsCfg):
+            raise TypeError(
+                f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(self.cfg.physics).__name__}."
+            )
+        self._physics = _resolve_physx_auto_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
         self.cfg.physics = self._physics
         self._physics.class_type._prepare_stage_creation()
 
@@ -168,22 +159,8 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Bare-physics launches defer their CLI selection until this SimulationCfg exists.
         if not isinstance(self.cfg.visualizer_cfgs, list):
-            self.cfg.visualizer_cfgs = [] if self.cfg.visualizer_cfgs is None else [self.cfg.visualizer_cfgs]
-        pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
-        if pending_visualizers:
-            names = pending_visualizers.split(",")
-            self.cfg.visualizer_cfgs = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type in names]
-            for name in names:
-                if not any(cfg.visualizer_type == name for cfg in self.cfg.visualizer_cfgs):
-                    self.cfg.visualizer_cfgs.append(
-                        string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[name]}")()
-                    )
-        max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        if max_visible_envs is not None and max_visible_envs >= 0:
-            for visualizer in self.cfg.visualizer_cfgs:
-                visualizer.max_visible_envs = int(max_visible_envs)
+            self.cfg.visualizer_cfgs = [self.cfg.visualizer_cfgs]
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -361,8 +338,7 @@ class SimulationContext:
         return bool(
             self.has_gui
             or self.has_offscreen_render
-            or self.cfg.visualizer_cfgs
-            or self.get_setting("/isaaclab/video/auto_start_kit")
+            or any(cfg.backend is not None for cfg in self.cfg.visualizer_cfgs)
         )
 
     @property
@@ -377,7 +353,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or any(cfg.visualizer_type and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
+            or any(cfg.backend is not None and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
             or self._xr_enabled
         )
 
@@ -401,26 +377,24 @@ class SimulationContext:
 
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
-        resolved = list(self.cfg.visualizer_cfgs)
-        for cfg in resolved:
-            _apply_visualizer_defaults(cfg, self.cfg.default_visualizer_cfg)
+        resolved = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.backend is not None]
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if (
             self._xr_enabled
             and self.get_setting("/isaaclab/xr/auto_start")
-            and not any(cfg.visualizer_type == "kit" for cfg in resolved)
+            and not any(cfg.backend.visualizer_type == "kit" for cfg in resolved)
         ):
-            resolved.append(KitVisualizerCfg())
+            resolved.append(VisualizerCfg(backend=KitVisualizerCfg()))
             logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         for cfg in resolved:
-            if cfg.visualizer_type is not None:
-                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.visualizer_type]
+            if cfg.backend.visualizer_type is not None:
+                requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL[cfg.backend.visualizer_type]
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
-            self._render_context.clone_contexts.update(cfg.cloning_contexts)
-            self._pending_visualizers.append(instantiate(cfg))
+            self._render_context.clone_contexts.update(cfg.backend.cloning_contexts)
+            self._pending_visualizers.append(cfg.backend.class_type(cfg))
 
     def initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
         """Initialize the constructed visualizers after their shared scene has been cloned.
@@ -560,7 +534,7 @@ class SimulationContext:
     @staticmethod
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
-        return cfg.visualizer_type == "newton_gl" and cfg.enable_picking and not cfg.headless
+        return cfg.backend.visualizer_type == "newton_gl" and cfg.backend.enable_picking and not cfg.headless
 
     def reset(self, soft: bool = False) -> None:
         """Reset the simulation.
