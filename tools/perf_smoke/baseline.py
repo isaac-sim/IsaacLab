@@ -264,24 +264,24 @@ def read_evidence(
     name = artifact_name or f"performance-smoke-{run_id}-{attempt}"
     if artifact.get("name") != name or (artifact.get("workflow_run") or {}).get("id", run_id) != run_id:
         raise EvidenceError("identity_mismatch", "Artifact does not belong to the requested producing attempt")
+    identity = {
+        "repository": client.repository,
+        "run_id": run_id,
+        "run_attempt": attempt,
+        "artifact_id": artifact.get("id"),
+        "artifact_name": name,
+        "source_commit": run.get("head_sha"),
+        "github_head_commit": run.get("head_sha"),
+        "tested_commit": None,
+        "source_provenance": "github_run_metadata",
+        "event": run.get("event"),
+        "branch": run.get("head_branch"),
+    }
     try:
         data, files = contents if contents is not None else download_artifact(client, artifact)
     except EvidenceError as exc:
-        known = {
-            "repository": client.repository,
-            "run_id": run_id,
-            "run_attempt": attempt,
-            "artifact_id": artifact.get("id"),
-            "artifact_name": name,
-            "source_commit": run.get("head_sha"),
-            "github_head_commit": run.get("head_sha"),
-            "tested_commit": None,
-            "source_provenance": "github_run_metadata",
-            "event": run.get("event"),
-            "branch": run.get("head_branch"),
-        }
-        known.update(_github_links(known))
-        raise EvidenceError(exc.code, str(exc), known) from None
+        identity.update(_github_links(identity))
+        raise EvidenceError(exc.code, str(exc), identity) from None
     context = _object(files["build-context.json"], "build-context.json") if "build-context.json" in files else {}
     execution = context.get("execution", {})
     source = context.get("source", {})
@@ -317,7 +317,7 @@ def read_evidence(
                 issues.append(f"{path}: {exc}")
                 missing_start = missing_end = True
                 continue
-            samples.setdefault(parts[0], []).append({"path": path, "bundle": bundle})
+            samples[parts[0]].append({"path": path, "bundle": bundle})
             start = parse_timestamp(bundle["run"].get("start_time_utc"))
             end = parse_timestamp(bundle["run"].get("end_time_utc"))
             if start and end and end < start:
@@ -356,22 +356,15 @@ def read_evidence(
                 issues.append(
                     "Measurement end uses the GitHub benchmark-job completion bound because sample times are incomplete"
                 )
-    identity = {
-        "repository": client.repository,
-        "run_id": run_id,
-        "run_attempt": attempt,
-        "artifact_id": artifact["id"],
-        "artifact_name": name,
-        "sha256": hashlib.sha256(data).hexdigest(),
-        "source_commit": commit,
-        "tested_commit": source.get("commit"),
-        "github_head_commit": run.get("head_sha"),
-        "requested_head_commit": source.get("requested_head_commit"),
-        "source_provenance": "artifact_context" if source.get("commit") else "github_run_metadata",
-        "event": run.get("event"),
-        "branch": run.get("head_branch"),
-        "workflow_id": run.get("workflow_id"),
-    }
+    identity.update(
+        artifact_id=artifact["id"],
+        sha256=hashlib.sha256(data).hexdigest(),
+        source_commit=commit,
+        tested_commit=source.get("commit"),
+        requested_head_commit=source.get("requested_head_commit"),
+        source_provenance="artifact_context" if source.get("commit") else "github_run_metadata",
+        workflow_id=run.get("workflow_id"),
+    )
     identity.update(_github_links(identity))
     return Evidence(
         identity,
