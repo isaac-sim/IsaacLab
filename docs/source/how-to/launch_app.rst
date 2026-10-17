@@ -5,29 +5,22 @@ Deep-dive into the simulation launcher
 
 .. currentmodule:: isaaclab
 
-In this tutorial, we will dive into how a standalone script launches the simulator and configures it using
-CLI arguments and environment variables (envars). Particularly, we will demonstrate how to use
-:func:`app.add_launcher_args` and :func:`app.launch_simulation` to enable livestreaming and to configure
-the :class:`isaacsim.simulation_app.SimulationApp` instance that runs Isaac Sim, while also allowing
-user-provided options.
+Use :func:`app.add_launcher_args` and :func:`app.launch_simulation` to configure
+a standalone script through command-line arguments and environment variables. This
+example enables livestreaming and passes custom options to the Isaac Sim runtime.
 
 Launching is split into two steps. First, :func:`app.add_launcher_args` appends the launch-related options
 to the script's own :class:`argparse.ArgumentParser`. Then, the :func:`app.launch_simulation` context manager
 takes the simulation configuration and the parsed arguments, and starts only the runtime that they need.
-The default PhysX physics backend, Kit-based RTX cameras, the Kit visualizer (``--visualizer kit``) and
+The PhysX physics backend, Kit-based RTX cameras, the Kit visualizer (``--visualizer kit``) and
 livestreaming all run inside Isaac Sim (Kit), so for these :func:`~app.launch_simulation` starts a
 :class:`~isaacsim.simulation_app.SimulationApp`. A kitless configuration, for example Newton physics
 without a Kit visualizer, starts no Isaac Sim at all. The runtime is closed automatically when the
 ``with`` block exits.
 
-The :class:`~isaacsim.simulation_app.SimulationApp` has many extensions that must be loaded to enable
-different capabilities, and some of these extensions are order- and inter-dependent. Additionally, there are
-startup options such as ``headless`` which must be set at instantiation time, and which have an implied
-relationship with some extensions, e.g. the livestreaming extensions. The launcher handles these extensions
-and startup options in a portable manner across a variety of use cases. To achieve this, we offer CLI and
-envar flags which can be merged with user-defined CLI args, while passing forward arguments intended
-for :class:`~isaacsim.simulation_app.SimulationApp`.
-
+The launcher loads Isaac Sim extensions in the required order and applies startup
+options such as ``headless`` before creating :class:`~isaacsim.simulation_app.SimulationApp`.
+Its command-line options can be combined with arguments defined by your script.
 
 The Code
 --------
@@ -56,8 +49,7 @@ In this tutorial, a standard :class:`argparse.ArgumentParser` is instantiated an
 script-specific ``--size`` argument, as well as the arguments ``--height`` and ``--width``.
 The latter are ingested by :class:`~isaacsim.simulation_app.SimulationApp`.
 
-The argument ``--size`` is not used by the launcher, but merges seamlessly with the launcher
-interface. In-script arguments are merged with the launcher interface via the
+The script handles ``--size`` itself. Add the launcher options to the same parser with the
 :func:`~app.add_launcher_args` function, which appends the launcher arguments to the given
 :class:`~argparse.ArgumentParser`. This can then be processed into an :class:`argparse.Namespace` using the
 standard :meth:`argparse.ArgumentParser.parse_args` method.
@@ -309,7 +301,7 @@ want our simulation to be more performant. The process can be killed by pressing
 terminal.
 
 For more details on headless mode and launching visualizers, see
-:doc:`/source/migration/migrating_to_isaaclab_3-0`.
+:doc:`/source/isaaclab/migrating`.
 
 
 .. _specification: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/api.html#isaacsim.simulation_app.SimulationApp.DEFAULT_LAUNCHER_CONFIG
