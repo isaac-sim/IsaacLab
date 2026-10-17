@@ -119,7 +119,7 @@ registry repository, distinguished by a ``-kitless`` tag suffix:
 
 .. code:: bash
 
-    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
+    docker pull nvcr.io/nvidia/isaac-lab:3.0.0-kitless
 
 Running it directly, outside the Compose workflow, is a convenient way to verify the image and your
 NVIDIA Container Toolkit setup. ``--interactive`` and ``--tty`` keep the container's shell alive so
@@ -131,7 +131,7 @@ after the container is removed:
     docker run --name isaac-lab-kitless --detach --interactive --tty --gpus all --network host \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
         -v isaac-lab-kitless-logs:/workspace/isaaclab/logs \
-        nvcr.io/nvidia/isaac-lab:3.0.0-rc1-kitless
+        nvcr.io/nvidia/isaac-lab:3.0.0-kitless
 
     docker exec isaac-lab-kitless \
         isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct \
@@ -165,7 +165,7 @@ you need, and configure graphics access separately when rendering.
 .. note::
 
   Use an explicit published version tag for reproducible runs. The examples below use
-  ``3.0.0-rc1``; the corresponding kit-less image uses ``3.0.0-rc1-kitless``.
+  ``3.0.0``; the corresponding kit-less image uses ``3.0.0-kitless``.
 
 .. attention::
 
@@ -195,7 +195,7 @@ otherwise every start recompiles shaders:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+     nvcr.io/nvidia/isaac-lab:3.0.0
 
 The command above opens no windows: without a display, ``--viz kit``, ``--viz newton_gl``, and
 ``--viz newton_rtx`` run headless. The ``viser`` and ``rerun`` visualizers serve a web page instead
@@ -218,7 +218,7 @@ server and pass the display into the container:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-rc1
+     nvcr.io/nvidia/isaac-lab:3.0.0
 
 ``xhost +local:`` lets every local client use your display, not only the container; run
 ``xhost -local:`` on the host to revoke it when you are done.

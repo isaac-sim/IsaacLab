@@ -89,7 +89,7 @@ jobs:
     # run on deploy branches to create multi-version docs
     if: needs.doc-build-type.outputs.trigger-deploy == 'true'
     env:
-      DOCS_DEFAULT_REF: v3.0.0-EA
+      DOCS_DEFAULT_REF: develop
 
     steps:
     - name: Checkout code
