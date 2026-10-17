@@ -402,3 +402,33 @@ def test_sensor_force_field_contact_object_no_sdf(setup_nut_rgb_ff):
         sensor.update(dt)
         cube.update(dt)
     assert "No SDF mesh found under contact object at path" in str(excinfo.value)
+
+
+@pytest.mark.isaacsim_ci
+def test_sensor_force_field_tracks_elastomer_after_root_write(setup_nut_rgb_ff):
+    """Tactile points follow the elastomer link to its written pose before the next physics step.
+
+    Environments reset inside ``step()`` and read sensors before the next physics step, while the GPU
+    pipeline defers the child-link pose update of articulation writes. The elastomer is a child link of
+    the finger articulation.
+    """
+    sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg = setup_nut_rgb_ff
+    sensor_cfg.enable_camera_tactile = False
+    sensor_cfg.contact_object_prim_path_expr = None
+    robot = Articulation(cfg=robot_cfg)
+    sensor = VisuoTactileSensor(cfg=sensor_cfg)
+    sim.reset()
+    sim.step()
+    robot.update(dt)
+    sensor.update(dt)
+    points_before = sensor.data.tactile_points_pos_w.clone()
+
+    # A reset event writes the root pose, then the scene resets the sensor.
+    root_pose = robot.data.root_link_pose_w.torch.clone()
+    root_pose[:, 0] += 1.0
+    robot.write_root_pose_to_sim_index(root_pose=root_pose)
+    sensor.reset()
+    # Read the sensor before any asset body getter, which would update the kinematics itself.
+    points_after = sensor.data.tactile_points_pos_w
+    offset = torch.tensor([1.0, 0.0, 0.0], device=points_before.device)
+    torch.testing.assert_close(points_after, points_before + offset)

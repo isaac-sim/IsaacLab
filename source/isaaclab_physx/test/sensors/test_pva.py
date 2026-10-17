@@ -603,3 +603,34 @@ def test_velocity_writes_do_not_produce_spurious_acceleration(setup_sim, access_
     # opposes the written spin, so bound it well below the 0.2 / dt spike finite differencing
     # would report for the same velocity writes.
     assert torch.all(sensor.data.ang_acc_b.torch.abs() < 0.01 * 0.2 / dt)
+
+
+def test_reads_link_state_after_joint_write(setup_sim):
+    """A read right after a joint write reports the child link at its written state.
+
+    State writes outside a reset, such as velocity pushes of interval events, land between the physics step and
+    the observation read, while the GPU pipeline defers the child-link update of articulation writes.
+    """
+    sim, scene = setup_sim
+    scene.cfg.lazy_sensor_update = True
+    sim.step()
+    scene.update(sim.get_physics_dt())
+
+    pendulum = scene.articulations["pendulum"]
+    joint_pos = torch.full_like(pendulum.data.joint_pos.torch, 0.5)
+    pendulum.write_joint_state_to_sim_index(position=joint_pos, velocity=torch.full_like(joint_pos, 2.0))
+    # Read the sensor before any asset body getter, which would update the kinematics itself.
+    data = scene.sensors["pva_pendulum_base"].data
+    pose_w = torch.cat([data.pos_w.torch, data.quat_w.torch], dim=-1)
+    ang_vel_b = data.ang_vel_b.torch
+
+    link = pendulum.find_bodies("link_1")[0][0]
+    pos_w, quat_w = math_utils.combine_frame_transforms(
+        pendulum.data.body_link_pos_w.torch[:, link],
+        pendulum.data.body_link_quat_w.torch[:, link],
+        torch.tensor(PEND_POS_OFFSET, device=scene.device).repeat(scene.num_envs, 1),
+        torch.tensor(PEND_ROT_OFFSET, device=scene.device).repeat(scene.num_envs, 1),
+    )
+    torch.testing.assert_close(pose_w, torch.cat([pos_w, quat_w], dim=-1))
+    expected_ang_vel_b = math_utils.quat_apply_inverse(quat_w, pendulum.data.body_link_ang_vel_w.torch[:, link])
+    torch.testing.assert_close(ang_vel_b, expected_ang_vel_b)

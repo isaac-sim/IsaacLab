@@ -19,11 +19,19 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
+# Preload Omni Client while Kit's native libraries are still in a clean loader
+# state. Importing it for the first time after an OVPhysX reset can fail with an
+# undefined symbol from omni.client's native extension.
+import omni.client  # noqa: E402,F401
+
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab import cloner  # noqa: E402
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
+from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.views import FrameView  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 
@@ -129,6 +137,42 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 
     assert events == ["close", ("initialize", physx)]
     assert frame_view._root_view is replacement
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_world_poses_follow_articulation_joint_write(device):
+    """A frame on an articulation child link reports the link at its written pose before the next step.
+
+    ``Camera.get_world_poses()`` returns this view's poses, for any ``update_latest_camera_pose``.
+    Environments reset inside ``step()`` and read sensors before the next physics step, while the GPU
+    pipeline defers the child-link pose update of articulation writes.
+    """
+    OVPHYSX_SIM_CFG.device = device
+    with build_simulation_context(device=device, sim_cfg=OVPHYSX_SIM_CFG, add_ground_plane=False) as sim:
+        sim._app_control_on_stop_handle = None
+        robot = Articulation(
+            ArticulationCfg(
+                prim_path="/World/Robot",
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd"
+                ),
+                init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+                actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+            )
+        )
+        sim_utils.standardize_xform_ops(sim_utils.get_current_stage().DefinePrim("/World/Robot/Arm/Mount", "Xform"))
+        sim.reset()
+        view = FrameView("/World/Robot/Arm/Mount", device=device)
+        sim.step(render=False)
+        robot.update(sim.get_physics_dt())
+
+        robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, 0.5))
+        # Read the view before any asset body getter, which would update the kinematics itself.
+        positions, orientations = view.get_world_poses()
+        pose_w = torch.cat([positions.torch, orientations.torch], dim=-1)
+
+        arm = robot.find_bodies("Arm")[0][0]
+        torch.testing.assert_close(pose_w, robot.data.body_link_pose_w.torch[:, arm])
 
 
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was

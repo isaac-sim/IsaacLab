@@ -419,6 +419,8 @@ class FrameTransformer(BaseFrameTransformer):
         """Fills the buffers of the sensor data."""
         # Resolve mask
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        # Complete pending articulation writes so child links report their current pose.
+        SimulationManager.update_kinematics()
         # Refresh the PhysX buffer every update, but create its typed Warp view only once:
         # the getter lazily allocates its output buffer and refreshes the same memory in place
         # on every call, so the cached view (and the recorded launch that consumes it) stays

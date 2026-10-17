@@ -36,6 +36,8 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils import configclass, replace
 
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
+
 ##
 # Custom helper classes.
 ##
@@ -923,6 +925,35 @@ def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_d
         with pytest.raises(ValueError, match=match):
             _ = InteractiveScene(scene_cfg)
             sim.reset()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_track_pose_reads_link_pose_after_joint_write(setup_simulation, device):
+    """With ``track_pose``, a read right after a joint write reports the child link at its written pose.
+
+    Environments reset inside ``step()`` and read observations before the next physics step, while the
+    GPU pipeline defers the child-link pose update of articulation writes.
+    """
+    sim_dt = setup_simulation[0]
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=5.0)
+        scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        scene_cfg.contact_sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", track_pose=True)
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        _perform_sim_step(sim, scene, sim_dt)
+
+        robot = scene["robot"]
+        # Reset the scene, then write a new joint state as reset events do.
+        scene.reset()
+        robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch + 0.5)
+        # Read the sensor before any asset body getter, which would update the kinematics itself.
+        contact_data = scene["contact_sensor"].data
+        pose_w = torch.cat([contact_data.pos_w.torch[:, 0], contact_data.quat_w.torch[:, 0]], dim=-1)
+
+        foot = robot.find_bodies("LF_FOOT")[0][0]
+        torch.testing.assert_close(pose_w, robot.data.body_link_pose_w.torch[:, foot])
 
 
 """

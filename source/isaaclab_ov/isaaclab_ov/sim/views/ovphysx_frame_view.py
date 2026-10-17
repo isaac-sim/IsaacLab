@@ -695,6 +695,8 @@ class OvPhysxFrameView(BaseFrameView):
             buffer ``[num_bodies]``.
         """
         if self._pose_binding is not None:
+            # Complete pending articulation writes so child links report their current pose.
+            OvPhysxManager.update_kinematics()
             self._root_view.read_into("rigid_body_pose", self._pose_buf)
         return self._pose_buf.view(wp.transformf)
 

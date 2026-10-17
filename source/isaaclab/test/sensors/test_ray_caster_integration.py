@@ -23,6 +23,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(enable_cameras=True)
 
 import copy
+import math
 from typing import Any, cast
 
 import numpy as np
@@ -33,6 +34,8 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
@@ -45,6 +48,7 @@ from isaaclab.sensors.ray_caster import (
 )
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
 
@@ -485,3 +489,72 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
         atol=0.15,
         err_msg="Ray hit should include the child mesh offset baked into the Warp geometry.",
     )
+
+
+# ---------------------------------------------------------------------------
+# Articulation child links after state writes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_ray_casters_read_link_pose_after_joint_write(sim_ground):
+    """Ray casters report an articulation child link at its written pose before the next step.
+
+    Environments reset inside ``step()`` and read observations before the next physics step, while the
+    GPU pipeline defers the child-link pose update of articulation writes. ``Arm`` is a 2 m bar on a
+    revolute joint about the Y axis, with the pivot fixed at (0, 0, 1).
+    """
+    sim = sim_ground
+    robot = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd"
+            ),
+            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+        )
+    )
+    # The standard and the multi-mesh ray casters read their mount pose through separate paths.
+    ray_caster = RayCaster(_single_downward_ray_cfg("/World/Robot/Arm"))
+    multi_mesh_ray_caster = MultiMeshRayCaster(
+        MultiMeshRayCasterCfg(
+            prim_path="/World/Robot/Arm",
+            mesh_prim_paths=[_GROUND_PATH],
+            pattern_cfg=patterns.GridPatternCfg(resolution=1.0, size=(0.0, 0.0), direction=(0.0, 0.0, -1.0)),
+            ray_alignment="world",
+        )
+    )
+    # A static scanner tracks the arm mesh with downward rays at x = -1 m and x = 1 m.
+    sim_utils.create_prim("/World/Scanner", "Xform", translation=(0.0, 0.0, 3.0))
+    scanner = MultiMeshRayCaster(
+        MultiMeshRayCasterCfg(
+            prim_path="/World/Scanner",
+            mesh_prim_paths=[
+                MultiMeshRayCasterCfg.RaycastTargetCfg(prim_expr="/World/Robot/Arm", track_mesh_transforms=True)
+            ],
+            pattern_cfg=patterns.GridPatternCfg(resolution=2.0, size=(2.0, 0.0), direction=(0.0, 0.0, -1.0)),
+            ray_alignment="world",
+        )
+    )
+    sim.reset()
+    arm = robot.find_bodies("Arm")[0][0]
+
+    def step_and_write_joint_position(position: float) -> None:
+        sim.step(render=False)
+        robot.update(_DT)
+        for sensor in (ray_caster, multi_mesh_ray_caster, scanner):
+            sensor.update(_DT)
+        robot.write_joint_position_to_sim_index(position=torch.full_like(robot.data.joint_pos.torch, position))
+
+    # Read one sensor first after each write: an asset body getter would update the kinematics itself.
+    for sensor, position in ((ray_caster, 0.5), (multi_mesh_ray_caster, -0.5)):
+        step_and_write_joint_position(position)
+        pose_w = torch.cat([sensor.data.pos_w.torch, sensor.data.quat_w.torch], dim=-1)
+        torch.testing.assert_close(pose_w, robot.data.body_link_pose_w.torch[:, arm])
+
+    # Pointing the arm along -x puts its top face (z = 1.05 m) under the first ray only.
+    step_and_write_joint_position(math.pi)
+    hits = scanner.data.ray_hits_w.torch[0]
+    torch.testing.assert_close(hits[0], torch.tensor([-1.0, 0.0, 1.05], device=hits.device), atol=1e-3, rtol=0.0)
+    assert torch.isinf(hits[1]).all()

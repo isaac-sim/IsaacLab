@@ -39,6 +39,10 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
 
+# Preload Omni Client while Kit's native libraries are still in a clean loader
+# state. Importing it for the first time after an OVPhysX reset can fail with an
+# undefined symbol from omni.client's native extension.
+import omni.client  # noqa: E402,F401
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -49,8 +53,10 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
-from isaaclab.test.utils import test_devices  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
+
+from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
 
@@ -983,6 +989,34 @@ def test_invalid_contact_config(device, option, value):
     options = {"filter_prim_paths_expr": ["/World/ground"], "track_contact_points": True, option: value}
     with _ovphysx_sim_context(device=device), pytest.raises(ValueError, match=option):
         ContactSensor(ContactSensorCfg(prim_path="/World/Cube", **options))
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_track_pose_reads_link_pose_after_joint_write(device):
+    """With ``track_pose``, a read right after a joint write reports the child link at its written pose.
+
+    Environments reset inside ``step()`` and read observations before the next physics step, while the
+    GPU pipeline defers the child-link pose update of articulation writes.
+    """
+    with _ovphysx_sim_context(device=device, dt=_SIM_DT) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=5.0)
+        scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        scene_cfg.contact_sensor = ContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT", track_pose=True)
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        _perform_sim_step(sim, scene, _SIM_DT)
+
+        robot = scene["robot"]
+        # Reset the scene, then write a new joint state as reset events do.
+        scene.reset()
+        robot.write_joint_position_to_sim_index(position=robot.data.default_joint_pos.torch + 0.5)
+        # Read the sensor before any asset body getter, which would update the kinematics itself.
+        contact_data = scene["contact_sensor"].data
+        pose_w = torch.cat([contact_data.pos_w.torch[:, 0], contact_data.quat_w.torch[:, 0]], dim=-1)
+
+        foot = robot.find_bodies("LF_FOOT")[0][0]
+        torch.testing.assert_close(pose_w, robot.data.body_link_pose_w.torch[:, foot])
 
 
 ##
