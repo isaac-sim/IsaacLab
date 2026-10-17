@@ -640,6 +640,18 @@ class PhysxManager(PhysicsManager):
         return None if cls.backend is None else cls.backend.simulation_view
 
     @classmethod
+    def get_gravity(cls) -> tuple[float, float, float]:
+        """Return the world-frame gravity vector [m/s^2] currently applied to the scene.
+
+        Raises:
+            RuntimeError: If the PhysX simulation view has not been initialized.
+        """
+        physics_sim_view = cls.get_physics_sim_view()
+        if physics_sim_view is None:
+            raise RuntimeError("PhysxManager has not been initialized yet.")
+        return tuple(physics_sim_view.get_gravity())
+
+    @classmethod
     def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
         """Set the scene-wide gravity vector through the PhysX simulation view [m/s^2].
 

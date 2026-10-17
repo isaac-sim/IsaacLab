@@ -1281,7 +1281,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _inject_terrain_heightfields(
-        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str]
+        cls, stage: Usd.Stage, builder: ModelBuilder, *, root_paths: Sequence[str], device: str | None = None
     ) -> list[str]:
         """Replace height-field-tagged terrain colliders with Newton heightfields.
 
@@ -1301,6 +1301,7 @@ class NewtonManager(PhysicsManager):
             stage: The USD stage being imported.
             builder: The Newton model builder receiving the heightfield shapes.
             root_paths: Concrete subtree roots to scan.
+            device: Device used to rasterize the mesh. Defaults to None, which uses the simulation device.
 
         Returns:
             Prim paths of terrain colliders that were converted to heightfields.
@@ -1325,13 +1326,14 @@ class NewtonManager(PhysicsManager):
             # Transform vertices into world frame (USD uses row-vector convention).
             mat = np.array(xform_cache.GetLocalToWorldTransform(mesh_prim), dtype=np.float64).reshape(4, 4)
             world = (points @ mat[:3, :3] + mat[3, :3]).astype(np.float32)
-            device = str(PhysicsManager._device)
+            mesh_device = str(PhysicsManager._device) if device is None else device
             wp_mesh = wp.Mesh(
-                points=wp.array(world, dtype=wp.vec3, device=device),
-                indices=wp.array(faces, dtype=wp.int32, device=device),
+                points=wp.array(world, dtype=wp.vec3, device=mesh_device),
+                indices=wp.array(faces, dtype=wp.int32, device=mesh_device),
             )
             heightfield, xform = Heightfield.create_from_mesh(wp_mesh, resolution)
-            builder.add_shape_heightfield(heightfield=heightfield, xform=xform)
+            # The mesh path identifies the collider that the heightfield replaces.
+            builder.add_shape_heightfield(heightfield=heightfield, xform=xform, label=str(mesh_prim.GetPath()))
             logger.info(
                 "Converted terrain collider %s (%d faces) to a %dx%d heightfield.",
                 prim.GetPath().pathString,
