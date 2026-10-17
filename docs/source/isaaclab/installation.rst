@@ -36,11 +36,11 @@ Choose an installation path
       Run with Newton from the Isaac Lab checkout while ``uv`` manages the environment.
       **Recommended for most users.**
 
-   .. grid-item-card:: **Python environment with Isaac Sim**
+   .. grid-item-card:: **Manage a uv environment**
       :link: installation-method-python-env
       :link-type: ref
 
-      Manage a uv, venv, or conda environment and install Isaac Sim with pip.
+      Prepare the environment explicitly with ``uv sync``, with optional Isaac Sim support.
 
    .. grid-item-card:: **Isaac Lab Python package**
       :link: installation-method-wheel

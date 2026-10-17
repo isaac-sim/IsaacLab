@@ -86,15 +86,7 @@ The policy receives only proprioceptive observations, which are reliably availab
         pose_command = ObsTerm(func=mdp.generated_commands, params={"command_name": "ee_pose"})
 
         def __post_init__(self):
- Load from a specific run folder
- Load from a specific run folder
-          uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-
-uv run isaaclab play --rl_library rsl_rl \
-              --task IsaacContrib-Deploy-Reach-UR10e \
-
-  self.enable_corruption = True
+            self.enable_corruption = True
             self.concatenate_terms = True
 
 .. note::

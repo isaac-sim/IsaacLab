@@ -387,7 +387,7 @@ with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, se
 ``cameras=[SceneCameraCfg(...)]``. This puts the camera
 in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 The full option mapping is in the
-:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>`.
+:doc:`3.0 migration guide </source/isaaclab/migrating>`.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.
 ``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.

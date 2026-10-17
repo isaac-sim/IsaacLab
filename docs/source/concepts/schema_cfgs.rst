@@ -179,7 +179,8 @@ In this example, the hand subtree receives a smaller PhysX depenetration limit.
      - The anchor and all descendants.
 
 For USD, URDF, and MJCF imports, the anchor is the spawn prim. Shape and mesh spawners
-use the geometry prim for collisions and the container prim for rigid-body and mass
+use the geometry prim for collision and mesh-collision properties, and the container
+prim for rigid-body and mass
 properties. Deformable settings use the spawn prim for every spawner type.
 
 The search includes inactive and undefined prims as well as instance proxies.
@@ -209,6 +210,7 @@ For mass, articulation, and joint-drive settings, the spawner flags
 Shape and mesh spawners create the APIs needed by their new geometry. With a bare
 fragment or list, file spawners search for existing schema carriers; if none exist
 for the family, they apply it at the spawn prim, treating the asset as a single body.
+Mesh-collision fragments are an exception: they only modify existing colliders.
 Explicit dictionaries give you control over the target selection.
 
 The writers warn when no valid targets are found or when a target is an instance
@@ -247,6 +249,9 @@ The older ``MujocoJointDrivePropertiesCfg`` also auto-enables body compensation
 when requested, unless an explicit body ``gravcomp`` value is supplied. Prefer the
 fragment example above for new configurations.
 
+
+Mesh collision settings
+-----------------------
 
 Mesh-collision fragments use the same anchor as collision fragments and only modify
 existing colliders; they never create colliders. For example, to cook every
@@ -317,8 +322,9 @@ Using the property configuration classes
 
 You will also see classes such as ``RigidBodyBaseCfg`` and
 ``PhysxRigidBodyPropertiesCfg`` in existing tasks. These combine a property group's
-shared and backend-specific fields in one object. They are deprecated and scheduled for removal in 3.2. These compatibility
-classes. Existing configurations still work in the same spawner fields, but use
+shared and backend-specific fields in one object. These compatibility classes are
+deprecated and scheduled for removal in 3.2. Existing configurations still work in
+the same spawner fields, but use
 fragments for new code. Pass a compatibility object directly, rather than placing
 it in a fragment list.
 

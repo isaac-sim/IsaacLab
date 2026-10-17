@@ -68,52 +68,6 @@ limits to consider when configuring a task.
 See :doc:`/source/concepts/sensors/index` for sensor configuration and
 :doc:`/source/concepts/renderers` for renderer choices.
 
-OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
-numeric environment order so indexed resets, actions and observations address
-the correct variant. Variants may differ in geometry but must preserve body,
-joint and tendon layout. Isaac Lab checks prototype rotation axes and tendon layouts;
-OVPhysX checks body and joint metadata when binding articulations.
-
-The clone context compiles the plan's prototypes and world assignments once.
-The physics manager attaches one exported stage, replays the native copies, and
-warms the runtime before assets and sensors bind. Hard reset reuses the same
-declarations; there is no separate consumable queue. Binding paths come from the
-plan's world layout and environment template, not from native clone order.
-
-Configured scenes author only prototypes before replication. Environment poses come from the clone plan:
-USD replication creates frames for Kit, and OVPhysX places originals in its private import before native cloning.
-OVRTX and OVStage populate their required environment frames in private USD exports, then apply the planned poses.
-The SDK's CPU hierarchy computation requires USD-populated frames. Export filtering still excludes unrouted
-prototypes and any destinations already materialized by USD replication.
-
-Authored sources all receive native environment ID zero. Every world containing
-a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
-clone their assets from a complete original world of the same composition,
-using one native environment ID per destination world. This keeps a robot,
-table and object able to contact one another without destination placeholders.
-Only declared asset subtrees are copied; unrelated authored assets are retained.
-
-Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
-isolate original worlds with USD collision groups. Native GPU physics copies additionally use
-native environment-ID filtering. CPU has no native environment-ID filtering in OvPhysX 0.6.3,
-so it imports all declared USD copies and uses collision groups.
-Large overlapping original layouts can still exhaust broadphase pair capacity;
-use spatially separated environments.
-
-Deformable limitations
-----------------------
-
-OvPhysX deformables currently require every body matched by one
-:class:`~isaaclab.assets.DeformableObject` to have the same number of simulation
-nodes. Initialization raises an error for mixed node counts instead of exposing
-padded state that would produce incorrect reductions.
-
-Deformable scenes also require full-stage materialization. Startup cost therefore
-grows with the number of authored environments. Use this path for small validation
-scenes; training-scale workloads with thousands of environments are not currently
-supported. Deformable bodies are not supported by the heterogeneous fast-path
-cloner.
-
 ..
    Implementation history: rigid objects #5426, articulations #5459,
    rigid-object collections #5570, contacts #5422, scene data #5589,
@@ -268,6 +222,12 @@ warms the runtime before assets and sensors bind. Hard reset reuses the same
 declarations; there is no separate consumable queue. Binding paths come from the
 plan's world layout and environment template, not from native clone order.
 
+Configured scenes author only prototypes before replication. Environment poses come from the clone plan:
+USD replication creates frames for Kit, and OVPhysX places originals in its private import before native cloning.
+OVRTX and OVStage populate their required environment frames in private USD exports, then apply the planned poses.
+The SDK's CPU hierarchy computation requires USD-populated frames. Export filtering still excludes unrouted
+prototypes and any destinations already materialized by USD replication.
+
 Authored sources all receive native environment ID zero. Every world containing
 a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
 clone their assets from a complete original world of the same composition,
@@ -276,9 +236,9 @@ table and object able to contact one another without destination placeholders.
 Only declared asset subtrees are copied; unrelated authored assets are retained.
 
 Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
-isolate original worlds with USD collision groups. GPU copies additionally use
-native environment-ID filtering. CPU has no native environment-ID filtering
-in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
+isolate original worlds with USD collision groups. Native GPU physics copies additionally use
+native environment-ID filtering. CPU has no native environment-ID filtering in OvPhysX 0.6.3,
+so it imports all declared USD copies and uses collision groups.
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
 
