@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
@@ -99,6 +100,15 @@ class InteractiveSceneCfg:
     If true, the sensor data is only updated when their attribute ``data`` is accessed. Otherwise, the sensor
     data is updated every time sensors are updated.
     """
+
+    replicate_physics: bool | None = None
+    """Deprecated and ignored. Clone contexts are selected per asset."""
+
+    def __post_init__(self) -> None:
+        if self.replicate_physics is not None:
+            warnings.warn(
+                "InteractiveSceneCfg.replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2
+            )
 
     filter_collisions: bool = True
     """Enable/disable collision filtering between cloned environments. Default is True.

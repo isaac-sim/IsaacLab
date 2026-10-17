@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import MISSING
 
@@ -72,6 +73,13 @@ class CloneCfg:
     The regex form used to expand ``{ENV_REGEX_NS}`` cfg macros is
     ``clone_template.format("[^/]+")``, which confines the slot to one path segment.
     """
+
+    replicate_physics: bool | None = None
+    """Deprecated and ignored. Clone contexts are selected per asset."""
+
+    def __post_init__(self) -> None:
+        if self.replicate_physics is not None:
+            warnings.warn("CloneCfg.replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
 
 
 def add(this: CloneCfg, other: InclusionSet) -> CloneCfg:

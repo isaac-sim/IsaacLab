@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import TYPE_CHECKING
 
 from pxr import Usd
@@ -27,6 +28,7 @@ def spawn_multi_asset(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     clone_in_fabric: bool = False,
+    replicate_physics: bool | None = None,
 ) -> Usd.Prim:
     """Spawn multiple assets into numbered prim paths derived from the provided configuration.
 
@@ -39,10 +41,13 @@ def spawn_multi_asset(
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
         clone_in_fabric: Whether to clone in fabric. Default is False.
+        replicate_physics: Deprecated and ignored.
 
     Returns:
         The created prim at the first prim path.
     """
+    if replicate_physics is not None:
+        warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
     if cfg.spawn_paths is not None:
         if len(cfg.spawn_paths) != len(cfg.assets_cfg):
             raise ValueError(
@@ -114,6 +119,7 @@ def spawn_multi_usd_file(
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     clone_in_fabric: bool = False,
+    replicate_physics: bool | None = None,
 ) -> Usd.Prim:
     """Spawn multiple USD files based on the provided configurations.
 
@@ -126,10 +132,13 @@ def spawn_multi_usd_file(
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
         clone_in_fabric: Whether to clone in fabric. Default is False.
+        replicate_physics: Deprecated and ignored.
 
     Returns:
         The created prim at the first prim path.
     """
+    if replicate_physics is not None:
+        warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
     # needed here to avoid circular imports
     from .wrappers_cfg import MultiAssetSpawnerCfg
 

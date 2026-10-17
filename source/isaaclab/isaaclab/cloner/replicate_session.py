@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import itertools
+import warnings
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
@@ -77,7 +78,7 @@ def make_valid_clone_combinations(
     return tuple(worlds), np.asarray(weights, dtype=np.float64)
 
 
-def replicate(plan: ClonePlan) -> None:
+def replicate(plan: ClonePlan, *, replicate_physics: bool | None = None) -> None:
     """Execute one topology through its declared clone contexts.
 
     Each context implements ``prepare(sim, routing)`` to resolve shared representations and
@@ -85,7 +86,10 @@ def replicate(plan: ClonePlan) -> None:
 
     Args:
         plan: The active simulation's topology.
+        replicate_physics: Deprecated and ignored; clone contexts are selected per asset.
     """
+    if replicate_physics is not None:
+        warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
     sim = sim_utils.SimulationContext.instance()
     if sim.get_clone_plan() is not plan:
         raise ValueError("replicate() requires the active SimulationContext's ClonePlan.")
@@ -178,9 +182,12 @@ class ReplicateSession:
         clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
         world_prototypes: Sequence[Sequence[int]] | None = None,
         weights: Sequence[float] | None = None,
+        replicate_physics: bool | None = None,
         env_template: str = DEFAULT_ENV_TEMPLATE,
     ):
         """Capture prototype declarations, composition choices, and USD authoring inputs."""
+        if replicate_physics is not None:
+            warnings.warn("replicate_physics is deprecated and ignored.", DeprecationWarning, stacklevel=2)
         self._args = cfgs, num_clones, env_spacing
         self._kwargs = dict(env_template=env_template, clone_strategy=clone_strategy)
         self._kwargs.update(world_prototypes=world_prototypes, weights=weights)
