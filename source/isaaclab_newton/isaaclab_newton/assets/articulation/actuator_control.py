@@ -85,7 +85,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
 
         articulation = self._articulation
         # BAM's viscous friction is constant, so it lives in the joint model and survives property resyncs.
+        # A fit that leaves it unset keeps the joint's own coefficient.
         for name, cfg in self._bam_cfgs.items():
+            if cfg.motor.friction_viscous is None:
+                continue
             articulation.write_joint_viscous_friction_coefficient_to_sim_index(
                 joint_viscous_friction_coeff=cfg.motor.friction_viscous,
                 joint_ids=collection._group_joint_indices[name],
@@ -337,6 +340,11 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             # Start-up sampling already checked that the groups sharing this actuator agree.
             cfg = self._bam_cfgs[names[0]]
             if drive.has_backlash:
+                if cfg.backlash_joint_template is None:
+                    raise ValueError(
+                        f"BAM groups {names} drive USD actuators that model gearbox backlash; set"
+                        " 'backlash_joint_template' to the name of each servo's play hinge."
+                    )
                 self._bind_bam_backlash(actuator, cfg.backlash_joint_template)
             bridge = MjWarpActuatorBridge(solver, model, actuator.indices, self.device)
             drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)

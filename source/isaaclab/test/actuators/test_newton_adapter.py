@@ -5,6 +5,7 @@
 
 """Tests for the PhysX-side Newton actuator adapter and its host runtime."""
 
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -14,11 +15,26 @@ import pytest
 import torch
 import warp as wp
 from newton._src.actuators.utils import load_checkpoint
-from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
+from newton.actuators import (
+    ActuatorParsed,
+    ClampingDCMotor,
+    ClampingMaxEffort,
+    ClampingPositionBased,
+    Delay,
+    DrivePD,
+    parse_actuator_prim,
+)
 
-from pxr import Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
+from isaaclab.actuators import (
+    ActuatorBaseCfg,
+    DCMotor,
+    DCMotorCfg,
+    DelayedPDActuatorCfg,
+    IdealPDActuatorCfg,
+    RemotizedPDActuatorCfg,
+)
 from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -114,6 +130,28 @@ def _make_actuator_stage() -> Usd.Stage:
     return stage
 
 
+def _make_asset_stage(tmp_path: Path, asset: Usd.Stage | None = None) -> Usd.Stage:
+    """Reference *asset* (default ``_make_actuator_stage()``) as a spawned robot whose joints carry USD actuators."""
+    asset_path = tmp_path / "robot.usda"
+    # Keep the stage referenced: its root layer is released with it.
+    asset = asset or _make_actuator_stage()
+    asset.GetRootLayer().Export(str(asset_path))
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/Robot").GetReferences().AddReference(str(asset_path), "/World/Robot")
+    return stage
+
+
+def _parsed_actuator(stage: Usd.Stage, joint_name: str) -> ActuatorParsed:
+    """Parse the single active actuator that Newton builds for *joint_name*."""
+    parsed = [
+        entry
+        for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot"))
+        if (entry := parse_actuator_prim(prim)) and entry.target_path == f"/World/Robot/{joint_name}"
+    ]
+    assert len(parsed) == 1, parsed
+    return parsed[0]
+
+
 def test_newton_actuator_path_is_enabled_by_default():
     """Use the Newton actuator path unless the legacy path is explicitly requested."""
     assert SimulationCfg().use_newton_actuators
@@ -205,10 +243,11 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert len(remotized) == 2
     assert {tuple(actuator.indices.numpy()) for actuator in remotized} == {(4, 10), (5, 11)}
     assert all(not any(type(clamping) is ClampingMaxEffort for clamping in actuator.clamping) for actuator in remotized)
-    assert {
-        tuple(next(c for c in actuator.clamping if type(c) is ClampingPositionBased).lookup_efforts.numpy())
-        for actuator in remotized
-    } == {(10.0, 20.0), (11.0, 21.0)}
+    lookups = [next(c for c in actuator.clamping if type(c) is ClampingPositionBased) for actuator in remotized]
+    assert {(tuple(c.lookup_positions.numpy()), tuple(c.lookup_efforts.numpy())) for c in lookups} == {
+        ((-1.0, 1.0), (10.0, 20.0)),
+        ((-1.0, 1.0), (11.0, 21.0)),
+    }
 
 
 def test_is_stateful_only_with_delay_state():
@@ -240,87 +279,162 @@ def test_is_stateful_only_with_delay_state():
         assert adapter.is_stateful is expected
 
 
-@pytest.mark.parametrize(
-    ("configured_limit", "expected_limits"),
-    [(None, (71.0, 72.0)), ({"pd_a": 5.0}, (5.0, 0.0))],
-)
-def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, expected_limits):
-    """Match authored fallback and partial-map resolution on native and Lab paths."""
-    stage = _make_actuator_stage()
-    for joint_name, authored_limit in zip(("pd_a", "pd_b"), (71.0, 72.0), strict=True):
+def test_schema_authoring_matches_lab_effort_limit_resolution():
+    """New actuator prims match the Lab path's authored fallback and partial-map limits; a zero delay authors none."""
+    stage = _make_robot_stage()
+    for joint_name, authored_limit in zip(("pd_a", "pd_b", "dc_a", "dc_b"), (71.0, 72.0, 73.0, 74.0), strict=True):
         joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
         UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(authored_limit)
-    cfg = DelayedPDActuatorCfg(
-        joint_names_expr=["pd_.*"],
-        stiffness=1.0,
-        damping=0.0,
-        actuator_effort_limit=configured_limit,
-        max_delay=0,
+    UsdPhysics.RevoluteJoint.Define(stage, "/World/Robot/a")
+    cfgs = {
+        "mapped": DelayedPDActuatorCfg(
+            joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit={"pd_a": 5.0}, max_delay=0
+        ),
+        "fallback": DelayedPDActuatorCfg(joint_names_expr=["dc_.*"], stiffness=1.0, damping=0.0, max_delay=0),
+        # "mapped_pd" and joint "a" name the same new prim as "mapped" and "pd_a"; each joint still gets its own.
+        "mapped_pd": IdealPDActuatorCfg(joint_names_expr=["a"], stiffness=1.0, damping=0.0, actuator_effort_limit=9.0),
+    }
+
+    author_actuator_prims(stage, "/World/Robot", cfgs)
+
+    for joint_name, limit in {"pd_a": 5.0, "pd_b": 0.0, "dc_a": 73.0, "dc_b": 74.0, "a": 9.0}.items():
+        assert _parsed_actuator(stage, joint_name).component_specs == [(ClampingMaxEffort, {"max_effort": limit})]
+
+
+def test_configuration_overrides_only_the_values_it_sets(tmp_path, caplog):
+    """Unset values keep the asset's actuator, and the config type keeps, swaps, or removes its components."""
+    asset = _make_actuator_stage()
+    remote_a = asset.GetPrimAtPath("/World/Robot/remote_a_remote_a_actuator")
+    remote_a.AddAppliedSchema("NewtonMaxEffortClampingAPI")
+    remote_a.CreateAttribute("newton:maxEffort", Sdf.ValueTypeNames.Float).Set(65.0)
+    pd_b = asset.GetPrimAtPath("/World/Robot/pd_b_pd_b_actuator")
+    pd_b.RemoveAppliedSchema("NewtonMaxEffortClampingAPI")
+    pd_b.RemoveProperty("newton:maxEffort")
+    stage = _make_asset_stage(tmp_path, asset)
+    # A component the asset lacks takes its joint's drive limit; a kept clamp keeps the asset's limit.
+    for index, joint_name in enumerate(_JOINT_NAMES):
+        joint_prim = stage.GetPrimAtPath(f"/World/Robot/{joint_name}")
+        UsdPhysics.DriveAPI.Apply(joint_prim, "angular").CreateMaxForceAttr(80.0 + index)
+    cfgs = {
+        # Mappings that do not match pd_b keep its asset gain and give its added clamp the drive limit, not zero.
+        "legs": DelayedPDActuatorCfg(
+            joint_names_expr=["pd_.*"], stiffness={"pd_a": 99.0}, damping=None, actuator_effort_limit={"pd_a": 5.0}
+        ),
+        # IdealPD swaps the asset's DC clamp for a max-effort clamp.
+        "dc_a": IdealPDActuatorCfg(joint_names_expr=["dc_a"], stiffness=None, damping=None),
+        # A DC motor without a saturation effort keeps the asset's motor curve.
+        "dc_b": DCMotorCfg(joint_names_expr=["dc_b"], stiffness=1.0, damping=None),
+        # A DC motor models no max-effort clamp, lookup table or delay, so all three are removed.
+        "remote_a": DCMotorCfg(joint_names_expr=["remote_a"], stiffness=None, damping=None, saturation_effort=5.0),
+        # A zero delay removes the asset's delay.
+        "remote_b": DelayedPDActuatorCfg(joint_names_expr=["remote_b"], stiffness=None, damping=None, max_delay=0),
+    }
+
+    with caplog.at_level(logging.WARNING):
+        author_actuator_prims(stage, "/World/Robot", cfgs)
+    # A warning names each joint whose asset components the config type does not model.
+    assert {name for name in _JOINT_NAMES if f"of joint '{name}'" in caplog.text} == {"dc_a", "remote_a", "remote_b"}
+    # Authoring again overrides the same prims, so the stage does not change.
+    authored = stage.GetRootLayer().ExportToString()
+    author_actuator_prims(stage, "/World/Robot", cfgs)
+    assert stage.GetRootLayer().ExportToString() == authored
+
+    dc_b_curve = {"saturation_effort": 64.0, "velocity_limit": 8.0, "max_motor_effort": 54.0}
+    expected = {
+        "pd_a": ({"kp": 99.0, "kd": 1.5}, {ClampingMaxEffort: {"max_effort": 5.0}, Delay: {"delay_steps": 2}}),
+        "pd_b": ({"kp": 22.0, "kd": 2.5}, {ClampingMaxEffort: {"max_effort": 81.0}, Delay: {"delay_steps": 4}}),
+        "dc_a": ({"kp": 33.0, "kd": 3.5}, {ClampingMaxEffort: {"max_effort": 82.0}}),
+        "dc_b": ({"kp": 1.0, "kd": 4.5}, {ClampingDCMotor: dc_b_curve}),
+        "remote_a": ({"kp": 55.0, "kd": 5.5}, {ClampingDCMotor: {"saturation_effort": 5.0, "max_motor_effort": 84.0}}),
+        "remote_b": ({"kp": 55.0, "kd": 5.5}, {ClampingMaxEffort: {"max_effort": 85.0}}),
+    }
+    for joint_name, (drive, components) in expected.items():
+        actuator = _parsed_actuator(stage, joint_name)
+        assert (actuator.drive_kwargs, dict(actuator.component_specs)) == (drive, components), joint_name
+
+
+def test_actuators_without_a_matching_drive_are_replaced(tmp_path, caplog):
+    """Another drive, several actuators on one joint, or an unknown schema fall back to a new prim with defaults."""
+    asset = _make_actuator_stage()
+    pid = asset.GetPrimAtPath("/World/Robot/pd_a_pd_a_actuator")
+    pid.RemoveAppliedSchema("NewtonPDControlAPI")
+    pid.AddAppliedSchema("NewtonPIDControlAPI")
+    asset.GetPrimAtPath("/World/Robot/dc_a_dc_a_actuator").AddAppliedSchema("NewtonUnknownAPI")
+    layer = asset.GetRootLayer()
+    Sdf.CopySpec(layer, "/World/Robot/pd_b_pd_b_actuator", layer, "/World/Robot/pd_b_copy")
+    # Newton drives only an actuator's first target, so dc_b's actuator is not a third pd_b actuator.
+    asset.GetPrimAtPath("/World/Robot/dc_b_dc_b_actuator").GetRelationship("newton:targets").AddTarget(
+        "/World/Robot/pd_b"
     )
+    stage = _make_asset_stage(tmp_path, asset)
+    cfg = IdealPDActuatorCfg(joint_names_expr=["pd_.*", "dc_a"], stiffness=7.0, damping=None)
 
-    author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
+    # The group name makes pd_a's new prim path that of the replaced asset prim.
+    with caplog.at_level(logging.WARNING):
+        author_actuator_prims(stage, "/World/Robot", {"pd_a": cfg})
 
-    for joint_name, expected_limit in zip(("pd_a", "pd_b"), expected_limits, strict=True):
-        actuator_prim = stage.GetPrimAtPath(f"/World/Robot/fallback_{joint_name}_actuator")
-        assert actuator_prim.GetAttribute("newton:maxEffort").Get() == pytest.approx(expected_limit)
+    for joint_name in ("pd_a", "pd_b", "dc_a"):
+        actuator = _parsed_actuator(stage, joint_name)
+        assert actuator.drive_class is DrivePD
+        assert actuator.drive_kwargs == {"kp": 7.0, "kd": 0.0}
+        assert actuator.component_specs == []
+    for path in ("pd_a_pd_a_actuator", "pd_b_pd_b_actuator", "pd_b_copy", "dc_a_dc_a_actuator"):
+        assert not stage.GetPrimAtPath(f"/World/Robot/{path}").IsActive()
+    assert all(f"joint '{name}'" in caplog.text for name in ("pd_a", "pd_b", "dc_a"))
+    # Joints no config covers keep their USD actuators.
+    assert _parsed_actuator(stage, "dc_b").drive_kwargs == {"kp": 44.0, "kd": 4.5}
 
 
 @pytest.mark.parametrize(
-    "configured_limit",
-    [
-        {"pd_.*": 5.0, "pd_a": 7.0},
-        {"missing_joint": 5.0},
-    ],
-)
-def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit):
-    stage = _make_actuator_stage()
-    cfg = DelayedPDActuatorCfg(
-        joint_names_expr=["pd_.*"],
-        stiffness=1.0,
-        damping=0.0,
-        actuator_effort_limit=configured_limit,
-        max_delay=0,
-    )
-
-    with pytest.raises(ValueError):
-        author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
-
-
-@pytest.mark.parametrize(
-    ("group_name", "cfg"),
+    ("make_stage", "groups", "match"),
     [
         (
-            "unsupported",
-            ActuatorBaseCfg(class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0),
+            _make_asset_stage,
+            {
+                "unsupported": ActuatorBaseCfg(
+                    class_type=DCMotor, joint_names_expr=["pd_a"], stiffness=0.0, damping=0.0
+                ),
+                "custom_dc": DCMotorCfg(
+                    class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
+                    joint_names_expr=["pd_a"],
+                    stiffness=0.0,
+                    damping=0.0,
+                    saturation_effort=1.0,
+                ),
+            },
+            r"'unsupported' \(ActuatorBaseCfg\), 'custom_dc' \(DCMotorCfg\).*use_newton_actuators",
         ),
         (
-            "custom_dc",
-            DCMotorCfg(
-                class_type=f"{__name__}:MisleadingImplicitActuatorDCMotor",
-                joint_names_expr=["pd_a"],
-                stiffness=0.0,
-                damping=0.0,
-                actuator_effort_limit=1.0,
-                actuator_velocity_limit=1.0,
-                saturation_effort=1.0,
-            ),
+            _make_asset_stage,
+            {
+                "group": DelayedPDActuatorCfg(
+                    joint_names_expr=["pd_.*"], stiffness=1.0, damping=0.0, actuator_effort_limit={"missing_joint": 5.0}
+                )
+            },
+            "missing_joint",
+        ),
+        (
+            lambda tmp_path: _make_robot_stage(),
+            {"group": DCMotorCfg(joint_names_expr=["dc_a"], stiffness=1.0, damping=1.0)},
+            "saturation_effort.*dc_a",
         ),
     ],
+    ids=["unsupported_cfgs", "unmatched_effort_limit", "new_prim_without_saturation"],
 )
-def test_schema_authoring_rejects_unsupported_explicit_cfg_before_removal(group_name, cfg):
-    """Leave existing actuator prims intact when native authoring rejects a config."""
-    stage = _make_actuator_stage()
-    actuator_path = "/World/Robot/pd_a_pd_a_actuator"
+def test_rejected_config_raises_before_editing_the_joint(tmp_path, make_stage, groups, match):
+    """A config Newton cannot author, or one that leaves a required value unset, raises before it edits the joint."""
+    stage = make_stage(tmp_path)
+    before = stage.GetRootLayer().ExportToString()
 
-    with pytest.raises(ValueError, match=rf"{group_name}.*{type(cfg).__name__}.*use_newton_actuators"):
-        author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
+    with pytest.raises(ValueError, match=match):
+        author_actuator_prims(stage, "/World/Robot", groups)
 
-    assert stage.GetPrimAtPath(actuator_path).IsValid()
+    assert stage.GetRootLayer().ExportToString() == before
 
 
 def test_schema_authoring_accepts_supported_public_actuator_alias():
     """Accept a public import path that resolves to a supported actuator class."""
-    stage = _make_actuator_stage()
+    stage = _make_robot_stage()
     cfg = DCMotorCfg(
         class_type="isaaclab.actuators:DCMotor",
         joint_names_expr=["pd_a"],
