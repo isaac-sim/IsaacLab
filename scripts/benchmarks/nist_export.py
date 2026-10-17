@@ -14,29 +14,42 @@ from pathlib import Path
 
 
 def build_artifact_manifest(run: Path) -> dict:
-    """Describe current inputs; output files and previous attempts are separate."""
-    manifest = {}
+    """Hash current input files and record missing or unreadable inputs."""
+    files = {}
     for name in (
         "invocation.json", "execution.json", "process.json", "throughput.json",
         "latency.json", "memory.json", "outcomes.json", "outcomes-native.json",
         "outcomes-recovered.json", "events.jsonl", "outcomes.jsonl", "nvml.jsonl",
         "output.log", "stdout.log",
     ):
-        path = run / name
-        record = {"path": name, "sha256": None, "bytes": None}
+        record = {"path": name, "status": "missing", "sha256": None, "bytes": None}
         try:
             digest, size = hashlib.sha256(), 0
-            with path.open("rb") as stream:
+            with (run / name).open("rb") as stream:
                 for chunk in iter(lambda: stream.read(1024 * 1024), b""):
                     digest.update(chunk)
                     size += len(chunk)
             record.update(status="present", sha256=digest.hexdigest(), bytes=size)
         except FileNotFoundError:
-            record["status"] = "missing"
+            pass
         except OSError as error:
             record.update(status="error", error={"type": type(error).__name__, "message": str(error)})
-        manifest[name] = record
-    return manifest
+        files[name] = record
+    return {
+        "scope": "Current run inputs directly in the run directory; not recursive.",
+        "mode_reports": {
+            "files": ["throughput.json", "latency.json"],
+            "note": "Throughput and latency are separate modes; one of these reports is normally missing.",
+        },
+        "not_inputs": {
+            "previous-invocations/": "Earlier invocations; not current input.",
+            "benchmark_nist_omniperf.json": "Output.",
+            "benchmark_result.json": "Output.",
+            "export.log": "Written after export.",
+            "export-status.json": "Written after export.",
+        },
+        "files": files,
+    }
 
 
 def _read_report(path: Path):
