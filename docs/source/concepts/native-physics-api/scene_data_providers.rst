@@ -1,19 +1,16 @@
 Scene Data Provider
 ===================
 
-:class:`~isaaclab.scene_data.SceneDataProvider` bridges physics simulation backends and the
-visualizers/renderers that consume scene data. It exposes a single Warp-native read path for
-body transforms and visual geometry regardless of which physics backend is active, so renderers
-and visualizers can stay backend-agnostic.
+:class:`~isaaclab.scene_data.SceneDataProvider` supplies body transforms and visual
+geometry to renderers and visualizers. It reads from the active physics backend
+and converts or reorders Warp arrays as needed.
 
 Overview
 --------
 
-Isaac Lab supports multiple physics backends (PhysX and Newton) and multiple visualizers
-(Omniverse Kit, Newton, Rerun, Viser). Each combination needs scene data to flow from the
-physics engine into the renderer or visualizer. :class:`SceneDataProvider` owns this flow: the
-physics manager provides a :class:`~isaaclab.scene_data.SceneDataBackend` that wraps its native
-tensor views, and the provider handles format conversion and re-mapping on top of it.
+The physics manager exposes native data through
+:class:`~isaaclab.scene_data.SceneDataBackend`. Get the provider from the simulation
+context:
 
 .. code-block:: python
 
@@ -25,31 +22,6 @@ tensor views, and the provider handles format conversion and re-mapping on top o
 
 Architecture
 ------------
-
-Lazy-read contract
-~~~~~~~~~~~~~~~~~~
-
-Use :class:`~isaaclab.utils.buffers.TimestampedBuffer` to pair cached data with its last successful
-update timestamp. Owners allocate storage; the container never allocates or converts it. Same-step
-writes invalidate affected asset caches with ``reset_timestamps`` and advance SDP's publication
-timestamp. Each consumer compares its own timestamp after requesting data, since resolving a native
-pointer can itself detect a change. Consumers tracking only an upload need a timestamp, not another
-copy of SDP's data reference.
-
-SDP readers cache buffers and mapping data with the same timestamp guard used by asset data, without
-binding factories or stored update callbacks. Matching native arrays bypass conversion. Caller-owned
-destinations are weakly referenced, so their cached mappings expire when the caller releases them.
-
-Pending work belongs to its executor. Newton's ``forward()`` and PhysX/OVPhysX's
-``update_kinematics()`` check ``kinematics_dirty`` internally and clear it after success; readers
-call the operation without inspecting its guard. Reordered articulation views still refresh their
-own derived arrays. Sensors and Newton's shared BVH similarly use dirty flags, while device masks
-select the environments requiring work. Keep eager contact reads to detect contact loss.
-
-Sampling periods and finite differences use simulation time [s]; Fabric geometry cadence uses render
-frames. Neither is a publication counter. Python guards do not execute during CUDA graph replay:
-captured work must remain in the graph or use device-side invalidation. Newton retains its selective
-reset masks and conservative reads after externally replayed writes.
 
 Data flow
 ~~~~~~~~~
@@ -122,46 +94,46 @@ When PhysX is the active physics backend, the provider reads transforms directly
 The transforms are returned as :class:`SceneDataFormat.Transform` (Warp ``transformf`` array),
 so consumers that want this format get them zero-copy.
 
-Newton-native consumers (Newton visualizer, Rerun, Viser, Newton Warp renderer) also need a
-Newton ``Model``/``State``. Their declared cloning contexts construct that representation from
-the shared clone plan before initialization. Its rigid ``body_q`` binds to SDP's requested
-``Transform`` array; no intermediate per-frame copy into a second state buffer is required.
-OVRTX requests ``TransposedMatrix44d`` directly from SDP, including destination ordering and
-static scale in the same conversion. It no longer reads Newton state for rigid transforms.
-For deformables with different simulation and visual meshes, the producer compiles barycentric
-indices and weights from the declared prototype once. SDP applies that interpolation directly into
-the Newton representation's final ``particle_q`` slots. There is no intermediate simulation-sized
-buffer and no consumer-owned remap. Native PhysX padded nodal arrays are borrowed without packing.
+Newton visualizers, Rerun, Viser, and the Newton Warp renderer also need a Newton
+``Model``/``State``. Their clone contexts build it before initialization. Its rigid
+``body_q`` binds to SDP's ``Transform`` array without an intermediate copy.
+OVRTX requests ``TransposedMatrix44d`` directly, with ordering and scale handled
+in the same conversion.
+
+For deformables with separate simulation and visual meshes, the producer computes
+barycentric indices and weights once. SDP interpolates directly into the Newton
+representation's ``particle_q`` slots. It borrows padded PhysX nodal arrays without
+packing; consumers need no intermediate buffer or remapping.
 
 OVRTX receives the same exact visual-path publications through SDP. It neither imports Newton
 managers nor requests a Newton model. Meshes, particle clouds, and cable curves use one point-binding
 path.
 
-PhysX owns its native Fabric refresh and publishes the resulting matrices through SDP without
-fetching packed poses. ``isaaclab_physx.renderers.fabric.FabricBackend`` owns the shared native stage
-and hierarchy handles. Its identity is the stage and device, not the SDP source or attribute type.
-After physics initializes, Kit, Isaac RTX, and explicit Fabric synchronization obtain
-the same resource through
+PhysX publishes native Fabric matrices through SDP without fetching packed poses.
+``isaaclab_physx.renderers.fabric.FabricBackend`` owns the stage and hierarchy
+handles, keyed by stage and device. After physics initializes, Kit, Isaac RTX, and
+explicit Fabric synchronization share the resource through
 ``sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))``.
-The simulation registry does not need to know which backends exist.
-Transform bindings are state on that resource, not a
-separate backend. Consumers pass the simulation's SDP to ``update_transforms(provider)``; for foreign
-physics it converts directly into Fabric local matrices, then propagates the GPU hierarchy.
-Core ``RenderContext`` owns no Fabric bindings.
-It binds rigid destinations as Fabric-only reset-stack roots because
-physics publishes absolute poses, including for nested bodies. Visual descendants still inherit
-their body's transform; authored USD is unchanged. Native source indices and world scales are
-bound once. Fabric's selection reuse API reports scene-wide structural changes; the resource refreshes
-array views without repeating path matching or scale capture. Otherwise GPU propagation
-reuses the hierarchy topology. Clean requests never acquire writable Fabric arrays.
-Renderers do not select a physics-specific synchronization path.
-The same Fabric resource receives geometry through ``update_geometries(provider, frame)``.
-PhysX publishes its native ``FabricPoints`` without a conversion or rewrite. Foreign mesh points
-are interpolated directly into GPU Fabric storage. The current Kit Hydra path requires CPU Fabric
-destinations for ``Points`` and ``BasisCurves``; SDP handles their device transfer without USD
-attribute writes. Only destinations whose update interval has elapsed are transferred. World-space
-point destinations reset their transform stack to avoid applying the environment or body pose twice.
-``FabricMatrix44`` and ``FabricPoints`` contain only array storage, not bindings or native engine handles.
+
+Consumers call ``update_transforms(provider)`` with the simulation's SDP. For other
+physics backends, it converts poses into Fabric local matrices and updates the GPU
+hierarchy. Transform bindings belong to this resource; ``RenderContext`` owns none.
+Rigid destinations use Fabric-only reset-stack roots because physics provides
+absolute poses. Visual descendants still inherit their body's transform, and USD
+is unchanged.
+
+Source indices and world scales are bound once. When Fabric reports a structural
+change, the resource refreshes array views without repeating path matching or scale
+capture. Otherwise, it reuses the hierarchy. Unchanged requests do not acquire
+writable Fabric arrays. Renderers use this same path regardless of physics backend.
+
+``update_geometries(provider, frame)`` handles geometry. PhysX publishes native
+``FabricPoints`` directly; other backends interpolate mesh points into GPU Fabric
+storage. Kit Hydra requires CPU destinations for ``Points`` and ``BasisCurves``,
+so SDP transfers them when their update interval elapses, without writing USD.
+World-space points reset their transform stack to avoid applying the body or
+environment pose twice. ``FabricMatrix44`` and ``FabricPoints`` hold arrays only,
+not bindings or engine handles.
 
 Newton backend
 --------------
@@ -216,6 +188,31 @@ SDP instead advances ``geometry_timestamp`` on those writes, so independently up
 the change. The output's cache owns its freshness check; a downstream upload or BVH may need its own
 invalidation, but should not repeat the conversion's cache bookkeeping.
 
+Lazy-read contract
+------------------
+
+Use :class:`~isaaclab.utils.buffers.TimestampedBuffer` to pair cached data with its last successful
+update timestamp. Owners allocate storage; the container never allocates or converts it. Same-step
+writes invalidate affected asset caches with ``reset_timestamps`` and advance SDP's publication
+timestamp. Each consumer compares its own timestamp after requesting data, since resolving a native
+pointer can itself detect a change. Consumers tracking only an upload need a timestamp, not another
+copy of SDP's data reference.
+
+SDP readers cache buffers and mapping data with the same timestamp guard used by asset data, without
+binding factories or stored update callbacks. Matching native arrays bypass conversion. Caller-owned
+destinations are weakly referenced, so their cached mappings expire when the caller releases them.
+
+Pending work belongs to its executor. Newton's ``forward()`` and PhysX/OVPhysX's
+``update_kinematics()`` check ``kinematics_dirty`` internally and clear it after success; readers
+call the operation without inspecting its guard. Reordered articulation views still refresh their
+own derived arrays. Sensors and Newton's shared BVH similarly use dirty flags, while device masks
+select the environments requiring work. Keep eager contact reads to detect contact loss.
+
+Sampling periods and finite differences use simulation time [s]; Fabric geometry cadence uses render
+frames. Neither is a publication counter. Python guards do not execute during CUDA graph replay:
+captured work must remain in the graph or use device-side invalidation. Newton retains its selective
+reset masks and conservative reads after externally replayed writes.
+
 Data requirements
 ------------------
 
@@ -250,8 +247,12 @@ consumer construction time, before the shared clone plan is built:
      - No
      - Yes
 
-See Also
---------
+.. raw:: html
+
+   <span id="see-also"></span>
+
+Where to go next
+----------------
 
 - :doc:`/source/concepts/renderers`: renderer backends that consume scene data
 - :doc:`/source/concepts/visualization`: visualizer backends that consume scene data

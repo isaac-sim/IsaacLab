@@ -184,7 +184,7 @@ to see its supported selectors:
      - Newton with the MuJoCo-Warp solver.
      - None
    * - ``physics=newton_kamino``
-     - Newton with the Kamino solver. This backend is beta and supports a limited set of tasks.
+     - Newton with the Kamino solver. Available for selected tasks and compatible assets.
      - None
    * - ``physics=ovphysx``
      - OV PhysX.
@@ -291,8 +291,8 @@ For example, sign in to Weights & Biases and log a training run to your project:
    uv run --extra wandb isaaclab train --rl_library rsl_rl --task Isaac-Cartpole \
       --logger wandb --log_project_name isaaclab
 
-Logger options vary by RL library. See :doc:`/source/concepts/reinforcement_learning`
-for the training reference.
+Logger options vary by RL library. See :ref:`rl-training-logging` for the
+options supported by each runner.
 
 
 Play a trained policy

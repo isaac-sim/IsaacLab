@@ -1,14 +1,7 @@
 .. _ovphysx-backend:
 
-OvPhysX Backend
-===============
-
-.. warning::
-
-    OvPhysX is **highly experimental** and is not recommended for general use yet.
-    The public surface is changing rapidly while the backend is under active
-    development. Expect feature coverage and test commands to change between
-    Isaac Lab 3.0 beta releases.
+OvPhysX
+========
 
 .. warning::
 
@@ -19,11 +12,9 @@ OvPhysX Backend
     ``--visualizer newton_gl``, ``--visualizer rerun``, ``--visualizer viser``,
     or omit ``--visualizer`` for headless execution.
 
-OvPhysX is a kit-less variant of the PhysX backend. It drives PhysX directly
-(without the Omniverse Kit runtime) and reads scene-level solver parameters
-from the USD ``PhysicsScene`` prim rather than from a Python config. The Python
-config :class:`~isaaclab_ov.physics.OvPhysxCfg` only exposes the handful of
-GPU buffer sizes that are not represented on the USD schema.
+OvPhysX runs PhysX without Omniverse Kit. It reads scene-level solver settings
+from the USD ``PhysicsScene`` prim. :class:`~isaaclab_ov.physics.OvPhysxCfg` holds
+GPU buffer settings that USD does not represent.
 
 OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 
@@ -37,44 +28,45 @@ OvPhysX is selected through :class:`~isaaclab_ov.physics.OvPhysxCfg`:
 Why use OvPhysX?
 ----------------
 
-* **Kit-less execution.** OvPhysX avoids Omniverse Kit, which makes it a useful
-  experimental path for headless deployments and for backends that don't need
-  the Kit runtime stack.
-* **USD-as-source-of-truth.** Solver parameters are taken from the
-  ``PhysicsScene`` USD prim, so authoring tools that already manage USD scenes
-  do not need a parallel Python config.
+* **No Kit runtime.** Run headless simulations without Isaac Sim.
+* **USD configuration.** Scene-authoring tools can set solver parameters directly
+  on the ``PhysicsScene`` prim.
 
 What works today
 ----------------
 
-The asset and sensor surface tracks PhysX, but only a subset is implemented and
-validated at the time of writing. The following pieces are available on
-``develop``:
+OvPhysX supports the following components. The notes describe requirements and
+limits to consider when configuring a task.
 
-* RigidObject — merged via
-  `PR #5426 <https://github.com/isaac-sim/IsaacLab/pull/5426>`_.
-* Articulation — merged via
-  `PR #5459 <https://github.com/isaac-sim/IsaacLab/pull/5459>`_.
-* RigidObjectCollection — merged via
-  `PR #5570 <https://github.com/isaac-sim/IsaacLab/pull/5570>`_.
-* Contact Sensor — merged via
-  `PR #5422 <https://github.com/isaac-sim/IsaacLab/pull/5422>`_.
-* SceneDataProvider — merged via
-  `PR #5589 <https://github.com/isaac-sim/IsaacLab/pull/5589>`_.
-* FrameView — merged via
-  `PR #5678 <https://github.com/isaac-sim/IsaacLab/pull/5678>`_.
-* :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
-  surface-deformable support on CUDA simulation devices.
-* Fast-path cloning of heterogeneous rigid-body and articulation geometry
-  variants with matching native tensor layouts.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
-PVA, Ray Caster, and rendering support are not documented as supported here
-until their implementations land on ``develop`` and pass the backend smoke
-tests.
+   * - Component
+     - Coverage and limits
+   * - Rigid objects and articulations
+     - Rigid objects, rigid-object collections, and articulations.
+   * - Contact sensing
+     - Aggregate and filtered forces, contact points, and contact timing.
+       Pose tracking requires one sensor body per environment.
+   * - Motion and frame sensing
+     - IMU, PVA, and frame transforms. Joint-wrench readings include the root body
+       and use the child-side joint frame.
+   * - Ray casting
+     - Ray casters and ray-cast cameras using Warp meshes. The standard ray caster
+       requires static target meshes.
+   * - Rendering and scene data
+     - Scene-data and frame-view implementations support kit-less consumers,
+       including OVRTX. Isaac Sim / Kit cannot share the process.
+   * - Deformables
+     - Volume and surface deformables on CUDA. Bodies in one view
+       need matching node counts; see `Deformable limitations`_.
+   * - Heterogeneous cloning
+     - Geometry variants with matching body, joint, and tendon layouts;
+       see `Heterogeneous cloning`_.
 
-Heterogeneous cloning
----------------------
+See :doc:`/source/concepts/sensors/index` for sensor configuration and
+:doc:`/source/concepts/renderers` for renderer choices.
 
 OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
 numeric environment order so indexed resets, actions and observations address
@@ -121,6 +113,13 @@ grows with the number of authored environments. Use this path for small validati
 scenes; training-scale workloads with thousands of environments are not currently
 supported. Deformable bodies are not supported by the heterogeneous fast-path
 cloner.
+
+..
+   Implementation history: rigid objects #5426, articulations #5459,
+   rigid-object collections #5570, contacts #5422, scene data #5589,
+   and frame views #5678 in https://github.com/isaac-sim/IsaacLab/pulls.
+   Broader integration work was tracked in issue #5634.
+   Check isaaclab_ov implementations and tests when updating this table.
 
 Installation
 ------------
@@ -230,32 +229,72 @@ This command runs a 64-step headless zero-action rollout and then exits.
 Supported locomotion environments
 ---------------------------------
 
-The following locomotion training environments declare an ``ovphysx`` physics
-preset. Playback through ``uv run isaaclab play`` uses the same backend where
-available.
+Use the :doc:`environment browser </source/isaaclab/environments>` or task help
+for the available ``physics=`` presets. To list launchable combinations:
 
-* ``Isaac-Ant-Direct``
-* ``Isaac-Humanoid-Direct``
-* ``IsaacContrib-Velocity-Rough-AnymalB``
-* ``IsaacContrib-Velocity-Rough-AnymalC``
-* ``Isaac-Velocity-Flat-AnymalD``
-* ``Isaac-Velocity-Rough-AnymalD``
-* ``IsaacContrib-Velocity-Rough-UnitreeA1``
-* ``IsaacContrib-Velocity-Rough-UnitreeGo1``
-* ``Isaac-Velocity-Rough-UnitreeGo2``
-* ``Isaac-Velocity-Rough-Cassie``
-* ``Isaac-Velocity-Rough-G1``
-* ``Isaac-Velocity-Rough-H1``
+.. code-block:: bash
 
-Status and follow-up
---------------------
+   uv run --extra ovphysx isaaclab list_envs --show_presets --keyword Velocity
 
-OvPhysX is still experimental, so the feature list above is intentionally
-conservative. Broader feature coverage and documentation parity are tracked in
-`issue #5634 <https://github.com/isaac-sim/IsaacLab/issues/5634>`_.
+Playback uses the same ``physics=ovphysx`` selector as training.
 
-For architectural context, see :ref:`backend-architecture`.
+.. dropdown:: Locomotion task examples
 
+   * ``Isaac-Ant-Direct``
+   * ``Isaac-Humanoid-Direct``
+   * ``IsaacContrib-Velocity-Rough-AnymalB``
+   * ``IsaacContrib-Velocity-Rough-AnymalC``
+   * ``Isaac-Velocity-Flat-AnymalD``
+   * ``Isaac-Velocity-Rough-AnymalD``
+   * ``IsaacContrib-Velocity-Rough-UnitreeA1``
+   * ``IsaacContrib-Velocity-Rough-UnitreeGo1``
+   * ``Isaac-Velocity-Rough-UnitreeGo2``
+   * ``Isaac-Velocity-Rough-Cassie``
+   * ``Isaac-Velocity-Rough-G1``
+   * ``Isaac-Velocity-Rough-H1``
+
+Heterogeneous cloning
+---------------------
+
+OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
+numeric environment order so indexed resets, actions and observations address
+the correct variant. Variants may differ in geometry but must preserve body,
+joint and tendon layout. Isaac Lab checks prototype rotation axes and tendon layouts;
+OVPhysX checks body and joint metadata when binding articulations.
+
+The clone context compiles the plan's prototypes and world assignments once.
+The physics manager attaches one exported stage, replays the native copies, and
+warms the runtime before assets and sensors bind. Hard reset reuses the same
+declarations; there is no separate consumable queue. Binding paths come from the
+plan's world layout and environment template, not from native clone order.
+
+Authored sources all receive native environment ID zero. Every world containing
+a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
+clone their assets from a complete original world of the same composition,
+using one native environment ID per destination world. This keeps a robot,
+table and object able to contact one another without destination placeholders.
+Only declared asset subtrees are copied; unrelated authored assets are retained.
+
+Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
+isolate original worlds with USD collision groups. GPU copies additionally use
+native environment-ID filtering. CPU has no native environment-ID filtering
+in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
+Large overlapping original layouts can still exhaust broadphase pair capacity;
+use spatially separated environments.
+
+Deformable limitations
+----------------------
+
+OvPhysX deformables currently require every body matched by one
+:class:`~isaaclab.assets.DeformableObject` to have the same number of simulation
+nodes. Initialization raises an error for mixed node counts instead of exposing
+padded state that would produce incorrect reductions.
+
+Deformable scenes also require full-stage materialization. Startup cost therefore
+grows with the number of authored environments. Use this path for small validation
+scenes; training-scale workloads with thousands of environments are not currently
+supported. Deformable bodies are not supported by the heterogeneous fast-path
+cloner.
 
 .. _ovphysx-native-access:
 
@@ -402,3 +441,12 @@ The generated Isaac Lab reference for
 view. The repository metadata pins OvPhysX to a version but does not provide
 a versioned official OvPhysX documentation URL, so inspect the installed
 ``TensorType`` and binding metadata at runtime.
+
+.. _status-and-follow-up:
+
+Where to go next
+----------------
+
+* :doc:`/source/isaaclab/environments` — tasks and backend presets.
+* :ref:`backend-architecture` — shared factories and resource ownership.
+* :doc:`/source/concepts/native-physics-api/index` — native access across backends.

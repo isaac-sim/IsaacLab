@@ -3,7 +3,7 @@
 Examples: Data Generation and Imitation Learning for Humanoids
 ==============================================================
 
-This page covers data generation and imitation learning workflows for humanoid robots (GR-1, G1) with Isaac Lab Mimic:
+These Isaac Lab Mimic examples cover three humanoid tasks:
 
 * **Demo 1:** Data generation and policy training for a humanoid robot (GR-1 pick and place)
 * **Demo 2:** Visuomotor policy for a humanoid robot (GR-1 nut pouring)
@@ -58,10 +58,10 @@ CPU simulation is used in the following steps for better XR performance when run
 Collect a set of human demonstrations.
 A success demo requires the object to be placed in the bin and for the robot's right arm to be retracted to the starting position.
 
-The Isaac Lab Mimic Env GR-1 humanoid robot is set up such that the left hand has a single subtask, while the right hand has two subtasks.
-The first subtask involves the right hand remaining idle while the left hand picks up and moves the object to the position where the right hand will grasp it.
-This setup allows Isaac Lab Mimic to interpolate the right hand's trajectory accurately by using the object's pose, especially when poses are randomized during data generation.
-Therefore, avoid moving the right hand while the left hand picks up the object and brings it to a stable position.
+The GR-1 example has one left-hand subtask and two right-hand subtasks. Keep the
+right hand still while the left hand picks up the object and holds it in a stable
+position. Mimic uses the object pose to interpolate the right-hand trajectory when
+object positions change during generation.
 
 
 .. |good_demo| image:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/gr-1_steering_wheel_pick_place_good_demo.gif
@@ -384,11 +384,9 @@ Visualize the results of the trained policy by running the following command, us
 Demo 3: Data Generation and Policy Training for Humanoid Robot Locomanipulation with Unitree G1
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In this demo, we showcase the integration of locomotion and manipulation capabilities within a single humanoid robot system.
-This locomanipulation environment enables data collection for complex tasks that combine navigation and object manipulation.
-The demonstration follows a multi-step process: first, it generates pick and place tasks similar to Demo 1, then introduces
-a navigation component that uses specialized scripts to generate scenes where the humanoid robot must move from point A to point B.
-The robot picks up an object at the initial location (point A) and places it at the target destination (point B).
+This example combines G1 manipulation and navigation. First generate pick-and-place
+data, then add a route between two locations. The robot picks up the object at
+point A, walks to point B, and places it there.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/locomanipulation-g-1_steering_wheel_pick_place.gif
    :width: 100%

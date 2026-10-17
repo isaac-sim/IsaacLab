@@ -3,22 +3,13 @@ Visualization
 
 .. currentmodule:: isaaclab
 
-Isaac Lab provides 5 visualizers for real-time simulation inspection and debugging. Where
-renderers produce sensor data for training, visualizers give fast, lightweight feedback for
-human monitoring and recording. Visualizers can also stream that same sensor data through the
-streaming camera panel.
+Visualizers let you inspect, debug, and record a running simulation. Isaac Lab
+offers five options, from lightweight viewers to the Isaac Sim viewport. You can
+also view camera-sensor output in the streaming camera panel.
 
 Try :ref:`Franka cube stacking <interactive-demo-franka-stack>` for a compact simulation
 running directly in the browser. Orbit its camera, watch the scripted grasp, or control
 the end effector in Manual mode.
-
-This page covers:
-
-- `Quick Start`_: launch a visualizer with ``--viz``
-- `Visualizer Overview`_: each visualizer in its own section
-- `Shared Features`_: what's common across visualizers
-- `Usage`_: common CLI and config recipes
-- `Limitations`_: per-visualizer differences and troubleshooting
 
 .. raw:: html
 
@@ -975,11 +966,8 @@ The Rerun web viewer may slow down or crash with many environments. Reduce load 
 
 **Rerun: blank page until the first payload loads**
 
-The Rerun browser tab opens blank and stays that way for several seconds (up to ~10s,
-depending on scene size) before the scene and live plots appear. This is expected -- it's the
-time for the web viewer to connect to the local Rerun server and receive its first batch of
-logged data -- but the page gives no loading indicator in the meantime, so it can look stuck.
-No action is needed; wait for the first frame to arrive.
+Rerun may show a blank browser tab for up to about 10 seconds while it connects
+and receives scene data. Wait for the first frame; no action is needed.
 
 **Newton GL: CUDA/OpenGL interoperability warnings**
 
@@ -1002,8 +990,12 @@ process is running without a GPU-backed display context (for example, in a servi
 a remote desktop without GPU acceleration). Run from a GPU-backed interactive display session,
 or omit ``--viz newton_gl`` for headless execution.
 
-See Also
---------
+.. raw:: html
+
+   <span id="see-also"></span>
+
+Where to go next
+----------------
 
 - :doc:`/source/how-to/visualizer_streaming_camera_view`: stream a camera view step by step
 - :doc:`/source/how-to/record_video`: recording MP4 clips from a visualizer or sensor

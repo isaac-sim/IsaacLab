@@ -8,23 +8,18 @@
 Solver Differences
 ==================
 
-Isaac Lab presents a common asset and task interface across its physics
-backends, but that interface does not make the underlying solver models
-interchangeable. PhysX and the Newton solvers can use the same USD asset while
-producing different trajectories because they construct contacts, represent
-state, stabilize constraints, and allocate work differently.
+The same asset can behave differently across physics solvers. Each solver handles
+contacts, state, and constraints differently, even when you use the same Isaac Lab API.
 
 The table below compares the documented PhysX and Newton MJWarp, Kamino,
 VBD, and MPM workflows. The detailed sections focus on three solvers used for
 rigid robots: PhysX, MuJoCo-Warp (MJWarp), and Kamino. For additional Newton
-solver configurations, see :ref:`newton-backend`. OvPhysX is a separate,
-experimental backend with its own limitations; it is not another solver mode
-of the PhysX backend discussed here.
+solver configurations, see :ref:`newton-backend`. OvPhysX runs PhysX without Isaac Sim; see :ref:`ovphysx-backend` for its
+configuration and supported features.
 
-Use this page to understand the model differences. For the controls and a
-measured tuning procedure, use :doc:`/source/how-to/solver_tuning_mjwarp` or
-:doc:`/source/how-to/solver_tuning_kamino`; the generated solver configuration APIs
-are the reference for exact fields and defaults.
+For tuning steps, see :doc:`/source/how-to/solver_tuning_mjwarp` and
+:doc:`/source/how-to/solver_tuning_kamino`. The solver API references list configuration
+fields and defaults.
 
 For finer-grained comparisons of features, contact materials, and joint support
 among Newton solvers, see the `Newton supported-features matrix
