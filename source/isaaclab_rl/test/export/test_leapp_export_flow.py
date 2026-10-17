@@ -16,7 +16,6 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
-import warp as wp
 import yaml
 from leapp_initialized_checkpoints import (
     _CheckpointEnv,
@@ -25,12 +24,11 @@ from leapp_initialized_checkpoints import (
     _create_sb3_checkpoint,
     _create_skrl_checkpoint,
 )
+from leapp_tensor_env import TensorManagerEnv
 from leapp_test_tasks import MANAGER_TASK
 
-from isaaclab.assets.articulation import BaseArticulation
-from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
-from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import ProxyArray
+from isaaclab.envs import DirectRLEnv
+from isaaclab.managers import ActionManager, ObservationManager
 
 from isaaclab_tasks.utils import load_cfg_from_registry
 
@@ -133,94 +131,6 @@ class _TensorEnv:
         pass
 
 
-class _ManagerTensorEnv(_TensorEnv, ManagerBasedRLEnv):
-    pass
-
-
-class _ConnectedManagerTensorEnv(_ManagerTensorEnv):
-    """Run a real policy through Isaac Lab's manager patcher with tensor-backed scene entities."""
-
-    def __init__(self, cfg, *, task: str, checkpoint_task: str, backend: str, render_mode=None):
-        super().__init__(cfg, task=task, checkpoint_task=checkpoint_task, backend=backend, render_mode=render_mode)
-        self.env = self  # ExportPatcher expects the same wrapper shape as a Gym-created manager environment.
-        self._pixel_generator = torch.Generator().manual_seed(13)
-        self._pixels = torch.randint(0, 256, (1, 4, 4, 3), dtype=torch.uint8, generator=self._pixel_generator)
-        camera_data = CameraData()
-        camera_data._output = {"rgb": ProxyArray(wp.from_torch(self._pixels))}
-
-        class FakeArticulation:
-            set_joint_position_target_index = BaseArticulation.set_joint_position_target_index
-
-            def __init__(self, num_joints: int):
-                self.joint_names = [f"joint_{index}" for index in range(num_joints)]
-                self.data = SimpleNamespace()
-                self.targets = []
-                self.actuators = SimpleNamespace(
-                    target_command=SimpleNamespace(set_position_index=lambda **kwargs: self.targets.append(kwargs))
-                )
-
-        class Scene(dict):
-            pass
-
-        asset = FakeArticulation(self._source.num_actions)
-        self.scene = Scene(camera=SimpleNamespace(data=camera_data), robot=asset)
-        self.scene.sensors = {"camera": self.scene["camera"]}
-        self.scene.articulations = {"robot": asset}
-        self.fake_articulation_type = FakeArticulation
-
-        policy_width = self._source.observation_space.shape[0]
-
-        def policy(env):
-            rgb = env.scene.sensors["camera"].data.output["rgb"].torch.float() / 255.0
-            padding = torch.full((1, policy_width - rgb.numel()), 0.25)
-            return torch.cat((rgb.reshape(1, -1), padding), dim=-1)
-
-        def proprio(env):
-            rgb = env.scene.sensors["camera"].data.output["rgb"].torch.float() / 255.0
-            return rgb.mean(dim=(1, 2, 3)).unsqueeze(-1).expand(-1, 2)
-
-        def vision(env):
-            rgb = env.scene.sensors["camera"].data.output["rgb"].torch.float() / 255.0
-            return rgb.permute(0, 3, 1, 2)
-
-        terms = {
-            "policy": [SimpleNamespace(func=policy, noise=None)],
-            "proprio": [SimpleNamespace(func=proprio, noise=None)],
-            "vision": [SimpleNamespace(func=vision, noise=None)],
-            "critic": [SimpleNamespace(func=lambda env: torch.zeros(1, 2), noise=None)],
-        }
-        self.observation_manager = SimpleNamespace(
-            _group_obs_term_cfgs=terms,
-            _group_obs_term_names={name: [name] for name in terms},
-            compute=lambda: {name: cfgs[0].func(self) for name, cfgs in terms.items()},
-        )
-        term = SimpleNamespace(_asset=asset, raw_actions=None, processed_actions=None)
-        manager = SimpleNamespace(_env=self, _terms={"actions": term}, total_action_dim=self._source.num_actions)
-
-        def process_action(action):
-            manager.action = action
-            term.raw_actions = action
-
-        def apply_action():
-            term._asset.set_joint_position_target_index(target=manager.action)
-
-        manager.process_action = process_action
-        manager.apply_action = apply_action
-        self.action_manager = manager
-
-    def reset(self, *, seed=None, options=None):
-        self._pixels.random_(0, 256, generator=self._pixel_generator)
-        self.obs_buf = self.observation_manager.compute()
-        return self.obs_buf, {}
-
-    def step(self, actions):
-        self.action_manager.process_action(actions)
-        self.action_manager.apply_action()
-        self._pixels.random_(0, 256, generator=self._pixel_generator)
-        self.obs_buf = self.observation_manager.compute()
-        return self.obs_buf, torch.zeros(1), torch.zeros(1, dtype=torch.bool), torch.zeros(1, dtype=torch.bool), {}
-
-
 class _DirectTensorEnv(_TensorEnv, DirectRLEnv):
     pass
 
@@ -251,16 +161,28 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
     checkpoint = _CREATORS[backend](_CheckpointEnv(checkpoint_task, backend), agent_cfg, tmp_path)
     env_cfg = load_cfg_from_registry(checkpoint_task, "env_cfg_entry_point")
     connected = backend == "rsl_rl" and task == MANAGER_TASK and not direct
-    env_type = _DirectTensorEnv if direct else (_ConnectedManagerTensorEnv if connected else _ManagerTensorEnv)
-    env = env_type(env_cfg, task=task, checkpoint_task=checkpoint_task, backend=backend)
-    monkeypatch.setattr(module.gym, "make", lambda *args, **kwargs: env)
+    env = (
+        _DirectTensorEnv(env_cfg, task=task, checkpoint_task=checkpoint_task, backend=backend)
+        if direct
+        else TensorManagerEnv(
+            env_cfg, task=task, backend=backend, width=_CheckpointEnv(checkpoint_task, backend).num_actions
+        )
+    )
+    if not direct:
+        assert isinstance(env.observation_manager, ObservationManager)
+        assert isinstance(env.action_manager, ActionManager)
     if connected:
-        from isaaclab.utils.leapp import export_annotator
-
-        monkeypatch.setattr(export_annotator, "BaseArticulation", env.fake_articulation_type)
-    elif not direct:
-        # Other backends keep their checkpoint and policy export coverage without a scene.
-        monkeypatch.setattr(module, "prepare_export_env", lambda *args, **kwargs: task)
+        observed = env.observation_manager.compute()["policy"]
+        positions = observed[:, : env.action_manager.total_action_dim]
+        torch.testing.assert_close(positions, torch.full_like(positions, 0.7))
+        env.action_manager.process_action(torch.full((1, env.action_manager.total_action_dim), 0.4))
+        env.action_manager.apply_action()
+        torch.testing.assert_close(env.scene["robot"].targets[-1]["value"], torch.full_like(positions, 0.3))
+        env.action_manager.process_action(torch.full((1, env.action_manager.total_action_dim), 5.0))
+        env.action_manager.apply_action()
+        torch.testing.assert_close(env.scene["robot"].targets[-1]["value"], torch.full_like(positions, 0.5))
+        env.action_manager.reset()
+    monkeypatch.setattr(module.gym, "make", lambda *args, **kwargs: env)
     real_capture = module.leapp_capture
 
     @contextlib.contextmanager
@@ -296,17 +218,28 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
     assert (artifact_dir / f"{task}.onnx").is_file()
     description = yaml.safe_load(pipeline.read_text())
     manager = InferenceManager(str(pipeline))
+    if not direct:
+        model = description["models"][task]
+        connections = {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item}
+        assert {"state:robot:joint_pos", "state:robot:joint_vel"} <= connections
+        action_output = next(item for item in model["outputs"] if item["name"] == "actions")
+        assert action_output["isaaclab_connection"] == "write:robot:set_joint_position_target_index"
+        if backend != "sb3":
+            assert f"{task}/h_policy_joint_vel_out" in description["pipeline"]["feedback_flow"]
     if connected:
         from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv
 
         model = description["models"][task]
-        assert [(item["name"], item.get("isaaclab_connection")) for item in model["inputs"]] == [
-            ("camera_output_rgb", "state:camera:output.rgb")
-        ]
-        assert [(item["name"], item.get("isaaclab_connection")) for item in model["outputs"]] == [
-            ("actions", "write:robot:set_joint_position_target_index")
-        ]
-        assert model["outputs"][0]["element_names"] == [[f"joint_{index}" for index in range(10)]]
+        assert {item["isaaclab_connection"] for item in model["inputs"] if "isaaclab_connection" in item} == {
+            "state:camera:output.rgb",
+            "state:robot:joint_pos",
+            "state:robot:joint_vel",
+        }
+        assert [
+            (item["name"], item["isaaclab_connection"]) for item in model["outputs"] if "isaaclab_connection" in item
+        ] == [("actions", "write:robot:set_joint_position_target_index")]
+        action_output = next(item for item in model["outputs"] if item["name"] == "actions")
+        assert action_output["element_names"] == [[f"joint_{index}" for index in range(10)]]
         deployment = object.__new__(LeappDeploymentEnv)
         deployment.scene = env.scene
         deployment._leapp_desc = description
@@ -354,15 +287,20 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
 
 def test_fast_export_has_no_simulator_dependency():
     """Keep the export flow independent of scene and solver setup."""
-    tree = ast.parse(Path(__file__).read_text())
     export_dir = Path(__file__).parent
     for obsolete_file in ("test_leapp_export_simulation.py", "leapp_synthetic_env.py", "leapp_synthetic_env_cfg.py"):
         assert not (export_dir / obsolete_file).exists()
     forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_physx"}
     forbidden_calls = {"launch_simulation", "SimulationContext"}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            module = node.module or ""
-            assert not any(module == name or module.startswith(name + ".") for name in forbidden_modules)
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            assert node.func.id not in forbidden_calls
+    for filename in ("test_leapp_export_flow.py", "leapp_tensor_env.py"):
+        for node in ast.walk(ast.parse((export_dir / filename).read_text())):
+            if isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                assert not any(module == name or module.startswith(name + ".") for name in forbidden_modules)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                assert node.func.id not in forbidden_calls
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "setattr":
+                assert not any(
+                    isinstance(arg, ast.Constant) and arg.value in {"prepare_export_env", "BaseArticulation"}
+                    for arg in node.args
+                )

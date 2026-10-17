@@ -12,50 +12,15 @@ from pathlib import Path
 import gymnasium as gym
 import numpy as np
 import torch
+from leapp_direct_env import DIRECT_TASK
 from leapp_test_tasks import MANAGER_TASK
 from tensordict import TensorDict
 
 from isaaclab.utils import to_dict
 
-# Fixed policy term widths feed the synthetic checkpoints. Keeping per-term spaces
-# also covers SB3's dictionary policy; the tensor export replays every input.
-_POLICY_WIDTHS = {
-    "joint_pos": 6,
-    "joint_vel": 2,
-    "relative_pos": 2,
-    "gravity": 3,
-    "linear_velocity": 3,
-    "angular_velocity": 3,
-    "object_pos": 3,
-    "object_quat": 4,
-    "object_orientation": 4,
-    "body_state": 13,
-    "point_cloud": 12,
-    "height_scan": 4,
-    "contact": 9,
-    "contact_details": 10,
-    "nodes": 54,
-    "imu": 6,
-    "pva": 22,
-    "frames": 21,
-    "camera_geometry": 24,
-    "wrench": 6,
-    "cable": 26,
-    "dynamics": 72,
-    "collection": 26,
-    "velocity_command": 3,
-    "pose_command": 7,
-    "previous": 10,
-    "previous_position": 2,
-    "previous_relative": 1,
-    "rgb": 96,
-    "depth": 16,
-    "perspective_depth": 16,
-    "normals": 48,
-    "labels": 16,
-    "flow": 32,
-    "features": 4,
-}
+# These are the real tensor scene's policy terms. Joint velocity has two frames
+# in concatenated groups and one frame in SB3's dictionary group.
+_POLICY_WIDTHS = {"joint_pos": 10, "joint_vel": 10, "previous": 10}
 
 
 class _CheckpointEnv(gym.Env):
@@ -69,11 +34,14 @@ class _CheckpointEnv(gym.Env):
         self.state_space = None
         if task == MANAGER_TASK:
             self.num_actions = 10
-            shapes = {"policy": (sum(_POLICY_WIDTHS.values()),), "proprio": (2,), "critic": (2,), "vision": (3, 4, 4)}
+            shapes = {"policy": (40,), "proprio": (2,), "critic": (2,), "vision": (3, 4, 4)}
             self.state_space = gym.spaces.Box(-np.inf, np.inf, shapes["critic"], dtype=np.float32)
         elif task == "Isaac-Reach-UR10":
             self.num_actions = 6
-            shapes = {"policy": (25,)}  # Six positions, six velocities, a pose command and six actions.
+            shapes = {"policy": (24,)}  # Six positions, two velocity frames, and six previous actions.
+        elif task == DIRECT_TASK:
+            self.num_actions = 12
+            shapes = {"policy": (48,)}  # The direct ANYmal C tutorial's flat observation and action spaces.
         else:
             raise ValueError(f"No checkpoint spaces defined for {task}")
         self._observations = TensorDict({key: torch.zeros(1, *shape) for key, shape in shapes.items()}, batch_size=[1])
