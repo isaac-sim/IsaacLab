@@ -128,13 +128,13 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
             visited[id(node)] = visit(replacements[id(node)])
             return visited[id(node)]
         visited[id(node)] = node
-        if isinstance(
-            node,
-            (SimulationCfg, InteractiveSceneCfg, PhysicsCfg, RendererCfg, VisualizerCfg, VisualizerBackendCfg, CameraCfg, VideoRecorderCfg),
-        ):
-            configs.append(node)
-        if callable(node) or isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)):
+        if callable(node):
             return node
+        if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)):
+            configs.append(node)
+            return node
+        if isinstance(node, (SimulationCfg, InteractiveSceneCfg, VisualizerCfg, CameraCfg, VideoRecorderCfg)):
+            configs.append(node)
         if isinstance(node, tuple):
             children = tuple(visit(child) for child in node)
             if any(old is not new for old, new in zip(node, children, strict=True)):
