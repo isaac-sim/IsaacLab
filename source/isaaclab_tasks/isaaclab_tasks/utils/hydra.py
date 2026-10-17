@@ -423,7 +423,6 @@ def resolve_presets(
     selected=(),
     *,
     overrides: dict[str, str | Sequence[str]] | None = None,
-    selectors: Mapping[Callable[[object], bool], str | Sequence[str]] | None = None,
 ):
     """Replace every :class:`PresetCfg` in the tree with the best alternative.
 
@@ -439,17 +438,12 @@ def resolve_presets(
         selected: Set of preset names chosen by the user (e.g. from CLI
             ``presets=peg_insert_4mm,eval``).
         overrides: Path-specific choices. A list of names selects a list of configurations.
-        selectors: Typed choices, keyed by a predicate matching the alternatives.
 
     Returns:
         The resolved ``cfg`` (possibly a different object if the root itself
         was a PresetCfg).
     """
-    consumed = set()
-    cfg = _resolve_active_presets(cfg, selected, explicit=overrides, selectors=selectors, consumed_selectors=consumed)
-    if selectors and selectors.keys() - consumed:
-        raise ValueError("The configuration does not declare a preset for the requested selector.")
-    return cfg
+    return _resolve_active_presets(cfg, selected, explicit=overrides)
 
 
 # ============================================================================
