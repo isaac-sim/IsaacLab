@@ -32,7 +32,7 @@ Isaac Lab 3.0 separates backend-specific simulation code from the core API and i
 commands for common workflows. Work through the following sections in order; skip a section only when
 your project does not use that feature.
 
-.. seealso::
+.. Maintenance notes
 
    This part of the page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
    (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
@@ -3469,7 +3469,7 @@ Migration from Isaac Gym and IsaacGymEnvs
 
 .. currentmodule:: isaaclab
 
-.. seealso::
+.. Maintenance notes
 
    This section is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
    (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).

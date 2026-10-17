@@ -344,8 +344,7 @@ task.
 
    Use the same physics, renderer, domain, and observation/action presets for
    training and playback. Changing an observation or action preset can change
-   the policy architecture and cause checkpoint shape errors. This is a feature
-   and reflects that the selected configuration defines the policy contract.
+   the policy architecture and cause checkpoint shape errors.
 
 Scale training
 --------------

@@ -173,37 +173,8 @@ to see its supported selectors:
 
    uv run isaaclab train --task Isaac-Cartpole --help
 
-.. list-table::
-   :widths: 28 48 24
-   :header-rows: 1
-
-   * - Selector
-     - Backend
-     - Required extra
-   * - ``physics=newton_mjwarp``
-     - Newton with the MuJoCo-Warp solver.
-     - None
-   * - ``physics=newton_kamino``
-     - Newton with the Kamino solver. Available for selected tasks and compatible assets.
-     - None
-   * - ``physics=ovphysx``
-     - OV PhysX.
-     - ``ov`` or ``ovphysx``
-   * - ``physics=isaacsim_physx``
-     - Isaac Sim PhysX.
-     - ``isaacsim``
-   * - ``renderer=newton_renderer``
-     - Newton Warp renderer.
-     - None
-   * - ``renderer=ovrtx``
-     - OV RTX renderer.
-     - ``ov`` or ``ovrtx``
-   * - ``renderer=isaacsim_rtx``
-     - Isaac Sim RTX renderer.
-     - ``isaacsim``
-   * - ``renderer=rtx``
-     - Automatic RTX renderer selection.
-     - ``isaacsim`` or ``ovrtx``
+See :doc:`/source/concepts/backends_and_presets` for selector names and
+:ref:`isaaclab-installation-root` for the extras required by each runtime.
 
 Use ``presets=<name>`` to apply a task-specific configuration preset. For
 example:
@@ -268,22 +239,8 @@ Open the dashboard from a second terminal:
    uv run python -m tensorboard.main --logdir logs/rsl_rl
 
 Open ``http://localhost:6006`` to compare rewards, episode lengths, and losses across runs.
-RSL-RL supports the following logger choices:
 
-.. list-table::
-   :widths: 35 65
-   :header-rows: 1
-
-   * - Option
-     - Logs to
-   * - ``--logger tensorboard``
-     - Local TensorBoard event files (default).
-   * - ``--logger wandb``
-     - Weights & Biases. Requires the ``wandb`` extra and account authentication.
-   * - ``--logger neptune``
-     - Neptune. Requires ``neptune-client`` and account credentials.
-
-For example, sign in to Weights & Biases and log a training run to your project:
+To use Weights & Biases instead, sign in and log a training run to your project:
 
 .. code-block:: bash
 

@@ -397,12 +397,11 @@ point A, walks to point B, and places it there.
 .. note::
    **Locomotion policy training**
 
-   The locomotion policy used in this integration example was trained using the `AGILE <https://github.com/nvidia-isaac/WBC-AGILE>`__ framework.
-   AGILE is an officially supported humanoid control training pipeline that leverages the manager based environment in Isaac Lab. It will also be
-   seamlessly integrated with other evaluation and deployment tools across Isaac products. This allows teams to rely on a single, maintained stack
-   covering all necessary infrastructure and tooling for policy training, with easy export to real-world deployment. The AGILE repository contains
-   updated pre-trained policies with separate upper and lower body policies for flexibility. They have been verified in the real world and can be
-   directly deployed. Users can also train their own locomotion or whole-body control policies using the AGILE framework.
+   This example uses a locomotion policy trained with
+   `AGILE <https://github.com/nvidia-isaac/WBC-AGILE>`__, which builds on Isaac Lab's
+   manager-based environments. The repository provides pretrained upper- and
+   lower-body policies, along with tools to train locomotion and whole-body control
+   policies.
 
 .. _generate-the-manipulation-dataset:
 

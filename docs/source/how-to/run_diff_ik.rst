@@ -5,14 +5,9 @@ Using a task-space controller
 
 .. currentmodule:: isaaclab
 
-In the previous tutorials, we have joint-space controllers to control the robot. However, in many
-cases, it is more intuitive to control the robot using a task-space controller. For example, if we
-want to teleoperate the robot, it is easier to specify the desired end-effector pose rather than
-the desired joint positions.
-
-In this tutorial, we will learn how to use a task-space controller to control the robot.
-We will use the :class:`controllers.DifferentialIKController` class to track a desired
-end-effector pose command.
+Use :class:`controllers.DifferentialIKController` to command an end-effector pose
+and compute joint position targets. This is useful for reaching and teleoperation,
+where specifying a hand pose is often easier than choosing each joint angle.
 
 This tutorial uses Isaac Sim PhysX and requires an Isaac Sim installation.
 For controller selection and the control-loop walkthrough, see

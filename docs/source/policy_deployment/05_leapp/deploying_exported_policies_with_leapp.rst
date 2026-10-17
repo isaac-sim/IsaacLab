@@ -3,10 +3,9 @@ Deploy Exported Policies with LEAPP
 
 .. currentmodule:: isaaclab
 
-Isaac Lab provides :class:`~envs.LeappDeploymentEnv` for running exported policies back in
-simulation without the training infrastructure. This is the Isaac Lab deployment path for
-LEAPP-exported policies and is useful for validating that the packaged policy still behaves
-correctly when driven through the deployment stack instead of the training stack.
+Use :class:`~envs.LeappDeploymentEnv` to run a LEAPP-exported policy in simulation.
+This checks the exported policy and its input/output processing together, without
+the training runner.
 
 Run the deployment command with the task name and the exported LEAPP ``.yaml`` file. Use the
 same backend extra and backend selector that you used for training and export, and pass a

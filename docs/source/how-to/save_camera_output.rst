@@ -8,8 +8,8 @@ Saving rendered images and 3D re-projection
 
 .. currentmodule:: isaaclab
 
-This guide accompanied with the ``run_usd_camera.py`` script in the ``IsaacLab/scripts/tutorials/04_sensors``
-directory.
+Save camera images and reproject depth into 3D points with
+``scripts/tutorials/04_sensors/run_usd_camera.py``.
 
 .. dropdown:: Code for run_usd_camera.py
    :icon: code

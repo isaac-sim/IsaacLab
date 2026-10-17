@@ -205,7 +205,8 @@ Output Tactile Data
 Integration with Learning Frameworks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The tactile sensor is designed to integrate seamlessly with reinforcement learning and imitation learning frameworks. The structured tensor outputs can be directly used as observations in learning algorithms:
+Use the sensor's image and force tensors as observations for reinforcement or
+imitation learning:
 
 .. code-block:: python
 
