@@ -9,3 +9,5 @@
   Private physics stages reused the same stage owner for population, queries, and write ordinals.
 * Rejected full-stage physics imports in shared mode instead of dropping authored environment overrides.
   Those scenes must leave ``ISAAC_LAB_SHARE_OVSTAGE`` disabled.
+* Removed custom import-error wrappers and redundant schema-registration fallbacks. Missing dependencies
+  retained Python's original import errors; renderer cleanup propagated binding failures after releasing resources.

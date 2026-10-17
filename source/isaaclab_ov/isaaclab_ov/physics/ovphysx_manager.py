@@ -22,10 +22,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
+import ovphysx
 import ovstage
 import warp as wp
 
-from pxr import Sdf, Usd, UsdPhysics
+from pxr import Plug, Sdf, Usd, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -40,7 +41,6 @@ from isaaclab.utils import instantiate
 from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
-from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
@@ -114,17 +114,6 @@ def _set_scene_dynamics_device(scene_prim: Usd.Prim, device: str) -> None:
 
 
 logger = logging.getLogger(__name__)
-
-
-def _newton_schema_root() -> str | None:
-    """Return the installed Newton USD schema plugin root, if available."""
-    spec = importlib.util.find_spec("newton_usd_schemas")
-    if spec is None or spec.origin is None:
-        return None
-    schema_root = os.path.dirname(spec.origin)
-    if not os.path.isfile(os.path.join(schema_root, "plugInfo.json")):
-        return None
-    return schema_root
 
 
 class OvPhysxSceneDataBackend(SceneDataBackend):
@@ -315,7 +304,6 @@ class OvPhysxBackend:
     """Own the native OVPhysX runtime and either own or borrow its stage."""
 
     def __init__(self, cfg: OvPhysxBackendCfg, *, scene: OvstageBackend | None = None):
-        ovphysx = import_ovphysx()
         ovphysx.bootstrap()
         is_gpu = cfg.device.startswith("cuda:")
         cache_dir = cfg.cooked_collider_cache_dir
@@ -509,27 +497,10 @@ class OvPhysxManager(PhysicsManager):
         """
         if cls._physx_schemas_registered:
             return
-        try:
-            import ovphysx  # noqa: PLC0415
-
-            from pxr import Plug  # noqa: PLC0415
-        except ImportError:
-            return
         schema_paths = ovphysx_compat.physx_schema_paths(ovphysx)
-        try:
-            import ovstage  # noqa: PLC0415
-        except ImportError:
-            pass  # Host USD schemas can still be registered without OVStage.
-        else:
-            schema_root = getattr(ovphysx, "codeless_schema_root", None)
-            register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
-            if callable(register_ovstage_schemas):
-                if ovphysx_compat.OVPHYSX_USES_TASKS:
-                    register_ovstage_schemas([str(path) for path in schema_paths])
-                elif callable(schema_root):
-                    register_ovstage_schemas(str(schema_root()))
-                if (newton_schema_root := _newton_schema_root()) is not None:
-                    register_ovstage_schemas(newton_schema_root)
+        ovstage.population.register_usd_schemas([str(path) for path in schema_paths])
+        # Locate the required schema package without importing it into the host USD registry.
+        ovstage.population.register_usd_schemas(os.path.dirname(importlib.util.find_spec("newton_usd_schemas").origin))
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its

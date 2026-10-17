@@ -1204,10 +1204,19 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
 def test_ovrtx_close_releases_bindings_before_registry_resources(use_ovstage):
-    """Bindings release once, before engines and stages owned by the simulation registry."""
+    """Release every binding before its native owners, propagating failures after cleanup."""
     events: list[str] = []
     renderer = _make_renderer_with_backend(events, use_ovstage)
-    renderer.close()
+    if use_ovstage:
+        renderer.close()
+    else:
+
+        def fail_release():
+            raise RuntimeError("binding release failed")
+
+        renderer._bindings.callback(fail_release)
+        with pytest.raises(RuntimeError, match="binding release failed"):
+            renderer.close()
     renderer.close()
     if use_ovstage:
         assert len(events) == 6

@@ -55,7 +55,7 @@ def manager_module(monkeypatch):
     sim.get_backends = SimulationContext.get_backends.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     with monkeypatch.context() as construction:
-        construction.setattr(module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
+        construction.setattr(module, "ovphysx", _fake_ovphysx_module(lambda: None))
         backend = sim.get_or_create_backend(cfg)
     monkeypatch.setattr(PhysicsManager, "_sim", sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)
@@ -116,46 +116,25 @@ def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_mod
 
 
 @pytest.mark.parametrize(
-    ("registered_names", "expected_paths", "schema_root", "has_registration_api", "modern"),
+    ("registered_names", "expected_paths"),
     [
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", True, False),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], "/schemas", True, False),
-        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], [], None, True, False),
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], "/schemas", False, False),
-        pytest.param(
-            ["physxSchema"],
-            ["/schemas/OmniUsdPhysicsDeformableSchema/resources"],
-            "/schemas",
-            None,
-            False,
-            id="ovstage-import-unavailable",
-        ),
-        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"], None, True, True),
+        (["physxSchema"], ["/schemas/OmniUsdPhysicsDeformableSchema/resources"]),
+        (["PhysxSchema", "OmniUsdPhysicsDeformableSchema"], []),
     ],
 )
 def test_schema_registration_skips_providers_already_supplied_by_host(
-    monkeypatch, manager_module, registered_names, expected_paths, schema_root, has_registration_api, modern
+    monkeypatch, manager_module, registered_names, expected_paths
 ):
-    monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
-    manager = manager_module.OvPhysxManager
     schema_paths = [
         Path("/schemas/PhysxSchema/resources"),
         Path("/schemas/OmniUsdPhysicsDeformableSchema/resources"),
     ]
-    if modern:
-        monkeypatch.setattr(manager_module.ovphysx_compat, "physx_schema_paths", lambda _: schema_paths)
-    host_registrations = []
-    ovstage_registrations = []
-
-    fake_ovphysx = ModuleType("ovphysx")
-    fake_ovphysx.codeless_schema_paths = lambda: schema_paths
-    if schema_root is not None:
-        fake_ovphysx.codeless_schema_root = lambda: Path(schema_root)
-
-    fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.population = SimpleNamespace()
-    if has_registration_api:
-        fake_ovstage.population.register_usd_schemas = ovstage_registrations.append
+    monkeypatch.setattr(manager_module.ovphysx_compat, "physx_schema_paths", lambda _: schema_paths)
+    host_registrations, ovstage_registrations = [], []
+    monkeypatch.setattr(manager_module.ovstage.population, "register_usd_schemas", ovstage_registrations.append)
+    monkeypatch.setattr(
+        manager_module.importlib.util, "find_spec", lambda name: SimpleNamespace(origin="/schemas/newton/__init__.py")
+    )
 
     class FakeRegistry:
         def GetAllPlugins(self):
@@ -164,26 +143,11 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
         def RegisterPlugins(self, paths):
             host_registrations.append(list(paths))
 
-    fake_pxr = ModuleType("pxr")
-    fake_pxr.Plug = type("FakePlug", (), {"Registry": staticmethod(FakeRegistry)})
-    monkeypatch.setitem(sys.modules, "ovphysx", fake_ovphysx)
-    # A None entry makes importing OVStage raise ModuleNotFoundError.
-    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
-    monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
-    newton_schema_root = "/schemas/newton"
-    monkeypatch.setattr(manager_module, "_newton_schema_root", lambda: newton_schema_root, raising=False)
+    monkeypatch.setattr(manager_module.Plug, "Registry", FakeRegistry)
+    manager_module.OvPhysxManager._ensure_physx_schemas_registered()
+    manager_module.OvPhysxManager._ensure_physx_schemas_registered()
 
-    manager._ensure_physx_schemas_registered()
-    manager._ensure_physx_schemas_registered()
-
-    expected_ovstage_registrations = []
-    if has_registration_api:
-        if modern:
-            expected_ovstage_registrations.append([str(path) for path in schema_paths])
-        elif schema_root is not None:
-            expected_ovstage_registrations.append(schema_root)
-        expected_ovstage_registrations.append(newton_schema_root)
-    assert ovstage_registrations == expected_ovstage_registrations
+    assert ovstage_registrations == [[str(path) for path in schema_paths], "/schemas/newton"]
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
@@ -204,7 +168,7 @@ def test_registry_shares_native_cfg_without_replacing_pxr(monkeypatch, manager_m
         assert sys.modules["pxr"] is host_pxr
         assert sys.modules["pxr.Usd"] is host_usd
 
-    monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(bootstrap))
+    monkeypatch.setattr(manager_module, "ovphysx", _fake_ovphysx_module(bootstrap))
 
     sim = SimpleNamespace(_backend_registry=[])
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
@@ -653,7 +617,7 @@ def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager
     """Configured, default, and unset cache directories reach ``PhysXConfig`` unchanged."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg, OvPhysxCfg
 
-    monkeypatch.setattr(manager_module, "import_ovphysx", lambda: _fake_ovphysx_module(lambda: None))
+    monkeypatch.setattr(manager_module, "ovphysx", _fake_ovphysx_module(lambda: None))
 
     assert OvPhysxCfg().cooked_collider_cache_dir == DEFAULT_COOKED_COLLIDER_CACHE_DIR
     for cache_dir in (DEFAULT_COOKED_COLLIDER_CACHE_DIR, str(tmp_path / "configured_cache"), None):

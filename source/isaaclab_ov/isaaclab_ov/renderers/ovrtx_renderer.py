@@ -33,7 +33,7 @@ from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, NoReturn, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -51,27 +51,17 @@ import isaaclab.utils.warp  # noqa: F401  # initializes Warp runtime
 os.environ["OVRTX_SKIP_USD_CHECK"] = "1"
 
 
-try:
-    from ovrtx import (
-        BindingFlag,
-        DataAccess,
-        Device,
-        PrimMode,
-        Renderer,
-        RendererConfig,
-        RenderProductSetOutputs,
-        Semantic,
-        TextureStreamingMode,
-    )
-except ModuleNotFoundError as exc:
-    if exc.name != "ovrtx":
-        raise
-    raise ModuleNotFoundError(
-        "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
-        "Run your command with: uv run --extra ovrtx <command> "
-        "(or, manually: python -m pip install 'ovrtx==0.5.1.385782')."
-    ) from exc
-
+from ovrtx import (
+    BindingFlag,
+    DataAccess,
+    Device,
+    PrimMode,
+    Renderer,
+    RendererConfig,
+    RenderProductSetOutputs,
+    Semantic,
+    TextureStreamingMode,
+)
 from PIL import Image
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
@@ -155,24 +145,9 @@ _DEPTH_VAR_BUFFER_KEYS: dict[str, tuple[str, ...]] = {
 }
 
 
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "Run `uv sync` from the Isaac Lab source checkout, or install the Isaac Lab wheel "
-    "with `uv pip install isaaclab`."
-)
-
-
 # Opts Linux out of the host wait, onto the same GPU-side ordering every other platform uses.
 # See :meth:`OVRTXRenderer._map_render_var_to_dlpack`.
 _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
 
 
 def _gpu_side_render_var_sync_enabled() -> bool:
@@ -306,10 +281,7 @@ class OVRTXCameraRenderData:
         # ``isp_cfg`` is already fully normalized by ``author_camera`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
         if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
+            from isaaclab_ppisp import PpispPipeline
 
             self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
@@ -400,10 +372,7 @@ class OVRTXRenderer(BaseRenderer):
         """
         if cfg.isp_cfg is None:
             return
-        try:
-            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
+        from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
 
         paths = [str(prim.GetPath()) for prim in find_matching_prims(cfg.prim_path, stage)]
         cfg.isp_cfg = resolve_and_normalize(cfg.isp_cfg, stage, paths[0])
@@ -1216,6 +1185,7 @@ class OVRTXRenderer(BaseRenderer):
         """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
         try:
             with contextlib.ExitStack() as resources:
+                resources.callback(self._bindings.close)
                 resources.callback(self._transform_writes.close)
                 resources.callback(self._geometry_writes.close)
                 resources.callback(self.geometry_resources.close)
@@ -1224,11 +1194,6 @@ class OVRTXRenderer(BaseRenderer):
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
         finally:
-            try:
-                self._bindings.close()
-            except Exception as exc:
-                if "destroyed" not in str(exc).lower():
-                    logger.warning("Error releasing OVRTX bindings: %s", exc)
             self._object_xform_binding = self._geometry_points_binding = None
             self._object_scales = None
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))

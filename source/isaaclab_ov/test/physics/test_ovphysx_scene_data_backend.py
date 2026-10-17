@@ -124,7 +124,7 @@ def test_manager_supports_pinned_runtime_api(monkeypatch, tmp_path, device, expe
         )
 
     runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
-    monkeypatch.setattr(module, "import_ovphysx", lambda: runtime)
+    monkeypatch.setattr(module, "ovphysx", runtime)
 
     backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
     physx = backend.physx
