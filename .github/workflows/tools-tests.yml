@@ -18,6 +18,7 @@ on:
       - "tools/perf_smoke_thresholds.json"
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
+      - ".github/workflows/build.yaml"
       - ".github/workflows/tools-tests.yml"
   workflow_dispatch:
 
@@ -69,7 +70,8 @@ jobs:
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
-          .github/actions/_lib/test_registry_credential_fallback.py -v --noconftest
+          .github/actions/_lib/test_registry_credential_fallback.py
+          .github/actions/_lib/test_performance_workflow.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
         with:

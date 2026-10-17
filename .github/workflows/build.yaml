@@ -4,14 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Docker builds and their dependent tests run only on a labeled PR event, a push to a protected
-# branch, or a manual workflow dispatch. Do not filter the label with a job-level ``if``:
-# GitHub treats skipped required jobs as successful status checks.
-#
-# GitHub cannot filter label names at trigger time, so adding any label to a PR
-# starts this workflow. Only a ``ci:run-docker`` event cancels an in-flight run;
-# other label events queue behind it so that a triage label cannot cancel a
-# build whose required checks have already been reported.
+# Any label starts a run because GitHub cannot filter label names at trigger time.
+# Ordinary label events queue to avoid cancelling builds with reported required checks.
 #
 # Pushes to protected branches still run the post-merge integration tests.
 #
@@ -61,7 +55,7 @@ on:
       - develop
       - 'release/**'
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize]
     branches:
       - main
       - develop
@@ -73,7 +67,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   # Push and workflow_dispatch events carry no label, so this stays false for them and
   # preserves the post-merge runs that ``github.event_name == 'pull_request'`` used to protect.
-  cancel-in-progress: ${{ github.event.label.name == 'ci:run-docker' }}
+  cancel-in-progress: ${{ github.event.action == 'synchronize' || github.event.label.name == 'ci:run-docker' }}
 
 permissions:
   contents: read
@@ -91,9 +85,40 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      issues: read
     outputs:
       should_run: ${{ steps.detect.outputs.should_run }}
+      activated: ${{ steps.activation.outputs.activated }}
     steps:
+    - name: Check PR update activation
+      id: activation
+      continue-on-error: true
+      timeout-minutes: 5
+      uses: actions/github-script@v9
+      with:
+        script: |
+          // Label history preserves activation after run-ci removes its triggering label.
+          core.setOutput('activated', 'false');
+          if (context.eventName !== 'pull_request' || context.payload.action !== 'synchronize') {
+            core.setOutput('activated', 'true');
+            return;
+          }
+          try {
+            for await (const response of github.paginate.iterator(github.rest.issues.listEvents, {
+              ...context.repo, issue_number: context.payload.pull_request.number, per_page: 100,
+              request: {timeout: 60000},
+            })) {
+              // GITHUB_TOKEN labeler events cannot trigger another workflow.
+              if (response.data.some(event => event.event === 'labeled'
+                  && event.actor?.login && event.actor.login !== 'github-actions[bot]')) {
+                core.setOutput('activated', 'true');
+                return;
+              }
+            }
+            core.notice('Docker CI has not been activated for this PR. Apply a label or use the existing run-ci command.');
+          } catch (error) {
+            core.warning(`Could not verify prior PR activation (HTTP ${error.status || 'unavailable'}). Apply a label or use run-ci to start CI explicitly.`);
+          }
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
@@ -195,10 +220,17 @@ jobs:
   #region build jobs
   build:
     name: Build Base Docker Image
-    runs-on: [self-hosted, gpu]
+    # Keep the required build check non-successful when activation is missing;
+    # skipping all required tests would otherwise allow an untested PR to merge.
+    runs-on: ${{ fromJSON(needs.changes.outputs.activated == 'true' && '["self-hosted", "gpu"]' || '["ubuntu-latest"]') }}
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     steps:
+    - name: Explain missing PR activation
+      if: needs.changes.outputs.activated != 'true'
+      run: |
+        echo '::error::Docker CI has not been activated, or prior activation could not be verified. Apply a label or use the existing run-ci command. No GPU build or benchmark was started.'
+        exit 1
     - name: Checkout Code
       uses: actions/checkout@v6
       with:
@@ -230,6 +262,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
+      needs.changes.outputs.activated == 'true' &&
       needs.changes.outputs.should_run == 'true'
     steps:
     - name: Checkout Code
