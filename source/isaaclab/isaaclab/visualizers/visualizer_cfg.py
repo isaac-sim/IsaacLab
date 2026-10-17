@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-import warnings
 from copy import deepcopy
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, ClassVar

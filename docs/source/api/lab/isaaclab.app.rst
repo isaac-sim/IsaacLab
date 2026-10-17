@@ -17,6 +17,7 @@
 
       add_launcher_args
       launch_simulation
+      validate_launch
       report_activity
 
 
@@ -24,6 +25,8 @@ Simulation Launcher
 -------------------
 
 .. autofunction:: launch_simulation
+
+.. autofunction:: validate_launch
 
 .. autofunction:: add_launcher_args
 

@@ -104,6 +104,14 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         (dict(video="viz:newton_rtx", visualizer=["newton_rtx"]), ("viz:newton_rtx", [("newton_rtx", False)])),
         (dict(video="viz:newton_rtx"), ("viz:newton_rtx", [("newton_rtx", True)])),
         (dict(video="kit"), ("viz:kit", [("kit", True)])),
+        (
+            dict(video="viz:newton_gl:streaming_view"),
+            ("viz:newton_gl:streaming_view", [("newton_gl", True)]),
+        ),
+        (
+            dict(video="viz:newton_gl:streaming_view", visualizer=["newton_gl"]),
+            ("viz:newton_gl:streaming_view", [("newton_gl", False)]),
+        ),
         # a scene sensor needs no visualizer
         (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
         # streaming visualizers have no frame capture, and recording needs the torch frontend
@@ -117,6 +125,8 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
         "type-selected",
         "type-added",
         "kit-added",
+        "camera-view-headless",
+        "camera-view-windowed",
         "sensor",
         "streaming-rejected",
         "warp-frontend-rejected",
@@ -145,6 +155,8 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
     source, visualizers = expected
     assert [recorder.source for recorder in env_cfg.video_recorders] == [source]
     assert [(cfg.visualizer_type, cfg.headless) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
+    if source.endswith(":streaming_view"):
+        assert env_cfg.sim.visualizer_cfgs[0].streaming_view
     # a Kit visualizer, selected or added, keeps its configured camera; an added one is a copy, so the
     # configured visualizer stays as configured for a later launch
     assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")
