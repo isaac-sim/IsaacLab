@@ -21,6 +21,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
+from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov.physics import OvPhysxManager
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,21 @@ def _ovphysx_body_glob(body_expr: str) -> str:
     both map to ``*``.
     """
     return sim_utils.path_expr_to_glob(body_expr.replace("{}", "*"))
+
+
+def _create_pose_binding(physx: Any, pattern: str, tensor_type: Any) -> Any:
+    """Bind the rigid-body poses matched by ``pattern`` with rows in numeric environment order.
+
+    Variant batches are discovered in clone order, not environment order, so the binding is
+    recreated from its ordered prim paths when the two differ.
+    """
+    binding = physx.create_tensor_binding(pattern=pattern, tensor_type=tensor_type)
+    paths = list(binding.prim_paths)
+    ordered_paths = ordered_clone_paths(paths, [pattern])
+    if ordered_paths != paths:
+        binding.destroy()
+        binding = physx.create_tensor_binding(prim_paths=ordered_paths, tensor_type=tensor_type)
+    return binding
 
 
 class _OvPhysxRayCasterMixin:
@@ -98,10 +114,7 @@ class _OvPhysxRayCasterMixin:
                 "PhysicsEvent.PHYSICS_READY. Ensure the simulation has been reset at least once."
             )
 
-        self._ovphysx_body_view = physx.create_tensor_binding(
-            pattern=body_glob,
-            tensor_type=TT.RIGID_BODY_POSE,
-        )
+        self._ovphysx_body_view = _create_pose_binding(physx, body_glob, TT.RIGID_BODY_POSE)
         if self._ovphysx_body_view.shape[0] == 0:
             raise RuntimeError(f"OVPhysX RIGID_BODY_POSE binding for pattern {body_glob!r} matched zero bodies.")
 
@@ -206,7 +219,7 @@ class _OvPhysxRayCasterMixin:
                 "OvPhysxManager has no PhysX instance yet -- multi-mesh target view requested "
                 "before PhysicsEvent.PHYSICS_READY."
             )
-        return physx.create_tensor_binding(pattern=patterns[0], tensor_type=TT.RIGID_BODY_POSE)
+        return _create_pose_binding(physx, patterns[0], TT.RIGID_BODY_POSE)
 
     def _update_mesh_transforms(self: Any) -> None:
         """Refresh dynamic multi-mesh target poses from their ovphysx bindings."""
