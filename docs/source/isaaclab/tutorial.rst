@@ -15,13 +15,12 @@ Tutorial
    `workshop repository <https://github.com/isaac-sim/Sim-to-Real-SO-101-Workshop>`__, which present a broader
    end-to-end physical AI workflow with the SO-101, Isaac Lab, and NVIDIA Isaac GR00T.
 
-This tutorial builds a complete robot-learning workflow around an `SO-101 arm
-<https://github.com/TheRobotStudio/SO-ARM100>`__ that picks up a vial and places it in a rack.
-Instead of assembling disconnected examples, you will work with a production-shaped downstream project:
-`IsaacLabTutorial main branch <https://github.com/isaac-sim/IsaacLabTutorial/tree/main>`__. The project includes the
-robot and workshop assets, a manager-based reinforcement-learning environment, state and wrist-camera observations,
-RSL-RL agent configurations, tests, state-policy training, state-to-vision policy distillation, and an optional
-sim-to-real profile for running the camera policy on a physical SO-101.
+Build a vial-placement task for an `SO-101 arm
+<https://github.com/TheRobotStudio/SO-ARM100>`__ using the
+`IsaacLabTutorial project <https://github.com/isaac-sim/IsaacLabTutorial/tree/main>`__.
+The project includes robot assets, a manager-based task, state and wrist-camera
+observations, RSL-RL training, policy distillation, tests, and an optional
+sim-to-real configuration.
 
 By the end, you will know how a downstream Isaac Lab task is packaged, discovered, validated, trained,
 and evaluated. You will also know where to change the robot, scene, MDP, and learning configuration for
@@ -158,7 +157,7 @@ The project keeps reusable task logic separate from SO-101-specific configuratio
    |   `-- utils/                         evaluation, policy export, and real-robot scripts
    `-- tests/                              behavioral and configuration contracts
 
-This boundary is intentional. A new robot gets a sibling of ``config/so101`` and reuses the vial-placement
+To add a robot, create a sibling of ``config/so101`` and reuse the vial-placement
 MDP. A different manipulation problem gets a sibling of ``tasks/place_vial`` and owns its task terms.
 
 The registration connects a task ID to the generic manager-based environment, the task configuration, and its
@@ -285,7 +284,7 @@ RGB and proprioception.
 ----------------------------
 
 Start with fast checks. They catch broken assets, registration, geometry, rewards, reset data, and configuration
-contracts before a long GPU run:
+errors before a long training run:
 
 .. code-block:: bash
 
@@ -369,14 +368,14 @@ Play the distilled student with the same task ID used for training:
 Measure the policies
 ~~~~~~~~~~~~~~~~~~~~
 
-A visually convincing rollout is not an evaluation. Run the tracked phase-zero start set headlessly with the
-project's external callback:
+Evaluate the policy over the tracked phase-zero starting states using the
+project's callback:
 
 .. code-block:: bash
 
    uv run isaaclab play --rl_library rsl_rl --task IsaacTutorial-Place-Vial-SO101 --num_envs 1024 --checkpoint /path/to/state_model.pt --external_callback isaaclab_tutorial.utils.evaluation.install_episode_counter presets=newton_mjwarp
 
-Use the same 1,024-start contract for the distilled policy:
+Evaluate the distilled policy from the same 1,024 starting states:
 
 .. code-block:: bash
 
@@ -417,7 +416,7 @@ The repository's ``docs/SIM2REAL.md`` covers the physical setup, robot calibrati
 6. Make it yours
 ----------------
 
-Change one boundary at a time and rerun the tests, zero-agent smoke test, and benchmark before training:
+Change one part of the task at a time and rerun the tests, zero-agent smoke test, and benchmark before training:
 
 .. list-table::
    :header-rows: 1
@@ -445,12 +444,11 @@ Change one boundary at a time and rerun the tests, zero-agent smoke test, and be
 Keep these invariants as the task evolves:
 
 * Task IDs resolve through the package entry point; do not copy Isaac Lab's launcher scripts.
-* Policy action order and scale match the robot command contract.
+* Policy actions use the order and scale expected by the robot.
 * Physical quantities and quaternions use Isaac Lab's current conventions; Isaac Lab 3 uses XYZW quaternion order.
 * Resets create valid physical states, and post-reset task code does not teleport the manipulated object.
 * Success requires a released, mechanically seated vial rather than proximity to the rack.
-* Tests cover observable task contracts, while a benchmark checks that changes did not move expensive work into the
-  per-environment step loop.
+* Tests check task behavior, and benchmarks check for simulation slowdowns.
 
 From here, use :ref:`Direct and Manager MDP <feature-workflows>` for the manager/direct architecture,
 :ref:`Reinforcement Learning <rl-frameworks>` for framework details, and

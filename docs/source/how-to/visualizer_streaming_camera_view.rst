@@ -7,8 +7,7 @@ Streaming a camera view in a visualizer
 
 .. currentmodule:: isaaclab
 
-This guide shows how to show ground-truth camera frames from many environments in one live
-panel of a visualizer. For how the view works and which visualizers support it, see
+Display ground-truth camera frames from many environments in one live visualizer panel. For how the view works and which visualizers support it, see
 :ref:`visualization-streaming-camera-view`.
 
 

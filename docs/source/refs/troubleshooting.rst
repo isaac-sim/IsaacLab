@@ -1,19 +1,16 @@
 Tricks and Troubleshooting
 ==========================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
    (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 
-.. note::
-
-    The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
-    Please also check the `troubleshooting page on Omniverse
-    <https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__ for more
-    assistance.
+Find fixes for installation, launch, simulation, and training problems below.
+For Kit-specific issues, see the `Omniverse troubleshooting guide
+<https://docs.omniverse.nvidia.com/kit/docs/kit-manual/latest/guide/linux_troubleshooting.html>`__.
 
 .. contents::
    :local:
