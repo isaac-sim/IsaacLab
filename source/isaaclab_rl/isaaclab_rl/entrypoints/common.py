@@ -659,14 +659,15 @@ def resolve_checkpoint_selector(
     checkpoint_pattern: str,
     other_dirs: list[str] | None = None,
     preferred_checkpoint_pattern: str | None = None,
+    latest_checkpoint_pattern: str | None = None,
     metadata: dict[str, str] | None = None,
     recursive: bool = False,
 ) -> str:
     """Resolve a checkpoint selector using the manifests written by training runs.
 
-    ``latest`` selects the naturally last checkpoint in the newest compatible run. ``best`` prefers
-    the backend's canonical best or final checkpoint and falls back to the same checkpoint used by
-    ``latest``.
+    ``latest`` selects the naturally last checkpoint in the newest compatible run, considering only the files
+    that match ``latest_checkpoint_pattern`` when any do. ``best`` selects the naturally last file that matches
+    ``preferred_checkpoint_pattern``, or the naturally last checkpoint when none does.
 
     Args:
         log_root_path: Directory containing training run directories.
@@ -676,6 +677,8 @@ def resolve_checkpoint_selector(
         checkpoint_pattern: Regular expression matching checkpoint filenames.
         other_dirs: Intermediate directories below each run directory.
         preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
+        latest_checkpoint_pattern: Regular expression for the backend's periodic checkpoints. When any checkpoint
+            matches, ``latest`` only considers the matching files.
         metadata: Additional manifest metadata required for compatibility.
         recursive: Whether to search recursively below each matching run directory.
 
@@ -701,6 +704,9 @@ def resolve_checkpoint_selector(
         if selector == "best" and preferred_checkpoint_pattern is not None:
             preferred = [path for path in checkpoints if re.fullmatch(preferred_checkpoint_pattern, path.name)]
             checkpoints = preferred or checkpoints
+        if selector == "latest" and latest_checkpoint_pattern is not None:
+            periodic = [path for path in checkpoints if re.fullmatch(latest_checkpoint_pattern, path.name)]
+            checkpoints = periodic or checkpoints
         checkpoints.sort(key=lambda path: _natural_sort_key(str(path.relative_to(checkpoint_dir))))
         return str(checkpoints[-1].resolve())
 

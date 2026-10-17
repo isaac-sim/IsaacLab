@@ -94,6 +94,67 @@ def test_best_prefers_final_checkpoint(tmp_path: Path) -> None:
     assert checkpoint == str(expected.resolve())
 
 
+@pytest.mark.parametrize(
+    ("library", "checkpoint_pattern", "checkpoint_dir", "preferred_pattern", "latest_pattern", "best_name", "periodic"),
+    [
+        # rl_games writes the best checkpoint as "<name>.pth", which sorts after "last_*" for names such as this one
+        (
+            "rl_games",
+            r".*\.pth",
+            "nn",
+            r"reach_franka\.pth",
+            r"last_.*\.pth",
+            "reach_franka.pth",
+            ["last_reach_franka_ep_100_rew_2.0.pth", "last_reach_franka_ep_200_rew_1.0.pth"],
+        ),
+        # skrl writes the best checkpoint as "best_agent.<ext>", which sorts after "agent_*"
+        ("skrl", r".*", "checkpoints", None, r"agent_.*", "best_agent.pt", ["agent_1000.pt", "agent_2000.pt"]),
+        (
+            "skrl",
+            r".*",
+            "checkpoints",
+            None,
+            r"agent_.*",
+            "best_agent.pickle",
+            ["agent_1000.pickle", "agent_2000.pickle"],
+        ),
+    ],
+)
+def test_latest_prefers_periodic_checkpoint_over_best_name(
+    tmp_path: Path,
+    library: str,
+    checkpoint_pattern: str,
+    checkpoint_dir: str,
+    preferred_pattern: str | None,
+    latest_pattern: str,
+    best_name: str,
+    periodic: list[str],
+) -> None:
+    run_dir = tmp_path / "run"
+    (run_dir / checkpoint_dir).mkdir(parents=True)
+    write_run_manifest(str(run_dir), library=library, task="Isaac-Task")
+    best = run_dir / checkpoint_dir / best_name
+    best.touch()
+
+    def resolve(selector: str) -> str:
+        return resolve_checkpoint_selector(
+            str(tmp_path),
+            selector,
+            library=library,
+            task="Isaac-Task",
+            checkpoint_pattern=checkpoint_pattern,
+            other_dirs=[checkpoint_dir],
+            preferred_checkpoint_pattern=preferred_pattern,
+            latest_checkpoint_pattern=latest_pattern,
+        )
+
+    assert resolve("latest") == str(best.resolve())
+    for name in periodic:
+        (run_dir / checkpoint_dir / name).touch()
+    assert resolve("latest") == str((run_dir / checkpoint_dir / periodic[-1]).resolve())
+    assert resolve("best") == str(best.resolve())
+
+
 def test_recursive_selector_resolves_rlinf_checkpoint(tmp_path: Path, monkeypatch) -> None:
     """RLinf accepts selectors and paths, but never guesses between checkpoint files."""
     from isaaclab_rl.entrypoints.backends.cli_args_rlinf import resolve_rlinf_checkpoint
