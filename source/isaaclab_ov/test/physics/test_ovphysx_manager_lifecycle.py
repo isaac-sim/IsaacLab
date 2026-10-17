@@ -65,7 +65,6 @@ def manager_module(monkeypatch):
         "_cfg": None,
         "backend": backend,
         "_stage_usda": None,
-        "_next_control_ordinal": 2,
         "_warmup_done": False,
         "_requires_full_stage": False,
         "_clone_recipes": [],
@@ -300,6 +299,10 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
     monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
 
     class FakePhysX:
+        def attach_ovstage(self, stage, *, read_ordinal):
+            events.append(("attach", stage, read_ordinal))
+            return receipt
+
         def reset_stage(self):
             events.append("reset")
             return 9
@@ -307,7 +310,7 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
         def wait_op(self, operation):
             events.append(("wait", operation))
 
-    class TaskPhysX:
+    class TaskPhysX(FakePhysX):
         def detach_ovstage(self):
             events.append("reset")
             return receipt
@@ -324,18 +327,27 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
     monkeypatch.setattr(
         manager_module.OvPhysxView, "_close_all_for", lambda value: events.append(("close_views", value))
     )
-    manager.backend.stage = SimpleNamespace(destroy=lambda: events.append("destroy_stage"))
+    manager.backend.stage = object()
+    manager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: events.append("destroy_view"))
+    scene = manager.backend.scene = SimpleNamespace(
+        stage=object(), ordinal=2, reset=lambda: events.append("destroy_stage"),
+        populate=lambda usda: events.append(("populate", usda)),
+    )  # fmt: skip
 
     stage = manager.backend.stage
     with pytest.raises(RuntimeError, match="detach failed") if fails else nullcontext():
-        manager._prepare_physx_for_stage_reuse()
+        manager.backend.load("#usda 1.0")
 
     assert events == [
+        "destroy_view",
         ("close_views", physx),
         "reset",
         ("wait", receipt),
-    ] + ([] if fails else ["destroy_stage"])
-    assert manager.backend.stage is (stage if fails else None)
+    ] + ([] if fails else ["destroy_stage", ("populate", "#usda 1.0"), ("attach", scene.stage, 1)]) + (
+        [("wait", receipt)] if modern and not fails else []
+    )
+    assert manager.backend.rigid_body_view is None
+    assert manager.backend.stage is (stage if fails else scene.stage)
 
 
 @pytest.mark.parametrize(
@@ -343,21 +355,14 @@ def test_stage_reuse_drains_bindings_before_reset(monkeypatch, manager_module, m
 )
 def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, manager_module, modern, failure):
     """Scene gravity updates must seal their ordinal and release resources on every path."""
+    from isaaclab_ov.stage import OvstageBackend
+
     monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", modern)
     manager = manager_module.OvPhysxManager
     calls = []
     task = object()
 
     class FakePathDictionary:
-        def __init__(self, stage):
-            self.stage = stage
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            calls.append(("destroy_dictionary",))
-
         def create_path_list_from_strings(self, paths):
             calls.append(("paths", paths))
             return "physics-scene-paths"
@@ -400,10 +405,11 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
             if failure == "update":
                 raise RuntimeError("update failed")
 
-    fake_ovstage = ModuleType("ovstage")
-    fake_ovstage.PathDictionary = FakePathDictionary
-    monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage)
-    manager.backend.stage = FakeStage()
+    scene = OvstageBackend.__new__(OvstageBackend)
+    scene.stage = manager.backend.stage = FakeStage()
+    scene.paths = FakePathDictionary()
+    scene.ordinal = 2
+    manager.backend.scene = scene
     manager.backend.physx = FakePhysX()
     monkeypatch.setattr(
         manager,
@@ -417,14 +423,13 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         expected_calls = [
             ("paths", ["/World/physicsScene"]),
             ("query", "physics-scene-paths"),
-            ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False),
-            ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
-            ("seal", 2),
-            ("update", 2, 2),
+            ("write", "physics-scene-query", "physics:gravityDirection", 3, [[0.0, 0.0, -1.0]], False),
+            ("write", "physics-scene-query", "physics:gravityMagnitude", 3, [pytest.approx(3.72)], False),
+            ("seal", 3),
+            ("update", 3, 3),
             ("wait", task),
             ("release_query", "physics-scene-query"),
             ("destroy_paths", "physics-scene-paths"),
-            ("destroy_dictionary",),
         ]
     else:
         with pytest.raises(RuntimeError, match=f"{failure} failed"):
@@ -435,28 +440,23 @@ def test_set_gravity_writes_and_releases_ovstage_control_resources(monkeypatch, 
         ]
         if failure in ("write", "update"):
             expected_calls.append(
-                ("write", "physics-scene-query", "physics:gravityDirection", 2, [[0.0, 0.0, -1.0]], False)
+                ("write", "physics-scene-query", "physics:gravityDirection", 3, [[0.0, 0.0, -1.0]], False)
             )
             if failure == "update":
                 expected_calls.extend(
                     [
-                        ("write", "physics-scene-query", "physics:gravityMagnitude", 2, [pytest.approx(3.72)], False),
-                        ("seal", 2),
-                        ("update", 2, 2),
+                        ("write", "physics-scene-query", "physics:gravityMagnitude", 3, [pytest.approx(3.72)], False),
+                        ("seal", 3),
+                        ("update", 3, 3),
                         ("wait", task),
                     ]
                 )
             expected_calls.append(("release_query", "physics-scene-query"))
-        expected_calls.extend(
-            [
-                ("destroy_paths", "physics-scene-paths"),
-                ("destroy_dictionary",),
-            ]
-        )
+        expected_calls.append(("destroy_paths", "physics-scene-paths"))
 
     if not modern:
         expected_calls = [call for call in expected_calls if call[0] != "wait"]
-    assert calls == expected_calls
+    assert calls == [("seal", 2), *expected_calls]
     # ``get_gravity`` reports the last successfully applied vector.
     expected_gravity = (0.0, 0.0, -3.72) if failure is None else (0.0, 0.0, -9.81)
     assert manager.get_gravity() == pytest.approx(expected_gravity)
@@ -710,14 +710,15 @@ def test_cpu_and_cuda_scenes_run_sequentially_in_one_process():
     assert "DEVICE_SEQUENCE_OK" in output, output[-8000:]
 
 
-@pytest.mark.parametrize("clone_fails", [False, True])
-def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, clone_fails):
+@pytest.mark.parametrize("warmup, clone_fails", [("warmup_gpu", False), ("warmup", False), ("warmup", True)])
+def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_module, warmup, clone_fails):
     """Accepted clone failures prevent warmup and model-ready publication."""
     from pxr import Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
 
     monkeypatch.setattr(manager_module.ovphysx_compat, "OVPHYSX_USES_TASKS", True)
+    monkeypatch.setattr(manager_module, "OVPHYSX_LIFECYCLE_ENTRY_POINTS", {"warmup": warmup})
     manager = manager_module.OvPhysxManager
     events = []
     task = object()
@@ -727,6 +728,12 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     clones = [("/World/env_0", targets, transforms, env_ids, 0)]
 
     class FakePhysX:
+        def warmup(self):
+            events.append("warmup")
+
+        def warmup_gpu(self):
+            events.append("warmup_gpu")
+
         def clone(self, source, destinations, poses, *, env_ids):
             events.append(("clone", source, destinations, poses, env_ids))
             return task
@@ -737,7 +744,7 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
             if clone_fails:
                 raise RuntimeError("clone task failed")
 
-    backend = SimpleNamespace(physx=FakePhysX(), stage=None)
+    backend = SimpleNamespace(physx=FakePhysX(), stage=None, load=lambda usda: None)
     stage = Usd.Stage.CreateInMemory()
     UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     sim = PhysicsManager._sim
@@ -754,8 +761,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
     monkeypatch.setattr(PhysicsManager, "_cfg", None)
     monkeypatch.setattr(manager, "_clone_recipes", clones)
     monkeypatch.setattr(manager_module, "_serialize_stage", lambda *args, **kwargs: ("#usda 1.0", clones))
-    monkeypatch.setattr(manager, "_attach_ovstage", lambda usda: None)
-    monkeypatch.setattr(manager, "_warmup_physx", lambda physx: events.append("warmup"))
     monkeypatch.setattr(
         manager, "_scene_data_backend", SimpleNamespace(_defer_setup=lambda *args: events.append("defer_bindings"))
     )
@@ -765,6 +770,6 @@ def test_warmup_collects_clone_receipt_before_model_init(monkeypatch, manager_mo
         manager._warmup_and_load()
 
     assert events == [("clone", "/World/env_0", targets, transforms, env_ids), "wait"] + (
-        [] if clone_fails else ["warmup", "defer_bindings", PhysicsEvent.MODEL_INIT]
+        [] if clone_fails else [warmup, "defer_bindings", PhysicsEvent.MODEL_INIT]
     )
     assert manager._warmup_done is (not clone_fails)

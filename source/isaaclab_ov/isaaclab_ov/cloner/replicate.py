@@ -189,13 +189,11 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if with_ovphysx else "0").strip()
             if value not in {"0", "1"}:
                 raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
-            use_ovstage = value == "1"
-            share_ovstage = os.environ.get("ISAAC_LAB_OVPHYSX_USE_OVSTAGE") == "1"
-            if os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1":
-                use_ovstage = share_ovstage = True
-            if share_ovstage and not (with_ovphysx and use_ovstage):
-                raise ValueError("Shared OVStage cloning requires OVPhysX and OVStage rendering.")
-        if share_ovstage and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
+            share_ovstage = os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1"
+            use_ovstage = share_ovstage or value == "1"
+            if share_ovstage and not with_ovphysx:
+                raise ValueError("Shared OVStage cloning requires OVPhysX.")
+        if share_ovstage and sim.physics_manager.backend is not None and sim.physics_manager.backend.owns_scene:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
             replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
@@ -227,10 +225,9 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             scene = None
             if use_ovstage:
                 domains = ovstage.PopulationDomain.ALL if share_ovstage else ovstage.PopulationDomain.RENDERING
-                stage_cfg = OvstageBackendCfg(
-                    scene_key=None if share_ovstage else backend_cfg, population_domains=domains
+                scene = sim.get_or_create_backend(
+                    OvstageBackendCfg(scene_key=None if share_ovstage else backend_cfg, population_domains=domains)
                 )
-                scene = sim.get_or_create_backend(stage_cfg)
             renderer.backend = sim.get_or_create_backend(backend_cfg)
             renderer.scene = scene if use_ovstage else renderer.backend
             renderer._use_ovstage = use_ovstage

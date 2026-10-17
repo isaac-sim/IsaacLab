@@ -103,7 +103,7 @@ def _simulation_registry(monkeypatch):
 
     from isaaclab.renderers import RenderContext
 
-    for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_OVPHYSX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
+    for name in ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"):
         monkeypatch.delenv(name, raising=False)
     registry = []
     sim = types.SimpleNamespace(
@@ -129,15 +129,13 @@ def _simulation_registry(monkeypatch):
 @pytest.mark.parametrize(
     "settings, with_physics, use_ovstage, shared_physics",
     [
-        pytest.param((None, None, None), False, False, False, id="other-default"),
-        pytest.param((None, None, None), True, True, False, id="ovphysx-default"),
-        pytest.param(("1", None, None), False, True, False, id="other-ovstage"),
-        pytest.param(("1", None, None), True, True, False, id="ovphysx-render-only"),
-        pytest.param(("0", None, None), True, False, False, id="ovphysx-native"),
-        pytest.param(("1", "1", None), True, True, True, id="shared-pair"),
-        pytest.param((None, None, "1"), True, True, True, id="shared-shorthand"),
-        pytest.param((None, "1", None), True, True, True, id="shared-render-default"),
-        pytest.param(("0", "0", "1"), True, True, True, id="shared-override"),
+        pytest.param((None, None), False, False, False, id="other-default"),
+        pytest.param((None, None), True, True, False, id="ovphysx-default"),
+        pytest.param(("1", None), False, True, False, id="other-ovstage"),
+        pytest.param(("1", None), True, True, False, id="ovphysx-render-only"),
+        pytest.param(("0", None), True, False, False, id="ovphysx-native"),
+        pytest.param((None, "1"), True, True, True, id="shared"),
+        pytest.param(("0", "1"), True, True, True, id="shared-override"),
     ],
 )
 def test_ovrtx_renderer_config_enables_supported_runtime_options(
@@ -177,9 +175,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
         "cuda:1": types.SimpleNamespace(is_cuda=True, ordinal=1),
     }
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_device", devices.__getitem__)
-    for name, value in zip(
-        ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_OVPHYSX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"), settings
-    ):
+    for name, value in zip(("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"), settings):
         if value is not None:
             monkeypatch.setenv(name, value)
 
@@ -917,27 +913,21 @@ def test_segmentation_outputs_share_metadata_and_clear_stale_labels(monkeypatch,
 
 
 @pytest.mark.parametrize(
-    "settings, with_physics",
+    "setting, value, error",
     [
-        (("0", "1", None), True),
-        ((None, None, "1"), False),
+        ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "true", "Expected 0 or 1"),
+        ("ISAAC_LAB_SHARE_OVSTAGE", "1", "requires OVPhysX"),
     ],
 )
-def test_ovrtx_clone_preparation_requires_both_shared_stage_consumers(monkeypatch, settings, with_physics):
-    """Sharing requires OVPhysX and OVStage rendering before allocating native resources."""
-    from isaaclab_ov.cloner import OvPhysxReplicateContext, OvrtxReplicateContext
+def test_ovrtx_clone_preparation_rejects_invalid_selection(monkeypatch, setting, value, error):
+    """Reject malformed flags and unsupported sharing before allocating native resources."""
+    from isaaclab_ov.cloner import OvrtxReplicateContext
 
     sim = SimulationContext.instance()
-    if with_physics:
-        sim.physics_manager.clone_context_type = OvPhysxReplicateContext
     renderer = sim.get_or_create_backend(OVRTXRendererCfg())
-    for name, value in zip(
-        ("ISAAC_LAB_OVRTX_USE_OVSTAGE", "ISAAC_LAB_OVPHYSX_USE_OVSTAGE", "ISAAC_LAB_SHARE_OVSTAGE"), settings
-    ):
-        if value is not None:
-            monkeypatch.setenv(name, value)
+    monkeypatch.setenv(setting, value)
 
-    with pytest.raises(ValueError, match="requires OVPhysX and OVStage rendering"):
+    with pytest.raises(ValueError, match=error):
         OvrtxReplicateContext.prepare(sim, {})
     assert renderer.backend is None
 
