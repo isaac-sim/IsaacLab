@@ -498,7 +498,7 @@ URDF & MJCF Importers Updated
 
 Both importers have been rewritten for Isaac Sim 6.0. Several configuration settings have been removed, renamed, or
 replaced. See the
-`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/isaaclab/migrating.html>`__
+:ref:`migration guide <migrating-to-isaaclab-3-0>`
 for details.
 
 Updated Dependencies
@@ -524,7 +524,7 @@ Migration Guide
 
 For a comprehensive guide on migrating from Isaac Lab 2.x to 3.0, including code examples, API rename tables, and
 automated tooling, see the
-`migration guide <https://isaac-sim.github.io/IsaacLab/develop/source/isaaclab/migrating.html>`__.
+:ref:`migration guide <migrating-to-isaaclab-3-0>`.
 
 v2.3.2
 ======
