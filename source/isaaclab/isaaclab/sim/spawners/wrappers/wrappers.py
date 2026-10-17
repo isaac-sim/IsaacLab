@@ -27,7 +27,7 @@ def spawn_multi_asset(
     cfg: wrappers_cfg.MultiAssetSpawnerCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    clone_in_fabric: bool = False,
+    *,
     replicate_physics: bool | None = None,
 ) -> Usd.Prim:
     """Spawn multiple assets into numbered prim paths derived from the provided configuration.
@@ -40,7 +40,6 @@ def spawn_multi_asset(
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
-        clone_in_fabric: Whether to clone in fabric. Default is False.
         replicate_physics: Deprecated and ignored.
 
     Returns:
@@ -105,7 +104,6 @@ def spawn_multi_asset(
             asset_cfg,
             translation=translation,
             orientation=orientation,
-            clone_in_fabric=clone_in_fabric,
         )
         spawned_prim_paths.append(asset_prim_path)
     if not spawned_prim_paths:
@@ -118,7 +116,7 @@ def spawn_multi_usd_file(
     cfg: wrappers_cfg.MultiUsdFileCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
-    clone_in_fabric: bool = False,
+    *,
     replicate_physics: bool | None = None,
 ) -> Usd.Prim:
     """Spawn multiple USD files based on the provided configurations.
@@ -131,7 +129,6 @@ def spawn_multi_usd_file(
         cfg: The configuration for spawning the assets.
         translation: The translation of the spawned assets. Default is None.
         orientation: The orientation of the spawned assets in (x, y, z, w) order. Default is None.
-        clone_in_fabric: Whether to clone in fabric. Default is False.
         replicate_physics: Deprecated and ignored.
 
     Returns:
@@ -161,4 +158,4 @@ def spawn_multi_usd_file(
     )
 
     # call the original function
-    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation, clone_in_fabric)
+    return spawn_multi_asset(prim_path, multi_asset_cfg, translation, orientation)

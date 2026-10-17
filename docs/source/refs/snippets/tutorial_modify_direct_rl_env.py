@@ -46,7 +46,7 @@ class H1SceneCfg(HumanoidDirectSceneCfg):
 class H1EnvCfg(HumanoidEnvCfg):
     action_space = 19
     observation_space = 81
-    scene: H1SceneCfg = H1SceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
+    scene: H1SceneCfg = H1SceneCfg(num_envs=4096, env_spacing=5.0)
     # the gears are keyed by joint name expression, so they are independent of the joint ordering
     joint_gears: dict[str, float] = {".*": 50.0}
     feet_body_names: list[str] = [".*ankle_link"]

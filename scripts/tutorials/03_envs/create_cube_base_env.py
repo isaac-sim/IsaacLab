@@ -11,10 +11,8 @@ While going through this tutorial, we recommend you to pay attention to how a cu
 is defined. The action term is responsible for processing the raw actions and applying them to the
 scene entities.
 
-The cube has three declared size variants distributed across the environments. The reset event
-changes its starting position, and a 'prestartup' event changes its visual color before simulation.
-
-Physics replication uses the declared cube variants to preserve each environment's size in simulation.
+Three declared cube sizes preserve per-environment variation under physics replication. The reset event
+changes position, and a prestartup event changes visual color.
 
 The rest of the environment is similar to the previous tutorials.
 
@@ -252,8 +250,7 @@ class EventCfg:
         },
     )
 
-    # This event term randomizes the visual color of the cube.
-    # Similar to the scale randomization, this is also a USD-level randomization.
+    # This prestartup event randomizes the cube's visual color.
     randomize_color = EventTerm(
         func=mdp.randomize_visual_color,
         mode="prestartup",

@@ -2385,11 +2385,7 @@ def rendering_test_mpm_particles(
         built once per process, so a retry in the same process would draw different entries.
         """
 
-        scene: TestMPMParticleCameraSceneCfg = TestMPMParticleCameraSceneCfg(
-            num_envs=4,
-            env_spacing=3.0,
-            clone_in_fabric=True,
-        )
+        scene: TestMPMParticleCameraSceneCfg = TestMPMParticleCameraSceneCfg(num_envs=4, env_spacing=3.0)
         reset_cycle: bool = True
         reset_particle_max_yaw: float = 0.0
         reset_particle_jitter: float = 0.0

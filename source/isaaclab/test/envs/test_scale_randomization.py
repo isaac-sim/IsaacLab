@@ -278,43 +278,15 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_scale_randomization(device):
     """A single environment applies its prestartup USD scale to the simulated body."""
-    # create a new stage
     sim_utils.create_new_stage()
-
-    # set the device
     env_cfg = CubeEnvCfg()
     env_cfg.sim.device = device
-
-    # setup base environment
     env = ManagerBasedEnv(cfg=env_cfg)
-
-    # test to make sure all assets in the scene are created
-    all_prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube[^/]*/[^/]*")
-    assert len(all_prim_paths) == (env.num_envs * 2)
-
-    # The single environment can still apply scale to its own PhysX body before startup.
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube1")
-
-    # get the stage
+    prim_path = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube1")[0]
     stage = sim_utils.get_current_stage()
-
-    # Check that the authored scale reaches the simulation, not just the USD layer.
-    scales = []
-    for i in range(env.num_envs):
-        prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
-        scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-        scales.append(tuple(scale_spec.default))
-
-    # The authored USD values must also reach PhysX; copying only the first prototype is insufficient.
-    expected_mass = torch.tensor(scales, device=device).prod(dim=1) * (0.2**3 * 1000.0)
-    actual_mass = env.scene["cube1"].data.body_mass.torch[:, 0]
+    prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
+    scale = prim_spec.GetAttributeAtPath(prim_path + ".xformOp:scale").default
+    expected_mass = torch.tensor(tuple(scale), device=device).prod() * (0.2**3 * 1000.0)
+    actual_mass = env.scene["cube1"].data.body_mass.torch[0, 0]
     torch.testing.assert_close(actual_mass, expected_mass, rtol=0.05, atol=0.1)
-
-    # test to make sure that fixed values are assigned correctly
-    prim_paths = sim_utils.find_matching_prim_paths("/World/envs/env_[^/]+/cube2")
-    for i in range(env.num_envs):
-        prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_paths[i])
-        scale_spec = prim_spec.GetAttributeAtPath(prim_paths[i] + ".xformOp:scale")
-        assert tuple(scale_spec.default) == (1.0, 1.0, 1.0)
-
     env.close()

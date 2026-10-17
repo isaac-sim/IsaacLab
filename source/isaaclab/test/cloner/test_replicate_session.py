@@ -5,6 +5,7 @@
 
 """Clone lifecycle routing, authoring, and dispatch without a simulator runtime."""
 
+import inspect
 from types import SimpleNamespace
 
 import numpy as np
@@ -28,6 +29,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
+from isaaclab.sim.spawners.wrappers import spawn_multi_asset, spawn_multi_usd_file
 
 
 class _Context(ReplicateContext):
@@ -63,6 +65,9 @@ def simulation(monkeypatch):
 
 def test_legacy_replicate_physics_warns_without_disabling_replication(simulation):
     """All old cloner entry points accept False, while physics still receives the clone plan."""
+    assert "clone_in_fabric" not in InteractiveSceneCfg.__dataclass_fields__
+    assert "clone_in_fabric" not in inspect.signature(spawn_multi_asset).parameters
+    assert "clone_in_fabric" not in inspect.signature(spawn_multi_usd_file).parameters
     with pytest.warns(DeprecationWarning, match="InteractiveSceneCfg.replicate_physics.*ignored"):
         InteractiveSceneCfg(num_envs=2, env_spacing=1.0, replicate_physics=False)
     with pytest.warns(DeprecationWarning, match="CloneCfg.replicate_physics.*ignored"):

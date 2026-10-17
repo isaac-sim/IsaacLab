@@ -2,3 +2,5 @@
   scene and clone configurations, ``cloner.replicate``, ``ReplicateSession``, and multi-asset spawners, but
   now warns and is ignored. Use ``CloneCfg.clone_combinations`` for heterogeneous environments; assets such
   as PhysX deformables can select a USD clone context when native physics replication is unsupported.
+* Removed the unused ``clone_in_fabric`` scene and multi-asset spawner arguments. PhysX replication continues
+  to use ``useFabricForReplication=False``.

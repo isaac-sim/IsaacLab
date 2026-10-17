@@ -122,13 +122,6 @@ class InteractiveSceneCfg:
         to filter those assets.
     """
 
-    clone_in_fabric: bool = False
-    """Deprecated legacy Fabric cloning flag. Default is False.
-
-    Clone-plan replication does not forward this flag to the PhysX replicator;
-    ``useFabricForReplication`` is always ``False``.
-    """
-
     clone_cfg: CloneCfg = CloneCfg()
     """Clone execution and legal scene-combination configuration."""
 
