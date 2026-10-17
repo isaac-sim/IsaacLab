@@ -52,4 +52,5 @@ The following classes are part of the public :mod:`isaaclab.renderers` API.
    :show-inheritance:
 
 .. autoclass:: RenderContext
+   :members: write_light_properties
    :show-inheritance:

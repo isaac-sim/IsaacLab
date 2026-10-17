@@ -24,6 +24,39 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
+def test_light_updates_preserve_unselected_lights_and_use_world_transforms(monkeypatch):
+    """Reset updates reach USD without inheriting an environment transform twice."""
+    from pxr import Gf, Usd, UsdGeom, UsdLux
+
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from isaaclab.renderers import RenderContext
+
+    stage = Usd.Stage.CreateInMemory()
+    for i in range(2):
+        root = UsdGeom.Xform.Define(stage, f"/World/envs/env_{i}")
+        root.AddTranslateOp().Set(Gf.Vec3d(10 * i, 0, 0))
+        dome = UsdLux.DomeLight.Define(stage, f"/World/envs/env_{i}/Dome")
+        dome.CreateIntensityAttr(300.0)
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+    renderer._sim = SimpleNamespace(stage=stage)
+    renderer.cfg = IsaacRtxRendererCfg()
+    context = RenderContext([(renderer.cfg, renderer)])
+    transform = np.eye(4)[None]
+    transform[0, 3, :3] = (11.0, 2.0, 3.0)
+    context.write_light_properties(
+        ["/World/envs/env_1/Dome"],
+        {"intensity": np.array([100.0]), "color": np.array([[0.1, 0.2, 0.3]]), "transform": transform},
+    )
+    assert stage.GetPrimAtPath("/World/envs/env_0/Dome").GetAttribute("inputs:intensity").Get() == 300.0
+    changed = stage.GetPrimAtPath("/World/envs/env_1/Dome")
+    assert changed.GetAttribute("inputs:intensity").Get() == 100.0
+    assert tuple(changed.GetAttribute("inputs:color").Get()) == pytest.approx((0.1, 0.2, 0.3))
+    assert tuple(UsdGeom.XformCache().GetLocalToWorldTransform(changed).ExtractTranslation()) == (11.0, 2.0, 3.0)
+
+
 def _install_omni_stubs(monkeypatch):
     sim = SimpleNamespace(stage=object(), device="cpu", get_scene_data_provider=MagicMock())
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)

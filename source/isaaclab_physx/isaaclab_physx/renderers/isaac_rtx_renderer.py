@@ -11,7 +11,7 @@ import json
 import logging
 import math
 import uuid
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -19,13 +19,14 @@ import numpy as np
 import warp as wp
 from packaging import version
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
+from isaaclab.utils.renderers import scene_partition_attributes
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
@@ -252,6 +253,30 @@ class IsaacRtxRenderer(BaseRenderer):
 
         return specs
 
+    @property
+    def light_writer(self) -> Callable[[Sequence[str], dict[str, np.ndarray]], None]:
+        """Publish reset-time light properties through the USD stage consumed by Kit."""
+        return self._write_light_properties
+
+    def _write_light_properties(self, prim_paths: Sequence[str], attributes: dict[str, np.ndarray]) -> None:
+        stage = self._sim.stage
+        lights = [stage.GetPrimAtPath(path) for path in prim_paths]
+        for path, prim in zip(prim_paths, lights, strict=True):
+            if not prim or not prim.HasAPI(UsdLux.LightAPI):
+                raise ValueError(f"Light prim {path!r} does not exist or has no UsdLux.LightAPI.")
+        # USD change batching amortizes renderer notices across the selected reset environments.
+        with Sdf.ChangeBlock():
+            for name, values in attributes.items():
+                for prim, value in zip(lights, values, strict=True):
+                    if name == "omni:xform":
+                        xform = UsdGeom.Xformable(prim)
+                        xform.MakeMatrixXform().Set(Gf.Matrix4d(value.tolist()))
+                        xform.SetResetXformStack(True)
+                    elif name == "inputs:color":
+                        prim.GetAttribute(name).Set(Gf.Vec3f(*map(float, value)))
+                    else:
+                        prim.GetAttribute(name).Set(float(value))
+
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
@@ -262,7 +287,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
-        non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
+        non-primvar ``omni:scenePartition`` token on every camera and light descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
@@ -277,19 +302,14 @@ class IsaacRtxRenderer(BaseRenderer):
 
         root_layer = stage.GetRootLayer()
         token_type = Sdf.ValueTypeNames.Token
+        env_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        partitions = scene_partition_attributes(stage, env_paths)
         with Sdf.ChangeBlock():
-            for env_idx in range(num_envs):
-                env_prim = stage.GetPrimAtPath(f"/World/envs/env_{env_idx}")
-                if not env_prim.IsValid():
-                    continue
-                token = f"env_{env_idx}"
-                for prim in Usd.PrimRange(env_prim):
-                    if prim == env_prim:
-                        attr_path = prim.GetPath().AppendProperty("primvars:omni:scenePartition")
-                    elif prim.IsA(UsdGeom.Camera):
-                        attr_path = prim.GetPath().AppendProperty("omni:scenePartition")
-                    else:
+            for attribute_name, assignments in partitions.items():
+                for prim_path, token in assignments.items():
+                    if not stage.GetPrimAtPath(prim_path):
                         continue
+                    attr_path = Sdf.Path(prim_path).AppendProperty(attribute_name)
                     # Idempotent: a different renderer backend sharing this stage may have already
                     # authored this attribute. Re-creating an existing spec raises, so only create
                     # it when absent, then (re)assign the per-env token either way.

@@ -307,8 +307,8 @@ Per-environment Isaac RTX scene partitioning
 ---------------------------------------------
 
 The Isaac RTX renderer enables per-environment scene partitioning by default. It assigns
-matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy and its
-camera so tiled views render only that environment's geometry.
+matching scene-partition tokens to each ``/World/envs/env_<index>`` hierarchy, its
+cameras, and its lights so tiled views use that environment's geometry and illumination.
 
 Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`:
 
@@ -332,11 +332,48 @@ remain spatially separated because overlapping partition bounds can make content
 another environment or disappear. When disabled, the Kit viewport displays only the
 selected environment.
 
-This setting does not affect OVRTX, which always partitions multi-environment scenes.
+OVRTX also partitions cameras and lights, including instances created by its native cloner.
+Its separate :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.show_all_partitions_by_default`
+option preserves the existing true default. Set it to false for isolated sensor views;
+the all-environment spectator layout requires spatially separated partition bounds.
 
 Prims outside the environment hierarchies remain in the shared background partition.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
+
+Updating lights during resets
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :meth:`~isaaclab.renderers.RenderContext.write_light_properties` to update selected
+lights after scene initialization. It publishes to both OVRTX's detached scene and
+Isaac RTX's USD scene through their respective backends. Editing the source USD alone
+does not propagate to OVRTX's native copies.
+
+.. code-block:: python
+
+   import numpy as np
+
+   sim.render_context.write_light_properties(
+       ["/World/envs/env_2/Dome", "/World/envs/env_7/Dome"],
+       {
+           "intensity": np.array([300.0, 500.0], dtype=np.float32),
+           "color": np.array([[1.0, 0.8, 0.6], [0.7, 0.8, 1.0]], dtype=np.float32),
+       },
+   )
+
+The API takes CPU arrays and consumes them before returning. It updates only the specified
+light instances, batches OVRTX writes by property, and performs no work between resets.
+It supports intensity, exposure, color, color temperature, and world transforms. Temperature
+enablement and texture assets are configured when spawning the lights. Unsupported renderers
+raise before any light properties are published. Use this for episode randomization, not
+per-step animation requiring device-resident light buffers.
+
+With OVRTX, each environment can own an independently controlled dome light. Isaac Sim
+6.2's Isaac RTX renderer still shares dome backgrounds across cameras even with explicit
+light partition selectors. For Isaac RTX, use a shared dome with per-environment analytic
+lights until the renderer supports isolated dome backgrounds. Keep these environments
+spatially separated: overlapping environments can still affect one another's lighting in
+Isaac RTX even when the all-environment spectator layout is disabled.
 
 .. warning::
 

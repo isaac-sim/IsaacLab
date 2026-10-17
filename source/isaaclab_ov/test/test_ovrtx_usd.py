@@ -491,12 +491,19 @@ def test_export_stage_preserves_authored_scene(settings_path):
         stage.SetMetadata("renderSettingsPrimPath", settings_path)
     before = stage.ExportToString()
     layer = Sdf.Layer.CreateAnonymous()
-    layer.ImportFromString(export_stage_to_string(stage, num_envs, source_paths=("/World/envs/env_0",)))
+    layer.ImportFromString(
+        export_stage_to_string(
+            stage,
+            num_envs,
+            source_paths=("/World/envs/env_0",),
+            show_all_partitions_by_default=settings_path is not None,
+        )
+    )
     exported = Usd.Stage.Open(layer)
     assert exported.HasAuthoredMetadata("renderSettingsPrimPath")
     settings = exported.GetPrimAtPath(exported.GetMetadata("renderSettingsPrimPath"))
     show_all = settings.GetAttribute("omni:rtx:scenePartitioning:showAllPartitionsByDefault")
-    assert show_all and show_all.Get() is True
+    assert show_all and show_all.Get() is (settings_path is not None)
     if settings_path is not None:
         assert settings.GetPath() == settings_path
         assert settings.GetAttribute("resolution").Get() == (1280, 720)

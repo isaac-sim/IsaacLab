@@ -12,6 +12,7 @@ import warnings
 from collections.abc import Sequence
 from typing import Any
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -141,6 +142,58 @@ class RenderContext:
         self._physics_initialized = True
         for _cfg, renderer in self._renderer_entries:
             renderer.initialize()
+
+    def write_light_properties(self, prim_paths: Sequence[str], properties: dict[str, np.ndarray]) -> None:
+        """Publish selected light properties to every registered camera renderer.
+
+        Intended for partial episode resets, this accepts CPU arrays and synchronizes pending
+        renderer reads before publishing. It does not rebuild the scene or update unselected
+        lights. Unsupported renderers raise before any backend is modified.
+
+        Args:
+            prim_paths: Absolute paths of the actual light instances after scene cloning.
+            properties: Property names mapped to arrays with one row per selected path.
+                ``intensity``, ``exposure`` [stops], and ``color_temperature`` [K] have shape
+                ``(N,)``; ``color`` is linear RGB with shape ``(N, 3)``. ``transform`` has
+                shape ``(N, 4, 4)`` and contains world-space USD row-vector matrices with
+                translation [m] in the last row. Temperature enablement remains a spawn setting.
+
+        Raises:
+            ValueError: Properties, paths, or array shapes are invalid.
+            RuntimeError: A renderer does not support light updates or is not initialized.
+        """
+        specs = {
+            "intensity": ("inputs:intensity", ()),
+            "exposure": ("inputs:exposure", ()),
+            "color_temperature": ("inputs:colorTemperature", ()),
+            "color": ("inputs:color", (3,)),
+            "transform": ("omni:xform", (4, 4)),
+        }
+        if len(set(prim_paths)) != len(prim_paths) or any(not path.startswith("/") for path in prim_paths):
+            raise ValueError("Light paths must be unique absolute prim paths.")
+        attributes = {}
+        for name, values in properties.items():
+            if name not in specs:
+                raise ValueError(f"Unsupported light property {name!r}; expected one of {tuple(specs)}.")
+            attribute, shape = specs[name]
+            values = np.asarray(values, dtype=np.float64 if name == "transform" else np.float32)
+            if values.shape != (len(prim_paths), *shape) or not np.isfinite(values).all():
+                raise ValueError(
+                    f"Light property {name!r} requires finite values with shape {(len(prim_paths), *shape)}."
+                )
+            attributes[attribute] = np.ascontiguousarray(values)
+        if not prim_paths or not attributes:
+            return
+        writers = []
+        for cfg, renderer in self._renderer_entries:
+            writer = renderer.light_writer
+            if writer is None:
+                raise RuntimeError(f"Renderer {cfg.renderer_type!r} does not support light updates or is not ready.")
+            writers.append(writer)
+        if not writers:
+            raise RuntimeError("No camera renderer is registered for light updates.")
+        for writer in writers:
+            writer(prim_paths, attributes)
 
     def register_visual_material(self, material: Any) -> None:
         """Register one initialized material asset for flat channel composition."""
