@@ -88,6 +88,12 @@ warms the runtime before assets and sensors bind. Hard reset reuses the same
 declarations; there is no separate consumable queue. Binding paths come from the
 plan's world layout and environment template, not from native clone order.
 
+Configured scenes author only prototypes before replication. Environment poses come from the clone plan:
+USD replication creates frames for Kit, and OVPhysX places originals in its private import before native cloning.
+OVRTX and OVStage populate their required environment frames in private USD exports, then apply the planned poses.
+The SDK's CPU hierarchy computation requires USD-populated frames. Export filtering still excludes unrouted
+prototypes and any destinations already materialized by USD replication.
+
 Authored sources all receive native environment ID zero. Every world containing
 a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
 clone their assets from a complete original world of the same composition,
@@ -96,8 +102,11 @@ table and object able to contact one another without destination placeholders.
 Only declared asset subtrees are copied; unrelated authored assets are retained.
 
 Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
-isolate original worlds with USD collision groups. GPU copies additionally use
-native environment-ID filtering. CPU has no native environment-ID filtering
+isolate original worlds with USD collision groups. Native GPU physics copies additionally use
+native environment-ID filtering. When :ref:`shared OVStage cloning <ov-clone-routing>` is enabled,
+both backends attach to one OVStage and clone it once; these copies use the authored USD collision groups.
+Native physics cloning remains the default while shared-stage cold binding lookup is slow in OVPhysX 0.6.3.
+CPU has no native environment-ID filtering
 in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
@@ -129,6 +138,60 @@ The ``--inexact`` flag preserves packages installed through other extras.
 Use ``--extra ov`` to install both public OvPhysX and OVRTX runtimes. The combined
 extra pairs OVRTX 0.5.1.385782 with OVStage 0.2.1; OVRTX 0.4.1 is not compatible
 with this runtime combination.
+
+Opt-in OVPhysX 0.7 support
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The default dependency pins remain on OVPhysX 0.6.4. The backend also accepts
+OVPhysX 0.7, including development builds. It selects task completion, stage
+teardown, scene reads and schema discovery from the installed runtime version.
+Tensor and contact bindings remain in use on both versions.
+
+OVPhysX 0.7 no longer bundles PhysX USD schemas. Install ``physx-usd-schemas>=25.11.2``
+into the simulation environment before startup. Use ``uv run --no-sync`` with an
+opt-in environment to avoid restoring the project's default dependency pins.
+Isaac Lab locates
+both PhysX and deformable schema directories without importing the provider,
+then registers them before USD population. The already-installed Newton schemas
+are also registered. Do not suppress schema-registration errors: late registration
+requires a fresh process and cannot recover settings lost during population.
+
+Legacy joint USD
+~~~~~~~~~~~~~~~~
+
+OVPhysX 0.7 no longer consumes ``PhysxJointAPI``. In the temporary physics export,
+Isaac Lab translates authored ``physxJoint:maxJointVelocity`` and
+``physxJoint:armature`` to ``NewtonJointAPI`` values. Angular velocity stays in
+USD degrees per second; linear velocity and armature retain their USD units.
+Authored modern values take precedence, and existing per-axis PhysX overrides
+remain intact. Source assets and the live stage are not edited, so other physics
+backends and older OVPhysX runtimes keep their previous behavior.
+
+Unmigrated nonzero legacy ``physxJoint:jointFriction`` is rejected with the joint path.
+The dimensionless coefficient has no exact conversion to the new effort-based
+friction model. Remove it and retune ``newton:friction`` / ``newton:damping`` or
+``PhysxJointAxisAPI`` friction efforts explicitly. Unsupported joint types and
+time-sampled legacy settings that cannot be represented also require migration.
+This compatibility layer does not promise identical trajectories across PhysX
+engine versions.
+
+For scene-time migration without republishing assets, set
+``OvPhysxCfg.legacy_joint_friction_replacements`` to a mapping from joint-name
+regular expressions to ``(static effort, dynamic effort, viscous coefficient)``.
+The values use SI force/torque and viscous units. Only matching revolute and
+prismatic joints with nonzero legacy friction are migrated in the private 0.7
+export: the legacy property is removed and modern ``PhysxJointAxisAPI`` values
+are authored. Existing modern friction opinions take precedence. Other runtimes,
+source USD files, and the live stage remain unchanged.
+
+The Allegro reorientation, Kuka-Allegro lift/reorientation, Shadow reorientation,
+and Shadow handover presets supply replacements for their affected hand joints.
+The profile is ``(0.01, 0.0, 0.0)``: 0.01 N*m static effort, zero dynamic effort,
+and zero viscous coefficient. These values match measured OVPhysX 0.6.4 runtime
+actuator settings, including the Shadow tendon joints; they are not a numeric
+conversion of the legacy asset coefficients. Actuator initialization and runtime
+friction randomization continue using effort-valued tensor properties. Merely
+copying a legacy coefficient into a modern effort property is not a valid migration.
 
 Testing the Installation
 ------------------------

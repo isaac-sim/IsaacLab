@@ -6,7 +6,6 @@
 
 from isaaclab_physx.assets import SurfaceGripperCfg
 from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
-from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.envs.mdp.actions.actions_cfg import SurfaceGripperBinaryActionCfg
@@ -21,6 +20,7 @@ from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_tasks.contrib import ISAACLAB_TELEOP_AVAILABLE
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -29,10 +29,6 @@ from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
-
-# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
-# environments in the test suite.
-_TELEOP_AVAILABLE = True
 
 ##
 # Pre-defined configs
@@ -335,11 +331,14 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # Isaac Capture-based teleoperation pipeline (left hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="left"),
+                sim_device=self.sim.device,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )
 
 
 @configclass
@@ -384,8 +383,11 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
         self.scene.ee_frame.target_frames[0].prim_path = "{ENV_REGEX_NS}/Robot/right_suction_cup_tcp_link"
 
         # Isaac Capture-based teleoperation pipeline (right hand)
-        self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
-            sim_device=self.sim.device,
-            xr_cfg=self.xr,
-        )
+        if ISAACLAB_TELEOP_AVAILABLE:
+            from isaaclab_teleop import IsaacTeleopCfg
+
+            self.isaac_teleop = IsaacTeleopCfg(
+                pipeline_builder=lambda: _build_se3_abs_gripper_pipeline(hand_side="right"),
+                sim_device=self.sim.device,
+                **({"xr_cfg": self.xr} if self.xr is not None else {}),
+            )

@@ -28,6 +28,7 @@ from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
 from isaaclab.app import scan
+from isaaclab.cloner import ReplicateContext
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
@@ -343,7 +344,18 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
+    class _CloneContext(ReplicateContext):
+        @staticmethod
+        def prepare(sim, routing):
+            assert sim is ctx and set(routing) == {_CloneContext}
+            events.append("prepare")
+
+        def replicate(self, plan, asset_prototype_ids):
+            pytest.fail("Reset preparation must not execute cloning.")
+
     class _RenderContext:
+        clone_contexts = (_CloneContext,)
+
         @staticmethod
         def finalize_consumers(visualizers, *, rebuild):
             events.append(f"finalize_consumers:{len(visualizers)}:{rebuild}")
@@ -359,6 +371,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
     ctx.reset()
 
     assert events == [
+        "prepare",
         "reset:False",
         "invalidate_image",
         "viewer_reset",
@@ -734,6 +747,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         ctx._scene_data_provider._num_envs = 4
         camera = SimpleNamespace(
             cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+            num_instances=4,
             _view=SimpleNamespace(
                 prims=[UsdGeom.Camera.Define(stage, f"/Scenes/world_{i}/Camera").GetPrim() for i in range(4)]
             ),

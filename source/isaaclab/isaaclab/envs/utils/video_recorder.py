@@ -67,11 +67,6 @@ class VideoRecorder:
                 )
             if channel == "streaming_view" and not viz.cfg.streaming_view:
                 raise RuntimeError(f"Enable streaming_view on {viz.cfg.visualizer_type!r} to record its sensor view.")
-            if viz.cfg.visualizer_type == "kit" and env.sim.physics_manager.video_capture_backend() == "newton_gl":
-                logger.warning(
-                    "[VideoRecorder] Kit with Newton physics requires cubric to propagate transforms to RTX. "
-                    "Use source='viz:newton_gl' if cubric is unavailable."
-                )
             # Legacy recording follows camera selection in the window.
             self._capture = viz.render_tiled_rgb_array if channel == "streaming_view" else viz.render_rgb_array
 

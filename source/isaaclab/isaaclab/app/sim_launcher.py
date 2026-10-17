@@ -32,15 +32,22 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
+from ..scene.interactive_scene_cfg import InteractiveSceneCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sim.simulation_cfg import SimulationCfg
+from ..sim.spawners.sensors.sensors_cfg import PinholeCameraCfg
 from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
+from ..utils.images import sensor_key_for_gt_type
+from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import (
     VISUALIZER_TYPES,
     ImageViewCfg,
+    PerspectiveCameraCfg,
+    SceneCameraCfg,
     VisualizerCfg,
+    _apply_visualizer_defaults,
     parse_visualizer_csv,
 )
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
@@ -217,6 +224,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
     physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
     sim_cfg: SimulationCfg | None = None
+    scene_cfg: InteractiveSceneCfg | None = None
     has_ovrtx = "newton_rtx" in args["visualizer"]
     has_kit_camera = False
     auto_rtx_locations: list[tuple[Any, Any, bool]] = []  # (parent, key, is_cam_renderer) for each auto RTX placeholder
@@ -226,7 +234,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
     visited: set[int] = set()
 
     def visit(node, parent, key):
-        nonlocal effective_cfg, sim_cfg, has_ovrtx, has_kit_camera
+        nonlocal effective_cfg, sim_cfg, scene_cfg, has_ovrtx, has_kit_camera
         if isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
             auto_rtx_locations.append((parent, key, isinstance(parent, CameraCfg) and key == "renderer_cfg"))
 
@@ -247,6 +255,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
                 return
         elif isinstance(node, SimulationCfg):
             sim_cfg = sim_cfg or node
+        elif isinstance(node, InteractiveSceneCfg):
+            scene_cfg = node
         elif isinstance(node, RendererCfg) and node.renderer_type == "ovrtx":
             has_ovrtx = True
         elif isinstance(node, CameraCfg):
@@ -313,6 +323,46 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:  
     visualizer_cfgs = [
         cfg if cfg.visualizer_type in args["visualizer"] else cfg.replace(headless=True) for cfg in visualizer_cfgs
     ]
+    for viewer_index, visualizer in enumerate(visualizer_cfgs):
+        _apply_visualizer_defaults(visualizer, sim_cfg.default_visualizer_cfg if sim_cfg is not None else None)
+        if visualizer.visualizer_type != "newton_rtx" or scene_cfg is None:
+            continue
+        # Explicit views/lists select their sources; otherwise start with the default perspective.
+        sources = (
+            [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
+                PerspectiveCameraCfg(eye=visualizer.eye, lookat=visualizer.lookat, focal_length=visualizer.focal_length)
+            ])
+        )  # fmt: skip
+        # Declare global cameras before scene construction; the scene owns spawning, capture, and cleanup.
+        for camera_index, source in enumerate(sources):
+            if not isinstance(source, PerspectiveCameraCfg):
+                continue
+            name = f"viewer_camera_{viewer_index}_{camera_index}"
+            width, height = visualizer.window.size
+            channels = visualizer.view.channels if visualizer.view is not None else visualizer.streaming_gt_types
+            rotation = quat_from_matrix(create_rotation_matrix_from_view(
+                torch.tensor([source.eye]), torch.tensor([source.lookat]), "Z", device="cpu"
+            ))[0].tolist()  # fmt: skip
+            camera = CameraCfg(
+                prim_path=f"/World/{name}", width=width, height=height,
+                data_types=["rgba" if channel == "rgb" else sensor_key_for_gt_type(channel) for channel in channels],
+                spawn=PinholeCameraCfg(
+                    focal_length=source.focal_length, vertical_aperture=15.2908,
+                    horizontal_aperture=15.2908 * width / height,
+                ),
+                offset=CameraCfg.OffsetCfg(pos=source.eye, rot=tuple(rotation), convention="opengl"),
+                renderer_cfg=visualizer.renderer_cfg, background_color=visualizer.background_color,
+                render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.render_settings},
+            )  # fmt: skip
+            vars(scene_cfg)[name] = camera
+            # Image views reference scene names; camera lists reference prim paths.
+            if visualizer.view is not None:
+                visualizer.view.source = name
+            else:
+                sources[camera_index] = SceneCameraCfg(prim_path=camera.prim_path)
+        if visualizer.view is None:
+            visualizer.cameras = sources
+            visualizer.streaming_view = True
     has_kit_physics = any(isinstance(cfg, PhysxCfg) for cfg in physics_cfgs)
     config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
@@ -438,6 +488,31 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
     )
 
 
+def validate_launch(cfg, launcher_args: argparse.Namespace | dict | None = None) -> tuple[Scan, tuple[str, ...]]:
+    """Walk *cfg* once and raise if its runtime combination cannot launch, without launching it.
+
+    This is the scan and validation :func:`launch_simulation` starts with. Like :func:`scan`, it
+    mutates *cfg* in place: ``--physics`` is applied and automatic placeholders are resolved.
+
+    Args:
+        cfg: Config tree to scan for backend, renderer, and sensor requirements.
+        launcher_args: Parsed launcher arguments, as for :func:`launch_simulation`. The values
+            :func:`scan` resolves are written back to a dict or namespace.
+
+    Returns:
+        The scan, and the components that require Isaac Sim / Kit; empty for a kitless launch.
+
+    Raises:
+        ValueError: If the combination cannot share one process, e.g. OVRTX or OvPhysX with Kit.
+    """
+    args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
+    args = {} if args is None else args
+    config_scan = scan(cfg, args)
+    kit_sources = _get_kit_runtime_sources(config_scan, args)
+    _validate_runtime(config_scan, kit_sources)
+    return config_scan, kit_sources
+
+
 @contextmanager
 def launch_simulation(
     cfg,
@@ -487,13 +562,8 @@ def launch_simulation(
     args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
     args = {} if args is None else args
 
-    # The single walk: collect every signal, apply the --physics override, and
-    # resolve the automatic PhysX and RTX placeholders.
-    config_scan = scan(cfg, args)
+    config_scan, kit_sources = validate_launch(cfg, args)
     physics_cfg = config_scan.resolved_physics_cfg
-
-    kit_sources = _get_kit_runtime_sources(config_scan, args)
-    _validate_runtime(config_scan, kit_sources)
     needs_kit = bool(kit_sources)
 
     # Honor --verbose / --info; the Kit launcher re-applies this level once Kit has started.

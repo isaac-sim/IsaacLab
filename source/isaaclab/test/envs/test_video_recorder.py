@@ -10,7 +10,6 @@ All tests are pure-Python mocks — no simulation context or Kit app required.
 
 from __future__ import annotations
 
-import logging
 import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -219,32 +218,6 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
 # ---------------------------------------------------------------------------
 # Visualizer frame routing
 # ---------------------------------------------------------------------------
-
-
-def test_kit_visualizer_newton_physics_logs_warning(caplog):
-    """source='viz:kit' with Newton physics logs a warning and attempts capture.
-
-    With cubric the capture succeeds; without it frames may be black.  Either way
-    the recorder warns and does not hard-fail.
-
-    The warned-about condition is fixed configuration state, so the message is emitted
-    once per recorder rather than once per captured frame.
-    """
-    kit_viz = _FakeViz("kit")
-    env = _make_env(visualizers=[kit_viz])
-    env.sim.physics_manager.video_capture_backend.return_value = "newton_gl"
-
-    with caplog.at_level(logging.WARNING, logger="isaaclab.envs.utils.video_recorder"):
-        recorder = VideoRecorder(_cfg(source="viz:kit"), env)
-        for _ in range(5):
-            recorder._capture()
-        second_recorder = VideoRecorder(_cfg(source="viz:kit"), env)
-        second_recorder._capture()
-
-    cubric_warnings = [r for r in caplog.records if "source='viz:newton_gl'" in r.message]
-    assert len(cubric_warnings) == 2
-    # Capture is still attempted on every frame rather than short-circuiting.
-    assert kit_viz.render_calls == 6
 
 
 def _rgb_sensor():

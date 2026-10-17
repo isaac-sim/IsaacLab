@@ -234,7 +234,9 @@ def outputs(pkg: Path) -> list[Path]:
 
 def restore(pkg: Path) -> None:
     """Roll ``pkg``'s compile outputs back to ``HEAD``."""
-    run("git", "checkout", "HEAD", "--", *outputs(pkg))
+    tracked = [path for path in outputs(pkg) if run("git", "ls-tree", "-r", "--name-only", "HEAD", "--", path).strip()]
+    if tracked:
+        run("git", "checkout", "HEAD", "--", *tracked)
     run("git", "clean", "-fdq", "--", pkg / "changelog.d")
 
 

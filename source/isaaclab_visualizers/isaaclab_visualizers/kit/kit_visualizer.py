@@ -749,7 +749,9 @@ class KitVisualizer(BaseVisualizer):
         if self._viewport_api is None:
             # Without a viewport, Kit does not create its default perspective
             # camera, so author it explicitly before render products use it.
-            self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
+            # Kit stores existing camera transforms in the stronger session layer.
+            with Usd.EditContext(self._sim.stage, self._sim.stage.GetSessionLayer()):
+                self._set_usd_camera_pose(_DEFAULT_VIEWPORT_CAMERA_PATH, position, target)
             return
 
         try:

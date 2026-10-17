@@ -19,15 +19,22 @@ run the corresponding backend-runtime group.
 launches; ``ISAACLAB_STANDALONE_SCREENSHOT_DELAY`` controls when.
 """
 
+import argparse
 import ast
 import os
 import re
+import runpy
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 import standalone_script_cases as script_cases
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 from standalone_script_cases import (
     OVERRIDES,
     SmokeResult,
@@ -80,6 +87,30 @@ def _python(source: str) -> list[str]:
 
 
 # Script contracts.
+
+
+def test_haply_scene_config_stays_lazy_until_scene_construction():
+    """The Haply module must configure its robot without constructing an articulation."""
+    script = script_cases.ROOT / "examples" / "haply_teleoperation.py"
+    code = """
+import runpy
+import sys
+
+from isaaclab.assets import ArticulationCfg
+
+script = sys.argv[1]
+sys.argv = [script, '--physics', 'newton_mjwarp', '--visualizer', 'none']
+namespace = runpy.run_path(script)
+scene_cfg = namespace['FrankaHaplySceneCfg'](num_envs=1, env_spacing=2.0)
+assert isinstance(scene_cfg.robot, ArticulationCfg)
+assert scene_cfg.robot.init_state.pos == (-0.02, 0.0, 1.05)
+assert scene_cfg.robot.spawn.activate_contact_sensors is True
+assert scene_cfg.robot.spawn.variants['Physics'] == 'mujoco'
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 @pytest.mark.parametrize(
@@ -205,6 +236,141 @@ def test_every_packaged_script_is_registered_for_cli_launch():
     assert {spec.path for spec in packaged_specs} == set(script_cases.PROGRAMS_BY_PATH)
 
 
+@pytest.mark.parametrize(
+    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides"),
+    [
+        ((), NewtonCfg(), ["newton_gl"], ["presets=platforms"]),
+        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=platforms", "physics=isaacsim_physx"]),
+        (("--viz", "none"), NewtonCfg(), [], ["presets=platforms"]),
+    ],
+    ids=("newton-default", "physx-default", "explicit-none"),
+)
+def test_g1_terrain_forwards_visualizer_selection(
+    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides
+):
+    """The G1 example must choose its backend default without overriding explicit visualizer intent."""
+    script = script_cases.ROOT / "examples" / "g1_terrain.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics_cfg, dt=0.005),
+        policy=SimpleNamespace(checkpoint="checkpoint.pt"),
+        duration=1.0,
+        decimation=4,
+        camera_eye=(4.0, -4.0, 3.0),
+        camera_target=(0.0, 0.0, 0.0),
+        camera_vfov=45.0,
+    )
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return cfg, None
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = (
+            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
+        )
+        raise LaunchReached
+        yield
+
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), "--task", "platforms", *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    assert captured == {"overrides": expected_overrides, "visualizers": expected_visualizers}
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "physics_cfg", "expected_visualizers", "expected_overrides", "expected_video_source"),
+    [
+        ((), NewtonCfg(), [], ["presets=granular"], "viz:kit"),
+        (("--viz", "newton_gl"), NewtonCfg(), ["newton_gl"], ["presets=granular"], None),
+        (("--viz", "none"), NewtonCfg(), [], ["presets=granular"], None),
+        (("--viz", "rerun", "--video"), NewtonCfg(), ["rerun"], ["presets=granular"], "viz"),
+        (("physics=isaacsim_physx",), PhysxCfg(), ["kit"], ["presets=granular", "physics=isaacsim_physx"], None),
+        (
+            ("--physics", "isaacsim_physx", "--video"),
+            PhysxCfg(),
+            ["kit"],
+            ["presets=granular", "physics=isaacsim_physx"],
+            "viz:kit",
+        ),
+    ],
+    ids=(
+        "newton-default",
+        "explicit-gl",
+        "explicit-none",
+        "streaming-viz-video",
+        "physx-default",
+        "physx-default-video",
+    ),
+)
+def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizers(
+    monkeypatch, extra_args, physics_cfg, expected_visualizers, expected_overrides, expected_video_source
+):
+    """Newton records with Kit by default; explicit viewers and PhysX keep recording opt-in."""
+    script = script_cases.ROOT / "examples" / "demos" / "sonic.py"
+    namespace = runpy.run_path(str(script))
+    main = namespace["main"]
+    cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=physics_cfg, dt=0.005, visualizer_cfgs=[]),
+        video_recorders=[],
+        policy_repo="nvidia/GEAR-SONIC",
+        policy_revision="revision",
+        duration=1.0,
+        decimation=4,
+        camera_eye=(4.0, -4.0, 3.0),
+        camera_target=(0.0, 0.0, 0.0),
+        camera_vfov=45.0,
+    )
+    captured = {}
+
+    def resolve_task_config(_task, _agent, *, overrides):
+        captured["overrides"] = overrides
+        return cfg, None
+
+    class LaunchReached(Exception):
+        pass
+
+    @contextmanager
+    def launch_simulation(_cfg, launcher_args):
+        captured["visualizers"] = (
+            launcher_args.visualizer if isinstance(launcher_args, argparse.Namespace) else launcher_args["visualizer"]
+        )
+        captured["launch_physics"] = getattr(launcher_args, "physics", None)
+        captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]
+        raise LaunchReached
+        yield
+
+    huggingface_hub = ModuleType("huggingface_hub")
+    huggingface_hub.snapshot_download = lambda **_kwargs: "models"
+    monkeypatch.setitem(sys.modules, "huggingface_hub", huggingface_hub)
+    monkeypatch.setitem(main.__globals__, "resolve_task_config", resolve_task_config)
+    monkeypatch.setitem(main.__globals__, "launch_simulation", launch_simulation)
+    monkeypatch.setattr(main.__globals__["torch"], "set_num_threads", lambda _count: None)
+    monkeypatch.setattr(sys, "argv", [str(script), *extra_args])
+
+    with pytest.raises(LaunchReached):
+        main()
+
+    expected_video_sources = [] if expected_video_source is None else [expected_video_source]
+    assert captured == {
+        "overrides": expected_overrides,
+        "visualizers": expected_visualizers,
+        "launch_physics": None,
+        "video_sources": expected_video_sources,
+    }
+
+
 def test_demo_browser_documents_options_for_each_demo():
     """Every demo card must match a demo and offer exactly the options the demo accepts."""
     docs_source = script_cases.ROOT / "docs/source"
@@ -231,6 +397,56 @@ def test_demo_browser_documents_options_for_each_demo():
         assert set(entry["visualizers"].split(",")) == set(spec.visualizers) - {None}, (
             f"{demo_name} documents incorrect visualizer options"
         )
+
+
+@pytest.fixture(scope="module")
+def nist_demo():
+    return runpy.run_path(str(script_cases.ROOT / "examples/demos/nist.py"))
+
+
+def test_nist_demo_does_not_depend_on_training_packages():
+    """The demo keeps one composition root and leaves episode resets to the RL environment."""
+    path = script_cases.ROOT / "examples/demos/nist.py"
+    nodes = list(ast.walk(ast.parse(path.read_text(encoding="utf-8"))))
+    imports = []
+    for node in nodes:
+        if isinstance(node, ast.Import):
+            imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            imports.append(node.module or "")
+    assert not any(name.startswith(("isaaclab_tasks", "isaaclab_rl", "rsl_rl")) for name in imports)
+    assert not any(isinstance(node, ast.Attribute) and node.attr == "_reset_idx" for node in nodes)
+
+
+def test_nist_reset_samples_separated_loose_parts_in_square(nist_demo):
+    """Partial resets place separated parts across a square in their own environment."""
+    demo = nist_demo
+    torch = demo["torch"]
+    assemblies = demo["ASSEMBLIES"][:10]
+    num_envs, env_ids = 64, torch.arange(1, 64, 2)
+
+    class Scene(dict):
+        env_origins = torch.arange(num_envs)[:, None].expand(-1, 3) * 2.0
+
+    names = {"nistboard", *(f"fixed_{part.socket}" for part in assemblies), *(f"held_{slot:02d}" for slot in range(10))}
+    scene = Scene({name: Mock() for name in names | {"robot"}})
+    for name in names:
+        scene[name].data.default_root_pose.torch = torch.tensor([0.0, 0, 0, 0, 0, 0, 1]).repeat(num_envs, 1)
+    scene["robot"].data.default_joint_pos.torch = torch.zeros((num_envs, 9))
+    board_pose = torch.tensor([0.452824, 0.19145, 0.0206, 0, 1, 0, 0])
+    scene["nistboard"].data.default_root_pose.torch = board_pose.repeat(num_envs, 1)
+    env = SimpleNamespace(scene=scene, num_envs=num_envs, device="cpu")
+    torch.manual_seed(1701)
+    demo["reset_parts"](env, slice(1, None, 2), assemblies)
+    writes = [scene[f"held_{slot:02d}"].write_root_link_pose_to_sim_index.call_args.kwargs for slot in range(10)]
+    assert all(torch.equal(write["env_ids"], env_ids) for write in writes)
+    positions = torch.stack([write["root_pose"][:, :3] for write in writes], dim=1) - scene.env_origins[env_ids, None]
+    assert (positions >= torch.tensor([0.15, -0.35, 0.12]) - 1e-5).all()
+    assert (positions <= torch.tensor([0.85, 0.35, 0.14]) + 1e-5).all()
+    assert (positions[..., 1].abs() < 0.2).any()
+    distances = torch.cdist(positions[..., :2], positions[..., :2])
+    distances[:, torch.arange(10), torch.arange(10)] = float("inf")
+    assert distances.min() >= 0.1 - 1e-5
 
 
 # Launch matrix selection.

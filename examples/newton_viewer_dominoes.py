@@ -25,7 +25,7 @@ parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 import torch
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, XPBDSolverCfg
+from isaaclab_newton.physics import NewtonCfg, NewtonShapeCfg, XPBDSolverCfg
 
 from pxr import Gf, UsdGeom
 
@@ -148,7 +148,6 @@ def main() -> None:
         sim.set_camera_view(eye=(0.0, -18.0, 15.0), target=(0.0, 0.0, 0.0))
         _scene = InteractiveScene(DominoSceneCfg(num_envs=1, env_spacing=1.0))
         _apply_display_colors()
-        NewtonManager._builder.rigid_gap = 0.001
         sim.reset()
         print(
             f"[INFO]: Setup complete with {len(LOGO_DOMINO_POSES)} green dominoes. "
