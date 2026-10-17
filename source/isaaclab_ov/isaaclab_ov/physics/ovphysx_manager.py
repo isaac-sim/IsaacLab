@@ -42,7 +42,6 @@ from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
-from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg, OVRTXRendererCfg
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import OvstageBackendCfg, create_ovstage, export_stage_to_string
 
@@ -678,16 +677,6 @@ class OvPhysxManager(PhysicsManager):
         physx = cls.backend.physx
         if physx is None:
             return
-        if cls.backend.scene is not None:
-            sim = PhysicsManager._sim
-            for renderer in sim.get_backends(OVRTXRendererCfg):
-                if renderer.scene is cls.backend.scene:
-                    renderer.close()
-            for engine in sim.get_backends(OVRTXBackendCfg):
-                if engine.cfg.use_ovstage and engine.cfg.scene_key is None and engine.attached:
-                    engine.renderer.detach_ovstage()
-                    engine.attached = False
-            sim.render_context.reset_stage_prepare_flag()
         if cls.backend.rigid_body_view is not None:
             cls.backend.rigid_body_view.destroy()
             cls.backend.rigid_body_view = None
@@ -817,6 +806,14 @@ class OvPhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
+        shared_scene = next(
+            (scene for scene in sim.get_backends(OvstageBackendCfg) if scene.cfg.scene_key is None), None
+        )
+        if shared_scene is not None and cls._requires_full_stage:
+            raise ValueError(
+                "Shared OVStage cloning does not support full-stage physics imports. "
+                "Disable ISAAC_LAB_SHARE_OVSTAGE and ISAAC_LAB_OVPHYSX_USE_OVSTAGE for this scene."
+            )
         plan = sim.get_clone_plan()
         entries = None
         if plan is not None:
@@ -830,9 +827,6 @@ class OvPhysxManager(PhysicsManager):
             scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
         cls._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, PhysicsManager._cfg, ovphysx_device)
 
-        shared_scene = next(
-            (scene for scene in sim.get_backends(OvstageBackendCfg) if scene.cfg.scene_key is None), None
-        )
         if shared_scene is not None:
             stage_usda = export_stage_to_string(
                 sim.stage,

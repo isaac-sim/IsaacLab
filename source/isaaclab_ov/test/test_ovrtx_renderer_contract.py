@@ -247,8 +247,10 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", str(int(not use_ovstage)))
     OvrtxReplicateContext.prepare(sim, {OvrtxReplicateContext: set()})
     assert tuple(sim._backend_registry) == resources
+    if use_ovstage:
+        domains = ovrtx_renderer_module.ovstage.PopulationDomain
+        assert renderer.scene.cfg.population_domains == (domains.ALL if shared_physics else domains.RENDERING)
     if shared_physics:
-        assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.ALL
         with pytest.raises(ValueError, match="one OVRTX engine"):
             sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
         conflict = next(
@@ -1193,6 +1195,7 @@ def _make_renderer_with_backend(events: list[str], use_ovstage: bool) -> OVRTXRe
             destroy_path_list=lambda paths: events.append(f"destroy_path_list:{paths}"),
         )
         renderer.scene._resources = contextlib.ExitStack()
+        renderer.scene.consumers = contextlib.ExitStack()
         renderer.scene._resources.callback(events.append, "close_stage")
         renderer.scene.ordinal = 7
         render_data.resources.callback(renderer.scene.paths.destroy_path_list, "camera")

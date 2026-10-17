@@ -40,6 +40,9 @@ consumer attaches.
 
 Configure shared-stage cameras before the initial simulation reset. Cameras may have different product
 settings, but share one native renderer and must agree on native logging and transform-cache settings.
+Full-stage physics imports, including deformable scenes that require authored environment copies, are
+not supported in shared mode. Disable ``ISAAC_LAB_SHARE_OVSTAGE`` and ``ISAAC_LAB_OVPHYSX_USE_OVSTAGE``
+for those scenes; sharing rejects them before native population rather than dropping their USD overrides.
 
-The rendering stage owner coordinates write ordinals and closes after its borrowers. Rendering on
+The stage owner coordinates write ordinals and releases its borrowers before rebuilding. Rendering on
 an OVStage is synchronous.

@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import ast
+import inspect
 import subprocess
 import sys
 import textwrap
@@ -86,6 +88,13 @@ def _fake_ovphysx_module(bootstrap):
 
 
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
+    # Physics must not manage rendering consumers when rebuilding a shared stage.
+    imports = (
+        node.module
+        for node in ast.walk(ast.parse(inspect.getsource(manager_module)))
+        if isinstance(node, ast.ImportFrom) and node.module
+    )
+    assert not any(module.startswith("isaaclab_ov.renderers") for module in imports)
     from isaaclab.physics import PhysicsManager
 
     manager = manager_module.OvPhysxManager

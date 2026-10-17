@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from ..sensors.camera.camera_cfg import CameraCfg
 from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
@@ -62,6 +63,14 @@ class BaseRenderer(ABC):
         one environment-id device array for partial writes, and provides an idempotent ``close()``.
         """
         return None
+
+    def author_camera(self, stage: Any, cfg: CameraCfg) -> None:
+        """Author renderer-specific camera attributes before physics imports the USD scene.
+
+        Args:
+            stage: Authored scene containing the newly spawned camera.
+            cfg: Camera declaration; runtime views and buffers do not exist yet.
+        """
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Pre-render per-camera setup the backend needs.

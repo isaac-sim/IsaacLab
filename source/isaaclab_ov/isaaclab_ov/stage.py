@@ -177,6 +177,8 @@ class OvstageBackend:
         self.clone_positions: np.ndarray | None = None
         self.ordinal = 0
         self.next_camera_id = 0
+        self.consumers = contextlib.ExitStack()
+        """Borrowers register teardown here so reset releases them before the native stage."""
         with contextlib.ExitStack() as resources:
             self.stage = resources.enter_context(create_ovstage("isaaclab.scene"))
             self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
@@ -227,8 +229,9 @@ class OvstageBackend:
         return ordinal
 
     def close(self) -> None:
-        """Release the path dictionary and stage after their borrowers have closed."""
-        self._resources.close()
+        """Release borrowers, then the path dictionary and stage."""
+        with self._resources:
+            self.consumers.close()
         self.stage = self.paths = None
 
     def reset(self) -> None:

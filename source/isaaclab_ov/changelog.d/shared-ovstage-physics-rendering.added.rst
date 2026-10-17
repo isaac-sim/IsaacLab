@@ -7,3 +7,5 @@
   products. Cameras must agree on native logging and transform-cache settings and precede the first reset.
 * Coordinated gravity control ordinals with rendering writes and rebuilt the shared stage from current USD
   during forced physics initialization after releasing bindings and detaching consumers.
+* Rejected full-stage physics imports in shared mode instead of dropping authored environment overrides.
+  Those scenes must leave ``ISAAC_LAB_SHARE_OVSTAGE`` and ``ISAAC_LAB_OVPHYSX_USE_OVSTAGE`` disabled.
