@@ -13,7 +13,7 @@ import os
 import sys
 import traceback
 import warnings
-from collections.abc import Generator, Iterator, Mapping
+from collections.abc import Generator, Mapping
 from contextlib import contextmanager
 from dataclasses import is_dataclass
 from types import SimpleNamespace
@@ -115,65 +115,48 @@ def fuse_kit_args(argv: list[str]) -> list[str]:
     return fused
 
 
-def _iter_cfg_items(cfg):
-    """Visit declared configuration fields and container entries."""
-    if is_dataclass(cfg) or isinstance(cfg, (argparse.Namespace, SimpleNamespace)):
-        return ((name, value) for name, value in vars(cfg).items() if not name.startswith("_"))
-    if isinstance(cfg, Mapping):
-        return cfg.items()
-    if isinstance(cfg, (list, tuple)):
-        return enumerate(cfg)
-    return ()
-
-
-def _iter_runtime_configs(cfg: Any) -> Iterator[Any]:
-    """Visit active config objects once, excluding inactive backend choices and viewer defaults."""
-    visited = set()
+def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) -> tuple[Any, ...]:
+    """Collect runtime configs once per object, preserving aliases when replacing automatic backends."""
+    replacements = {} if replacements is None else replacements
+    visited = {}
+    configs = []
 
     def visit(node):
-        if callable(node) or id(node) in visited:
-            return
-        visited.add(id(node))
+        if id(node) in visited:
+            return visited[id(node)]
+        if id(node) in replacements and replacements[id(node)] is not node:
+            visited[id(node)] = visit(replacements[id(node)])
+            return visited[id(node)]
+        visited[id(node)] = node
         if isinstance(
             node,
             (SimulationCfg, InteractiveSceneCfg, PhysicsCfg, RendererCfg, VisualizerCfg, CameraCfg, VideoRecorderCfg),
         ):
-            yield node
-        if not isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
-            for name, child in _iter_cfg_items(node):
-                if name != "default_visualizer_cfg":
-                    yield from visit(child)
-
-    yield from visit(cfg)
-
-
-def _replace_configs(cfg: Any, replacements: dict[int, Any]) -> Any:
-    """Replace selected config objects in place, preserving aliases and tuple-held references."""
-    resolved = {}
-
-    def replace(node):
-        if id(node) in resolved:
-            return resolved[id(node)]
-        if id(node) in replacements:
-            replacement = replacements[id(node)]
-            if replacement is not node:
-                resolved[id(node)] = replace(replacement)
-                return resolved[id(node)]
+            configs.append(node)
         if callable(node) or isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
             return node
         if isinstance(node, tuple):
-            children = tuple(replace(child) for child in node)
-            resolved[id(node)] = node if all(old is new for old, new in zip(node, children, strict=True)) else children
-            return resolved[id(node)]
-        resolved[id(node)] = node
-        for name, child in _iter_cfg_items(node):
-            if isinstance(node, (dict, list)):
-                node[name] = replace(child)
-            else:
-                vars(node)[name] = replace(child)
+            children = tuple(visit(child) for child in node)
+            if any(old is not new for old, new in zip(node, children, strict=True)):
+                visited[id(node)] = children
+            return visited[id(node)]
+        if is_dataclass(node) or isinstance(node, (argparse.Namespace, SimpleNamespace)):
+            children = vars(node)
+            items = ((name, value) for name, value in children.items() if not name.startswith("_"))
+        elif isinstance(node, (Mapping, list)):
+            children = node
+            items = enumerate(node) if isinstance(node, list) else node.items()
+        else:
+            return node
+        for name, child in items:
+            if name != "default_visualizer_cfg":
+                replacement = visit(child)
+                if replacement is not child:
+                    children[name] = replacement
         return node
 
-    return replace(cfg)
+    visit(cfg)
+    return tuple(configs)
 
 
 def validate_launch(  # noqa: C901
@@ -240,7 +223,7 @@ def validate_launch(  # noqa: C901
         if livestream and not selection:
             raise ValueError("Livestreaming requires the Kit visualizer; visualizer=none disables it.")
 
-    configs = tuple(_iter_runtime_configs(cfg))
+    configs = _walk_runtime_configs(cfg)
     configured = [node for node in configs if isinstance(node, VisualizerCfg)]
     simulations = [node for node in configs if isinstance(node, SimulationCfg)]
     for node in simulations:
@@ -340,7 +323,7 @@ def validate_launch(  # noqa: C901
             visualizer.cameras = sources
             visualizer.streaming_view = True
 
-    configs = tuple(_iter_runtime_configs(cfg))
+    configs = _walk_runtime_configs(cfg)
     replacements = {id(node): physics for node in configs if isinstance(node, PhysicsCfg) and physics is not None}
     configs = tuple(replacements.get(id(node), node) for node in configs)
     # Decide the process runtime before resolving automatic physics and renderer backends.
@@ -377,8 +360,7 @@ def validate_launch(  # noqa: C901
         elif isinstance(node, VisualizerCfg) and max_visible is not None:
             node.max_visible_envs = max_visible
 
-    cfg = _replace_configs(cfg, replacements)
-    configs = tuple(_iter_runtime_configs(cfg))
+    configs = _walk_runtime_configs(cfg, replacements)
     if kit_sources:
         for node in configs:
             if isinstance(node, OvPhysxCfg):

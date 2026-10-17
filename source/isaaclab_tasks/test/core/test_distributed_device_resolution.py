@@ -26,13 +26,6 @@ from isaaclab.sim.simulation_cfg import SimulationCfg
 _RANK_ENV_VARS = ("LOCAL_RANK", "JAX_LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_RANK")
 
 
-class _DummyEnvCfg(SimpleNamespace):
-    """Minimal env config stub; the launcher needs a real SimulationCfg."""
-
-    def __init__(self, device: str):
-        self.sim = SimulationCfg(device=device)
-
-
 def _set_rank_env(monkeypatch, env: dict[str, str]):
     """Replace the distributed launcher environment variables with *env*."""
     for name in _RANK_ENV_VARS:
@@ -141,7 +134,7 @@ def test_launch_simulation_device(monkeypatch, kit_device, cfg_device, args, env
             pass
 
     monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
-    env_cfg = _DummyEnvCfg(device=cfg_device)
+    env_cfg = SimpleNamespace(sim=SimulationCfg(device=cfg_device))
     if kit_device == "kitless":
         env_cfg.sim.physics = PhysicsCfg()
 
