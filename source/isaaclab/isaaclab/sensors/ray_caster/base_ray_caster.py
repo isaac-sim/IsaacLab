@@ -154,6 +154,8 @@ class BaseRayCaster(SensorBase):
         if not hasattr(self, "_view_count"):
             view: Any = self._view
             self._view_count = view.count
+        # the update kernels run over the environments, one sensor frame each
+        self._check_env_count(self._view_count)
 
         # Resolve alignment mode to integer constant for kernel dispatch
         alignment_map = {"world": 0, "yaw": 1, "base": 2}

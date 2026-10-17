@@ -246,6 +246,7 @@ class FrameTransformer(BaseFrameTransformer):
         self._body_dst_flat_indices = []  # (num_envs,) int32 destination slots per body
 
         num_unique_bodies = len(tracked_body_names)
+        plan = SimulationManager._sim.get_clone_plan()
 
         for body_slot, tracked_path in enumerate(tracked_prim_paths):
             pattern = self._env_wildcardify(tracked_path)
@@ -258,13 +259,14 @@ class FrameTransformer(BaseFrameTransformer):
                     " Verify the prim has UsdPhysics.RigidBodyAPI."
                 ) from exc
 
-            if binding.count != self._num_envs:
-                # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
-                # unexpected in current flows. Mirror ContactSensor's clone_usd=False fallback so the
-                # sensor stays correct if a future scene runs with clone_usd=False.
+            if plan is not None:
+                # every tracked body fills the rows of the clone plan's environments
+                self._check_env_count(binding.count, pattern)
+            elif binding.count != self._num_envs:
+                # Without a clone plan, the binding defines the environments.
                 logger.warning(
                     "FrameTransformer: binding.count=%d for pattern %r differs from self._num_envs=%d;"
-                    " overriding env count from binding (clone_usd=False scene).",
+                    " overriding env count from binding (no clone plan).",
                     binding.count,
                     pattern,
                     self._num_envs,

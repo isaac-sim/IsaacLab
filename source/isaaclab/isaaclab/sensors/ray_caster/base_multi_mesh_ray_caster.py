@@ -157,6 +157,9 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
             records_per_env, dummy_mesh_id, tracked_target_exprs = self._build_mesh_records(
                 target_cfg, plan, dummy_mesh_id
             )
+            if target_cfg.track_mesh_transforms:
+                # the target's body view must cover every environment's row of the mesh table
+                self._check_env_count(sum(map(bool, records_per_env)), target_cfg.prim_expr)
             self._num_meshes_per_env[target_cfg.prim_expr] = max(len(records) for records in records_per_env)
             target_records_by_expr[target_cfg.prim_expr] = records_per_env
             self._mesh_views.append(

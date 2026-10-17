@@ -141,12 +141,11 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._num_bodies = self._wrench_binding.body_count
         self._data._body_names = list(self._wrench_binding.body_names)
 
-        # OVPhysX clone_usd=False means SensorBase's USD-glob count only saw env_0;
-        # the binding's ``count`` reports the true number of articulation instances
-        # (one per env).  Mirrors how OVPhysX Articulation reads ``sample.count``
-        # directly as ``num_instances``.
+        # Without a clone plan, the binding defines the environments.
         binding_num_envs = self._wrench_binding.count
-        if binding_num_envs != self._num_envs:
+        if OvPhysxManager._sim.get_clone_plan() is not None:
+            self._check_env_count(binding_num_envs, pattern)
+        elif binding_num_envs != self._num_envs:
             self._num_envs = binding_num_envs
             self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
             self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)

@@ -134,6 +134,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             )
         if self._root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation view at: {root_prim_path_expr}. Check PhysX logs.")
+        self._check_env_count(self._root_view.count, root_prim_path_expr)
 
         self._num_bodies = self._root_view.shared_metatype.link_count
         if self._num_bodies == 0:

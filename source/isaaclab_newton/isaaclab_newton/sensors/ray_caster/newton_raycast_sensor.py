@@ -317,12 +317,6 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
 
     def _initialize_impl(self) -> None:
         super()._initialize_impl()
-        if self._view_count != self._num_envs:
-            raise RuntimeError(
-                f"NewtonRaycastSensor '{self.cfg.prim_path}' resolved {self._view_count} Newton sites"
-                f" for {self._num_envs} environments; exactly one site per environment is supported."
-                " Attach the sensor to a single rigid body per environment."
-            )
         ray_count = self._num_envs * self.num_rays
         self._ray_starts_w_ta = ProxyArray(self._ray_starts_w)
         self._ray_directions_w_ta = ProxyArray(self._ray_directions_w)
