@@ -81,8 +81,8 @@ class ViewportCameraController:
             )
         self._cfg.env_index = env_index
         for viz in self._get_kit_visualizers():
-            viz.cfg.origin_env_index = env_index
-            if getattr(viz.cfg, "origin_type", None) == "env":
+            viz.cfg.backend.origin_env_index = env_index
+            if viz.cfg.backend.origin_type == "env":
                 viz.reapply_origin()
 
     def update_view_to_world(self) -> None:
@@ -91,7 +91,7 @@ class ViewportCameraController:
         self._cfg.origin_type = "world"
         origin = torch.zeros(3)
         for viz in self._get_kit_visualizers():
-            viz.cfg.origin_type = "world"
+            viz.cfg.backend.origin_type = "world"
             eye = (origin + torch.tensor(self.default_cam_eye, dtype=torch.float32)).tolist()
             target = (origin + torch.tensor(self.default_cam_lookat, dtype=torch.float32)).tolist()
             viz.set_camera_view(tuple(eye), tuple(target))
@@ -101,7 +101,7 @@ class ViewportCameraController:
         _warn_method("update_view_to_env")
         self._cfg.origin_type = "env"
         for viz in self._get_kit_visualizers():
-            viz.cfg.origin_type = "env"
+            viz.cfg.backend.origin_type = "env"
             viz.reapply_origin()
 
     def update_view_to_asset_root(self, asset_name: str) -> None:
@@ -111,8 +111,8 @@ class ViewportCameraController:
         self._cfg.asset_name = asset_name
         self._cfg.origin_type = "asset_root"
         for viz in self._get_kit_visualizers():
-            viz.cfg.origin_type = "asset"
-            viz.cfg.origin_track_path = asset_name
+            viz.cfg.backend.origin_type = "asset"
+            viz.cfg.backend.origin_track_path = asset_name
             viz.reapply_origin()
 
     def update_view_to_asset_body(self, asset_name: str, body_name: str) -> None:
@@ -123,8 +123,8 @@ class ViewportCameraController:
         self._cfg.body_name = body_name
         self._cfg.origin_type = "asset_body"
         for viz in self._get_kit_visualizers():
-            viz.cfg.origin_type = "asset"
-            viz.cfg.origin_track_path = f"{asset_name}/{body_name}"
+            viz.cfg.backend.origin_type = "asset"
+            viz.cfg.backend.origin_track_path = f"{asset_name}/{body_name}"
             viz.reapply_origin()
 
     def update_view_location(
@@ -154,11 +154,4 @@ class ViewportCameraController:
 
     def _get_kit_visualizers(self) -> list:
         """Return active Kit visualizers from the env's sim, if any."""
-        sim = getattr(self._env, "sim", None)
-        if sim is None:
-            return []
-        return [
-            v
-            for v in getattr(sim, "visualizers", [])
-            if getattr(getattr(v, "cfg", None), "visualizer_type", None) == "kit"
-        ]
+        return [v for v in self._env.sim.visualizers if v.cfg.backend.visualizer_type == "kit"]

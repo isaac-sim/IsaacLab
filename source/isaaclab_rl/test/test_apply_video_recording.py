@@ -21,6 +21,7 @@ import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_rl.entrypoints.common import (
     add_common_train_args,
@@ -134,11 +135,11 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
 )
 def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
     """The launch resolves the ``--video`` source and runs a visualizer ``--viz`` did not select headless."""
-    kit_cfg = KitVisualizerCfg(eye=(1.0, 2.0, 3.0))
+    kit_cfg = VisualizerCfg(eye=(1.0, 2.0, 3.0), backend=KitVisualizerCfg())
     env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.sim.physics = NewtonCfg()
     env_cfg.sim.device = "cpu"
-    env_cfg.sim.visualizer_cfgs = [kit_cfg, ViserVisualizerCfg()]
+    env_cfg.sim.visualizer_cfgs = [kit_cfg, VisualizerCfg(backend=ViserVisualizerCfg())]
     args = _args(**cli)
     if args.visualizer is None:
         args.visualizer = []
@@ -154,12 +155,12 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
 
     source, visualizers = expected
     assert [recorder.source for recorder in env_cfg.video_recorders] == [source]
-    assert [(cfg.visualizer_type, cfg.headless) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
+    assert [(cfg.backend.visualizer_type, cfg.headless) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
     if source.endswith(":streaming_view"):
         assert env_cfg.sim.visualizer_cfgs[0].streaming_view
     # a Kit visualizer, selected or added, keeps its configured camera; an added one is a copy, so the
     # configured visualizer stays as configured for a later launch
-    assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")
+    assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.backend.visualizer_type == "kit")
     assert not kit_cfg.headless
     # Kit starts only for a Kit visualizer, with cameras, windowed only when --viz selects it
     kit_args = launches.get(_KIT_LAUNCHER)
@@ -168,7 +169,7 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
         assert (kit_args["kit_visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
     assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in source)
     # a launch with a SimulationCfg leaves no selection behind for configs built afterwards
-    assert type(env_cfg.sim)(physics=NewtonCfg()).visualizer_cfgs == []
+    assert type(env_cfg.sim)(physics=NewtonCfg()).visualizer_cfgs.backend is None
 
 
 def test_apply_video_recording_noop_when_video_false():

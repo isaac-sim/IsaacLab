@@ -42,8 +42,8 @@ from ..utils.device import set_cuda_device
 from ..utils.images import sensor_key_for_gt_type
 from ..utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from ..utils.string import string_to_callable
-from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
-from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES, _apply_visualizer_defaults
+from ..visualizers import ImageViewCfg, PerspectiveCameraCfg, SceneCameraCfg, VisualizerBackendCfg, VisualizerCfg
+from ..visualizers.visualizer_cfg import VISUALIZER_ALIASES
 from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -130,10 +130,10 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
         visited[id(node)] = node
         if isinstance(
             node,
-            (SimulationCfg, InteractiveSceneCfg, PhysicsCfg, RendererCfg, VisualizerCfg, CameraCfg, VideoRecorderCfg),
+            (SimulationCfg, InteractiveSceneCfg, PhysicsCfg, RendererCfg, VisualizerCfg, VisualizerBackendCfg, CameraCfg, VideoRecorderCfg),
         ):
             configs.append(node)
-        if callable(node) or isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
+        if callable(node) or isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)):
             return node
         if isinstance(node, tuple):
             children = tuple(visit(child) for child in node)
@@ -149,10 +149,9 @@ def _walk_runtime_configs(cfg: Any, replacements: dict[int, Any] | None = None) 
         else:
             return node
         for name, child in items:
-            if name != "default_visualizer_cfg":
-                replacement = visit(child)
-                if replacement is not child:
-                    children[name] = replacement
+            replacement = visit(child)
+            if replacement is not child:
+                children[name] = replacement
         return node
 
     visit(cfg)
@@ -224,7 +223,7 @@ def validate_launch(  # noqa: C901
             raise ValueError("Livestreaming requires the Kit visualizer; visualizer=none disables it.")
 
     configs = _walk_runtime_configs(cfg)
-    configured = [node for node in configs if isinstance(node, VisualizerCfg)]
+    configured = []
     simulations = [node for node in configs if isinstance(node, SimulationCfg)]
     for node in simulations:
         if node.physics is None and physics is not None:
@@ -232,18 +231,34 @@ def validate_launch(  # noqa: C901
         if launcher_args.get("device"):
             node.device = launcher_args["device"]
         if not isinstance(node.visualizer_cfgs, list):
-            node.visualizer_cfgs = [] if node.visualizer_cfgs is None else [node.visualizer_cfgs]
+            node.visualizer_cfgs = [node.visualizer_cfgs]
+        viewers = []
+        for viewer in node.visualizer_cfgs:
+            if isinstance(viewer.backend, list):
+                viewers.extend(viewer.replace(backend=backend) for backend in viewer.backend or [None])
+            else:
+                viewers.append(viewer)
+        node.visualizer_cfgs = viewers
+        configured.extend(node.visualizer_cfgs)
+        template = node.visualizer_cfgs[0] if node.visualizer_cfgs else VisualizerCfg()
         if selection is not None:
             viewers = []
             for name in selection:
                 viewers.extend(
-                    [viewer for viewer in node.visualizer_cfgs if viewer.visualizer_type == name]
-                    or [visualizer_types[name]()]
+                    [
+                        viewer
+                        for viewer in node.visualizer_cfgs
+                        if viewer.backend is not None and viewer.backend.visualizer_type == name
+                    ]
+                    or [template.replace(backend=visualizer_types[name]())]
                 )
             node.visualizer_cfgs = viewers
         if livestream or launcher_args.get("xr", False):
-            if not any(viewer.launcher_type == _KIT_LAUNCHER for viewer in node.visualizer_cfgs):
-                node.visualizer_cfgs.append(KitVisualizerCfg(headless=bool(launcher_args.get("xr", False))))
+            if not any(isinstance(viewer.backend, KitVisualizerCfg) for viewer in node.visualizer_cfgs):
+                node.visualizer_cfgs.append(
+                    template.replace(backend=KitVisualizerCfg(), headless=bool(launcher_args.get("xr", False)))
+                )
+        node.visualizer_cfgs = [viewer for viewer in node.visualizer_cfgs if viewer.backend is not None]
 
     viewers = [viewer for sim in simulations for viewer in sim.visualizer_cfgs]
     for recorder in (node for node in configs if isinstance(node, VideoRecorderCfg)):
@@ -254,12 +269,14 @@ def validate_launch(  # noqa: C901
             if len(owners) != 1:
                 raise ValueError("A recorded perspective view requires exactly one configured visualizer.")
             producer = next((viewer for viewer in viewers if viewer.view is recorder.source), owners[0])
+            if producer.backend is None:
+                producer = producer.replace(backend=NewtonGLVisualizerCfg())
         else:
             kind, name, channel = parse_video_source(recorder.source)
             if kind == "sensor":
                 continue
             name = name or next(
-                (v.visualizer_type for v in viewers if v.visualizer_type in CAPTURE_VISUALIZER_TYPES),
+                (v.backend.visualizer_type for v in viewers if v.backend.visualizer_type in CAPTURE_VISUALIZER_TYPES),
                 "newton_gl",
             )
             if name not in CAPTURE_VISUALIZER_TYPES:
@@ -268,9 +285,17 @@ def validate_launch(  # noqa: C901
                     " has no frame capture. Use 'viz:kit', 'viz:newton_gl', 'viz:newton_rtx', or 'sensor:<name>'."
                 )
             recorder.source = f"viz:{name}:{channel}" if channel else f"viz:{name}"
-            producer = next((viewer for viewer in viewers + configured if viewer.visualizer_type == name), None)
+            producer = next(
+                (
+                    viewer
+                    for viewer in viewers + configured
+                    if viewer.backend is not None and viewer.backend.visualizer_type == name
+                ),
+                None,
+            )
             if producer is None:
-                producer = visualizer_types[name]()
+                template = configured[0] if configured else VisualizerCfg()
+                producer = template.replace(backend=visualizer_types[name]())
             if channel == "streaming_view":
                 producer.streaming_view = True
             if name == "kit":
@@ -280,14 +305,10 @@ def validate_launch(  # noqa: C901
             simulations[0].visualizer_cfgs.append(producer)
             viewers.append(producer)
 
-    for simulation in simulations:
-        for visualizer in simulation.visualizer_cfgs:
-            _apply_visualizer_defaults(visualizer, simulation.default_visualizer_cfg)
-
     # Declare RTX perspective cameras before scene construction; runtime viewers only borrow their output.
     scene_cfg = next((node for node in configs if isinstance(node, InteractiveSceneCfg)), None)
     for viewer_index, visualizer in enumerate(viewers):
-        if not isinstance(visualizer, NewtonRTXVisualizerCfg) or scene_cfg is None:
+        if not isinstance(visualizer.backend, NewtonRTXVisualizerCfg) or scene_cfg is None:
             continue
         sources = (
             [visualizer.view.source] if visualizer.view is not None else list(visualizer.cameras or [
@@ -311,8 +332,8 @@ def validate_launch(  # noqa: C901
                     horizontal_aperture=15.2908 * width / height,
                 ),
                 offset=CameraCfg.OffsetCfg(pos=source.eye, rot=tuple(rotation), convention="opengl"),
-                renderer_cfg=visualizer.renderer_cfg, background_color=visualizer.background_color,
-                render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.render_settings},
+                renderer_cfg=visualizer.backend.renderer_cfg, background_color=visualizer.background_color,
+                render_settings={"omni:rtx:quality": ("Int", 0), **visualizer.backend.render_settings},
             )  # fmt: skip
             vars(scene_cfg)[name] = camera
             if visualizer.view is not None:
@@ -339,9 +360,9 @@ def validate_launch(  # noqa: C901
             node.renderer_cfg is None or node.renderer_cfg.renderer_type in ("default", "isaac_rtx")
         ):
             kit_sources.append("a Kit-based renderer (IsaacRtxRendererCfg)")
-        elif isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)) and node.launcher_type == _KIT_LAUNCHER:
-            kit_sources.append("the Kit visualizer" if isinstance(node, VisualizerCfg) else type(node).__name__)
-        if isinstance(node, KitVisualizerCfg):
+        elif isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)) and node.launcher_type == _KIT_LAUNCHER:
+            kit_sources.append("the Kit visualizer" if isinstance(node, VisualizerBackendCfg) else type(node).__name__)
+        elif isinstance(node, VisualizerCfg) and isinstance(node.backend, KitVisualizerCfg):
             launcher_args["kit_visualizer"] |= not node.headless
             launcher_args["enable_cameras"] |= node.streaming_view or node.headless
     for enabled, source in (
@@ -446,7 +467,7 @@ def launch_simulation(
     launcher_types += [
         node.launcher_type
         for node in configs
-        if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)) and node.launcher_type
+        if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerBackendCfg)) and node.launcher_type
     ]
     launchers = [string_to_callable(launcher_type)(launcher_args) for launcher_type in dict.fromkeys(launcher_types)]
     # after the launchers, so a started Kit already backs the settings

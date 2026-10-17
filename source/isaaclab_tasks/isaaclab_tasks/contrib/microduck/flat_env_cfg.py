@@ -470,7 +470,7 @@ class MicroDuckVelocityFlatEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics_material = self.scene.terrain.physics_material
         self.scene.contact_forces.update_period = self.sim.dt
         self.scene.self_collision.update_period = self.sim.dt
-        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(0.8, 0.8, 0.4), lookat=(0.0, 0.0, 0.1))
+        self.sim.visualizer_cfgs = VisualizerCfg(eye=(0.8, 0.8, 0.4), lookat=(0.0, 0.0, 0.1))
 
     def play_mode(self):
         """Use the shared inference defaults and disable interval pushes."""

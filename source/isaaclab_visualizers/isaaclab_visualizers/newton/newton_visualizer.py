@@ -21,6 +21,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.visualizers import VisualizerCfg
+
 # Pyglet must choose EGL before Newton imports its window class.
 if sys.platform not in ("win32", "darwin") and not os.environ.get("DISPLAY"):
     import pyglet
@@ -50,8 +52,6 @@ from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, WindowCfg
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-
-from .newton_visualizer_cfg import NewtonGLVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -782,7 +782,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             self._retained_picking = picking
             self._viewer = None
 
-    def __init__(self, cfg: NewtonGLVisualizerCfg):
+    def __init__(self, cfg: VisualizerCfg):
         """Initialize the GL scene renderer and window.
 
         Args:
@@ -823,13 +823,13 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 " DISPLAY, e.g. 'export DISPLAY=:0') to see the viewer."
             )
 
-        self._picking_enabled = self.cfg.enable_picking and picking_supported and not self._runtime_headless
+        self._picking_enabled = self.cfg.backend.enable_picking and picking_supported and not self._runtime_headless
         self._viewer.set_model(self.backend.model)
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
         self._viewer.set_visible_worlds(self._env_ids)
-        self._viewer.set_world_offsets(self.cfg.world_spacing)
+        self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
         self._viewer._paused = False
         self._viewer.picking_enabled = self._picking_enabled
         self._configure_viewer()
@@ -849,14 +849,14 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 ("streaming_gt_types", list(self.cfg.streaming_gt_types)),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
-                ("show_particles", self.cfg.show_particles),
+                ("show_particles", self.cfg.backend.show_particles),
                 ("enable_picking", self._picking_enabled),
             ],
         )
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
             NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
-        if self.cfg.enable_picking and not picking_supported:
+        if self.cfg.backend.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
                 " rigid-body force input."
@@ -926,7 +926,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         if self._picking_enabled:
             self._viewer.wind = None
         self._viewer.set_visible_worlds(self._env_ids)
-        self._viewer.set_world_offsets(self.cfg.world_spacing)
+        self._viewer.set_world_offsets(self.cfg.backend.world_spacing)
         self._configure_viewer()
         self._viewer.picking_enabled = self._picking_enabled
         if self._picking_enabled:
@@ -1103,29 +1103,29 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
 
     def _configure_viewer(self) -> None:
         """Apply model overlays and GL appearance after binding a model."""
-        self._viewer.show_joints = self.cfg.show_joints
-        self._viewer.show_contacts = self.cfg.show_contacts
-        self._viewer.show_collision = self.cfg.show_collision
-        self._viewer.show_springs = self.cfg.show_springs
-        self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
-        self._viewer.show_com = self.cfg.show_com
-        self._viewer.show_particles = self.cfg.show_particles
+        self._viewer.show_joints = self.cfg.backend.show_joints
+        self._viewer.show_contacts = self.cfg.backend.show_contacts
+        self._viewer.show_collision = self.cfg.backend.show_collision
+        self._viewer.show_springs = self.cfg.backend.show_springs
+        self._viewer.show_inertia_boxes = self.cfg.backend.show_inertia_boxes
+        self._viewer.show_com = self.cfg.backend.show_com
+        self._viewer.show_particles = self.cfg.backend.show_particles
         self._viewer.up_axis = 2  # Z-up
         self._viewer.scaling = 1.0
-        self._viewer.particle_color = self.cfg.particle_color
-        self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
-        self._viewer.renderer.draw_wireframe = self.cfg.enable_wireframe
+        self._viewer.particle_color = self.cfg.backend.particle_color
+        self._viewer.renderer.draw_shadows = self.cfg.backend.enable_shadows
+        self._viewer.renderer.draw_wireframe = self.cfg.backend.enable_wireframe
         # Accept list/tuple/array-like config colors; provide a stable tuple for nanobind conversion.
         if self.cfg.background_color is None:
-            self._viewer.renderer.draw_sky = self.cfg.enable_sky
-            upper_color = self.cfg.sky_upper_color
-            lower_color = self.cfg.sky_lower_color
+            self._viewer.renderer.draw_sky = self.cfg.backend.enable_sky
+            upper_color = self.cfg.backend.sky_upper_color
+            lower_color = self.cfg.backend.sky_lower_color
         else:
             self._viewer.renderer.draw_sky = False
             upper_color = lower_color = self.cfg.background_color
         self._viewer.renderer.sky_upper = tuple(upper_color)
         self._viewer.renderer.sky_lower = tuple(lower_color)
-        self._viewer.renderer._light_color = tuple(self.cfg.light_color)
+        self._viewer.renderer._light_color = tuple(self.cfg.backend.light_color)
 
 
 class NewtonRTXVisualizer(NewtonVisualizerBase):

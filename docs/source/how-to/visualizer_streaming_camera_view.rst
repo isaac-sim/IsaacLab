@@ -23,11 +23,14 @@ controls presentation independently through ``VisualizerCfg.window``. ``Visualiz
 .. code-block:: python
 
    from isaaclab.envs import VideoRecorderCfg
-   from isaaclab.visualizers import ImageViewCfg, WindowCfg
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab.visualizers import ImageViewCfg, VisualizerCfg, WindowCfg
+
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
    view = ImageViewCfg(source="front_camera", envs=(0, 2), channels=("rgb", "depth"))
-   env_cfg.sim.visualizer_cfgs = [NewtonGLVisualizerCfg(view=view, window=WindowCfg(size=(1280, 720)))]
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+       view=view, window=WindowCfg(size=(1280, 720)), backend=MultiBackendVisualizerCfg(),
+   )
    env_cfg.video_recorders = [VideoRecorderCfg(source=view, output_dir="videos")]
 
 Use ``--viz newton_gl`` (or ``--viz newton_rtx`` for the RTX example) to display the window.
@@ -52,15 +55,15 @@ For Newton RTX, a perspective declaration is expanded into an ordinary scene cam
 
 .. code-block:: python
 
-   from isaaclab.visualizers import PerspectiveCameraCfg
-   from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+   from isaaclab.visualizers import PerspectiveCameraCfg, VisualizerCfg
 
    view = ImageViewCfg(source=PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)))
-   env_cfg.sim.visualizer_cfgs = [
-       NewtonRTXVisualizerCfg(view=view, window=WindowCfg(size=(960, 540)))
-   ]
+   env_cfg.sim.visualizer_cfgs = VisualizerCfg(
+       view=view, window=WindowCfg(size=(960, 540)), backend=MultiBackendVisualizerCfg(),
+   )
    env_cfg.video_recorders = [VideoRecorderCfg(source=view)]
 
+Select ``visualizer=newton_rtx`` or ``visualizer=newton_gl`` at the task entry point.
 Newton RTX fixes perspective render resolution at the initial ``WindowCfg.size``; resizing the window
 scales its image. Newton GL perspective rendering follows its window framebuffer dimensions.
 The recorder reads the completed native render without requesting a second render for that step.
@@ -139,16 +142,18 @@ Use ``cameras`` to declare a list of selectable views; the first starts active:
 
 .. code-block:: python
 
-   from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
-   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
-   viewer_cfg = NewtonGLVisualizerCfg(
+   from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
+
+   viewer_cfg = VisualizerCfg(
        cameras=[
            SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/FrontCamera"),
            SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/BackCamera"),
            PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)),
        ],
        streaming_envs=list(range(16)),
+       backend=MultiBackendVisualizerCfg(),
    )
 
 The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene

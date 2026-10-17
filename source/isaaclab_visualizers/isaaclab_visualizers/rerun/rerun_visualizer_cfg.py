@@ -10,14 +10,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VisualizerBackendCfg
 
 if TYPE_CHECKING:
     from .rerun_visualizer import RerunVisualizer
 
 
 @configclass
-class RerunVisualizerCfg(VisualizerCfg):
+class RerunVisualizerCfg(VisualizerBackendCfg):
     """Configuration for Rerun visualizer (web-based visualization)."""
 
     class_type: type[RerunVisualizer] | str = "{DIR}.rerun_visualizer:RerunVisualizer"

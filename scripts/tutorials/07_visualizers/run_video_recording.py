@@ -49,7 +49,7 @@ import sys
 import gymnasium as gym
 import torch
 
-from isaaclab.visualizers import WindowCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -105,7 +105,7 @@ def _build_env_cfg_example_1(num_envs: int):
     from isaaclab_visualizers.kit import KitVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    env_cfg.sim.visualizer_cfgs = [KitVisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT)]
+    env_cfg.sim.visualizer_cfgs = [VisualizerCfg(eye=_SHADOW_EYE, lookat=_SHADOW_LOOKAT, backend=KitVisualizerCfg())]
 
     out = _output_dir(1)
     env_cfg.video_recorders = [
@@ -150,20 +150,19 @@ def _build_env_cfg_example_3(num_envs: int):
     from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
     env_cfg = _shadow_env_cfg(num_envs)
-    kit_cfg = KitVisualizerCfg(
+    kit_cfg = VisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # No streaming_sensor_prim_path: selects the existing
-        # tiled_camera sensor automatically, so the streaming panel shows the same
-        # RTX-rendered views as source="sensor:tiled_camera".
+        backend=KitVisualizerCfg(),
     )
-    newton_cfg = NewtonGLVisualizerCfg(
+    newton_cfg = VisualizerCfg(
         eye=_SHADOW_EYE,
         lookat=_SHADOW_LOOKAT,
         window=WindowCfg(size=(1280, 720)),
         focal_length=25.0,
+        backend=NewtonGLVisualizerCfg(),
     )
     env_cfg.sim.visualizer_cfgs = [kit_cfg, newton_cfg]
 

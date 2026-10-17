@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import math
-from copy import deepcopy
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, ClassVar
 
@@ -124,21 +123,31 @@ class WindowCfg:
 
 
 @configclass
-class VisualizerCfg:
-    """Base configuration for all visualizer backends.
-
-    Note:
-        This configuration can be used directly as
-        :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg` to provide shared defaults.
-        To create a visualizer, use a concrete config from ``isaaclab_visualizers``, such as
-        ``KitVisualizerCfg`` or ``NewtonGLVisualizerCfg``.
-    """
+class VisualizerBackendCfg:
+    """Implementation and backend-specific options for a visualizer."""
 
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
 
     cloning_contexts: tuple[type[ReplicateContext] | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""
+
+    launcher_type: ClassVar[str | None] = None
+    """Process runtime required by this visualizer, if any."""
+
+    visualizer_type: str | None = None
+    """Backend selector identifier, supplied by concrete backend configurations."""
+
+
+@configclass
+class VisualizerCfg:
+    """View, window, and scene settings independent of the selected visualizer backend."""
+
+    backend: VisualizerBackendCfg | list[VisualizerBackendCfg] | None = None
+    """Selected implementation(s); None keeps the settings without opening a viewer.
+
+    Launch expands multiple selections into separate visualizers with the same common settings.
+    """
 
     view: ImageViewCfg | None = None
     """Shared image view, or None to use the visualizer's camera selection."""
@@ -249,18 +258,13 @@ class VisualizerCfg:
     live_plots_update_interval: int = 5
     """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
-    # Internal
-    launcher_type: ClassVar[str | None] = None
-    """Process runtime required by this visualizer, if any."""
-
-    visualizer_type: str | None = None
-    """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
-
     def validate_config(self) -> None:
         """Reject ambiguous sources and unsupported native-window configurations."""
         if self.view is not None:
-            if self.visualizer_type not in ("newton_gl", "newton_rtx"):
-                raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
+            backends = self.backend if isinstance(self.backend, list) else [self.backend]
+            for backend in backends:
+                if backend is not None and backend.visualizer_type not in ("newton_gl", "newton_rtx"):
+                    raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")
 
@@ -276,17 +280,3 @@ class VisualizerCfg:
             self.streaming_view = any(isinstance(camera, SceneCameraCfg) for camera in self.cameras)
             if isinstance(camera := self.cameras[0], PerspectiveCameraCfg):
                 self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
-
-
-def _apply_visualizer_defaults(visualizer: VisualizerCfg, defaults: VisualizerCfg | None) -> None:
-    """Copy non-default shared values into fields still at their backend defaults, including window fields."""
-    if defaults is None:
-        return
-    for source, target in ((defaults, visualizer), (defaults.window, visualizer.window)):
-        source_values, target_values = vars(source), vars(target)
-        target_defaults = vars(type(target)())
-        for name, default in vars(type(source)()).items():
-            if name in ("class_type", "visualizer_type", "window") or name not in target_defaults:
-                continue
-            if source_values[name] != default and target_values[name] == target_defaults[name]:
-                target_values[name] = deepcopy(source_values[name])

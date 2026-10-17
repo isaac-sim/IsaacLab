@@ -22,6 +22,7 @@ import omni
 from pxr import Sdf, Usd, UsdGeom, UsdLux
 
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers import VisualizerCfg
 
 
 @pytest.fixture(autouse=True)
@@ -59,7 +60,7 @@ def kit_timeline(monkeypatch):
 
 @pytest.mark.parametrize("headless", [False, True])
 def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, kit_app, headless):
-    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
+    visualizer = KitVisualizer(VisualizerCfg(headless=headless, backend=KitVisualizerCfg(origin_type="asset")))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
     visualizer._sim = sim = MagicMock(render_generation=12)
@@ -92,7 +93,7 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
 
 def test_app_update_restores_signal_handlers(monkeypatch, kit_app):
     """Defer Kit-swallowed interrupts without replacing an existing forced-exit handler."""
-    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer = KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg()))
     visualizer._is_initialized = True
     visualizer._fabric = MagicMock()
     visualizer._sim = MagicMock(render_generation=1)
@@ -135,7 +136,10 @@ def test_timeline_controls_share_ownership_and_restore_after_last_stop(monkeypat
     settings = MagicMock()
     settings.get.return_value = True
     monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    visualizers = [KitVisualizer(KitVisualizerCfg()), KitVisualizer(KitVisualizerCfg())]
+    visualizers = [
+        KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg())),
+        KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg())),
+    ]
     for visualizer in visualizers:
         visualizer._controls_kit_timeline = True
 
@@ -169,7 +173,7 @@ def test_timeline_controls_share_ownership_and_restore_after_last_stop(monkeypat
 
 
 def test_close_cleans_resources_when_timeline_stop_is_interrupted(monkeypatch, kit_timeline):
-    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer = KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg()))
     visualizer._is_initialized = True
     visualizer._controls_kit_timeline = True
     visualizer._owns_kit_timeline = True
@@ -203,7 +207,7 @@ def test_close_cleans_resources_when_timeline_stop_is_interrupted(monkeypatch, k
     [("ovphysx", False), ("newton", True)],
 )
 def test_timeline_controls_only_non_physx_backends(monkeypatch, physics_backend, controls_timeline):
-    visualizer = KitVisualizer(KitVisualizerCfg())
+    visualizer = KitVisualizer(VisualizerCfg(backend=KitVisualizerCfg()))
     sim = MagicMock(has_gui=True, stage=Usd.Stage.CreateInMemory(), device="cpu")
     sim.get_scene_data_provider.return_value.num_envs = 0
     fabric = sim.get_or_create_backend.return_value
@@ -235,7 +239,7 @@ def test_background_color_preserves_scene_lighting(
     dome = UsdLux.DomeLight.Define(stage, "/World/Sky")
     dome.GetTextureFileAttr().Set(Sdf.AssetPath("sky.hdr"))
     dome.GetIntensityAttr().Set(750.0)
-    visualizer = KitVisualizer(KitVisualizerCfg(background_color=color))
+    visualizer = KitVisualizer(VisualizerCfg(background_color=color, backend=KitVisualizerCfg()))
 
     visualizer._apply_render_product_background(stage, render_product.GetPath())
 

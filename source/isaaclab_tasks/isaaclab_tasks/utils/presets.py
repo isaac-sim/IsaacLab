@@ -15,7 +15,7 @@ from isaaclab_visualizers.viser import ViserVisualizerCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import VISUALIZER_ALIASES, VisualizerBackendCfg
 
 from .hydra import PresetCfg
 
@@ -60,7 +60,7 @@ class MultiBackendVisualizerCfg(PresetCfg):
     newton_rtx: NewtonRTXVisualizerCfg = NewtonRTXVisualizerCfg()
     rerun: RerunVisualizerCfg = RerunVisualizerCfg()
     viser: ViserVisualizerCfg = ViserVisualizerCfg()
-    none: list[VisualizerCfg] = []
+    none: list[VisualizerBackendCfg] = []
     default: None = None
 
     _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES

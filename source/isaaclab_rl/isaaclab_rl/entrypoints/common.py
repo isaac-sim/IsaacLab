@@ -450,7 +450,7 @@ def show_run_summary(
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
     renderer = _renderer_name(env_cfg)
-    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    visualizers = [cfg.backend.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.backend is not None]
     screen.summary(
         f"Isaac Lab · {action}",
         {
