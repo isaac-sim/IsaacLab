@@ -37,6 +37,20 @@ Kit-only demos are not shown.
 For cloth and rigid-soft contact guidance, see :ref:`newton-using-vbd`.
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
+MicroDuck Warehouse rendering
+-----------------------------
+
+View the static MicroDuck Warehouse through selectable renderers and saved cameras, without advancing physics.
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab demo microduck-warehouse
+   uv run --extra isaacsim isaaclab demo microduck-warehouse renderer=isaacsim_rtx presets=path_traced
+   uv run isaaclab demo microduck-warehouse renderer=newton_renderer presets=aisle,depth
+
+Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
+For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
+
 Command Builder
 ---------------
 
@@ -94,6 +108,15 @@ Command Builder
                data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
          <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
          <span>Zoo</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
+               data-demo-physics="isaacsim_physx"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
+         <img src="../../_static/browser_demos/previews/microduck.jpg"
+              alt="MicroDuck warehouse scene" loading="lazy">
+         <span>MicroDuck Warehouse</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
