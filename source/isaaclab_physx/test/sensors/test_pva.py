@@ -85,6 +85,8 @@ class MySceneCfg(InteractiveSceneCfg):
     # created programmatically in the test fixture (see setup_sim).
     pendulum = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/pendulum",
+        # The converted root joint has no body relationship; PhysX's native clone changes its dynamics.
+        cloning_contexts=("isaaclab.cloner:UsdReplicateContext",),
         spawn=sim_utils.UrdfFileCfg(
             fix_base=True,
             merge_fixed_joints=True,
