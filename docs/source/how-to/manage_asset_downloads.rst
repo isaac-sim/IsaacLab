@@ -60,24 +60,7 @@ still downloads each asset; later runs use the local cache.
    If you run into cases where assets take a few minutes to load for each run,
    we recommend enabling asset caching following the below steps.
 
-   First, launch the Isaac Sim application:
-
-   .. tab-set::
-      :sync-group: os
-
-      .. tab-item:: :icon:`fa-brands fa-linux` Linux
-         :sync: linux
-
-         .. code:: bash
-
-            ./isaaclab.sh -s
-
-      .. tab-item:: :icon:`fa-brands fa-windows` Windows
-         :sync: windows
-
-         .. code:: batch
-
-            isaaclab.bat -s
+   Launch Isaac Sim with ``uv run --extra isaacsim isaaclab -s`` as shown above.
 
    On the top right of the Isaac Lab or Isaac Sim app, look for the icon labeled ``CACHE:``.
    You may see a message such as ``HUB NOT DETECTED`` or ``NEW VERSION DETECTED``.

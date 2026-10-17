@@ -56,8 +56,7 @@ Keep this skill synchronized with the following install docs. If commands or ver
 - `docs/source/isaaclab/installation.rst` — `installation-method-python-env` steps (managed uv sync with the isaacsim extra).
 - `docs/source/isaaclab/installation.rst` — `installation-method-wheel` steps (Isaac Lab Python package for external projects).
 - `docs/source/isaaclab/installation.rst` — `installation-method-source` steps (Isaac Sim source build).
-- `docs/source/how-to/manage_asset_downloads.rst` — the `installation-asset-region-profiles` workflow.
-- `docs/source/how-to/manage_asset_downloads.rst` — asset caching notes.
+- `docs/source/how-to/manage_asset_downloads.rst` — the `installation-asset-region-profiles` workflow and asset caching notes.
 - `docs/source/isaaclab/installation.rst` — Docker and cloud-workstation deep dive; complements `installation-method-container` and `installation-method-cloud` in `installation.rst`.
 - `docs/source/refs/troubleshooting.rst` — hand-off target for post-install diagnostics.
 

@@ -5,8 +5,8 @@
 
 .. _physx-backend:
 
-IsaacSim PhysX
-==============
+Isaac Sim PhysX
+===============
 
 The PhysX backend runs inside Isaac Sim through the ``isaaclab_physx`` package.
 See :ref:`physx-solver-tuning` for solver settings and tuning, or

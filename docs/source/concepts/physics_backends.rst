@@ -20,7 +20,7 @@ Choose a backend
 .. grid:: 1 1 3 3
    :gutter: 3
 
-   .. grid-item-card:: IsaacSim PhysX
+   .. grid-item-card:: Isaac Sim PhysX
       :link: /source/concepts/physics-backends/physx
       :link-type: doc
 
@@ -53,16 +53,16 @@ checkpoint's joint or body ordering differs from the target backend, use the
 
 .. _physics-backends-physx:
 
-IsaacSim PhysX
---------------
+Isaac Sim PhysX
+---------------
 
-IsaacSim PhysX runs through Isaac Sim and Omniverse Kit. It uses the Temporal
+Isaac Sim PhysX runs through Isaac Sim and Omniverse Kit. It uses the Temporal
 Gauss-Seidel (TGS) solver by default, with Projective Gauss-Seidel (PGS) also
 available. Configure scene settings through :class:`~isaaclab_physx.physics.PhysxCfg`
 and asset properties through :doc:`schema_cfgs`. Large or contact-rich scenes may
 need additional GPU buffer capacity.
 
-See :doc:`the IsaacSim PhysX guide <physics-backends/physx>` for runtime details
+See :doc:`the Isaac Sim PhysX guide <physics-backends/physx>` for runtime details
 and :ref:`physx-solver-tuning` for solver and buffer settings.
 
 

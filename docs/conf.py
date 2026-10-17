@@ -475,6 +475,13 @@ _streaming_how_to = "source/how-to/visualizer_streaming_camera_view"
 
 # Sections of moved or consolidated pages and where they live now.
 isaaclab_doc_redirect_fragments = {
+    "source/concepts/schema_fragments": {
+        "the-fragment-model": "source/concepts/schema_cfgs#add-backend-specific-settings",
+        "targeting-expressions": "source/concepts/schema_cfgs#configure-an-existing-robot",
+        "configuring-fragments-on-spawners": "source/concepts/schema_cfgs#add-backend-specific-settings",
+        "creating-missing-apis": "source/concepts/schema_cfgs#when-a-setting-does-not-apply",
+        "see-also": "source/concepts/schema_cfgs#schema-reference-and-implementation",
+    },
     "source/concepts/backend_architecture": {
         "overview": "source/concepts/backends_and_presets#backend-architecture",
     },
@@ -580,5 +587,4 @@ def update_environment_browser(app):
 
 def setup(app):
     app.connect("autodoc-skip-member", skip_member)
-    # Temporarily disabled while editing docs to avoid parsing every task configuration.
-    # app.connect("builder-inited", update_environment_browser)
+    app.connect("builder-inited", update_environment_browser)

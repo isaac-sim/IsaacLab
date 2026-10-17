@@ -476,6 +476,6 @@ Where to go next
 - :doc:`/source/features/hydra` covers scalar overrides, preset authoring,
   conflict handling, and advanced configuration behavior.
 - :ref:`physics-backends` compares physics backend runtime requirements,
-  runtime requirements, solver families, and intended uses.
+  solver families, and intended uses.
 - :doc:`/source/concepts/renderers` explains renderer selection and
   implementation details.
