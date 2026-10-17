@@ -276,11 +276,7 @@ class Camera(SensorBase):
         # HDR-routing flag flipped on the RTX-bearing backends.
         require_hdr_output = "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None
 
-        # TODO(follow-up PR): move this flag flip out of Camera. The cleanest path is
-        # an apply_pre_reset_settings() hook on RendererCfg (default no-op) that
-        # IsaacRtxRendererCfg overrides to flip /isaaclab/render/rtx_sensors. The
-        # flag must be set pre-sim.reset() because SimulationContext.is_rendering
-        # and several env classes read it before the renderer's __init__ runs.
+        # Rendering policy is read before the first reset, so configure it during camera construction.
         if self.cfg.renderer_cfg.renderer_type == "isaac_rtx":
             from ...app.settings_manager import get_settings_manager
 
@@ -706,8 +702,6 @@ class Camera(SensorBase):
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
         )
-
-        self._renderer.prepare_cameras(self.stage, render_spec)
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.

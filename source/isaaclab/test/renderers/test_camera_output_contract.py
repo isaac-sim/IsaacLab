@@ -69,6 +69,7 @@ def test_camera_isp_is_resolved_during_construction():
         assert all(not camera.is_initialized for camera in (authored, spawned, without_isp))
         # Scene authoring belongs to camera construction, without a second renderer lifecycle.
         assert not hasattr(BaseRenderer, "author_camera")
+        assert not hasattr(BaseRenderer, "prepare_cameras")
 
 
 @pytest.mark.parametrize("background", [None, (0.25, 0.5, 0.75)])

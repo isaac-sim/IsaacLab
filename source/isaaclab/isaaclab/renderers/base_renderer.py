@@ -63,20 +63,6 @@ class BaseRenderer(ABC):
         """
         return None
 
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Perform per-camera runtime setup after physics initialization.
-
-        Camera construction has already authored camera and ISP settings before scene import.
-        Renderer subclasses may inspect the resolved prims or configure runtime state here.
-        The default implementation is a no-op.
-
-        Args:
-            stage: Scene stage the camera prims live on, or ``None``
-                when no stage context applies. Stage-less backends ignore it.
-            spec: Immutable description of the tiled camera bundle.
-        """
-        return
-
     @abstractmethod
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Per-output layout (channels + dtype) this renderer can produce.

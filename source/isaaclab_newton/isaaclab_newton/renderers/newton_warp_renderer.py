@@ -439,8 +439,6 @@ class NewtonWarpRenderer(BaseRenderer):
         """Pre-physics initialization."""
         super().__init__(cfg, sim=sim)
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
-        # USD stage captured in ``prepare_cameras``; used by the segmentation mapper to read semantics.
-        self._stage: Any = None
         # Shared, scene-static segmentation lookup builder, created lazily in ``create_render_data``.
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
@@ -491,12 +489,17 @@ class NewtonWarpRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
         return self.cfg.supported_output_types()
 
-    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Retain the stage for segmentation labels and check for unsupported authored lens distortion."""
-        self._stage = stage
+    def prepare_stage(self, stage: Any, num_envs: int) -> None:
+        """No-op for Newton Warp - uses Newton scene directly without stage export.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+        pass
+
+    def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
+        """Create render data for the Newton tiled camera.
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
         if spec.cfg.spawn is None or spec.cfg.spawn.distortion is None:
             for path in spec.camera_prim_paths:
-                prim = stage.GetPrimAtPath(path)
+                prim = self._sim.stage.GetPrimAtPath(path)
                 if not prim.IsValid():
                     continue
                 schemas = prim.GetMetadata("apiSchemas")
@@ -511,22 +514,13 @@ class NewtonWarpRenderer(BaseRenderer):
                     )
                     break
 
-    def prepare_stage(self, stage: Any, num_envs: int) -> None:
-        """No-op for Newton Warp - uses Newton scene directly without stage export.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
-        pass
-
-    def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
-        """Create render data for the Newton tiled camera.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-
         # Build the shared segmentation mapper and its per-kind lookup tables up-front for all
         # requested segmentation outputs.
         has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
         has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
         if (has_semantic or has_instance) and self._seg_mapper is None:
             plan = self._sim.get_clone_plan()
-            self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, plan)
+            self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._sim.stage, self.cfg, plan)
         if has_semantic:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)

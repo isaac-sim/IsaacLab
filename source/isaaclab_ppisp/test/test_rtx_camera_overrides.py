@@ -15,6 +15,7 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     stage = Usd.Stage.CreateInMemory()
     cam = UsdGeom.Camera.Define(stage, "/World/Camera")
     prim = cam.GetPrim()
+    prim.SetMetadata("apiSchemas", Sdf.TokenListOp.Create(prependedItems=["ExistingAPI"], deletedItems=["RetiredAPI"]))
     # Author non-neutral values to confirm the helper overrides them.
     prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float).Set(2.0)
     prim.CreateAttribute("exposure:fStop", Sdf.ValueTypeNames.Float).Set(2.8)
@@ -40,3 +41,6 @@ def test_apply_rtx_exposure_overrides_resets_authored_exposure_values():
     applied = list(api_schemas.prependedItems) + list(api_schemas.explicitItems) + list(api_schemas.appendedItems)
     assert "OmniRtxCameraAutoExposureAPI_1" in applied
     assert "OmniRtxCameraExposureAPI_1" in applied
+    assert "ExistingAPI" in applied
+    authored_schemas = stage.GetRootLayer().GetPrimAtPath(prim.GetPath()).GetInfo("apiSchemas")
+    assert authored_schemas.deletedItems == ["RetiredAPI"]

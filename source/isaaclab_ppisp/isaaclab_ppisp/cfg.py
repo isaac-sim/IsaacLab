@@ -358,9 +358,7 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
         resolved = auto_camera_ppisp_cfg(stage, camera_prim_path) if camera_prim_path else None
         if resolved is None and (isp_cfg == CameraISPMode.AUTO_ANY or not camera_prim_path):
             resolved = auto_any_ppisp_cfg(stage)
-        if resolved is None:
-            return None
-        return normalize_ppisp_cfg(resolved)
+        return resolved
     return normalize_ppisp_cfg(isp_cfg, stage=stage)
 
 

@@ -48,7 +48,6 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     import ovrtx
     import ovstage
     from isaaclab_ov.renderers import ovrtx_renderer
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
 
     monkeypatch.delenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", raising=False)
     monkeypatch.setenv("ISAAC_LAB_SHARE_OVSTAGE", "1")
@@ -56,12 +55,6 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     clone = ovstage.Stage.clone
     attach_physics = ovphysx.PhysX.attach_ovstage
     attach_renderer = ovrtx.Renderer.attach_ovstage
-    prepare = OVRTXRenderer.prepare_cameras
-
-    def prepare_final_spec(renderer, stage, spec):
-        assert renderer._sim.physics_manager._warmup_done
-        assert spec.num_instances == spec.view_count == 2
-        return prepare(renderer, stage, spec)
 
     def record_clone(stage, source, targets, **kwargs):
         copies.extend((source, target) for target in targets)
@@ -84,7 +77,6 @@ def test_kinematic_rigid_object_scale_and_pose_are_rendered(monkeypatch: pytest.
     monkeypatch.setattr(ovrtx_renderer, "export_stage_to_string", reject_duplicate_scene)
     monkeypatch.setattr(ovphysx.PhysX, "attach_ovstage", attach_physx)
     monkeypatch.setattr(ovrtx.Renderer, "attach_ovstage", attach_rtx)
-    monkeypatch.setattr(OVRTXRenderer, "prepare_cameras", prepare_final_spec)
     sim_cfg = SimulationCfg(device="cuda:0", gravity=(0.0, 0.0, 0.0), physics=OvPhysxCfg())
 
     @contextmanager
