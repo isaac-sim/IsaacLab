@@ -13,7 +13,7 @@ import warp as wp
 
 leapp = pytest.importorskip("leapp")
 
-from isaaclab.assets.articulation import BaseArticulationData
+from isaaclab.assets.articulation import BaseArticulation, BaseArticulationData
 from isaaclab.envs import mdp
 from isaaclab.envs.leapp_deployment_env import LeappDeploymentEnv, StateInputSpec
 from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
@@ -22,8 +22,8 @@ from isaaclab.utils import math as math_utils
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
-from isaaclab.utils.leapp.leapp_semantics import InputKindEnum
-from isaaclab.utils.leapp.proxy import _DataProxy, _EnvProxy
+from isaaclab.utils.leapp.leapp_semantics import InputKindEnum, OutputKindEnum
+from isaaclab.utils.leapp.proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy
 from isaaclab.utils.warp import ProxyArray
 
 
@@ -173,6 +173,55 @@ def test_camera_output_mapping_round_trips_through_deployment(monkeypatch: pytes
         "camera-task/camera_output_rgb": StateInputSpec(entity_name=entity_name, property_name=property_name)
     }
     assert env._read_inputs() == {"camera-task/camera_output_rgb": camera_data.output["rgb"].torch}
+
+
+def test_joint_target_write_round_trips_through_deployment():
+    """A subset joint action retains its target, joint order, and deployment connection."""
+    writes = []
+
+    class TargetAsset:
+        set_joint_position_target_index = BaseArticulation.set_joint_position_target_index
+        joint_names = ["cart_to_pole", "slider_to_cart"]
+        actuators = SimpleNamespace(
+            target_command=SimpleNamespace(set_position_index=lambda **kwargs: writes.append(kwargs))
+        )
+
+        def find_joints(self, names, preserve_order=False):
+            assert preserve_order
+            return [self.joint_names.index(name) for name in names], names
+
+    asset = TargetAsset()
+    outputs = []
+    proxy = _ArticulationWriteProxy(asset, "robot", "position", outputs, {}, set(), None)
+    target = torch.tensor([[0.25]])
+    proxy.set_joint_position_target_index(target=target, joint_ids=[1])
+
+    assert writes[0]["joint_ids"] == [1]
+    torch.testing.assert_close(writes[0]["value"], target)
+    assert len(outputs) == 1
+    output = outputs[0]
+    assert output.kind == OutputKindEnum.JOINT_POSITION
+    assert output.extra == {"isaaclab_connection": "write:robot:set_joint_position_target_index"}
+    assert output.element_names == [["slider_to_cart"]]
+
+    env = object.__new__(LeappDeploymentEnv)
+    env.scene = {"robot": asset}
+    env._leapp_desc = {"pipeline": {"inputs": {}, "outputs": {"task": [output.name]}}}
+    env.inference = SimpleNamespace(
+        nodes={
+            "task": SimpleNamespace(
+                output_descriptions=[{"name": output.name, "element_names": output.element_names, **output.extra}]
+            )
+        }
+    )
+    env._input_mapping = {}
+    env._output_mapping = {}
+    env._resolve_io()
+    changed_target = target + 0.5
+    env._write_outputs({f"task/{output.name}": changed_target})
+    assert len(writes) == 2
+    assert writes[1]["joint_ids"] == [1]
+    torch.testing.assert_close(writes[1]["value"], changed_target)
 
 
 @pytest.mark.parametrize("frame_stack,channel_first", [(1, True), (2, True), (2, False)])

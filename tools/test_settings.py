@@ -42,7 +42,6 @@ PER_TEST_TIMEOUTS = {
     "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_standalone_scripts.py": 3600,  # Runs every supported standalone launch in the selected CI runtime group
-    "test_leapp_export_simulation.py": 4000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
     # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
@@ -103,7 +102,6 @@ EXCLUSIVE_TESTS = [
     "test_kit_startup_performance.py",
     "test_robot_load_performance.py",
     # Kit's native extension loading and shutdown can deadlock when several apps run concurrently.
-    "test_leapp_export_simulation.py",
     "test_rmpflow_reset_stability.py",
 ]
 """Test files that run with no other test file alongside them, when a job runs several files at once."""
@@ -158,8 +156,6 @@ TESTS_TO_SKIP = [
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
-    # The six real-scene LEAPP exports run after merge; PRs use the tensor-only export flow.
-    "test_leapp_export_simulation.py",
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
     # Exercises tools/conftest.py itself, including a hang that has to be waited out in real time.
     # Needs no Isaac Sim and is not worth the CI spend. To run it when changing the orchestrator:

@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fast LEAPP export checks using tensor environments instead of a physics scene.
-
-The simulator-based scene and metadata check lives in test_leapp_export_simulation.py.
-These cases keep checkpoint loading, framework policy execution, LEAPP compilation,
-and replay on the regular CI path without paying for six scene launches.
-"""
+"""LEAPP checkpoint, policy, compilation, and replay checks without a physics scene."""
 
 from __future__ import annotations
 
@@ -172,7 +167,7 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
     )
     monkeypatch.setattr(module.gym, "make", lambda *args, **kwargs: env)
     if not direct:
-        # Manager annotation needs a real scene; its scene contract stays in the simulation test.
+        # Manager scene wiring is covered by focused proxy and action tests.
         monkeypatch.setattr(module, "prepare_export_env", lambda *args, **kwargs: task)
     real_capture = module.leapp_capture
 
@@ -243,8 +238,11 @@ def test_leapp_export_flow(backend: str, task: str, checkpoint_task: str, direct
 
 
 def test_fast_export_has_no_simulator_dependency():
-    """Keep scene and solver setup in the post-merge integration file."""
+    """Keep the export flow independent of scene and solver setup."""
     tree = ast.parse(Path(__file__).read_text())
+    export_dir = Path(__file__).parent
+    for obsolete_file in ("test_leapp_export_simulation.py", "leapp_synthetic_env.py", "leapp_synthetic_env_cfg.py"):
+        assert not (export_dir / obsolete_file).exists()
     forbidden_modules = {"isaaclab.sim", "isaaclab_newton", "isaaclab_physx"}
     forbidden_calls = {"launch_simulation", "SimulationContext"}
     for node in ast.walk(tree):

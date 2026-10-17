@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
 import gymnasium as gym
@@ -18,11 +17,8 @@ from tensordict import TensorDict
 
 from isaaclab.utils import to_dict
 
-from isaaclab_tasks.utils import load_cfg_from_registry
-
-# Policy term widths after history/image flattening in SyntheticPolicyCfg. Keeping the
-# per-term spaces also covers SB3's dictionary policy. The real export loads these
-# checkpoints against the actual environment, so incompatible shapes fail the e2e test.
+# Fixed policy term widths feed the synthetic checkpoints. Keeping per-term spaces
+# also covers SB3's dictionary policy; the tensor export replays every input.
 _POLICY_WIDTHS = {
     "joint_pos": 6,
     "joint_vel": 2,
@@ -192,42 +188,3 @@ def _create_sb3_checkpoint(env: _CheckpointEnv, cfg: dict, directory: Path) -> P
     finally:
         wrapped.close()
     return directory / "model.zip"
-
-
-def resolved_path_file(checkpoint_dir: Path) -> Path:
-    """Return the file that records the created checkpoint path."""
-    return checkpoint_dir / "checkpoint_path.txt"
-
-
-def task_checkpoint_dir(checkpoint_root: Path, backend_id: str, task_name: str) -> Path:
-    """Return the per-backend/task checkpoint directory."""
-    return checkpoint_root / backend_id / task_name
-
-
-def main() -> None:
-    """Build one CPU checkpoint for an export test, with no simulator or training."""
-    creators = {
-        "rsl_rl": _create_rsl_rl_checkpoint,
-        "rl_games": _create_rl_games_checkpoint,
-        "skrl": _create_skrl_checkpoint,
-        "sb3": _create_sb3_checkpoint,
-    }
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--spec", nargs=2, required=True, metavar=("BACKEND", "TASK"))
-    parser.add_argument("--checkpoint_root", type=Path, required=True)
-    args = parser.parse_args()
-    backend, task = args.spec
-    # These tiny models do not benefit from a thread pool sized for a CI host.
-    torch.set_num_threads(1)
-    torch.manual_seed(42)
-    np.random.seed(42)
-    cfg = load_cfg_from_registry(task, f"{backend}_cfg_entry_point")
-    directory = task_checkpoint_dir(args.checkpoint_root, backend, task)
-    directory.mkdir(parents=True, exist_ok=True)
-    env = _CheckpointEnv(task, backend)
-    checkpoint = creators[backend](env, cfg, directory)
-    resolved_path_file(directory).write_text(str(checkpoint), encoding="utf-8")
-
-
-if __name__ == "__main__":
-    main()
