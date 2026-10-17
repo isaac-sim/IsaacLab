@@ -25,13 +25,17 @@ import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
 from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402, F401
+from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
 from isaaclab_physx.physics import PhysxCfg  # noqa: E402
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
 from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.envs import ManagerBasedEnv  # noqa: E402
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider  # noqa: E402
+from isaaclab.sensors import CameraCfg  # noqa: E402
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -414,6 +418,85 @@ def test_initial_seed_with_scaled_parent(device):
         rtol=0,
     )
     view.close()
+
+
+# World translations of the four environment prims and of the camera inside each of them, in meters.
+ENV_ORIGINS = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0), (2.0, 2.0, 0.0))
+CAMERA_OFFSET = (0.5, -0.5, 1.0)
+# Every environment prim is rotated 90 degrees about X (quaternion x, y, z, w) and scaled by 2 along X.
+ENV_ORIENTATION = (0.7071068, 0.0, 0.0, 0.7071068)
+ENV_SCALE = (2.0, 1.0, 1.0)
+# CAMERA_OFFSET scaled by ENV_SCALE is (1.0, -0.5, 1.0). The rotation maps (x, y, z) to (x, -z, y).
+CAMERA_OFFSET_IN_WORLD = (1.0, -1.0, -0.5)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_hierarchy_update_keeps_seeded_world_poses(device, request):
+    """Verify that the Fabric Hierarchy update in ``sim.forward()`` keeps the world poses the view seeds.
+
+    The update recomposes the world matrices from the local matrices. The seed must therefore author the
+    parents' local matrices as well as their world matrices, in the matrix order Fabric Hierarchy uses.
+    """
+    _skip_if_unavailable(device)
+    stage = sim_utils.get_current_stage()
+    for i, origin in enumerate(ENV_ORIGINS):
+        sim_utils.create_prim(
+            f"/World/envs/env_{i}",
+            "Xform",
+            translation=origin,
+            orientation=ENV_ORIENTATION,
+            scale=ENV_SCALE,
+            stage=stage,
+        )
+        sim_utils.create_prim(f"/World/envs/env_{i}/Camera", "Camera", translation=CAMERA_OFFSET, stage=stage)
+    sim = sim_utils.SimulationContext(
+        sim_utils.SimulationCfg(dt=0.01, device=device, physics=PhysxCfg(), use_fabric=True)
+    )
+    sim.reset()
+    view = FrameView("/World/envs/env_[^/]*/Camera", device=device)
+    request.addfinalizer(view.close)
+    expected = torch.tensor(ENV_ORIGINS, device=device) + torch.tensor(CAMERA_OFFSET_IN_WORLD, device=device)
+
+    view.get_world_poses()
+    sim.forward()
+    view.get_world_poses(wp.array([1, 2], dtype=wp.int32, device=device))
+    sim.forward()
+    world_pos, _ = view.get_world_poses()
+    torch.testing.assert_close(torch.as_tensor(world_pos, device=device), expected, atol=1e-5, rtol=0)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_partial_env_reset_keeps_camera_world_pose(device):
+    """Verify that a camera keeps its world pose when its environment resets after the first reset.
+
+    ``env.reset`` runs ``sim.forward()``, whose Fabric Hierarchy update recomposes the camera world
+    matrices from the seeded local matrices of the environment prims.
+    """
+    _skip_if_unavailable(device)
+    cfg = make_empty_manager_based_env_cfg(device=device, num_envs=4, env_spacing=2.0)
+    cfg.sim.physics = PhysxCfg()
+    cfg.sim.use_fabric = True
+    cfg.sim.visualizer_cfgs = []
+    cfg.scene.camera = CameraCfg(
+        prim_path="{ENV_REGEX_NS}/Camera",
+        height=16,
+        width=16,
+        data_types=["distance_to_image_plane"],
+        offset=CameraCfg.OffsetCfg(pos=CAMERA_OFFSET, convention="opengl"),
+        spawn=sim_utils.PinholeCameraCfg(),
+        renderer_cfg=NewtonWarpRendererCfg(),
+    )
+    env = ManagerBasedEnv(cfg)
+    try:
+        camera = env.scene["camera"]
+        expected = env.scene.env_origins + torch.tensor(CAMERA_OFFSET, device=env.device)
+        env.reset()
+        env.reset(env_ids=torch.tensor([1, 2], device=env.device))
+        torch.testing.assert_close(camera.data.pos_w.torch, expected, atol=1e-4, rtol=0)
+    finally:
+        env.close()
+        # ``env.close()`` closes the stage, so the autouse fixture needs a new one to tear down.
+        sim_utils.create_new_stage()
 
 
 # ------------------------------------------------------------------
