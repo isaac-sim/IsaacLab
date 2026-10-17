@@ -288,10 +288,10 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     track_lin_vel = RewTerm(
-        func=mdp.track_linear_velocity, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.1)}
+        func=mdp.track_linear_velocity_heading, weight=4.0, params={"command_name": "base_velocity", "std": 0.15}
     )
     track_ang_vel = RewTerm(
-        func=mdp.track_angular_velocity, weight=2.0, params={"command_name": "base_velocity", "std": math.sqrt(0.5)}
+        func=mdp.track_angular_velocity_world, weight=4.0, params={"command_name": "base_velocity", "std": 0.35}
     )
     upright = RewTerm(func=mdp.upright, weight=2.0, params={"std": math.sqrt(0.05), "asset_cfg": _TRUNK_BODY_CFG})
     pose = RewTerm(
@@ -303,6 +303,7 @@ class RewardsCfg:
             "std_walking": {".*hip_yaw": 0.3, ".*hip_roll": 0.05, ".*hip_pitch": 0.4, ".*knee": 0.4, ".*ankle": 0.25},
             "walking_threshold": 0.01,
             "asset_cfg": SceneEntityCfg("robot", joint_names=MICRODUCK_LEG_JOINT_NAMES, preserve_order=True),
+            "standing_only": True,
         },
     )
     body_ang_vel = RewTerm(func=mdp.body_ang_vel_xy_l2, weight=-0.05, params={"asset_cfg": _TRUNK_BODY_CFG})
@@ -403,7 +404,7 @@ class CurriculumCfg:
     """Curriculum terms for the MDP."""
 
     action_rate_weight = _schedule(
-        "rewards.action_rate_l2.weight", (500, -0.2), (750, -0.4), (1000, -0.6), (1250, -0.8), (1500, -1.0)
+        "rewards.action_rate_l2.weight", (3000, -0.2), (4000, -0.4), (5000, -0.6), (6000, -0.8), (7000, -1.0)
     )
     head_pose_bias_weight = _schedule("rewards.head_pose_bias.weight", (600, -1.0), (1000, -2.0), (1500, -3.0))
     standing_envs = _schedule(

@@ -39,7 +39,9 @@ __all__ = [
     "joint_pos_limits_finite",
     "self_collision_cost",
     "track_angular_velocity",
+    "track_angular_velocity_world",
     "track_linear_velocity",
+    "track_linear_velocity_heading",
     "upright",
     # terminations
     "robot_state_is_nan",
@@ -77,7 +79,9 @@ from .rewards import (
     joint_pos_limits_finite,
     self_collision_cost,
     track_angular_velocity,
+    track_angular_velocity_world,
     track_linear_velocity,
+    track_linear_velocity_heading,
     upright,
 )
 from .terminations import robot_state_is_nan
