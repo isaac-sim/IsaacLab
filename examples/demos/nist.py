@@ -23,8 +23,12 @@ Use --visualizer none --max_steps 1 for a headless smoke test.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import os
 import random
-from typing import NamedTuple
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING, NamedTuple
 
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
@@ -55,6 +59,12 @@ from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.nist_throughput import ThroughputMeasurement, write_report
+
+if TYPE_CHECKING:
+    from isaaclab.utils.nist_latency import LatencyMeasurement
+    from isaaclab.utils.nist_memory import MemoryRecorder
+    from isaaclab.utils.nist_outcomes import OutcomeRecorder
 
 
 class Assembly(NamedTuple):
@@ -306,6 +316,7 @@ def assembly_terminated(env: ManagerBasedRLEnv) -> torch.Tensor:
     success = (assembled == 10) & ~failed
     env.extras["assembly_count"] = assembled
     env.extras["assembly_success"] = success
+    env.extras["assembly_failed"] = failed
     env.extras["assembly_steps"] = env.episode_length_buf.clone()
     return success | failed
 
@@ -567,9 +578,36 @@ class NistEnvCfg(ManagerBasedRLEnvCfg):
 
 def main() -> None:
     """Load the pretrained TorchScript actor and run complete ten-part assembly episodes."""
+    startup_started = time.perf_counter()
+    main_entered_ns = time.monotonic_ns()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--num_envs", type=int, default=1, help="Independent boards simulated in parallel.")
     parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
+    parser.add_argument(
+        "--throughput_steps",
+        type=int,
+        default=0,
+        help="Measure this many control steps after warmup; zero keeps the ordinary demo loop.",
+    )
+    parser.add_argument(
+        "--throughput_warmup_steps",
+        type=int,
+        default=0,
+        help="Run this many original-policy control steps before measuring throughput.",
+    )
+    parser.add_argument("--throughput_output", default="nist-throughput.json", help="Throughput result JSON path.")
+    parser.add_argument(
+        "--latency_steps",
+        type=int,
+        default=0,
+        help="Collect this many outer-synchronized batched env.step latency samples in a separate diagnostic run.",
+    )
+    parser.add_argument(
+        "--latency_warmup_steps", type=int, default=0, help="Original-policy control steps before latency sampling."
+    )
+    parser.add_argument(
+        "--latency_output", default="nist-latency.json", help="Latency samples and per-board activity JSON path."
+    )
     add_launcher_args(parser)
     parser.set_defaults(visualizer=["newton_rtx"])
     args = parser.parse_args()
@@ -577,8 +615,119 @@ def main() -> None:
         parser.error("num_envs must be positive.")
     if args.max_steps == 0 or args.max_steps < -1:
         parser.error("max_steps must be positive or -1.")
+    if args.throughput_steps < 0 or args.throughput_warmup_steps < 0:
+        parser.error("Throughput and warmup step counts must be nonnegative.")
+    if args.latency_steps < 0 or args.latency_warmup_steps < 0:
+        parser.error("Latency and warmup step counts must be nonnegative.")
+    if args.throughput_steps and args.latency_steps:
+        parser.error("Latency synchronizes each step; use a separate invocation for normal-schedule throughput.")
+    memory = None
+    memory_path = os.environ.get("NIST_MEMORY_EVENTS")
+    if memory_path:
+        import isaaclab.utils.assets as assets_module
+        from isaaclab.utils.nist_memory import MemoryRecorder, TorchAllocatorProbe
+
+        memory = MemoryRecorder(
+            memory_path, TorchAllocatorProbe(torch.cuda, args.device), main_entered_ns=main_entered_ns,
+        )
+    measurement = None
+    outcomes = None
+    main_error = None
+    output_path = args.throughput_output
+    try:
+        if memory is not None:
+            memory.install_asset_observer(assets_module)
+        if args.throughput_steps:
+            measurement = ThroughputMeasurement(
+                args.num_envs,
+                args.throughput_warmup_steps,
+                args.throughput_steps,
+                lambda: None,
+                startup_started=startup_started,
+            )
+            # Replace any previous result before setup; a stopped invocation cannot inherit an old successful rate.
+            write_report(output_path, measurement.report())
+        elif args.latency_steps:
+            from isaaclab.benchmark.micro import measure_latency
+            from isaaclab.utils.nist_latency import LatencyMeasurement
+
+            output_path = args.latency_output
+            measurement = LatencyMeasurement(
+                args.num_envs,
+                args.latency_warmup_steps,
+                args.latency_steps,
+                lambda: None,
+                startup_started=startup_started,
+                measure=measure_latency,
+            )
+            write_report(output_path, measurement.report())
+        outcome_path = os.environ.get("NIST_OUTCOME_EVENTS")
+        outcome_report_path = os.environ.get("NIST_OUTCOME_REPORT")
+        if outcome_path or outcome_report_path:
+            from isaaclab.utils.nist_outcomes import OutcomeRecorder
+
+            outcome_path = outcome_path or str(Path(outcome_report_path).with_suffix(".jsonl"))
+            outcome_report_path = outcome_report_path or str(Path(outcome_path).with_suffix(".json"))
+            outcomes = OutcomeRecorder(
+                outcome_path, outcome_report_path, args.num_envs,
+                args.latency_warmup_steps if args.latency_steps else args.throughput_warmup_steps,
+                args.latency_steps or args.throughput_steps,
+                "latency" if args.latency_steps else "throughput" if args.throughput_steps else "ordinary_demo",
+                invocation_id=measurement.invocation_id if measurement is not None else None,
+                measurement_invocation_id=measurement.invocation_id if measurement is not None else None,
+            )
+        if memory is not None:
+            memory.emit(
+                "measurement_context", mode="latency" if args.latency_steps else "throughput" if args.throughput_steps else "ordinary_demo",
+                measurement_invocation_id=measurement.invocation_id if measurement is not None else None,
+                boards=args.num_envs, requested_warmup_control_steps=args.latency_warmup_steps if args.latency_steps else args.throughput_warmup_steps,
+                requested_measured_control_steps=args.latency_steps or args.throughput_steps,
+            )
+        run_policy(args, measurement, latency=bool(args.latency_steps), memory=memory, outcomes=outcomes)
+        if measurement is not None and not measurement.finished:
+            raise RuntimeError("Simulation stopped before the requested measurement window completed.")
+        if measurement is not None:
+            report = measurement.report()
+            if args.latency_steps:
+                print(f"NIST latency: {args.latency_steps} completed batched env.step samples", flush=True)
+            else:
+                print(f"NIST throughput: {report['environment_steps_per_second']:.3f} environment steps/s", flush=True)
+            write_report(output_path, report)
+    except BaseException as error:
+        main_error = error
+        if memory is not None:
+            memory.failure("main", error)
+        if measurement is not None:
+            write_report(output_path, measurement.report(error=error))
+        raise
+    finally:
+        if outcomes is not None:
+            outcomes.close(error=main_error)
+        if memory is not None:
+            memory.transition("shutdown", boundary_completion="not_drained", reason="main_finally")
+            memory.close()
+
+
+def _outcome_snapshot(extras, terminated, timed_out):
+    """Read native pre-reset state only at outer throughput boundaries."""
+    return {
+        "assembled_parts": extras["assembly_count"].detach().cpu().tolist(),
+        "assembly_success": extras["assembly_success"].detach().cpu().tolist(),
+        "episode_steps": extras["assembly_steps"].detach().cpu().tolist(),
+        "terminated": terminated.detach().cpu().tolist(),
+        "timed_out": timed_out.detach().cpu().tolist(),
+        "assembly_failed": extras["assembly_failed"].detach().cpu().tolist(),
+    }
+
+
+def run_policy(
+    args: argparse.Namespace, measurement: ThroughputMeasurement | LatencyMeasurement | None, *, latency: bool = False,
+    memory: MemoryRecorder | None = None, outcomes: OutcomeRecorder | None = None,
+) -> None:
+    """Run the native policy continuously through optional warmup and measurement."""
+    policy_path = retrieve_file_path(f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt")
     policy = torch.jit.load(
-        retrieve_file_path(f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/demo-alphaNIST.pt"),
+        policy_path,
         map_location=args.device,
     ).eval()
     cfg = NistEnvCfg(scene=NistSceneCfg(num_envs=args.num_envs))
@@ -587,6 +736,10 @@ def main() -> None:
     with launch_simulation(cfg=cfg, launcher_args=args) as physics:
         cfg.sim.physics = physics
         env = ManagerBasedRLEnv(cfg)
+        step = 0
+        loop_error = None
+        last_snapshot = None
+        setup_complete = False
         try:
             center = env.scene.env_origins.mean(dim=0).cpu()
             target = center + torch.tensor((0.35, 0.0, 0.4))
@@ -598,25 +751,162 @@ def main() -> None:
             completed = successes = 0
             if obs["policy"].shape != (args.num_envs, 195) or obs["slots"].shape != (args.num_envs, 5, 10, 40):
                 raise ValueError(f"Policy input mismatch: {obs['policy'].shape}, {obs['slots'].shape}")
+            if measurement is not None or outcomes is not None:
+                import warp as wp
+
+                device = torch.device(env.sim.device)
+                if device.type == "cuda" and device.index is None:
+                    device = torch.device("cuda", torch.cuda.current_device())
+
+                def complete_device() -> None:
+                    if device.type == "cuda":
+                        torch.cuda.synchronize(device)
+                        wp.synchronize_device(str(device))
+
+                if measurement is not None:
+                    measurement.complete_device = complete_device
+                if memory is not None:
+                    memory.probe.device = str(device)
+                configuration = {
+                    "device": str(device),
+                    "visualizer": args.visualizer,
+                    "seed": cfg.seed,
+                    "asset_identities": [{"identity": part.identity, "name": part.name} for part in cfg.assemblies],
+                    "physics_dt_seconds": cfg.sim.dt,
+                    "control_dt_seconds": env.step_dt,
+                    "physics_steps_per_control_step": cfg.decimation,
+                    "newton_num_substeps": getattr(cfg.sim.physics, "num_substeps", None),
+                    "native_use_cuda_graph": getattr(cfg.sim.physics, "use_cuda_graph", None),
+                    "physics_configuration": cfg.sim.physics.to_dict(),
+                    "episode_length_seconds": cfg.episode_length_s,
+                    "policy_sha256": hashlib.sha256(Path(policy_path).read_bytes()).hexdigest(),
+                    "demo_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                }
+                if memory is not None:
+                    configuration["memory_observation"] = {
+                        "events_path": memory.path,
+                        "invocation_id": memory.invocation_id,
+                        "scope": "Optional phase allocator reads and native reset JSONL writes; host observer work is included in this run's loop timing.",
+                        "additional_device_synchronization": False,
+                    }
+                if outcomes is not None:
+                    configuration["outcome_observation"] = {
+                        "events_path": outcomes.path,
+                        "report_path": outcomes.report_path,
+                        "invocation_id": outcomes.invocation_id,
+                        "scope": "Native terminal scalars and boundary progress snapshots; terminal host bookkeeping is included in throughput timing.",
+                        "additional_explicit_per_step_completion_callback": False,
+                        "blocking_host_transfers": "Terminal flag scalar reads and the latency assembly_failed vector copy can block while transferring GPU data to CPU; these are not additional explicit completion callbacks.",
+                        "progress_snapshot_schedule": "Warmup and measurement boundaries, or graceful stop; latency reuses existing full-step telemetry.",
+                    }
+                    outcomes.configure(configuration)
+                if measurement is not None:
+                    measurement.configuration = configuration
+            setup_complete = True
             with torch.inference_mode():
+                if measurement is not None:
+                    measurement.start()
+                if memory is not None:
+                    memory.transition(
+                        measurement.phase if measurement is not None else "measurement",
+                        boundary_completion="existing_device_drain" if measurement is not None else "not_drained",
+                        phase_complete=measurement is not None, reason="native_loop_start",
+                    )
                 step = 0
                 while env.sim.is_running() and (args.max_steps < 0 or step < args.max_steps):
                     actions = policy(obs["policy"], obs["slots"])
                     if not torch.isfinite(actions).all():
                         raise RuntimeError("Exported actor returned nonfinite actions.")
-                    obs, _, terminated, timed_out, extras = env.step(actions)
+                    if latency:
+                        obs, _, terminated, timed_out, extras = measurement.measure_step(lambda: env.step(actions))
+                    else:
+                        obs, _, terminated, timed_out, extras = env.step(actions)
                     step += 1
+                    if outcomes is not None:
+                        outcomes.step_returned(step)
+                    if latency:
+                        # Native extras describe this step before automatic reset; copy before the next step.
+                        # This collection is outside the timed env.step operation and its completion wait.
+                        last_snapshot = {
+                            "assembled_parts": extras["assembly_count"].detach().cpu().tolist(),
+                            "assembly_success": extras["assembly_success"].detach().cpu().tolist(),
+                            "episode_steps": extras["assembly_steps"].detach().cpu().tolist(),
+                            "terminated": terminated.detach().cpu().tolist(),
+                            "timed_out": timed_out.detach().cpu().tolist(),
+                        }
+                        measurement.observe_step(
+                            last_snapshot["assembled_parts"], last_snapshot["assembly_success"],
+                            last_snapshot["episode_steps"], last_snapshot["terminated"], last_snapshot["timed_out"],
+                        )
+                        if outcomes is not None:
+                            last_snapshot["assembly_failed"] = extras["assembly_failed"].detach().cpu().tolist()
+                    elif measurement is not None:
+                        measurement.step_returned()
+                    terminal_records = []
                     for env_id in torch.nonzero(terminated | timed_out).flatten().tolist():
                         completed += 1
-                        successes += int(extras["assembly_success"][env_id])
+                        success = int(extras["assembly_success"][env_id])
+                        successes += success
                         count = int(extras["assembly_count"][env_id])
-                        duration = int(extras["assembly_steps"][env_id]) * env.step_dt
+                        episode_steps = int(extras["assembly_steps"][env_id])
+                        duration = episode_steps * env.step_dt
+                        if memory is not None:
+                            memory.record_reset(env_id, step, count, bool(success), episode_steps)
                         print(
                             f"Episode {completed} (env {env_id}): {count}/10 assembled, {duration:.1f}s; "
                             f"complete-board successes {successes}/{completed}",
                             flush=True,
                         )
+                        if measurement is not None and not latency:
+                            measurement.observe_episode(env_id, step, count, bool(success), episode_steps)
+                        if outcomes is not None:
+                            terminal_records.append({
+                                "board_id": env_id, "assembled_parts": count, "complete_board": bool(success),
+                                "native_episode_steps": episode_steps,
+                                "terminated": bool(last_snapshot["terminated"][env_id]) if latency else bool(terminated[env_id]),
+                                "timed_out": bool(last_snapshot["timed_out"][env_id]) if latency else bool(timed_out[env_id]),
+                                "assembly_failed": bool(last_snapshot["assembly_failed"][env_id]) if latency else bool(extras["assembly_failed"][env_id]),
+                            })
+                    if outcomes is not None:
+                        outcomes.observe_step(step, terminal_records, progress=last_snapshot if latency else None)
+                    if measurement is not None:
+                        preceding_phase = measurement.phase
+                        measurement.finish_step()
+                        if outcomes is not None and measurement.phase != preceding_phase:
+                            if not latency:
+                                last_snapshot = _outcome_snapshot(extras, terminated, timed_out)
+                            outcomes.snapshot(step, last_snapshot, reason=preceding_phase + "_completed_after_existing_drain")
+                        if memory is not None and (measurement.finished or memory.phase != measurement.phase):
+                            memory.transition(
+                                "shutdown" if measurement.finished else measurement.phase,
+                                boundary_completion="existing_device_drain", phase_complete=True,
+                                reason="native_measurement_phase_completed",
+                            )
+                        if measurement.finished:
+                            if outcomes is not None:
+                                outcomes.capture_cutoff(collection_complete=True, reason="measurement_completed")
+                            break
+                if outcomes is not None and outcomes.cutoff is None:
+                    if step and outcomes.observed_step == step:
+                        if not latency:
+                            last_snapshot = _outcome_snapshot(extras, terminated, timed_out)
+                        outcomes.snapshot(step, last_snapshot, reason="graceful_stop_observation_transfers_only")
+                    outcomes.capture_cutoff(
+                        collection_complete=measurement is None,
+                        reason="ordinary_loop_stopped" if measurement is None else "measurement_stopped_early",
+                    )
+        except BaseException as error:
+            loop_error = error
+            raise
         finally:
+            if outcomes is not None and outcomes.cutoff is None:
+                outcomes.capture_cutoff(
+                    collection_complete=False,
+                    reason="exception_before_cutoff" if loop_error is not None else "setup_or_loop_stop",
+                    final_state_known=setup_complete and loop_error is None and outcomes.returned_step == outcomes.observed_step,
+                )
+            if memory is not None:
+                memory.transition("shutdown", boundary_completion="not_drained", reason="before_environment_close")
             env.close()
 
 
