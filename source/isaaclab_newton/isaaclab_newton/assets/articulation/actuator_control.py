@@ -84,12 +84,15 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return None
 
         articulation = self._articulation
-        # BAM's viscous friction is constant, so it lives in the joint model and survives property resyncs.
+        # BAM's viscous friction and armature are constant, so they live in the joint model and survive
+        # property resyncs. An explicit group armature was already written and wins over the fit's.
         for name, cfg in self._bam_cfgs.items():
+            joint_ids = collection._group_joint_indices[name]
             articulation.write_joint_viscous_friction_coefficient_to_sim_index(
-                joint_viscous_friction_coeff=cfg.motor.friction_viscous,
-                joint_ids=collection._group_joint_indices[name],
+                joint_viscous_friction_coeff=cfg.motor.friction_viscous, joint_ids=joint_ids
             )
+            if cfg.armature is None and cfg.motor.armature is not None:
+                articulation.write_joint_armature_to_sim_index(armature=cfg.motor.armature, joint_ids=joint_ids)
         adapter = SimulationManager._adapter
         if adapter is not None:
             arti_start = self._joint_dof_offset()

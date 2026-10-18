@@ -803,7 +803,8 @@ then reads servo angle plus play angle; missing or non-revolute pairs raise befo
 
 ``stiffness`` and ``damping`` are unused; the firmware gain is ``kp_fw``. Like other explicit
 actuators, BAM replaces existing actuator prims on the selected joints, and one motor fit applies to
-every joint in a group. Set the reflected rotor inertia through ``armature`` or on the joint.
+every joint in a group. Set the reflected rotor inertia through the fit's ``motor.armature``, the
+group's ``armature``, which takes precedence, or on the joint.
 
 .. list-table:: BAM motor coefficients (rotational servo)
    :header-rows: 1
@@ -822,6 +823,8 @@ every joint in a group. Set the reflected rotor inertia through ``armature`` or 
      - Maximum duty cycle [-], default 1, and current limit [A], required; 0 disables it.
    * - ``friction_base``, ``friction_viscous``
      - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
+   * - ``armature``
+     - Reflected rotor inertia [kg.m^2], applied as joint armature. Default None keeps the USD value.
    * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
      - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Defaults: 0, 1, and 1.
    * - ``load_friction_motor``, ``load_friction_external``
@@ -842,10 +845,11 @@ MJWarp coupling
 
 Each physics step the drive writes its friction budget into MuJoCo's ``dof_frictionloss``, so the
 solver resolves static friction with the other constraints. The external load is the previous
-solve's bias and constraint forces without the drive's own friction; applied body wrenches are not
-included. The viscous coefficient is applied once as passive joint damping and is visible through
-``data.joint_viscous_friction_coeff``. ``stiff_frictionloss=True`` uses a stiff friction-constraint
-reference to reduce creep, since MJWarp has no noslip solver.
+solve's bias and constraint forces without the drive's own friction, and zero on the first step after
+an environment reset; applied body wrenches are not included. The viscous coefficient is applied once
+as passive joint damping and is visible through ``data.joint_viscous_friction_coeff``.
+``stiff_frictionloss=True`` uses a stiff friction-constraint reference to reduce creep, since MJWarp
+has no noslip solver.
 
 :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reports motor torque only, and
 ``data.joint_friction`` reports the authored seed. Read the live budget with
