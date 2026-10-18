@@ -30,7 +30,7 @@ from collections.abc import Callable
 from contextlib import ExitStack
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
 
@@ -101,13 +101,10 @@ args_cli.enable_cameras = not args_cli.disable_external_cameras
 args_cli.require_kit = True
 
 # Call an external callback if requested.
-remaining_args_env_registration = None
 if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
-
-# Hand arguments consumed by neither this parser nor the callback over to Hydra.
-hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+    remaining = string_to_callable(args_cli.external_callback, separator=".")()
+    if remaining is not None:
+        _, hydra_args = setup_preset_cli(parser, remaining)
 sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""

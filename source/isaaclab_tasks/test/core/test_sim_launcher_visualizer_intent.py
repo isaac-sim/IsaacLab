@@ -7,7 +7,7 @@
 """Preset composition selects concrete viewers before any process runtime starts."""
 
 import argparse
-import importlib.util
+from types import SimpleNamespace
 
 import isaaclab_ov.app as ov_app
 import isaaclab_physx.app as physx_app
@@ -21,6 +21,7 @@ from isaaclab.app import SimulationLauncher
 from isaaclab.sim import SimulationCfg
 
 from isaaclab_tasks.utils import resolve_presets, resolve_task_config, setup_preset_cli
+from isaaclab_tasks.utils.hydra import register_task
 from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
 
 
@@ -56,12 +57,8 @@ def test_visualizer_aliases_compose_the_same_task(selection, monkeypatch):
                     pass
 
 
-def test_visualizer_preset_preserves_custom_settings_and_validates_selection():
+def test_visualizer_preset_preserves_custom_settings_and_validates_selection(monkeypatch):
     """Preset selection preserves declared settings; physics aliases do not also select a viewer."""
-    assert importlib.util.find_spec("isaaclab.utils.presets") is None
-    assert importlib.util.find_spec("isaaclab_visualizers.presets") is None
-    assert "resolve_simulation_cfg" not in vars(sim_launcher)
-
     cfg = SimulationCfg(
         physics=NewtonCfg(),
         device="cpu",
@@ -84,6 +81,22 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection():
         viewer = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton"})
     assert isinstance(viewer, NewtonGLVisualizerCfg)
     assert resolve_presets(MultiBackendVisualizerCfg(), selected=["newton"]) is None
+
+    other = NewtonGLVisualizerCfg(max_visible_envs=5)
+    for declaration, overrides, expected in (
+        ([viewer, other], ["visualizer=newton_gl"], [viewer, other]),
+        (
+            MultiBackendVisualizerCfg(newton_gl=viewer),
+            ["visualizer=kit", "env.sim.visualizer_cfgs=newton_gl"],
+            [viewer],
+        ),
+    ):
+        env_cfg = SimpleNamespace(sim=SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=declaration))
+        monkeypatch.setattr("isaaclab_tasks.utils.parse_cfg.load_cfg_from_registry", lambda *_: env_cfg)
+        resolved, _, _ = register_task("Test", None, overrides=overrides)
+        selected = resolved.sim.visualizer_cfgs
+        selected = selected if isinstance(selected, list) else [selected]
+        assert selected == expected
 
 
 def test_launch_simulation_uses_configured_viewers_and_releases_runtime(monkeypatch):

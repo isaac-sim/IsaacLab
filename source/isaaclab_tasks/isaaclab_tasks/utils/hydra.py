@@ -392,12 +392,11 @@ def _resolve_active_presets(
             choice = explicit.get(path)
             if choice is not None:
                 consumed_explicit.add(path)
-            else:
-                alternatives = _preset_fields(value).values()
-                for matches, names in (selectors or {}).items():
-                    if any(matches(alternative) for alternative in alternatives):
+            for matches, names in (selectors or {}).items():
+                if any(matches(alternative) for alternative in _preset_fields(value).values()):
+                    if choice is None:
                         choice = names
-                        consumed_selectors.add(matches)
+                    consumed_selectors.add(matches)
             value = _pick_alternative(value, selected, path or "<root>", choice, consumed_selected, on_selected)
         if isinstance(value, tuple):
             return tuple(resolve(child, f"{path}.{key}" if path else str(key)) for key, child in enumerate(value))
@@ -641,14 +640,17 @@ def register_task(
     if PresetTarget.VISUALIZER.matches in selectors.keys() - consumed_selectors:
         from .presets import MultiBackendVisualizerCfg
 
-        choices = MultiBackendVisualizerCfg()
+        selected = resolve_presets(
+            MultiBackendVisualizerCfg(), overrides={"": selectors[PresetTarget.VISUALIZER.matches]}
+        )
+        selected = selected if isinstance(selected, list) else [selected] if selected else []
         viewers = env_cfg.sim.visualizer_cfgs
         viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
-        for viewer in viewers:
-            vars(choices)[viewer.visualizer_type] = viewer
-        env_cfg.sim.visualizer_cfgs = resolve_presets(
-            choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]}
-        )
+        env_cfg.sim.visualizer_cfgs = [
+            viewer
+            for choice in selected
+            for viewer in [v for v in viewers if v.visualizer_type == choice.visualizer_type] or [choice]
+        ]
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win

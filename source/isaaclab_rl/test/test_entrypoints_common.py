@@ -268,26 +268,18 @@ def test_run_summary_reports_concrete_backends(
     selectors: list[str],
     expected_physics: str,
     expected_renderer: str,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The summary reports the backends the launch resolved."""
-    import isaaclab_ov.app as ov_app
-    import isaaclab_physx.app as physx_app
-
-    from isaaclab.app import SimulationLauncher, launch_simulation
+    from isaaclab.app import validate_launch
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
     task = "Isaac-Cartpole-Camera-Direct"
-    monkeypatch.setattr(rl_common.sys, "argv", ["train.py", *selectors])
-    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
+    env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point", overrides=selectors)
     screen = _RecordingScreen()
     args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
-    monkeypatch.setattr(physx_app, "KitLauncher", SimulationLauncher)
-    monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
-    with launch_simulation(env_cfg, args_cli):
-        pass
+    validate_launch(env_cfg, args_cli)
 
     rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
 
