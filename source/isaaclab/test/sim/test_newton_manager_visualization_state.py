@@ -21,12 +21,6 @@ from isaaclab.utils import replace
 pytestmark = pytest.mark.integration
 
 
-def _reset_newton_manager_state():
-    from isaaclab_newton.physics import NewtonManager
-
-    NewtonManager.clear()
-
-
 def _add_api_schemas(prim, schemas: list[str]) -> None:
     from pxr import Sdf
 
@@ -55,7 +49,7 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
 def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     """Consumers acquire a completed resource, including late consumers and replacement after close."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import NewtonBuilderCfg, NewtonManager
+    from isaaclab_newton.physics import NewtonBuilderCfg
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from newton import ModelBuilder
 
@@ -66,15 +60,15 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     from isaaclab.sim import SimulationContext
 
     class Manager(PhysicsManager):
-        _callbacks = {}
+        reset = forward = get_scene_data_backend = step = lambda self, *args, **kwargs: None
 
-    _reset_newton_manager_state()
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    manager = Manager()
+    manager._device = "cpu"
     asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+/Cube", spawn=SpawnerCfg(spawn_path="/Scene/Source/Cube"))
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=PhysicsCfg(), device="cpu")
-    sim.physics_manager = Manager
+    sim.physics_manager = manager
     sim.stage = Usd.Stage.CreateInMemory()
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(sim.stage, "/Scene/Source/Cube").GetPrim())
     sim._backend_registry = []
@@ -108,7 +102,6 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
     assert sim.get_or_create_backend(late.newton_cfg) is first
     assert finalized == [builder]
-    assert NewtonManager.backend is None
     sim.close_backend(first)
     assert len(sim._backend_registry) == 4
     assert first.model is first.state_0 is None
@@ -124,54 +117,51 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonManager, NewtonXPBDManager
+    from isaaclab_newton.physics import NewtonXPBDManager
     from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 
-    from isaaclab.physics import PhysicsManager
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
-    _reset_newton_manager_state()
-    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    manager = NewtonXPBDManager()
+    manager._device = "cpu"
     state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
-    backend = NewtonSceneDataBackend()
+    backend = NewtonSceneDataBackend(manager)
     provider = SceneDataProvider(backend)
-    monkeypatch.setattr(
-        NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
-    )
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", wp.zeros(2, dtype=wp.bool, device="cpu"))
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", wp.zeros(1, dtype=wp.bool, device="cpu"))
+    manager.backend = SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
+    manager._scene_data_backend = backend
+    manager._world_reset_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
+    manager._fk_reset_mask = wp.zeros(1, dtype=wp.bool, device="cpu")
     # Fabric may bind between native allocation and the solver's FK-hook initialization.
     assert backend.transforms.transforms is state.body_q
-    monkeypatch.setattr(NewtonManager, "_eval_fk", Mock())
-    monkeypatch.setattr(NewtonManager, "_reset_solver_internals_delegate", Mock())
+    manager._eval_fk = Mock()
+    manager._reset_solver_internals_delegate = Mock()
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()
     assert provider.get_transforms(output)
     matrices = output.matrices
-    NewtonManager.pre_render()
-    NewtonManager._eval_fk.assert_not_called()
+    manager.pre_render()
+    manager._eval_fk.assert_not_called()
     assert provider.get_transforms(SceneDataFormat.Transform())
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     assert wp.launch.call_count == 1
-    NewtonManager._eval_fk.assert_not_called()
+    manager._eval_fk.assert_not_called()
 
     state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
-    getattr(NewtonXPBDManager, invalidate)()
+    getattr(manager, invalidate)()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
-    NewtonManager._eval_fk.assert_called_once()
+    manager._eval_fk.assert_called_once()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
-    NewtonManager.pre_render()
-    NewtonManager._eval_fk.assert_called_once()
+    manager.pre_render()
+    manager._eval_fk.assert_called_once()
     assert wp.launch.call_count == 2
 
     replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    manager.backend.state_0 = SimpleNamespace(body_q=replacement)
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms is replacement

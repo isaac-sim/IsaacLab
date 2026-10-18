@@ -20,7 +20,6 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
 from ... import assets
-from ...physics.newton_manager import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -291,7 +290,7 @@ class randomize_visual_shape(ManagerTermBase):
         else:
             ids = asset_cfg.body_ids
         body_names = tuple(asset.body_names[index] for index in ids)
-        self._writer = NewtonManager.create_visual_shape_color_writer(asset, body_names)
+        self._writer = env.sim.physics_manager.create_visual_shape_color_writer(asset, body_names)
         self._sample = _compile_distribution(channels["color"], env.device)
         self._all_env_ids = torch.arange(env.num_envs, dtype=torch.int32, device=self._writer.device)
 
@@ -306,7 +305,7 @@ class randomize_visual_shape(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
-        model = NewtonManager.get_model()
+        model = env.sim.physics_manager.get_model()
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)

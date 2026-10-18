@@ -355,7 +355,8 @@ class AssetBase(Asset, ABC):
 
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
-        physics_mgr_cls = SimulationContext.instance().physics_manager
+        self._sim = SimulationContext.instance()
+        physics_mgr = self._physics_manager = self._sim.physics_manager
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
@@ -364,29 +365,29 @@ class AssetBase(Asset, ABC):
             getattr(obj_ref, callback_name)(event)
 
         # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
-        self._initialize_handle = physics_mgr_cls.register_callback(
+        self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
+                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr
             ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
-        self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
+        self._invalidate_initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr_cls
+                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr
             ),
             PhysicsEvent.STOP,
             order=10,
         )
         # Optional: prim deletion (only supported by Kit PhysX backend, not ovphysx)
         self._prim_deletion_handle = None
-        physics_backend = physics_mgr_cls.__name__.lower()
+        physics_backend = physics_mgr.backend_name
         if physics_backend.startswith("physx"):
             from isaaclab_physx.physics import IsaacEvents
 
-            self._prim_deletion_handle = physics_mgr_cls.register_callback(
+            self._prim_deletion_handle = physics_mgr.register_callback(
                 lambda event: PhysicsManager.safe_callback_invoke(
-                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr_cls
+                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr
                 ),
                 IsaacEvents.PRIM_DELETION,
             )
@@ -399,8 +400,8 @@ class AssetBase(Asset, ABC):
             :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            self._backend = SimulationContext.instance().physics_manager.get_backend()
-            self._device = SimulationContext.instance().physics_manager.get_device()
+            self._backend = self._physics_manager.get_backend()
+            self._device = self._physics_manager.get_device()
             self._initialize_impl()
             self._is_initialized = True
 

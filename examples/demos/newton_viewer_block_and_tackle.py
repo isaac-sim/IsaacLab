@@ -24,7 +24,7 @@ args_cli = parser.parse_args()
 import newton
 import newton.utils
 import warp as wp
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
@@ -285,14 +285,15 @@ def _build_system(builder: newton.ModelBuilder) -> tuple[int, list[wp.transform]
 
 def _initialize_wrapped_cable(cable_body_start: int, wrapped_xforms: list[wp.transform]) -> None:
     """Restore model defaults and wrap the structurally straight cable."""
-    model = NewtonManager.get_model()
+    physics_manager = sim_utils.SimulationContext.instance().physics_manager
+    model = physics_manager.get_model()
     wrapped = wp.array(wrapped_xforms, dtype=wp.transform, device=model.device)
-    for state in (NewtonManager.get_state_0(), NewtonManager.get_state_1()):
+    for state in (physics_manager.get_state_0(), physics_manager.get_state_1()):
         wp.copy(state.body_q, model.body_q)
         wp.copy(state.body_qd, model.body_qd)
         wp.copy(state.body_q, wrapped, dest_offset=cable_body_start, count=len(wrapped_xforms))
         state.body_f.zero_()
-    NewtonManager._solver.reset(NewtonManager.get_state_0(), flags=0)
+    physics_manager._solver.reset(physics_manager.get_state_0(), flags=0)
 
 
 def run_simulator(sim: sim_utils.SimulationContext) -> None:

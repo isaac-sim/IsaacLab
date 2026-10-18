@@ -11,7 +11,6 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 
 from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
@@ -81,8 +80,11 @@ class ParticleSurfaceRenderer:
         if not self._visualizers and self._kit_mesh is None:
             raise RuntimeError("Particle surface rendering requires a Kit, Newton GL or RTX visualizer.")
 
-        self._model = NewtonManager.get_model()
-        self._state = NewtonManager.get_state_0()
+        from isaaclab.sim import SimulationContext
+
+        physics_manager = SimulationContext.instance().physics_manager
+        self._model = physics_manager.get_model()
+        self._state = physics_manager.get_state_0()
         self._surface = surface
         self._path = path
         self._color = color

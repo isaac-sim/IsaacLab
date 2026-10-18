@@ -36,7 +36,7 @@ elif sys.platform not in ("win32", "darwin"):
         del _pyglet_xlib
 
 import newton
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
 
@@ -855,7 +855,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         )
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            NewtonManager.register_state_force_callback(self._viewer_picking_binding.apply)
+            sim.physics_manager.register_state_force_callback(self._viewer_picking_binding.apply)
         if self.cfg.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
@@ -879,7 +879,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    contacts = NewtonManager.get_contacts()
+                    contacts = self._sim.physics_manager.get_contacts() if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
                     else:

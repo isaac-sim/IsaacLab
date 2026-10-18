@@ -287,9 +287,7 @@ Get the active OvPhysX handle from the manager after the lifecycle prerequisite:
 
 .. code-block:: python
 
-   from isaaclab_ov.physics import OvPhysxManager
-
-   physx = OvPhysxManager.get_physx_instance()
+   physx = sim.physics_manager.get_physx_instance()
    if physx is None:
        raise RuntimeError("OvPhysX has not been constructed; initialize and reset the simulation first.")
 
@@ -320,7 +318,6 @@ type:
 .. code-block:: python
 
    import warp as wp
-   from isaaclab.physics import PhysicsManager
    from ovphysx.types import TensorType
 
    binding = physx.create_tensor_binding(
@@ -331,7 +328,7 @@ type:
        poses = wp.empty(
            tuple(binding.shape),
            dtype=wp.float32,
-           device=PhysicsManager.get_device(),
+           device=sim.physics_manager.get_device(),
        )
        binding.read(poses)
        binding.write(poses)
@@ -349,13 +346,12 @@ with the native runtime and a Tensor API pattern:
 
 .. code-block:: python
 
-   from isaaclab.physics import PhysicsManager
    from isaaclab_ov.sim.views import OvPhysxView
 
    view = OvPhysxView(
        physx,
        pattern="/World/envs/env_*/Object",
-       device=PhysicsManager.get_device(),
+       device=sim.physics_manager.get_device(),
    )
    try:
        if view.try_binding_for("rigid_body_pose") is not None:

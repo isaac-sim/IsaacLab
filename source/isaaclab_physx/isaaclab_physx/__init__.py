@@ -19,7 +19,7 @@ except importlib.metadata.PackageNotFoundError:
 _SIMULATION_MANAGER_ENABLE_HOOK: Any | None = None
 
 
-def _patch_isaacsim_simulation_manager() -> None:
+def _patch_isaacsim_simulation_manager(manager: Any | None = None) -> None:
     """Patch legacy Isaac Sim's ``SimulationManager`` to use :class:`PhysxManager`.
 
     New Isaac Sim versions support disabling their default lifecycle callbacks
@@ -58,6 +58,10 @@ def _patch_isaacsim_simulation_manager() -> None:
 
     :meth:`PhysxManager.initialize` subscribes to extension enablement so the
     patch is re-applied if optional Isaac Sim code loads the manager later.
+
+    Args:
+        manager: The :class:`PhysxManager` instance that replaces Isaac Sim's class. Defaults to the active
+            simulation context's manager; without one, only the default callbacks are disabled.
     """
     original_module = sys.modules.get("isaacsim.core.simulation_manager")
     if original_module is None:
@@ -91,7 +95,14 @@ def _patch_isaacsim_simulation_manager() -> None:
                 if hasattr(original_class, attr):
                     setattr(original_class, attr, None)
 
-    original_module.SimulationManager = PhysxManager
+    if manager is None:
+        from isaaclab.sim import SimulationContext  # noqa: PLC0415
+
+        sim = SimulationContext.instance()
+        manager = getattr(sim, "physics_manager", None)
+    if not isinstance(manager, PhysxManager):
+        return
+    original_module.SimulationManager = manager
     original_module.IsaacEvents = IsaacEvents
 
 
@@ -112,7 +123,7 @@ def _default_callbacks_disabled_at_startup(original_class: type) -> bool:
 def _get_original_simulation_manager_class(original_module: ModuleType, physx_manager: type) -> type | None:
     """Return Isaac Sim's implementation class, including after a module-level patch."""
     original_class = getattr(original_module, "SimulationManager", None)
-    if original_class is not physx_manager:
+    if original_class is not physx_manager and not isinstance(original_class, physx_manager):
         return original_class
 
     implementation_module = sys.modules.get("isaacsim.core.simulation_manager.impl.simulation_manager")

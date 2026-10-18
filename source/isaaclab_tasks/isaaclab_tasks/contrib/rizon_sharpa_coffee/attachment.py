@@ -11,8 +11,9 @@ import re
 from typing import TYPE_CHECKING
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
 from newton import JointType
+
+from isaaclab.sim import SimulationContext
 
 from .robot import PALM_BODY_NAME
 
@@ -40,7 +41,8 @@ class MountedSpoonAttachment:
         offset_pos: tuple[float, float, float],
         offset_rot: tuple[float, float, float, float],
     ):
-        self._model = NewtonManager.get_model()
+        self._physics_manager = SimulationContext.instance().physics_manager
+        self._model = self._physics_manager.get_model()
         palm_pattern = re.compile(robot.cfg.prim_path + "/" + re.escape(PALM_BODY_NAME))
         spoon_pattern = re.compile(spoon.cfg.prim_path)
         palm_ids, spoon_ids = [], []
@@ -76,11 +78,11 @@ class MountedSpoonAttachment:
         self._qd_starts = wp.array(qd_starts[spoon_joints], dtype=int, device=self._model.device)
         self._offset = wp.transform(wp.vec3(offset_pos), wp.quat(offset_rot))
         self._enabled = wp.ones(1, dtype=int, device=self._model.device)
-        NewtonManager.register_post_actuator_callback(self.sync)
+        self._physics_manager.register_post_actuator_callback(self.sync)
 
     def sync(self) -> None:
         """Write the mounted pose and COM twist to both native state buffers."""
-        state_0, state_1 = NewtonManager.get_state_0(), NewtonManager.get_state_1()
+        state_0, state_1 = self._physics_manager.get_state_0(), self._physics_manager.get_state_1()
         wp.launch(
             _sync_mounted_spoon,
             dim=self._palm_ids.size,

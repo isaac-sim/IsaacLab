@@ -85,9 +85,9 @@ All factories inherit from :class:`~isaaclab.utils.backend_utils.FactoryBase`.
 They locate supported backend implementations through a core backend-key
 selector followed by package and module-path conventions:
 
-1. The name of ``SimulationContext.physics_manager`` is mapped to one of the
-   backend keys recognized by ``FactoryBase._get_backend()``. Adding another
-   physics backend requires extending this core selector.
+1. ``FactoryBase._get_backend()`` returns the ``backend_name`` of the
+   ``SimulationContext.physics_manager`` instance. Adding another physics
+   backend requires setting this class attribute on its manager.
 2. The factory module path determines the backend module path. For example,
    ``isaaclab.assets.articulation`` maps to
    ``isaaclab_physx.assets.articulation``,
@@ -157,7 +157,7 @@ perspective cameras with identical initial settings remain independent; windows 
 explicitly share a declaration to reuse its image.
 
 Managers and native renderers expose their borrowed resource through ``backend``.
-For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+For example, ``sim.physics_manager.backend.model`` accesses the finalized native model of a Newton simulation.
 Closing a renderer releases its bindings, not the shared native resource.
 Exposing native handles does not replace SDP transport.
 

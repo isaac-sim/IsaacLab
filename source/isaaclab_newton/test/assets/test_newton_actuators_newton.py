@@ -38,7 +38,6 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton import JointTargetMode, JointType, ModelBuilder
 from newton.solvers import SolverMuJoCo
 from newton_test_utils import NUM_ENVS, local_usd, newton_sim_cfg, spawn_assets
@@ -283,12 +282,12 @@ def _run(
         articulation.reset()
 
     if use_newton_actuators and decimation > 1:
-        SimulationManager.set_decimation(decimation)
+        sim.physics_manager.set_decimation(decimation)
     handles_dec = (
         use_newton_actuators
         and decimation > 1
-        and SimulationManager._is_all_graphable()
-        and SimulationManager._decimation > 1
+        and sim.physics_manager._is_all_graphable()
+        and sim.physics_manager._decimation > 1
     )
 
     results = {}
@@ -549,8 +548,10 @@ def test_prepare_native_actuators_activates_only_explicit_groups(monkeypatch, ac
         find_joints=lambda _: ([0], ["joint"]),
         write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
         write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
+        _physics_manager=SimpleNamespace(
+            backend=None, activate_newton_actuator_path=lambda: activation_calls.append(True)
+        ),
     )
-    monkeypatch.setattr(SimulationManager, "activate_newton_actuator_path", lambda: activation_calls.append(True))
 
     control = NewtonActuatorControl(articulation)
     group_name = "explicit" if expected_native_groups else "implicit"
@@ -906,7 +907,7 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
         "cartpole": (newton_run.articulations["cartpole"], "all_joints"),
     }
     legs = groups["legs"][0]
-    assert SimulationManager._adapter is not None
+    assert newton_run.sim.physics_manager._adapter is not None
 
     def gains(name: str) -> torch.Tensor:
         """Return the ``(kp, kd)`` gains of one articulation's actuator group, shape ``(2, num_envs, num_joints)``."""
@@ -949,7 +950,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     islands' actuators share its state buffers; their state is not part of this articulation's contract.
     """
     articulation = newton_run.articulations["delayed"]
-    adapter = SimulationManager._adapter
+    adapter = newton_run.sim.physics_manager._adapter
     assert adapter is not None
     own_actuators = []
     for group_name in articulation.actuators._native_group_names:

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import warp as wp
 
@@ -39,18 +39,15 @@ class MockNewtonModel:
 
 
 def create_mock_newton_manager(
-    patch_path: str,
     gravity: tuple[float, float, float] = (0.0, 0.0, -9.81),
     num_instances: int = 1,
     num_bodies: int = 1,
     num_joints: int = 0,
     is_fixed_base: bool = False,
 ):
-    """Create a mock NewtonManager for testing.
+    """Create a mock NewtonManager instance for testing.
 
     Args:
-        patch_path: The module path to patch
-            (e.g., "isaaclab_newton.assets.articulation.articulation_data.NewtonManager").
         gravity: Gravity vector to use for the mock model.
         num_instances: Number of articulation instances in the mock model.
         num_bodies: Number of bodies in each mock articulation.
@@ -58,7 +55,7 @@ def create_mock_newton_manager(
         is_fixed_base: Whether the mock articulation has a fixed base.
 
     Returns:
-        A context manager that patches the NewtonManager.
+        A mock manager to pass as an asset's or data container's ``physics_manager``.
     """
     mock_model = MockNewtonModel(
         gravity,
@@ -70,8 +67,7 @@ def create_mock_newton_manager(
     mock_state = MagicMock()
     mock_control = MagicMock()
 
-    return patch(
-        patch_path,
+    return MagicMock(
         **{
             "get_model.return_value": mock_model,
             "get_state_0.return_value": mock_state,

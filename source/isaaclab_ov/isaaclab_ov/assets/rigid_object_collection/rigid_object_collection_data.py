@@ -18,7 +18,7 @@ from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
-from isaaclab_ov.physics import OvPhysxManager as SimulationManager
+from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 
@@ -61,6 +61,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         root_view: OvPhysxView,
         num_bodies: int,
         device: str,
+        *,
+        physics_manager: OvPhysxManager,
     ):
         """Initializes the rigid object data.
 
@@ -70,8 +72,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 from the underlying ``RIGID_BODY_*`` type via ``key_aliases``).
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
+            physics_manager: The OVPhysX manager instance that owns the simulation.
         """
         super().__init__(root_view, num_bodies, device)
+        self._physics_manager = physics_manager
         # The view owns the fused bindings and the CPU/GPU device policy.
         self._view = root_view
         self.num_bodies = num_bodies
@@ -95,8 +99,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             self.num_instances = pose_binding.count // num_bodies
         self._num_instances = self.num_instances
 
-        if SimulationManager._sim is not None and hasattr(SimulationManager._sim, "cfg"):
-            gravity = SimulationManager._sim.cfg.gravity
+        if self._physics_manager._sim is not None and hasattr(self._physics_manager._sim, "cfg"):
+            gravity = self._physics_manager._sim.cfg.gravity
         else:
             gravity = (0.0, 0.0, -9.81)
 
@@ -407,7 +411,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 device=self.device,
                 inputs=[
                     self.body_com_vel_w.warp,
-                    SimulationManager.get_physics_dt(),
+                    self._physics_manager.get_physics_dt(),
                     self._previous_body_com_vel,
                 ],
                 outputs=[

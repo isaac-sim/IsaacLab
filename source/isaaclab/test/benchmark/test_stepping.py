@@ -35,7 +35,7 @@ from isaaclab.benchmark.stepping import (
     ],
 )
 def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, inherited, fail):
-    """Profile complete steps once and restore the class across failures and repeated runs."""
+    """Profile complete steps once and restore the manager across failures and repeated runs."""
     import warp as wp
 
     from isaaclab.physics import PhysicsManager
@@ -43,14 +43,14 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
     calls = []
 
     class BaseManager(PhysicsManager):
-        @classmethod
-        def step(cls):
-            assert cls is manager
+        reset = forward = get_scene_data_backend = lambda self, *args, **kwargs: None
+
+        def step(self):
+            assert self is manager
             calls.append("base")
 
     class CoupledManager(BaseManager):
-        @classmethod
-        def step(cls):
+        def step(self):
             calls.append("before")
             super().step()
             calls.append("after")
@@ -60,7 +60,7 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
     class InheritedManager(CoupledManager):
         pass
 
-    manager = InheritedManager if inherited else CoupledManager
+    manager = (InheritedManager if inherited else CoupledManager)()
     synchronize = Mock(wraps=wp.synchronize)
     monkeypatch.setattr(wp, "synchronize", synchronize)
 
@@ -77,7 +77,7 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
     assert all(scope == PHYSICS_PROFILE_SCOPE and elapsed >= 0.0 for scope, elapsed in timings)
     assert PHYSICS_PROFILE_SCOPE not in capsys.readouterr().out
     assert manager.step == original_step
-    assert ("step" in vars(manager)) is not inherited
+    assert "step" not in vars(manager)
 
     fail = False
     manager.step()

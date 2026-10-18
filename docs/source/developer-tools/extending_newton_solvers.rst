@@ -40,9 +40,10 @@ is a custom force, impulse, or state transfer.
 Responsibilities and Boundaries
 -------------------------------
 
-:class:`~isaaclab_newton.physics.NewtonManager` is a class-level singleton: all
-state lives on the base class and there are no instance methods, so exactly one
-manager subclass is active per simulation.
+:class:`~isaaclab_newton.physics.NewtonManager` subclasses are instantiated by the
+simulation context, which owns exactly one manager instance as
+:attr:`~isaaclab.sim.SimulationContext.physics_manager`. All runtime state lives
+on that instance.
 
 .. list-table::
    :header-rows: 1
@@ -119,7 +120,7 @@ class invokes them.
      - ``_reset_solver_internals()`` (via ``forward()``)
    * - :meth:`~isaaclab_newton.physics.NewtonManager.close` and
        :meth:`~isaaclab_newton.physics.NewtonManager.clear`
-     - Releases the solver, model, and all class-level state.
+     - Releases the solver, model, and all manager state.
      - ``_solver_specific_clear()``
 
 ``_build_solver()`` runs after the model is finalized, so it may size solver
@@ -147,17 +148,17 @@ additionally checks ``_requires_initial_reset_before_graph_capture()``.
 .. warning::
 
    With ``_use_single_state = False`` the base manager ping-pongs
-   ``NewtonManager._state_0`` and ``NewtonManager._state_1`` after each substep,
+   ``self.backend.state_0`` and ``self.backend.state_1`` after each substep,
    except on the final substep of an odd count, where it copies instead. Never
    cache a ``State`` reference in ``_build_solver()``; read the current state
-   through the class attribute on each use.
+   through the manager on each use.
 
 
 Extension Contract
 ------------------
 
-A subclass must implement ``_build_solver()`` and assign four slots on
-``NewtonManager`` itself, not on ``cls``.
+A subclass must implement ``_build_solver()`` and assign four slots on the
+manager instance (``self``).
 :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` raises
 ``RuntimeError`` if ``_solver`` is still unset. The other three are not
 validated and keep their defaults, so a subclass that forgets them runs with
@@ -198,12 +199,11 @@ double-buffered states, no collision pipeline, and no visualizer force input.
 
 
    class NewtonMySolverManager(NewtonManager):
-       @classmethod
-       def _build_solver(cls, model: Model, solver_cfg: MySolverCfg) -> None:
-           NewtonManager._solver = SolverMySolver(model, iterations=solver_cfg.iterations)
-           NewtonManager._use_single_state = False
-           NewtonManager._needs_collision_pipeline = True
-           NewtonManager._supports_rigid_body_force_input = True
+       def _build_solver(self, model: Model, solver_cfg: MySolverCfg) -> None:
+           self._solver = SolverMySolver(model, iterations=solver_cfg.iterations)
+           self._use_single_state = False
+           self._needs_collision_pipeline = True
+           self._supports_rigid_body_force_input = True
 
 Override anything else only when the solver needs it:
 
@@ -222,7 +222,7 @@ Override anything else only when the solver needs it:
   execution.
 * ``_requires_initial_reset_before_graph_capture()``: delay headless capture
   until the first post-reset step.
-* ``_solver_specific_clear()``: release class-level state the subclass owns.
+* ``_solver_specific_clear()``: release manager state the subclass owns.
 * ``_check_solver_status()`` and ``_log_solver_debug()``: run after stepping.
 
 :class:`~isaaclab_newton.physics.NewtonMPMManager` overrides both builder hooks.

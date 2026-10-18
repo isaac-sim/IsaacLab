@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 from filelock import FileLock
-from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
 from newton import BodyFlags, GeoType, StateFlags
 from newton.solvers.experimental.coupled import SolverCoupled
 from scipy.interpolate import CubicSpline
@@ -632,8 +632,7 @@ class _TeapotColliderSyncSolver(SolverCoupled):
 class NewtonTeapotCouplerManager(NewtonCouplerManager):
     """Couple the dynamic grasped pot to its exact MPM collision shell."""
 
-    @classmethod
-    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+    def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:
         """Keep generated rigid hulls above the exact shell's body-local base plane."""
         for body, label in enumerate(builder.body_label):
             if not label.endswith("/PourContainer"):
@@ -678,8 +677,7 @@ class NewtonTeapotCouplerManager(NewtonCouplerManager):
         # generated support geometry before that classification is lost.
         super()._prepare_builder_for_finalize(builder)
 
-    @classmethod
-    def _build_proxy_coupled_solver(cls, model, entries, proxy_cfgs, solver_cfg):
+    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
         return _TeapotColliderSyncSolver(model=model, entries=entries)
 
 
@@ -709,6 +707,8 @@ class TeapotPourMotion:
         import mujoco
         from scipy.optimize import least_squares
 
+        from isaaclab.sim import SimulationContext
+
         if not 0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
             raise ValueError("Closure, pickup and sequence timings must be strictly ordered.")
         if not math.isclose(sim_dt, 1.0 / 800.0, rel_tol=1.0e-9):
@@ -732,7 +732,7 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = NewtonManager._solver.solver("robot").mj_model
+        mj = SimulationContext.instance().physics_manager._solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]

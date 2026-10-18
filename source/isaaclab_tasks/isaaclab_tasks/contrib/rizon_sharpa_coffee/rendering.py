@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonManager, NewtonMPMManager
+from isaaclab_newton.physics import NewtonMPMManager
 from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
 from newton.geometry import ParticleSurface
 
@@ -164,7 +164,8 @@ class CoffeeRendering:
             raise ValueError("color_mass_scale must be finite and positive.")
         if not math.isfinite(diffusion_rate) or diffusion_rate < 0:
             raise ValueError("diffusion_rate must be finite and nonnegative.")
-        self._model = NewtonManager.get_model()
+        self._physics_manager = env.sim.physics_manager
+        self._model = self._physics_manager.get_model()
         self._env = env
         self._visualizers = [
             visualizer
@@ -178,7 +179,11 @@ class CoffeeRendering:
             self._visualizers.extend(
                 visualizer for visualizer in env.sim.visualizers if isinstance(visualizer, CoffeeKitVisualizer)
             )
-        solvers = [solver for solver in NewtonMPMManager._implicit_mpm_solvers() if isinstance(solver, CoffeeMPMSolver)]
+        solvers = [
+            solver
+            for solver in NewtonMPMManager._implicit_mpm_solvers(self._physics_manager)
+            if isinstance(solver, CoffeeMPMSolver)
+        ]
         if len(solvers) != 1 or solvers[0].grains is None:
             raise ValueError("CoffeeRendering requires one CoffeeMPMSolver with grains_per_particle > 0.")
         if not self._visualizers:
@@ -267,7 +272,7 @@ class CoffeeRendering:
         dt = 0.0 if self._appearance_time is None else max(now - self._appearance_time, 0.0)
         self._appearance_time = now
         self._surface_cache = None
-        state = NewtonManager.get_state_0()
+        state = self._physics_manager.get_state_0()
         if self._water is not None:
             wp.copy(self._liquid_points, wp.indexedarray(state.particle_q, self._liquid_ids))
             # The coupled MPM view owns the converted particles' actual radii.

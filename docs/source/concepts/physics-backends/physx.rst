@@ -312,9 +312,7 @@ PhysX Tensor API view has been created:
 
 .. code-block:: python
 
-   from isaaclab_physx.physics import PhysxManager
-
-   simulation_view = PhysxManager.get_physics_sim_view()
+   simulation_view = sim.physics_manager.get_physics_sim_view()
    if simulation_view is None:
        raise RuntimeError("PhysX Tensor API is not ready; initialize and reset the simulation first.")
 

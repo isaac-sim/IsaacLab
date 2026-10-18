@@ -103,7 +103,6 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
     """Overlapping worlds retain distinct contacts and images across shared-stage control writes."""
     import ovrtx
     import torch
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
     from isaaclab_ppisp import PpispCfg
 
     from pxr import UsdPhysics
@@ -172,7 +171,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 assert prim.GetAttribute("omni:rtx:autoExposure:enabled").Get() is False
             # Full-stage consumers need authored copies, which prototype-only sharing cannot preserve.
             with monkeypatch.context() as full_stage:
-                full_stage.setattr(OvPhysxManager, "_requires_full_stage", True)
+                full_stage.setattr(sim.physics_manager, "_requires_full_stage", True)
                 with pytest.raises(ValueError, match="full-stage"):
                     sim.reset()
             sim.reset()
@@ -211,7 +210,7 @@ def test_shared_stage_isolates_contacts_and_interleaves_rendering_with_gravity(m
                 if not soft:
                     UsdPhysics.MassAPI(sim.stage.GetPrimAtPath("/World/envs/env_0/Body")).GetMassAttr().Set(2.0)
                     sim.stage.GetPrimAtPath("/World/envs/env_0/Body").GetAttribute("xformOp:scale").Set((1, 1, 2))
-                    OvPhysxManager._warmup_done = False
+                    sim.physics_manager._warmup_done = False
                 sim.reset(soft=soft)
                 scene.reset()
                 sim.physics_manager.set_gravity((0.0, 0.0, 0.0))

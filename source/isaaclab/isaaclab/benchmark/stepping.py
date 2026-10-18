@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
     from ..physics import PhysicsManager
     from ..renderers.render_context import RenderContext
-    from ..utils.string import ResolvableString
     from .schema import MeanStd
 
 
@@ -87,7 +86,7 @@ def profile_renderers(
 
 @contextmanager
 def profile_physics_steps(
-    physics_manager: type[PhysicsManager] | ResolvableString,
+    physics_manager: PhysicsManager,
     *,
     active: bool = True,
     timings: list[tuple[str, float]] | None = None,
@@ -95,12 +94,12 @@ def profile_physics_steps(
     """Temporarily time the benchmark's selected physics manager.
 
     Only the selected manager is wrapped, so inherited ``super().step()`` calls
-    are included in one timing record. The original class method is restored when
+    are included in one timing record. The original method is restored when
     the context exits, including on failure.
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
-        physics_manager: Concrete physics manager selected by the environment, or its lazy class reference.
+        physics_manager: Physics manager instance selected by the environment.
         active: Whether to install the timing wrapper.
         timings: Shared list of scope names and elapsed times [ms], in call order.
             A new list is created if omitted. Timings are collected without printing.
@@ -116,19 +115,17 @@ def profile_physics_steps(
 
     import warp as wp  # noqa: PLC0415
 
-    # The bound method identifies the concrete class even through a lazy class reference.
-    physics_manager = physics_manager.step.__self__
-    step = physics_manager.step.__func__
+    step = physics_manager.step
     missing = object()
     original = vars(physics_manager).get("step", missing)
     scope_timings = {PHYSICS_PROFILE_SCOPE: _ProfileScopeTimings(PHYSICS_PROFILE_SCOPE, timings)}
 
     @wraps(step)
-    def timed_step(cls: type[PhysicsManager]) -> None:
+    def timed_step() -> None:
         with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
-            return step(cls)
+            return step()
 
-    physics_manager.step = classmethod(timed_step)
+    physics_manager.step = timed_step
     try:
         yield timings
     finally:

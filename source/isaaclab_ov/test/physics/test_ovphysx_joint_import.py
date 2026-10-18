@@ -13,7 +13,7 @@ import pytest
 
 pytest.importorskip("ovphysx")
 
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_USES_TASKS
 from isaaclab_ov.sim.views import OvPhysxView
 
@@ -60,7 +60,7 @@ def test_legacy_joint_properties_reach_native_bindings():
             prim.CreateAttribute("physxJoint:jointFriction", Sdf.ValueTypeNames.Float).Set(0.5)
         sim.reset()
         with closing(
-            OvPhysxView(OvPhysxManager.get_physx_instance(), prim_paths=["/World/Robot"], device="cpu")
+            OvPhysxView(sim.physics_manager.get_physx_instance(), prim_paths=["/World/Robot"], device="cpu")
         ) as view:
             names = view.binding_for("articulation_dof_max_velocity").dof_names
             assert set(names) == {"Angular", "Linear"}
@@ -87,7 +87,7 @@ def test_joint_friction_is_an_effort():
             joint.CreateBody1Rel().SetTargets([f"{root}/Slider"])
         sim.reset()
         with closing(
-            OvPhysxView(OvPhysxManager.get_physx_instance(), prim_paths=["/World/Robot*"], device="cpu")
+            OvPhysxView(sim.physics_manager.get_physx_instance(), prim_paths=["/World/Robot*"], device="cpu")
         ) as view:
             view.set_attribute(
                 "articulation_dof_friction_properties",

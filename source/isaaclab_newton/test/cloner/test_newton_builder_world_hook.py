@@ -39,7 +39,7 @@ def test_newton_builder_world_hook_owns_one_registration(monkeypatch):
         pass
 
     hooks = [existing]
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", hooks)
+    monkeypatch.setattr(replicate_module, "_PER_WORLD_BUILDER_HOOKS", hooks)
 
     with pytest.raises(ValueError, match="stop"):
         with newton_builder_world_hook(temporary):
@@ -65,7 +65,8 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     body = source.add_body()
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {"/World/Source": source})
+    sim = SimpleNamespace(physics_manager=SimpleNamespace(_cl_protos={"/World/Source": source}))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     copied = copy_newton_clone_source("/World/Source")
 
@@ -116,7 +117,9 @@ def test_explicit_global_import_uses_global_world(
         create_builder=newton.ModelBuilder,
         _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
         _inject_terrain_heightfields=mock.Mock(return_value=[]),
+        _cl_inject_sites=mock.Mock(return_value=({}, {}, {})),
     )
+    manager._scene_data_backend = NewtonSceneDataBackend(manager)
     sim = SimpleNamespace(
         physics_manager=manager,
         device="cpu",
@@ -129,14 +132,8 @@ def test_explicit_global_import_uses_global_world(
         _backend_registry=[],
     )
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
-    monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend())
-    monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
-    monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", ())
-    monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
-    monkeypatch.setattr(NewtonManager, "_world_xforms", None)
-    monkeypatch.setattr(NewtonManager, "_cl_protos", {})
-    monkeypatch.setattr(NewtonManager, "_num_envs", 0)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(replicate_module, "_PER_WORLD_BUILDER_HOOKS", ())
 
     env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)
     builder, _ = replicate_module.newton_physics_replicate(stage, (), (), env_ids, mapping, global_paths=global_paths)
@@ -221,7 +218,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         )
         builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
-        native = NewtonManager.backend
+        native = sim.physics_manager.backend
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 

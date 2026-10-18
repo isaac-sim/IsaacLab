@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import KaminoPADMMSolverCfg, MJWarpSolverCfg, NewtonCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
@@ -237,7 +237,7 @@ def test_visual_colors_select_bodies_and_rebind(
     term = randomize_visual_shape(EventTermCfg(func=randomize_visual_shape, params=params), env)
     replacement = copy(model)
     replacement.shape_color = wp.clone(model.shape_color)
-    monkeypatch.setattr(NewtonManager.backend, "model", replacement)
+    monkeypatch.setattr(env.sim.physics_manager.backend, "model", replacement)
     monkeypatch.setattr(env.scene["robot"].root_view, "model", model)
     colors = wp.to_torch(replacement.shape_color)
     before = colors.clone()

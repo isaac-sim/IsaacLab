@@ -891,8 +891,9 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
        :ref:`migrating-to-isaaclab-3-0` ``Renaming of XformPrimView to FrameView`` above).
        For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
    * - ``isaacsim.core.simulation_manager.SimulationManager``
-     - :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
-       ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see local-alias
+     - The simulation's manager instance, ``sim.physics_manager``: a
+       :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
+       ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see the
        pattern below.
    * - ``isaacsim.core.cloner``
      - :mod:`isaaclab.cloner` (Isaac Lab in-tree cloner)
@@ -905,13 +906,15 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
        ``isaacsim.robot.wheeled_robots.nodes`` for OmniGraph nodes)
 
 To keep call-site code symmetric across backends when migrating off
-``isaacsim.core.simulation_manager.SimulationManager``, use the local-alias pattern:
+``isaacsim.core.simulation_manager.SimulationManager``, use the manager instance owned
+by the simulation context:
 
 .. code-block:: python
 
-   from isaaclab_physx.physics import PhysxManager as SimulationManager
-   # or, for the Newton backend
-   from isaaclab_newton.physics import NewtonManager as SimulationManager
+   from isaaclab.sim import SimulationContext
+
+   physics_manager = SimulationContext.instance().physics_manager
+   # inside an environment, use ``env.sim.physics_manager``
 
 **Isaac Sim extension modules must be explicitly enabled before direct import**
 
@@ -963,8 +966,7 @@ If you maintain a custom Kit experience derived from one of the Isaac Lab apps u
 Earlier internal previews of this migration briefly exposed
 ``isaaclab_physx.physics.SimulationManager`` as a public alias of
 :class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
-:class:`~isaaclab_physx.physics.PhysxManager` directly (with ``as SimulationManager`` at
-the import site if you want backend-agnostic call-site code, as shown above).
+the ``sim.physics_manager`` instance, as shown above.
 
 
 **Retired standalone reproducers**

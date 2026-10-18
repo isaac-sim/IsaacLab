@@ -204,7 +204,7 @@ class SimulationContext:
         # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
         reserve_cuda_graph_memory(self.cfg.device)
 
-        self.physics_manager: type[PhysicsManager] = self._physics.class_type
+        self.physics_manager: PhysicsManager = self._physics.class_type()
         # Must be set before physics_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
