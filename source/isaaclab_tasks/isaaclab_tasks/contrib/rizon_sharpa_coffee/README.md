@@ -58,16 +58,14 @@ anisotropy suppress sampling ridges while preserving the larger stirring waves.
 Native Newton reconstructs and smooths the surface using bounded reusable
 storage. The rendering code adds the local coffee colour. Kit stays separate
 because its runtime cannot be imported during configuration. Its camera
-session-layer handling is local to this demo. The shared Newton visualizer only
-provides a viewer-subclass hook for publishing liquid colours during the native
-RTX update.
+session-layer handling is local to this demo. The RTX visualizer publishes grains and liquid colours into the scene camera's
+shared renderer; Newton GL displays the completed image.
 
 The custom MPM solver retains its manager's USD configuration preparation and
-only specializes solver construction. Native RTX material paths and updates
-belong to the coffee viewer; its adapter still depends on the pinned Newton
-runtime API.
-Kit and RTX reuse one render-only backdrop through the simulation's existing
-resource registry. It remains alive until the viewers close. Both use the
+only specializes solver construction. Task-specific RTX material paths and updates
+belong to the camera product and are released with it.
+Kit and RTX use the same backdrop declared in the scene configuration.
+The scene owns its lights, geometry and lifetime. Both use the
 authored refracting water material, with local coffee colour driving optical
 absorption. GL uses its native textured surface.
 
@@ -110,7 +108,7 @@ The optional kitchen is prepared from NVIDIA's public
 `Isaac/Environments/replicator_kitchen/kitchen_l_island.usda`. Its placement,
 lighting, materials and exclusions are baked into the companion USD, with
 textures and MDL dependencies collected by Kit's native asset collector.
-It loads after physics construction. The sample island, apple and decorative
+It loads before the camera renderer imports the scene. The sample island, apple and decorative
 coffee cups remain hidden, and collisions are disabled. The backdrop adds
 rendering memory but no solver bodies, contacts or particles. The demo does
 not generate or modify the kitchen asset at runtime.

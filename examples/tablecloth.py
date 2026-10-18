@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compare contact-driven bimanual tablecloth pulls at five speeds.
+"""Compare contact-driven bimanual tablecloth pulls at three speeds.
 
 InteractiveScene owns fixed-base H2 Plus robots with SHARPA hands, cloths, and tableware.
 Newton VBD simulates the articulations, cloth, and tableware together; Newton IK and a Warp
@@ -12,6 +12,7 @@ state machine run inside the physics CUDA graph. This is scripted manipulation, 
 .. code-block:: bash
 
     uv run isaaclab example tablecloth --device cuda:0
+    uv run --extra isaacsim isaaclab example tablecloth --device cuda:0 --visualizer kit
 """
 
 from __future__ import annotations
@@ -27,12 +28,12 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 logger = logging.getLogger("isaaclab.examples.tablecloth")
 
-parser = argparse.ArgumentParser(description="Five side-by-side GPU humanoid tablecloth pulls.")
+parser = argparse.ArgumentParser(description="Three side-by-side GPU humanoid tablecloth pulls.")
 parser.add_argument(
     "--speeds",
     nargs="+",
     type=float,
-    default=[4.0, 2.0, 1.5, 0.75, 0.5],
+    default=[4.0, 1.5, 0.5],
     help="Peak pull speeds, ordered left to right from fastest to slowest [m/s].",
 )
 parser.add_argument(
@@ -86,7 +87,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import clone, configclass, instantiate
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -116,6 +117,7 @@ WINE_GLASS_USD = (
     "sm_dishware_glass_wine_a01_01.usd"
 )
 FORK_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Utensils/Fork_K01/sm_kitchenware_fork_k01_01.usd"
+CANTINA_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc"
 
 # Table coordinates are authored in centimeters; USD references do not convert stage units.
 TABLE_ASSET_SIZE = (91.44, 152.7302, 76.20)
@@ -671,12 +673,16 @@ TABLECLOTH_ASSETS = {
     ),
     "ground": AssetBaseCfg(
         prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(visible=False),
         collision_group=-1,
     ),
     "light": AssetBaseCfg(
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
+    ),
+    "backdrop": AssetBaseCfg(
+        prim_path="/World/Backdrop",
+        spawn=sim_utils.UsdFileCfg(usd_path=CANTINA_USD),
     ),
 }
 
@@ -1283,7 +1289,9 @@ def main() -> None:
         rigid_body_contact_buffer_size=256,
         rigid_body_particle_contact_buffer_size=8192,
     )
-    camera_distance = max(3.0, 1.6 * len(speeds))
+    # Frame up to three trials at 4.6 m with a 27 mm lens; stations are 1.5 m apart.
+    # Wider rows use 20 mm and 1.16 m of camera distance per trial.
+    camera_distance = max(4.6, 1.16 * len(speeds))
     sim_cfg = sim_utils.SimulationCfg(
         dt=step_dt / substeps,
         render_interval=substeps,
@@ -1300,7 +1308,9 @@ def main() -> None:
             solver_cfg=solver_cfg,
         ),
         default_visualizer_cfg=VisualizerCfg(
-            eye=(camera_distance, -1.5, 1.0 + 0.35 * camera_distance), lookat=(-0.3, 0.0, 1.0)
+            eye=(camera_distance, -1.5, 2.1),
+            lookat=(-0.25, 0.0, 0.95),
+            focal_length=27.0 if len(speeds) <= 3 else 20.0,
         ),
     )
     with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):
@@ -1333,7 +1343,7 @@ def main() -> None:
                 scene.extras[name] = instantiate(cfg)
         contact_hook = partial(_prepare_contacts, device=sim.device, mesh_sdf_cache={})
         with newton_builder_world_hook(contact_hook):
-            cloner.replicate(plan, replicate_physics=scene.cfg.replicate_physics)
+            cloner.replicate(plan)
         sim.reset()
         robot = scene["robot"]
         robot.write_joint_state_to_sim_index(

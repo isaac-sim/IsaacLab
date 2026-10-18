@@ -417,9 +417,14 @@ def test_demo_browser_documents_options_for_each_program():
             f"{example_name} documents an incorrect fixed physics backend"
         )
         expected_visualizers = {visualizer or "default" for visualizer in spec.visualizers}
-        assert set(entry["visualizers"].split(",")) == expected_visualizers, (
-            f"{example_name} documents incorrect visualizer options"
-        )
+        documented_visualizers = set(entry["visualizers"].split(","))
+        valid_visualizers = {visualizer or "default" for visualizer in script_cases.VISUALIZERS}
+        assert documented_visualizers <= valid_visualizers, f"{example_name} documents invalid visualizer options"
+        assert expected_visualizers <= documented_visualizers, f"{example_name} omits tested visualizer options"
+        if None not in spec.visualizers:
+            assert documented_visualizers == expected_visualizers, (
+                f"{example_name} documents unsupported visualizer options"
+            )
 
 
 @pytest.fixture(scope="module")

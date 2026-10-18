@@ -55,6 +55,7 @@ class CameraData:
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/position")
     def pos_w(self) -> ProxyArray:
         """Position of the sensor origin in world frame [m], following ROS convention.
 
@@ -65,6 +66,7 @@ class CameraData:
         return self._pos_w
 
     @property
+    @leapp_tensor_semantics(kind="state/body/rotation")
     def quat_w_world(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in world frame,
         following the world coordinate frame convention.
@@ -83,6 +85,7 @@ class CameraData:
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/camera/intrinsics")
     def intrinsic_matrices(self) -> ProxyArray:
         """The intrinsic matrices for the camera.
 
@@ -214,6 +217,7 @@ class CameraData:
     ##
 
     @property
+    @leapp_tensor_semantics(kind="state/body/rotation")
     def quat_w_ros(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following ROS convention.
 
@@ -228,6 +232,7 @@ class CameraData:
         return self._quat_w_ros
 
     @property
+    @leapp_tensor_semantics(kind="state/body/rotation")
     def quat_w_opengl(self) -> ProxyArray:
         """Quaternion orientation ``(x, y, z, w)`` of the sensor origin in the world frame, following
         Opengl / USD Camera convention.

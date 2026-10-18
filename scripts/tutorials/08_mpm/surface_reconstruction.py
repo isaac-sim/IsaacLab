@@ -23,12 +23,14 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.utils import instantiate
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -547,12 +549,12 @@ def main() -> None:
     configure_console_logging(vars(args_cli))
     points, velocities, blob_particle_count = create_fluid_points()
     sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = create_scene_cfg(points, velocities)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils
-        from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg(points, velocities))
+        scene = instantiate(scene_cfg)
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = create_surface_renderer(sim) if SHOW_SURFACE else None

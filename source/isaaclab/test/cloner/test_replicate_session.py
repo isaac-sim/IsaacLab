@@ -5,6 +5,7 @@
 
 """Clone lifecycle routing, authoring, and dispatch without a simulator runtime."""
 
+import inspect
 from types import SimpleNamespace
 
 import numpy as np
@@ -14,21 +15,26 @@ from pxr import Usd, UsdGeom
 
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
+from isaaclab.cloner import (
+    CloneCfg,
+    ReplicateContext,
+    ReplicateSession,
+    UsdReplicateContext,
+    clone_plan_from_env_0,
+    grid_transforms,
+)
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
+from isaaclab.sim.spawners.wrappers import spawn_multi_asset, spawn_multi_usd_file
 
 
-class _Context:
-    replicate_priority = 0
-
-    def __init__(self, sim):
-        self.calls = sim.calls
-
+class _Context(ReplicateContext):
     def replicate(self, plan, asset_prototype_ids):
-        self.calls.append((type(self), plan, asset_prototype_ids))
+        self._sim.calls.append((type(self), plan, asset_prototype_ids))
 
 
 class _RenderContext(_Context):
@@ -57,19 +63,39 @@ def simulation(monkeypatch):
     return sim
 
 
+def test_legacy_replicate_physics_warns_without_disabling_replication(simulation):
+    """All old cloner entry points accept False, while physics still receives the clone plan."""
+    assert "clone_in_fabric" not in InteractiveSceneCfg.__dataclass_fields__
+    assert "clone_in_fabric" not in inspect.signature(spawn_multi_asset).parameters
+    assert "clone_in_fabric" not in inspect.signature(spawn_multi_usd_file).parameters
+    with pytest.warns(DeprecationWarning, match="InteractiveSceneCfg.replicate_physics.*ignored"):
+        InteractiveSceneCfg(num_envs=2, env_spacing=1.0, replicate_physics=False)
+    with pytest.warns(DeprecationWarning, match="CloneCfg.replicate_physics.*ignored"):
+        CloneCfg(replicate_physics=False)
+    cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=CuboidCfg(size=(1, 1, 1)))
+    with pytest.warns(DeprecationWarning, match="replicate_physics.*ignored"):
+        session = ReplicateSession((cfg,), 2, 1.0, replicate_physics=False)
+    with session:
+        pass
+    assert (_Context, session.plan, (0,)) in simulation.calls
+    simulation.calls.clear()
+    with pytest.warns(DeprecationWarning, match="replicate_physics.*ignored"):
+        replicate_session.replicate(session.plan, replicate_physics=False)
+    assert (_Context, session.plan, (0,)) in simulation.calls
+
+
 @pytest.mark.parametrize("override", [None, (), (_RenderContext,)])
-@pytest.mark.parametrize("replicate_physics", [True, False])
-def test_asset_routing_preserves_explicit_overrides(simulation, override, replicate_physics):
-    """Rendering requirements augment asset policy; disabling physics leaves rendering active."""
+def test_asset_routing_preserves_explicit_overrides(simulation, override):
+    """Rendering requirements augment asset policy; physics replication is always active."""
     simulation.render_context.clone_contexts.add(_RenderContext)
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=override)
     cfg.spawn.spawn_path = "/Previous/Robot"
-    with ReplicateSession((cfg,), 2, 1.0, replicate_physics=replicate_physics) as session:
+    with ReplicateSession((cfg,), 2, 1.0) as session:
         assert simulation.plan is session.plan
         assert cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
         assert not simulation.calls
     expected = {_RenderContext}
-    if override is None and replicate_physics:
+    if override is None:
         expected.add(_Context)
     assert {context for context, _, _ in simulation.calls} == expected
     assert all(plan is session.plan and ids == (0,) for _, plan, ids in simulation.calls)
@@ -94,8 +120,10 @@ def test_empty_and_shared_only_worlds(simulation, shared):
 def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_env_0):
     """Camera requirements enter both workflows; an attached ray caster does not own a clone source."""
     constructed = []
+    provider = SceneDataProvider(SimpleNamespace())
+    assert provider.num_envs == 0
 
-    def factory(cfg):
+    def factory(cfg, *, sim):
         constructed.append(cfg)
         return object()
 
@@ -122,6 +150,8 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     assert camera.prim_path == "/Lab/Cell[^/]+/Camera"
     assert camera.spawn.spawn_path == "/Lab/Cell0/Camera"
     assert plan.env_template == "/Lab/Cell{}"
+    # USD holds only the authored prototype; scene consumers need the complete planned count.
+    assert provider.num_envs == 3
     assert ground.spawn.spawn_path == "/Lab/Ground"
     assert prop.spawn.spawn_path is None and prop.spawn.spawn_paths == ["/Lab/Cell0/Prop"]
     templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
@@ -149,7 +179,6 @@ def test_dispatch_order_and_usd_scope(simulation):
         UsdGeom.Xform.Define(simulation.stage, cfg.spawn.spawn_path)
         UsdGeom.Camera.Define(simulation.stage, "/World/envs/env_0/UndeclaredCamera")
     assert simulation.calls == [(Early, session.plan, (0,)), (Late, session.plan, (0,))]
-    assert set(vars(simulation.clone_contexts[UsdReplicateContext])) == {"stage"}
     assert simulation.stage.GetPrimAtPath("/World/envs/env_1/Robot")
     assert not simulation.stage.GetPrimAtPath("/World/envs/env_1/UndeclaredCamera")
     np.testing.assert_array_equal(session.plan.positions, grid_transforms(2, 1.0)[0])
@@ -158,6 +187,34 @@ def test_dispatch_order_and_usd_scope(simulation):
         np.testing.assert_array_equal(
             UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(0).ExtractTranslation(), position
         )
+    cfg.cloning_contexts = (object,)
+    with pytest.raises(TypeError, match="ReplicateContext subclasses"):
+        replicate_session.replicate(session.plan)
+
+
+def test_shared_context_replaces_native_routes_with_their_union(simulation, monkeypatch):
+    """A shared representation clones disjoint physics/render assets once and removes native dispatch."""
+
+    class Shared(_Context):
+        def __init__(self, sim):
+            assert not sim.calls
+            assert _Context not in sim.clone_contexts
+            super().__init__(sim)
+
+    def prepare(sim, routing):
+        routing[Shared] = routing.pop(_Context) | routing.pop(_RenderContext)
+        sim.clone_contexts.pop(_Context)
+
+    monkeypatch.setattr(_RenderContext, "prepare", staticmethod(prepare))
+    simulation.render_context.clone_contexts.add(_RenderContext)
+    assets = (
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Body", cloning_contexts=(_Context,)),
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Visual", cloning_contexts=(_RenderContext,)),
+    )
+    with ReplicateSession(assets, 2, 1.0) as session:
+        pass
+    assert simulation.calls == [(Shared, session.plan, (0, 1))]
+    assert set(simulation.clone_contexts) == {Shared}
 
 
 def test_grid_transforms_centers_a_float32_grid():

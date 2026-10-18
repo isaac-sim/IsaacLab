@@ -38,6 +38,20 @@ Kit-only demos are not shown.
 For cloth and rigid-soft contact guidance, see :ref:`newton-using-vbd`.
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
+MicroDuck Warehouse rendering
+-----------------------------
+
+View the static MicroDuck Warehouse through selectable renderers and saved cameras, without advancing physics.
+
+.. code-block:: bash
+
+   uv run --extra ovrtx isaaclab demo microduck-warehouse
+   uv run --extra isaacsim isaaclab demo microduck-warehouse renderer=isaacsim_rtx presets=path_traced
+   uv run isaaclab demo microduck-warehouse renderer=newton_renderer presets=aisle,depth
+
+Use ``presets=aisle`` for the alternate camera and output presets such as ``depth`` or ``normals``.
+For full MDL minimal shading, select ``renderer=isaacsim_rtx presets=minimal``.
+
 .. _demo-sonic:
 .. _tablecloth-example:
 .. _sharpa-rj45-example:
@@ -111,9 +125,11 @@ Command Builder
        </aside>
        <aside class="admonition note demo-command-note" data-demo-note="tablecloth" hidden>
          <p class="admonition-title">Tablecloth trick</p>
-         <p>This experimental, CUDA-only example compares five fixed-base H2 Plus robots with SHARPA hands
-           pulling cloths at different speeds using Newton VBD and scripted Newton IK. The settings favor
-           contact accuracy over real-time throughput.</p>
+         <p>This experimental, CUDA-only example compares three fixed-base H2 Plus robots with SHARPA hands
+           pulling cloths at different speeds in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,
+           tableware, and contact-driven grasps; scripted IK controls the robots.</p>
+         <p>Newton GL is the default visualizer. Select Kit to add the <code>isaacsim</code> extra and use the
+           Isaac Sim RTX viewport. The contact settings favor accuracy over real-time throughput.</p>
          <p>Kit videos: <a href="https://github.com/user-attachments/assets/6a22e791-ed3c-4488-9853-6e8afdbcbcc2">five-speed overview</a>
            and <a href="https://github.com/user-attachments/assets/27ac0365-e862-4d60-bd85-51f585a580d5">wider-side grasp and pull</a>.</p>
        </aside>
@@ -142,6 +158,15 @@ Command Builder
                data-demo-description="Animate an arm, biped, quadruped, dexterous hand, quadcopter, and rigid props in one deterministic scene.">
          <img src="../../_static/demos/zoo.jpg" alt="Robots in the Isaac Lab Zoo demo" loading="lazy">
          <span>Zoo</span>
+       </button>
+       <button type="button" class="demo-card" aria-pressed="false"
+               data-demo-name="MicroDuck Warehouse" data-demo-id="microduck-warehouse"
+               data-demo-physics="isaacsim_physx"
+               data-demo-visualizers="kit,newton_gl,newton_rtx,rerun,viser"
+               data-demo-description="View the static MicroDuck Warehouse through selectable renderers and saved cameras.">
+         <img src="../../_static/browser_demos/previews/microduck.jpg"
+              alt="MicroDuck warehouse scene" loading="lazy">
+         <span>MicroDuck Warehouse</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="H1 Locomotion" data-demo-id="h1-locomotion"
@@ -220,11 +245,11 @@ Command Builder
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Tablecloth Trick" data-example-id="tablecloth"
                data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
-               data-demo-visualizers="default"
+               data-demo-visualizers="default,kit"
                data-demo-args="--device cuda:0"
-               data-demo-description="Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.">
+               data-demo-description="Compare three contact-driven humanoid tablecloth pulls in the Cloth Pull Challenge cantina.">
          <img src="../../_static/examples/tablecloth_h2.jpg"
-              alt="Five H2 Plus robots pulling red tablecloths at different speeds" loading="lazy">
+              alt="Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina" loading="lazy">
          <span>Tablecloth Trick</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
