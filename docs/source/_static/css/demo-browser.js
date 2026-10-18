@@ -28,7 +28,6 @@
             "[data-demo-description]:not([data-demo-id]):not([data-example-id])"
         );
         const optionPanel = browser.querySelector("[data-demo-options]");
-        const videoOption = browser.querySelector("[data-demo-option='video']");
         const videoToggle = browser.querySelector("[data-demo-toggle='video']");
         const notes = [...browser.querySelectorAll("[data-demo-note], [data-demo-note-visualizers]")];
         let selectedCard = cards[0];
@@ -102,7 +101,6 @@
         const updateCommand = () => {
             const supportsVideo = splitValues(selectedCard.dataset.demoOptions).includes("video");
             optionPanel.hidden = !supportsVideo;
-            videoOption.hidden = !supportsVideo;
             if (!supportsVideo || videoToggle.disabled) {
                 videoToggle.checked = false;
             }

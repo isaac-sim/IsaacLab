@@ -53,10 +53,6 @@
     font-weight: 600;
 }
 
-.demo-command-option[hidden] {
-    display: none;
-}
-
 .demo-command-note {
     margin: 1rem 0 0;
 }

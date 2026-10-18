@@ -38,6 +38,10 @@ Kit-only demos are not shown.
 For cloth and rigid-soft contact guidance, see :ref:`newton-using-vbd`.
 For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
+.. _demo-sonic:
+.. _tablecloth-example:
+.. _sharpa-rj45-example:
+
 Command Builder
 ---------------
 
@@ -59,7 +63,7 @@ Command Builder
        </div>
        <p class="demo-command-description" data-demo-description></p>
        <div class="demo-command-options" data-demo-options hidden>
-         <label class="demo-command-option" data-demo-option="video" hidden>
+         <label class="demo-command-option">
            <input type="checkbox" data-demo-toggle="video">
            <span>Record video</span>
          </label>
@@ -216,7 +220,7 @@ Command Builder
        <button type="button" class="demo-card" aria-pressed="false"
                data-demo-name="Tablecloth Trick" data-example-id="tablecloth"
                data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
-               data-demo-visualizers="newton_gl"
+               data-demo-visualizers="default"
                data-demo-args="--device cuda:0"
                data-demo-description="Compare five contact-driven humanoid tablecloth pulls using GPU Newton IK and VBD.">
          <img src="../../_static/examples/tablecloth_h2.jpg"

@@ -372,7 +372,7 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
 
 
 def test_demo_browser_documents_options_for_each_program():
-    """Every command-builder card must match a program and document its fixed backend correctly."""
+    """Every command-builder card must match a program and document its supported launch options."""
     docs_source = script_cases.ROOT / "docs/source"
     demos_page = (docs_source / "setup/demos.rst").read_text(encoding="utf-8")
     documented_entries = {}
@@ -415,6 +415,10 @@ def test_demo_browser_documents_options_for_each_program():
         assert entry["fixed-physics"] == "true"
         assert entry["physics"] == spec.physics_backends[0][1], (
             f"{example_name} documents an incorrect fixed physics backend"
+        )
+        expected_visualizers = {visualizer or "default" for visualizer in spec.visualizers}
+        assert set(entry["visualizers"].split(",")) == expected_visualizers, (
+            f"{example_name} documents incorrect visualizer options"
         )
 
 
