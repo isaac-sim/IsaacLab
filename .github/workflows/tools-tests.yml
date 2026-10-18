@@ -69,6 +69,7 @@ jobs:
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
         run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
+          tools/perf_smoke/test_run_benchmarks.py
           .github/actions/_lib/test_registry_credential_fallback.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
