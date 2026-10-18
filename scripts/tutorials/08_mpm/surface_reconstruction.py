@@ -437,8 +437,8 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
         fluid = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
-                positions=points.tolist(),
-                velocities=velocities.tolist(),
+                positions=points,
+                velocities=velocities,
                 mass=PARTICLE_MASS,
                 radius=PARTICLE_RADIUS,
                 material=MPMParticleMaterialCfg(
