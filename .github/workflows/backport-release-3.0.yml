@@ -166,6 +166,18 @@ jobs:
             echo "target_sha=$target_sha"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Create repository write token
+        # Created early so a failed backport can still be reported on the source PR.
+        if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
+        id: app_token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
+        with:
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
       - name: Cherry-pick merged change
         if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
         id: cherry_pick
@@ -238,15 +250,18 @@ jobs:
           CHERRY_PICK_HEAD_SHA: ${{ steps.cherry_pick.outputs.cherry_pick_head }}
         run: |
           set -euo pipefail
-          primary_model=${NVIDIA_BACKPORT_MODEL:-azure/openai/gpt-5.6-sol}
-          fallback_model=${NVIDIA_BACKPORT_FALLBACK_MODEL:-azure/anthropic/claude-opus-5}
+          primary_model=${NVIDIA_BACKPORT_MODEL:-azure/openai/gpt-6.1-sol}
+          fallback_model=${NVIDIA_BACKPORT_FALLBACK_MODEL:-azure/anthropic/claude-opus-5-5}
           python3 ../automation/.github/scripts/resolve_backport_conflicts.py \
             --source_parent "$SOURCE_PARENT" \
             --source "$SOURCE_SHA" \
             --target "$TARGET_SHA" \
             --cherry_pick_head "$CHERRY_PICK_HEAD_SHA" \
             --model "$primary_model" \
-            --model "$fallback_model"
+            --model "$fallback_model" \
+            --report "$RUNNER_TEMP/backport-resolution.json" \
+            --summary "$RUNNER_TEMP/backport-resolution.md" \
+            --failure "$RUNNER_TEMP/backport-failure.txt"
 
       - name: Set up Python for inferred-resolution checks
         if: steps.cherry_pick.outputs.conflict == 'true'
@@ -274,11 +289,15 @@ jobs:
           if [ "$pre_commit_status" -ne 0 ]; then
             while IFS= read -r -d '' path; do
               git add --all -- "$path"
-            done < <(git diff --no-renames --name-only -z "$SOURCE_PARENT" "$SOURCE_SHA" --)
+            done < <(
+              git diff --no-renames --name-only -z "$SOURCE_PARENT" "$SOURCE_SHA" --
+              jq -j '.extra_paths[] | . + "\u0000"' "$RUNNER_TEMP/backport-resolution.json"
+            )
             python3 ../automation/.github/scripts/backport.py validate-candidate \
               --source_parent "$SOURCE_PARENT" \
               --source "$SOURCE_SHA" \
-              --target "$TARGET_SHA"
+              --target "$TARGET_SHA" \
+              --resolution_report "$RUNNER_TEMP/backport-resolution.json"
             pre-commit run --show-diff-on-failure --color=always --all-files
           fi
 
@@ -299,7 +318,8 @@ jobs:
           python3 ../automation/.github/scripts/backport.py validate-candidate \
             --source_parent "$SOURCE_PARENT" \
             --source "$SOURCE_SHA" \
-            --target "$TARGET_SHA"
+            --target "$TARGET_SHA" \
+            --resolution_report "$RUNNER_TEMP/backport-resolution.json"
           GIT_EDITOR=true git \
             -c core.hooksPath=/dev/null \
             -c user.name="isaaclab-bot[bot]" \
@@ -309,19 +329,9 @@ jobs:
             --source_parent "$SOURCE_PARENT" \
             --source "$SOURCE_SHA" \
             --target "$TARGET_SHA" \
-            --candidate HEAD
+            --candidate HEAD \
+            --resolution_report "$RUNNER_TEMP/backport-resolution.json"
           git diff --check "$TARGET_SHA" HEAD
-
-      - name: Create repository write token
-        if: steps.selection.outputs.selected == 'true' && steps.source.outputs.skip != 'true'
-        id: app_token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3
-        with:
-          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
-          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
-          permission-contents: write
-          permission-pull-requests: write
-          permission-workflows: write
 
       - name: Push exact clean backport
         if: steps.cherry_pick.outputs.conflict == 'false'
@@ -371,7 +381,9 @@ jobs:
           {
             echo "Backports #$PR_NUMBER to \`$TARGET_BRANCH\`."
             echo
-            echo "The original cherry-pick conflicted. An NVIDIA inference model proposed this resolution, and deterministic validation confirmed that it changes no paths outside the original PR. Because conflict resolution cannot be certified as an exact patch replay, this PR is intentionally a draft and requires release-maintainer review."
+            echo "The original cherry-pick conflicted. An NVIDIA inference model proposed this resolution. Deterministic validation checked only that it changes no paths outside the original PR other than the extra edits listed below, and that kept paths match the release branch; it does not check correctness. This PR is intentionally a draft and requires release-maintainer review."
+            echo
+            cat "$RUNNER_TEMP/backport-resolution.md"
             echo
             echo "| Field | Commit |"
             echo "|---|---|"
@@ -391,3 +403,20 @@ jobs:
           # Docker CI runs only on request; the App token's comment triggers run-docker-ci.yml.
           gh pr comment "$pr_url" --body "run-ci" \
             || echo "::warning::The draft PR was opened, but Docker CI could not be requested. Comment 'run-ci' on it."
+
+      - name: Report failed backport on source PR
+        if: failure() && steps.app_token.outputs.token != ''
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # One line, matching the clean-backport comment: "blocked: <reason>" or "failed: <error>" from the resolver.
+          status=failed
+          if [ -s "$RUNNER_TEMP/backport-failure.txt" ]; then
+            status=$(tr -s '[:space:]' ' ' < "$RUNNER_TEMP/backport-failure.txt" | cut -c1-300 | sed 's/[ .]*$//')
+          fi
+          gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" \
+            --body "Backport to \`$TARGET_BRANCH\` $status. Needs a manual backport ([run]($RUN_URL))."
