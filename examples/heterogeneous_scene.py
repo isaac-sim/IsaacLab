@@ -30,7 +30,6 @@ import sys
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as scene_add
 from isaaclab.utils import instantiate
@@ -138,10 +137,9 @@ def main() -> None:
     scene_cfg.ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
 
     scene_cfg.num_envs = args_cli.num_envs
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim = sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device, physics=physics_cfg)
-        )
+    sim_cfg = sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
+        sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
         scene = instantiate(scene_cfg)
         sim.reset()

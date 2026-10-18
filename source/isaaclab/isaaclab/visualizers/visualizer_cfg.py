@@ -7,12 +7,10 @@
 
 from __future__ import annotations
 
-import argparse
 import math
-import warnings
 from copy import deepcopy
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from ..utils import configclass
 
@@ -21,43 +19,11 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
-VISUALIZER_TYPES = {
-    "kit": "kit:KitVisualizerCfg",
-    "newton_gl": "newton:NewtonGLVisualizerCfg",
-    "newton_rtx": "newton:NewtonRTXVisualizerCfg",
-    "rerun": "rerun:RerunVisualizerCfg",
-    "viser": "viser:ViserVisualizerCfg",
-}
-"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`, mapped to
-the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, imported only when needed."""
+VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+"""Built-in visualizer identifiers accepted by legacy recording sources."""
 
 VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
-
-
-def parse_visualizer_csv(value: str | list[str]) -> list[str]:
-    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
-
-    Parsing canonical names again returns them unchanged.
-    """
-    names = value.split(",") if isinstance(value, str) else list(value)
-    # an undocumented alias of omitting --visualizer, kept so older commands keep running
-    if names == ["none"]:
-        return []
-    for index, name in enumerate(names):
-        if name in VISUALIZER_ALIASES:
-            warnings.warn(
-                f"--viz '{name}' is deprecated. Use '--viz {VISUALIZER_ALIASES[name]}' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-            names[index] = VISUALIZER_ALIASES[name]
-        elif name not in VISUALIZER_TYPES:
-            raise argparse.ArgumentTypeError(
-                f"Invalid --visualizer value {value!r}: use a comma-separated list, without spaces, of "
-                f"{', '.join(VISUALIZER_TYPES)}."
-            )
-    return list(dict.fromkeys(names))
 
 
 @configclass
@@ -284,6 +250,9 @@ class VisualizerCfg:
     """Collect and push live plot data every ``N`` simulation steps (default: every 5 steps)."""
 
     # Internal
+    launcher_type: ClassVar[str | None] = None
+    """Process runtime required by this visualizer, if any."""
+
     visualizer_type: str | None = None
     """Type identifier (e.g., 'newton', 'rerun', 'viser', 'kit'). Must be overridden by subclasses."""
 

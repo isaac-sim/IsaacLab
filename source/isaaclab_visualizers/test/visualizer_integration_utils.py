@@ -1668,9 +1668,9 @@ def _make_cartpole_camera_env(
         eye = _CARTPOLE_INTEGRATION_TILED_CAMERA_EYE_OFFSET
         _declare_streaming_cameras(env_cfg.scene, visualizer_cfgs, env_cfg.scene.cartpole, "slider", eye)
     if "newton_rtx" in visualizer_kinds:
-        from isaaclab.app.sim_launcher import scan
+        from isaaclab.app.sim_launcher import validate_launch
 
-        env_cfg.sim.visualizer_cfgs = scan(env_cfg, {"visualizer": list(visualizer_kinds)}).visualizer_cfgs
+        validate_launch(env_cfg, {"visualizer": list(visualizer_kinds)})
     return CartpoleCameraEnv(env_cfg)
 
 
