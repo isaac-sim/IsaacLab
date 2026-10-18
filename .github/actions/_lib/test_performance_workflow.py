@@ -118,3 +118,45 @@ def test_only_updates_and_explicit_reruns_cancel_running_ci(action, label, expec
     result = subprocess.run(["node", "-e", script], input=json.dumps(data), capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
     assert json.loads(result.stdout) is expected
+
+
+def test_summary_rerun_downloads_the_producing_attempt(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(WORKFLOW.parents[2]))
+    from tools.perf_smoke import baseline
+    from tools.perf_smoke.test_baseline import HEAD, REPO, FixtureClient, stamp
+
+    client = FixtureClient()
+    client.add(20, HEAD, start=stamp(12), artifact=False)
+    artifact = client.add_artifact(
+        20, "performance-smoke-20-1", {"leg/comparison.json": {"verdict": "FAIL", "label": "leg"}}
+    )
+    client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
+    # GitHub carries the benchmark job into a summary-only rerun with its old start time.
+    client.run_jobs[20, 2][0]["started_at"] = stamp(12)
+    monkeypatch.setattr(baseline, "GitHubClient", lambda repository: client)
+    for name, value in {
+        "GITHUB_REPOSITORY": REPO,
+        "GITHUB_RUN_ID": "20",
+        "GITHUB_RUN_ATTEMPT": "2",
+        "GITHUB_OUTPUT": str(tmp_path / "outputs"),
+    }.items():
+        monkeypatch.setenv(name, value)
+
+    steps = yaml.safe_load(WORKFLOW.read_text())["jobs"]["performance-smoke-summary"]["steps"]
+    locate = next((step for step in steps if step.get("id") == "benchmark_artifact"), None)
+    outputs = {}
+    if locate:
+        # Execute the actual workflow's Python heredoc against the API fixture.
+        script = locate["run"].split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        exec(compile(script, str(WORKFLOW), "exec"), {})
+        outputs = dict(line.split("=", 1) for line in (tmp_path / "outputs").read_text().splitlines())
+    download = next(step["with"] for step in steps if step.get("uses", "").startswith("actions/download-artifact@"))
+    selector = download.get("artifact-ids", download.get("name", ""))
+    for expression, value in {
+        "steps.benchmark_artifact.outputs.artifact_id": outputs.get("artifact_id", ""),
+        "github.run_id": "20",
+        "github.run_attempt": "2",
+    }.items():
+        selector = selector.replace("${{ " + expression + " }}", value)
+    selected = [item["id"] for item in client.artifacts(20) if str(item["id"]) == selector or item["name"] == selector]
+    assert selected == [artifact["id"]]

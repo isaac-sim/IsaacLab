@@ -1103,7 +1103,7 @@ jobs:
         SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
         SOURCE_MANIFEST="$PERF_BASELINE_OUTPUT/source-manifest.json" \
         BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
-        BENCHMARK_ROLE=BASELINE bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+        BENCHMARK_ROLE=BASELINE exec bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
 
     - name: Archive the PR base measurement
       id: base_artifact
@@ -1191,7 +1191,7 @@ jobs:
         SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
         SOURCE_MANIFEST="$GITHUB_WORKSPACE/benchmark-output/source-manifest.json" \
         BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
-        BENCHMARK_ROLE=CURRENT bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
+        BENCHMARK_ROLE=CURRENT exec bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
 
     - name: Restore the JIT archive path
       if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'
@@ -1311,9 +1311,29 @@ jobs:
     - uses: astral-sh/setup-uv@v6
       with:
         enable-cache: false
+    - name: Locate the producing benchmark artifact
+      id: benchmark_artifact
+      continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        uv run --no-project python - <<'PY'
+        import os
+        from tools.perf_smoke.baseline import GitHubClient, resolve_candidate_artifact
+
+        _, artifact, attempt = resolve_candidate_artifact(
+            GitHubClient(os.environ["GITHUB_REPOSITORY"]),
+            int(os.environ["GITHUB_RUN_ID"]),
+            int(os.environ["GITHUB_RUN_ATTEMPT"]),
+        )
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            print(f"artifact_id={artifact['id']}", file=output)
+        print(f"Using benchmark results from attempt {attempt}.")
+        PY
     - uses: actions/download-artifact@v7
+      if: steps.benchmark_artifact.outputs.artifact_id != ''
       with:
-        name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+        artifact-ids: ${{ steps.benchmark_artifact.outputs.artifact_id }}
         path: comparisons
       continue-on-error: true
     - name: Compare the tested build with its selected baseline

@@ -560,6 +560,51 @@ class BuildComparisonTests(unittest.TestCase):
             self.assertEqual(len(rows), 2)
             self.assertTrue(all(row["status"] == "missing" for row in rows))
 
+    def test_solver_and_coupling_changes_preserve_fps_without_comparing_workloads(self):
+        config = {"physics_solvers": ["newton_mjwarp", "newton_vbd"], "physics_coupling": "proxy"}
+        for field, value in (
+            ("physics_solvers", ["newton_mjwarp"]),
+            ("physics_solvers", None),
+            ("physics_solvers", ["newton_vbd"]),
+            ("physics_coupling", "admm"),
+            ("physics_coupling", None),
+        ):
+            with self.subTest(field=field, value=value):
+                a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
+                for selection in (a, b):
+                    for sample in selection.samples["leg"]:
+                        sample["bundle"]["run"]["config"].update(config)
+                for sample in b.samples["leg"]:
+                    candidate_config = sample["bundle"]["run"]["config"]
+                    if value is None:
+                        candidate_config.pop(field)
+                    else:
+                        candidate_config[field] = value
+                report = compare_evidence(a, b)
+                self.assertTrue(all(row["change_pct"] is None for row in report["rows"]))
+                for side in ("baseline", "candidate"):
+                    self.assertEqual(sum(row[side]["count"] for row in report["rows"]), 3)
+                primary, details = render_build_comparison(report).split("<details>", 1)
+                self.assertIn("⚪ Not comparable", primary)
+                self.assertNotIn("+10.00%", primary)
+                self.assertIn("solvers: newton_mjwarp, newton_vbd · coupling: proxy", details)
+
+    def test_coupling_variation_within_repeats_is_not_pooled_into_a_delta(self):
+        a, b = evidence(), evidence({"leg": [bundle(110) for _ in range(3)]})
+        for selection in (a, b):
+            for sample in selection.samples["leg"]:
+                sample["bundle"]["run"]["config"].update(
+                    physics_solvers=["newton_mjwarp", "newton_vbd"], physics_coupling="proxy"
+                )
+        b.samples["leg"][1]["bundle"]["run"]["config"]["physics_coupling"] = "admm"
+        rows = compare_evidence(a, b)["rows"]
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(row["change_pct"] is None for row in rows))
+        self.assertEqual(sum(row["candidate"]["count"] for row in rows), 3)
+        shared = next(row for row in rows if row["baseline"]["count"])
+        self.assertEqual(shared["status"], "unknown")
+        self.assertTrue(any("different workload identities" in reason for reason in shared["reasons"]))
+
 
 class AutomaticReportTests(unittest.TestCase):
     def setUp(self):

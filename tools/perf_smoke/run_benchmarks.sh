@@ -16,9 +16,15 @@ install -d -m 0777 "${JIT_CACHE_ROOT}/warp" "${JIT_CACHE_ROOT}/nv"
 chmod -R a+rwX "${JIT_CACHE_ROOT}" || exit 1
 
 container=""
+benchmark_pid=""
 cleanup_container() {
   if [ -n "$container" ]; then
     docker rm -f "$container" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$benchmark_pid" ]; then
+    kill "$benchmark_pid" 2>/dev/null || true
+    wait "$benchmark_pid" 2>/dev/null || true
+    benchmark_pid=""
   fi
 }
 trap cleanup_container EXIT
@@ -70,8 +76,12 @@ run_attempt() {
       --benchmark_formatter schema \
       --output_path /tmp/benchmark-output \
       --visualizer none \
-      $args"
+      $args" &
+  benchmark_pid=$!
+  # Bash can run cancellation traps while waiting with its builtin wait.
+  wait "$benchmark_pid"
   local status=$?
+  benchmark_pid=""
   docker cp "$container:/tmp/benchmark-output/." "${BENCHMARK_OUTPUT}/${leg}/sample-${sample}/" 2>/dev/null || true
   cleanup_container
   container=""
