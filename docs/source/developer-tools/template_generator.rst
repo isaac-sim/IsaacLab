@@ -4,12 +4,10 @@
 Build your own project or task
 ==============================
 
-The template generator bootstraps the package structure and, when requested,
-task registration and agent configurations for an Isaac Lab task. Use it to
-create either a standalone project outside Isaac Lab or a task intended for
-contribution to the Isaac Lab repository. An external project can start with a
-working Cartpole example, a stubbed task, or an empty task package. Internal tasks
-start from the Cartpole example.
+The template generator creates a standalone project or a task inside Isaac Lab,
+including package structure, task registration, and agent configurations. External
+projects can start with Cartpole, a task stub, or an empty task package. Internal
+tasks start with Cartpole.
 
 Choose what to generate
 -----------------------
@@ -90,18 +88,14 @@ installed Isaac Lab package:
 
    uv run isaaclab --new
 
-The command uses the dependencies from the active Isaac Lab environment. It
-does not invoke ``pip`` or install another set of template dependencies, so it
-also works in the pip-less virtual environments created by ``uv``.
-When invoked from an installed wheel, the generated ``pyproject.toml`` requires
-Isaac Lab and its optional extras at a compatible release of that version (for
-example ``isaaclab~=3.0.0``), so ``uv sync`` cannot silently resolve an older
-release but still accepts its patch releases. When invoked from a source checkout, it
-instead records editable paths to that checkout and its workspace packages.
-This lets development and release branches work before their version is
-published while preserving the code that generated the project.
-The source paths are relative to the generated project; regenerate the project
-or update ``[tool.uv.sources]`` if either directory moves.
+The generator uses the active Isaac Lab environment, including pip-less ``uv``
+environments. It does not install separate template dependencies.
+
+When run from an installed wheel, it requires a compatible release of that Isaac Lab
+version (for example ``isaaclab~=3.0.0``), which accepts its patch releases. From a source
+checkout, it records editable paths to the checkout and its workspace packages, so
+unpublished branches work too. These paths are relative; regenerate the project or update
+``[tool.uv.sources]`` if either directory moves.
 
 The short form is equivalent:
 

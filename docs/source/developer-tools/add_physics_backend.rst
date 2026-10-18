@@ -8,9 +8,8 @@
 Add a Physics Backend
 =====================
 
-This guide extends Isaac Lab with a new physics backend. Read
-:ref:`backend-architecture` for the factory-dispatch and portable-interface
-design that this extension implements.
+Add a physics engine by implementing the backend interfaces below. See
+:ref:`backend-architecture` for factory dispatch and shared interfaces.
 
 Prerequisites
 -------------

@@ -1,7 +1,7 @@
 Contribution Guidelines
 =======================
 
-.. seealso::
+.. Maintenance notes
 
    This page is the source of truth for the ``isaaclab-following-coding-style``,
    ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
@@ -11,25 +11,13 @@ Contribution Guidelines
    When shared guidance changes, update affected skill workflows and examples without copying the rules. See
    :doc:`/source/developer-tools/agent_skills`.
 
-We wholeheartedly welcome contributions to the project to make the framework more mature
-and useful for everyone. These may happen in forms of:
+Contributions can include bug fixes, features, documentation, and tutorials.
 
-* Bug reports: Please report any bugs you find in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
-* Feature requests: Please suggest new features you would like to see in the `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__.
-* Code contributions: Please submit a `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
-
-  * Bug fixes
-  * New features
-  * Documentation improvements
-  * Tutorials and tutorial improvements
-
-We prefer GitHub `discussions <https://github.com/isaac-sim/IsaacLab/discussions>`_ for discussing ideas,
-asking questions, conversations and requests for new features.
-
-Please use the
-`issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`_ only to track executable pieces of work
-with a definite scope and a clear deliverable. These can be fixing bugs, new features, or general updates.
-
+* Report reproducible bugs in the `issue tracker <https://github.com/isaac-sim/IsaacLab/issues>`__.
+* Use `Discussions <https://github.com/isaac-sim/IsaacLab/discussions>`__ for questions,
+  ideas, and feature proposals.
+* Submit code and documentation changes through a
+  `pull request <https://github.com/isaac-sim/IsaacLab/pulls>`__.
 
 Contributing Code
 -----------------
@@ -60,9 +48,8 @@ as described in `Unit Testing`_ and `Tools`_.
 
 .. tip::
 
-   It is important to keep the pull request as small as possible. This makes it easier for the
-   maintainers to review your code. If you are making multiple changes, please send multiple pull requests.
-   Large pull requests are difficult to review and may take a long time to merge.
+   Keep each pull request focused on one change. Submit unrelated changes separately
+   so maintainers can review and test them independently.
 
 
 More details on the code style and testing can be found in the `Coding Style`_ and `Unit Testing`_ sections.
@@ -362,6 +349,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Give each piece of state and validation one owner. Consumers should use the owner's contract instead
   of repairing results or maintaining duplicate state. Cache derived values only when their lifetime and
   invalidation are clear; do not expose mutable cached results for callers to modify accidentally.
+  Complete shared resource initialization at its lifecycle boundary; registering the first consumer
+  should not initialize the shared resource or transfer its handles.
   Resolve selections once at initialization; backends should consume the final selection without a second
   filtering pass or cache.
   Keep a single representation of the active selection alongside its available choices. Detach borrowed
@@ -384,7 +373,12 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
-  finalization. See :doc:`/source/concepts/native-physics-api/scene_data_providers` for geometry ownership and
+  finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
+  not import renderer implementations or manipulate their attachment state.
+  Author camera and ISP settings during camera construction, before scene cloning or native import.
+  Renderer initialization consumes the prepared configuration; do not add feature-specific scene-authoring
+  hooks to ``BaseRenderer``.
+  See :doc:`/source/concepts/scene_data_providers` for geometry ownership and
   :doc:`/source/developer-tools/add_physics_backend` for backend integration.
 * Treat non-spawning sensor paths as references to existing scene prims, not as independently owned
   clone sources. Import the owning asset and resolve sensor tracking from its replicated prims.
@@ -550,6 +544,12 @@ examples of both patterns.
 
 Configuration Operations
 ^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keep configuration classes declarative. Cross-config default merging and runtime wiring belong
+in launch preparation or construction code, not methods on config objects. Validation hooks may
+check a configuration's own fields.
+When changing ownership, use explicit declarations; do not add deprecated-selector translation
+or discover unselected scene entities to preserve earlier routing.
 
 Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
 

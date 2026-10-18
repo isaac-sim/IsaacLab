@@ -150,7 +150,7 @@ def fake_tools(repo, monkeypatch, relocked, stray=False, lock_fails=False):
             write(repo, {"source/pkg/docs/CHANGELOG.rst": CHANGELOG + "\n1.0.1 (today)\n"})
             if stray:
                 write(repo, {"notes.txt": "a file no compile output should touch"})
-            (repo / FRAGMENTS / "a.fixed.rst").unlink()
+            git(repo, "rm", "-q", FRAGMENTS + "a.fixed.rst")
             return ""
         if cmd[:2] == ("uv", "lock"):
             write(repo, {"uv.lock": relocked})
@@ -190,16 +190,30 @@ ROOT = '\n[[package]]\nname = "root"\nversion = "{}"\nsource = {{ virtual = "." 
 
 
 @pytest.mark.parametrize(
-    ("base", "relocked", "lock_fails"),
+    ("base", "relocked", "lock_fails", "package_without_fragments"),
     [
-        (lock(), lock(header="version = 1\nrevision = 3\n"), False),
-        (lock() + ROOT.format("0.1.0"), lock(pkg="1.0.1") + ROOT.format("0.2.0"), False),  # only versions move
-        (lock(), lock(pkg="1.0.1"), True),
+        (lock(), lock(header="version = 1\nrevision = 3\n"), False, True),
+        (
+            lock() + ROOT.format("0.1.0"),
+            lock(pkg="1.0.1") + ROOT.format("0.2.0"),
+            False,
+            False,
+        ),  # only versions move
+        (lock(), lock(pkg="1.0.1"), True, False),
     ],
     ids=["re-serialized", "non-local-version-moved", "uv-lock-failed"],
 )
-def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, base, relocked, lock_fails):
+def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, base, relocked, lock_fails, package_without_fragments):
     write(repo, {"uv.lock": base, FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "source/other/changelog.d/b.skip": ""})
+    (repo / FRAGMENTS / ".gitkeep").unlink()
+    if package_without_fragments:
+        write(
+            repo,
+            {
+                "source/no-fragments/docs/CHANGELOG.rst": CHANGELOG,
+                "source/no-fragments/pyproject.toml": '[project]\nname = "no-fragments"\nversion = "1.0.0"\n',
+            },
+        )
     commit(repo, "fragments")
     fake_tools(repo, monkeypatch, relocked, lock_fails=lock_fails)
     assert cli.cmd_compile(argparse.Namespace()) == 1
