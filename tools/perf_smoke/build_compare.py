@@ -210,9 +210,17 @@ def _hardware(bundle: dict) -> dict:
 def _label(key: str) -> str:
     if key.startswith("unknown:"):
         return key.removeprefix("unknown:") + " (workload identity unavailable)"
-    task, physics, renderer, envs, presets = json.loads(key)
-    label = f"{task} · {physics} / {renderer} · {envs} envs"
-    return label + (f" · presets: {', '.join(presets)}" if presets else "")
+    workload = json.loads(key)
+    label = (
+        f"{workload['task']} · {workload['physics_backend']} / {workload['render_backend'] or 'none'}"
+        f" · {workload['num_envs']} envs"
+    )
+    if workload["presets"]:
+        label += f" · presets: {', '.join(workload['presets'])}"
+    if "physics_solvers" in workload:
+        label += f" · solvers: {', '.join(workload['physics_solvers'])}"
+        label += f" · coupling: {workload['physics_coupling'] or 'none'}"
+    return label
 
 
 def _row(

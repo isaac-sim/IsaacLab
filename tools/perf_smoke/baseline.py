@@ -21,6 +21,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from .contract import workload_identity
+from .metrics import PerfSmokeError
+
 _REQUEST_TIMEOUT_SECONDS = 60
 
 
@@ -175,31 +178,10 @@ def has_usable_runtime(bundle: dict) -> bool:
 
 def workload_key(bundle: dict) -> str | None:
     """Shared workload identity, independent of metric formula and runtime versions."""
-    run = bundle.get("run")
-    if not isinstance(run, dict) or not isinstance(run.get("config"), dict):
+    try:
+        return json.dumps(workload_identity(bundle), sort_keys=True, separators=(",", ":"))
+    except PerfSmokeError:
         return None
-    config = run["config"]
-    task, physics, envs = run.get("task"), config.get("physics_backend"), run.get("num_envs")
-    renderer = config.get("rendering_backend")
-    presets = config.get("presets")
-    if (
-        not isinstance(task, str)
-        or not task
-        or not isinstance(physics, str)
-        or not physics
-        or not isinstance(renderer, str)
-        or not renderer.strip()
-        or not isinstance(envs, int)
-        or isinstance(envs, bool)
-        or envs <= 0
-        or not isinstance(presets, list)
-        or not all(isinstance(item, str) for item in presets)
-    ):
-        return None
-    return json.dumps(
-        [task, physics, renderer, envs, presets],
-        separators=(",", ":"),
-    )
 
 
 def download_artifact(client: GitHubClient, artifact: dict) -> tuple[bytes, dict[str, bytes]]:
@@ -385,16 +367,14 @@ def _exact_artifact(artifacts: list[dict], name: str) -> dict | None:
     return matches[0] if matches else None
 
 
-def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) -> Evidence:
-    """Resolve the measured attempt, including a rerun of only the summary job."""
+def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt: int) -> tuple[dict, dict, int]:
+    """Locate the measured attempt's artifact, including summary-only reruns."""
     artifacts = client.artifacts(run_id)
     for attempt in range(report_attempt, 0, -1):
         run = client.run_attempt(run_id, attempt)
         artifact = _exact_artifact(artifacts, f"performance-smoke-{run_id}-{attempt}")
         if artifact:
-            result = read_evidence(client, run, artifact, attempt)
-            result.identity["report_attempt"] = report_attempt
-            return result
+            return run, artifact, attempt
         started = parse_timestamp(run.get("run_started_at"))
         jobs = [job for job in client.jobs(run_id, attempt) if job.get("name") == "performance-smoke-benchmarks"]
         for job in jobs:
@@ -411,3 +391,11 @@ def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) ->
                 )
         # Jobs carried over from an earlier attempt can have new IDs but retain their old start times.
     raise EvidenceError("missing_candidate", "No producing benchmark artifact is available for this workflow run")
+
+
+def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) -> Evidence:
+    """Read the measured attempt shared by the paired report and rolling-history gate."""
+    run, artifact, attempt = resolve_candidate_artifact(client, run_id, report_attempt)
+    result = read_evidence(client, run, artifact, attempt)
+    result.identity["report_attempt"] = report_attempt
+    return result
