@@ -74,6 +74,7 @@ class SourceRevisionTests(unittest.TestCase):
             from pathlib import Path
 
             def run(argv):
+                'Runtime revision A.'
                 from isaaclab.utils.timer import FPS
                 from isaaclab_tasks.fixture_task import observed
                 marker = observed()
@@ -238,6 +239,15 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertNotEqual(result_a["executed_revision"], result_b["executed_revision"])
         self.assertEqual(result_a["image_identity"], result_b["image_identity"])
 
+        runtime = self.checkout / RUNTIME_PATH
+        runtime.write_text(runtime.read_text().replace("Runtime revision A.", "Runtime revision B."))
+        commit_c = self._commit()
+        manifest_c, _ = self._prepare("docstring-only")
+        run_c = self._run(manifest_c, "docstring-output", roots=[self.checkout, self.cached])
+        self._assert_verified(*run_c, "B", commit_c)
+        self.assertTrue(run_b[2]["runtime_entrypoint"]["source_code_matches"])
+        self.assertTrue(run_c[2]["runtime_entrypoint"]["source_code_matches"])
+
     def test_common_measurement_runs_both_selected_workloads(self):
         self._task("B")
         self._write(TIMER_PATH, "FPS = 150.0\n")
@@ -341,25 +351,6 @@ class SourceRevisionTests(unittest.TestCase):
         expected += [str(output), "--visualizer", "none", "physics=newton_mjwarp", "renderer=newton_renderer"]
         self.assertEqual(result["argv"], expected)
 
-    def test_docstring_only_revision_verifies_in_same_image(self):
-        runtime = self.checkout / RUNTIME_PATH
-        runtime.write_text(
-            runtime.read_text().replace("def run(argv):\n", "def run(argv):\n    'Runtime revision A.'\n")
-        )
-        commit_a = self._commit()
-        manifest_a, _ = self._prepare("docstring-a")
-        run_a = self._run(manifest_a, "docstring-output-a", roots=[self.checkout, self.cached])
-        self._assert_verified(*run_a, "A", commit_a)
-        runtime.write_text(runtime.read_text().replace("Runtime revision A.", "Runtime revision B."))
-        commit_b = self._commit()
-        manifest_b, _ = self._prepare("docstring-b")
-        run_b = self._run(manifest_b, "docstring-output-b", roots=[self.checkout, self.cached])
-        self._assert_verified(*run_b, "A", commit_b)
-        proof_a = run_a[2]["runtime_entrypoint"]
-        proof_b = run_b[2]["runtime_entrypoint"]
-        self.assertTrue(proof_a["source_code_matches"])
-        self.assertTrue(proof_b["source_code_matches"])
-
     def test_wrong_package_path_does_not_verify_as_checkout(self):
         manifest, _ = self._prepare()
         process, output, sidecar = self._run(manifest, "stale", roots=[self.cached, self.checkout])
@@ -417,7 +408,6 @@ class SourceRevisionTests(unittest.TestCase):
                 else:
                     self.assertTrue(any(item.get("path") == stub.as_posix() for item in sidecar["mismatches"]))
 
-    def test_prepare_detects_checkout_modified_from_commit(self):
         self._task("B")
         _, process = self._prepare(success=False)
         self.assertNotEqual(process.returncode, 0)
@@ -453,8 +443,6 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertIn("KeyboardInterrupt", process.stderr)
         self.assertFalse(list(output.glob("benchmark_runtime_*.json")))
 
-    def test_successful_cli_without_runtime_output_is_not_verified(self):
-        manifest, _ = self._prepare()
         process, _, sidecar = self._run(manifest, "no-output", FIXTURE_NO_OUTPUT="1")
         self.assertNotEqual(process.returncode, 0)
         self.assertEqual(sidecar["benchmark_exit_code"], 0)

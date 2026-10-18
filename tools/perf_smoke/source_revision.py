@@ -97,7 +97,7 @@ def prepare_manifest(root: Path, measurement_manifest: dict | None = None) -> di
     namespaces = {}
     for path in files:
         parts = PurePosixPath(path).parts
-        # Test directories are not installed namespaces, even when they have __init__.py.
+        # Test directories may contain __init__.py without being installed packages.
         if len(parts) >= 4 and parts[0] == "source" and parts[2] == parts[1].replace("-", "_"):
             prefix = "/".join(parts[:3])
             namespaces.setdefault(parts[2], set()).add(prefix)

@@ -4,7 +4,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Workflow paths let one launcher run both the base and PR checkouts.
 set -uo pipefail
 
 : "${CHECKOUT_ROOT:?}" "${BENCHMARK_OUTPUT:?}" "${SOURCE_REVISION_LAUNCHER:?}"
@@ -37,7 +36,7 @@ run_attempt() {
   fi
   container="performance-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${BENCHMARK_ROLE:+${BENCHMARK_ROLE}-}${leg}-${sample}-${attempt}"
   cleanup_container
-  # Cached images may contain older code, so mount the selected source over it.
+  # Cached images may contain older code, so mount source, scripts, and apps from the selected checkout.
   timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
     --user "$(id -u):$(id -g)" \
     -e HOME=/tmp/isaaclab-ci-home \
@@ -57,7 +56,7 @@ run_attempt() {
     --entrypoint bash "$CI_IMAGE_TAG" -c \
     "set -euo pipefail
     mkdir -p /tmp/benchmark-output /tmp/isaaclab-ci-home/.cache /tmp/isaaclab-ci-home/.local/share
-    # The Isaac Sim launcher keeps verification and measurement in the same Python process.
+    # Use the CLI launcher to keep verification in the benchmark's Python process.
     uv run --no-sync isaaclab -p /tmp/source_revision.py run \
       --manifest /tmp/source-manifest.json \
       --checkout-root /workspace/isaaclab \
