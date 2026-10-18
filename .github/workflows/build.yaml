@@ -1068,9 +1068,15 @@ jobs:
         chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
 
         container=""
+        benchmark_pid=""
         cleanup_container() {
           if [ -n "$container" ]; then
             docker rm -f "$container" >/dev/null 2>&1 || true
+          fi
+          if [ -n "$benchmark_pid" ]; then
+            kill "$benchmark_pid" 2>/dev/null || true
+            wait "$benchmark_pid" 2>/dev/null || true
+            benchmark_pid=""
           fi
         }
         trap cleanup_container EXIT
@@ -1096,8 +1102,12 @@ jobs:
               --seed 42 \
               --benchmark_formatter schema \
               --output_path /tmp/benchmark-output \
-              $args"
+              $args" &
+          benchmark_pid=$!
+          # Bash can run cancellation traps while waiting with its builtin wait.
+          wait "$benchmark_pid"
           local status=$?
+          benchmark_pid=""
           docker cp "$container:/tmp/benchmark-output/." "benchmark-output/${leg}/sample-${sample}/" 2>/dev/null || true
           cleanup_container
           container=""
