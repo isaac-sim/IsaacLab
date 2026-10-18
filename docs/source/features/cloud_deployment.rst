@@ -6,13 +6,10 @@ Cloud Deployment
 Isaac Lab can be run in various cloud infrastructures with the use of
 `Isaac Automator <https://github.com/isaac-sim/IsaacAutomator>`__ (v4).
 
-Isaac Automator allows quick deployment of Isaac Sim, Isaac Lab, and Isaac Lab Arena
-onto public clouds (AWS, GCP, Azure, and Alibaba Cloud are currently supported).
-The result is a fully configured remote desktop cloud workstation (Isaac Workstation),
-which can be used for development and testing of Isaac Lab within minutes and on a budget.
-Isaac Automator supports a variety of GPU instances and stop/start functionality
-to save on cloud costs, and provides tools to aid the workflow
-(uploading and downloading data, autorun scripts, deployment management, etc.).
+Isaac Automator deploys Isaac Sim, Isaac Lab, and Isaac Lab Arena to AWS, GCP,
+Azure, and Alibaba Cloud. The resulting Isaac Workstation provides a remote desktop
+for development and testing. You can stop and restart instances, transfer data,
+and run startup scripts through the same tools.
 
 
 System Requirements
