@@ -84,6 +84,10 @@ DEPRECATED_PHYSX_CFGS = {
     "PhysXDeformableBodyPropertiesCfg": ("PhysxDeformableBodyCfg", "PhysxSurfaceDeformableBodyCfg") + _DEFORMABLE_SLOTS,
     "PhysxDeformableBodyPropertiesCfg": _PHYSX_DEFORMABLE,
     "DeformableBodyPropertiesCfg": _PHYSX_DEFORMABLE,
+    "PhysxFixedTendonPropertiesCfg": ("PhysxTendonAxisRootCfg", "fixed_tendons_props"),
+    "FixedTendonPropertiesCfg": ("PhysxTendonAxisRootCfg", "fixed_tendons_props"),
+    "PhysxSpatialTendonPropertiesCfg": ("PhysxTendonAttachmentRootCfg", "spatial_tendons_props"),
+    "SpatialTendonPropertiesCfg": ("PhysxTendonAttachmentRootCfg", "spatial_tendons_props"),
 }
 
 DEPRECATED_NEWTON_CFGS = {
