@@ -13,3 +13,4 @@ Below, you'll find detailed examples of various policies for training and deploy
     03_compass_with_NuRec/compass_navigation_policy_with_NuRec
     04_reach/reach_policy
     05_leapp/exporting_policies_with_leapp
+    06_g1_sim2real/deploying_a_g1_depth_policy
