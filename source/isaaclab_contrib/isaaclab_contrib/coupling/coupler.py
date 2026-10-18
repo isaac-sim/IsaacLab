@@ -403,7 +403,8 @@ class NewtonCouplerManager(NewtonVBDManager):
             values = vars(proxy_cfg).copy()
             if isinstance(values["collision_pipeline"], NewtonCollisionPipelineCfg):
                 collision_cfg = values["collision_pipeline"]
-                values["collision_pipeline"] = partial(CollisionPipeline, **collision_cfg.to_pipeline_args())
+                pipeline_args = collision_cfg.to_pipeline_args(world_count=model.world_count)
+                values["collision_pipeline"] = partial(CollisionPipeline, **pipeline_args)
             proxies.append(SolverCoupledProxy.Proxy(**values))
         coupling_values = cls._filter_solver_kwargs(SolverCoupledProxy.Config, solver_cfg)
         coupling_values["proxies"] = proxies
