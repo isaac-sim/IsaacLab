@@ -16,21 +16,31 @@
             return;
         }
 
-        const cards = [...browser.querySelectorAll("[data-demo-id]")];
+        const cards = [...browser.querySelectorAll("[data-demo-id], [data-example-id]")];
         const fields = Object.fromEntries(
             [...browser.querySelectorAll("[data-demo-field]")].map((field) => [field.dataset.demoField, field])
         );
         const commandOutput = browser.querySelector("[data-command-output]");
         const copyButton = browser.querySelector("[data-copy-command]");
         const copyStatus = browser.querySelector("[data-copy-status]");
-        const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-id])");
-        const selectedDescription = browser.querySelector("[data-demo-description]:not([data-demo-id])");
+        const selectedName = browser.querySelector("[data-demo-name]:not([data-demo-id]):not([data-example-id])");
+        const selectedDescription = browser.querySelector(
+            "[data-demo-description]:not([data-demo-id]):not([data-example-id])"
+        );
+        const optionPanel = browser.querySelector("[data-demo-options]");
+        const videoToggle = browser.querySelector("[data-demo-toggle='video']");
         const notes = [...browser.querySelectorAll("[data-demo-note], [data-demo-note-visualizers]")];
         let selectedCard = cards[0];
 
+        const selectedProgramId = () => selectedCard.dataset.demoId || selectedCard.dataset.exampleId;
+        const defaultRecording = () => selectedCard.dataset.demoDefaultRecording === fields.physics.value
+            && fields.visualizer.value === "default";
+
         const populateSelect = (select, values, preferredValues) => {
             const previousValue = select.value;
-            select.replaceChildren(...values.map((value) => new Option(value, value)));
+            select.replaceChildren(...values.map((value) => new Option(
+                value === "default" ? "Default" : value, value
+            )));
             select.value = [previousValue, ...preferredValues].find((value) => values.includes(value)) || values[0];
             select.disabled = values.length === 1;
         };
@@ -45,7 +55,9 @@
 
         const currentCommand = () => {
             const requiredExtras = new Set(splitValues(selectedCard.dataset.demoExtras));
-            if (fields.physics.value === "isaacsim_physx" || fields.visualizer.value === "kit") {
+            const options = splitValues(selectedCard.dataset.demoOptions);
+            const recordVideo = defaultRecording() || (options.includes("video") && videoToggle.checked);
+            if (fields.physics.value === "isaacsim_physx" || fields.visualizer.value === "kit" || defaultRecording()) {
                 requiredExtras.add("isaacsim");
             }
             if (fields.physics.value === "ovphysx") {
@@ -57,28 +69,48 @@
             if (["rerun", "viser"].includes(fields.visualizer.value)) {
                 requiredExtras.add(fields.visualizer.value);
             }
-            const extraOrder = ["isaacsim", "ovphysx", "ovrtx", "tetrahedralization", "teleop", "rerun", "viser"];
+            if (recordVideo) {
+                requiredExtras.add("video");
+            }
+            const extraOrder = [
+                "isaacsim", "ovphysx", "ovrtx", "video", "tetrahedralization", "teleop", "rerun", "viser"
+            ];
             const extras = extraOrder.filter((extra) => requiredExtras.has(extra));
 
-            const parts = ["uvx"];
+            const parts = ["uvx", "--torch-backend", "cu130"];
+            for (const dependency of splitValues(selectedCard.dataset.demoWith)) {
+                parts.push("--with", `'${dependency}'`);
+            }
             if (extras.length) {
                 parts.push("--from", `'isaaclab[${extras.join(",")}]'`);
             }
-            parts.push("isaaclab", "demo", selectedCard.dataset.demoId);
+            parts.push("isaaclab", selectedCard.dataset.exampleId ? "example" : "demo", selectedProgramId());
             if (selectedCard.dataset.demoFixedPhysics !== "true") {
                 parts.push("--physics", fields.physics.value);
             }
-            parts.push("--viz", fields.visualizer.value);
+            if (fields.visualizer.value !== "default") {
+                parts.push("--viz", fields.visualizer.value);
+            }
+            if (recordVideo && !defaultRecording()) {
+                parts.push("--video");
+            }
             parts.push(...(selectedCard.dataset.demoArgs || "").split(" ").filter(Boolean));
             return parts.join(" ");
         };
 
         const updateCommand = () => {
+            const supportsVideo = splitValues(selectedCard.dataset.demoOptions).includes("video");
+            optionPanel.hidden = !supportsVideo;
+            if (!supportsVideo || videoToggle.disabled) {
+                videoToggle.checked = false;
+            }
+            videoToggle.disabled = defaultRecording();
+            videoToggle.checked ||= defaultRecording();
             commandOutput.textContent = currentCommand();
             for (const note of notes) {
                 const visualizers = splitValues(note.dataset.demoNoteVisualizers);
                 note.hidden = Boolean(
-                    (note.dataset.demoNote && note.dataset.demoNote !== selectedCard.dataset.demoId)
+                    (note.dataset.demoNote && note.dataset.demoNote !== selectedProgramId())
                     || (visualizers.length && !visualizers.includes(fields.visualizer.value))
                 );
             }
@@ -86,14 +118,18 @@
 
         const updateVisualizer = () => {
             const preferredVisualizers = fields.physics.value.startsWith("newton")
-                ? ["newton_gl", "kit"]
+                ? ["default", "newton_gl", "kit"]
                 : ["kit"];
+            if (selectedCard.dataset.demoDefaultRecording === fields.physics.value) {
+                fields.visualizer.value = "";
+            }
             populateSelect(fields.visualizer, compatibleVisualizers(), preferredVisualizers);
             updateCommand();
         };
 
         const selectDemo = (card) => {
             selectedCard = card;
+            videoToggle.checked = false;
             for (const candidate of cards) {
                 const isSelected = candidate === selectedCard;
                 candidate.classList.toggle("is-selected", isSelected);
@@ -110,6 +146,7 @@
         }
         fields.physics.addEventListener("change", updateVisualizer);
         fields.visualizer.addEventListener("change", updateCommand);
+        videoToggle.addEventListener("change", updateCommand);
         copyButton.addEventListener("click", async () => {
             const command = currentCommand();
             try {
