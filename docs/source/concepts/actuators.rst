@@ -948,6 +948,33 @@ For example, train AGILE combined walking on rough terrain with backlash:
 Use ``IsaacContrib-Velocity-Flat-MicroDuck`` for flat ground, or omit ``backlash`` for the regular
 robot.
 
+Rough terrain advances after an episode survives and tracks its commands, with at least 1 m of
+commanded and actual walking and 5 s of translation commands. It accumulates path length, so turns
+and changes of direction retain progress. Mostly stationary episodes hold their difficulty; failures
+and poor tracking lower it. This replaces the 4 m net-displacement requirement, which prevented
+promotion for slow commands in a 20 s episode.
+
+For 16 GPUs with 4,096 environments per GPU, add ``presets=multi_gpu_16`` alongside any robot preset:
+
+.. code-block:: bash
+
+    uv run isaaclab train_multigpu --num_gpus 16 \\
+        --task IsaacContrib-Velocity-Rough-MicroDuck --rl_library rsl_rl \\
+        --num_envs 4096 --seed 42 presets=backlash,multi_gpu_16
+
+For multiple nodes, use the :ref:`multi-node-training` launcher options with 16 GPUs in total;
+for example, two nodes with ``--nnodes 2 --num_gpus 8`` and node ranks 0 and 1.
+The preset selects 3,125 iterations and saves every 16 iterations. Each rollout collects
+1,572,864 transitions across all ranks. Four minibatches per rank produce synchronized optimizer
+minibatches of 393,216 transitions. RSL-RL already averages gradients across ranks; the minibatch
+count remains four, and the KL-adaptive learning rate is unchanged.
+
+All six fixed-step curricula advance 16 times sooner in per-environment steps, preserving their
+collected-sample milestones. Terrain progression remains episode-based, and physical timing and the
+24-step rollout length are unchanged. The run collects the same total samples as 50,000 iterations
+with 4,096 environments on one GPU; equivalent convergence still needs validation. Without
+``multi_gpu_16``, the original iteration budget and fixed-step curricula are retained.
+
 To retain the previous training recipe in a custom task config, use ``mdp.track_linear_velocity``
 with weight 2.0 and ``std=math.sqrt(0.1)``, and ``mdp.track_angular_velocity`` with weight 2.0 and
 ``std=math.sqrt(0.5)``. Set ``rewards.pose.params["standing_only"] = False`` and restore the action-rate

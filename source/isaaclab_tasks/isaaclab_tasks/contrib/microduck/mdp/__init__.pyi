@@ -8,11 +8,13 @@ __all__ = [
     "BiasedJointPositionAction",
     "BiasedJointPositionActionCfg",
     # commands
+    "MicroDuckRoughVelocityCommand",
     "MicroDuckVelocityCommand",
     "MicroDuckVelocityCommandCfg",
     "UniformPoseDeltaCommand",
     "UniformPoseDeltaCommandCfg",
     # curriculums
+    "microduck_terrain_levels",
     "staged_value",
     # events
     "randomize_bam_friction",
@@ -49,12 +51,13 @@ __all__ = [
 
 from .actions import BiasedJointPositionAction, BiasedJointPositionActionCfg
 from .commands import (
+    MicroDuckRoughVelocityCommand,
     MicroDuckVelocityCommand,
     MicroDuckVelocityCommandCfg,
     UniformPoseDeltaCommand,
     UniformPoseDeltaCommandCfg,
 )
-from .curriculums import staged_value
+from .curriculums import microduck_terrain_levels, staged_value
 from .events import randomize_bam_friction, randomize_encoder_bias
 from .observations import (
     ImuNoiseCfg,
