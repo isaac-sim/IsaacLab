@@ -31,6 +31,49 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Task-space action component names, in the order of the action vector. These are the keys that
+# :attr:`~isaaclab.managers.ActionTermCfg.clip` is matched against for task-space action terms.
+_POSITION_NAMES = ("pos_x", "pos_y", "pos_z")
+_ROTATION_NAMES = ("rot_x", "rot_y", "rot_z")
+_QUATERNION_NAMES = ("quat_x", "quat_y", "quat_z", "quat_w")
+_WRENCH_NAMES = ("force_x", "force_y", "force_z", "torque_x", "torque_y", "torque_z")
+_TASK_AXES = ("x", "y", "z", "rx", "ry", "rz")
+
+
+def _resolve_task_space_clip(
+    clip: dict[str, tuple], action_names: list[str], num_envs: int, device: str
+) -> torch.Tensor:
+    """Resolve a clip dictionary against task-space action names.
+
+    Args:
+        clip: Regular expressions mapped to ``(min, max)`` ranges.
+        action_names: Names of the action components, in the order of the action vector.
+        num_envs: Number of environments.
+        device: Device to create the tensor on.
+
+    Returns:
+        The clip ranges with shape (``num_envs``, ``len(action_names)``, 2). Components that no key
+        matches keep the range ``(-inf, inf)``.
+
+    Raises:
+        ValueError: If :attr:`clip` is not a dictionary, if a key matches none of the action names, or if a
+            key matches a quaternion component (clamping quaternion components does not give a valid
+            orientation).
+    """
+    if not isinstance(clip, dict):
+        raise ValueError(f"Unsupported clip type: {type(clip)}. Supported types are dict.")
+    index_list, matched_names, value_list = string_utils.resolve_matching_names_values(clip, action_names)
+    quat_names = [name for name in matched_names if name in _QUATERNION_NAMES]
+    if quat_names:
+        raise ValueError(
+            f"Clipping the quaternion components {quat_names} is not supported. Use a relative pose command"
+            " or clip the raw actions in the RL wrapper instead."
+        )
+    clip_tensor = torch.tensor([[-float("inf"), float("inf")]], device=device).repeat(num_envs, len(action_names), 1)
+    clip_tensor[:, index_list] = torch.tensor(value_list, device=device)
+    return clip_tensor
+
+
 class DifferentialInverseKinematicsAction(ActionTerm):
     r"""Inverse Kinematics action term.
 
@@ -115,16 +158,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             self._offset_pos, self._offset_rot = None, None
 
-        # parse clip
+        # parse clip against the task-space action names (not the joint names)
         if self.cfg.clip is not None:
-            if isinstance(cfg.clip, dict):
-                self._clip = torch.tensor([[-float("inf"), float("inf")]], device=self.device).repeat(
-                    self.num_envs, self.action_dim, 1
-                )
-                index_list, _, value_list = string_utils.resolve_matching_names_values(self.cfg.clip, self._joint_names)
-                self._clip[:, index_list] = torch.tensor(value_list, device=self.device)
-            else:
-                raise ValueError(f"Unsupported clip type: {type(cfg.clip)}. Supported types are dict.")
+            self._clip = _resolve_task_space_clip(self.cfg.clip, self.action_names, self.num_envs, self.device)
 
     """
     Properties.
@@ -133,6 +169,19 @@ class DifferentialInverseKinematicsAction(ActionTerm):
     @property
     def action_dim(self) -> int:
         return self._ik_controller.action_dim
+
+    @property
+    def action_names(self) -> list[str]:
+        """Names of the action components, in the order of the action vector.
+
+        ``pos_x``, ``pos_y``, ``pos_z`` for the position, followed by ``rot_x``, ``rot_y``, ``rot_z``
+        (axis-angle) for relative pose commands or ``quat_x``, ``quat_y``, ``quat_z``, ``quat_w`` for
+        absolute pose commands. :attr:`cfg.clip` is matched against these names.
+        """
+        names = list(_POSITION_NAMES)
+        if self.cfg.controller.command_type == "pose":
+            names += list(_ROTATION_NAMES if self.cfg.controller.use_relative_mode else _QUATERNION_NAMES)
+        return names
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -185,6 +234,7 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         else:
             self._IO_descriptor.clip = None
         self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller.__dict__
+        self._IO_descriptor.extras["action_names"] = self.action_names
         self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
         return self._IO_descriptor
 
@@ -423,6 +473,10 @@ class OperationalSpaceControllerAction(ActionTerm):
         self._stiffness_idx = None
         self._damping_ratio_idx = None
         self._resolve_command_indexes()
+        self._resolve_action_names()
+        # parse clip against the task-space action names (not the joint names)
+        if self.cfg.clip is not None:
+            self._clip = _resolve_task_space_clip(self.cfg.clip, self.action_names, self.num_envs, self.device)
 
         # Nullspace position control joint targets
         self._nullspace_joint_pos_target = None
@@ -436,6 +490,14 @@ class OperationalSpaceControllerAction(ActionTerm):
     def action_dim(self) -> int:
         """Dimension of the action space of operational space control."""
         return self._osc.action_dim
+
+    @property
+    def action_names(self) -> list[str]:
+        """Names of the action components, in the order of the action vector.
+
+        See :meth:`_resolve_action_names` for the naming. :attr:`cfg.clip` is matched against these names.
+        """
+        return self._action_names
 
     @property
     def raw_actions(self) -> torch.Tensor:
@@ -499,6 +561,7 @@ class OperationalSpaceControllerAction(ActionTerm):
             self._IO_descriptor.clip = None
         self._IO_descriptor.extras["controller_cfg"] = self.cfg.controller_cfg.__dict__
         self._IO_descriptor.extras["body_offset"] = self.cfg.body_offset.__dict__
+        self._IO_descriptor.extras["action_names"] = self.action_names
         return self._IO_descriptor
 
     """
@@ -608,6 +671,33 @@ class OperationalSpaceControllerAction(ActionTerm):
         # Check if any command is left unresolved
         if self.action_dim != cmd_idx:
             raise ValueError("Not all command indexes have been resolved.")
+
+    def _resolve_action_names(self):
+        """Resolves the names of the action components, in the order of the action vector.
+
+        Each target type contributes its components (``pos_x``, ``rot_x``, ``quat_x``, ``force_x``, ...),
+        followed by ``stiffness_<axis>`` and ``damping_ratio_<axis>`` for the variable impedance modes.
+        If a component name would appear twice (for example with both ``pose_abs`` and ``pose_rel``
+        targets), every name is prefixed with the name of its block.
+        """
+        blocks: list[tuple[str, tuple[str, ...]]] = []
+        for target_type in self.cfg.controller_cfg.target_types:
+            if target_type == "pose_abs":
+                blocks.append((target_type, _POSITION_NAMES + _QUATERNION_NAMES))
+            elif target_type == "pose_rel":
+                blocks.append((target_type, _POSITION_NAMES + _ROTATION_NAMES))
+            elif target_type == "wrench_abs":
+                blocks.append((target_type, _WRENCH_NAMES))
+        if self._stiffness_idx is not None:
+            blocks.append(("stiffness", tuple(f"stiffness_{axis}" for axis in _TASK_AXES)))
+        if self._damping_ratio_idx is not None:
+            blocks.append(("damping_ratio", tuple(f"damping_ratio_{axis}" for axis in _TASK_AXES)))
+        names = [name for _, block_names in blocks for name in block_names]
+        if len(set(names)) != len(names):
+            names = [f"{block}_{name}" for block, block_names in blocks for name in block_names]
+        if len(names) != self.action_dim:
+            raise ValueError(f"Resolved {len(names)} action names for an action of dimension {self.action_dim}.")
+        self._action_names = names
 
     def _resolve_nullspace_joint_pos_targets(self):
         """Resolves the nullspace joint pos targets for the operational space controller.
@@ -784,4 +874,9 @@ class OperationalSpaceControllerAction(ActionTerm):
                 self._processed_actions[:, self._damping_ratio_idx : self._damping_ratio_idx + 6],
                 min=self.cfg.controller_cfg.motion_damping_ratio_limits_task[0],
                 max=self.cfg.controller_cfg.motion_damping_ratio_limits_task[1],
+            )
+        # Clip the processed actions. The controller limits above still apply, so a user range only narrows them.
+        if self.cfg.clip is not None:
+            self._processed_actions[:] = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
             )
