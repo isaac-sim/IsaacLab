@@ -8,32 +8,14 @@ __all__ = [
     "CosmosModelCfg",
     "CosmosTransferModifier",
     "CosmosTransferModifierCfg",
-    "RegionalEdgeControl",
-    "RegionalEdgeControlCfg",
     "apply_cosmos",
     "cosmos_camera",
     "depth_processor",
-    "edge_control",
-    "edge_processor",
     "episode_frame_budget",
-    "region_control",
-    "regional_edge_processor",
-    "regional_edges",
-    "segmentation_processor",
 ]
 
 from .camera import apply_cosmos, cosmos_camera
-from .control_profiles import (
-    RegionalEdgeControl,
-    RegionalEdgeControlCfg,
-    depth_processor,
-    edge_control,
-    edge_processor,
-    region_control,
-    regional_edge_processor,
-    regional_edges,
-    segmentation_processor,
-)
+from .control_profiles import depth_processor
 from .cosmos_model import CosmosModel
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier import CosmosTransferModifier

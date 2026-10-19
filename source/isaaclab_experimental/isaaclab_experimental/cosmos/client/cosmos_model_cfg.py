@@ -45,9 +45,9 @@ def episode_frame_budget(env_cfg: Any, update_period: float) -> tuple[int, int, 
 class CosmosModelCfg(BackendCfg):
     """Settings for a camera's resident Cosmos service connection.
 
-    Use with :class:`~isaaclab_experimental.image_transfer.ImageTransferModifierCfg` after a control
-    preparation modifier. Cosmos generates an initial one-frame chunk, then four-frame chunks.
-    Configure that modifier with ``initial_frames=1`` and ``update_frames=4``.
+    Use with :class:`~isaaclab_experimental.image_transfer.ImageTransferModifierCfg` after a depth control
+    modifier, as :func:`~isaaclab_experimental.cosmos.depth_processor` arranges. Cosmos generates an initial
+    one-frame chunk, then four-frame chunks. Configure that modifier with ``initial_frames=1`` and ``update_frames=4``.
     """
 
     class_type: type[CosmosModel] | str = "{DIR}.cosmos_model:CosmosModel"
@@ -75,11 +75,8 @@ class CosmosModelCfg(BackendCfg):
     gives each camera its own session. With several, every capture generates all their environments as one batch:
     camera ``k``'s environment ``v`` is view ``k * num_envs + v``, which selects its prompt as above; a camera's view
     takes its environment's seed, so all cameras of an environment share it. Views of different cameras are generated
-    independently and need not agree with each other. The cameras need the same canvas, control type, and capture
-    rate; :func:`~isaaclab_experimental.cosmos.apply_cosmos` sets them up."""
-
-    modality: Literal["edge", "depth", "seg"] = "depth"
-    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls."""
+    independently and need not agree with each other. The cameras need the same canvas and capture rate;
+    :func:`~isaaclab_experimental.cosmos.apply_cosmos` sets them up."""
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the

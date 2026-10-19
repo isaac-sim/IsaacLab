@@ -38,7 +38,7 @@ def _camera(width, height, **kwargs):
 def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_original_size(size, canvas, bounds):
     """The canvas keeps the camera's aspect ratio; the published crop sees what the camera saw."""
     width, height = size
-    camera = cosmos_camera(_camera(width, height), CosmosModelCfg(modality="depth"), near=0.2, far=1.5)
+    camera = cosmos_camera(_camera(width, height), CosmosModelCfg(), near=0.2, far=1.5)
     chain = camera.modifiers["distance_to_image_plane"]
 
     assert (camera.width, camera.height) == canvas
@@ -69,10 +69,8 @@ def test_cosmos_camera_renders_a_canvas_with_the_same_view_and_publishes_the_ori
 
 def test_cosmos_camera_rejects_cameras_it_cannot_reproduce():
     with pytest.raises(ValueError, match="only 'rgb'"):
-        cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg(modality="depth"))
+        cosmos_camera(_camera(64, 64).replace(data_types=["rgb", "depth"]), CosmosModelCfg())
     with pytest.raises(ValueError, match="already has modifiers"):
-        cosmos_camera(_camera(64, 64, modifiers={"rgb": []}), CosmosModelCfg(modality="depth"))
-    with pytest.raises(ValueError, match="use depth control"):
-        cosmos_camera(_camera(64, 64), CosmosModelCfg(modality="seg"))
+        cosmos_camera(_camera(64, 64, modifiers={"rgb": []}), CosmosModelCfg())
     with pytest.raises(ValueError, match="fisheye"):
-        cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosModelCfg(modality="depth"))
+        cosmos_camera(_camera(64, 64, spawn=sim_utils.FisheyeCameraCfg()), CosmosModelCfg())
