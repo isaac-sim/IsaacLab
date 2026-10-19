@@ -354,7 +354,7 @@ def apply_articulation_root_properties(
     success = not any_skipped
     for root in targets:
         if fix_root_link:
-            root = sim.physics_manager.fix_articulation_root(root, stage)
+            root = sim.backend_manager.fix_articulation_root(root, stage)
         elif fix_root_link is False:
             joint = find_global_fixed_joint_prim(root.GetPath().pathString, stage=stage)
             if joint is not None:
@@ -808,7 +808,7 @@ def _apply_deformable_body_properties(
             sim_mesh_prim, vis_mesh_prim = _setup_deformable_meshes(
                 prim, deformable_type, sim_mesh_prim_path, stage, tetrahedralization_edge_length_fac
             )
-            sim.physics_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
+            sim.backend_manager.setup_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
             targets.append(prim)
     if not targets:
         if not any_skipped:

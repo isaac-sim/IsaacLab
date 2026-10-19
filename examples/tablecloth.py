@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compare contact-driven bimanual tablecloth pulls at five speeds.
+"""Compare contact-driven bimanual tablecloth pulls at three speeds.
 
 InteractiveScene owns fixed-base H2 Plus robots with SHARPA hands, cloths, and tableware.
 Newton VBD simulates the articulations, cloth, and tableware together; Newton IK and a Warp
@@ -12,6 +12,7 @@ state machine run inside the physics CUDA graph. This is scripted manipulation, 
 .. code-block:: bash
 
     uv run isaaclab example tablecloth --device cuda:0
+    uv run --extra isaacsim isaaclab example tablecloth --device cuda:0 --visualizer kit
 """
 
 from __future__ import annotations
@@ -27,12 +28,12 @@ from isaaclab.app import add_launcher_args, launch_simulation
 
 logger = logging.getLogger("isaaclab.examples.tablecloth")
 
-parser = argparse.ArgumentParser(description="Five side-by-side GPU humanoid tablecloth pulls.")
+parser = argparse.ArgumentParser(description="Three side-by-side GPU humanoid tablecloth pulls.")
 parser.add_argument(
     "--speeds",
     nargs="+",
     type=float,
-    default=[4.0, 2.0, 1.5, 0.75, 0.5],
+    default=[4.0, 1.5, 0.5],
     help="Peak pull speeds, ordered left to right from fastest to slowest [m/s].",
 )
 parser.add_argument(
@@ -53,19 +54,10 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import newton
 import warp as wp
-from isaaclab_newton.cloner import newton_builder_world_hook
-from isaaclab_newton.controllers.ik import (
-    NewtonIKJointLimitObjectiveCfg,
-    NewtonIKPoseObjectiveCfg,
-    NewtonIKSolver,
-    NewtonIKSolverCfg,
-)
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
-    NewtonManager,
     NewtonShapeCfg,
     NewtonSoftContactCfg,
     VBDSolverCfg,
@@ -81,18 +73,22 @@ from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg, NewtonSurf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import Articulation, ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, DeformableObjectCfg, RigidObjectCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
 from isaaclab.utils import clone, configclass, instantiate
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
+    import newton
     from newton import Mesh, ModelBuilder
 
     from pxr import Usd
+
+    from isaaclab.assets import Articulation
 
 
 # Scene configuration and native contact preparation.
@@ -116,6 +112,7 @@ WINE_GLASS_USD = (
     "sm_dishware_glass_wine_a01_01.usd"
 )
 FORK_USD = f"{ISAAC_NUCLEUS_DIR}/SimReady/Residential/Kitchen/Utensils/Fork_K01/sm_kitchenware_fork_k01_01.usd"
+CANTINA_USD = f"{ISAACLAB_NUCLEUS_DIR}/Environments/TableClothPull/tablecloth_cantina.usdc"
 
 # Table coordinates are authored in centimeters; USD references do not convert stage units.
 TABLE_ASSET_SIZE = (91.44, 152.7302, 76.20)
@@ -671,12 +668,22 @@ TABLECLOTH_ASSETS = {
     ),
     "ground": AssetBaseCfg(
         prim_path="/World/defaultGroundPlane",
-        spawn=sim_utils.GroundPlaneCfg(),
+        spawn=sim_utils.GroundPlaneCfg(visible=False),
         collision_group=-1,
     ),
     "light": AssetBaseCfg(
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
+    ),
+    # Illuminate the pull stations below the cantina's opaque ceiling.
+    "interior_light": AssetBaseCfg(
+        prim_path="/World/InteriorLight",
+        spawn=sim_utils.DiskLightCfg(radius=1.5, intensity=16000.0),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.8, 0.0, 3.0), rot=(0.0, 0.3007058, 0.0, 0.95371695)),
+    ),
+    "backdrop": AssetBaseCfg(
+        prim_path="/World/Backdrop",
+        spawn=sim_utils.UsdFileCfg(usd_path=CANTINA_USD),
     ),
 }
 
@@ -925,6 +932,14 @@ class _Controller:
         control: newton.Control,
         substeps: int,
     ) -> None:
+        import newton  # noqa: PLC0415
+        from isaaclab_newton.controllers.ik import (  # noqa: PLC0415
+            NewtonIKJointLimitObjectiveCfg,
+            NewtonIKPoseObjectiveCfg,
+            NewtonIKSolver,
+            NewtonIKSolverCfg,
+        )
+
         from pxr import Gf, Usd, UsdPhysics  # noqa: PLC0415
 
         self.robot = robot
@@ -1283,7 +1298,9 @@ def main() -> None:
         rigid_body_contact_buffer_size=256,
         rigid_body_particle_contact_buffer_size=8192,
     )
-    camera_distance = max(3.0, 1.6 * len(speeds))
+    # Frame up to three trials at 4.6 m with a 27 mm lens; stations are 1.5 m apart.
+    # Wider rows use 20 mm and 1.16 m of camera distance per trial.
+    camera_distance = max(4.6, 1.16 * len(speeds))
     sim_cfg = sim_utils.SimulationCfg(
         dt=step_dt / substeps,
         render_interval=substeps,
@@ -1300,11 +1317,19 @@ def main() -> None:
             solver_cfg=solver_cfg,
         ),
         default_visualizer_cfg=VisualizerCfg(
-            eye=(camera_distance, -1.5, 1.0 + 0.35 * camera_distance), lookat=(-0.3, 0.0, 1.0)
+            eye=(camera_distance, -1.5, 2.1),
+            lookat=(-0.25, 0.0, 0.95),
+            focal_length=27.0 if len(speeds) <= 3 else 20.0,
         ),
     )
-    with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):
+    viewer_scene_cfg = InteractiveSceneCfg(num_envs=len(speeds), env_spacing=1.5)
+    with launch_simulation(cfg={"sim": sim_cfg, "scene": viewer_scene_cfg}, launcher_args=args_cli):
+        # Kit must select its OpenUSD runtime before importing native scene and Newton code.
+        from isaaclab_newton.cloner import newton_builder_world_hook  # noqa: PLC0415
+
         from pxr import UsdGeom  # noqa: PLC0415
+
+        from isaaclab.scene import InteractiveScene  # noqa: PLC0415
 
         usd_path = retrieve_file_path(H2_PLUS_USD)
         sim = sim_utils.SimulationContext(sim_cfg)
@@ -1316,6 +1341,8 @@ def main() -> None:
             scene.stage.GetPrimAtPath(scene.env_prim_paths[0]), translation=tuple(map(float, positions[0]))
         )
         cfgs = {name: clone(cfg) for name, cfg in TABLECLOTH_ASSETS.items()}
+        # Include cameras declared by launch in the same topology as the manually constructed assets.
+        cfgs.update({name: cfg for name, cfg in vars(viewer_scene_cfg).items() if isinstance(cfg, CameraCfg)})
         cfgs["robot"].spawn.usd_path = usd_path
         plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, cfgs.values(), len(speeds), 1.5, positions=positions)
         scene.articulations["robot"] = instantiate(cfgs["robot"])
@@ -1329,11 +1356,13 @@ def main() -> None:
         for name in ("bowl", "glass", "fork"):
             scene.rigid_objects[name] = instantiate(cfgs[name])
         for name, cfg in cfgs.items():
-            if name not in ("robot", "cloth", "bowl", "glass", "fork"):
+            if isinstance(cfg, CameraCfg):
+                scene.sensors[name] = instantiate(cfg)
+            elif name not in ("robot", "cloth", "bowl", "glass", "fork"):
                 scene.extras[name] = instantiate(cfg)
         contact_hook = partial(_prepare_contacts, device=sim.device, mesh_sdf_cache={})
         with newton_builder_world_hook(contact_hook):
-            cloner.replicate(plan, replicate_physics=scene.cfg.replicate_physics)
+            cloner.replicate(plan)
         sim.reset()
         robot = scene["robot"]
         robot.write_joint_state_to_sim_index(
@@ -1347,16 +1376,16 @@ def main() -> None:
             usd_path,
             step_dt,
             speeds,
-            state=NewtonManager.get_state_0(),
-            control=NewtonManager.get_control(),
+            state=sim.backend_manager.get_state_0(),
+            control=sim.backend_manager.get_control(),
             substeps=substeps,
         )
-        NewtonManager.activate_newton_actuator_path()
-        NewtonManager.register_post_actuator_callback(controller.interpolate_arm_targets)
-        NewtonManager.set_decimation(substeps)
-        NewtonManager.register_post_step_callback(controller.compute)
-        grasp = _GraspMonitor(NewtonManager.get_model(), NewtonManager.get_state_0(), controller)
-        NewtonManager.register_post_step_callback(grasp.compute)
+        sim.backend_manager.activate_newton_actuator_path()
+        sim.backend_manager.register_post_actuator_callback(controller.interpolate_arm_targets)
+        sim.backend_manager.set_decimation(substeps)
+        sim.backend_manager.register_post_step_callback(controller.compute)
+        grasp = _GraspMonitor(sim.backend_manager.get_model(), sim.backend_manager.get_state_0(), controller)
+        sim.backend_manager.register_post_step_callback(grasp.compute)
         # Include per-phase frame rounding, the slowest pull and a one-second hold.
         duration = sum(H2_PHASE_DURATIONS) + len(H2_PHASE_DURATIONS) * step_dt
         duration += PULL_TIME_FACTOR * H2_PULL_DISTANCE / min(speeds)
@@ -1376,8 +1405,8 @@ def main() -> None:
                 if not all(report["retained"] for report in reports):
                     raise RuntimeError("A robot lost its physical cloth grasp; see the material-point gaps above.")
         finally:
-            NewtonManager.unregister_post_step_callback(grasp.compute)
-            NewtonManager.unregister_post_step_callback(controller.compute)
+            sim.backend_manager.unregister_post_step_callback(grasp.compute)
+            sim.backend_manager.unregister_post_step_callback(controller.compute)
 
 
 if __name__ == "__main__":

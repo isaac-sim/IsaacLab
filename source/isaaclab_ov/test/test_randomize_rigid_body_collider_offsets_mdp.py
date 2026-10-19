@@ -10,7 +10,7 @@ a real OVPhysX :class:`~isaaclab_ov.assets.RigidObject` and :class:`~isaaclab_ov
 the backend dispatch itself is exercised (it previously fell through to the PhysX implementation, whose
 ``root_view`` accessors do not exist on :class:`~isaaclab_ov.sim.views.OvPhysxView`). The ``cfg`` /
 ``env`` / ``asset_cfg`` inputs are stubbed: the term only reads ``cfg.params["asset_cfg"]``,
-``env.scene[...]``, ``env.scene.num_envs`` and ``env.sim.physics_manager``.
+``env.scene[...]``, ``env.scene.num_envs`` and ``env.sim.backend_manager``.
 
 Kitless; the CPU and CUDA cases run in one process.
 """

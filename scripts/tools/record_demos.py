@@ -45,7 +45,7 @@ from typing import TYPE_CHECKING
 
 # Isaac Lab simulation launcher
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils.string import list_intersection, string_to_callable
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
 
@@ -153,13 +153,10 @@ args_cli.enable_cameras = not args_cli.disable_external_cameras
 args_cli.require_kit = True
 
 # Call an external callback if requested.
-remaining_args_env_registration = None
 if args_cli.external_callback:
-    external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
-    remaining_args_env_registration = external_callback_function()
-
-# Hand arguments consumed by neither this parser nor the callback over to Hydra.
-hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+    remaining = string_to_callable(args_cli.external_callback, separator=".")()
+    if remaining is not None:
+        _, hydra_args = setup_preset_cli(parser, remaining)
 sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""
@@ -216,22 +213,6 @@ def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | N
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
         _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
-
-
-def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
-    """Return whether the CLI selects a renderer that actually drives RTX rendering.
-
-    The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
-    A pure-headless session with none of these renders nothing.
-
-    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
-    check keeps working as these scripts grow support for other renderers and kitless runs.
-    """
-    visualizers = getattr(args, "visualizer", None) or []
-    external_cameras = not getattr(args, "disable_external_cameras", False)
-    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
 
 
 class RateLimiter:
@@ -835,7 +816,7 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: c
 
     # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
     # external cameras, or XR).
-    if _rtx_rendering_requested(args_cli):
+    if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
         )

@@ -40,11 +40,12 @@ def test_unpack_contact_buffer_data_pattern_major(device: str, use_mask: bool, c
     if use_mask:
         expected[1] = -1.0
     mask = wp.array([True, False], dtype=wp.bool, device=device) if use_mask else None
+    timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
     output = wp.full((num_envs, num_sensors, num_filters), value=wp.vec3f(-1.0), dtype=wp.vec3f, device=device)
     wp.launch(
         unpack_contact_buffer_data,
         dim=(num_envs, num_sensors, num_filters),
-        inputs=[wp.array(positions, dtype=wp.vec3f, device=device), counts, starts, mask, num_envs],
+        inputs=[wp.array(positions, dtype=wp.vec3f, device=device), counts, starts, mask, num_envs, timestamp],
         outputs=[output],
         device=device,
     )
