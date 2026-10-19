@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import warp as wp
 from newton import BodyFlags, Gaussian, GeoType, Heightfield, JointType, Mesh, Model, ModelBuilder, ShapeFlags
 from newton._src.geometry.inertia import verify_and_correct_inertia
+
+from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,16 +30,6 @@ class MeshVariantRenderShape:
     thickness: float
     is_solid: bool
     color: tuple[float, float, float]
-
-
-@dataclass(frozen=True, slots=True)
-class MeshVariantRenderSet:
-    """Render prototypes and live bodies belonging to one mesh selection."""
-
-    body_indices: wp.array(dtype=wp.int32)
-    model_shape_indices: tuple[int, ...]
-    visual_variants: tuple[tuple[MeshVariantRenderShape, ...], ...]
-    collision_variants: tuple[tuple[MeshVariantRenderShape, ...], ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,8 +121,8 @@ def _mesh_variant_body_properties(builders: tuple[ModelBuilder, ...], inertia_of
 
 @wp.kernel(enable_backward=False)
 def _select_mesh_variants(
-    selections: wp.array(dtype=wp.int32),
-    worlds: wp.array(dtype=wp.int32),
+    selections: wp.array(dtype=Any),
+    worlds: wp.array(dtype=Any),
     targets: wp.array2d(dtype=wp.int32),
     sources: wp.array2d(dtype=wp.int32),
     variants: wp.array(dtype=_VariantBody),
@@ -194,11 +187,14 @@ def _select_mesh_variants(
         coms[body] = properties.com
         inertias[body] = properties.inertia
         inv_inertias[body] = properties.inv_inertia
-        selected[world] = variant
+        selected[world] = wp.int32(variant)
+
+
+_SELECT_MESH_VARIANTS = IndexKernelDispatcher(_select_mesh_variants, ("selections", "worlds"))
 
 
 class MeshVariants:
-    """Select Newton mesh resources without changing solver topology.
+    """Own validated mesh resources and selected IDs for one finalized Newton model.
 
     One fixed-root or free rigid body is retained in each world. Variants must have the same
     root-joint type, ordered collider types, and collision filtering. Selection changes
@@ -227,8 +223,8 @@ class MeshVariants:
             raise ValueError("Mesh variants reference an invalid shape.")
         if np.intersect1d(targets, sources).size or np.unique(targets).size != targets.size:
             raise ValueError("Mesh variant resources must be separate from uniquely owned target shapes.")
-        self._source_shape_indices = wp.array(sources, dtype=wp.int32, device=model.device)
-        inactive = self._source_shape_indices.flatten()
+        self.source_shape_indices = wp.array(sources, dtype=wp.int32, device=model.device)
+        inactive = self.source_shape_indices.flatten()
         wp.launch(_clear_shape_flags, dim=inactive.size, inputs=[inactive, model.shape_flags], device=model.device)
         types, flags = model.shape_type.numpy(), model.shape_flags.numpy()
         if not np.all(flags[targets] & int(ShapeFlags.COLLIDE_SHAPES)):
@@ -274,65 +270,16 @@ class MeshVariants:
             or np.any(initial_variant_ids >= len(properties))
         ):
             raise ValueError("Mesh variants have invalid initial selections.")
-        self._model = model
-        self._shape_indices = wp.array(targets, dtype=wp.int32, device=model.device)
-        self._body_properties = wp.array(properties, dtype=_VariantBody, device=model.device)
+        self.shape_indices = wp.array(targets, dtype=wp.int32, device=model.device)
+        self.body_properties = wp.array(properties, dtype=_VariantBody, device=model.device)
         self.variant_ids = wp.array(initial_variant_ids, dtype=wp.int32, device=model.device)
-        self.render_set: MeshVariantRenderSet | None = None
+        self.visual_variants = definition.visual_variants
+        self.collision_variants = definition.collision_variants
+        self.body_indices: wp.array | None = None
+        self.model_shape_indices: tuple[int, ...] = ()
         if definition.visual_variants is not None:
-            self.render_set = MeshVariantRenderSet(
-                body_indices=wp.array(body_ids, dtype=wp.int32, device=model.device),
-                model_shape_indices=tuple(shape for body in body_ids for shape in model.body_shapes[body]),
-                visual_variants=definition.visual_variants,
-                collision_variants=definition.collision_variants,
-            )
-
-    def select(self, variant_ids: wp.array[wp.int32], world_ids: wp.array[wp.int32]) -> None:
-        """Apply selections without allocating or publishing solver changes.
-
-        Args:
-            variant_ids: Variant index per selected world, shape ``(len(world_ids),)``.
-            world_ids: Valid, unique world indices.
-        """
-        if variant_ids.shape != world_ids.shape:
-            raise ValueError("Mesh variants require one selection per world index.")
-        if not world_ids.shape[0]:
-            return
-        model = self._model
-        wp.launch(
-            _select_mesh_variants,
-            dim=(world_ids.shape[0], self._shape_indices.shape[1]),
-            inputs=[
-                variant_ids,
-                world_ids,
-                self._shape_indices,
-                self._source_shape_indices,
-                self._body_properties,
-                self.variant_ids,
-                model.shape_body,
-                model.shape_scale,
-                model.shape_transform,
-                model.shape_collision_radius,
-                model.shape_margin,
-                model.shape_gap,
-                model.shape_is_solid,
-                model.shape_source_ptr,
-                model._shape_mesh_properties,
-                model._shape_support_data,
-                model._shape_sdf_index,
-                model.shape_edge_range,
-                model.shape_collision_aabb_lower,
-                model.shape_collision_aabb_upper,
-                model.bvh_shape_bounds,
-                model._shape_voxel_resolution,
-                model.body_mass,
-                model.body_inv_mass,
-                model.body_com,
-                model.body_inertia,
-                model.body_inv_inertia,
-            ],
-            device=model.device,
-        )
+            self.body_indices = wp.array(body_ids, dtype=wp.int32, device=model.device)
+            self.model_shape_indices = tuple(shape for body in body_ids for shape in model.body_shapes[body])
 
 
 @wp.kernel(enable_backward=False)

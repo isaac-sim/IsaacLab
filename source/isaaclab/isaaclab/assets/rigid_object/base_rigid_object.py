@@ -194,8 +194,8 @@ class BaseRigidObject(AssetBase):
 
     def write_mesh_variant_to_sim(
         self,
-        variant_ids: torch.Tensor | wp.array[wp.int32],
-        env_ids: Sequence[int] | torch.Tensor | wp.array[wp.int32] | None = None,
+        variant_ids: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Select collision geometry and inertial properties for selected environments.
 
@@ -206,8 +206,10 @@ class BaseRigidObject(AssetBase):
 
         Args:
             variant_ids: Variant index per selected environment, shape ``(len(env_ids),)``.
-                Every value must be in ``[0, num_mesh_variants)``.
-            env_ids: Valid, unique environment indices. If ``None``, select every environment.
+                Every value must be in ``[0, num_mesh_variants)``. Accepts signed 32-bit or 64-bit integers
+                on the asset's device.
+            env_ids: Valid, unique environment indices, as signed 32-bit or 64-bit integers.
+                Tensor and array inputs must be on the asset's device. If ``None``, select every environment.
         """
         raise NotImplementedError(f"Backend {self.__backend_name__!r} does not support reset-time mesh selection.")
 

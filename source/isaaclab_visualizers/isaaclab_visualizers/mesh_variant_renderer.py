@@ -40,7 +40,7 @@ def populate_shapes_without_mesh_variants(
 
 
 class MeshVariantRenderer:
-    """Render reset-selectable shapes without adding them to the physics model.
+    """Bind viewer geometry and render reset-selectable shapes outside the physics model.
 
     Collision overlays show each selected variant's triangle mesh, not a cached SDF isosurface.
     """
@@ -49,9 +49,12 @@ class MeshVariantRenderer:
         self,
         viewer: ViewerBase,
         model: Model,
-        banks: tuple[MeshVariants, ...],
+        banks: Collection[MeshVariants],
         visible_worlds: list[int] | None,
     ) -> None:
+        banks = tuple(bank for bank in banks if bank.visual_variants is not None)
+        viewer._mesh_variant_model_shapes = tuple(shape for bank in banks for shape in bank.model_shape_indices)
+        viewer.set_model(model)
         worlds = np.arange(model.world_count, dtype=np.int32) if visible_worlds is None else visible_worlds
         worlds = wp.array(worlds, dtype=wp.int32, device=model.device)
         instance_count = len(worlds)
@@ -61,8 +64,8 @@ class MeshVariantRenderer:
             shapes = tuple(
                 (variant, collision, shape)
                 for collision, variants in (
-                    (False, bank.render_set.visual_variants),
-                    (True, bank.render_set.collision_variants),
+                    (False, bank.visual_variants),
+                    (True, bank.collision_variants),
                 )
                 for variant, variant_shapes in enumerate(variants)
                 for shape in variant_shapes
@@ -128,7 +131,7 @@ class MeshVariantRenderer:
             groups.append(
                 _MeshVariantGroup(
                     kernel_inputs=(
-                        bank.render_set.body_indices,
+                        bank.body_indices,
                         bank.variant_ids,
                         worlds,
                         local_xforms,

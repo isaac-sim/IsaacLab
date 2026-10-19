@@ -337,7 +337,9 @@ class ViserVisualizer(BaseVisualizer):
         if self.cfg.verbose:
             print()
             self._log_viewer_url("ViserVisualizer", viewer_url)
-        self._bind_model()
+        self._mesh_variant_renderer = MeshVariantRenderer(
+            self._viewer, self.backend.model, self.backend.mesh_variants.values(), self._env_ids
+        )
         self._viewer.show_particles = self.cfg.show_particles
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
@@ -447,21 +449,12 @@ class ViserVisualizer(BaseVisualizer):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._bind_model()
+        self._mesh_variant_renderer = MeshVariantRenderer(
+            self._viewer, self.backend.model, self.backend.mesh_variants.values(), self._env_ids
+        )
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
-
-    def _bind_model(self) -> None:
-        """Bind regular geometry and the backend's live mesh selections."""
-        banks = tuple(bank for bank in self.backend.mesh_variants.values() if bank.render_set is not None)
-        self._viewer._mesh_variant_model_shapes = tuple(
-            shape for bank in banks for shape in bank.render_set.model_shape_indices
-        )
-        self._viewer.set_model(self.backend.model)
-        self._mesh_variant_renderer = None
-        if banks:
-            self._mesh_variant_renderer = MeshVariantRenderer(self._viewer, self.backend.model, banks, self._env_ids)
 
     def close(self) -> None:
         """Close viewer resources and finalize optional recording."""
