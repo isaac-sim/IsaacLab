@@ -16,6 +16,8 @@ from typing import Any, NamedTuple
 import numpy as np
 import warp as wp
 
+from ..assets import AssetBaseCfg
+from ..sensors import CameraCfg
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
 
@@ -238,15 +240,16 @@ class path:
         first_worlds[0] = -1
         prototypes, first = np.unique(plan.topology.world_prototype_layout, return_index=True)
         first_worlds[prototypes + 1] = first
-        sources = [getattr(getattr(cfg, "spawn", None), "spawn_path", None) for cfg in plan.asset_cfgs]
+        sources = [
+            cfg.spawn.spawn_path if isinstance(cfg, (AssetBaseCfg, CameraCfg)) and cfg.spawn is not None else None
+            for cfg in plan.asset_cfgs
+        ]
         for asset, template, world in zip(
             plan.topology.world_prototypes, templates, np.repeat(first_worlds, np.diff(starts)), strict=True
         ):
             if world < -1 or sources[asset] is not None:
                 continue
-            spawn = getattr(plan.asset_cfgs[asset], "spawn", None)
-            source = getattr(spawn, "spawn_path", None)
-            sources[asset] = source if source is not None else template.format(int(world))
+            sources[asset] = template.format(int(world))
         return tuple(sources)
 
     @staticmethod

@@ -108,6 +108,11 @@ def test_cloner_imports_without_kit():
     # Only cloning execution and its lifecycle owners may access context instances.
     for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
         tree = ast.parse(path.read_text())
+        if path.name == "clone_plan.py":
+            assert not any(
+                isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "getattr"
+                for node in ast.walk(tree)
+            ), "Clone-plan queries must use declared config fields, not reflective attribute fallbacks."
         if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
             continue
         assert not any(isinstance(node, ast.Attribute) and node.attr == "clone_contexts" for node in ast.walk(tree)), (
