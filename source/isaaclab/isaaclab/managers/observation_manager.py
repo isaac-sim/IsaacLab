@@ -30,10 +30,6 @@ if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
 
 
-_TermObservation = torch.Tensor | dict[str, torch.Tensor]
-_GroupObservation = torch.Tensor | dict[str, _TermObservation]
-
-
 class ObservationManager(ManagerBase):
     """Manager for computing observation signals for a given world.
 
@@ -136,7 +132,7 @@ class ObservationManager(ManagerBase):
                 self._group_obs_dim[group_name] = group_term_dims
 
         # Stores the latest observations.
-        self._obs_buffer: dict[str, _GroupObservation] | None = None
+        self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]] | None = None
 
     def close(self) -> None:
         """Release dictionary processor resources. Repeated calls have no effect."""
@@ -201,7 +197,7 @@ class ObservationManager(ManagerBase):
 
         if self._obs_buffer is None:
             self.compute()
-        obs_buffer: dict[str, _GroupObservation] = self._obs_buffer
+        obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]] = self._obs_buffer
 
         for group_name, _ in self._group_obs_dim.items():
             if not self.group_obs_concatenate[group_name]:
@@ -391,7 +387,9 @@ class ObservationManager(ManagerBase):
         # nothing to log here
         return {}
 
-    def compute(self, update_history: bool = False) -> dict[str, _GroupObservation]:
+    def compute(
+        self, update_history: bool = False
+    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]]:
         """Compute the observations per group for all groups.
 
         The method computes the observations for all the groups handled by the observation manager.
@@ -418,7 +416,9 @@ class ObservationManager(ManagerBase):
         self._obs_buffer = obs_buffer
         return obs_buffer
 
-    def compute_group(self, group_name: str, update_history: bool = False) -> _GroupObservation:
+    def compute_group(
+        self, group_name: str, update_history: bool = False
+    ) -> torch.Tensor | dict[str, torch.Tensor | dict[str, torch.Tensor]]:
         """Computes the observations for a given group.
 
         The observations for a given group are computed by calling the registered functions for each
