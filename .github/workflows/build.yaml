@@ -1030,7 +1030,7 @@ jobs:
     - name: Prepare benchmark source revision evidence
       run: |
         python3 tools/perf_smoke/source_revision.py prepare \
-          --checkout-root "$GITHUB_WORKSPACE" \
+          --checkout-root "$GITHUB_WORKSPACE" --commit "$GITHUB_SHA" \
           --output "$GITHUB_WORKSPACE/benchmark-output/source-manifest.json"
 
     - name: Run runtime benchmarks
