@@ -34,6 +34,7 @@ DEFAULT_ENDPOINT = (
 """Default service endpoint: a Unix socket only this user can open on Linux, local TCP elsewhere (Windows)."""
 _ENDPOINT_FORMS = "unix:///absolute/path or tcp://host:port"
 _MAX_UNIX_PATH_BYTES = 107
+"""Longest Unix socket path [bytes]: Linux ``sun_path`` holds 108 bytes, including the terminating null."""
 MAX_METADATA_BYTES = 64 * 1024
 MAX_ARRAY_BYTES = 256 * 1024 * 1024
 MAX_ARRAYS = 16

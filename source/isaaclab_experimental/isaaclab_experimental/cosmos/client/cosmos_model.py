@@ -24,8 +24,6 @@ from .._protocol import (
     send_message,
 )
 
-_LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
-
 if TYPE_CHECKING:
     import numpy as np
     import torch
@@ -254,11 +252,8 @@ class _CosmosStream:
         if self._cfg.transport == "socket":
             return "socket"
         reason = None
-        family, address = parse_endpoint(self._cfg.endpoint)
         if device.type != "cuda":
             reason = "the camera images are not on a CUDA device"
-        elif family == socket.AF_INET and address[0] not in _LOOPBACK_HOSTS:
-            reason = f"the service at {address[0]} is not on this machine"
         else:
             from .. import _cuda_ipc
 
