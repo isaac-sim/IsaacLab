@@ -386,15 +386,14 @@ does not end the episode. Training also starts environments at random points of 
 ## Several cameras
 
 Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. Pass the cameras to `apply_cosmos` as a list of names
-(`camera=["base_camera", "wrist_camera"]`), or `camera="all"` for every camera that publishes `rgb`:
+environments as one batch. Pass the cameras to `apply_cosmos` as a list of names:
 
 ```python
 from isaaclab_experimental.cosmos import apply_cosmos
 
 apply_cosmos(
     env_cfg,
-    camera="all",
+    camera=["base_camera", "wrist_camera"],
     prompt=[
         "A KUKA arm with an Allegro hand turning a cube in a bright lab, seen from the side.",
         "A close-up of an Allegro hand turning a cube in a bright lab, seen from its wrist.",
@@ -402,8 +401,7 @@ apply_cosmos(
 )
 ```
 
-- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given (for `all`, the
-  scene's order). A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
+- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given. A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
   the wrist camera.
 - Each camera keeps its own output size. One session has one canvas, so every camera renders at the canvas closest
   to the first camera's aspect ratio; each camera's view is the canvas's center crop, scaled back to its size.
