@@ -837,7 +837,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             )
 
         self._picking_enabled = self.cfg.enable_picking and picking_supported and not self._runtime_headless
-        self._bind_model()
+        self._mesh_variant_renderer = MeshVariantRenderer(
+            self._viewer, self.backend.model, self.backend.mesh_variants.values(), self._env_ids
+        )
         if self._picking_enabled:
             # Keep Newton's public force path scoped to picking for this integration.
             self._viewer.wind = None
@@ -935,7 +937,9 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._bind_model()
+        self._mesh_variant_renderer = MeshVariantRenderer(
+            self._viewer, self.backend.model, self.backend.mesh_variants.values(), self._env_ids
+        )
         self._viewer.register_ui_callback(self._viewer._render_training_controls, position="side")
         self._viewer.register_ui_callback(self._draw_streaming_view_controls, position="side")
         if self._picking_enabled:
@@ -963,17 +967,6 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
     # ------------------------------------------------------------------
     # Shared internals
     # ------------------------------------------------------------------
-
-    def _bind_model(self) -> None:
-        """Bind regular geometry and the backend's live mesh selections."""
-        banks = tuple(bank for bank in self.backend.mesh_variants.values() if bank.render_set is not None)
-        self._viewer._mesh_variant_model_shapes = tuple(
-            shape for bank in banks for shape in bank.render_set.model_shape_indices
-        )
-        self._viewer.set_model(self.backend.model)
-        self._mesh_variant_renderer = None
-        if banks:
-            self._mesh_variant_renderer = MeshVariantRenderer(self._viewer, self.backend.model, banks, self._env_ids)
 
     def _log_scene_contact_sensor_arrows(self) -> None:
         """Draw filtered contact points, or body origins when only net forces are available."""

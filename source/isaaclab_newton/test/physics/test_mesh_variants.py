@@ -14,12 +14,13 @@ import pytest
 import warp as wp
 from isaaclab_newton.physics import mesh_variants
 from isaaclab_newton.physics.mesh_variants import (
+    _SELECT_MESH_VARIANTS,
     MeshVariants,
     _mesh_variant_body_properties,
     _prepare_mesh_variant,
     _render_shapes,
 )
-from newton import GeoType, Mesh, ModelBuilder, ShapeFlags
+from newton import GeoType, Mesh, Model, ModelBuilder, ShapeFlags
 
 
 def _variant_builder(
@@ -53,6 +54,50 @@ def _variant_builder(
     return builder
 
 
+def _select(
+    model: Model, variants: MeshVariants, variant: int, world: int, dtype: type[wp.int32] | type[wp.int64] = wp.int32
+) -> None:
+    selections = wp.array([variant], dtype=dtype, device=model.device)
+    worlds = wp.array([world], dtype=dtype, device=model.device)
+    fields = (
+        "shape_body",
+        "shape_scale",
+        "shape_transform",
+        "shape_collision_radius",
+        "shape_margin",
+        "shape_gap",
+        "shape_is_solid",
+        "shape_source_ptr",
+        "_shape_mesh_properties",
+        "_shape_support_data",
+        "_shape_sdf_index",
+        "shape_edge_range",
+        "shape_collision_aabb_lower",
+        "shape_collision_aabb_upper",
+        "bvh_shape_bounds",
+        "_shape_voxel_resolution",
+        "body_mass",
+        "body_inv_mass",
+        "body_com",
+        "body_inertia",
+        "body_inv_inertia",
+    )
+    wp.launch(
+        _SELECT_MESH_VARIANTS.select(selections, worlds),
+        dim=(1, variants.shape_indices.shape[1]),
+        inputs=[
+            selections,
+            worlds,
+            variants.shape_indices,
+            variants.source_shape_indices,
+            variants.body_properties,
+            variants.variant_ids,
+            *(getattr(model, field) for field in fields),
+        ],
+        device=model.device,
+    )
+
+
 def test_mesh_variant_resources_do_not_add_rigid_bodies() -> None:
     """A multi-asset catalog retains unused meshes without adding parked bodies."""
     small = _variant_builder("/World/envs/env_0/object", 0.1)
@@ -74,6 +119,8 @@ def test_mesh_variant_resources_do_not_add_rigid_bodies() -> None:
     model = builder.finalize(device="cpu")
     variants = MeshVariants(model, definition)
     np.testing.assert_array_equal(variants.variant_ids.numpy(), (0, 0))
+    assert variants.visual_variants is None
+    assert variants.body_indices is None
     np.testing.assert_array_equal(model.shape_flags.numpy()[definition.source_shape_indices.flatten()], 0)
 
 
@@ -111,7 +158,7 @@ def test_mesh_variant_catalogs_preserve_reused_sources() -> None:
     np.testing.assert_array_equal(selected.variant_ids.numpy(), (2, 1))
     np.testing.assert_array_equal(reused.variant_ids.numpy(), (1, 0))
     untouched = model.shape_source_ptr.numpy()[[1, 3]].copy()
-    selected.select(wp.array([0], dtype=wp.int32, device="cpu"), wp.array([1], dtype=wp.int32, device="cpu"))
+    _select(model, selected, 0, 1)
     np.testing.assert_array_equal(selected.variant_ids.numpy(), (2, 0))
     np.testing.assert_array_equal(reused.variant_ids.numpy(), (1, 0))
     np.testing.assert_array_equal(model.shape_source_ptr.numpy()[[1, 3]], untouched)
@@ -150,8 +197,7 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
     resource_shapes = definition.source_shape_indices
     model = builder.finalize(device="cpu")
     selected = MeshVariants(model, definition)
-    render_set = selected.render_set
-    assert render_set is not None
+    assert selected.visual_variants is not None
     ids = selected.variant_ids
     original_body_flags = model.body_flags.numpy().copy()
     np.testing.assert_array_equal(ids.numpy(), (0, 1))
@@ -168,7 +214,7 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
         assert not np.array_equal(geometry_before["_shape_support_data"][0], geometry_before["_shape_support_data"][-1])
     expected_inertia = np.asarray(((2.25, 0.5, 0.0), (0.5, 3.25, 0.0), (0.0, 0.0, 4.25)))
     for variant in (2, 1, 2):
-        selected.select(wp.array([variant], dtype=wp.int32, device="cpu"), wp.array([0], dtype=wp.int32, device="cpu"))
+        _select(model, selected, variant, 0, wp.int64 if convex else wp.int32)
         assert ids is selected.variant_ids
         np.testing.assert_array_equal(ids.numpy(), (variant, 1))
         assert model.shape_source_ptr.numpy()[0] == model.shape_source_ptr.numpy()[resource_shapes[variant][0]]
@@ -191,11 +237,11 @@ def test_mesh_selection_updates_geometry_and_inertia_without_solver(body_type: s
     np.testing.assert_array_equal(
         model.shape_source_ptr.numpy()[np.asarray(resource_shapes).flatten()], resources_before
     )
-    np.testing.assert_array_equal(render_set.body_indices.numpy(), (0, 1))
-    assert render_set.model_shape_indices == (0, 1)
-    assert tuple(len(shapes) for shapes in render_set.visual_variants) == (1, 1, 1)
-    assert render_set.collision_variants[2][0].source is sources[2].shape_source[0]
-    assert render_set.collision_variants[2][0].scale == tuple(sources[2].shape_scale[0])
+    np.testing.assert_array_equal(selected.body_indices.numpy(), (0, 1))
+    assert selected.model_shape_indices == (0, 1)
+    assert tuple(len(shapes) for shapes in selected.visual_variants) == (1, 1, 1)
+    assert selected.collision_variants[2][0].source is sources[2].shape_source[0]
+    assert selected.collision_variants[2][0].scale == tuple(sources[2].shape_scale[0])
     np.testing.assert_allclose(np.asarray(sources[0].body_inertia[0]).reshape(3, 3), np.eye(3))
 
 
@@ -205,6 +251,7 @@ def test_mesh_variants_do_not_depend_on_fork_solver_banks() -> None:
     assert not (physics_dir / "mesh_variant_batch.py").exists()
     forbidden = {
         "MeshVariantSet",
+        "MeshVariantRenderSet",
         "MJWarpMeshVariantBatch",
         "set_mesh_variant_index",
         "mesh_variant_names",
@@ -268,6 +315,20 @@ def test_mesh_variants_do_not_depend_on_fork_solver_banks() -> None:
                     assert node.id not in {"ClonePlan", "cloner_path"}, f"{cls.name} reinterprets the clone plan"
                 elif isinstance(node, ast.Attribute):
                     assert node.attr not in {"get_clone_plan", "_cl_protos"}, f"{cls.name} rediscovers source ownership"
+                    if cls.name == "MeshVariants":
+                        assert node.attr != "_model", "The runtime bank must not own the model"
+                elif cls.name == "MeshVariants" and isinstance(node, ast.FunctionDef):
+                    assert node.name != "select", "The rigid-object write owns selection and invalidation"
+    visualizer_dir = source_dir / "isaaclab_visualizers/isaaclab_visualizers"
+    for relative_path, class_name in (
+        ("newton/newton_visualizer.py", "NewtonGLVisualizer"),
+        ("viser/viser_visualizer.py", "ViserVisualizer"),
+    ):
+        tree = ast.parse((visualizer_dir / relative_path).read_text())
+        visualizer = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name)
+        assert not any(isinstance(node, ast.FunctionDef) and node.name == "_bind_model" for node in visualizer.body), (
+            f"{class_name} duplicates MeshVariantRenderer model binding"
+        )
 
 
 @pytest.mark.parametrize(

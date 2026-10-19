@@ -54,7 +54,7 @@ from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
-from isaaclab_newton.physics.mesh_variants import MeshVariants
+from isaaclab_newton.physics.mesh_variants import MeshVariants, _MeshVariantDefinition
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
     NewtonBackendCfg,
@@ -76,7 +76,6 @@ if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
-    from isaaclab_newton.physics.mesh_variants import _MeshVariantDefinition
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
@@ -149,9 +148,12 @@ def _or_world_reset_mask_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
+def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=Any), world_mask: wp.array(dtype=wp.bool)):
     """Mark selected worlds for solver reset without requesting FK."""
     world_mask[env_ids[wp.tid()]] = True
+
+
+_SCATTER_WORLD_RESET_MASK_FROM_IDS = IndexKernelDispatcher(_scatter_world_reset_mask_from_ids, ("env_ids",))
 
 
 class _NewtonBuilder(ModelBuilder):
@@ -1126,7 +1128,7 @@ class NewtonManager(PhysicsManager):
             self._fk_reset_mask.fill_(True)
 
     def invalidate_body_state(
-        self, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
+        self, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
     ) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
@@ -1148,7 +1150,7 @@ class NewtonManager(PhysicsManager):
             )
         elif env_ids is not None:
             wp.launch(
-                _scatter_world_reset_mask_from_ids,
+                _SCATTER_WORLD_RESET_MASK_FROM_IDS.select(env_ids),
                 dim=env_ids.shape[0],
                 inputs=[env_ids],
                 outputs=[self._world_reset_mask],
@@ -1742,13 +1744,9 @@ class NewtonManager(PhysicsManager):
             sensor.update(self.backend.state_0)
         if self._report_contacts:
             eval_contacts = contacts if contacts is not None else self._contacts
-            self._update_contacts_for_sensors(eval_contacts)
+            self._solver.update_contacts(eval_contacts, self.backend.state_0)
             for sensor in self._newton_contact_sensors.values():
                 sensor.update(self.backend.state_0, eval_contacts)
-
-    def _update_contacts_for_sensors(self, contacts: Contacts) -> None:
-        """Publish solver contact data before the sensor reads it."""
-        self._solver.update_contacts(contacts, self.backend.state_0)
 
     # ------------------------------------------------------------------
     # Composite stepping routines

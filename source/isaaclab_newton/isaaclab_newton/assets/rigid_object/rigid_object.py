@@ -8,7 +8,6 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
-from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -26,6 +25,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.physics.mesh_variants import _SELECT_MESH_VARIANTS
 
 from .rigid_object_data import RigidObjectData
 
@@ -139,8 +139,8 @@ class RigidObject(BaseRigidObject):
 
     def write_mesh_variant_to_sim(
         self,
-        variant_ids: torch.Tensor | wp.array[wp.int32],
-        env_ids: Sequence[int] | torch.Tensor | wp.array[wp.int32] | None = None,
+        variant_ids: torch.Tensor | wp.array,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Select collision geometry and inertial properties for selected environments.
 
@@ -148,8 +148,10 @@ class RigidObject(BaseRigidObject):
 
         Args:
             variant_ids: Variant index per selected environment, shape ``(len(env_ids),)``.
-                Every value must be in ``[0, num_mesh_variants)``.
-            env_ids: Valid, unique environment indices. If ``None``, select every environment.
+                Every value must be in ``[0, num_mesh_variants)``. Accepts signed 32-bit or 64-bit integers
+                on the asset's device.
+            env_ids: Valid, unique environment indices, as signed 32-bit or 64-bit integers.
+                Tensor and array inputs must be on the asset's device. If ``None``, select every environment.
         """
         if not self.is_initialized:
             raise RuntimeError("Mesh variant selection requires an initialized rigid object.")
@@ -161,25 +163,61 @@ class RigidObject(BaseRigidObject):
         if not isinstance(env_ids, (torch.Tensor, wp.array)):
             env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
         selection_count = env_ids.shape[0]
-        self.assert_shape_and_dtype(variant_ids, (selection_count,), wp.int32, "variant_ids")
-        write_buffer = self._mesh_variant_write_buffer
-        if isinstance(variant_ids, torch.Tensor) or isinstance(env_ids, torch.Tensor):
-            stream = (
-                torch.cuda.stream(wp.stream_to_torch(self.device))
-                if wp.get_device(self.device).is_cuda
-                else nullcontext()
+        if variant_ids.shape != (selection_count,) or env_ids.shape != (selection_count,):
+            raise ValueError("Mesh variants require one selection per environment index.")
+        kernel = _SELECT_MESH_VARIANTS.select(variant_ids, env_ids)
+        if not selection_count:
+            return
+        stream = None
+        if wp.get_device(self.device).is_cuda and (
+            isinstance(variant_ids, torch.Tensor) or isinstance(env_ids, torch.Tensor)
+        ):
+            torch_stream = torch.cuda.current_stream(self.device)
+            stream = wp.stream_from_torch(torch_stream)
+            for indices in (variant_ids, env_ids):
+                if isinstance(indices, torch.Tensor):
+                    indices.record_stream(torch_stream)
+        # Order the write with both the caller's Torch operations and subsequent simulation work.
+        with wp.ScopedStream(stream, sync_exit=True):
+            model = self._backend_manager.get_model()
+            variants = self._mesh_variants
+            wp.launch(
+                kernel,
+                dim=(selection_count, variants.shape_indices.shape[1]),
+                inputs=[
+                    variant_ids,
+                    env_ids,
+                    variants.shape_indices,
+                    variants.source_shape_indices,
+                    variants.body_properties,
+                    variants.variant_ids,
+                    model.shape_body,
+                    model.shape_scale,
+                    model.shape_transform,
+                    model.shape_collision_radius,
+                    model.shape_margin,
+                    model.shape_gap,
+                    model.shape_is_solid,
+                    model.shape_source_ptr,
+                    model._shape_mesh_properties,
+                    model._shape_support_data,
+                    model._shape_sdf_index,
+                    model.shape_edge_range,
+                    model.shape_collision_aabb_lower,
+                    model.shape_collision_aabb_upper,
+                    model.bvh_shape_bounds,
+                    model._shape_voxel_resolution,
+                    model.body_mass,
+                    model.body_inv_mass,
+                    model.body_com,
+                    model.body_inertia,
+                    model.body_inv_inertia,
+                ],
+                device=self.device,
             )
-            with stream:
-                if isinstance(variant_ids, torch.Tensor):
-                    write_buffer[0, :selection_count].copy_(variant_ids, non_blocking=True)
-                    variant_ids = wp.from_torch(write_buffer[0, :selection_count])
-                if isinstance(env_ids, torch.Tensor):
-                    write_buffer[1, :selection_count].copy_(env_ids, non_blocking=True)
-                    env_ids = wp.from_torch(write_buffer[1, :selection_count])
-        self._mesh_variants.select(variant_ids, env_ids)
-        self._backend_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES | ModelFlags.BODY_INERTIAL_PROPERTIES)
-        self._backend_manager.invalidate_body_state(env_ids=env_ids)
-        self.data._reset_body_com_pose_b_dependents()
+            self._backend_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES | ModelFlags.BODY_INERTIAL_PROPERTIES)
+            self._backend_manager.invalidate_body_state(env_ids=env_ids)
+            self.data._reset_body_com_pose_b_dependents()
 
     def write_data_to_sim(self) -> None:
         """Write external wrench to the simulation.
@@ -1155,9 +1193,6 @@ class RigidObject(BaseRigidObject):
         self._mesh_variants = self._backend_manager.backend.mesh_variants.get(self.cfg.prim_path)
         if self._mesh_variants is not None:
             self._mesh_variant_ids = ProxyArray(self._mesh_variants.variant_ids)
-            self._mesh_variant_write_buffer = torch.empty(
-                (2, self.num_instances), dtype=torch.int32, device=self.device
-            )
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
@@ -1224,7 +1259,6 @@ class RigidObject(BaseRigidObject):
         self._root_view = None
         self._mesh_variants = None
         self._mesh_variant_ids = None
-        self._mesh_variant_write_buffer = None
 
     def write_root_state_to_sim(self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None):
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index` and

@@ -10,8 +10,7 @@ from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import JointType, Model, ModelBuilder, ShapeFlags
-from newton.usd import get_custom_attribute_values
+from newton import JointType, ModelBuilder, ShapeFlags
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -136,29 +135,6 @@ def build_source_builders(
             ignore_paths=ignore_paths or (),
             return_deformable_results=True,
         )
-        # Stock USD import can leave a standalone world-fixed root without its authored articulation.
-        for joint, joint_type in enumerate(builder.joint_type):
-            if joint_type != JointType.FIXED or builder.joint_parent[joint] != -1:
-                continue
-            if builder.joint_articulation[joint] >= 0:
-                continue
-            body = builder.joint_child[joint]
-            if body in builder.joint_parent or builder.joint_child.count(body) != 1:
-                continue
-            root = stage.GetPrimAtPath(builder.body_label[body])
-            while root and not root.IsPseudoRoot() and not root.HasAPI(UsdPhysics.ArticulationRootAPI):
-                root = root.GetParent()
-            if not root or root.IsPseudoRoot() or not root.GetPath().HasPrefix(Sdf.Path(source)):
-                continue
-            root_path = str(root.GetPath())
-            if sum(label == root_path or label.startswith(root_path + "/") for label in builder.body_label) != 1:
-                continue
-            attributes = builder.get_custom_attributes_by_frequency([Model.AttributeFrequency.ARTICULATION])
-            builder.add_articulation(
-                [joint],
-                label=root_path,
-                custom_attributes=get_custom_attribute_values(root, attributes, context={"builder": builder}),
-            )
         replace_newton_builder_shape_colors(builder, stage)
         if load_visual_shapes:
             # Newton groups all static shapes under body -1. Use imported visual paths to

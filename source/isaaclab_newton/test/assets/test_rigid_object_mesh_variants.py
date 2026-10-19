@@ -101,9 +101,7 @@ def _snapshot(scene: InteractiveScene, model: Model) -> dict[str, np.ndarray]:
         pytest.param(XPBDSolverCfg(), False, id="xpbd"),
     ],
 )
-def test_write_mesh_variant_updates_selected_environment(
-    device: str, solver_cfg, supports_selection: bool, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_mesh_variant_updates_selected_environment(device: str, solver_cfg, supports_selection: bool) -> None:
     """Keep static catalogs usable; supported solvers switch only the selected world's geometry and inertia."""
     sim_cfg = SimulationCfg(
         device=device,
@@ -168,7 +166,9 @@ def test_write_mesh_variant_updates_selected_environment(
             asset.data.root_link_pose_w.torch[1].cpu(), torch.from_numpy(initial["object.pose"][1])
         )
 
-        asset.write_mesh_variant_to_sim(torch.tensor([0], dtype=torch.int32, device=sim.device), (1,))
+        asset.write_mesh_variant_to_sim(
+            wp.array([0], dtype=wp.int32, device=sim.device), wp.array([1], dtype=wp.int64, device=sim.device)
+        )
         sim.step()
         scene.update(sim.cfg.dt)
 
@@ -179,30 +179,50 @@ def test_write_mesh_variant_updates_selected_environment(
         shape_count = model.shape_count
         sim.reset()
         assert sim.backend_manager.get_model().shape_count == shape_count
+        rebuilt_initial = _snapshot(scene, sim.backend_manager.get_model())
         rebuilt_ids = asset.mesh_variant_ids.torch
         assert rebuilt_ids.data_ptr() != ids.data_ptr()
         asset.write_mesh_variant_to_sim(torch.tensor([1], dtype=torch.int32, device=sim.device), (0,))
         torch.testing.assert_close(rebuilt_ids.cpu(), torch.tensor([1, 1], dtype=torch.int32))
 
-        captured = {}
-
-        def capture_indices(variant_ids, env_ids):
-            captured["indices"] = variant_ids, env_ids
-
-        monkeypatch.setattr(sim.backend_manager.backend.mesh_variants[asset.cfg.prim_path], "select", capture_indices)
-        variant_ids = torch.tensor([0, 1], dtype=torch.int32, device=sim.device)
-        env_ids = torch.tensor([1, 0], dtype=torch.int32, device=sim.device)
-        asset.write_mesh_variant_to_sim(variant_ids, env_ids)
-        captured_variants, captured_envs = captured["indices"]
-        assert wp.to_torch(captured_variants).data_ptr() != variant_ids.data_ptr()
-        assert wp.to_torch(captured_envs).data_ptr() != env_ids.data_ptr()
+        # Warm the int64 launch before queuing delayed production on a non-default caller stream.
+        asset.write_mesh_variant_to_sim(
+            torch.ones(2, dtype=torch.int64, device=sim.device),
+            torch.arange(2, dtype=torch.int64, device=sim.device),
+        )
+        desired_indices = torch.tensor([[0, 1], [1, 0]], dtype=torch.int64, device=sim.device)
         torch.cuda.synchronize(sim.device)
+        caller_stream = torch.cuda.Stream(device=sim.device)
+        with torch.cuda.stream(caller_stream):
+            variant_ids = torch.ones(2, dtype=torch.int64, device=sim.device)
+            env_ids = torch.zeros(2, dtype=torch.int64, device=sim.device)
+            torch.cuda._sleep(100_000_000)
+            variant_ids.copy_(desired_indices[0])
+            env_ids.copy_(desired_indices[1])
+            asset.write_mesh_variant_to_sim(variant_ids, env_ids)
+            # Immediate caller reuse must not change the queued geometry selection.
+            variant_ids.fill_(1)
+            env_ids.fill_(0)
+            del variant_ids, env_ids
+            torch.empty(4, dtype=torch.int64, device=sim.device).zero_()
+        model = sim.backend_manager.get_model()
+        streamed = _snapshot(scene, model)
+        np.testing.assert_array_equal(streamed["object.variant_ids"], (1, 0))
+        np.testing.assert_allclose(streamed["model.body_mass"][bodies], (8.0, 1.0))
+        for world, source_world in ((0, 1), (1, 0)):
+            np.testing.assert_array_equal(
+                streamed["model.shape_source_ptr"][shapes[world]],
+                rebuilt_initial["model.shape_source_ptr"][shapes[source_world]],
+            )
+
+        # Warp-only writes remain capture-safe and consume the replay's current selector values.
+        variant_ids = wp.array([0], dtype=wp.int64, device=sim.device)
+        env_ids = wp.array([0], dtype=wp.int32, device=sim.device)
+        asset.write_mesh_variant_to_sim(variant_ids, env_ids)
+        with wp.ScopedCapture(device=sim.device) as capture:
+            asset.write_mesh_variant_to_sim(variant_ids, env_ids)
         variant_ids.fill_(1)
-        env_ids.fill_(0)
-
-        torch.testing.assert_close(wp.to_torch(captured_variants).cpu(), torch.tensor([0, 1], dtype=torch.int32))
-        torch.testing.assert_close(wp.to_torch(captured_envs).cpu(), torch.tensor([1, 0], dtype=torch.int32))
-
-        asset.write_mesh_variant_to_sim(variant_ids, (0, 1))
-        _, captured_envs = captured["indices"]
-        torch.testing.assert_close(wp.to_torch(captured_envs).cpu(), torch.tensor([0, 1], dtype=torch.int32))
+        wp.capture_launch(capture.graph)
+        captured = _snapshot(scene, model)
+        np.testing.assert_array_equal(captured["object.variant_ids"], (1, 0))
+        np.testing.assert_allclose(captured["model.body_mass"][bodies], (8.0, 1.0))
