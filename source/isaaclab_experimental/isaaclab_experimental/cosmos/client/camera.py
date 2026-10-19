@@ -148,8 +148,8 @@ def apply_cosmos(
         env_cfg: Task environment configuration.
         prompt: Appearance prompt, or a list: cycled per episode for one environment, one per view for several
             environments or cameras (see :attr:`CosmosModelCfg.prompt`). None runs without a scene description.
-        camera: Scene camera name, a list of names whose cameras share one session, or ``"all"`` for every camera
-            publishing ``rgb``. Defaults to None, which selects the only rgb camera.
+        camera: Scene camera name, or a list of names whose cameras share one session. Defaults to None, which
+            selects the only rgb camera.
         control: Control type: ``"depth"`` or ``"edge"``.
         near: Depth rendered white [m], for depth control. None uses the :func:`cosmos_camera` default.
         far: Depth rendered black [m], for depth control. None uses the :func:`cosmos_camera` default.
@@ -257,36 +257,23 @@ def apply_cosmos(
 
 
 def _camera_names(scene: Any, camera: str | Sequence[str] | None) -> list[str]:
-    """Return the selected cameras: the only rgb camera, the named ones, or every camera publishing rgb for "all"."""
+    """Return the selected cameras: the only rgb camera, or the named ones in the order given."""
     if camera is None:
         return [_select_camera(scene)]
     names = [camera] if isinstance(camera, str) else list(camera)
-    if names == ["all"]:
-        # Cameras publishing rgb with other outputs are kept, so cosmos_camera rejects them by name.
-        names = _rgb_cameras(scene, only_rgb=False)
-        if not names:
-            raise ValueError("This scene has no camera publishing rgb for Cosmos.")
-    elif not names or "all" in names or len(set(names)) != len(names):
-        raise ValueError('Select Cosmos cameras by distinct scene names, or with "all" alone.')
-    return names
-
-
-def _rgb_cameras(scene: Any, *, only_rgb: bool) -> list[str]:
-    """Return the scene's cameras publishing rgb, or only rgb, in declaration order."""
-    names = []
-    if is_dataclass(scene):
-        for field in fields(scene):
-            value = getattr(scene, field.name)
-            if isinstance(value, CameraCfg) and (
-                list(value.data_types) == ["rgb"] if only_rgb else "rgb" in value.data_types
-            ):
-                names.append(field.name)
+    if not names or len(set(names)) != len(names):
+        raise ValueError("Select Cosmos cameras by distinct scene names.")
     return names
 
 
 def _select_camera(scene: Any) -> str:
     """Return the name of the scene's only camera that publishes only rgb."""
-    names = _rgb_cameras(scene, only_rgb=True)
+    names = []
+    if is_dataclass(scene):
+        for field in fields(scene):
+            value = getattr(scene, field.name)
+            if isinstance(value, CameraCfg) and list(value.data_types) == ["rgb"]:
+                names.append(field.name)
     if len(names) != 1:
         raise ValueError(f"Choose the Cosmos camera with the `camera` argument; rgb cameras in this scene: {names}.")
     return names[0]

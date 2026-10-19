@@ -89,6 +89,9 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 | `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
+The current Cosmos3-Nano-Sim-Transfer checkpoint is trained on depth, so `depth` is the supported control; `edge`
+and `seg` need a checkpoint trained for them.
+
 Other control recipes are `edge_processor`, `regional_edge_processor`, and
 `segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
@@ -390,15 +393,14 @@ does not end the episode. Training also starts environments at random points of 
 ## Several cameras
 
 Several cameras, such as a base and a wrist camera, can share one session: each capture generates all their
-environments as one batch. Pass the cameras to `apply_cosmos` as a list of names
-(`camera=["base_camera", "wrist_camera"]`), or `camera="all"` for every camera that publishes `rgb`:
+environments as one batch. Pass the cameras to `apply_cosmos` as a list of names:
 
 ```python
 from isaaclab_experimental.cosmos import apply_cosmos
 
 apply_cosmos(
     env_cfg,
-    camera="all",
+    camera=["base_camera", "wrist_camera"],
     prompt=[
         "A KUKA arm with an Allegro hand turning a cube in a bright lab, seen from the side.",
         "A close-up of an Allegro hand turning a cube in a bright lab, seen from its wrist.",
@@ -406,8 +408,7 @@ apply_cosmos(
 )
 ```
 
-- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given (for `all`, the
-  scene's order). A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
+- Camera `k`'s environment `v` is view `k * num_envs + v`, with the cameras in the order given. A prompt list assigns `prompt[view % len(prompt)]`, so the example's prompts go to the base and
   the wrist camera.
 - Each camera keeps its own output size. One session has one canvas, so every camera renders at the canvas closest
   to the first camera's aspect ratio; each camera's view is the canvas's center crop, scaled back to its size.
@@ -442,15 +443,8 @@ it is unavailable instead of falling back. `status` lists the service's transpor
 machine, image transport uses shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA
 IPC avoids the socket transport's 16-view protocol limit; available GPU memory still limits the batch size.
 
-Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process. CUDA IPC does not remove that copy
-or its synchronization cost; it avoids CPU staging when exchanging images between the two processes.
-The camera-side IPC handoff orders GPU work with events. The service synchronizes its CUDA stream before
-replying so GPU faults reach the client as errors; a complete inference step is not free of host synchronization.
-
-Each process allocates the buffer it writes: the camera its controls, the service its generated images. CUDA
-leaves freeing memory that the other process still has open undefined, so each side releases the other's buffer
-first. After a failed session the service frees its buffer once the camera disconnects, and the camera keeps its
-controls until it exits, because the service may still be reading them.
+CUDA IPC only avoids host copies between the two processes; edge extraction still runs on the CPU in the camera
+process. Buffer ownership and release order are documented with `SharedChannel` in `cosmos/_cuda_ipc.py`.
 
 For Isaac Lab on another machine, start the service with `--endpoint tcp://127.0.0.1:5555` and forward that port,
 for example with `ssh -L 5555:localhost:5555 gpu-host`, or keep the Unix socket and forward it with

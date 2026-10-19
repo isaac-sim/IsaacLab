@@ -161,11 +161,11 @@ def test_cosmos_needs_one_rgb_camera_or_an_explicit_choice():
     assert env_cfg.scene.wrist_camera.modifiers and not env_cfg.scene.base_camera.modifiers
 
 
-def test_all_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
-    """`camera="all"` puts every rgb camera in one session; a wider wrist camera renders at the shared canvas."""
+def test_named_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
+    """A list of cameras shares one session; a wider wrist camera renders at the shared canvas."""
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,))
     env_cfg.scene.wrist_camera = env_cfg.scene.wrist_camera.replace(width=128)
-    apply_cosmos(env_cfg, camera="all")
+    apply_cosmos(env_cfg, camera=["base_camera", "wrist_camera"])
     env_cfg.validate()
 
     for name, size in (("base_camera", (64, 64)), ("wrist_camera", (128, 64))):
@@ -184,8 +184,8 @@ def test_all_cameras_share_one_session_at_one_canvas_and_keep_their_sizes():
     # Two cameras of two environments are four views, which need independent resets.
     with pytest.raises(ValueError, match="without --no-compile"):
         apply_cosmos(parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,)), camera=names, num_envs=2)
-    with pytest.raises(ValueError, match='"all" alone'):
-        apply_cosmos(_kuka(), camera=["all", "base_camera"])
+    with pytest.raises(ValueError, match="distinct scene names"):
+        apply_cosmos(_kuka(), camera=["base_camera", "base_camera"])
 
 
 def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):
@@ -200,5 +200,5 @@ def test_every_camera_sharing_a_session_must_render_synchronously():
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,))
     env_cfg.scene.wrist_camera.renderer_cfg.async_rendering = True
     with pytest.raises(ValueError, match="wrist_camera"):
-        apply_cosmos(env_cfg, camera="all")
+        apply_cosmos(env_cfg, camera=["base_camera", "wrist_camera"])
     assert not env_cfg.scene.base_camera.modifiers
