@@ -28,7 +28,8 @@ def _visualizer(clients: int, record_path: str | None) -> tuple[ViserVisualizer,
     visualizer.__dict__.update(
         _is_initialized=True,
         _viewer=viewer,
-        _scene_data_provider=SimpleNamespace(get_transforms=lambda *args, **kwargs: False),
+        _pending_camera_pose=None,
+        _sim=SimpleNamespace(get_scene_data_provider=lambda: SimpleNamespace(get_transforms=lambda *a, **k: False)),
         _transform_mapping=None,
         backend=SimpleNamespace(
             model=SimpleNamespace(num_envs=1, body_count=1), geometry_offsets=None, state_0=object()
@@ -38,7 +39,6 @@ def _visualizer(clients: int, record_path: str | None) -> tuple[ViserVisualizer,
         _paused_rendering=False,
         _active_record_path=record_path,
     )
-    visualizer._apply_pending_camera_pose = lambda: None
     visualizer._render_live_plots = lambda: None
     visualizer._push_streaming_frame = lambda: None
     return visualizer, calls
