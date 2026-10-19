@@ -11,7 +11,6 @@ from __future__ import annotations
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 from collections import namedtuple
-from importlib import import_module
 from typing import TYPE_CHECKING, cast
 
 import pytest
@@ -895,20 +894,6 @@ def test_removed_modifier_imports_report_replacements(path):
     """Old class imports and serialized paths fail with the replacement API."""
     with pytest.raises(ValueError, match="TensorProcessor.*TensorProcessorCfg"):
         string_to_callable(path)
-
-
-@pytest.mark.parametrize("package", ["isaaclab", "isaaclab_experimental"])
-def test_observation_rejects_removed_modifiers(package):
-    """Both managers reject the removed field, including edits that set an empty list."""
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy.modifiers = []
-    if package == "isaaclab_experimental":
-        cfg.policy.dummy.func = lambda env, out, out_dim: out.zero_()
-        cfg.policy.dummy.params = {"out_dim": 1}
-    manager_type = import_module(f"{package}.managers").ObservationManager
-    with pytest.raises(ValueError, match="modifiers.*tensor_processors"):
-        manager_type(cfg, cast("ManagerBasedEnv", DummyEnv()))
 
 
 def test_class_modifier_validates_constructed_instance():

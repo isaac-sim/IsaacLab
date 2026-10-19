@@ -233,13 +233,8 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
 
-    modifiers: list[TensorProcessorCfg] | None = None
-    """Removed field, rejected during validation. Use :attr:`tensor_processors`."""
-
     def validate_config(self):
-        """Reject removed fields and validate observation delay bounds."""
-        if self.modifiers is not None:
-            raise ValueError("ObservationTermCfg.modifiers was removed. Use 'tensor_processors' instead.")
+        """Validate observation delay bounds."""
         if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:
             raise TypeError("Observation delay bounds must be integers.")
         if not 0 <= self.delay_min_lag <= self.delay_max_lag:
