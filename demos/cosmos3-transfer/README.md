@@ -1,13 +1,17 @@
 # Cosmos 3 Transfer on the Shadow Hand camera task
 
-Isaac Lab renders the Shadow Hand camera's depth, Cosmos turns it into a realistic image, and the policy camera sees
-that image. Two terminals: one runs the Cosmos service, the other runs Isaac Lab. Everything below uses the built-in
-commands from [Serving Cosmos](../../source/isaaclab_experimental/docs/cosmos_service.md) and
-[Cosmos camera integration](../../source/isaaclab_experimental/docs/cosmos.md); read those for options.
+Isaac Lab renders the Shadow Hand camera's depth, Cosmos turns it into a realistic image, and the policy trains on that
+image. Run the Cosmos service in one terminal and `isaaclab train` in another. These are the commands from
+[Serving Cosmos](../../source/isaaclab_experimental/docs/cosmos_service.md) and
+[Cosmos camera integration](../../source/isaaclab_experimental/docs/cosmos.md); see those pages for every option.
 
-Needs Linux, two GPUs (or MIG slices) of about 48 GB, and access to the Cosmos3-Nano-Sim-Transfer checkpoint.
+Requires Linux, two GPUs (or MIG slices) of about 48 GB, and access to the
+[Cosmos3-Nano-Sim-Transfer](https://huggingface.co/nvidia/Cosmos3-Nano-Sim-Transfer) checkpoint.
 
-## 1. Cosmos service (terminal 1)
+## 1. Start the Cosmos service
+
+In its own terminal, with the paths of your Isaac Lab checkout, the
+[Cosmos Framework](https://github.com/NVIDIA/cosmos-framework) checkout and the checkpoint folder:
 
 ```bash
 export ISAAC_LAB_ROOT=/absolute/path/to/IsaacLab
@@ -23,13 +27,15 @@ export LD_LIBRARY_PATH=
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-window 4
 ```
 
-Wait for `Cosmos ready at ...`. Set up and download once; later runs only need the last two commands.
+The first three commands are one-time setup. Wait for `Cosmos ready at ...`.
 
-## 2. Isaac Lab (terminal 2)
+## 2. Train with Cosmos on the camera
+
+In a second terminal:
 
 ```bash
 cd "$ISAAC_LAB_ROOT"
-uv run isaaclab cosmos status        # "ready": true, "session_active": false
+uv run isaaclab cosmos status      # expect "ready": true and "session_active": false
 
 uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
   --max_iterations 20 \
@@ -39,5 +45,12 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   presets=cosmos
 ```
 
-The run prints the folder with the recorded video: the generated images of both environments side by side. Stop the
-service with Ctrl+C in terminal 1.
+- `presets=cosmos` selects the task's Cosmos camera: depth goes to the service and the generated image replaces the
+  camera's `rgb`.
+- Each `--cosmos_prompt` describes the scene of one environment; with `--num_envs 2` the first prompt is environment 0
+  and the second is environment 1.
+- `--viz newton_gl --video viz:newton_gl:streaming_view --video_length 600` records 600 steps (one episode) of the
+  generated images of both environments side by side. The run prints the folder with the clip.
+- `--kv-window 4` on the service lets two environments fit on a 48 GB GPU that Isaac Sim shares; omit it on a larger GPU.
+
+Press Ctrl+C in the first terminal to stop the service.
