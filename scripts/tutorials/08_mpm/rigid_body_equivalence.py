@@ -26,7 +26,6 @@ from types import SimpleNamespace
 from typing import NamedTuple
 
 import numpy as np
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
@@ -269,7 +268,7 @@ def create_sim_cfg():
             eye=CAMERA_EYE,
             lookat=CAMERA_TARGET,
             focal_length=CAMERA_FOCAL_LENGTH,
-            backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(show_particles=True)),
+            backend=MultiBackendVisualizerCfg(),
         ),
         physics=NewtonCfg(solver_cfg=solver_cfg, use_cuda_graph=not args_cli.disable_cuda_graph),
     )

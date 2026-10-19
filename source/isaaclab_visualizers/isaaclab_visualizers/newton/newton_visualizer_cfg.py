@@ -69,8 +69,8 @@ class NewtonVisualizerCfg(VisualizerBackendCfg):
     show_com: bool = False
     """Show center of mass visualization."""
 
-    show_particles: bool = False
-    """Show particle visualization."""
+    show_particles: bool = True
+    """Show simulation particles. Set to False to hide them, for example in a surface-only view."""
 
     particle_color: tuple[float, float, float] | None = None
     """Optional particle color RGB [0, 1]. Uses Newton viewer defaults when ``None``."""

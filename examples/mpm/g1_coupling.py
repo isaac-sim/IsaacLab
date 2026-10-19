@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 import numpy as np
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
@@ -300,7 +299,7 @@ def _configure_common_environment(env_cfg: Any) -> None:
         eye=CAMERA_EYE,
         lookat=CAMERA_TARGET,
         focal_length=CAMERA_FOCAL_LENGTH,
-        backend=MultiBackendVisualizerCfg(newton_gl=NewtonGLVisualizerCfg(show_particles=True)),
+        backend=MultiBackendVisualizerCfg(),
     )
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",

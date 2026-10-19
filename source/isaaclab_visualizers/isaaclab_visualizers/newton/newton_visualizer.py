@@ -459,7 +459,7 @@ class NewtonViewerGL(ViewerGL):
         flags are static, so when they are all active the compaction is skipped
         and ``state.particle_q`` is logged directly.
         """
-        if not self._all_mpm_particles_active():
+        if not self.show_particles or not self._all_mpm_particles_active():
             super()._log_particles(state)
             return
 

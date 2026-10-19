@@ -495,7 +495,8 @@ def test_newton_viewer_particle_color_override(monkeypatch):
     assert calls[-1][3] is custom_colors
 
 
-def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):
+@pytest.mark.parametrize("show_particles", [True, False])
+def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch, show_particles):
     import newton as nt
 
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
@@ -503,7 +504,7 @@ def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):
     viewer._mpm_particles_all_active = False
     viewer.model_changed = False
     viewer.particle_color = None
-    viewer.show_particles = True
+    viewer.show_particles = NewtonGLVisualizerCfg().show_particles if show_particles else False
     viewer.model = SimpleNamespace(
         mpm=object(),
         particle_count=3,
@@ -517,13 +518,18 @@ def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):
     state = SimpleNamespace(particle_q=wp.zeros(3, dtype=wp.vec3, device="cpu"))
     log_points_calls = []
 
-    monkeypatch.setattr(NewtonViewerGL, "log_points", lambda self, *a, **kw: log_points_calls.append((a, kw)))
+    def log_points(self, name, points, radii=None, colors=None, hidden=False):
+        log_points_calls.append((name, points, hidden))
 
+    monkeypatch.setattr(viewer, "_qualify", lambda name: name)
+    monkeypatch.setattr(NewtonViewerGL, "log_points", log_points)
     viewer._log_particles(state)
 
-    # _log_particles calls self.log_points with all keyword args, so positional tuple is empty.
     assert len(log_points_calls) == 1
-    assert log_points_calls[0][1]["name"] == "/model/particles"
+    name, points, hidden = log_points_calls[0]
+    assert name == "/model/particles"
+    assert points is (state.particle_q if show_particles else None)
+    assert hidden is not show_particles
 
 
 def test_newton_viewer_inactive_mpm_particles_use_newton_filter(monkeypatch):
@@ -531,6 +537,7 @@ def test_newton_viewer_inactive_mpm_particles_use_newton_filter(monkeypatch):
     from newton.viewer import ViewerGL
 
     viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.show_particles = NewtonGLVisualizerCfg().show_particles
     viewer._mpm_particle_flags_cache_key = None
     viewer._mpm_particles_all_active = False
     viewer.model = SimpleNamespace(

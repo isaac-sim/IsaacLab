@@ -194,7 +194,7 @@ def create_sim_cfg():
         gravity=(0.0, 0.0, -9.81),
         visualizer_cfgs=VisualizerCfg(
             backend=MultiBackendVisualizerCfg(
-                newton_gl=NewtonGLVisualizerCfg(show_particles=True, particle_color=SNOW_COLOR),
+                newton_gl=NewtonGLVisualizerCfg(particle_color=SNOW_COLOR),
             ),
         ),
         physics=NewtonCfg(

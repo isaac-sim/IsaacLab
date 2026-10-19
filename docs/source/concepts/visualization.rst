@@ -243,6 +243,9 @@ Visualizer Overview
       - Rigid-body dragging via right-click, see right (Newton solvers only)
       - Adjustable render update frequency
 
+      Simulation particles are visible by default. Set ``NewtonGLVisualizerCfg(show_particles=False)``
+      to hide them, for example when displaying only a reconstructed fluid surface or a cloth mesh.
+
       .. raw:: html
 
            </div>

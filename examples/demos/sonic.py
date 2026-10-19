@@ -36,7 +36,6 @@ from isaaclab_physx.physics import PhysxCfg
 wp.config.enable_backward = False
 
 from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -136,9 +135,6 @@ def main() -> None:
         viewer.enable_markers = viewer.enable_live_plots = viewer.streaming_view = False
         if is_physx and viewer.backend is None:
             viewer.backend = KitVisualizerCfg()
-        for backend in viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]:
-            if isinstance(backend, NewtonGLVisualizerCfg):
-                backend.show_particles = True
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped
