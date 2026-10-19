@@ -95,10 +95,12 @@ class ContactSensorCfg(SensorBaseCfg):
     of a robot whose links are nested. Rigid bodies and static colliders count as bodies; the prims
     matched by the rest of the expression are not candidates themselves. The bodies of one
     expression are ordered breadth-first, and a body that an earlier expression already resolved to
-    is not repeated. Every other expression, such as ``{ENV_REGEX_NS}/Drawer_.*/handle`` with its
-    regular expression in another segment, and an expression that matches no body are passed to the
-    physics view unchanged and must match one prim per environment, or one prim for all
-    environments.
+    is not repeated. In a heterogeneous scene the bodies are resolved from one prototype, as for
+    :attr:`SensorBaseCfg.prim_path`: a resolved body that another variant lacks fails
+    initialization, and a body that only another variant has gets no entry. Every other expression,
+    such as ``{ENV_REGEX_NS}/Drawer_.*/handle`` with its regular expression in another segment, and
+    an expression that matches no body are passed to the physics view unchanged and must match one
+    prim per environment, or one prim for all environments.
 
     For shape-level filtering, see ``NewtonContactSensorCfg`` in ``isaaclab_newton``.
 
