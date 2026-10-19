@@ -132,7 +132,7 @@ def test_partitioning_isolates_rigid_object(monkeypatch: pytest.MonkeyPatch):
 
     with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, replicate_physics=False))
+        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0))
         sim.reset()
         # one settle step so RigidObject data buffers are populated before we write into them
         sim.step()
@@ -256,7 +256,7 @@ def test_partitioning_isolates_articulation(monkeypatch: pytest.MonkeyPatch):
 
     with build_simulation_context(device="cuda:0", dt=1.0 / 60.0) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0, replicate_physics=False))
+        scene = InteractiveScene(_Scene(num_envs=4, env_spacing=0.0))
         sim.reset()
 
         robot = scene["robot"]

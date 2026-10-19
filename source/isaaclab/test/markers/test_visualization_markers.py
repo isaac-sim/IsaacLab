@@ -400,14 +400,17 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
         get_contact_sensors=lambda: {},
     )
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_contacts", lambda: None)
     cfg = cfg_type()
     visualizer = instantiate(cfg)
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()
     visualizer.current_image_view = ImageView(ImageViewCfg(source=PerspectiveCameraCfg()))
-    visualizer._sim = SimpleNamespace(get_scene_data_provider=lambda: provider, get_physics_step_count=lambda: 1)
+    visualizer._sim = SimpleNamespace(
+        get_scene_data_provider=lambda: provider,
+        get_physics_step_count=lambda: 1,
+        backend_manager=SimpleNamespace(backend_name="newton", get_contacts=lambda: None),
+    )
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]
 
@@ -523,6 +526,7 @@ def _make_newton_marker_for_render(
     visible: bool = True,
 ):
     marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
+    marker._registry = None
     marker_cfg_type = type("MarkerCfg", (), {"visual_material": None})
     marker.cfg = type("Cfg", (), {"markers": {name: marker_cfg_type() for name in marker_names}})()
     marker.group_id = "/Visuals/marker::test"

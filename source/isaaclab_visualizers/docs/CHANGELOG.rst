@@ -3,6 +3,37 @@ Changelog
 
 .. towncrier release notes start
 
+3.3.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added particle surface reconstruction to the Kit visualizer using the same Newton surface
+  extractor as the GL and RTX visualizers.
+* Added a protected native RTX viewer implementation override for task-specific
+  geometry publication. The visualizer retains ownership of the borrowed scene,
+  shared image views and native frame lifecycle.
+
+Changed
+^^^^^^^
+
+* Changed ``newton_rtx`` to display scene-camera output in a Newton GL window, eliminating its separate renderer and stage. Preserved fixed-resolution capture, camera selection, markers, and runtime surface meshes. **Breaking:** replaced automatic scene-camera discovery and ``streaming_sensor_prim_path`` selection with explicit ``cameras=[SceneCameraCfg(...)]`` or ``view=ImageViewCfg(source="name")``; the default selects one perspective camera.
+* Added ``NewtonRTXVisualizerCfg.renderer_cfg`` for generated perspective camera declarations. Match camera sensors' ``OVRTXRendererCfg`` to share their renderer; default configurations share automatically. Standalone scripts without a scene configuration must declare assets through ``ReplicateSession``, call ``instantiate(camera_cfg)``, and select the camera with ``SceneCameraCfg``.
+
+Fixed
+^^^^^
+
+* Fixed headless Kit camera poses being masked by existing session-layer transforms.
+* Fixed Newton GL frame capture with the keyword-only output argument in current Newton viewers.
+* Fixed Newton RTX particle and deformable geometry remaining at its initial position on a borrowed USD stage.
+* Fixed stale or corrupted dynamic meshes when alternating between Newton GL viewers by selecting each viewer's
+  OpenGL context before frame updates and native viewer teardown.
+* Delegated Newton RTX frame capture to the native viewer so asynchronous recordings captured the latest submitted frame, and passed capture buffers through Newton's keyword-only API.
+* Waited for the Newton RTX frame's CUDA producer before copying its mapped
+  output into the visualizer's owned image buffer.
+
+
 3.2.0 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~
 

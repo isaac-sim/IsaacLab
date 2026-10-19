@@ -245,7 +245,7 @@ class PlaceToy2BoxEnvCfg(ManagerBasedRLEnvCfg):
     """Base configuration for Agibot place environments."""
 
     # Scene settings
-    scene: AgibotPlaceSceneCfg = AgibotPlaceSceneCfg(num_envs=1, env_spacing=3.0, replicate_physics=True)
+    scene: AgibotPlaceSceneCfg = AgibotPlaceSceneCfg(num_envs=1, env_spacing=3.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

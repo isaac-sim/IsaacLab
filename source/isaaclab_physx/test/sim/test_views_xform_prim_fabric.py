@@ -150,7 +150,7 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
     frame_view = FrameView("/World/Cube", device=device)
     request.addfinalizer(frame_view.close)
     frame_view.get_world_poses()  # Initialize its authored pose before the native pose write.
-    view = sim.physics_manager.get_physics_sim_view().create_rigid_body_view("/World/Cube")
+    view = sim.backend_manager.get_physics_sim_view().create_rigid_body_view("/World/Cube")
     view.set_transforms(
         wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.float32, device=device),
         indices=wp.array([0], dtype=wp.int32, device=device),
@@ -171,7 +171,7 @@ def test_sdp_native_gpu_fabric_binding_preserves_live_physx_pose(device, request
         wp.array([[-2, 0.5, 4, 0, 0, 0, 1]], dtype=wp.float32, device=device),
         indices=wp.array([0], dtype=wp.int32, device=device),
     )
-    sim.physics_manager.invalidate_transforms()
+    sim.backend_manager.invalidate_transforms()
     provider.get_transforms(output)
     torch.testing.assert_close(
         frame_view.get_world_poses()[0].torch, torch.tensor([[-2, 0.5, 4]], dtype=torch.float32, device=device)

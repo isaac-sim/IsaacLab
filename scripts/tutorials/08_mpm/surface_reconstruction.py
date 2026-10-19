@@ -23,12 +23,14 @@ from __future__ import annotations
 import argparse
 import logging
 import math
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
+from isaaclab.utils import instantiate
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -435,8 +437,8 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
         fluid = MPMObjectCfg(
             prim_path="{ENV_REGEX_NS}/Fluid",
             spawn=MPMPointsCfg(
-                positions=points.tolist(),
-                velocities=velocities.tolist(),
+                positions=points,
+                velocities=velocities,
                 mass=PARTICLE_MASS,
                 radius=PARTICLE_RADIUS,
                 material=MPMParticleMaterialCfg(
@@ -474,11 +476,10 @@ def create_scene_cfg(points: np.ndarray, velocities: np.ndarray):
 
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     """Configure splash-specific surface extraction after Newton initializes."""
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = NewtonManager.get_model()
+    model = sim.backend_manager.get_model()
     surface = ParticleSurface(
         voxel_size=SURFACE_CFG.surface_voxel_size,
         max_grid_cells=MAX_SURFACE_GRID_CELLS,
@@ -505,6 +506,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
         opacity=args_cli.surface_opacity,
         roughness=0.06,
         use_cuda_graph=not args_cli.disable_cuda_graph,
+        backend_manager=sim.backend_manager,
     )
 
 
@@ -547,12 +549,12 @@ def main() -> None:
     configure_console_logging(vars(args_cli))
     points, velocities, blob_particle_count = create_fluid_points()
     sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    scene_cfg = create_scene_cfg(points, velocities)
+    with launch_simulation(SimpleNamespace(sim=sim_cfg, scene=scene_cfg), args_cli):
         import isaaclab.sim as sim_utils
-        from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg(points, velocities))
+        scene = instantiate(scene_cfg)
         sim.reset()
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = create_surface_renderer(sim) if SHOW_SURFACE else None

@@ -3,6 +3,53 @@ Changelog
 
 .. towncrier release notes start
 
+9.4.1 (2026-10-18)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed duplicated PPISP configuration discovery from renderer initialization. Cameras now resolved
+  ``isp_cfg`` during construction, before scene import; renderer initialization continued to create the
+  image-processing pipeline from the prepared configuration.
+* Consolidated lens-distortion checks into render-data creation and read segmentation labels directly
+  from the simulation-owned stage.
+
+
+9.4.0 (2026-10-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.actuators.DriveBam`, the Newton-native BAM servo drive, and
+  :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`, which couples it to MJWarp friction and load.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_actuator_callback` and
+  :meth:`~isaaclab_newton.physics.NewtonManager.register_solver_init_callback`.
+* Added MJWarp binding for BAM gearbox-play hinges across replicated articulations,
+  with invalid or missing hinge pairs rejected before stepping.
+* Added a protected implicit MPM solver-construction hook so specialized solvers
+  retain the manager's shared USD configuration preparation.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_newton.physics.NewtonManager.step` to combine pending model-change flags into one
+  solver notification, so randomizing several kinds of physics properties refreshed the solver constants once
+  per step instead of once per kind.
+
+Fixed
+^^^^^
+
+* Enabled sparse-grid CUDA graph capture with Newton's quadratic B-spline velocity interpolation.
+* Preserved Newton's native VBD defaults after upgrading to Newton 1.8 development and MuJoCo/MJWarp 3.15.
+  ``rigid_compliant_alm=None`` selected compliant ALM; explicit ``False`` retained Newton's deprecated legacy mode.
+* Captured the authored source environment origin when importing deformables so expanded visual geometry metadata
+  remained correctly placed when the authoring stage contained untransformed prototypes.
+* Used authored source frames instead of planned destination poses when composing Newton worlds, keeping bodies,
+  cameras, and deformables aligned when prototype environments were unplaced or remapped.
+
+
 9.3.1 (2026-10-14)
 ~~~~~~~~~~~~~~~~~~
 
