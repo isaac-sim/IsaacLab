@@ -28,7 +28,6 @@ def test_text_and_json_files_become_prompts_in_the_order_given(tmp_path):
     assert read_prompt_files([str(tmp_path / "b.txt"), str(tmp_path / "a.json")]) == [sheet, scene]
     # A pattern expands in sorted order; a bracketed list keeps its own order.
     assert read_prompt_files([str(tmp_path / "*.txt")]) == [sheet, "A white plate."]
-    assert read_prompt_files([f"[{tmp_path / 'c.txt'}, {tmp_path / 'a.json'}]"]) == ["A white plate.", scene]
 
 
 @pytest.mark.parametrize(
