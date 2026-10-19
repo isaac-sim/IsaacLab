@@ -7,6 +7,7 @@
 
 import json
 import os
+import runpy
 import signal
 import subprocess
 import sys
@@ -14,116 +15,74 @@ import textwrap
 from contextlib import suppress
 from pathlib import Path
 
-import pytest
 import yaml
 
 WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
 
 
-@pytest.fixture(scope="module")
-def workflow():
-    return yaml.safe_load(WORKFLOW.read_text())
+def labeled(login):
+    return {"event": "labeled", "actor": {"login": login}}
 
 
-@pytest.mark.parametrize(
-    "event,action,pages,error,expected",
-    [
-        ("pull_request", "labeled", [], True, True),
-        ("push", "", [], True, True),
-        (
-            "pull_request",
-            "synchronize",
-            [[{"event": "labeled", "actor": {"login": "github-actions[bot]"}}]],
-            False,
-            False,
-        ),
-        (
-            "pull_request",
-            "synchronize",
-            [[{"event": "labeled", "actor": {"login": "maintainer"}}, {"event": "unlabeled"}]],
-            False,
-            True,
-        ),
-        (
-            "pull_request",
-            "synchronize",
-            [[{"event": "commented"}], [{"event": "labeled", "actor": {"login": "isaaclab-bot[bot]"}}]],
-            False,
-            True,
-        ),
-        ("pull_request", "synchronize", [], True, False),
-    ],
-)
-def test_update_activation_routes_gpu_only_after_initial_label(workflow, event, action, pages, error, expected):
+def test_performance_workflow(tmp_path, subtests):
+    workflow = yaml.safe_load(WORKFLOW.read_text())
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
+    removed_label = [labeled("maintainer"), {"event": "unlabeled"}]
+    paginated = [[{"event": "commented"}], [labeled("isaaclab-bot[bot]")]]
+    cases = [
+        ("push", "push", "", "", [], True, True, False),
+        ("actions bot", "pull_request", "synchronize", "", [[labeled("github-actions[bot]")]], False, False, True),
+        ("removed human label", "pull_request", "synchronize", "", [removed_label], False, True, True),
+        ("paginated bot label", "pull_request", "synchronize", "", paginated, False, True, True),
+        ("API error", "pull_request", "synchronize", "", [], True, False, True),
+        ("explicit rerun", "pull_request", "labeled", "ci:run-docker", [], True, True, True),
+        ("other label", "pull_request", "labeled", "triage", [], True, True, False),
+    ]
     data = {
         "script": activation["with"]["script"],
         "continue_on_error": activation.get("continue-on-error", False),
-        "context": {
-            "eventName": event,
-            "payload": {"action": action, "pull_request": {"number": 42}},
-            "repo": {"owner": "owner", "repo": "lab"},
-        },
-        "pages": pages,
-        "error": error,
+        "cases": cases,
         "runner": jobs["build"]["runs-on"].removeprefix("${{").removesuffix("}}"),
         "curobo": jobs["build-curobo"]["if"],
         "stop": next(step for step in jobs["build"]["steps"] if step.get("name") == "Explain missing PR activation"),
+        "cancel": workflow["concurrency"]["cancel-in-progress"].removeprefix("${{").removesuffix("}}"),
     }
     runner = """
-const fs = require('node:fs');
-const input = JSON.parse(fs.readFileSync(0, 'utf8'));
-const outputs = {};
-const core = {setOutput: (k,v) => outputs[k] = v};
-const github = {rest: {issues: {listEvents: 'events'}}, paginate: {iterator: async function*() {
-  if (input.error) throw new Error('network unavailable');
-  for (const data of input.pages) yield {data};
-}}};
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'));
+const assert = require('node:assert/strict');
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 (async () => {
-  try {
-    await new AsyncFunction('context', 'github', 'core', input.script)(input.context, github, core);
-  } catch (error) {
-    if (!input.continue_on_error) throw error;
+  for (const [name, eventName, action, label, pages, error, activated, expectedCancel] of input.cases) {
+    const outputs = {};
+    const context = {eventName, payload: {action, pull_request: {number: 42}, label: {name: label}},
+                     repo: {owner: 'owner', repo: 'lab'}};
+    const core = {setOutput: (k,v) => outputs[k] = v};
+    const github = {rest: {issues: {listEvents: 'events'}}, paginate: {iterator: async function*() {
+      if (error) throw new Error('network unavailable');
+      for (const data of pages) yield {data};
+    }}};
+    try {
+      await new AsyncFunction('context', 'github', 'core', input.script)(context, github, core);
+    } catch (error) {
+      if (!input.continue_on_error) throw new Error(name + ': ' + error.message);
+    }
+    const needs = {changes: {outputs: {activated: outputs.activated, should_run: 'true'}}};
+    const event = {event_name: eventName, event: context.payload};
+    const evaluate = code => new Function('needs', 'github', 'fromJSON', `return (${code})`)(needs, event, JSON.parse);
+    assert.deepEqual(
+      [evaluate(input.runner), evaluate(input.curobo), evaluate(input.stop.if), evaluate(input.cancel)],
+      [activated ? ['self-hosted', 'gpu'] : ['ubuntu-latest'],
+       activated && eventName !== 'push', !activated, expectedCancel],
+      name);
   }
-  const needs = {changes: {outputs: {activated: outputs.activated, should_run: 'true'}}};
-  const runner = new Function('needs', 'fromJSON', `return (${input.runner})`)(needs, JSON.parse);
-  const curobo = new Function('needs', 'github', `return (${input.curobo})`)(
-    needs, {event_name: input.context.eventName});
-  const stop = new Function('needs', `return (${input.stop.if})`)(needs);
-  process.stdout.write(JSON.stringify({runner, curobo, stop}));
 })();
 """
     result = subprocess.run(["node", "-e", runner], input=json.dumps(data), capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
-    observed = json.loads(result.stdout)
-    assert observed["runner"] == (["self-hosted", "gpu"] if expected else ["ubuntu-latest"])
-    assert observed["curobo"] is (expected and event != "push")
-    assert observed["stop"] is (not expected)
-    if observed["stop"]:
-        stopped = subprocess.run(["bash", "-e", "-c", data["stop"]["run"]], capture_output=True, text=True)
-        assert stopped.returncode != 0
+    stopped = subprocess.run(["bash", "-e", "-c", data["stop"]["run"]], capture_output=True, text=True)
+    assert stopped.returncode != 0, "Unactivated PR explanation step exited successfully"
 
-
-@pytest.mark.parametrize(
-    "action,label,expected",
-    [("synchronize", "", True), ("labeled", "ci:run-docker", True), ("labeled", "triage", False)],
-)
-def test_only_updates_and_explicit_reruns_cancel_running_ci(workflow, action, label, expected):
-    expression = workflow["concurrency"]["cancel-in-progress"].removeprefix("${{").removesuffix("}}")
-    data = {"expression": expression, "github": {"event": {"action": action, "label": {"name": label}}}}
-    script = (
-        "const x=JSON.parse(require('node:fs').readFileSync(0,'utf8'));"
-        "process.stdout.write(JSON.stringify(new Function('github', `return (${x.expression})`)(x.github)));"
-    )
-    result = subprocess.run(["node", "-e", script], input=json.dumps(data), capture_output=True, text=True)
-    assert result.returncode == 0, result.stderr
-    assert json.loads(result.stdout) is expected
-
-
-@pytest.mark.parametrize("stop_signal", [signal.SIGINT, signal.SIGTERM])
-def test_cancelled_workflow_removes_container_and_stops_benchmark(workflow, tmp_path, stop_signal):
     command = next(
         step["run"]
         for step in workflow["jobs"]["performance-smoke"]["steps"]
@@ -179,30 +138,38 @@ def test_cancelled_workflow_removes_container_and_stops_benchmark(workflow, tmp_
         "GITHUB_RUN_ATTEMPT": "2",
         "CI_IMAGE_TAG": "fixture-image",
     }
-    process = subprocess.Popen(
-        ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", str(step_script)],
-        cwd=tmp_path,
-        env=environment,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    try:
-        started = None
-        for line in process.stdout:
-            if line.startswith("{"):
-                started = json.loads(line)
-                break
-        assert started is not None, process.stderr.read()
-        process.send_signal(stop_signal)
-        # GitHub escalates cancellation after 7.5 s + 2.5 s, then kills the process tree.
-        stdout, stderr = process.communicate(timeout=10)
-        assert process.returncode == 128 + stop_signal, stdout + stderr
-        assert not (tmp_path / "running-container").exists()
-        with pytest.raises(ProcessLookupError):
-            os.kill(started["pid"], 0)
-    finally:
-        with suppress(ProcessLookupError):
-            os.killpg(process.pid, signal.SIGKILL)
-        process.communicate()
+    for stop_signal in (signal.SIGINT, signal.SIGTERM):
+        process = subprocess.Popen(
+            ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", str(step_script)],
+            cwd=tmp_path,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            started = None
+            for line in process.stdout:
+                if line.startswith("{"):
+                    started = json.loads(line)
+                    break
+            assert started is not None, (stop_signal.name, process.stderr.read())
+            process.send_signal(stop_signal)
+            # GitHub escalates cancellation after 7.5 s + 2.5 s, then kills the process tree.
+            stdout, stderr = process.communicate(timeout=10)
+            assert process.returncode == 128 + stop_signal, (stop_signal.name, stdout + stderr)
+            assert not (tmp_path / "running-container").exists(), stop_signal.name
+            try:
+                os.kill(started["pid"], 0)
+            except ProcessLookupError:
+                pass
+            else:
+                raise AssertionError(f"{stop_signal.name}: benchmark process is still running")
+        finally:
+            with suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate()
+
+    registry = runpy.run_path(str(Path(__file__).with_name("test_registry_credential_fallback.py")))
+    registry["check_registry"](tmp_path / "registry", subtests)

@@ -3,13 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the registry-scoped docker credential fallback.
-
-Covers the helper that drops one registry's stored credential and the composite
-action's guards around it, plus the base image digest resolution that feeds the
-dependency-cache key. The action bodies are extracted from their action.yml and
-run under bash against stubbed executables, so no registry access is needed.
-"""
+"""Check registry credentials and image digests with local Docker stubs."""
 
 from __future__ import annotations
 
@@ -20,7 +14,6 @@ import re
 import subprocess
 from pathlib import Path
 
-import pytest
 import yaml
 
 _LIB_DIR = Path(__file__).resolve().parent
@@ -57,9 +50,10 @@ def _auths(path: Path) -> set[str]:
 
 def _write_stub_docker(bin_dir: Path, body: str) -> None:
     bin_dir.mkdir(parents=True, exist_ok=True)
-    script = bin_dir / "docker"
-    script.write_text(f"#!/usr/bin/env bash\n{body}\n", encoding="utf-8")
-    script.chmod(0o755)
+    for name, source in {"docker": body, "sleep": "exit 0"}.items():
+        script = bin_dir / name
+        script.write_text(f"#!/usr/bin/env bash\n{source}\n", encoding="utf-8")
+        script.chmod(0o755)
 
 
 def _run_setup(
@@ -90,7 +84,9 @@ def _run_setup(
     if extra_env:
         env.update(extra_env)
     Path(env["GITHUB_ENV"]).touch()
-    return subprocess.run(["bash", str(body)], env=env, capture_output=True, text=True, check=False)
+    result = subprocess.run(["bash", str(body)], env=env, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stderr
+    return result
 
 
 # A stub that refuses credentials but serves an anonymous config (empty auths).
@@ -104,46 +100,33 @@ exit 1
 """
 
 
-def test_public_nvcr_drops_only_that_registry(tmp_path: Path) -> None:
-    """The refused nvcr.io credential goes; the push credentials stay."""
-    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS)
-    assert result.returncode == 0, result.stderr
+def check_public_nvcr_drops_only_that_registry(tmp_path: Path) -> None:
+    _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS)
     assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
 
 
-def test_non_nvcr_reference_is_left_alone(tmp_path: Path) -> None:
-    """A Docker Hub base image keeps its credential, which is also pull-rate budget."""
-    result = _run_setup(tmp_path, "ubuntu:24.04", _DENY_UNLESS_ANONYMOUS)
-    assert result.returncode == 0, result.stderr
+def check_non_nvcr_reference_is_left_alone(tmp_path: Path) -> None:
+    _run_setup(tmp_path, "ubuntu:24.04", _DENY_UNLESS_ANONYMOUS)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def test_readable_image_keeps_credentials(tmp_path: Path) -> None:
-    """A private image the credentials can read must not trigger the fallback."""
-    result = _run_setup(tmp_path, "nvcr.io/example/isaac-sim:latest", "exit 0")
-    assert result.returncode == 0, result.stderr
+def check_readable_image_keeps_credentials(tmp_path: Path) -> None:
+    _run_setup(tmp_path, "nvcr.io/example/isaac-sim:latest", "exit 0")
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def test_transient_failure_keeps_credentials(tmp_path: Path) -> None:
-    """A registry outage is not an authorization refusal, so nothing is dropped."""
+def check_transient_failure_keeps_credentials(tmp_path: Path) -> None:
     stub = 'echo "error: received unexpected HTTP status: 503" >&2\nexit 1'
     result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
-    assert result.returncode == 0, result.stderr
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
     assert "::warning::" in result.stdout
 
 
-def test_transient_anonymous_failure_is_retried(tmp_path: Path) -> None:
-    """A flaky anonymous probe must not leave a credential that is already denied.
-
-    Without a retry the action would keep the denied credential and the build
-    would fail on the pull this fallback exists to rescue.
-    """
+def check_transient_anonymous_failure_is_retried(tmp_path: Path) -> None:
     stub = """
 config="${DOCKER_CONFIG:-}/config.json"
 if [ -f "$config" ] && grep -q '"auths":{}' "$config"; then
-  counter=/tmp/il_anon_attempts
+  counter="$ANON_ATTEMPTS"
   n=$(cat "$counter" 2>/dev/null || echo 0)
   n=$((n + 1))
   echo "$n" > "$counter"
@@ -156,28 +139,21 @@ fi
 echo "denied: Access Denied" >&2
 exit 1
 """
-    Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
-    try:
-        result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", stub)
-        assert result.returncode == 0, result.stderr
-        assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
-    finally:
-        Path("/tmp/il_anon_attempts").unlink(missing_ok=True)
+    _run_setup(
+        tmp_path,
+        "nvcr.io/nvidia/isaac-sim:6.2.0",
+        stub,
+        extra_env={"ANON_ATTEMPTS": str(tmp_path / "anonymous-attempts")},
+    )
+    assert _auths(tmp_path / "cfg" / "config.json") == {_ECR, _HUB}
 
 
-def test_unowned_config_is_never_modified(tmp_path: Path) -> None:
-    """A config this action did not create belongs to the runner and stays intact."""
-    result = _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS, owned=False)
-    assert result.returncode == 0, result.stderr
+def check_unowned_config_is_never_modified(tmp_path: Path) -> None:
+    _run_setup(tmp_path, "nvcr.io/nvidia/isaac-sim:6.2.0", _DENY_UNLESS_ANONYMOUS, owned=False)
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
-    """ecr-build-push-pull delegates to docker-build, so the probe must not repeat.
-
-    The probes are network calls with backoff, and the first invocation already
-    settled the outcome for this ref.
-    """
+def check_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
     ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
     stub = 'echo "the probe must not run again" >&2\nexit 1'
     result = _run_setup(
@@ -186,19 +162,17 @@ def test_already_checked_reference_is_not_probed_again(tmp_path: Path) -> None:
         stub,
         extra_env={"SETUP_DOCKER_CONFIG_CHECKED_REF": ref},
     )
-    assert result.returncode == 0, result.stderr
     assert "already checked" in result.stdout
     assert _auths(tmp_path / "cfg" / "config.json") == {"nvcr.io", _ECR, _HUB}
 
 
-def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> None:
-    """Cleanup must not leave a cached probe valid for newly copied credentials."""
+def check_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> None:
     runner_config = tmp_path / "home" / ".docker" / "config.json"
     runner_config.parent.mkdir(parents=True)
     _write_config(runner_config, ["nvcr.io", _ECR, _HUB])
     removed_config = tmp_path / "removed-config"
     ref = "nvcr.io/nvidia/isaac-sim:6.2.0"
-    result = _run_setup(
+    _run_setup(
         tmp_path,
         ref,
         _DENY_UNLESS_ANONYMOUS,
@@ -209,15 +183,13 @@ def test_recreated_config_rechecks_previously_checked_image(tmp_path: Path) -> N
             "TMPDIR": str(tmp_path),
         },
     )
-    assert result.returncode == 0, result.stderr
     updates = dict(line.split("=", 1) for line in (tmp_path / "github-env").read_text().splitlines())
     recreated_config = Path(updates["DOCKER_CONFIG"]) / "config.json"
     assert _auths(recreated_config) == {_ECR, _HUB}
     assert _auths(runner_config) == {"nvcr.io", _ECR, _HUB}
 
 
-def test_registry_host_canonicalization() -> None:
-    """Case, port, and Docker Hub spellings resolve to one registry identity."""
+def check_registry_host_canonicalization(_tmp_path: Path) -> None:
     helper = _load_helper()
     assert helper.registry_host("nvcr.io/nvidia/isaac-sim:6.2.0") == "nvcr.io"
     assert helper.registry_host("NVCR.IO/nvidia/isaac-sim:6.2.0") == "nvcr.io"
@@ -227,8 +199,7 @@ def test_registry_host_canonicalization() -> None:
     assert helper.registry_host("nvcr.io.example.com/team/image:1") == "nvcr.io.example.com"
 
 
-def test_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
-    """No stored credential for the registry is reported rather than claimed as success."""
+def check_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
     config = _write_config(tmp_path / "config.json", [_ECR])
     result = subprocess.run(
         ["python3", str(_STRIP_HELPER), str(config), "nvcr.io/nvidia/isaac-sim:6.2.0"],
@@ -240,8 +211,7 @@ def test_helper_reports_when_nothing_matched(tmp_path: Path) -> None:
     assert _auths(config) == {_ECR}
 
 
-def test_helper_also_clears_credential_helpers(tmp_path: Path) -> None:
-    """A credHelpers entry would re-supply the credential, so it goes too."""
+def check_helper_also_clears_credential_helpers(tmp_path: Path) -> None:
     config = tmp_path / "config.json"
     config.write_text(
         json.dumps({"credHelpers": {"nvcr.io": "example"}, "auths": {"nvcr.io": {"auth": "redacted"}}}),
@@ -280,23 +250,20 @@ def _run_hash(tmp_path: Path, image: str, version: str, stub: str) -> subprocess
     return subprocess.run(["bash", str(script)], env=env, capture_output=True, text=True, check=False)
 
 
-def test_digest_pinned_tag_skips_the_network(tmp_path: Path) -> None:
-    """A tag that already carries a digest is its own cache identity."""
+def check_digest_pinned_tag_skips_the_network(tmp_path: Path) -> None:
     stub = 'echo "the manifest read must not run" >&2\nexit 1'
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", f"latest-develop@{_DIGEST}", stub)
     assert result.returncode == 0, result.stderr
     assert f"RESULT=nvcr.io/example/isaac-sim:latest-develop@{_DIGEST}:{_DIGEST}" in result.stdout
 
 
-def test_malformed_digest_pin_fails(tmp_path: Path) -> None:
-    """A malformed pin must not reach the cache key."""
+def check_malformed_digest_pin_fails(tmp_path: Path) -> None:
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest@sha256:short", "exit 0")
     assert result.returncode == 1
     assert "malformed digest pin" in result.stdout
 
 
-def test_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
-    """An authorization refusal will not clear on its own, so it fails immediately."""
+def check_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
     stub = 'echo "denied: Access Denied" >&2\nexit 1'
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
@@ -304,36 +271,54 @@ def test_authorization_refusal_fails_without_retrying(tmp_path: Path) -> None:
     assert "attempt 2/" not in result.stdout
 
 
-def test_truncated_digest_is_rejected(tmp_path: Path) -> None:
-    """A value that merely starts with sha256: is not a digest and must not be accepted.
-
-    This distinguishes an exact-format check from a prefix check: a prefix check
-    would accept the value below and fold it into the dependency-cache key.
-    """
+def check_truncated_digest_is_rejected(tmp_path: Path) -> None:
     stub = "echo '\"sha256:abc123\"'"
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
     assert "RESULT=" not in result.stdout
 
 
-def test_trailing_output_after_a_digest_is_rejected(tmp_path: Path) -> None:
-    """Extra stdout alongside a well-formed digest must not reach the cache key."""
+def check_trailing_output_after_a_digest_is_rejected(tmp_path: Path) -> None:
     stub = f"echo '\"{_DIGEST} unexpected\"'"
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 1
     assert "RESULT=" not in result.stdout
 
 
-def test_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
-    """A warning emitted alongside a good digest is not concatenated into it."""
+def check_successful_read_ignores_stderr_noise(tmp_path: Path) -> None:
     stub = f'echo "buildx warning" >&2\necho \'"{_DIGEST}"\''
     result = _run_hash(tmp_path, "nvcr.io/example/isaac-sim", "latest-release-6-2", stub)
     assert result.returncode == 0, result.stderr
     assert f"RESULT=nvcr.io/example/isaac-sim:latest-release-6-2:{_DIGEST}" in result.stdout
 
 
-@pytest.mark.parametrize("cache", ["exact", "deps", "miss"])
-def test_second_image_never_publishes_under_first_images_dependency_key(tmp_path: Path, cache: str) -> None:
+def check_registry(tmp_path: Path, subtests) -> None:
+    for check in (
+        check_public_nvcr_drops_only_that_registry,
+        check_non_nvcr_reference_is_left_alone,
+        check_readable_image_keeps_credentials,
+        check_transient_failure_keeps_credentials,
+        check_transient_anonymous_failure_is_retried,
+        check_unowned_config_is_never_modified,
+        check_already_checked_reference_is_not_probed_again,
+        check_recreated_config_rechecks_previously_checked_image,
+        check_registry_host_canonicalization,
+        check_helper_reports_when_nothing_matched,
+        check_helper_also_clears_credential_helpers,
+        check_digest_pinned_tag_skips_the_network,
+        check_malformed_digest_pin_fails,
+        check_authorization_refusal_fails_without_retrying,
+        check_truncated_digest_is_rejected,
+        check_trailing_output_after_a_digest_is_rejected,
+        check_successful_read_ignores_stderr_noise,
+    ):
+        with subtests.test(registry=check.__name__.removeprefix("check_")):
+            workspace = tmp_path / check.__name__
+            workspace.mkdir(parents=True)
+            check(workspace)
+
+
+def check_dependency_cache(tmp_path: Path, subtests) -> None:
     """Exercise the real cache/push shells with state left by an older base-side action."""
     action = yaml.safe_load((_LIB_DIR.parent / "ecr-build-push-pull/action.yml").read_text())
     steps = {step["name"]: step for step in action["runs"]["steps"]}
@@ -343,45 +328,52 @@ def test_second_image_never_publishes_under_first_images_dependency_key(tmp_path
         bin_dir,
         'if [ "$1 $2" = "manifest inspect" ]; then [ "$CACHE" = deps ]; exit $?; fi\nprintf "%s\\n" "$*" >> "$TRACE"',
     )
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "CACHE": cache,
-        "TRACE": str(trace),
-        "ECR_URL": "registry.example/lab",
-        "ECR_IMAGE": "registry.example/lab:PR",
-        "DEPS_ECR_IMAGE": "registry.example/lab:deps-BASE",
-        "PUSH_DEPS_IMAGE": "true",
-        "GITHUB_ENV": str(tmp_path / "env"),
-        "GITHUB_OUTPUT": str(tmp_path / "output"),
-    }
-    values = {"inputs.image-tag": "local:PR", "steps.deps-hash.outputs.hash": "PR"}
+    for cache in ("exact", "deps", "miss"):
+        with subtests.test(dependency_cache=cache):
+            cache_path = tmp_path / cache
+            cache_path.mkdir(parents=True)
+            trace.unlink(missing_ok=True)
+            env = {
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "CACHE": cache,
+                "TRACE": str(trace),
+                "ECR_URL": "registry.example/lab",
+                "ECR_IMAGE": "registry.example/lab:PR",
+                "DEPS_ECR_IMAGE": "registry.example/lab:deps-BASE",
+                "PUSH_DEPS_IMAGE": "true",
+                "GITHUB_ENV": str(cache_path / "env"),
+                "GITHUB_OUTPUT": str(cache_path / "output"),
+            }
+            values = {"inputs.image-tag": "local:PR", "steps.deps-hash.outputs.hash": "PR"}
 
-    def expand(text):
-        return re.sub(r"\$\{\{\s*([^}]+?)\s*}}", lambda match: values.get(match[1], ""), text)
+            def expand(text):
+                return re.sub(r"\$\{\{\s*([^}]+?)\s*}}", lambda match: values.get(match[1], ""), text)
 
-    def run(body):
-        result = subprocess.run(["bash", "-e", "-c", expand(body)], env=env, capture_output=True, text=True)
-        assert result.returncode == 0, result.stderr
+            def run(body):
+                result = subprocess.run(["bash", "-e", "-c", expand(body)], env=env, capture_output=True, text=True)
+                assert result.returncode == 0, result.stderr
 
-    if cache != "exact":
-        run(steps["Check deps cache"]["run"])
-    for file, destination, prefix in (("env", env, ""), ("output", values, "steps.deps-cache.outputs.")):
-        path = tmp_path / file
-        if path.exists():
-            for line in path.read_text().splitlines():
-                key, value = line.split("=", 1)
-                destination[prefix + key] = value
-    # Evaluate both guard forms so reverting to the job-wide guard exposes the wrong image push.
-    push = steps["Push deps tag"]
-    lhs, operator, rhs = push["if"].split()
-    value = env.get(lhs[4:], "") if lhs.startswith("env.") else values.get(lhs, "")
-    enabled = {"==": value == rhs.strip("'"), "!=": value != rhs.strip("'")}[operator]
-    if enabled:
-        env.update({key: expand(value) for key, value in push.get("env", {}).items()})
-        run(push["run"])
-    commands = trace.read_text().splitlines() if trace.exists() else []
-    publications = [line for line in commands if line.startswith(("tag ", "push "))]
-    assert publications == (
-        ["tag local:PR registry.example/lab:deps-PR", "push registry.example/lab:deps-PR"] if cache == "miss" else []
-    )
+            if cache != "exact":
+                run(steps["Check deps cache"]["run"])
+            for file, destination, prefix in (("env", env, ""), ("output", values, "steps.deps-cache.outputs.")):
+                path = cache_path / file
+                if path.exists():
+                    for line in path.read_text().splitlines():
+                        key, value = line.split("=", 1)
+                        destination[prefix + key] = value
+            # Evaluate both guard forms so reverting to the job-wide guard exposes the wrong image push.
+            push = steps["Push deps tag"]
+            lhs, operator, rhs = push["if"].split()
+            value = env.get(lhs[4:], "") if lhs.startswith("env.") else values.get(lhs, "")
+            enabled = {"==": value == rhs.strip("'"), "!=": value != rhs.strip("'")}[operator]
+            if enabled:
+                env.update({key: expand(value) for key, value in push.get("env", {}).items()})
+                run(push["run"])
+            commands = trace.read_text().splitlines() if trace.exists() else []
+            publications = [line for line in commands if line.startswith(("tag ", "push "))]
+            assert publications == (
+                ["tag local:PR registry.example/lab:deps-PR", "push registry.example/lab:deps-PR"]
+                if cache == "miss"
+                else []
+            )

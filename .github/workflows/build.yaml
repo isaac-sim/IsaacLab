@@ -217,14 +217,12 @@ jobs:
         fetch-depth: 1
         lfs: true
 
-    # GPU runners need uv installed for the image checks.
     - name: Set up uv
       uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
       with:
         enable-cache: true
 
-    # uv sync skips the pip check from #6329, so verify package files in the built image.
-    # Old bundled __init__.py files can break Isaac Sim imports (nvbugs 6343978).
+    # Check for bundled files that break Isaac Sim imports (nvbugs 6343978).
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
@@ -774,7 +772,6 @@ jobs:
         include-files: "test_curobo_planner_franka.py,test_curobo_planner_cube_stack.py,test_pink_ik.py"
         container-name: isaac-lab-curobo-test
 
-    # Reuse the image already pulled for tests to avoid another runner.
     - name: Verify cuRobo runtime user is non-root
       shell: bash
       run: |
@@ -1087,8 +1084,7 @@ jobs:
       run: |
         set -euo pipefail
         cd "$PERF_CONTROLLER"
-        # Remove any error report from a failed check for reusable results in earlier CI runs
-        # to keep it out of the new benchmark results.
+        # Clear failed lookup diagnostics before collecting fresh benchmark results.
         rm -rf -- "$PERF_BASELINE_OUTPUT"
         mkdir -p "$PERF_BASELINE_OUTPUT"
         python3 -m tools.perf_smoke.paired capture \
@@ -1205,7 +1201,6 @@ jobs:
       with:
         enable-cache: false
 
-    # The gate runs on the host, so install its dependencies in a temporary environment.
     - name: Set up ASV and the baseline store client
       if: always()
       # Dependency failures report a gate ERROR without failing a successful benchmark job.
@@ -1221,8 +1216,6 @@ jobs:
 
     # This step runs PR code, so it receives only read access to stored baselines.
     - name: Compare against baseline history
-      # The summary job reports regressions; this job's status tracks benchmark execution.
-      # Continue after a comparison error so the remaining workloads still get results.
       continue-on-error: true
       if: always()
       timeout-minutes: 30
@@ -1249,7 +1242,6 @@ jobs:
             | tee -a "$gate_report"
         done < "$PERF_CONTROLLER/benchmark-legs.tsv"
 
-    # Unique commit/run names keep new measurements from overwriting earlier history.
     - name: Record baseline
       if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
       timeout-minutes: 30
@@ -1413,8 +1405,6 @@ jobs:
           });
           core.info(`PR comparison check: ${check.html_url}`);
 
-  # PR-created caches are scoped to that PR, and pushes run no solver-heavy tests to warm a shared cache.
-  # This job extends the shared cache and saves only changed contents to avoid duplicate snapshots.
   warm-warp-cache:
     name: "warp-cache-warm"
     runs-on: [self-hosted, gpu]
@@ -1443,8 +1433,7 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        # MJWarp compiles kernels per model, so a small task sample would leave most PR tests with a cold cache.
-        # The multi-agent suite includes Handover.
+        # Warm every model because MJWarp compiles separate kernels for each one.
         include-files: >-
           test_environments_newton.py,
           test_multi_agent_environments.py
@@ -1486,8 +1475,7 @@ jobs:
         include-files: >-
           test_rendering_cartpole.py,
           test_rendering_cartpole_kitless.py
-        # Only isaacsim_rtx and ovrtx fill the Kit and kitless shader caches.
-        # Exact test IDs make a rename fail visibly instead of silently warming nothing.
+        # Select exact RTX test IDs so renamed tests cannot silently skip cache warming.
         test-node-ids-file: .github/test-subsets/postmerge-rendering.toml
         test-node-ids-key: ovrtx-cache-warm
         ovrtx-shader-cache: ${{ env.PUBLISHES_OVRTX_CACHE == 'true' && 'save' || 'restore' }}

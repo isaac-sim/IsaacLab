@@ -40,7 +40,7 @@ def _tracked_blobs(root: Path, commit: str, paths: tuple[str, ...], *, python_on
         metadata, path_bytes = entry.split(b"\t", 1)
         _, kind, oid = metadata.decode().split()
         path = path_bytes.decode()
-        if kind == "blob" and (not python_only or path.endswith(".py")):
+        if kind == "blob" and (not python_only or path.endswith((".py", ".pyi"))):
             entries.append((oid, path))
     batch = _git(root, "cat-file", "--batch", data="".join(f"{oid}\n" for oid, _ in entries).encode())
     files = {}
@@ -51,9 +51,8 @@ def _tracked_blobs(root: Path, commit: str, paths: tuple[str, ...], *, python_on
         if actual_oid != oid or kind != "blob":
             raise ValueError(f"Unexpected Git object for {path}.")
         cursor = header_end + 1
-        blob = batch[cursor : cursor + int(size)]
+        files[path] = batch[cursor : cursor + int(size)]
         cursor += int(size) + 1
-        files[path] = blob
     return files
 
 
@@ -127,6 +126,17 @@ def _expected_paths(name: str, namespaces: dict) -> list[str]:
     return paths
 
 
+def _inspect_files(files: dict, root: Path, description: str) -> list[dict]:
+    mismatches = []
+    for relative, expected in files.items():
+        try:
+            if _sha256((root / relative).read_bytes()) != expected:
+                mismatches.append({"path": relative, "reason": f"{description} differs from the selected manifest."})
+        except OSError as exc:
+            mismatches.append({"path": relative, "reason": f"{description} could not be read: {exc.strerror}."})
+    return mismatches
+
+
 def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]]:
     records, mismatches = [], []
     measurement_files = manifest.get("measurement", {}).get("files", {})
@@ -174,28 +184,14 @@ def _inspect_modules(manifest: dict, root: Path) -> tuple[list[dict], list[dict]
             record["status"] = "failed"
             mismatches.extend({"module": name, "path": str(path), "reason": reason} for reason in reasons)
         records.append(record)
+    # lazy_export reads these import maps at runtime; they are not Python modules.
+    import_maps = {
+        path: digest
+        for path, digest in manifest["files"].items()
+        if path.endswith(".pyi") and not ("measurement" in manifest and path.startswith(MEASUREMENT_PATHS[0] + "/"))
+    }
+    mismatches.extend(_inspect_files(import_maps, root, "Import map"))
     return records, mismatches
-
-
-def _inspect_measurement(manifest: dict, root: Path) -> tuple[dict, list[dict]]:
-    measurement = manifest["measurement"]
-    mismatches = []
-    if measurement_digest(measurement["files"]) != measurement["digest"]:
-        mismatches.append({"reason": "Measurement manifest digest does not match its files."})
-    for relative, expected in measurement["files"].items():
-        try:
-            actual = _sha256((root / relative).read_bytes())
-            if actual != expected:
-                mismatches.append({"path": relative, "reason": "Measurement source differs from the tested revision."})
-        except OSError as exc:
-            mismatches.append({"path": relative, "reason": f"Measurement source could not be read: {exc.strerror}."})
-    return dict(measurement), mismatches
-
-
-def _inspect_runtime() -> tuple[dict | None, list[dict]]:
-    if RUNTIME_MODULE not in sys.modules:
-        return None, [{"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported in this process."}]
-    return {"module": RUNTIME_MODULE}, []
 
 
 def _output_state(output_dir: Path) -> dict[Path, tuple[int, int]]:
@@ -234,15 +230,22 @@ def run_benchmark(manifest: dict, root: Path, output_dir: Path, argv: list[str])
             sys.argv = old_argv
             sys.pycache_prefix = old_pycache
         modules, mismatches = _inspect_modules(manifest, root)
-        runtime, runtime_mismatches = _inspect_runtime()
-        mismatches.extend(runtime_mismatches)
+        runtime = {"module": RUNTIME_MODULE} if RUNTIME_MODULE in sys.modules else None
+        if runtime is None:
+            mismatches.append(
+                {"module": RUNTIME_MODULE, "reason": "Runtime entrypoint was not imported in this process."}
+            )
         measurement = None
         if "measurement" in manifest:
-            measurement, measurement_mismatches = _inspect_measurement(manifest, root)
+            measurement = dict(manifest["measurement"])
+            measurement_mismatches = []
+            if measurement_digest(measurement["files"]) != measurement["digest"]:
+                measurement_mismatches.append({"reason": "Measurement manifest digest does not match its files."})
+            measurement_mismatches.extend(_inspect_files(measurement["files"], root, "Measurement source"))
             mismatches.extend(measurement_mismatches)
             measurement_failed = (
                 measurement_mismatches
-                or runtime_mismatches
+                or runtime is None
                 or any(item["origin"] == "measurement" and item["status"] != "verified" for item in modules)
             )
             measurement["status"] = "failed" if measurement_failed else "verified"
