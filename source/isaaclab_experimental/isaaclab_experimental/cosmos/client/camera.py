@@ -16,7 +16,6 @@ from typing import Any, Literal
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import FisheyeCameraCfg
 from isaaclab.utils import replace
-from isaaclab.utils.io import load_yaml
 from isaaclab.utils.modifiers import ModifierCfg
 
 from isaaclab_experimental.image_transfer import center_crop_resize, depth_to_control
@@ -26,45 +25,11 @@ from .control_profiles import depth_processor, edge_processor
 from .cosmos_model import service_endpoints, split_views
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
-from .prompt_files import read_prompt_files
 
 logger = logging.getLogger(__name__)
 
 COSMOS_CANVASES = tuple(CANVAS_ASPECT_RATIOS)
 """Image sizes ``(height, width)`` the Cosmos service accepts."""
-
-COSMOS_OPTIONS = ("prompt", "prompt_file", "camera", "control", "near", "far", "endpoint", "transport")
-"""Options a Cosmos config file may set; each is an argument of :func:`apply_cosmos`."""
-
-
-def read_cosmos_config(path: str) -> dict[str, Any]:
-    """Read the Cosmos options of a task from a YAML file.
-
-    Args:
-        path: YAML file mapping option names (:data:`COSMOS_OPTIONS`) to values, for example
-            ``prompt: A kitchen.`` or ``endpoint: unix:///tmp/cosmos.sock``. Omitted options keep their defaults.
-            ``prompt_file`` takes the place of ``prompt``: one path, a pattern, or a list, read with
-            :func:`~isaaclab_experimental.cosmos.read_prompt_files`.
-
-    Returns:
-        The options, to pass to :func:`apply_cosmos`.
-
-    Raises:
-        ValueError: If the file is not a mapping or sets an option that does not exist, or sets both
-            ``prompt`` and ``prompt_file``.
-    """
-    options = load_yaml(path) or {}
-    if not isinstance(options, dict):
-        raise ValueError(f"The Cosmos config {path} must map option names to values.")
-    unknown = sorted(set(options) - set(COSMOS_OPTIONS))
-    if unknown:
-        raise ValueError(f"Unknown Cosmos option(s) {unknown} in {path}; the options are {list(COSMOS_OPTIONS)}.")
-    if "prompt_file" in options:
-        if "prompt" in options:
-            raise ValueError(f"Set either `prompt` or `prompt_file` in {path}, not both.")
-        files = options.pop("prompt_file")
-        options["prompt"] = read_prompt_files([files] if isinstance(files, str) else files)
-    return options
 
 
 def cosmos_camera(
@@ -153,7 +118,7 @@ def service_capabilities(
     if require_idle and reply.get("session_active", False):
         raise RuntimeError(
             f"Cosmos service at {endpoint} already has an active camera session; close the other training/play "
-            "process or choose another service with the Cosmos config option `endpoint`."
+            "process or choose another service with the `endpoint` argument."
         )
     return reply["capabilities"]
 
@@ -230,15 +195,15 @@ def apply_cosmos(
     existing = transfers[0].backend if transfers else None
     if existing is not None and control is not None and control != existing.modality:
         raise ValueError(
-            f"This Cosmos preset prepares {existing.modality} controls; omit the Cosmos config option `control` "
-            "or select an ordinary RGB camera task with --cosmos to use another control."
+            f"This Cosmos preset prepares {existing.modality} controls; omit the `control` argument "
+            "or select an ordinary RGB camera task to use another control."
         )
     control = control or (existing.modality if existing is not None else "depth")
     endpoint = endpoint or (existing.endpoint if existing is not None else DEFAULT_ENDPOINT)
     transport = transport or (existing.transport if existing is not None else "auto")
     prompt = existing.prompt if prompt is None and existing is not None else prompt
     if control != "depth" and (near is not None or far is not None):
-        raise ValueError("The Cosmos options `near` and `far` apply only to depth control.")
+        raise ValueError("The `near` and `far` arguments apply only to depth control.")
     endpoints = service_endpoints(endpoint)
     endpoint = endpoints[0] if len(endpoints) == 1 else endpoints
     shares = split_views(num_envs * len(names), len(endpoints))
@@ -251,7 +216,7 @@ def apply_cosmos(
                 f"for independent resets; start isaaclab-cosmos-server at {address} without --no-compile."
             )
     if prompt is None:
-        logger.warning("Cosmos runs without a prompt; set `prompt` in the Cosmos config to describe the scene.")
+        logger.warning("Cosmos runs without a prompt; pass `prompt` to describe the scene.")
     if env_cfg.scene.num_envs != num_envs:
         logger.info("Cosmos generates %d environment(s); the task default was %d.", num_envs, env_cfg.scene.num_envs)
         env_cfg.scene.num_envs = num_envs
@@ -264,7 +229,7 @@ def apply_cosmos(
         )
     if existing is None and hasattr(env_cfg, "observation_space") and not hasattr(env_cfg, "observations"):
         logger.warning(
-            "Direct tasks that size their observation space from the camera configuration do not support --cosmos; "
+            "Direct tasks that size their observation space from the camera configuration do not support Cosmos; "
             "the camera renders at the Cosmos canvas."
         )
 
@@ -367,9 +332,7 @@ def _select_camera(scene: Any) -> str:
     """Return the name of the scene's only camera that publishes only rgb."""
     names = _rgb_cameras(scene, only_rgb=True)
     if len(names) != 1:
-        raise ValueError(
-            f"Choose the Cosmos camera with the Cosmos config option `camera`; rgb cameras in this scene: {names}."
-        )
+        raise ValueError(f"Choose the Cosmos camera with the `camera` argument; rgb cameras in this scene: {names}.")
     return names[0]
 
 
