@@ -27,8 +27,9 @@ uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-w
 The `uv sync`, `uv pip install`, and `hf download` commands are one-time setup. Wait for `Cosmos ready at ...`.
 
 `--kv-window 4` shortens the history the model attends to so that two environments fit when Isaac Sim and Cosmos share
-one GPU: on a 48 GB GPU slice, two environments peaked at about 43 GB. If Cosmos has a GPU of its own, start it with
-`--device cuda:1` and without `--kv-window`, which keeps the default history of 30.
+one GPU: on a 48 GB GPU slice, two environments peaked at about 43 GB. If Cosmos has a GPU of its own, you can start
+it with `--device cuda:1` and without `--kv-window` to keep the default history of 30; whether two environments fit
+then depends on that GPU's memory.
 
 ## 2. Train with Cosmos on the camera
 
@@ -49,8 +50,8 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_libra
 - `env.cosmos` holds the camera's Cosmos settings, set with ordinary Isaac Lab overrides. `env.cosmos.prompt`
   describes the scene of each environment: with `--num_envs 2` the first prompt is environment 0 and the second is
   environment 1. `env.cosmos.endpoint` and `env.cosmos.transport` work the same way; see the
-  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md). A misspelled field stops the run with
-  an error naming it.
+  [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md). A misspelled `env.cosmos` field stops
+  the run with an error naming it.
 
 ## 3. Record a clip
 
