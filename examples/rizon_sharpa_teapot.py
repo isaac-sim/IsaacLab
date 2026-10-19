@@ -6,7 +6,8 @@
 """Physically grasp the Utah teapot and pour MPM water during a 25 cm rise.
 
 Run with ``uv run isaaclab example rizon-sharpa-teapot``. This experimental
-example uses a fixed index grasp and motion.
+example uses a fixed index grasp and motion. Newton proxy coupling feeds water
+reaction forces back to the grasped teapot.
 
 
 The pinned robot USD and textures are downloaded and verified on first use.
@@ -35,15 +36,15 @@ import numpy as np
 import warp as wp
 from filelock import FileLock
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg
-from newton import BodyFlags, GeoType, StateFlags
-from newton.solvers.experimental.coupled import SolverCoupled
+from newton import GeoType
+from newton.solvers.experimental.coupled import SolverCoupledProxy
 from scipy.interpolate import CubicSpline
 from scipy.spatial import ConvexHull
 from scipy.spatial.transform import Rotation
 
 from isaaclab.utils import configclass
 
-from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg
+from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
 
 if TYPE_CHECKING:
@@ -564,14 +565,13 @@ def _verify_asset_bundle(root: Path) -> None:
         raise ValueError(f"Rizon/Sharpa asset bundle at {root} differs from revision {ASSET_REVISION}.")
 
 
-class _TeapotColliderSyncSolver(SolverCoupled):
-    """Advance rigid contacts, then pass the measured pot boundary to MPM."""
+class _TeapotProxySolver(SolverCoupledProxy):
+    """Use Newton's proxy algorithm with convex rigid contacts and the exact MPM shell.
 
-    def __init__(self, model, entries):
-        super().__init__(model=model, entries=entries)
-        pot = model.body_label.index("/World/envs/env_0/PourContainer")
-        self._source_pot = int(self._entries["robot"].body_global_to_local.numpy()[pot])
-        self._fluid_pot = int(self._entries["fluid"].body_global_to_local.numpy()[pot])
+    Proxy bodies normally expose every attached shape in the destination. The
+    hollow pot needs a separate shell for MPM so its convex grasp colliders do not
+    fill the water cavity. Only geometry visibility differs from the standard solver.
+    """
 
     def _apply_entry_shape_visibility(self, view, cfg, proxy_body_keep):
         visible = self._entry_visible_shapes(cfg, set(cfg.bodies) | proxy_body_keep)
@@ -579,13 +579,6 @@ class _TeapotColliderSyncSolver(SolverCoupled):
             # MJWarp CCD requires zero margins; the fluid shell retains its margins.
             view.shape_margin = wp.zeros_like(view.shape_margin)
         super()._apply_entry_shape_visibility(view, replace(cfg, shapes=sorted(visible)), proxy_body_keep)
-        if cfg.name == "fluid":
-            # The physical pot stays dynamic in MJWarp. Only MPM prescribes its motion.
-            # Newton applies visibility before compaction, so body flags still use global indices.
-            flags = view.body_flags.numpy()
-            pot = self.model.body_label.index("/World/envs/env_0/PourContainer")
-            flags[pot] |= int(BodyFlags.KINEMATIC)
-            view.body_flags = wp.array(flags, dtype=view.body_flags.dtype, device=self.model.device)
 
     def _entry_visible_shapes(self, cfg, visible_bodies):
         visible = super()._entry_visible_shapes(cfg, visible_bodies)
@@ -606,31 +599,9 @@ class _TeapotColliderSyncSolver(SolverCoupled):
             }
         return visible
 
-    def _step_coupled(self, state_in, state_out, control, contacts, dt):
-        rigid, fluid = self._entries["robot"], self._entries["fluid"]
-        self._step_entry(rigid, control, contacts, dt)
-        # COM velocity and angular velocity carry the measured root from start to end.
-        wp.launch(
-            _sync_teapot_collider,
-            dim=1,
-            inputs=[
-                rigid.state_0.body_q,
-                rigid.state_1.body_q,
-                rigid.view.body_com,
-                self._source_pot,
-                dt,
-                fluid.state_0.body_q,
-                fluid.state_0.body_qd,
-                self._fluid_pot,
-            ],
-            device=self.model.device,
-        )
-        self._notify_input_state_update(fluid, StateFlags.BODY_Q | StateFlags.BODY_QD, dt=dt)
-        self._step_entry(fluid, control, contacts, dt)
-
 
 class NewtonTeapotCouplerManager(NewtonCouplerManager):
-    """Couple the dynamic grasped pot to its exact MPM collision shell."""
+    """Prepare rigid support geometry and select the pot's solver-specific colliders."""
 
     def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:
         """Keep generated rigid hulls above the exact shell's body-local base plane."""
@@ -678,7 +649,11 @@ class NewtonTeapotCouplerManager(NewtonCouplerManager):
         super()._prepare_builder_for_finalize(builder)
 
     def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg):
-        return _TeapotColliderSyncSolver(model=model, entries=entries)
+        coupling = SolverCoupledProxy.Config(
+            proxies=[SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs],
+            iterations=solver_cfg.iterations,
+        )
+        return _TeapotProxySolver(model=model, entries=entries, coupling=coupling)
 
 
 class TeapotPourMotion:
@@ -863,7 +838,7 @@ class TeapotPourMotion:
     def _update_feedback(self, sim_time: float, step: int) -> None:
         """Follow the measured pot with bounded arm and thumb position targets.
 
-        Finger contacts supply every force on the pot. Object feedback compensates
+        Finger contacts supply the grasp forces on the pot. Object feedback compensates
         for finger compliance and pivoting in the handle. The velocity solve respects
         rated speeds, an 8 rad/s^2 acceleration envelope, and joint stopping distances.
         """
@@ -1003,26 +978,6 @@ class TeapotPourMotion:
 
 
 @wp.kernel
-def _sync_teapot_collider(
-    source_start: wp.array[wp.transform],
-    source_end: wp.array[wp.transform],
-    source_com: wp.array[wp.vec3],
-    source: int,
-    dt: float,
-    fluid_pose: wp.array[wp.transform],
-    fluid_velocity: wp.array[wp.spatial_vector],
-    destination: int,
-):
-    start = source_start[source]
-    end = source_end[source]
-    linear = (wp.transform_point(end, source_com[source]) - wp.transform_point(start, source_com[source])) / dt
-    rotation = wp.normalize(wp.transform_get_rotation(end) * wp.quat_inverse(wp.transform_get_rotation(start)))
-    axis, angle = wp.quat_to_axis_angle(rotation)
-    fluid_pose[destination] = start
-    fluid_velocity[destination] = wp.spatial_vector(linear, axis * (angle / dt))
-
-
-@wp.kernel
 def _interpolate_joints(
     path: wp.array3d[float],
     joints: wp.array[int],
@@ -1059,13 +1014,13 @@ def _interpolate_joints(
 
 @configclass
 class TeapotSolverCfg(CouplerProxyCfg):
-    """Select convex rigid contacts and the exact MPM shell after simulation launch."""
+    """Use two-way proxy coupling with solver-specific teapot collision geometry."""
 
     class_type: type[NewtonTeapotCouplerManager] | str = "rizon_sharpa_teapot:NewtonTeapotCouplerManager"
 
 
 def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
-    """Resolve rigid hand--pot contacts and synchronize the measured fluid boundary."""
+    """Resolve rigid hand--pot contacts and return MPM reaction forces through a pot proxy."""
     return TeapotSolverCfg(
         entries=[
             CouplerEntryCfg(
@@ -1096,6 +1051,17 @@ def make_solver_cfg(mpm_cfg: MPMSolverCfg) -> TeapotSolverCfg:
                 in_place=True,
             ),
         ],
+        proxies=[
+            CouplerProxyMappingCfg(
+                source="robot",
+                destination="fluid",
+                bodies=[r"/World/envs/env_.*/PourContainer"],
+                mode="lagged",
+                # MPM resolves shell contact internally.
+                collision_pipeline=None,
+            )
+        ],
+        iterations=1,
     )
 
 
