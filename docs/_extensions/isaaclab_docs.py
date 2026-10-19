@@ -306,6 +306,9 @@ def _write_doc_redirects(app: Sphinx, exception: Exception | None) -> None:
     is_multiversion_build = bool(getattr(app.config, "smv_current_version", ""))
     for old, new in app.config.isaaclab_doc_redirects.items():
         output = Path(app.builder.get_outfilename(old))
+        if is_multiversion_build and output.is_file():
+            # Preserve pages built from historical refs instead of replacing them with current redirects.
+            continue
         if new.startswith(("https://", "http://")):
             target = new
         else:
