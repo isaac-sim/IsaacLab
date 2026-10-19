@@ -1119,6 +1119,8 @@ def test_dictionary_term_without_processors(setup_env):
     """Raw image dictionaries preserve dtype and snapshots, and reject changing schemas."""
     from types import SimpleNamespace
 
+    import numpy as np
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     pixels = torch.full((20, 2, 3), 255, dtype=torch.uint8)
@@ -1132,6 +1134,9 @@ def test_dictionary_term_without_processors(setup_env):
     torch.testing.assert_close(manager.compute()["policy"]["camera"]["rgb"], torch.zeros_like(pixels))
     env = SimpleNamespace(observation_manager=manager, action_manager=SimpleNamespace(action_term_dim=[1]), num_envs=20)
     ManagerBasedRLEnv._configure_gym_env_spaces(env)
+    space = env.single_observation_space["policy"]["camera"]["rgb"]
+    assert space.dtype == np.float32
+    assert np.isneginf(space.low).all() and np.isposinf(space.high).all()
     assert env.single_observation_space.contains({"policy": {"camera": {"rgb": first[0].numpy()}}})
     data["extra"] = pixels
     for _ in range(2):
