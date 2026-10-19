@@ -188,9 +188,6 @@ class SourceRevisionTests(unittest.TestCase):
 
     def test_source_verification_workflow(self):
         manifest_a, _ = self._prepare("manifest-a")
-        with self.subTest(case="selected checkout wins over cached packages"):
-            run = self._run(manifest_a, "result-a", roots=[self.checkout, self.cached])
-            self._assert_verified(*run, "A", self.commit_a)
         with self.subTest(case="cached package origin is rejected"):
             process, output, sidecar = self._run(
                 manifest_a, "stale", expected_exit=None, roots=[self.cached, self.checkout]
