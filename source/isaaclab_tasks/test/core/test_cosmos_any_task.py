@@ -9,7 +9,7 @@ import argparse
 import logging
 
 import pytest
-from isaaclab_experimental.cosmos import apply_cosmos
+from isaaclab_experimental.cosmos import apply_cosmos, read_cosmos_config
 from isaaclab_experimental.cosmos.client import camera as cosmos_camera_module
 
 from isaaclab_rl.entrypoints.common import (
@@ -42,6 +42,13 @@ def _cli(add_args, argv):
     return parser.parse_args(argv)
 
 
+def _config(tmp_path, text):
+    """Write a Cosmos config file and return the option that selects it."""
+    path = tmp_path / "cosmos.yaml"
+    path.write_text(text)
+    return ["--cosmos_config", str(path)]
+
+
 @pytest.fixture(autouse=True)
 def _idle_service(monkeypatch):
     """Every test sees a running, idle service; tests that batch environments call ``_serve`` again."""
@@ -49,9 +56,9 @@ def _idle_service(monkeypatch):
 
 
 @pytest.mark.parametrize("add_args", [add_common_train_args, add_common_play_args])
-def test_cosmos_options_put_cosmos_on_the_policy_camera_of_an_unmodified_task(add_args):
-    """The Kuka Allegro camera task gets Cosmos from command-line options, with its 64 x 64 observation kept."""
-    args = _cli(add_args, ["--cosmos", "--cosmos_prompt", "A lab.", "--cosmos_prompt", "A kitchen."])
+def test_a_cosmos_config_puts_cosmos_on_the_policy_camera_of_an_unmodified_task(add_args, tmp_path):
+    """The Kuka Allegro camera task gets Cosmos from a config file, with its 64 x 64 observation kept."""
+    args = _cli(add_args, _config(tmp_path, "prompt: [A lab., A kitchen.]\n"))
     env_cfg = _kuka()
     apply_env_overrides(args, env_cfg)
     env_cfg.validate()
@@ -71,23 +78,11 @@ def _serve(monkeypatch, partial_resets=False):
 
 
 @pytest.mark.parametrize("add_args,enable", [(add_common_train_args, []), (add_common_play_args, ["--cosmos"])])
-def test_cosmos_preset_accepts_cli_overrides_without_replacing_its_chain(add_args, enable, caplog):
-    """Train overrides the preset directly; play also accepts --cosmos without applying the modifier twice."""
+def test_cosmos_preset_accepts_config_overrides_without_replacing_its_chain(add_args, enable, tmp_path, caplog):
+    """A config file overrides the preset directly; --cosmos with it does not apply the modifier twice."""
     env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
-    args = _cli(
-        add_args,
-        [
-            *enable,
-            "--cosmos_prompt",
-            "A kitchen.",
-            "--cosmos_endpoint",
-            "tcp://127.0.0.1:5556",
-            "--cosmos_near",
-            "0.2",
-            "--cosmos_transport",
-            "socket",
-        ],
-    )
+    config = "prompt: A kitchen.\nendpoint: tcp://127.0.0.1:5556\nnear: 0.2\ntransport: socket\n"
+    args = _cli(add_args, [*enable, *_config(tmp_path, config)])
     with caplog.at_level(logging.INFO):
         apply_env_overrides(args, env_cfg)
     env_cfg.validate()
@@ -104,7 +99,7 @@ def test_cosmos_preset_accepts_cli_overrides_without_replacing_its_chain(add_arg
     assert "60.000 captures/s, 15.000 generated updates/s" in caplog.text
 
 
-def test_cosmos_preset_keeps_defaults_and_rejects_changing_its_control():
+def test_cosmos_preset_keeps_defaults_and_rejects_changing_its_control(tmp_path):
     env_cfg = parse_env_cfg("Isaac-Reorient-Cube-Shadow-Camera-Direct", overrides=("presets=cosmos",))
     original = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
     apply_env_overrides(_cli(add_common_train_args, []), env_cfg)
@@ -112,12 +107,13 @@ def test_cosmos_preset_keeps_defaults_and_rejects_changing_its_control():
     assert backend.prompt == original.prompt and backend.endpoint == original.endpoint
     assert backend.transport == original.transport
     with pytest.raises(ValueError, match="preset prepares depth"):
-        apply_env_overrides(_cli(add_common_train_args, ["--cosmos_control", "edge"]), env_cfg)
+        apply_env_overrides(_cli(add_common_train_args, _config(tmp_path, "control: edge\n")), env_cfg)
 
 
-def test_cosmos_options_without_a_cosmos_camera_fail_instead_of_being_ignored():
-    with pytest.raises(ValueError, match="require --cosmos"):
-        apply_env_overrides(_cli(add_common_train_args, ["--cosmos_prompt", "A lab."]), _kuka())
+def test_a_cosmos_config_with_an_unknown_option_fails_instead_of_being_ignored(tmp_path):
+    path = _config(tmp_path, "prompt: A lab.\nprompts: typo\n")[1]
+    with pytest.raises(ValueError, match=r"Unknown Cosmos option\(s\) \['prompts'\]"):
+        read_cosmos_config(path)
 
 
 def test_several_environments_need_a_compiled_service_that_batches_them(monkeypatch):
@@ -171,7 +167,7 @@ def test_the_capture_count_uses_the_sensor_update_tolerance():
 
 def test_cosmos_needs_one_rgb_camera_or_an_explicit_choice():
     env_cfg = parse_env_cfg(KUKA_TASK, overrides=("presets=cube,duo_camera,newton_mjwarp,newton_renderer,rgb64",))
-    with pytest.raises(ValueError, match="--cosmos_camera"):
+    with pytest.raises(ValueError, match="Cosmos config option `camera`"):
         apply_cosmos(env_cfg, prompt="A lab.")
     apply_cosmos(env_cfg, prompt="A lab.", camera="wrist_camera")
     assert env_cfg.scene.wrist_camera.modifiers and not env_cfg.scene.base_camera.modifiers

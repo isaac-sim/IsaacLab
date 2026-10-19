@@ -5,6 +5,7 @@
 
 __all__ = [
     "COSMOS_CANVASES",
+    "COSMOS_OPTIONS",
     "CosmosModel",
     "CosmosModelCfg",
     "CosmosTransferModifier",
@@ -17,6 +18,7 @@ __all__ = [
     "edge_control",
     "edge_processor",
     "episode_frame_budget",
+    "read_cosmos_config",
     "region_control",
     "regional_edge_processor",
     "regional_edges",
@@ -26,6 +28,7 @@ __all__ = [
 
 from .client import (
     COSMOS_CANVASES,
+    COSMOS_OPTIONS,
     CosmosModel,
     CosmosModelCfg,
     CosmosTransferModifier,
@@ -38,6 +41,7 @@ from .client import (
     edge_control,
     edge_processor,
     episode_frame_budget,
+    read_cosmos_config,
     region_control,
     regional_edge_processor,
     regional_edges,
