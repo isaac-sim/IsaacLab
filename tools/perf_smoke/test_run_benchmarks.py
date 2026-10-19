@@ -39,8 +39,7 @@ class BenchmarkCancellationTests(unittest.TestCase):
                 scripts = workspace / "tools/perf_smoke"
                 scripts.mkdir(parents=True)
                 runner = root / "tools/perf_smoke/run_benchmarks.sh"
-                if runner.exists():
-                    shutil.copy2(runner, scripts)
+                shutil.copy2(runner, scripts)
                 (workspace / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n")
                 executables = workspace / "bin"
                 executables.mkdir()
@@ -78,8 +77,6 @@ class BenchmarkCancellationTests(unittest.TestCase):
                     **os.environ,
                     "PATH": f"{executables}{os.pathsep}{os.environ['PATH']}",
                     "GITHUB_WORKSPACE": str(workspace),
-                    "PERF_CONTROLLER": str(workspace),
-                    "PERF_MEASUREMENT_ROOT": str(workspace / "measurement"),
                     "GITHUB_RUN_ID": "123",
                     "GITHUB_RUN_ATTEMPT": "2",
                     "CI_IMAGE_TAG": "fixture-image",
