@@ -166,7 +166,6 @@ class InteractiveScene:
         items = [(name, cfg) for name, cfg in self.cfg.__dict__.items() if name not in cfg_fields and cfg is not None]
         scene_asset_names = [name for name, _ in items]
         flat_items: list[tuple[str, Any]] = []
-        variant_columns: dict[int, int] = {}
         for asset_name, asset_cfg in items:
             children = list(
                 asset_cfg.rigid_objects.values() if isinstance(asset_cfg, RigidObjectCollectionCfg) else [asset_cfg]
@@ -175,10 +174,6 @@ class InteractiveScene:
             for child in children:
                 child.prim_path = cloner.expand_env_regex_ns(child.prim_path, self._env_fmt)
                 flat_items.append((asset_name, child))
-                is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
-                is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
-                if is_per_env and is_spawned:
-                    variant_columns[id(child)] = len(variant_columns)
         flat_items.sort(key=lambda item: isinstance(item[1], SensorBaseCfg))
 
         owner_paths, visual_materials = [], []
@@ -197,7 +192,6 @@ class InteractiveScene:
 
         cfgs: list[Any] = []
         clone_asset_names: list[str] = []
-        clone_asset_columns: list[int] = []
         variant_counts: list[int] = []
         prototype_indices: list[int] = []
         prototype_count = 0
@@ -208,29 +202,14 @@ class InteractiveScene:
                 continue
             cfgs.append(child)
             count = cloner.num_spawn_variants(getattr(child, "spawn", None))
-            if id(child) in variant_columns:
+            is_per_env = cloner.path.match(child.prim_path, self._env_fmt) is not None
+            is_spawned = isinstance(child, (AssetBaseCfg, CameraCfg)) and child.spawn is not None
+            if is_per_env and is_spawned:
                 clone_asset_names.append(asset_name)
-                clone_asset_columns.append(variant_columns[id(child)])
                 variant_counts.append(count)
                 prototype_indices.extend(range(prototype_count, prototype_count + count))
             prototype_count += count
 
-        if self.cloner_cfg.valid_set is not None:
-            variants = np.asarray(self.cloner_cfg.valid_set)
-            if variants.ndim != 2 or variants.shape[1] != len(variant_counts):
-                raise ValueError("valid_set requires one variant index per environment-scoped spawned asset.")
-            # Columns follow scene declarations, not the sensor-last initialization order.
-            variants = variants[:, clone_asset_columns]
-            if not np.issubdtype(variants.dtype, np.integer):
-                raise ValueError("valid_set variant indices must be integers.")
-            if np.any(variants < -1) or np.any(variants >= np.asarray(variant_counts)) or not len(variants):
-                raise ValueError("valid_set must contain valid variant indices or -1 to omit an asset.")
-            offsets = np.cumsum([0, *variant_counts[:-1]])
-            worlds = tuple(
-                tuple(prototype_indices[start + value] for start, value in zip(offsets, row, strict=True) if value >= 0)
-                for row in variants
-            )
-            return cfgs, worlds, np.ones(len(worlds), dtype=np.float64)
         combinations = self.cloner_cfg.clone_combinations
         if combinations and clone_asset_names:
             worlds, weights = cloner.make_valid_clone_combinations(

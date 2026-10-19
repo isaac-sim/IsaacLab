@@ -41,8 +41,12 @@ def expand_env_regex_ns(path_expr: str, env_template: str = DEFAULT_ENV_TEMPLATE
 class InclusionSet:
     """Legal clone combination defined by explicitly listing active assets."""
 
-    assets: list[str] = MISSING
-    """Scene asset names active in this clone combination."""
+    assets: list[str | tuple[str, int]] = MISSING
+    """Active scene assets, optionally restricted to one spawn variant by ``(name, index)``.
+
+    A name alone includes every variant. Pairs may also be lists when loaded from YAML.
+    For a rigid-object collection, the index applies to each child's catalog.
+    """
 
     weight: float = 1.0
     """Relative sampling weight for this clone combination."""
@@ -62,17 +66,9 @@ class CloneCfg:
     clone_combinations: list[InclusionSet] = []
     """Legal scene-asset combinations for heterogeneous clone planning.
 
-    Each entry names the assets that are active in one legal combination.
+    Each entry selects the assets and optional catalog members active in one legal combination.
     Assets not referenced by any entry are active in every combination. An
     empty list keeps the homogeneous/default behavior.
-    """
-
-    valid_set: list[list[int]] | None = None
-    """Explicit spawn-variant rows passed to clone planning.
-
-    Each row contains one variant index per environment-scoped spawned asset, in scene
-    declaration order. Use ``-1`` to omit an asset. This bypasses Cartesian expansion and
-    takes precedence over :attr:`clone_combinations`.
     """
 
     clone_template: str = DEFAULT_ENV_TEMPLATE

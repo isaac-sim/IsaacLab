@@ -34,7 +34,11 @@ class FactoryVariantSceneCfg(InteractiveSceneCfg):
 
     num_envs: int = 4096
     env_spacing: float = 2.0
-    clone_cfg: cloner.CloneCfg = cloner.CloneCfg(valid_set=[[0, 0, 0, i, i] for i in range(len(ASSEMBLY_VARIANTS))])
+    clone_cfg: cloner.CloneCfg = cloner.CloneCfg(
+        clone_combinations=[
+            cloner.InclusionSet(assets=[("fixed_asset", i), ("held_asset", i)]) for i in range(len(ASSEMBLY_VARIANTS))
+        ]
+    )
 
     ground = assets.GROUND_CFG
     table = assets.TABLE_CFG

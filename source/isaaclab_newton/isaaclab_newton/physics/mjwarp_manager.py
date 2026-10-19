@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Control, Model, State
+from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
@@ -94,14 +94,8 @@ class NewtonMJWarpManager(NewtonManager):
         maximum contact count; ``solver.update_contacts`` later populates it
         from MuJoCo data for contact-sensor reporting.
         """
-        self._contact_observables: SolverMuJoCo.Observables | None = None
         if self._needs_collision_pipeline:
             super()._initialize_contacts()
-            self._contact_observables = (
-                self._solver.observables([SolverMuJoCo.ObservableKind.CONTACT_F], contacts=self._contacts)
-                if self._report_contacts
-                else None
-            )
             return
         if self._solver is not None:
             self._contacts = Contacts(
@@ -110,19 +104,6 @@ class NewtonMJWarpManager(NewtonManager):
                 device=self._device,
                 requested_attributes=self.backend.model.get_requested_contact_attributes(),
             )
-
-    def _step_solver(
-        self, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
-    ) -> None:
-        """Use public force observables to preserve external collision row identities."""
-        self._solver.step(state_0, state_1, control, contacts, substep_dt, observables=self._contact_observables)
-
-    def _update_contacts_for_sensors(self, contacts: Contacts) -> None:
-        if self._contact_observables is None:
-            super()._update_contacts_for_sensors(contacts)
-
-    def _solver_specific_clear(self) -> None:
-        self._contact_observables = None
 
     def _reset_solver_internals(self, world_mask: wp.array | None) -> None:
         """Clear MuJoCo Warp solver-internal state for flagged worlds.

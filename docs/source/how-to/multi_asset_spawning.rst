@@ -121,6 +121,23 @@ variant because their batched Newton views currently require a uniform body layo
 
 For more detail on prototype assignment and replication, see :doc:`cloning`.
 
+Paired catalog members
+~~~~~~~~~~~~~~~~~~~~~~
+
+Use the existing :class:`~cloner.InclusionSet` entries to restrict a named asset to one catalog member.
+For example, two matching fixed/movable catalogs can share the same variant index:
+
+.. code-block:: python
+
+   scene_cfg.clone_cfg.clone_combinations = [
+       cloner.InclusionSet(assets=[("fixed_asset", i), ("held_asset", i)])
+       for i in range(num_variants)
+   ]
+
+A name without an index still expands every catalog member. Assets absent from all inclusion sets remain
+present in every combination; an asset named in one set is omitted from sets that do not name it. Each set
+retains its sampling weight. Catalog selection uses this same named composition path, not positional scene rows.
+
 Reset-time selection
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -151,28 +168,6 @@ a non-switchable binding retains its initial assignment rather than enabling sel
 Other backends and catalogs can still use their initial clone assignments without switching. Calling
 ``write_mesh_variant_to_sim`` raises ``NotImplementedError`` when the backend or catalog does not support selection;
 static multi-asset spawning does not require the narrower reset-time compatibility contract.
-
-Paired variant assignments
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-By default, clone planning considers every combination of the declared assets' variants.
-Use :attr:`~cloner.CloneCfg.valid_set` when variants must be paired, such as matching a peg
-to its corresponding socket:
-
-.. code-block:: python
-
-   # A scene with two environment-scoped spawned assets, declared as socket then peg.
-   scene_cfg.clone_cfg.valid_set = [[0, 0], [1, 1]]
-
-Each row is one allowed combination. Columns follow scene declaration order and include
-every environment-scoped spawned asset, even those with a single variant. Shared assets
-and sensors without a spawner do not occupy columns; cameras with a spawner do. Rigid
-object collections contribute one column per member in collection order.
-
-Variant indices follow each spawner's catalog order. Use ``-1`` to omit an asset from a row.
-Rows receive equal weight and :attr:`~cloner.CloneCfg.clone_strategy` assigns them to environments.
-When set, ``valid_set`` takes precedence over :attr:`~cloner.CloneCfg.clone_combinations`;
-leave it as ``None`` to retain the usual Cartesian expansion.
 
 Run the example
 ---------------

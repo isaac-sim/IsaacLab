@@ -17,6 +17,7 @@ import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import (
     CloneCfg,
+    InclusionSet,
     ReplicateContext,
     ReplicateSession,
     UsdReplicateContext,
@@ -259,10 +260,16 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation, supports_sw
         assert all(1 not in ids for _, _, ids in simulation.calls)
 
 
-def test_scene_explicit_variant_rows_preserve_pairing():
-    """Paired choices follow declaration order even when cameras initialize after rigid objects."""
+def test_scene_inclusion_sets_select_matching_catalog_members():
+    """Named selections preserve pairing, weights, and omission despite sensor-last collection."""
+    assert "valid_set" not in CloneCfg.__dataclass_fields__
     scene = object.__new__(InteractiveScene)
-    scene.cloner_cfg = CloneCfg(valid_set=[[0, 1, 1], [-1, 0, 0]])
+    scene.cloner_cfg = CloneCfg(
+        clone_combinations=[
+            InclusionSet(assets=["camera", ("fixed", 1), ("held", 1)], weight=2.0),
+            InclusionSet(assets=[["held", 0], ["fixed", 0]]),
+        ]
+    )
     scene._env_fmt = scene.cloner_cfg.clone_template
     assets = {"camera": CameraCfg(prim_path="{ENV_REGEX_NS}/Camera", spawn=PinholeCameraCfg())}
     for name in ("fixed", "held"):
@@ -270,13 +277,20 @@ def test_scene_explicit_variant_rows_preserve_pairing():
             prim_path="{ENV_REGEX_NS}/" + name,
             spawn=MultiAssetSpawnerCfg(assets_cfg=[CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]),
         )
+    assets["table"] = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Table", spawn=CuboidCfg(size=(1, 1, 1)))
+    assets["ground"] = AssetBaseCfg(prim_path="/World/Ground", spawn=CuboidCfg(size=(1, 1, 1)))
     scene.cfg = SimpleNamespace(num_envs=2, **assets)
-    _, world_prototypes, weights = scene._collect_asset_cfgs()
-    assert world_prototypes == ((1, 3, 4), (0, 2))
-    np.testing.assert_array_equal(weights, [1.0, 1.0])
-    for rows in ([[0]], [[0, 0, 2]], [[0, 0, 0.5]], []):
-        scene.cloner_cfg.valid_set = rows
-        with pytest.raises(ValueError, match="valid_set"):
+    _, worlds, weights = scene._collect_asset_cfgs()
+    assert worlds == ((1, 3, 4, 6), (0, 2, 4))
+    np.testing.assert_array_equal(weights, [2.0, 1.0])
+
+    scene.cloner_cfg.clone_combinations = [InclusionSet(assets=["fixed", "held", ("held", 0)])]
+    _, worlds, weights = scene._collect_asset_cfgs()
+    assert worlds == ((0, 2, 2, 4, 6), (0, 3, 2, 4, 6), (1, 2, 2, 4, 6), (1, 3, 2, 4, 6))
+    np.testing.assert_array_equal(weights, [0.25] * 4)
+    for selection in (("fixed", -1), ("held", 2), ("fixed", 0.5), ("missing", 0), ("ground", 0)):
+        scene.cloner_cfg.clone_combinations = [InclusionSet(assets=[selection])]
+        with pytest.raises(ValueError):
             scene._collect_asset_cfgs()
 
 
