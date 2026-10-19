@@ -19,6 +19,8 @@ on:
       # Shared CI action helpers and their co-located tests.
       - ".github/actions/_lib/**"
       - ".github/workflows/tools-tests.yml"
+      # test_ci_marker_jobs.py checks the marker gates in this workflow.
+      - ".github/workflows/build.yaml"
   workflow_dispatch:
 
 concurrency:
@@ -68,7 +70,7 @@ jobs:
         # --noconftest keeps tools/conftest.py out of the session. That file is the CI test
         # orchestrator - its pytest_sessionstart scans source/ and scripts/ and runs the whole
         # suite, so loading it here would ignore the files named below.
-        run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py
+        run: python3 -m pytest tools/test_crash_journal.py tools/test_file_scheduler.py tools/test_ci_marker_jobs.py
           .github/actions/_lib/test_registry_credential_fallback.py -v --noconftest
 
       - uses: astral-sh/setup-uv@v6
