@@ -90,17 +90,17 @@ and synchronization responsibilities.
 Reuse Isaac Lab-owned access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use the accessors of the simulation's manager instance, ``sim.physics_manager``, to obtain the
+Use the accessors of the simulation's manager instance, ``sim.backend_manager``, to obtain the
 current Newton objects:
 
 .. code-block:: python
 
-   physics_manager = sim.physics_manager
+   backend_manager = sim.backend_manager
 
-   model = physics_manager.get_model()
-   state = physics_manager.get_state_0()
-   control = physics_manager.get_control()
-   contacts = physics_manager.get_contacts()
+   model = backend_manager.get_model()
+   state = backend_manager.get_state_0()
+   control = backend_manager.get_control()
+   contacts = backend_manager.get_contacts()
 
    body_poses = state.body_q
    joint_forces = control.joint_f
@@ -160,14 +160,14 @@ selected value before modifying it when you want the write to remain explicit:
        model,
        rolling_friction,
    )
-   sim.physics_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
+   sim.backend_manager.add_model_change(ModelFlags.SHAPE_PROPERTIES)
 
 The string names a Newton model attribute rather than an Isaac Lab field. This
 example uses rolling friction because it has no dedicated selection method.
 Notify the manager with the flag appropriate to the property changed; other
 model writes can require a different flag. State writes that change generalized
 coordinates instead require forward-kinematics synchronization through
-``sim.physics_manager.invalidate_fk()`` and ``sim.physics_manager.forward()``.
+``sim.backend_manager.invalidate_fk()`` and ``sim.backend_manager.forward()``.
 
 Ownership, synchronization, and invalidation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

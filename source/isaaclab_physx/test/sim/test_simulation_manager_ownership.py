@@ -55,4 +55,4 @@ def test_initialize_claims_simulation_manager_lifecycle():
     if supports_startup_setting:
         assert simulation_manager_module.SimulationManager is original_manager
     else:
-        assert simulation_manager_module.SimulationManager is sim.physics_manager
+        assert simulation_manager_module.SimulationManager is sim.backend_manager

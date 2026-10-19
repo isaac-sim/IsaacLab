@@ -144,14 +144,14 @@ def world_gravity(gravity: Vec3) -> Iterator[None]:
     Args:
         gravity: Gravity applied to every world [m/s^2].
     """
-    physics_manager = SimulationContext.instance().physics_manager
-    model = physics_manager.get_model()
+    backend_manager = SimulationContext.instance().backend_manager
+    model = backend_manager.get_model()
     world_gravity_view = wp.to_torch(model.gravity[: model.world_count])
     previous = world_gravity_view.clone()
     world_gravity_view.copy_(torch.tensor(gravity, device=previous.device))
-    physics_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+    backend_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
     try:
         yield
     finally:
         world_gravity_view.copy_(previous)
-        physics_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        backend_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)

@@ -356,7 +356,7 @@ class AssetBase(Asset, ABC):
     def _register_callbacks(self):
         """Registers physics lifecycle callbacks via the current backend's physics manager."""
         self._sim = SimulationContext.instance()
-        physics_mgr = self._physics_manager = self._sim.physics_manager
+        physics_mgr = self._backend_manager = self._sim.backend_manager
 
         # note: use weakref on callbacks to ensure that this object can be deleted when its destructor is called.
         obj_ref = weakref.proxy(self)
@@ -367,14 +367,14 @@ class AssetBase(Asset, ABC):
         # Backend-agnostic: PHYSICS_READY (init) and STOP (invalidate)
         self._initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_initialize_callback", payload, physics_manager=physics_mgr
+                _invoke, "_initialize_callback", payload, backend_manager=physics_mgr
             ),
             PhysicsEvent.PHYSICS_READY,
             order=10,
         )
         self._invalidate_initialize_handle = physics_mgr.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
-                _invoke, "_invalidate_initialize_callback", payload, physics_manager=physics_mgr
+                _invoke, "_invalidate_initialize_callback", payload, backend_manager=physics_mgr
             ),
             PhysicsEvent.STOP,
             order=10,
@@ -387,7 +387,7 @@ class AssetBase(Asset, ABC):
 
             self._prim_deletion_handle = physics_mgr.register_callback(
                 lambda event: PhysicsManager.safe_callback_invoke(
-                    _invoke, "_on_prim_deletion", event, physics_manager=physics_mgr
+                    _invoke, "_on_prim_deletion", event, backend_manager=physics_mgr
                 ),
                 IsaacEvents.PRIM_DELETION,
             )
@@ -400,8 +400,8 @@ class AssetBase(Asset, ABC):
             :attr:`PhysicsEvent.PHYSICS_READY` is dispatched by the current backend.
         """
         if not self._is_initialized:
-            self._backend = self._physics_manager.get_backend()
-            self._device = self._physics_manager.get_device()
+            self._backend = self._backend_manager.get_backend()
+            self._device = self._backend_manager.get_device()
             self._initialize_impl()
             self._is_initialized = True
 

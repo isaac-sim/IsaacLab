@@ -122,7 +122,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the tensor binding and allocates buffers."""
         super()._initialize_impl()
 
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance

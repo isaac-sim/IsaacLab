@@ -44,7 +44,7 @@ class FrameView(FactoryBase, BaseFrameView):
         ctx = SimulationContext.instance()
         if ctx is None:
             return "physx"
-        return ctx.physics_manager.backend_name
+        return ctx.backend_manager.backend_name
 
     def __new__(cls, *args, **kwargs) -> BaseFrameView:
         """Create a new FrameView for the active physics backend."""

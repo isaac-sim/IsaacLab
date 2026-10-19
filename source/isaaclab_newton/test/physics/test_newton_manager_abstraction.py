@@ -695,7 +695,7 @@ def test_production_imports_scope_mujoco_joint_properties(
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path, device="cpu")
     manager = manager_cls()
-    sim.physics_manager, sim._backend_registry = manager, []
+    sim.backend_manager, sim._backend_registry = manager, []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     manager._sim, manager._cfg, manager._device = sim, physics_cfg, "cpu"
     manager._scene_data_backend = newton_manager_module.NewtonSceneDataBackend(manager)
@@ -797,20 +797,20 @@ def test_mpm_project_outside_colliders_gates_projection(project_outside):
             },
         )
         sim.reset()
-        assert isinstance(sim.physics_manager._solver, SolverImplicitMPM)
+        assert isinstance(sim.backend_manager._solver, SolverImplicitMPM)
 
         calls = {"n": 0}
-        original_project = sim.physics_manager._solver.project_outside
+        original_project = sim.backend_manager._solver.project_outside
 
         def counting_project(*args, **kwargs):
             calls["n"] += 1
             return original_project(*args, **kwargs)
 
-        sim.physics_manager._solver.project_outside = counting_project
+        sim.backend_manager._solver.project_outside = counting_project
         try:
             sim.step(render=False)
         finally:
-            sim.physics_manager._solver.project_outside = original_project
+            sim.backend_manager._solver.project_outside = original_project
 
         if project_outside:
             assert calls["n"] >= 1
@@ -1014,7 +1014,7 @@ def test_fixed_root_pose_write_updates_solver(asset_class, writer, selector):
         assert_shape_and_dtype_mask=lambda *args: None,
     )
     solver = SolverMuJoCo(model)
-    asset._physics_manager = SimpleNamespace(_solver=solver)
+    asset._backend_manager = SimpleNamespace(_solver=solver)
     target = wp.array([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], dtype=wp.transform, device="cpu")
     selection = wp.array([0], dtype=wp.int32, device="cpu") if selector == "env_ids" else asset._ALL_ENV_MASK
 
@@ -1154,7 +1154,7 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
         def on_physics_ready(_):
             events.append("ready")
             backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
-            assert backend is sim.physics_manager.backend
+            assert backend is sim.backend_manager.backend
             allocations.append(backend)
             assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
             different = NewtonCfg(
@@ -1167,7 +1167,7 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
-        sim.physics_manager.register_callback(
+        sim.backend_manager.register_callback(
             on_physics_ready,
             PhysicsEvent.PHYSICS_READY,
             wrap_weak_ref=False,
@@ -1230,7 +1230,7 @@ def test_initialize_solver_populates_canonical_state(
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         # Resolved manager instance matches the expected leaf.
-        manager = sim.physics_manager
+        manager = sim.backend_manager
         assert isinstance(manager, expected_manager)
         assert manager.backend_name == "newton"
 
@@ -1313,7 +1313,7 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
         joint = builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         builder.add_articulation([joint])
         sim.reset()
-        solver = sim.physics_manager._solver
+        solver = sim.backend_manager._solver
         notify = solver.notify_model_changed
         calls = []
 
@@ -1323,18 +1323,18 @@ def test_step_combines_pending_model_changes(monkeypatch, caplog):
 
         monkeypatch.setattr(solver, "notify_model_changed", record_notification)
         ignored = ModelFlags.BODY_INERTIAL_PROPERTIES
-        monkeypatch.setattr(sim.physics_manager, "_ignored_model_changes", {ignored: "Test ignored model change"})
-        monkeypatch.setattr(sim.physics_manager, "_warned_model_changes", set())
+        monkeypatch.setattr(sim.backend_manager, "_ignored_model_changes", {ignored: "Test ignored model change"})
+        monkeypatch.setattr(sim.backend_manager, "_warned_model_changes", set())
         flags = (ignored, ModelFlags.JOINT_DOF_PROPERTIES, ignored)
         for flag in flags:
-            sim.physics_manager.add_model_change(flag)
+            sim.backend_manager.add_model_change(flag)
         assert calls == []
 
         with caplog.at_level(logging.WARNING, logger="isaaclab_newton.physics.newton_manager"):
             sim.step(render=False)
             sim.step(render=False)
             assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES]
-            sim.physics_manager.add_model_change(ignored)
+            sim.backend_manager.add_model_change(ignored)
             sim.step(render=False)
 
         assert calls == [ignored | ModelFlags.JOINT_DOF_PROPERTIES, ignored]
@@ -1415,17 +1415,17 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         # pipeline is allocated, and use_cuda_graph=False so the wrapped
         # Python callable isn't bypassed by a captured graph.
         calls = {"n": 0}
-        original_collide = sim.physics_manager._collision_pipeline.collide
+        original_collide = sim.backend_manager._collision_pipeline.collide
 
         def counting_collide(state, contacts):
             calls["n"] += 1
             return original_collide(state, contacts)
 
-        sim.physics_manager._collision_pipeline.collide = counting_collide
+        sim.backend_manager._collision_pipeline.collide = counting_collide
         try:
             sim.step(render=False)
         finally:
-            sim.physics_manager._collision_pipeline.collide = original_collide
+            sim.backend_manager._collision_pipeline.collide = original_collide
 
         # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
         assert calls["n"] == 1 + expected_mid_loop_collides
@@ -1523,9 +1523,9 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
         sim.reset()
 
         # Kamino keeps separate input/output states; the bug only exists there.
-        assert sim.physics_manager._use_single_state is False
+        assert sim.backend_manager._use_single_state is False
         # The data layer binds its joint-state write target to _state_0 at setup.
-        reset_target = sim.physics_manager.backend.state_0.joint_q
+        reset_target = sim.backend_manager.backend.state_0.joint_q
         assert reset_target.shape[0] > 0  # guard against a vacuous assertion
 
         for _ in range(num_steps):
@@ -1536,7 +1536,7 @@ def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph():
 
         # The reset must be visible in the manager's canonical _state_0; if the
         # buffer flipped it landed in _state_1 instead.
-        canonical_joint_q = sim.physics_manager.backend.state_0.joint_q.numpy()
+        canonical_joint_q = sim.backend_manager.backend.state_0.joint_q.numpy()
         assert np.allclose(canonical_joint_q, sentinel), (
             f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
         )
@@ -1568,17 +1568,17 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         if rtx_capture:
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-        sim.physics_manager.activate_newton_actuator_path()
+        sim.backend_manager.activate_newton_actuator_path()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
-        sim.physics_manager.register_post_step_callback(lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]))
+        sim.backend_manager.register_post_step_callback(lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]))
         wrench = wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         for step in range(3):
             if step != 1:
-                sim.physics_manager.set_decimation(1)
-            sim.physics_manager.get_state_0().body_f.assign(wrench)
+                sim.backend_manager.set_decimation(1)
+            sim.backend_manager.get_state_0().body_f.assign(wrench)
             sim.step(render=False)
-            assert sim.physics_manager._graph is not None
-            np.testing.assert_allclose(sim.physics_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+            assert sim.backend_manager._graph is not None
+            np.testing.assert_allclose(sim.backend_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
             assert counter.numpy()[0] == step + 1
 
 
@@ -1601,13 +1601,13 @@ def test_staged_body_force_acts_on_every_solver_substep(solver_cfg, num_substeps
         sim.reset()
         if decimation > 1:
             # Newton runs the whole decimation loop inside one step() call.
-            sim.physics_manager.activate_newton_actuator_path()
-            sim.physics_manager.set_decimation(decimation)
-        sim.physics_manager.get_state_0().body_f.assign(
+            sim.backend_manager.activate_newton_actuator_path()
+            sim.backend_manager.set_decimation(decimation)
+        sim.backend_manager.get_state_0().body_f.assign(
             wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         )
         sim.step(render=False)
-        np.testing.assert_allclose(sim.physics_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
+        np.testing.assert_allclose(sim.backend_manager.get_state_0().joint_qd.numpy(), 0.0, atol=1e-6)
 
 
 def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeypatch):
@@ -1633,19 +1633,19 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             sim.reset()
             monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
             monkeypatch.setattr(sim, "_has_offscreen_render", True)
-            sim.physics_manager.activate_newton_actuator_path()
+            sim.backend_manager.activate_newton_actuator_path()
             samples = []
             for decimation in (1, 2, 3):
-                sim.physics_manager.set_decimation(decimation)
+                sim.backend_manager.set_decimation(decimation)
                 for target in (1.0, -2.0, 3.0, 0.0):
-                    sim.physics_manager.get_control().joint_target_q.fill_(target)
+                    sim.backend_manager.get_control().joint_target_q.fill_(target)
                     sim.step(render=False)
                     samples.append(
                         np.concatenate(
                             (
-                                sim.physics_manager.get_state_0().joint_q.numpy(),
-                                sim.physics_manager.get_state_0().joint_qd.numpy(),
-                                sim.physics_manager.get_control().joint_f.numpy(),
+                                sim.backend_manager.get_state_0().joint_q.numpy(),
+                                sim.backend_manager.get_state_0().joint_qd.numpy(),
+                                sim.backend_manager.get_control().joint_f.numpy(),
                             )
                         )
                     )
@@ -1725,13 +1725,13 @@ def test_hard_reset_then_step_runs(use_cuda_graph):
         _build_collision_scene(sim)
 
         sim.reset()
-        assert sim.physics_manager._needs_collision_pipeline is True
-        old_backend = sim.physics_manager.backend
-        old_model = sim.physics_manager._collision_pipeline.model
+        assert sim.backend_manager._needs_collision_pipeline is True
+        old_backend = sim.backend_manager.backend
+        old_model = sim.backend_manager._collision_pipeline.model
         sim.step(render=False)
 
         sim.reset()
-        assert sim.physics_manager.backend is not old_backend
+        assert sim.backend_manager.backend is not old_backend
         assert old_backend.model is old_backend.state_0 is old_backend.state_1 is old_backend.control is None
         assert sum(isinstance(cfg, newton_manager_module.NewtonBackendCfg) for cfg, _ in sim._backend_registry) == 1
 

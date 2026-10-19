@@ -89,7 +89,7 @@ class _OvPhysxRayCasterMixin:
 
         body_glob = _ovphysx_body_glob(body_expr)
 
-        physx = self._physics_manager.get_physx_instance()
+        physx = self._backend_manager.get_physx_instance()
         if physx is None:
             raise RuntimeError(
                 "OvPhysxManager has no PhysX instance yet -- sensor was constructed before "
@@ -198,7 +198,7 @@ class _OvPhysxRayCasterMixin:
                 "per-pattern bindings and an interleaved-read kernel that does not exist yet."
             )
 
-        physx = self._physics_manager.get_physx_instance()
+        physx = self._backend_manager.get_physx_instance()
         if physx is None:
             raise RuntimeError(
                 "OvPhysxManager has no PhysX instance yet -- multi-mesh target view requested "

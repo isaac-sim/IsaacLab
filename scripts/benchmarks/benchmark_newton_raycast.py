@@ -152,12 +152,12 @@ def main():
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_bvh_with_refit():
-            sim.physics_manager._mark_sensor_state_dirty()
+            sim.backend_manager._mark_sensor_state_dirty()
             newton_raycast._update_buffers_impl(newton_raycast._ALL_ENV_MASK)
 
         def run_refit_only():
-            sim.physics_manager._mark_sensor_state_dirty()
-            sim.physics_manager._update_sensor_tasks()
+            sim.backend_manager._mark_sensor_state_dirty()
+            sim.backend_manager._update_sensor_tasks()
 
         results = {
             "LegacyRayCaster (warp mesh)": run_warp_mesh,
@@ -168,7 +168,7 @@ def main():
 
         print(
             f"\nnum_envs={args_cli.num_envs}, rays/env={num_rays}, total rays={total_rays},"
-            f" shapes in BVH={sim.physics_manager.get_model().bvh_shape_count_enabled},"
+            f" shapes in BVH={sim.backend_manager.get_model().bvh_shape_count_enabled},"
             f" iterations={args_cli.num_iterations}, device={device}"
         )
         print(f"{'benchmark':<40} {'ms/call':>10} {'Mrays/s':>10}")

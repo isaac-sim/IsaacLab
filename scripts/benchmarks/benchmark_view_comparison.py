@@ -218,7 +218,7 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
 
     pattern = "/World/Env_*/Object"
     start_time = time.perf_counter()
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     view = physics_sim_view.create_rigid_body_view(pattern)
     num_prims = view.count
     timing_results["init"] = time.perf_counter() - start_time

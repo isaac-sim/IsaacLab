@@ -475,7 +475,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        self._physics_manager.invalidate_transforms()
+        self._backend_manager.invalidate_transforms()
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -589,7 +589,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.reshape_data_to_view_2d(self.data._body_link_pose_w.data, device=self.device).view(wp.float32),
             indices=view_ids,
         )
-        self._physics_manager.invalidate_transforms()
+        self._backend_manager.invalidate_transforms()
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -1375,7 +1375,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # clear body names list to prevent double counting on re-initialization
         self._body_names_list.clear()
         # obtain global simulation view
-        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
@@ -1401,7 +1401,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         # container for data access
         self._data = RigidObjectCollectionData(
-            self.root_view, self.num_bodies, self.device, physics_manager=self._physics_manager
+            self.root_view, self.num_bodies, self.device, backend_manager=self._backend_manager
         )
 
         # create buffers

@@ -28,9 +28,9 @@ class MPMObjectData(BaseDeformableObjectData):
         num_instances: int,
         device: str,
         *,
-        physics_manager: NewtonManager,
+        backend_manager: NewtonManager,
     ):
-        self._physics_manager = physics_manager
+        self._backend_manager = backend_manager
         super().__init__(device)
         self._particle_offsets = particle_offsets
         self._particles_per_object = particles_per_object
@@ -56,7 +56,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_pos_w(self) -> ProxyArray:
         """Particle positions in simulation world frame [m]."""
         if self._particle_pos_w.timestamp < self._sim_timestamp:
-            state = self._physics_manager.get_state_0()
+            state = self._backend_manager.get_state_0()
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),
@@ -71,7 +71,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_vel_w(self) -> ProxyArray:
         """Particle velocities in simulation world frame [m/s]."""
         if self._particle_vel_w.timestamp < self._sim_timestamp:
-            state = self._physics_manager.get_state_0()
+            state = self._backend_manager.get_state_0()
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),

@@ -61,8 +61,8 @@ def _physx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mon
     obj.cfg = RigidObjectCfg(prim_path="/World/Object")
     obj._root_view = view
     obj._device = device
-    obj._physics_manager = manager
-    obj._data = physx_assets.RigidObjectData(view, device, physics_manager=manager)
+    obj._backend_manager = manager
+    obj._data = physx_assets.RigidObjectData(view, device, backend_manager=manager)
     obj._data.body_names = ["body_0"]
     finish_shell(obj)
     obj._ALL_INDICES = indices(num_instances, device)
@@ -99,8 +99,8 @@ def _newton_rigid_object(num_instances: int, device: str, monkeypatch: pytest.Mo
     obj.cfg = RigidObjectCfg(prim_path="/World/Object")
     obj._root_view = view
     obj._device = device
-    obj._physics_manager = manager
-    obj._data = newton_assets.RigidObjectData(view, device, physics_manager=manager)
+    obj._backend_manager = manager
+    obj._data = newton_assets.RigidObjectData(view, device, backend_manager=manager)
     finish_shell(obj, supports_world_at_com=False)
     obj._ALL_INDICES = indices(num_instances, device)
     obj._ALL_BODY_INDICES = indices(1, device)
@@ -125,8 +125,8 @@ def _ovphysx_rigid_object(num_instances: int, device: str, monkeypatch: pytest.M
     obj._num_instances = num_instances
     obj._num_bodies = 1
     obj._body_names = ["body_0"]
-    obj._physics_manager = manager
-    obj._data = ovphysx_assets.RigidObjectData(bindings.view, device, physics_manager=manager)
+    obj._backend_manager = manager
+    obj._data = ovphysx_assets.RigidObjectData(bindings.view, device, backend_manager=manager)
     obj._data.num_instances = num_instances
     obj._data.num_bodies = 1
     obj._data._is_primed = True
@@ -157,8 +157,8 @@ def _physx_collection(num_instances: int, num_bodies: int, device: str, monkeypa
     collection._num_bodies = num_bodies
     collection._num_instances = num_instances
     collection._body_names_list = body_names
-    collection._physics_manager = manager
-    collection._data = physx_assets.RigidObjectCollectionData(view, num_bodies, device, physics_manager=manager)
+    collection._backend_manager = manager
+    collection._data = physx_assets.RigidObjectCollectionData(view, num_bodies, device, backend_manager=manager)
     collection._data.body_names = body_names
     finish_shell(collection)
     collection._ALL_ENV_INDICES = indices(num_instances, device)
@@ -187,8 +187,8 @@ def _newton_collection(num_instances: int, num_bodies: int, device: str, monkeyp
     collection._num_bodies = num_bodies
     collection._num_instances = num_instances
     collection._body_names_list = body_names
-    collection._physics_manager = manager
-    collection._data = newton_assets.RigidObjectCollectionData(view, num_bodies, device, physics_manager=manager)
+    collection._backend_manager = manager
+    collection._data = newton_assets.RigidObjectCollectionData(view, num_bodies, device, backend_manager=manager)
     collection._data.body_names = body_names
     finish_shell(collection, supports_world_at_com=False)
     collection._ALL_ENV_INDICES = indices(num_instances, device)
@@ -220,9 +220,9 @@ def _ovphysx_collection(num_instances: int, num_bodies: int, device: str, monkey
     collection._num_instances = num_instances
     collection._num_bodies = num_bodies
     collection._body_names_list = body_names
-    collection._physics_manager = manager
+    collection._backend_manager = manager
     collection._data = ovphysx_assets.RigidObjectCollectionData(
-        bindings.view, num_bodies, device, physics_manager=manager
+        bindings.view, num_bodies, device, backend_manager=manager
     )
     collection._data.num_instances = num_instances
     collection._data.num_bodies = num_bodies

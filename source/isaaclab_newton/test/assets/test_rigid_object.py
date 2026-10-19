@@ -134,8 +134,8 @@ def test_vbd_root_state_tracks_integrated_body(device: str, state_owner: str) ->
         initial_height = cube_object.data.root_link_pose_w.torch[0, 2].item()
         if state_owner == "external":
             # An external rigid solver owns these generalized velocities, not VBD's body buffers.
-            sim.physics_manager.get_state_0().joint_qd.fill_(0.125)
-            sim.physics_manager.get_state_1().joint_qd.fill_(0.125)
+            sim.backend_manager.get_state_0().joint_qd.fill_(0.125)
+            sim.backend_manager.get_state_1().joint_qd.fill_(0.125)
         sim.step()
         cube_object.update(sim.cfg.dt)
 
@@ -229,12 +229,12 @@ def test_collection_single_instance_initialization(device: str) -> None:
         assert object_collection.data.body_mass.torch.shape == (1, 1)
         assert object_collection.data.body_inertia.torch.shape == (1, 1, 9)
 
-        callback_count = len(sim.physics_manager._callbacks)
+        callback_count = len(sim.backend_manager._callbacks)
         for _ in range(2):
             old_data = object_collection.data
             sim.reset()
             assert object_collection.data is not old_data
-            assert len(sim.physics_manager._callbacks) == callback_count
+            assert len(sim.backend_manager._callbacks) == callback_count
 
             pose = object_collection.data.default_body_pose.torch.clone()
             velocity = torch.zeros((1, 1, 6), device=device)
@@ -380,7 +380,7 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     device = scene.device
 
     # Resolve each cube's shapes from the flat Newton model, independent of the asset's view binding.
-    model = scene.sim.physics_manager.get_model()
+    model = scene.sim.backend_manager.get_model()
     body_world = model.body_world.numpy()
     shape_body = model.shape_body.numpy()
     is_cube = np.asarray([label.endswith("/Object") for label in model.body_label])
@@ -428,11 +428,11 @@ def test_rigid_body_set_mass(scene: _Scene) -> None:
 
     # Get masses before updating one environment.
     original_masses = cube_object.data.body_mass.torch.clone()
-    raw_model_inv_mass = cube_object.root_view.get_attribute("body_inv_mass", scene.sim.physics_manager.get_model())[
+    raw_model_inv_mass = cube_object.root_view.get_attribute("body_inv_mass", scene.sim.backend_manager.get_model())[
         :, 0
     ]
     raw_model_inv_inertia = cube_object.root_view.get_attribute(
-        "body_inv_inertia", scene.sim.physics_manager.get_model()
+        "body_inv_inertia", scene.sim.backend_manager.get_model()
     )[:, 0]
     assert cube_object.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
     assert cube_object.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
@@ -508,7 +508,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(cube_object.data.body_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model = scene.sim.physics_manager.get_model()
+        model = scene.sim.backend_manager.get_model()
         model_gravity_arr = model.gravity[: model.world_count]
         global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert cube_object.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -743,8 +743,8 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert scene.sim.physics_manager._fk_reset_mask is not None
-        return bool(wp.to_torch(scene.sim.physics_manager._fk_reset_mask).any().item())
+        assert scene.sim.backend_manager._fk_reset_mask is not None
+        return bool(wp.to_torch(scene.sim.backend_manager._fk_reset_mask).any().item())
 
     cube_object = scene.cube
     num_cubes = cube_object.num_instances
@@ -757,7 +757,7 @@ def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
         pre_write_pose = cube_object.data.body_link_pose_w.torch.clone().view(num_cubes, 7)
 
         # Clear the dirty flag so we can observe that the write sets it.
-        scene.sim.physics_manager.forward()
+        scene.sim.backend_manager.forward()
         assert not _fk_reset_mask_dirty()
 
         # A target pose distinct from the current one in translation and in orientation (90 deg about z).
@@ -825,7 +825,7 @@ def test_set_body_inertial_properties_updates_inverses(scene: _Scene) -> None:
     selected = (0, 1)
 
     raw_model_inv_mass = object_collection.root_view.get_attribute(
-        "body_inv_mass", scene.sim.physics_manager.get_model()
+        "body_inv_mass", scene.sim.backend_manager.get_model()
     )[:, :, 0]
     assert object_collection.data._sim_bind_body_inv_mass.ptr == raw_model_inv_mass.ptr
     model_inv_mass = object_collection.data._sim_bind_body_inv_mass
@@ -841,7 +841,7 @@ def test_set_body_inertial_properties_updates_inverses(scene: _Scene) -> None:
     torch.testing.assert_close(updated_inv_mass[unselected], original_inv_mass[unselected])
 
     raw_model_inv_inertia = object_collection.root_view.get_attribute(
-        "body_inv_inertia", scene.sim.physics_manager.get_model()
+        "body_inv_inertia", scene.sim.backend_manager.get_model()
     )[:, :, 0]
     assert object_collection.data._sim_bind_body_inv_inertia.ptr == raw_model_inv_inertia.ptr
     model_inv_inertia = object_collection.data._sim_bind_body_inv_inertia
@@ -921,7 +921,7 @@ def test_collection_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
-        model = scene.sim.physics_manager.get_model()
+        model = scene.sim.backend_manager.get_model()
         model_gravity_arr = model.gravity[: model.world_count]
         global_gravity = wp.to_torch(model.gravity)[-1].clone()
         assert object_collection.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
@@ -934,7 +934,7 @@ def test_collection_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
             dtype=torch.float32,
         )
         wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        scene.sim.physics_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        scene.sim.backend_manager.add_model_change(ModelFlags.MODEL_PROPERTIES)
         torch.testing.assert_close(wp.to_torch(model.gravity)[-1], global_gravity)
 
         # Recompute the lazily-cached projected_gravity_b without sim.step: bodies stay
@@ -1125,15 +1125,15 @@ def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert scene.sim.physics_manager._fk_reset_mask is not None
-        return bool(wp.to_torch(scene.sim.physics_manager._fk_reset_mask).any().item())
+        assert scene.sim.backend_manager._fk_reset_mask is not None
+        return bool(wp.to_torch(scene.sim.backend_manager._fk_reset_mask).any().item())
 
     cube_object = scene.collection
     scene.step()
 
     for writer in ("link_pose_to_sim_index", "link_pose_to_sim_mask", "com_pose_to_sim_index", "com_pose_to_sim_mask"):
         # Clear the dirty flag so we can observe that the write sets it.
-        scene.sim.physics_manager.forward()
+        scene.sim.backend_manager.forward()
         assert not _fk_reset_mask_dirty()
 
         pre_write_pose = cube_object.data.body_link_pose_w.torch.clone()

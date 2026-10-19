@@ -150,10 +150,10 @@ class _PhysicsManager:
 
 class _Sim:
     def __init__(self):
-        self.physics_manager = _PhysicsManager()
+        self.backend_manager = _PhysicsManager()
 
     def step(self):
-        self.physics_manager.step()
+        self.backend_manager.step()
 
 
 class _Env:

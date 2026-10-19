@@ -273,7 +273,7 @@ class Articulation(BaseArticulation):
                 inst.reset()
 
         # apply actuator models and submit processed commands.
-        self.actuators.compute(self._physics_manager.get_physics_dt())
+        self.actuators.compute(self._backend_manager.get_physics_dt())
         self.actuators.submit_commands()
 
         # tendon targets are applied as the offset property, so a commanded target rides the same
@@ -534,8 +534,8 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_link_pose_to_sim_mask(
         self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
@@ -571,8 +571,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose()
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -616,8 +616,8 @@ class Articulation(BaseArticulation):
         self._root_view.set_attribute(
             TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_mask(
         self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
@@ -654,8 +654,8 @@ class Articulation(BaseArticulation):
         if not skip_forward:
             self.data._reset_pose(from_link=False)
         self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_velocity_to_sim_index(
         self,
@@ -971,8 +971,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_position_to_sim_index(
@@ -1023,8 +1023,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=sim_env_ids)
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1076,8 +1076,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1248,8 +1248,8 @@ class Articulation(BaseArticulation):
             self._data._reset_pose()
             self._data._reset_velocity()
         self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
-        self._physics_manager.kinematics_dirty = True
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager.kinematics_dirty = True
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
         self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     """
@@ -3892,11 +3892,11 @@ class Articulation(BaseArticulation):
     def _initialize_impl(self) -> None:
         """Initialize the articulation from the OVPhysX simulation backend."""
         # obtain global simulation view
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
-        self._device = self._physics_manager.get_device()
+        self._device = self._backend_manager.get_device()
 
         # Resolve the articulation root expression.
         if self.cfg.articulation_root_prim_path is not None:
@@ -3997,7 +3997,7 @@ class Articulation(BaseArticulation):
                 self._root_view.try_binding_for(tt)
 
         # construct the data container; counts come from the view's bindings
-        self._data = ArticulationData(self._root_view, self._device, physics_manager=self._physics_manager)
+        self._data = ArticulationData(self._root_view, self._device, backend_manager=self._backend_manager)
         # OvPhysX 0.6 already corrects reversed-joint dynamics in the runtime.
         if requires_legacy_joint_sign_correction(OVPHYSX_VERSION):
             joint_dof_signs = self._resolve_joint_dof_signs(stage)
@@ -4161,7 +4161,7 @@ class Articulation(BaseArticulation):
         self._num_spatial_tendons = self._root_view.spatial_tendon_count
 
         if self._num_fixed_tendons > 0 or self._num_spatial_tendons > 0:
-            stage_usda = self._physics_manager._stage_usda
+            stage_usda = self._backend_manager._stage_usda
             if stage_usda is not None:
                 try:
                     from pxr import Sdf, Usd

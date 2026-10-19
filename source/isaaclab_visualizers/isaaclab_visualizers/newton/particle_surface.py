@@ -82,9 +82,9 @@ class ParticleSurfaceRenderer:
 
         from isaaclab.sim import SimulationContext
 
-        physics_manager = SimulationContext.instance().physics_manager
-        self._model = physics_manager.get_model()
-        self._state = physics_manager.get_state_0()
+        backend_manager = SimulationContext.instance().backend_manager
+        self._model = backend_manager.get_model()
+        self._state = backend_manager.get_state_0()
         self._surface = surface
         self._path = path
         self._color = color

@@ -68,7 +68,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=PhysicsCfg(), device="cpu")
-    sim.physics_manager = manager
+    sim.backend_manager = manager
     sim.stage = Usd.Stage.CreateInMemory()
     UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(sim.stage, "/Scene/Source/Cube").GetPrim())
     sim._backend_registry = []
@@ -196,7 +196,7 @@ def test_clone_visualization_builder_imports_full_global_subtree(monkeypatch, gl
     plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=(2,), env_template="/Copies/env_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-    sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+    sim.backend_manager = SimpleNamespace(get_device=lambda: "cpu")
     sim.stage, sim._backend_registry = stage, []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     usd_imports = []

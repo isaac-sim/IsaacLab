@@ -28,7 +28,7 @@ def test_get_module_name_routes_backend_to_package(monkeypatch, backend, package
     monkeypatch.setattr(SimulationContext, "instance", Mock(side_effect=AssertionError("Use the supplied simulation")))
 
     assert (
-        FactoryBase._get_backend(sim=SimpleNamespace(physics_manager=SimpleNamespace(backend_name=backend))) == backend
+        FactoryBase._get_backend(sim=SimpleNamespace(backend_manager=SimpleNamespace(backend_name=backend))) == backend
     )
     assert FactoryBase._get_package_name(backend) == package
     assert FactoryBase._get_module_name(backend) == f"{package}.assets.articulation"

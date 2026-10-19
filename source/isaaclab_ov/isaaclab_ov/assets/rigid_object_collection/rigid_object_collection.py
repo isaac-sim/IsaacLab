@@ -414,7 +414,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -462,7 +462,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -509,7 +509,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -564,7 +564,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -1085,11 +1085,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Then creates the :class:`RigidObjectCollectionData` container and primes
         the asset-side buffers.
         """
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
-        self._device = self._physics_manager.get_device()
+        self._device = self._backend_manager.get_device()
 
         self._prim_paths: list[str] = []
         self._body_names_list: list[str] = []
@@ -1154,7 +1154,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             root_view=self._root_view,
             num_bodies=self._num_bodies,
             device=self._device,
-            physics_manager=self._physics_manager,
+            backend_manager=self._backend_manager,
         )
 
         self._create_buffers()

@@ -63,16 +63,16 @@ class RigidObjectData(BaseRigidObjectData):
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object data."""
 
-    def __init__(self, root_view: physx.RigidBodyView, device: str, *, physics_manager: PhysxManager):
+    def __init__(self, root_view: physx.RigidBodyView, device: str, *, backend_manager: PhysxManager):
         """Initializes the rigid object data.
 
         Args:
             root_view: The root rigid body view.
             device: The device used for processing.
-            physics_manager: The PhysX manager instance that owns the simulation.
+            backend_manager: The PhysX manager instance that owns the simulation.
         """
         super().__init__(root_view, device)
-        self._physics_manager = physics_manager
+        self._backend_manager = backend_manager
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
@@ -84,7 +84,7 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_instances = self._root_view.count
 
         # Obtain global physics sim view
-        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         gravity = self._physics_sim_view.get_gravity()
         # Convert to direction vector
         gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)

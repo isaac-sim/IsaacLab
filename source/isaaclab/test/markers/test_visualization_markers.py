@@ -409,7 +409,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     visualizer._sim = SimpleNamespace(
         get_scene_data_provider=lambda: provider,
         get_physics_step_count=lambda: 1,
-        physics_manager=SimpleNamespace(backend_name="newton", get_contacts=lambda: None),
+        backend_manager=SimpleNamespace(backend_name="newton", get_contacts=lambda: None),
     )
     visualizer._transform_mapping = None
     visualizer._env_ids = [1, 3]

@@ -374,7 +374,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_link_pose_to_sim_mask(
         self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
@@ -411,7 +411,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
         )
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -454,7 +454,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_mask(
         self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
@@ -492,7 +492,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
         )
-        self._physics_manager._scene_data_backend.transforms_timestamp += 1
+        self._backend_manager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -930,7 +930,7 @@ class RigidObject(BaseRigidObject):
 
     def _initialize_impl(self) -> None:
         # acquire ovphysx instance
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
@@ -938,7 +938,7 @@ class RigidObject(BaseRigidObject):
         # The ovphysx PhysX object does not expose a .device property; reading it would
         # raise AttributeError (masked by hasattr) and fall back to "cuda:0" even when the
         # simulation is running on CPU, causing a device mismatch in binding.read().
-        self._device = self._physics_manager.get_device()
+        self._device = self._backend_manager.get_device()
 
         # Resolve the rigid body root expression.
         def has_rigid_body_api(prim) -> bool:
@@ -956,7 +956,7 @@ class RigidObject(BaseRigidObject):
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
-        paths = _expand_env_pattern(pattern, self._physics_manager._sim.get_clone_plan())
+        paths = _expand_env_pattern(pattern, self._backend_manager._sim.get_clone_plan())
         self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         for tt in (
             TT.RIGID_BODY_POSE,
@@ -996,7 +996,7 @@ class RigidObject(BaseRigidObject):
 
         # container for data access
         self._data = RigidObjectData(
-            self._root_view, self._device, check_shapes=self._check_shapes, physics_manager=self._physics_manager
+            self._root_view, self._device, check_shapes=self._check_shapes, backend_manager=self._backend_manager
         )
 
         # create buffers

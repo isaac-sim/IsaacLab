@@ -49,7 +49,7 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         self.asset = asset
         self.asset_cfg = asset_cfg
-        self._newton_manager = env.sim.physics_manager
+        self._newton_manager = env.sim.backend_manager
         # Capture material groups on the first call, before any randomized writes.
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
@@ -163,7 +163,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
         self.asset = asset
-        self._newton_manager = env.sim.physics_manager
+        self._newton_manager = env.sim.backend_manager
 
         model = self._newton_manager.get_model()
         self._sim_bind_shape_margin = asset._root_view.get_attribute("shape_margin", model)[:, 0]  # type: ignore
@@ -242,7 +242,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
             env: Environment owning this term.
         """
         super().__init__(cfg, env, device=env.device)
-        self._manager = env.sim.physics_manager
+        self._manager = env.sim.backend_manager
 
     def __call__(
         self,
@@ -290,7 +290,7 @@ class randomize_visual_shape(ManagerTermBase):
         else:
             ids = asset_cfg.body_ids
         body_names = tuple(asset.body_names[index] for index in ids)
-        self._writer = env.sim.physics_manager.create_visual_shape_color_writer(asset, body_names)
+        self._writer = env.sim.backend_manager.create_visual_shape_color_writer(asset, body_names)
         self._sample = _compile_distribution(channels["color"], env.device)
         self._all_env_ids = torch.arange(env.num_envs, dtype=torch.int32, device=self._writer.device)
 
@@ -305,7 +305,7 @@ class randomize_visual_shape(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
-        model = env.sim.physics_manager.get_model()
+        model = env.sim.backend_manager.get_model()
         if self._writer.model is not model:
             self._writer.rebind(model)
         self._writer(self._sample((len(selected), self._writer.body_count)), selected)

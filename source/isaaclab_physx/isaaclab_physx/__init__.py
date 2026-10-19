@@ -99,7 +99,7 @@ def _patch_isaacsim_simulation_manager(manager: Any | None = None) -> None:
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         sim = SimulationContext.instance()
-        manager = getattr(sim, "physics_manager", None)
+        manager = getattr(sim, "backend_manager", None)
     if not isinstance(manager, PhysxManager):
         return
     original_module.SimulationManager = manager

@@ -66,7 +66,7 @@ class IsaacEvents(Enum):
     """Events dispatched during simulation lifecycle.
 
     Note: This enum is kept for backward compatibility. New code should use
-    PhysicsEvent from physics_manager for cross-backend compatibility.
+    PhysicsEvent from backend_manager for cross-backend compatibility.
     """
 
     PHYSICS_WARMUP = "isaac.physics_warmup"

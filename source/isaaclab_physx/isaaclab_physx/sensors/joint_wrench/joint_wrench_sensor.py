@@ -123,10 +123,10 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = self._physics_manager.views.get(root_prim_path_expr)
+        self._root_view = self._backend_manager.views.get(root_prim_path_expr)
         if self._root_view is None:
-            self._root_view = self._physics_manager.views[root_prim_path_expr] = (
-                self._physics_manager.get_physics_sim_view().create_articulation_view(
+            self._root_view = self._backend_manager.views[root_prim_path_expr] = (
+                self._backend_manager.get_physics_sim_view().create_articulation_view(
                     path_expr_to_glob(root_prim_path_expr)
                 )
             )

@@ -55,7 +55,7 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     Raises:
         RuntimeError: If Newton replication did not retain the requested source.
     """
-    source = SimulationContext.instance().physics_manager._cl_protos.get(source_path)
+    source = SimulationContext.instance().backend_manager._cl_protos.get(source_path)
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
@@ -133,7 +133,7 @@ def _replicate_newton(
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    manager_cls = sim.physics_manager if simulation else NewtonManager
+    manager_cls = sim.backend_manager if simulation else NewtonManager
     schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
     create_builder = partial(manager_cls.create_builder if simulation else ModelBuilder, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
@@ -213,7 +213,7 @@ def _replicate_newton(
                 raise RuntimeError(f"No imported source owns deformable {entry.root_path!r}.")
             for source in owners:
                 add_deformable_from_usd(source, stage, entry)
-        global_sites, source_sites, root_sites = sim.physics_manager._cl_inject_sites(builder, source_builders)
+        global_sites, source_sites, root_sites = sim.backend_manager._cl_inject_sites(builder, source_builders)
     else:
         add_visual_deformables_to_sources(source_builders, entries)
         # Clear imported filters before merging into a fresh, compact final filter store.
@@ -251,7 +251,7 @@ def _replicate_newton(
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if simulation:
-        manager = sim.physics_manager
+        manager = sim.backend_manager
         manager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions, imported_sources=source_builders)
         ranges = dict(zip(builder.surface_label, builder._surface_particle_start, strict=True))

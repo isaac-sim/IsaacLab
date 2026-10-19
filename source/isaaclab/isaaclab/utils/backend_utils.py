@@ -81,7 +81,7 @@ class FactoryBase:
         if sim_context is None:
             return "newton"
 
-        return sim_context.physics_manager.backend_name
+        return sim_context.backend_manager.backend_name
 
     @classmethod
     def _get_package_name(cls, backend: str) -> str:

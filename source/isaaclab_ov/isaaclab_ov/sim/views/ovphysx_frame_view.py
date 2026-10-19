@@ -356,12 +356,12 @@ class OvPhysxFrameView(BaseFrameView):
         self._usd_view: UsdFrameView | None = None
 
         # Try synchronous init; defer to PHYSICS_READY if the PhysX instance is not yet alive.
-        self._physics_manager = sim.physics_manager
-        physx = self._physics_manager.get_physx_instance()
+        self._backend_manager = sim.backend_manager
+        physx = self._backend_manager.get_physx_instance()
         if physx is not None:
             self._initialize_impl(physx)
         else:
-            self._physics_manager.register_callback(
+            self._backend_manager.register_callback(
                 self._on_physics_ready,
                 PhysicsEvent.PHYSICS_READY,
                 name=f"ovphysx_frame_view_{prim_path}",
@@ -369,7 +369,7 @@ class OvPhysxFrameView(BaseFrameView):
 
     def _on_physics_ready(self, _event) -> None:
         """Replace any prior root view when the OVPhysX ``PhysX`` instance becomes ready."""
-        physx = self._physics_manager.get_physx_instance()
+        physx = self._backend_manager.get_physx_instance()
         if physx is None:
             raise RuntimeError("OvPhysxFrameView: PHYSICS_READY fired but OvPhysxManager has no PhysX instance.")
         previous_root_view = getattr(self, "_root_view", None)

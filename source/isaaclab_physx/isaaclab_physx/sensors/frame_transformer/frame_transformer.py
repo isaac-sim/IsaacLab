@@ -252,7 +252,7 @@ class FrameTransformer(BaseFrameTransformer):
         ]
 
         # obtain global simulation view
-        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
         # Create a prim view for all frames and initialize it
         # order of transforms coming out of view will be source frame followed by target frame(s)
         self._frame_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_regex)

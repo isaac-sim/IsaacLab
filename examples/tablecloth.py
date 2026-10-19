@@ -1356,16 +1356,16 @@ def main() -> None:
             usd_path,
             step_dt,
             speeds,
-            state=sim.physics_manager.get_state_0(),
-            control=sim.physics_manager.get_control(),
+            state=sim.backend_manager.get_state_0(),
+            control=sim.backend_manager.get_control(),
             substeps=substeps,
         )
-        sim.physics_manager.activate_newton_actuator_path()
-        sim.physics_manager.register_post_actuator_callback(controller.interpolate_arm_targets)
-        sim.physics_manager.set_decimation(substeps)
-        sim.physics_manager.register_post_step_callback(controller.compute)
-        grasp = _GraspMonitor(sim.physics_manager.get_model(), sim.physics_manager.get_state_0(), controller)
-        sim.physics_manager.register_post_step_callback(grasp.compute)
+        sim.backend_manager.activate_newton_actuator_path()
+        sim.backend_manager.register_post_actuator_callback(controller.interpolate_arm_targets)
+        sim.backend_manager.set_decimation(substeps)
+        sim.backend_manager.register_post_step_callback(controller.compute)
+        grasp = _GraspMonitor(sim.backend_manager.get_model(), sim.backend_manager.get_state_0(), controller)
+        sim.backend_manager.register_post_step_callback(grasp.compute)
         # Include per-phase frame rounding, the slowest pull and a one-second hold.
         duration = sum(H2_PHASE_DURATIONS) + len(H2_PHASE_DURATIONS) * step_dt
         duration += PULL_TIME_FACTOR * H2_PULL_DISTANCE / min(speeds)
@@ -1385,8 +1385,8 @@ def main() -> None:
                 if not all(report["retained"] for report in reports):
                     raise RuntimeError("A robot lost its physical cloth grasp; see the material-point gaps above.")
         finally:
-            sim.physics_manager.unregister_post_step_callback(grasp.compute)
-            sim.physics_manager.unregister_post_step_callback(controller.compute)
+            sim.backend_manager.unregister_post_step_callback(grasp.compute)
+            sim.backend_manager.unregister_post_step_callback(controller.compute)
 
 
 if __name__ == "__main__":

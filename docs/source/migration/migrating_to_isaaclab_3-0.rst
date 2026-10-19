@@ -891,7 +891,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
        :ref:`migrating-to-isaaclab-3-0` ``Renaming of XformPrimView to FrameView`` above).
        For ``Articulation`` / ``RigidPrim`` use ``isaacsim.core.experimental.prims``.
    * - ``isaacsim.core.simulation_manager.SimulationManager``
-     - The simulation's manager instance, ``sim.physics_manager``: a
+     - The simulation's manager instance, ``sim.backend_manager``: a
        :class:`isaaclab_physx.physics.PhysxManager` (PhysX backend) or
        ``isaaclab_newton.physics.NewtonManager`` (Newton backend); see the
        pattern below.
@@ -913,8 +913,8 @@ by the simulation context:
 
    from isaaclab.sim import SimulationContext
 
-   physics_manager = SimulationContext.instance().physics_manager
-   # inside an environment, use ``env.sim.physics_manager``
+   backend_manager = SimulationContext.instance().backend_manager
+   # inside an environment, use ``env.sim.backend_manager``
 
 **Isaac Sim extension modules must be explicitly enabled before direct import**
 
@@ -966,7 +966,7 @@ If you maintain a custom Kit experience derived from one of the Isaac Lab apps u
 Earlier internal previews of this migration briefly exposed
 ``isaaclab_physx.physics.SimulationManager`` as a public alias of
 :class:`~isaaclab_physx.physics.PhysxManager`. **That alias has been removed**; use
-the ``sim.physics_manager`` instance, as shown above.
+the ``sim.backend_manager`` instance, as shown above.
 
 
 **Retired standalone reproducers**

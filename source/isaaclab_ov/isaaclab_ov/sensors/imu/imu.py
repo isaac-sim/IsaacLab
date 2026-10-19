@@ -119,7 +119,7 @@ class Imu(BaseImu):
         """
         super()._initialize_impl()
 
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
@@ -181,7 +181,7 @@ class Imu(BaseImu):
         this backend, so the bias is a single vector passed to the kernel by value rather than
         a per-body buffer.
         """
-        gravity = self._physics_manager.get_gravity()
+        gravity = self._backend_manager.get_gravity()
         gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
         if gravity == self._gravity_w:
             return

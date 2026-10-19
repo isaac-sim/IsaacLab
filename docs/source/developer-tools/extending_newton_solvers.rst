@@ -42,7 +42,7 @@ Responsibilities and Boundaries
 
 :class:`~isaaclab_newton.physics.NewtonManager` subclasses are instantiated by the
 simulation context, which owns exactly one manager instance as
-:attr:`~isaaclab.sim.SimulationContext.physics_manager`. All runtime state lives
+:attr:`~isaaclab.sim.SimulationContext.backend_manager`. All runtime state lives
 on that instance.
 
 .. list-table::

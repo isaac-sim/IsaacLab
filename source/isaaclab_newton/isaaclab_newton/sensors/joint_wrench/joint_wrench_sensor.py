@@ -70,7 +70,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._joint_child: wp.array | None = None
         self._num_joints: int = 0
 
-        self._physics_manager.request_extended_state_attribute("body_parent_f")
+        self._backend_manager.request_extended_state_attribute("body_parent_f")
 
     def __str__(self) -> str:
         """String representation of the sensor instance."""
@@ -125,16 +125,16 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         """PHYSICS_READY callback: builds the articulation view and binds model / state arrays."""
         super()._initialize_impl()
 
-        model, state_0 = self._physics_manager.get_model(), self._physics_manager.get_state_0()
+        model, state_0 = self._backend_manager.get_model(), self._backend_manager.get_state_0()
 
         def has_articulation_root_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
         resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
         _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
-        self._root_view = self._physics_manager.views.get(root_prim_path_expr)
+        self._root_view = self._backend_manager.views.get(root_prim_path_expr)
         if self._root_view is None:
-            self._root_view = self._physics_manager.views[root_prim_path_expr] = ArticulationView(
+            self._root_view = self._backend_manager.views[root_prim_path_expr] = ArticulationView(
                 model,
                 re.compile(root_prim_path_expr),
                 verbose=False,
@@ -232,4 +232,4 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._body_names = []
         self._data._force_ta = None
         self._data._torque_ta = None
-        self._physics_manager.request_extended_state_attribute("body_parent_f")
+        self._backend_manager.request_extended_state_attribute("body_parent_f")

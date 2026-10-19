@@ -307,7 +307,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         None: The simulator side-effects are applied through ``scene`` and ``sim``.
     """
     device = scene.device
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
+    physics_sim_view = sim.backend_manager.get_physics_sim_view()
     root_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Groceries/Grocery_*")
     if root_view.count == 0:
         raise RuntimeError("The flat grocery view matched no rigid bodies.")

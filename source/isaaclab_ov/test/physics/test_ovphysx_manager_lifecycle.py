@@ -50,7 +50,7 @@ def manager(monkeypatch):
     monkeypatch.setattr(module.ovphysx_compat, "OVPHYSX_USES_TASKS", False)
     cfg = OvPhysxBackendCfg(device="cpu")
     manager = module.OvPhysxManager()
-    sim = SimpleNamespace(_backend_registry=[], physics_manager=manager)
+    sim = SimpleNamespace(_backend_registry=[], backend_manager=manager)
     sim.get_or_create_backend = SimulationContext.get_or_create_backend.__get__(sim)
     sim.get_backends = SimulationContext.get_backends.__get__(sim)
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
@@ -412,8 +412,8 @@ def _retained_binding_script() -> str:
         from isaaclab_ov.sim.views import OvPhysxView
 
         sim = SimulationContext(SimulationCfg(physics=OvPhysxCfg(), device="cpu", dt=1.0 / 60.0))
-        assert isinstance(sim.physics_manager, OvPhysxManager)
-        sim.physics_manager.register_callback(
+        assert isinstance(sim.backend_manager, OvPhysxManager)
+        sim.backend_manager.register_callback(
             lambda _payload: print("OVPHYSX_STOP", flush=True),
             PhysicsEvent.STOP,
             wrap_weak_ref=False,
@@ -426,7 +426,7 @@ def _retained_binding_script() -> str:
         cube_cfg.func("/World/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
         sim.reset()
 
-        view = OvPhysxView(sim.physics_manager.get_physx_instance(), pattern="/World/Cube", device="cpu")
+        view = OvPhysxView(sim.backend_manager.get_physx_instance(), pattern="/World/Cube", device="cpu")
         binding = view.binding_for("rigid_body_pose")
         buffer = wp.zeros(tuple(binding.shape), dtype=wp.float32, device="cpu")
         binding.read(buffer)

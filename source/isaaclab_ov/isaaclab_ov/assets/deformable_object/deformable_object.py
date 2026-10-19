@@ -67,7 +67,7 @@ class DeformableObject(BaseDeformableObject):
             cfg: Configuration instance for the deformable object.
         """
         super().__init__(cfg)
-        self._physics_manager.require_full_stage()
+        self._backend_manager.require_full_stage()
         self._DTYPE_TO_TORCH_TRAILING_DIMS = {**self._DTYPE_TO_TORCH_TRAILING_DIMS, vec6f: (6,)}
         self._deformable_type: str | None = None
         self._root_physx_view: OvPhysxDeformableBodyView | None = None
@@ -232,7 +232,7 @@ class DeformableObject(BaseDeformableObject):
         self._data._nodal_state_w.timestamp = -1.0
         self._data._root_pos_w.timestamp = -1.0
         self.root_view.set_attribute(self._sim_nodal_position_type, self._get_nodal_pos_w_f32(), indices=env_ids)
-        self._physics_manager.get_scene_data_backend().geometry_timestamp += 1
+        self._backend_manager.get_scene_data_backend().geometry_timestamp += 1
 
     def write_nodal_velocity_to_sim_index(
         self,
@@ -322,11 +322,11 @@ class DeformableObject(BaseDeformableObject):
         )
 
     def _initialize_impl(self) -> None:
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._ovphysx = physx_instance
-        self._device = self._physics_manager.get_device()
+        self._device = self._backend_manager.get_device()
         if not wp.get_device(self._device).is_cuda:
             raise RuntimeError(
                 f"OVPhysX deformable tensors require a CUDA simulation device; received {self._device!r}."

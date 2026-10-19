@@ -151,7 +151,7 @@ class Pva(BasePva):
         # Initialize parent class
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         # Create the rigid body view on the ancestor

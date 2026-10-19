@@ -71,14 +71,14 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         # BAM shares supply sag and command delay over an environment's DOFs. The first articulation to
         # activate the path creates every drive's state, so the stride is set for all BAM drives here.
         model_actuators = (
-            self._articulation._physics_manager.backend.model.actuators
-            if self._articulation._physics_manager.backend is not None
+            self._articulation._backend_manager.backend.model.actuators
+            if self._articulation._backend_manager.backend is not None
             else []
         )
         for actuator in model_actuators:
             if isinstance(actuator.drive, DriveBam):
                 actuator.drive.env_dof_stride = len(actuator.indices) // self.num_instances
-        self._articulation._physics_manager.activate_newton_actuator_path()
+        self._articulation._backend_manager.activate_newton_actuator_path()
 
         return native_group_names
 
@@ -93,7 +93,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 joint_viscous_friction_coeff=cfg.motor.friction_viscous,
                 joint_ids=collection._group_joint_indices[name],
             )
-        adapter = self._articulation._physics_manager._adapter
+        adapter = self._articulation._backend_manager._adapter
         if adapter is not None:
             arti_start = self._joint_dof_offset()
             binding = adapter.bind_articulation(
@@ -145,7 +145,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 device=self.device,
             )
 
-        self._articulation._physics_manager.register_post_actuator_callback(_post_actuator)
+        self._articulation._backend_manager.register_post_actuator_callback(_post_actuator)
         if self._bam_cfgs:
             # Each group's model DOFs within one environment pair the Newton actuators with their groups.
             first_dof = self._joint_dof_offset()
@@ -157,7 +157,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 self._bam_group_dofs[name] = {first_dof + j for j in articulation.map_joint_ids_to_backend(ids)}
             self._sample_bam_startup_parameters()
             # The MJWarp binding needs the solver, which does not exist yet.
-            self._articulation._physics_manager.register_solver_init_callback(self._bind_bam_actuators)
+            self._articulation._backend_manager.register_solver_init_callback(self._bind_bam_actuators)
 
         if adapter is None:
             return None
@@ -233,8 +233,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             )
 
     def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
-        if self._native_actuator_path_active and self._articulation._physics_manager._adapter is not None:
-            self._articulation._physics_manager._adapter.reset(env_ids)
+        if self._native_actuator_path_active and self._articulation._backend_manager._adapter is not None:
+            self._articulation._backend_manager._adapter.reset(env_ids)
 
     def _bam_actuators(self) -> list[tuple[Actuator, list[str]]]:
         """Return the Newton BAM actuators that drive this articulation, each with the BAM groups it drives.
@@ -242,7 +242,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         Newton merges structurally identical actuators across groups and articulations, so an
         actuator belongs here when any of its DOFs belongs to one of this articulation's BAM groups.
         """
-        adapter = self._articulation._physics_manager._adapter
+        adapter = self._articulation._backend_manager._adapter
         if adapter is None:
             return []
         owned = []
@@ -298,7 +298,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         Raises:
             ValueError: If a servo or its play-hinge sibling is missing or not revolute.
         """
-        model = self._articulation._physics_manager.backend.model
+        model = self._articulation._backend_manager.backend.model
         q_start = model.joint_q_start.numpy()
         qd_start = model.joint_qd_start.numpy()
         joint_types = model.joint_type.numpy()
@@ -327,12 +327,12 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         Raises:
             ValueError: If the active solver is not MJWarp or runs CPU MuJoCo (``use_mujoco_cpu=True``).
         """
-        solver = self._articulation._physics_manager._solver
+        solver = self._articulation._backend_manager._solver
         if not MjWarpActuatorBridge.is_available(solver):
             raise ValueError(
                 "BAM actuators require Newton's MJWarp solver (MJWarpSolverCfg with use_mujoco_cpu=False)."
             )
-        model = self._articulation._physics_manager.backend.model
+        model = self._articulation._backend_manager.backend.model
         for actuator, names in self._bam_actuators():
             drive = actuator.drive
             if drive.external_torque is not None:
@@ -345,10 +345,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             drive.external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
             if cfg.stiff_frictionloss:
                 bridge.stiffen_friction_constraint()
-            self._articulation._physics_manager.register_pre_actuator_callback(
+            self._articulation._backend_manager.register_pre_actuator_callback(
                 lambda bridge=bridge, out=drive.external_torque: bridge.gather_external_torque(out)
             )
-            self._articulation._physics_manager.register_post_actuator_callback(
+            self._articulation._backend_manager.register_post_actuator_callback(
                 lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(drive.friction_budget)
             )
 

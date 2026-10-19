@@ -65,7 +65,7 @@ def test_copy_newton_clone_source_owns_mutable_geometry(monkeypatch):
     body = source.add_body()
     mesh = newton.Mesh(vertices=[(0, 0, 0), (1, 0, 0), (0, 1, 0)], indices=[0, 1, 2])
     source.add_shape_mesh(body, mesh=mesh)
-    sim = SimpleNamespace(physics_manager=SimpleNamespace(_cl_protos={"/World/Source": source}))
+    sim = SimpleNamespace(backend_manager=SimpleNamespace(_cl_protos={"/World/Source": source}))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     copied = copy_newton_clone_source("/World/Source")
@@ -121,7 +121,7 @@ def test_explicit_global_import_uses_global_world(
     )
     manager._scene_data_backend = NewtonSceneDataBackend(manager)
     sim = SimpleNamespace(
-        physics_manager=manager,
+        backend_manager=manager,
         device="cpu",
         cfg=SimpleNamespace(
             physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene", device="cpu"
@@ -218,7 +218,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         )
         builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
-        native = sim.physics_manager.backend
+        native = sim.backend_manager.backend
         stage.RemovePrim("/World")
         stage.RemovePrim("/Shared")
 

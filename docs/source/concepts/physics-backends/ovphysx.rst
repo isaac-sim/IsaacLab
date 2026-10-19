@@ -287,7 +287,7 @@ Get the active OvPhysX handle from the manager after the lifecycle prerequisite:
 
 .. code-block:: python
 
-   physx = sim.physics_manager.get_physx_instance()
+   physx = sim.backend_manager.get_physx_instance()
    if physx is None:
        raise RuntimeError("OvPhysX has not been constructed; initialize and reset the simulation first.")
 
@@ -328,7 +328,7 @@ type:
        poses = wp.empty(
            tuple(binding.shape),
            dtype=wp.float32,
-           device=sim.physics_manager.get_device(),
+           device=sim.backend_manager.get_device(),
        )
        binding.read(poses)
        binding.write(poses)
@@ -351,7 +351,7 @@ with the native runtime and a Tensor API pattern:
    view = OvPhysxView(
        physx,
        pattern="/World/envs/env_*/Object",
-       device=sim.physics_manager.get_device(),
+       device=sim.backend_manager.get_device(),
    )
    try:
        if view.try_binding_for("rigid_body_pose") is not None:

@@ -259,7 +259,7 @@ class PhysicsManager(ABC):
         Example:
             >>> def on_physics_ready(payload):
             ...     print("Physics is ready!")
-            >>> handle = sim.physics_manager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY)
+            >>> handle = sim.backend_manager.register_callback(on_physics_ready, PhysicsEvent.PHYSICS_READY)
             >>> # Later, to remove:
             >>> handle.deregister()
         """
@@ -571,11 +571,11 @@ class PhysicsManager(ABC):
         return "torch" if "cuda" in self._device else "numpy"
 
     @staticmethod
-    def safe_callback_invoke(fn: Callable, *args, physics_manager: PhysicsManager | None = None) -> None:
+    def safe_callback_invoke(fn: Callable, *args, backend_manager: PhysicsManager | None = None) -> None:
         """Invoke a callback, catching exceptions that would be swallowed by external event buses.
 
         Ignores ``ReferenceError`` (from garbage-collected weakref proxies). All other
-        exceptions are forwarded to *physics_manager*.``store_callback_exception`` when
+        exceptions are forwarded to *backend_manager*.``store_callback_exception`` when
         available (see note below), or re-raised immediately otherwise.
 
         Note (Octi):
@@ -591,7 +591,7 @@ class PhysicsManager(ABC):
         except ReferenceError:
             pass
         except Exception as e:
-            store_fn = getattr(physics_manager, "store_callback_exception", None)
+            store_fn = getattr(backend_manager, "store_callback_exception", None)
             if callable(store_fn):
                 store_fn(e)
             else:

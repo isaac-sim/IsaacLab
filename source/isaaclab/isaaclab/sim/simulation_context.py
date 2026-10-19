@@ -204,14 +204,14 @@ class SimulationContext:
         # TODO: Remove this workaround once the CUDA driver bug in isaac-sim/IsaacLab#8342 is fixed.
         reserve_cuda_graph_memory(self.cfg.device)
 
-        self.physics_manager: PhysicsManager = self._physics.class_type()
-        # Must be set before physics_manager.initialize() so that any render callbacks
+        self.backend_manager: PhysicsManager = self._physics.class_type()
+        # Must be set before backend_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
-        self.physics_manager.initialize(self)
+        self.backend_manager.initialize(self)
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
-        self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
+        self._scene_data_provider = SceneDataProvider(self.backend_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
         self._visualizers_started = False
@@ -258,12 +258,12 @@ class SimulationContext:
         self._render_context = RenderContext(self._backend_registry)
 
         # Run renderer post-physics setup.
-        self.physics_manager.register_callback(
+        self.backend_manager.register_callback(
             lambda _payload: self._render_context.ensure_initialize(),
             PhysicsEvent.PHYSICS_READY,
             order=5,
         )
-        self.physics_manager.register_callback(
+        self.backend_manager.register_callback(
             lambda _payload: self._render_context.close(), PhysicsEvent.STOP, order=100
         )
 
@@ -312,17 +312,17 @@ class SimulationContext:
     @property
     def physics_sim_view(self):
         """Returns the physics simulation view."""
-        return self.physics_manager.get_physics_sim_view()
+        return self.backend_manager.get_physics_sim_view()
 
     @property
     def device(self) -> str:
         """Returns the device on which the simulation is running."""
-        return self.physics_manager.get_device()
+        return self.backend_manager.get_device()
 
     @property
     def backend(self) -> str:
         """Returns the tensor backend being used ("numpy" or "torch")."""
-        return self.physics_manager.get_backend()
+        return self.backend_manager.get_backend()
 
     @property
     def has_gui(self) -> bool:
@@ -547,7 +547,7 @@ class SimulationContext:
 
     def forward(self) -> None:
         """Update kinematics without stepping physics."""
-        self.physics_manager.forward()
+        self.backend_manager.forward()
 
     def _prepare_newton_visualizer_for_capture(self, _payload=None) -> None:
         """Initialize or rebind the Newton viewer before solver graph capture."""
@@ -576,7 +576,7 @@ class SimulationContext:
         for context in tuple(routing):
             if context in routing:
                 context.prepare(self, routing)
-        self.physics_manager.reset(soft)
+        self.backend_manager.reset(soft)
         for _, resource in self._backend_registry:
             if isinstance(resource, ImageView):
                 resource.invalidate()
@@ -586,7 +586,7 @@ class SimulationContext:
         self.initialize_visualizers()
         self._render_context.finalize_consumers(self._visualizers, rebuild=not soft)
         # Start the timeline so the play button is pressed
-        self.physics_manager.play()
+        self.backend_manager.play()
         self._is_playing = True
         self._is_stopped = False
         for callback in tuple(self._reset_callbacks.values()):
@@ -603,7 +603,7 @@ class SimulationContext:
         """
         # Block while the GUI timeline is paused so the entire training loop freezes.
         # See: https://github.com/isaac-sim/IsaacLab/issues/4279
-        self.physics_manager.wait_for_playing()
+        self.backend_manager.wait_for_playing()
         visualizers_to_remove = []
         for viz in self._visualizers:
             try:
@@ -614,7 +614,7 @@ class SimulationContext:
                 visualizers_to_remove.append(viz)
         self._remove_visualizers(visualizers_to_remove)
         self._physics_step_count += 1
-        self.physics_manager.step()
+        self.backend_manager.step()
         if render and self.is_rendering:
             self.render()
 
@@ -641,9 +641,9 @@ class SimulationContext:
                 updates while still stepping standalone visualizers (Newton, Rerun, Viser).
                 Used by environment ``step()`` when ``render_enabled`` is False.
         """
-        self.physics_manager.pre_render()
+        self.backend_manager.pre_render()
         self.update_visualizers(self.get_rendering_dt(), skip_app_pumping=skip_app_pumping)
-        self.physics_manager.after_visualizers_render()
+        self.backend_manager.after_visualizers_render()
         for _, callback in sorted(self._render_callbacks.values(), key=lambda x: x[0]):
             callback(None)
         self._render_generation += 1
@@ -665,7 +665,7 @@ class SimulationContext:
             viz.flush_startup_messages()
 
         if any(viz.requires_forward_before_step() for viz in self._visualizers):
-            self.physics_manager.forward()
+            self.backend_manager.forward()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
         # consumes that state later in this method. Live-plot panels register in the same
@@ -716,7 +716,7 @@ class SimulationContext:
 
     def play(self) -> None:
         """Start or resume the simulation."""
-        self.physics_manager.play()
+        self.backend_manager.play()
         for viz in self._visualizers:
             viz.play()
         self._is_playing = True
@@ -724,14 +724,14 @@ class SimulationContext:
 
     def pause(self) -> None:
         """Pause the simulation (can be resumed with play)."""
-        self.physics_manager.pause()
+        self.backend_manager.pause()
         for viz in self._visualizers:
             viz.pause()
         self._is_playing = False
 
     def stop(self) -> None:
         """Stop the simulation completely."""
-        self.physics_manager.stop()
+        self.backend_manager.stop()
         for viz in self._visualizers:
             viz.stop()
         self._is_playing = False
@@ -852,7 +852,7 @@ class SimulationContext:
                 # Stop task producers and deliver STOP before releasing their resources.
                 run_cleanup(instance.stop)
                 # Detach PhysX before any stage-bound resource or prim is deleted.
-                run_cleanup(instance.physics_manager.close)
+                run_cleanup(instance.backend_manager.close)
 
                 # Close camera renderers after STOP invalidates camera-owned render data and
                 # before the stage is closed so stage-bound renderer resources remain valid.

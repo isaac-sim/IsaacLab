@@ -125,7 +125,7 @@ class Imu(BaseImu):
           to the target prim, and build the view on the ancestor expression.
         """
         super()._initialize_impl()
-        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))

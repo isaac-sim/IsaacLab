@@ -86,7 +86,7 @@ def profile_renderers(
 
 @contextmanager
 def profile_physics_steps(
-    physics_manager: PhysicsManager,
+    backend_manager: PhysicsManager,
     *,
     active: bool = True,
     timings: list[tuple[str, float]] | None = None,
@@ -99,7 +99,7 @@ def profile_physics_steps(
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
-        physics_manager: Physics manager instance selected by the environment.
+        backend_manager: Physics manager instance selected by the environment.
         active: Whether to install the timing wrapper.
         timings: Shared list of scope names and elapsed times [ms], in call order.
             A new list is created if omitted. Timings are collected without printing.
@@ -115,9 +115,9 @@ def profile_physics_steps(
 
     import warp as wp  # noqa: PLC0415
 
-    step = physics_manager.step
+    step = backend_manager.step
     missing = object()
-    original = vars(physics_manager).get("step", missing)
+    original = vars(backend_manager).get("step", missing)
     scope_timings = {PHYSICS_PROFILE_SCOPE: _ProfileScopeTimings(PHYSICS_PROFILE_SCOPE, timings)}
 
     @wraps(step)
@@ -125,14 +125,14 @@ def profile_physics_steps(
         with wp.ScopedTimer(PHYSICS_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
             return step()
 
-    physics_manager.step = timed_step
+    backend_manager.step = timed_step
     try:
         yield timings
     finally:
         if original is missing:
-            del physics_manager.step
+            del backend_manager.step
         else:
-            physics_manager.step = original
+            backend_manager.step = original
 
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:

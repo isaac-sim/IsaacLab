@@ -132,7 +132,7 @@ class ContactSensor(BaseContactSensor):
     @property
     def contact_view(self) -> NewtonContactSensor:
         """View for the contact forces captured (Newton)."""
-        return self._physics_manager._newton_contact_sensors[self._sensor_key]
+        return self._backend_manager._newton_contact_sensors[self._sensor_key]
 
     """
     Operations
@@ -305,7 +305,7 @@ class ContactSensor(BaseContactSensor):
         self._generate_force_matrix = bool(self.cfg.filter_prim_paths_expr or self.cfg.filter_shape_prim_expr)
 
         try:
-            self._sensor_key = self._physics_manager.add_contact_sensor(
+            self._sensor_key = self._backend_manager.add_contact_sensor(
                 body_names_expr=self.cfg.prim_path if not self.cfg.sensor_shape_prim_expr else None,
                 shape_names_expr=self.cfg.sensor_shape_prim_expr or None,
                 contact_partners_body_expr=self.cfg.filter_prim_paths_expr or None,
@@ -456,7 +456,7 @@ class ContactSensor(BaseContactSensor):
 
     def _get_model_labels(self, kind: str) -> list[str]:
         """Return Newton model labels in a version-compatible way."""
-        model = self._physics_manager.backend.model
+        model = self._backend_manager.backend.model
         primary = f"{kind}_label"
         fallback = f"{kind}_key"
         labels = getattr(model, primary, None)

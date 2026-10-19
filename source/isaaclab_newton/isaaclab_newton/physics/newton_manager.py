@@ -410,7 +410,7 @@ class NewtonManager(PhysicsManager):
     """Abstract Newton physics manager for Isaac Lab.
 
     Manager for physics lifecycle, solvers, contacts, sensors, replication, and CUDA graphs; the
-    simulation context owns one instance as :attr:`~isaaclab.sim.SimulationContext.physics_manager`.
+    simulation context owns one instance as :attr:`~isaaclab.sim.SimulationContext.backend_manager`.
     Model, state, and control allocations belong to the registered native backend.
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
@@ -1631,7 +1631,7 @@ class NewtonManager(PhysicsManager):
         # Bind the solver-specialized FK delegate to the active subclass's _eval_fk_impl so
         # that forward()/step() dispatch correctly even when forward() is invoked through the
         # base class (the data layer imports NewtonManager directly). ``self`` is the concrete
-        # subclass here, since initialize_solver is reached via sim.physics_manager.reset().
+        # subclass here, since initialize_solver is reached via sim.backend_manager.reset().
         self._eval_fk = self._eval_fk_impl
         self._reset_solver_internals_delegate = self._reset_solver_internals
 

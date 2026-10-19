@@ -20,18 +20,18 @@ class CableObjectData(BaseCableObjectData):
     __backend_name__: str = "newton"
     """The name of the backend for the cable object data."""
 
-    def __init__(self, root_view: ArticulationView, device: str, *, physics_manager: NewtonManager) -> None:
+    def __init__(self, root_view: ArticulationView, device: str, *, backend_manager: NewtonManager) -> None:
         """Initialize the cable object data.
 
         Args:
             root_view: The cable articulation view.
             device: The device used for processing.
-            physics_manager: Newton physics manager that owns the simulation state.
+            backend_manager: Newton physics manager that owns the simulation state.
         """
-        self._physics_manager = physics_manager
+        self._backend_manager = backend_manager
         super().__init__(device)
-        model = self._physics_manager.get_model()
-        state = self._physics_manager.get_state_0()
+        model = self._backend_manager.get_model()
+        state = self._backend_manager.get_state_0()
         self._sim_bind_body_ids = root_view.get_attribute("joint_child", model)[:, 0].contiguous()
         self._sim_bind_link_pose_w = root_view.get_link_transforms(state)[:, 0]
         self._sim_bind_link_velocity_w = root_view.get_link_velocities(state)[:, 0]

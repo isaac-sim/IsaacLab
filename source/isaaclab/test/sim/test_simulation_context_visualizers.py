@@ -157,7 +157,7 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
     ctx._physics_step_count = 0
-    ctx.physics_manager = _FakePhysicsManager()
+    ctx.backend_manager = _FakePhysicsManager()
     ctx.vis_marker_registry = VisMarkerRegistry()
     return ctx
 
@@ -170,7 +170,7 @@ def test_update_visualizers_runs_forward_when_a_visualizer_requires_it():
 
     ctx.update_visualizers(0.1)
 
-    assert ctx.physics_manager.forward_calls == 1
+    assert ctx.backend_manager.forward_calls == 1
     assert viz_a.step_calls == [0.1]
     assert viz_b.step_calls == [0.1]
 
@@ -182,7 +182,7 @@ def test_update_visualizers_skips_forward_when_no_visualizer_requires_it():
 
     ctx.update_visualizers(0.1)
 
-    assert ctx.physics_manager.forward_calls == 0
+    assert ctx.backend_manager.forward_calls == 0
 
 
 def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
@@ -236,8 +236,8 @@ def test_step_waits_for_visualizer_training_pause_before_physics():
     ctx.step(render=False)
 
     assert viz.step_calls == [0.0, 0.0]
-    assert ctx.physics_manager.wait_for_playing_calls == 1
-    assert ctx.physics_manager.step_calls == 1
+    assert ctx.backend_manager.wait_for_playing_calls == 1
+    assert ctx.backend_manager.step_calls == 1
     assert ctx._physics_step_count == 1
 
 
@@ -364,7 +364,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         events.append("initialize_visualizers")
         ctx._visualizers = [_FakeVisualizer()]
 
-    ctx.physics_manager = _PhysicsManager()
+    ctx.backend_manager = _PhysicsManager()
     ctx._render_context = _RenderContext()
     ctx.initialize_visualizers = _initialize_visualizers
 
@@ -405,7 +405,7 @@ def web_backend(monkeypatch):
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
-        physics_manager=SimpleNamespace(backend_name="newton"),
+        backend_manager=SimpleNamespace(backend_name="newton"),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
         vis_marker_registry=VisMarkerRegistry(),
@@ -831,7 +831,7 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._pending_visualizers = []
     ctx._render_context = SimpleNamespace(clone_contexts=set())
-    ctx.physics_manager = SimpleNamespace(register_callback=Mock())
+    ctx.backend_manager = SimpleNamespace(register_callback=Mock())
     ctx._scene_data_provider = _FakeProvider()
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False

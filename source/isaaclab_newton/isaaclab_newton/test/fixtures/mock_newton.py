@@ -55,7 +55,7 @@ def create_mock_newton_manager(
         is_fixed_base: Whether the mock articulation has a fixed base.
 
     Returns:
-        A mock manager to pass as an asset's or data container's ``physics_manager``.
+        A mock manager to pass as an asset's or data container's ``backend_manager``.
     """
     mock_model = MockNewtonModel(
         gravity,

@@ -64,7 +64,7 @@ class RigidObjectData(BaseRigidObjectData):
         device: str,
         check_shapes: bool = True,
         *,
-        physics_manager: OvPhysxManager,
+        backend_manager: OvPhysxManager,
     ):
         """Initializes the rigid object data.
 
@@ -78,10 +78,10 @@ class RigidObjectData(BaseRigidObjectData):
             check_shapes: Whether to enforce internal shape/dtype invariants on
                 lazy reads. Defaults to ``True``; production callers thread this
                 from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
-            physics_manager: The OVPhysX manager instance that owns the simulation.
+            backend_manager: The OVPhysX manager instance that owns the simulation.
         """
         super().__init__(view, device)
-        self._physics_manager = physics_manager
+        self._backend_manager = backend_manager
         # The view owns the per-tensor-type bindings and the CPU/GPU device policy.
         self._view = view
         self._check_shapes = check_shapes
@@ -92,8 +92,8 @@ class RigidObjectData(BaseRigidObjectData):
         self._num_instances = root_pose.count
         self._num_bodies = 1
 
-        if self._physics_manager._sim is not None and hasattr(self._physics_manager._sim, "cfg"):
-            gravity = self._physics_manager._sim.cfg.gravity
+        if self._backend_manager._sim is not None and hasattr(self._backend_manager._sim, "cfg"):
+            gravity = self._backend_manager._sim.cfg.gravity
         else:
             gravity = (0.0, 0.0, -9.81)
 

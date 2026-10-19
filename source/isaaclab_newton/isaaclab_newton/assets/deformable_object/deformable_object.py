@@ -121,7 +121,7 @@ class DeformableObject(BaseDeformableObject):
         if self._data.nodal_kinematic_target is None:
             return
 
-        model = self._physics_manager.get_model()
+        model = self._backend_manager.get_model()
 
         for state in self._iter_particle_states():
             wp.launch(
@@ -185,7 +185,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        self._physics_manager._mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_index(
@@ -300,7 +300,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        self._physics_manager._mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
         self._invalidate_nodal_vel_cache()
 
@@ -333,7 +333,7 @@ class DeformableObject(BaseDeformableObject):
                 device=self.device,
             )
 
-        self._physics_manager._mark_particles_dirty()
+        self._backend_manager._mark_particles_dirty()
         self._invalidate_nodal_pos_cache()
 
     def write_nodal_velocity_to_sim_mask(
@@ -422,7 +422,7 @@ class DeformableObject(BaseDeformableObject):
 
     def _iter_particle_states(self):
         """Yield active Newton states."""
-        for state in (self._physics_manager.get_state_0(), self._physics_manager.get_state_1()):
+        for state in (self._backend_manager.get_state_0(), self._backend_manager.get_state_1()):
             if state is None:
                 continue
             yield state
@@ -445,7 +445,7 @@ class DeformableObject(BaseDeformableObject):
         # https://github.com/newton-physics/newton/pull/3326.
         pattern = re.compile(self.cfg.prim_path)
         selected = [
-            value for path, value in self._physics_manager.backend.deformable_ranges.items() if pattern.fullmatch(path)
+            value for path, value in self._backend_manager.backend.deformable_ranges.items() if pattern.fullmatch(path)
         ]
         if not selected:
             raise RuntimeError(f"No imported deformable matches '{self.cfg.prim_path}'.")
@@ -467,7 +467,7 @@ class DeformableObject(BaseDeformableObject):
             particles_per_body=self._particles_per_body,
             num_instances=self._num_instances,
             device=self.device,
-            physics_manager=self._physics_manager,
+            backend_manager=self._backend_manager,
         )
 
         # Create buffers
@@ -493,7 +493,7 @@ class DeformableObject(BaseDeformableObject):
             device=self.device,
         )
         self._data.default_nodal_state_w = ProxyArray(default_nodal_state_w)
-        model = self._physics_manager.get_model()
+        model = self._backend_manager.get_model()
         self._default_particle_inv_mass = wp.empty(shape, dtype=wp.float32, device=self.device)
         self._default_particle_flags = wp.empty(shape, dtype=wp.int32, device=self.device)
         for source, default in (

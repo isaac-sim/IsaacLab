@@ -50,7 +50,7 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     body.AddTranslateOp().Set((1, 0, 0))
     UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
 
-    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive", "/World/envs/env_0/Robot"],
@@ -107,7 +107,7 @@ def test_ovphysx_context_consumes_plan():
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
     positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
     plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
-    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, backend_manager=manager)).replicate(plan, (0,))
 
     assert len(recipes) == 2
     assert recipes[0][0:2] == ("/World/envs/env_0/Robot", [f"/World/envs/env_{i}/Robot" for i in range(3)])
@@ -140,7 +140,7 @@ def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
     manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2
     plan = make_clone_plan(assets, ((0,), (1,)), 4, clone_strategy=lambda weights, count: np.arange(count) % 2)
-    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0, 1))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, backend_manager=manager)).replicate(plan, (0, 1))
 
     assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
         ("/World/envs/env_0/Object", ["/World/envs/env_0/Object", "/World/envs/env_2/Object"], [0, 2]),
@@ -159,7 +159,7 @@ def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
@@ -187,7 +187,7 @@ def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
@@ -216,7 +216,7 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],

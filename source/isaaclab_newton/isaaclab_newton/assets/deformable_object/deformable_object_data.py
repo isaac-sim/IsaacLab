@@ -33,7 +33,7 @@ class DeformableObjectData(BaseDeformableObjectData):
         num_instances: int,
         device: str,
         *,
-        physics_manager: NewtonManager,
+        backend_manager: NewtonManager,
     ):
         """Initialize the Newton deformable object data.
 
@@ -43,9 +43,9 @@ class DeformableObjectData(BaseDeformableObjectData):
             particles_per_body: Number of particles per deformable body instance.
             num_instances: Number of deformable body instances.
             device: The device used for processing.
-            physics_manager: Newton physics manager that owns the simulation state.
+            backend_manager: Newton physics manager that owns the simulation state.
         """
-        self._physics_manager = physics_manager
+        self._backend_manager = backend_manager
         super().__init__(device)
 
         # Store dimensions and indexing
@@ -88,7 +88,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            state = self._physics_manager.get_state_0()
+            state = self._backend_manager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
@@ -103,7 +103,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            state = self._physics_manager.get_state_0()
+            state = self._backend_manager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),

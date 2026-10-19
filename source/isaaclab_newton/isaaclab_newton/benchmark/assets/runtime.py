@@ -54,7 +54,7 @@ def create_test_articulation(
     num_bodies: int = 7,
     device: str = "cuda:0",
     *,
-    physics_manager,
+    backend_manager,
 ):
     """Create a test Articulation instance with mocked dependencies."""
     from isaaclab_newton.assets.articulation.articulation import Articulation
@@ -83,15 +83,15 @@ def create_test_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
-    object.__setattr__(articulation, "_physics_manager", physics_manager)
+    object.__setattr__(articulation, "_backend_manager", backend_manager)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
     object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
-    mock_view.model = physics_manager.get_model()
+    mock_view.model = backend_manager.get_model()
     _configure_articulation_model(mock_view.model, num_instances, num_bodies, num_joints)
-    data = data_module.ArticulationData(mock_view, device, physics_manager=physics_manager)
+    data = data_module.ArticulationData(mock_view, device, backend_manager=backend_manager)
     object.__setattr__(articulation, "_data", data)
 
     mock_inst_wrench = WrenchComposer(articulation)
@@ -134,7 +134,7 @@ def create_test_rigid_object(
     num_bodies: int = 1,
     device: str = "cuda:0",
     *,
-    physics_manager,
+    backend_manager,
 ):
     """Create a test RigidObject instance with mocked dependencies."""
     from isaaclab_newton.assets.rigid_object.rigid_object import RigidObject
@@ -161,12 +161,12 @@ def create_test_rigid_object(
 
     object.__setattr__(rigid_object, "_root_view", mock_view)
     object.__setattr__(rigid_object, "_device", device)
-    object.__setattr__(rigid_object, "_physics_manager", physics_manager)
+    object.__setattr__(rigid_object, "_backend_manager", backend_manager)
     object.__setattr__(rigid_object, "_check_shapes", not args.no_shape_checks)
 
     from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 
-    data = RigidObjectData(mock_view, device, physics_manager=physics_manager)
+    data = RigidObjectData(mock_view, device, backend_manager=backend_manager)
     object.__setattr__(rigid_object, "_data", data)
 
     mock_inst_wrench = WrenchComposer(rigid_object)
@@ -195,7 +195,7 @@ def create_test_collection(
     num_bodies: int = 3,
     device: str = "cuda:0",
     *,
-    physics_manager,
+    backend_manager,
 ):
     """Create a test RigidObjectCollection instance with mocked dependencies."""
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection import RigidObjectCollection
@@ -221,13 +221,13 @@ def create_test_collection(
 
     object.__setattr__(collection, "_root_view", mock_view)
     object.__setattr__(collection, "_device", device)
-    object.__setattr__(collection, "_physics_manager", physics_manager)
+    object.__setattr__(collection, "_backend_manager", backend_manager)
     object.__setattr__(collection, "_body_names_list", object_names)
     object.__setattr__(collection, "_check_shapes", not args.no_shape_checks)
 
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import RigidObjectCollectionData
 
-    data = RigidObjectCollectionData(mock_view, num_bodies, device, physics_manager=physics_manager)
+    data = RigidObjectCollectionData(mock_view, num_bodies, device, backend_manager=backend_manager)
     object.__setattr__(collection, "_data", data)
 
     mock_inst_wrench = WrenchComposer(collection)
@@ -342,11 +342,11 @@ def _refresh_collection_data(mock_view, data, config) -> None:
     data._sim_timestamp += 1.0
 
 
-def _create_articulation_data_target(config, physics_manager):
+def _create_articulation_data_target(config, backend_manager):
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
     data_type = globals().get("NewtonArticulationData", data_module.ArticulationData)
-    model = physics_manager.get_model()
+    model = backend_manager.get_model()
     _configure_articulation_model(model, config.num_instances, config.num_bodies, config.num_joints)
     mock_view = MockNewtonArticulationView(
         num_instances=config.num_instances,
@@ -358,14 +358,14 @@ def _create_articulation_data_target(config, physics_manager):
     mock_view.eval_jacobian = lambda state, *, J, joint_S_s: None
     mock_view.eval_mass_matrix = lambda state, *, H, J, body_I_s, joint_S_s: None
     mock_view.model = model
-    data = data_type(mock_view, config.device, physics_manager=physics_manager)
+    data = data_type(mock_view, config.device, backend_manager=backend_manager)
     data._apply_ordering_maps_after_resolve()
     return data, lambda cfg, _mock_view=mock_view: _refresh_articulation_data(data, cfg)
 
 
-def _create_data_target(component, config, physics_manager):
+def _create_data_target(component, config, backend_manager):
     if component == "articulation":
-        return _create_articulation_data_target(config, physics_manager)
+        return _create_articulation_data_target(config, backend_manager)
     if component == "rigid_object":
         from isaaclab_newton.assets.rigid_object.rigid_object_data import RigidObjectData
 
@@ -376,7 +376,7 @@ def _create_data_target(component, config, physics_manager):
             device=config.device,
         )
         mock_view.set_random_mock_data()
-        data = RigidObjectData(mock_view, config.device, physics_manager=physics_manager)
+        data = RigidObjectData(mock_view, config.device, backend_manager=backend_manager)
         return data, lambda cfg: _refresh_rigid_object_data(mock_view, data, cfg)
     from isaaclab_newton.assets.rigid_object_collection.rigid_object_collection_data import (
         RigidObjectCollectionData,
@@ -386,7 +386,7 @@ def _create_data_target(component, config, physics_manager):
         num_envs=config.num_instances, num_bodies=config.num_bodies, device=config.device
     )
     mock_view.set_random_mock_data()
-    data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device, physics_manager=physics_manager)
+    data = RigidObjectCollectionData(mock_view, config.num_bodies, config.device, backend_manager=backend_manager)
     return data, lambda cfg: _refresh_collection_data(mock_view, data, cfg)
 
 
@@ -395,7 +395,7 @@ def open_asset_targets(adapter, request, method_config, data_config):
     """Open the selected mocked Newton asset target with a mocked Newton manager."""
     _load_runtime_symbols()
     args.no_shape_checks = not request.check_shapes
-    physics_manager = create_mock_newton_manager(
+    backend_manager = create_mock_newton_manager(
         gravity=(0.0, 0.0, -9.81),
         num_instances=method_config.num_instances,
         num_bodies=method_config.num_bodies,
@@ -407,23 +407,23 @@ def open_asset_targets(adapter, request, method_config, data_config):
             num_bodies=method_config.num_bodies,
             num_joints=method_config.num_joints,
             device=method_config.device,
-            physics_manager=physics_manager,
+            backend_manager=backend_manager,
         )
     elif adapter.component == "rigid_object":
         target, _ = create_test_rigid_object(
             num_instances=method_config.num_instances,
             num_bodies=method_config.num_bodies,
             device=method_config.device,
-            physics_manager=physics_manager,
+            backend_manager=backend_manager,
         )
     else:
         target, _ = create_test_collection(
             num_instances=method_config.num_instances,
             num_bodies=method_config.num_bodies,
             device=method_config.device,
-            physics_manager=physics_manager,
+            backend_manager=backend_manager,
         )
-    data, refresh_data = _create_data_target(adapter.component, data_config, physics_manager)
+    data, refresh_data = _create_data_target(adapter.component, data_config, backend_manager)
     yield AssetBenchmarkTargets(
         method_target=target,
         data_target=data,

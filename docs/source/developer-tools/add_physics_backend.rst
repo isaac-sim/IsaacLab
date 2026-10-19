@@ -144,7 +144,7 @@ Register the backend key
 ------------------------
 
 ``FactoryBase._get_backend()`` returns the ``backend_name`` class attribute of
-the active ``SimulationContext.physics_manager`` instance. The manager above sets
+the active ``SimulationContext.backend_manager`` instance. The manager above sets
 ``backend_name = "mybackend"``, so factories resolve its assets and sensors
 without changes to ``isaaclab.utils.backend_utils``.
 

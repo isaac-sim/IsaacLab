@@ -214,7 +214,7 @@ def test_heterogeneous_clone_contacts_and_indexed_state(device, scene_variant, f
         obj.write_root_pose_to_sim(pose, env_ids=selected)
         sim.step()
         scene.update(sim.get_physics_dt())
-        binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
+        binding = sim.backend_manager.get_physx_instance().create_tensor_binding(
             prim_paths=expected_paths, tensor_type=TT.RIGID_BODY_POSE
         )
         try:

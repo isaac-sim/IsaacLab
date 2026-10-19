@@ -359,7 +359,7 @@ class ContactSensor(BaseContactSensor):
     def _initialize_impl(self):
         super()._initialize_impl()
         # obtain global simulation view
-        self._physics_sim_view = self._physics_manager.get_physics_sim_view()
+        self._physics_sim_view = self._backend_manager.get_physics_sim_view()
 
         # Split the configured prim path into a parent expression and a leaf-name regex.
         # split on separators only: a trailing ``[^/]`` class holds a ``/`` that is not one

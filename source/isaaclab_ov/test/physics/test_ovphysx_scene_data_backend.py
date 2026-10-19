@@ -350,7 +350,7 @@ def test_manager_close_preserves_only_retryable_native_owners(manager, monkeypat
     cfg = OvPhysxBackendCfg(device="cpu")
     sim = SimpleNamespace(
         _backend_registry=[(cfg, backend)],
-        physics_manager=manager,
+        backend_manager=manager,
     )
     sim.close_backend = SimulationContext.close_backend.__get__(sim)
     monkeypatch.setattr(SimulationContext, "_instance", sim)

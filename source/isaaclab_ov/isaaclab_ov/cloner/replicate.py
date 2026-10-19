@@ -156,7 +156,7 @@ class OvPhysxReplicateContext(cloner.ReplicateContext):
                     copies.append(((sources[asset], templates[index]), targets))
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         recipes = _clone_recipes(self._sim.stage, copies, env_ids, plan.positions, None)
-        self._sim.physics_manager._clone_recipes.extend(recipes)
+        self._sim.backend_manager._clone_recipes.extend(recipes)
 
 
 class OvrtxReplicateContext(cloner.ReplicateContext):
@@ -184,7 +184,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
         else:
             # Defaults: independent OVStage rendering with OVPhysX; native OVRTX cloning with Newton.
             # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
-            with_ovphysx = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+            with_ovphysx = sim.backend_manager.clone_context_type is OvPhysxReplicateContext
             value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if with_ovphysx else "0").strip()
             if value not in {"0", "1"}:
                 raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
@@ -192,7 +192,7 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             use_ovstage = share_ovstage or value == "1"
             if share_ovstage and not with_ovphysx:
                 raise ValueError("Shared OVStage cloning requires OVPhysX.")
-        if share_ovstage and sim.physics_manager.backend is not None and sim.physics_manager.backend.owns_scene:
+        if share_ovstage and sim.backend_manager.backend is not None and sim.backend_manager.backend.owns_scene:
             raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
         if use_ovstage:
             replaced = (OvrtxReplicateContext, OvPhysxReplicateContext) if share_ovstage else (OvrtxReplicateContext,)
@@ -369,7 +369,7 @@ def ovphysx_replicate(
     sim = SimulationContext.instance()
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    sim.physics_manager._clone_recipes.extend(recipes)
+    sim.backend_manager._clone_recipes.extend(recipes)
 
 
 def _convert_legacy_joint_properties(

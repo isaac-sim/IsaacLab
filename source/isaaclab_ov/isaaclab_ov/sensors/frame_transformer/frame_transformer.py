@@ -233,7 +233,7 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
         # --- OVPhysX: create one TT.RIGID_BODY_POSE view per unique tracked body ---
-        physx_instance = self._physics_manager.get_physx_instance()
+        physx_instance = self._backend_manager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError(
                 "OvPhysxManager has not been initialized yet."

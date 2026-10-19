@@ -106,7 +106,7 @@ class _NewtonRayCasterPoseMixin:
         if plan is not None:
             matched = cloner.path.match(prim_expr, plan.env_template)
             if matched is not None and not matched.suffix:
-                return [self._physics_manager.cl_register_site(None, wp.transform(), per_world=True)]
+                return [self._backend_manager.cl_register_site(None, wp.transform(), per_world=True)]
 
         try:
             body_expr, fixed_pos, fixed_quat = self._resolve_rigid_body_ancestor_expr()
@@ -124,7 +124,7 @@ class _NewtonRayCasterPoseMixin:
         quat = fixed_quat or (0.0, 0.0, 0.0, 1.0)
         site_transform = wp.transform(wp.vec3(*pos), wp.quat(*quat))
 
-        return [self._physics_manager.cl_register_site(_newton_body_pattern(body_expr), site_transform)]
+        return [self._backend_manager.cl_register_site(_newton_body_pattern(body_expr), site_transform)]
 
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
@@ -216,7 +216,7 @@ class _NewtonRayCasterPoseMixin:
 
     def _resolve_site_indices(self, labels: list[str], prim_expr: str, num_envs: int) -> list[int]:
         """Expand registered site labels into per-environment Newton site indices."""
-        site_map = self._physics_manager._cl_site_index_map
+        site_map = self._backend_manager._cl_site_index_map
         site_indices: list[int] = []
         for env_index in range(num_envs):
             for label in labels:

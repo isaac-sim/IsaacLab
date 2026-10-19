@@ -814,7 +814,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         self._transform_mapping = sim.get_scene_data_provider().create_mapping(list(self.backend.model.body_label))
         scene_data_provider = self._sim.get_scene_data_provider()
         newton_backend_active = self.physics_backend == "newton"
-        picking_supported = newton_backend_active and sim.physics_manager._supports_rigid_body_force_input
+        picking_supported = newton_backend_active and sim.backend_manager._supports_rigid_body_force_input
         num_envs = scene_data_provider.num_envs
         if self._runtime_headless and not self.cfg.headless:
             logger.warning(
@@ -855,7 +855,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
         )
         if self._picking_enabled:
             self._viewer_picking_binding.bind(self._viewer)
-            sim.physics_manager.register_state_force_callback(self._viewer_picking_binding.apply)
+            sim.backend_manager.register_state_force_callback(self._viewer_picking_binding.apply)
         if self.cfg.enable_picking and not picking_supported:
             logger.info(
                 "[NewtonVisualizer] Object dragging is disabled because the active physics solver does not support"
@@ -879,7 +879,7 @@ class NewtonGLVisualizer(NewtonVisualizerBase):
                 state = self._update_state()
                 if state.body_q is None or len(state.body_q):
                     viewer.log_state(state)
-                    contacts = self._sim.physics_manager.get_contacts() if self.physics_backend == "newton" else None
+                    contacts = self._sim.backend_manager.get_contacts() if self.physics_backend == "newton" else None
                     if contacts is not None:
                         viewer.log_contacts(contacts, state)
                     else:

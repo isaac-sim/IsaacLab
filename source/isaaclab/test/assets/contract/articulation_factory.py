@@ -105,8 +105,8 @@ def _physx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering, 
     articulation._root_view = view
     articulation._device = device
     articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
-    articulation._physics_manager = manager
-    articulation._data = physx_assets.ArticulationData(view, device, physics_manager=manager)
+    articulation._backend_manager = manager
+    articulation._data = physx_assets.ArticulationData(view, device, backend_manager=manager)
     _set_tendon_names(articulation, _names("fixed_tendon", FT), _names("spatial_tendon", ST))
     finish_shell(articulation)
     articulation._ALL_INDICES = articulation._ALL_INDICES_WP = indices(N, device)
@@ -175,8 +175,8 @@ def _ovphysx_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering
     articulation._num_fixed_tendons = FT
     articulation._num_spatial_tendons = ST
     # Counts come from the view; names are set on the data afterwards.
-    articulation._physics_manager = manager
-    articulation._data = ovphysx_assets.ArticulationData(bindings.view, device, physics_manager=manager)
+    articulation._backend_manager = manager
+    articulation._data = ovphysx_assets.ArticulationData(bindings.view, device, backend_manager=manager)
     articulation._data.body_names = body_names
     articulation._data.joint_names = joint_names
     articulation._data._is_fixed_base = is_fixed_base
@@ -227,8 +227,8 @@ def _newton_articulation(N, J, B, FT, ST, device, is_fixed_base, joint_ordering,
     articulation._root_view = view
     articulation._device = device
     articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
-    articulation._physics_manager = manager
-    articulation._data = newton_assets.ArticulationData(view, device, physics_manager=manager)
+    articulation._backend_manager = manager
+    articulation._data = newton_assets.ArticulationData(view, device, backend_manager=manager)
     # The solver builds this adapter; the shell has no model, so it stays absent.
     articulation._fixed_tendon_control = None
     _set_tendon_names(articulation, fixed_tendon_names, [])

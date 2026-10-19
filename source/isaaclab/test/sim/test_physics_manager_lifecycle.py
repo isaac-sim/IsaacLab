@@ -148,7 +148,7 @@ def test_physics_manager_close_only_clears_its_own_state():
     active.close()
     assert active._sim is None
 
-    active_sim = SimpleNamespace(physics_manager=active)
+    active_sim = SimpleNamespace(backend_manager=active)
     active._sim, active._cfg, active._sim_time = active_sim, "active-cfg", 1.25
 
     inactive._callbacks = {1: (None, lambda _: None, 0, "stale", None)}
@@ -165,7 +165,7 @@ def test_close_runs_all_live_stop_listeners_and_aggregates_failures():
 
     manager = _TestManager()
     events = []
-    manager._sim = SimpleNamespace(physics_manager=manager)
+    manager._sim = SimpleNamespace(backend_manager=manager)
     manager._cfg = object()
     manager._sim_time = 1.0
     manager.views["/World/Robot"] = object()
@@ -234,7 +234,7 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke():
 
     manager = TestManager()
     events = []
-    manager._sim = SimpleNamespace(physics_manager=manager)
+    manager._sim = SimpleNamespace(backend_manager=manager)
 
     def fail_stop(_payload):
         events.append("failed")
@@ -244,7 +244,7 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke():
         lambda payload: PhysicsManager.safe_callback_invoke(
             fail_stop,
             payload,
-            physics_manager=manager,
+            backend_manager=manager,
         ),
         PhysicsEvent.STOP,
         order=0,
@@ -301,7 +301,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
                 raise self.error
 
     context = object.__new__(SimulationContext)
-    context.physics_manager = Manager()
+    context.backend_manager = Manager()
     context._backend_registry = []
     context._render_context = RenderContext(context._backend_registry)
     context._render_context._visual_material_writers = (Resource("writers"),)
@@ -378,7 +378,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
             pass
 
     context = Context()
-    context.physics_manager = Manager()
+    context.backend_manager = Manager()
     context._render_context = RenderContext()
     context._visualizers = []
     context._pending_visualizers = []
