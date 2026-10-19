@@ -21,6 +21,7 @@ from pathlib import Path
 
 LAUNCHER = Path(__file__).with_name("source_revision.py")
 TASK = Path("source/isaaclab_tasks/isaaclab_tasks/fixture_task.py")
+IMPORT_MAP = TASK.with_name("__init__.pyi")
 RUNTIME_MODULE = "isaaclab.benchmark.entrypoints.runtime"
 RUNTIME_PATH = Path("source/isaaclab/isaaclab/benchmark/entrypoints/runtime.py")
 
@@ -45,9 +46,17 @@ class SourceRevisionTests(unittest.TestCase):
             "source/isaaclab/isaaclab/cli/__init__.py",
             """
             import os
+            import subprocess
             import sys
 
             def cli():
+                initialized = dict(os.environ, FIXTURE_INITIALIZED="1")
+                if sys.argv[1] == "-p":
+                    raise SystemExit(subprocess.call([sys.executable, *sys.argv[2:]], env=initialized))
+                if os.environ.get("FIXTURE_INITIALIZED") != "1":
+                    raise SystemExit(subprocess.call(
+                        [sys.executable, "-m", "isaaclab.cli", *sys.argv[1:]], env=initialized
+                    ))
                 if os.environ.get("FIXTURE_EARLY_EXIT"):
                     raise SystemExit(17)
                 if os.environ.get("FIXTURE_INTERRUPT"):
@@ -79,6 +88,8 @@ class SourceRevisionTests(unittest.TestCase):
                 (output / "benchmark_runtime_fixture.json").write_text(json.dumps(result))
             """,
         )
+        self._write("source/isaaclab/isaaclab/cli/__main__.py", "from . import cli\ncli()\n")
+        self._write(IMPORT_MAP, "from .fixture_task import observed\n")
         self._task("A")
         self.commit_a = self._commit()
         self.cached = self.directory / "cached-image"
@@ -113,18 +124,23 @@ class SourceRevisionTests(unittest.TestCase):
             for root in (roots or [self.checkout])
             for package in ("isaaclab", "isaaclab_tasks")
         )
+        environment["FIXTURE_INITIALIZED"] = "1"
         environment.update(extra)
         return environment
 
-    def _prepare(self, name="manifest", *, success=True):
-        path = self.directory / f"{name}.json"
-        process = subprocess.run(
-            [sys.executable, str(LAUNCHER), "prepare", "--checkout-root", str(self.checkout), "--output", str(path)],
+    def _invoke(self, operation, *arguments, command=None, roots=None, **extra):
+        launcher = [sys.executable, str(LAUNCHER), operation, "--checkout-root", str(self.checkout)]
+        return subprocess.run(
+            command or launcher + list(map(str, arguments)),
             cwd=self.directory,
-            env=self._environment(),
+            env=self._environment(roots, **extra),
             capture_output=True,
             text=True,
         )
+
+    def _prepare(self, name="manifest", *, success=True):
+        path = self.directory / f"{name}.json"
+        process = self._invoke("prepare", "--output", path)
         if success:
             self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
             self.assertEqual(json.loads(path.read_text())["commit"], self._git("rev-parse", "HEAD"))
@@ -132,29 +148,9 @@ class SourceRevisionTests(unittest.TestCase):
 
     def _run(self, manifest, name, *, roots=None, command=None, proof_expected=True, **extra):
         output = self.directory / name
-        process = subprocess.run(
-            command
-            or [
-                sys.executable,
-                str(LAUNCHER),
-                "run",
-                "--manifest",
-                str(manifest),
-                "--checkout-root",
-                str(self.checkout),
-                "--output-dir",
-                str(output),
-                "--",
-                "benchmark",
-                "runtime",
-                "--output_path",
-                str(output),
-            ],
-            cwd=self.directory,
-            env=self._environment(roots, **extra),
-            capture_output=True,
-            text=True,
-        )
+        verifier_args = ["--manifest", manifest, "--output-dir", output]
+        benchmark_args = ["benchmark", "runtime", "--output_path", output]
+        process = self._invoke("run", *verifier_args, "--", *benchmark_args, command=command, roots=roots, **extra)
         sidecar_path = output / "source-revision.json"
         self.assertEqual(sidecar_path.is_file(), proof_expected, process.stdout + process.stderr)
         sidecar = json.loads(sidecar_path.read_text()) if proof_expected else None
@@ -175,14 +171,11 @@ class SourceRevisionTests(unittest.TestCase):
         )
         modules = {item["name"]: item for item in sidecar["modules"]}
         self.assertIn(RUNTIME_MODULE, modules)
-        self.assertEqual(modules["isaaclab_tasks.fixture_task"]["relative_path"], TASK.as_posix())
-        self.assertEqual(
-            modules["isaaclab_tasks.fixture_task"]["sha256"],
-            hashlib.sha256((self.checkout / TASK).read_bytes()).hexdigest(),
-        )
-        self.assertEqual(
-            modules["isaaclab_tasks.fixture_task"]["sha256"], modules["isaaclab_tasks.fixture_task"]["expected_sha256"]
-        )
+        task = modules["isaaclab_tasks.fixture_task"]
+        expected_hash = hashlib.sha256((self.checkout / TASK).read_bytes()).hexdigest()
+        self.assertEqual(task["relative_path"], TASK.as_posix())
+        self.assertEqual(task["sha256"], expected_hash)
+        self.assertEqual(task["expected_sha256"], expected_hash)
         return result
 
     def test_selected_checkout_wins_over_cached_packages(self):
@@ -190,42 +183,12 @@ class SourceRevisionTests(unittest.TestCase):
         run_a = self._run(manifest_a, "result-a", roots=[self.checkout, self.cached])
         self._assert_verified(*run_a, "A", self.commit_a)
         self._task("B")
-        runtime = self.checkout / RUNTIME_PATH
-        runtime.write_text(
-            "def wrapper(function):\n    return lambda argv: function(argv)\n\n"
-            + runtime.read_text().replace("def run(argv):", "@wrapper\ndef entrypoint(argv):")
-            + "\nrun = entrypoint\n"
-        )
         commit_b = self._commit()
         manifest_b, _ = self._prepare("manifest-b")
         run_b = self._run(manifest_b, "result-b", roots=[self.checkout, self.cached])
         self._assert_verified(*run_b, "B", commit_b)
 
     def test_ci_launcher_verifies_the_initialized_benchmark_worker(self):
-        self._write(
-            "source/isaaclab/isaaclab/cli/__init__.py",
-            """
-            import argparse
-            import os
-            import subprocess
-            import sys
-
-            def cli():
-                initialized = dict(os.environ, FIXTURE_INITIALIZED="1")
-                if sys.argv[1] == "-p":
-                    parser = argparse.ArgumentParser()
-                    parser.add_argument("-p", "--python", nargs=argparse.REMAINDER)
-                    args = parser.parse_args()
-                    raise SystemExit(subprocess.call([sys.executable, *args.python], env=initialized))
-                if os.environ.get("FIXTURE_INITIALIZED") != "1":
-                    raise SystemExit(subprocess.call(
-                        [sys.executable, "-m", "isaaclab.cli", *sys.argv[1:]], env=initialized
-                    ))
-                from isaaclab.benchmark.entrypoints import runtime
-                runtime.run(sys.argv[1:])
-            """,
-        )
-        self._write("source/isaaclab/isaaclab/cli/__main__.py", "from . import cli\ncli()\n")
         runtime = self.checkout / RUNTIME_PATH
         runtime.write_text(
             runtime.read_text().replace('"worker_pid": os.getpid(),', '"worker_pid": os.getpid(), "argv": argv,')
@@ -299,21 +262,35 @@ class SourceRevisionTests(unittest.TestCase):
         self.assertEqual(sidecar["status"], "failed")
 
     def test_correct_path_with_changed_bytes_does_not_verify(self):
-        manifest, _ = self._prepare()
-        self._task("B")
-        process, output, sidecar = self._run(manifest, "wrong-bytes")
-        self.assertNotEqual(process.returncode, 0)
-        self.assertEqual(sidecar["status"], "failed")
-        self.assertTrue(sidecar["mismatches"])
-        task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
-        self.assertEqual(task["relative_path"], TASK.as_posix())
-        self.assertNotEqual(task["sha256"], task["expected_sha256"])
-        self.assertEqual(json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"], "B")
-
-        _, process = self._prepare(success=False)
-        self.assertNotEqual(process.returncode, 0)
-        self.assertIn("Traceback (most recent call last):", process.stderr)
-        self.assertIn("ValueError: Checked-out Python source differs", process.stderr)
+        for path, contents in (
+            (TASK, "def observed():\n    return 'B'\n"),
+            (IMPORT_MAP, "# changed exports\n"),
+            (IMPORT_MAP, None),
+        ):
+            with self.subTest(path=path, contents=contents):
+                self._git("checkout", "--force", "--detach", self.commit_a)
+                manifest, _ = self._prepare()
+                if contents is None:
+                    (self.checkout / path).unlink()
+                else:
+                    (self.checkout / path).write_text(contents)
+                process, output, sidecar = self._run(manifest, "wrong-bytes")
+                self.assertNotEqual(process.returncode, 0)
+                self.assertEqual(sidecar["status"], "failed")
+                self.assertTrue(sidecar["mismatches"])
+                if path == TASK:
+                    task = next(item for item in sidecar["modules"] if item["name"] == "isaaclab_tasks.fixture_task")
+                    self.assertEqual(task["relative_path"], TASK.as_posix())
+                    self.assertNotEqual(task["sha256"], task["expected_sha256"])
+                    self.assertEqual(
+                        json.loads((output / "benchmark_runtime_fixture.json").read_text())["executed_revision"], "B"
+                    )
+                else:
+                    self.assertTrue(any(item.get("path") == path.as_posix() for item in sidecar["mismatches"]))
+                _, process = self._prepare(success=False)
+                self.assertNotEqual(process.returncode, 0)
+                self.assertIn("Traceback (most recent call last):", process.stderr)
+                self.assertIn(path.as_posix(), process.stderr)
 
     def test_cli_failures_preserve_exit_status_and_interruptions(self):
         manifest, _ = self._prepare()
