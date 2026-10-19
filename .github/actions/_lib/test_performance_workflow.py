@@ -26,6 +26,7 @@ def labeled(login):
 
 def test_performance_workflow(tmp_path, subtests):
     workflow = yaml.safe_load(WORKFLOW.read_text())
+    assert "synchronize" in workflow.get("on", workflow.get(True, {}))["pull_request"]["types"]
     jobs = workflow["jobs"]
     activation = next(step for step in jobs["changes"]["steps"] if step.get("id") == "activation")
     removed_label = [labeled("maintainer"), {"event": "unlabeled"}]
@@ -149,11 +150,7 @@ const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
             start_new_session=True,
         )
         try:
-            started = None
-            for line in process.stdout:
-                if line.startswith("{"):
-                    started = json.loads(line)
-                    break
+            started = next((json.loads(line) for line in process.stdout if line.startswith("{")), None)
             assert started is not None, (stop_signal.name, process.stderr.read())
             process.send_signal(stop_signal)
             # GitHub escalates cancellation after 7.5 s + 2.5 s, then kills the process tree.

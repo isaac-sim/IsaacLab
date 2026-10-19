@@ -1377,8 +1377,7 @@ jobs:
           if (!summaryJob) throw new Error('The Performance smoke Summary job could not be located.');
           const summaryUrl = `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}`
             + `/actions/runs/${context.runId}/attempts/${attempt}#summary-${summaryJob.id}`;
-          // Native checks open logs; the report check opens rendered output.
-          // Also link the Summary here because GitHub may group the report under another suite.
+          // The report check and Summary link open rendered results instead of native check logs.
           core.notice(summaryUrl, {title: 'Open rendered Performance smoke Summary'});
           const reportPath = 'build-comparison/build-comparison.md';
           const report = fs.existsSync(reportPath) ? fs.readFileSync(reportPath, 'utf8') : '';

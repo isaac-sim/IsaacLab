@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import io
 import json
 import os
@@ -73,7 +74,7 @@ class GitHubClient:
         except urllib.error.HTTPError as exc:
             code = "expired" if exc.code == 410 else "inaccessible"
             raise EvidenceError(code, f"GitHub evidence request failed (HTTP {exc.code})") from None
-        except (urllib.error.URLError, OSError) as exc:
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
             # Exception text can include credential-bearing signed URLs.
             if isinstance(exc, TimeoutError) or (
                 isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, TimeoutError)
