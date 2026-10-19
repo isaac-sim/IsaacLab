@@ -174,9 +174,12 @@ def test_registry_shares_native_cfg_without_replacing_pxr(monkeypatch, manager_m
 
 @pytest.mark.parametrize("stop_fails", [False, True])
 def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch, manager, stop_fails):
+    import isaaclab_ov.physics.ovphysx_manager as module
+
     from isaaclab.physics import PhysicsManager
 
     events = []
+    unregistered = []
 
     def stop(self):
         events.append("stop")
@@ -185,11 +188,16 @@ def test_close_releases_runtime_after_stop_even_on_listener_failure(monkeypatch,
 
     monkeypatch.setattr(PhysicsManager, "close", stop)
     monkeypatch.setattr(manager.backend, "close", lambda: events.append("release"))
+    monkeypatch.setattr(module.atexit, "unregister", unregistered.append)
+    manager._atexit_registered = True
 
     with pytest.raises(ValueError, match="listener failure") if stop_fails else nullcontext():
         manager.close()
 
     assert events == ["stop", "release"]
+    # A released manager drops its exit hook so it is not retained until process exit.
+    assert unregistered == [manager._close_at_exit]
+    assert not manager._atexit_registered
 
 
 def test_atexit_cleanup_noops_after_explicit_close(monkeypatch, manager):

@@ -33,7 +33,7 @@ class DeformableObjectData(BaseDeformableObjectData):
         num_instances: int,
         device: str,
         *,
-        backend_manager: NewtonManager,
+        backend_manager: NewtonManager | None = None,
     ):
         """Initialize the Newton deformable object data.
 
@@ -44,7 +44,10 @@ class DeformableObjectData(BaseDeformableObjectData):
             num_instances: Number of deformable body instances.
             device: The device used for processing.
             backend_manager: Newton physics manager that owns the simulation state.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("DeformableObjectData()")
         self._backend_manager = backend_manager
         super().__init__(device)
 

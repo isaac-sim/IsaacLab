@@ -401,3 +401,54 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
 
     assert context_alive_during_gc == [False]
     assert context_ref() is None
+
+
+def test_class_level_runtime_access_forwards_to_active_manager(monkeypatch):
+    """Deprecated class-level calls bind to the active simulation's manager; instance access is unchanged."""
+    from isaaclab.sim import SimulationContext
+
+    class _OtherManager(_TestManager):
+        pass
+
+    manager = _TestManager()
+    manager._device = "cuda:1"
+    manager.views["/World/Robot"] = "view"
+    sim = SimpleNamespace(backend_manager=manager)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+
+    with pytest.warns(DeprecationWarning, match="sim.backend_manager.get_device"):
+        assert _TestManager.get_device() == "cuda:1"
+    with pytest.warns(DeprecationWarning, match="sim.backend_manager.views"):
+        assert _TestManager.views == {"/World/Robot": "view"}
+    # Explicit unbound calls and classmethods are not forwarded.
+    assert PhysicsManager.get_device(_OtherManager()) == "cuda:0"
+    assert not hasattr(_TestManager, "missing_attribute")
+    # A class that the active manager is not an instance of has nothing to forward to.
+    with pytest.raises(TypeError, match="instance method"):
+        _OtherManager.get_device()
+    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
+    with pytest.raises(TypeError, match="instance method"):
+        _TestManager.get_device()
+
+
+def test_simulation_context_physics_manager_is_deprecated_alias():
+    """``sim.physics_manager`` returns ``sim.backend_manager`` with a deprecation warning."""
+    from isaaclab.sim import SimulationContext
+
+    sim = SimulationContext.__new__(SimulationContext)
+    sim.backend_manager = _TestManager()
+    with pytest.warns(DeprecationWarning, match="backend_manager"):
+        assert sim.physics_manager is sim.backend_manager
+
+
+def test_deprecated_active_resolves_omitted_manager(monkeypatch):
+    """Data-class constructors fall back to the active manager with a deprecation warning."""
+    from isaaclab.sim import SimulationContext
+
+    manager = _TestManager()
+    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=manager))
+    with pytest.warns(DeprecationWarning, match="Data\\(\\) without backend_manager"):
+        assert _TestManager._deprecated_active("Data()") is manager
+    monkeypatch.setattr(SimulationContext, "instance", lambda: None)
+    with pytest.raises(RuntimeError, match="requires backend_manager"):
+        _TestManager._deprecated_active("Data()")

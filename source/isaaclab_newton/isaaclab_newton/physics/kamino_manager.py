@@ -120,15 +120,15 @@ class NewtonKaminoManager(NewtonManager):
         return SolverKamino(model, solver_cfg.to_solver_config())
 
     def _build_solver(self, model: Model, solver_cfg: _KaminoSolverCfgBase) -> None:
-        """Construct :class:`SolverKamino` and populate the base-class slots.
+        """Construct :class:`SolverKamino` and populate the solver slots.
 
-        Sets :attr:`self._needs_collision_pipeline` to ``True`` only
+        Sets :attr:`NewtonManager._needs_collision_pipeline` to ``True`` only
         when ``use_collision_detector=False`` (Kamino's internal detector
         handles contacts otherwise).
 
         Kamino treats body state as authoritative. The shared pre-step
-        :meth:`self.forward` boundary reconciles authored joint state
-        only for worlds selected by :attr:`self._world_reset_mask`.
+        :meth:`NewtonManager.forward` boundary reconciles authored joint state
+        only for worlds selected by :attr:`NewtonManager._world_reset_mask`.
 
         Raises:
             RuntimeError: If the model has more than one articulation per environment. The Kamino

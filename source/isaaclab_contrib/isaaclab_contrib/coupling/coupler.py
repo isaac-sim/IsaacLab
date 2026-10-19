@@ -39,11 +39,6 @@ from .coupler_cfg import (
 )
 
 
-def _active_coupler_cfg() -> CouplerCfg:
-    """Return the coupler configuration of the active simulation, read by class-level builder hooks."""
-    return SimulationContext.instance().cfg.physics.solver_cfg
-
-
 class NewtonCouplerManager(NewtonVBDManager):
     """Couple named Newton solver entries through proxy or ADMM interfaces."""
 
@@ -215,7 +210,7 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
         """Register custom attributes required by nested coupled entries."""
         super()._register_builder_attributes(builder)
-        for entry in _active_coupler_cfg().entries:
+        for entry in SimulationContext.instance().cfg.physics.solver_cfg.entries:
             entry.solver_cfg.class_type._register_builder_attributes(builder)
 
     @classmethod
@@ -223,7 +218,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         """Return whether the manager or a configured nested entry registers ``solver_cls`` attributes."""
         return super()._registers_builder_attributes_from_solver(solver_cls) or any(
             entry.solver_cfg.class_type._registers_builder_attributes_from_solver(solver_cls)
-            for entry in _active_coupler_cfg().entries
+            for entry in SimulationContext.instance().cfg.physics.solver_cfg.entries
         )
 
     def _prepare_builder_for_finalize(self, builder: ModelBuilder) -> None:

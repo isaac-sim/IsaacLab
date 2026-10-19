@@ -99,7 +99,6 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
     )
     state = SimpleNamespace(particle_q=object())
     backend_manager = SimpleNamespace(get_model=lambda: model, get_state_0=lambda: state)
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=backend_manager))
 
     viewer = _Viewer()
     visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(enable_markers=False))
@@ -110,7 +109,13 @@ def test_particle_surface_renderer_stages_latest_mesh_and_hides_empty_surface(mo
     normals = wp.zeros(4, dtype=wp.vec3)
     mesh.to_arrays.side_effect = [(vertices, indices, normals), (None, None, None)]
     renderer = ParticleSurfaceRenderer(
-        [visualizer], surface, path="/water", color=(0.1, 0.2, 0.8), opacity=0.65, use_cuda_graph=False
+        [visualizer],
+        surface,
+        path="/water",
+        color=(0.1, 0.2, 0.8),
+        opacity=0.65,
+        use_cuda_graph=False,
+        backend_manager=backend_manager,
     )
 
     assert viewer.events == []

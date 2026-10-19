@@ -9,6 +9,7 @@ import gc
 import logging
 import re
 import traceback
+import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -205,6 +206,7 @@ class SimulationContext:
         reserve_cuda_graph_memory(self.cfg.device)
 
         self.backend_manager: PhysicsManager = self._physics.class_type()
+        """Physics backend manager selected by ``cfg.physics``, owned by this context."""
         # Must be set before backend_manager.initialize() so that any render callbacks
         # registered during initialize() (e.g. PhysxManager's headless video pump) succeed.
         self._render_callbacks: dict[str, tuple[int, Callable[[Any], None]]] = {}
@@ -308,6 +310,16 @@ class SimulationContext:
 
             physics_scene.CreateGravityDirectionAttr(Gf.Vec3f(*gravity_direction))
             physics_scene.CreateGravityMagnitudeAttr(gravity_magnitude)
+
+    @property
+    def physics_manager(self) -> PhysicsManager:
+        """Deprecated alias of :attr:`backend_manager`."""
+        warnings.warn(
+            "SimulationContext.physics_manager is deprecated; use SimulationContext.backend_manager.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.backend_manager
 
     @property
     def physics_sim_view(self):

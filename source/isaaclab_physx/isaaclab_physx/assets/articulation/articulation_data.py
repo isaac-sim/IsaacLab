@@ -73,15 +73,18 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: physx.ArticulationView, device: str, *, backend_manager: PhysxManager):
+    def __init__(self, root_view: physx.ArticulationView, device: str, *, backend_manager: PhysxManager | None = None):
         """Initializes the articulation data.
 
         Args:
             root_view: The root articulation view.
             device: The device used for processing.
             backend_manager: The PhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, device)
+        if backend_manager is None:
+            backend_manager = PhysxManager._deprecated_active("ArticulationData()")
         self._backend_manager = backend_manager
         # Set the root articulation view
         # note: this is stored as a weak reference to avoid circular references between the asset class

@@ -1401,27 +1401,23 @@ class NewtonManager(PhysicsManager):
 
     @abstractmethod
     def _build_solver(self, model: Model, solver_cfg) -> None:
-        """Construct the solver this manager owns and assign it onto the base class.
+        """Construct the solver this manager owns and populate its solver slots.
 
         Subclasses must populate the canonical :class:`NewtonManager` slots:
 
-        * :attr:`self._solver` — the constructed :class:`SolverBase`
+        * :attr:`NewtonManager._solver` — the constructed :class:`SolverBase`
           instance.
-        * :attr:`self._use_single_state` — ``True`` if the solver
+        * :attr:`NewtonManager._use_single_state` — ``True`` if the solver
           steps in-place on a single :class:`State` (e.g. MuJoCo); ``False``
           if it needs separate input/output states (e.g. XPBD, Featherstone,
           Kamino).
-        * :attr:`self._needs_collision_pipeline` — ``True`` if the
+        * :attr:`NewtonManager._needs_collision_pipeline` — ``True`` if the
           manager owns Newton's :class:`CollisionPipeline` for contact
           generation; ``False`` if the solver runs internal collision
           detection (MuJoCo internal contacts, Kamino with its own detector).
-        * :attr:`self._supports_rigid_body_force_input` — ``True`` if
+        * :attr:`NewtonManager._supports_rigid_body_force_input` — ``True`` if
           the solver consumes external rigid-body forces from
           :attr:`State.body_f`; ``False`` otherwise.
-
-        Writing through ``self._foo`` (rather than ``self._foo``)
-        keeps the canonical state visible to external readers regardless of
-        which subclass is active.
 
         Args:
             model: Finalized Newton model the solver should run on.

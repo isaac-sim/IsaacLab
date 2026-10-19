@@ -28,8 +28,10 @@ class MPMObjectData(BaseDeformableObjectData):
         num_instances: int,
         device: str,
         *,
-        backend_manager: NewtonManager,
+        backend_manager: NewtonManager | None = None,
     ):
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("MPMObjectData()")
         self._backend_manager = backend_manager
         super().__init__(device)
         self._particle_offsets = particle_offsets

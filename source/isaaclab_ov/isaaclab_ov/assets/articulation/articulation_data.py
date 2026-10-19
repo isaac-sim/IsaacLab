@@ -86,7 +86,7 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, view: OvPhysxView, device: str, *, backend_manager: OvPhysxManager) -> None:
+    def __init__(self, view: OvPhysxView, device: str, *, backend_manager: OvPhysxManager | None = None) -> None:
         """Initialize the articulation data container.
 
         Args:
@@ -98,8 +98,11 @@ class ArticulationData(BaseArticulationData):
                 construction.
             device: Simulation device string (e.g., ``"cuda:0"`` or ``"cpu"``).
             backend_manager: The OVPhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view=None, device=device)
+        if backend_manager is None:
+            backend_manager = OvPhysxManager._deprecated_active("ArticulationData()")
         self._backend_manager = backend_manager
         self._view = view
 

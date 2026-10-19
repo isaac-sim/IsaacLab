@@ -91,6 +91,14 @@ class _FakeModel:
     particle_count: int = 3
 
 
+def _set_active_solver_cfg(monkeypatch, solver_cfg) -> None:
+    """Make class-level builder hooks read *solver_cfg* from the active simulation configuration."""
+    from isaaclab.sim import SimulationContext
+
+    sim = SimpleNamespace(cfg=SimpleNamespace(physics=SimpleNamespace(solver_cfg=solver_cfg)))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+
+
 def _float_array(size: int, value: float) -> _FakeArray:
     return _FakeArray(np.full(size, value, dtype=np.float32))
 
@@ -568,7 +576,7 @@ def test_nested_solvers_register_their_builder_attributes(monkeypatch):
             CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg()),
         ]
     )
-    monkeypatch.setattr(coupler, "_active_coupler_cfg", lambda: solver_cfg)
+    _set_active_solver_cfg(monkeypatch, solver_cfg)
 
     NewtonCouplerManager._register_builder_attributes(builder)
 
@@ -589,7 +597,7 @@ def test_nested_solver_scopes_mujoco_joint_properties(
     """A coupler imports MuJoCo properties only when a nested solver consumes them."""
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=entry_solver_cfg)])
     physics_cfg = NewtonCfg(solver_cfg=solver_cfg)
-    monkeypatch.setattr(coupler, "_active_coupler_cfg", lambda: physics_cfg.solver_cfg)
+    _set_active_solver_cfg(monkeypatch, physics_cfg.solver_cfg)
 
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World")

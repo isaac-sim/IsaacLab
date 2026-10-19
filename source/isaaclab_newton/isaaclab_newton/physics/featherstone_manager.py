@@ -34,7 +34,7 @@ class NewtonFeatherstoneManager(NewtonManager):
         )
 
     def _build_solver(self, model: Model, solver_cfg: FeatherstoneSolverCfg) -> None:
-        """Construct :class:`SolverFeatherstone` and populate the base-class slots.
+        """Construct :class:`SolverFeatherstone` and populate the solver slots.
 
         Featherstone always uses Newton's :class:`CollisionPipeline` and steps
         with separate input/output states, so the flags are fixed.

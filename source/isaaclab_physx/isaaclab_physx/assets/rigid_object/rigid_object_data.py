@@ -63,15 +63,18 @@ class RigidObjectData(BaseRigidObjectData):
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object data."""
 
-    def __init__(self, root_view: physx.RigidBodyView, device: str, *, backend_manager: PhysxManager):
+    def __init__(self, root_view: physx.RigidBodyView, device: str, *, backend_manager: PhysxManager | None = None):
         """Initializes the rigid object data.
 
         Args:
             root_view: The root rigid body view.
             device: The device used for processing.
             backend_manager: The PhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, device)
+        if backend_manager is None:
+            backend_manager = PhysxManager._deprecated_active("RigidObjectData()")
         self._backend_manager = backend_manager
         # Set the root rigid body view
         # note: this is stored as a weak reference to avoid circular references between the asset class

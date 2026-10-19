@@ -7,11 +7,14 @@
 
 from __future__ import annotations
 
+import functools
 import logging
+import warnings
 import weakref
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from enum import Enum
+from types import FunctionType
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from ..sim.utils.stage import get_current_stage
@@ -66,7 +69,67 @@ class CallbackHandle:
         self._manager.deregister_callback(self._id)
 
 
-class PhysicsManager(ABC):
+def _active_manager(cls: type[PhysicsManager]) -> PhysicsManager | None:
+    """Return the active simulation's manager if it is an instance of *cls*."""
+    from ..sim.simulation_context import SimulationContext  # noqa: PLC0415
+
+    manager = getattr(SimulationContext.instance(), "backend_manager", None)
+    return manager if isinstance(manager, cls) else None
+
+
+def _is_instance_method(cls: type, name: str) -> bool:
+    """Whether *name* resolves to a plain function (not a class or static method) on *cls*."""
+    for klass in type.__getattribute__(cls, "__mro__"):
+        if name in klass.__dict__:
+            return isinstance(klass.__dict__[name], FunctionType)
+    return False
+
+
+class _PhysicsManagerMeta(ABCMeta):
+    """Forward deprecated class-level runtime access to the active simulation's manager.
+
+    Runtime methods and state are per instance. Class-level calls such as ``NewtonManager.get_model()`` keep
+    working with a :class:`DeprecationWarning` by binding to ``SimulationContext.instance().backend_manager``.
+    Instance access and explicit unbound calls with any manager (``Manager.method(manager, ...)``) are unaffected.
+    """
+
+    def __getattribute__(cls, name: str) -> Any:
+        attr = super().__getattribute__(name)
+        if name[0] == "_" or not isinstance(attr, FunctionType) or not _is_instance_method(cls, name):
+            return attr
+
+        @functools.wraps(attr)
+        def forward(*args, **kwargs):
+            if args and isinstance(args[0], PhysicsManager):
+                return attr(*args, **kwargs)
+            manager = _active_manager(cls)
+            if manager is None:
+                raise TypeError(f"{cls.__name__}.{name}() is an instance method; call it on sim.backend_manager.")
+            warnings.warn(
+                f"Class-level {cls.__name__}.{name}() is deprecated; call it on the simulation's manager instance"
+                f" (sim.backend_manager.{name}()).",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return attr(manager, *args, **kwargs)
+
+        return forward
+
+    def __getattr__(cls, name: str) -> Any:
+        # Instance state read on the class, such as ``views``.
+        manager = None if name[0] == "_" else _active_manager(cls)
+        if manager is None or name not in vars(manager):
+            raise AttributeError(f"type object {cls.__name__!r} has no attribute {name!r}")
+        warnings.warn(
+            f"Class-level {cls.__name__}.{name} is deprecated; read it from the simulation's manager instance"
+            f" (sim.backend_manager.{name}).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return vars(manager)[name]
+
+
+class PhysicsManager(metaclass=_PhysicsManagerMeta):
     """Abstract base class for physics simulation managers.
 
     Physics managers handle the lifecycle of a physics simulation backend,
@@ -92,6 +155,40 @@ class PhysicsManager(ABC):
         self._callback_id: int = 0
         self.views: dict[str, Any] = {}
         """Backend views by prim path expression, shared by the consumers of this manager."""
+
+    @classmethod
+    def _deprecated_active(cls, owner: str) -> PhysicsManager:
+        """Return the active simulation's manager for a caller that omitted it, with a deprecation warning.
+
+        Args:
+            owner: Name of the API that now takes the manager, used in the warning.
+
+        Returns:
+            The active simulation's manager.
+
+        Raises:
+            RuntimeError: If no active simulation uses a manager of this class.
+        """
+        manager = _active_manager(cls)
+        if manager is None:
+            raise RuntimeError(f"{owner} requires backend_manager: no active {cls.__name__} simulation.")
+        warnings.warn(
+            f"Calling {owner} without backend_manager is deprecated; pass the simulation's manager"
+            " (sim.backend_manager).",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return manager
+        manager = _active_manager(cls)
+        if manager is None:
+            raise RuntimeError(f"{owner} requires backend_manager: no active {cls.__name__} simulation.")
+        warnings.warn(
+            f"Calling {owner} without backend_manager is deprecated; pass the simulation's manager"
+            " (sim.backend_manager).",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return manager
 
     clone_context_type: ClassVar[type[ReplicateContext] | None] = None
 
@@ -571,12 +668,23 @@ class PhysicsManager(ABC):
         return "torch" if "cuda" in self._device else "numpy"
 
     @staticmethod
-    def safe_callback_invoke(fn: Callable, *args, backend_manager: PhysicsManager | None = None) -> None:
+    def safe_callback_invoke(
+        fn: Callable,
+        *args,
+        backend_manager: PhysicsManager | None = None,
+        physics_manager: PhysicsManager | None = None,
+    ) -> None:
         """Invoke a callback, catching exceptions that would be swallowed by external event buses.
 
         Ignores ``ReferenceError`` (from garbage-collected weakref proxies). All other
         exceptions are forwarded to *backend_manager*.``store_callback_exception`` when
         available (see note below), or re-raised immediately otherwise.
+
+        Args:
+            fn: Callback to invoke.
+            *args: Positional arguments for *fn*.
+            backend_manager: Manager that stores swallowed exceptions, if any.
+            physics_manager: Deprecated alias of *backend_manager*.
 
         Note (Octi):
             The carb event bus used by PhysX/Omniverse silently swallows exceptions raised
@@ -586,6 +694,13 @@ class PhysicsManager(ABC):
             propagate normally — so ``store_callback_exception`` is not called for them.
             This is a known wart; a cleaner solution is actively being explored.
         """
+        if physics_manager is not None:
+            warnings.warn(
+                "safe_callback_invoke(physics_manager=...) is deprecated; use backend_manager.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            backend_manager = physics_manager
         try:
             fn(*args)
         except ReferenceError:

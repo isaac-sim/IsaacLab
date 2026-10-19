@@ -15,6 +15,7 @@ import warp as wp
 from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
 
 if TYPE_CHECKING:
+    from isaaclab_newton.physics import NewtonManager
     from newton.geometry import ParticleSurface
 
     from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -38,6 +39,7 @@ class ParticleSurfaceRenderer:
         opacity: float,
         roughness: float = 0.1,
         use_cuda_graph: bool = True,
+        backend_manager: NewtonManager | None = None,
     ) -> None:
         """Allocate reusable extraction storage and optionally capture its CUDA graph.
 
@@ -49,6 +51,8 @@ class ParticleSurfaceRenderer:
             opacity: Surface opacity in [0, 1].
             roughness: Surface roughness in [0, 1].
             use_cuda_graph: Capture extraction on CUDA when enabled.
+            backend_manager: Newton manager whose particle state is reconstructed. Defaults to the active
+                simulation's manager (deprecated; pass it explicitly).
 
         Raises:
             RuntimeError: If no Kit, Newton GL or RTX visualizer is active.
@@ -80,9 +84,10 @@ class ParticleSurfaceRenderer:
         if not self._visualizers and self._kit_mesh is None:
             raise RuntimeError("Particle surface rendering requires a Kit, Newton GL or RTX visualizer.")
 
-        from isaaclab.sim import SimulationContext
+        from isaaclab_newton.physics import NewtonManager
 
-        backend_manager = SimulationContext.instance().backend_manager
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("ParticleSurfaceRenderer()")
         self._model = backend_manager.get_model()
         self._state = backend_manager.get_state_0()
         self._surface = surface

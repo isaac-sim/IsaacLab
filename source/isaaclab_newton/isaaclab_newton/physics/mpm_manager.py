@@ -253,7 +253,7 @@ class NewtonMPMManager(NewtonManager):
         return SolverImplicitMPM(model, config, temporary_store=TemporaryStore())
 
     def _build_solver(self, model: Model, solver_cfg: MPMSolverCfg) -> None:
-        """Construct :class:`SolverImplicitMPM` and populate the base-class slots.
+        """Construct :class:`SolverImplicitMPM` and populate the solver slots.
 
         MPM steps in-place on a single :class:`State` and runs collision
         handling internally, so it neither double-buffers state nor drives
@@ -417,7 +417,7 @@ class NewtonMPMManager(NewtonManager):
         :meth:`_build_solver` sets :attr:`_project_outside_colliders` from the
         active config. Resetting it here keeps a teardown-only :meth:`clear`
         (without a follow-up rebuild) from leaving a stale value on the class,
-        mirroring how :meth:`self.clear` resets the base-class flags.
+        mirroring how :meth:`NewtonManager.clear` resets the base-class flags.
         """
         self._project_outside_colliders = False
         self._implicit_mpm_solver_root = None

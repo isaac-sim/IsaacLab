@@ -600,6 +600,10 @@ class OvPhysxManager(PhysicsManager):
                         self._sim = sim
                         raise
                     self.backend = None
+                    # Keep the exit hook while a retry is possible; drop it so closed managers are not retained.
+                    if self._atexit_registered:
+                        atexit.unregister(self._close_at_exit)
+                        self._atexit_registered = False
             finally:
                 self._stage_usda = None
                 self._warmup_done = False

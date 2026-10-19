@@ -1083,24 +1083,17 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager():
 # ---------------------------------------------------------------------------
 
 
-def test_clear_resets_rigid_body_force_capability():
-    """Teardown clears the canonical solver capability without subclass shadowing."""
-    for manager_cls in (
-        NewtonMJWarpManager,
-        NewtonXPBDManager,
-        NewtonVBDManager,
-        NewtonFeatherstoneManager,
-        NewtonKaminoManager,
-        NewtonMPMManager,
-    ):
-        manager = manager_cls()
-        manager._supports_rigid_body_force_input = True
-        manager._num_envs = 4
+@pytest.mark.parametrize("manager_cls", [NewtonMJWarpManager, NewtonMPMManager])
+def test_clear_resets_rigid_body_force_capability(manager_cls):
+    """Teardown clears the canonical solver capability, including through MPM's solver-specific clear."""
+    manager = manager_cls()
+    manager._supports_rigid_body_force_input = True
+    manager._num_envs = 4
 
-        manager.clear()
+    manager.clear()
 
-        assert manager._supports_rigid_body_force_input is False
-        assert manager._num_envs is None
+    assert manager._supports_rigid_body_force_input is False
+    assert manager._num_envs is None
 
 
 def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):

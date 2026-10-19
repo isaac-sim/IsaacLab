@@ -13,6 +13,7 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
+import warnings
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager
 from functools import wraps
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 
     from ..physics import PhysicsManager
     from ..renderers.render_context import RenderContext
+    from ..utils.string import ResolvableString
     from .schema import MeanStd
 
 
@@ -86,7 +88,7 @@ def profile_renderers(
 
 @contextmanager
 def profile_physics_steps(
-    backend_manager: PhysicsManager,
+    backend_manager: PhysicsManager | type[PhysicsManager] | ResolvableString,
     *,
     active: bool = True,
     timings: list[tuple[str, float]] | None = None,
@@ -99,7 +101,8 @@ def profile_physics_steps(
     Enabled timings synchronize device work on entry and exit and perturb throughput.
 
     Args:
-        backend_manager: Physics manager instance selected by the environment.
+        backend_manager: Physics manager instance selected by the environment. A manager class or its lazy
+            class reference is deprecated and resolves to the active simulation's manager.
         active: Whether to install the timing wrapper.
         timings: Shared list of scope names and elapsed times [ms], in call order.
             A new list is created if omitted. Timings are collected without printing.
@@ -115,6 +118,16 @@ def profile_physics_steps(
 
     import warp as wp  # noqa: PLC0415
 
+    from ..physics import PhysicsManager  # noqa: PLC0415
+    from ..sim import SimulationContext  # noqa: PLC0415
+
+    if not isinstance(backend_manager, PhysicsManager):
+        warnings.warn(
+            "Passing a manager class to profile_physics_steps() is deprecated; pass sim.backend_manager.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        backend_manager = SimulationContext.instance().backend_manager
     step = backend_manager.step
     missing = object()
     original = vars(backend_manager).get("step", missing)

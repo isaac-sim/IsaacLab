@@ -88,14 +88,17 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "newton"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, root_view: ArticulationView, device: str, *, backend_manager: NewtonManager):
+    def __init__(self, root_view: ArticulationView, device: str, *, backend_manager: NewtonManager | None = None):
         """Initializes the articulation data.
 
         Args:
             root_view: The root articulation view.
             device: The device used for processing.
             backend_manager: Newton physics manager that owns the simulation state.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("ArticulationData()")
         self._backend_manager = backend_manager
         super().__init__(root_view, device)
         # Set the root articulation view

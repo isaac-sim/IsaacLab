@@ -27,14 +27,15 @@ from isaaclab.benchmark.stepping import (
 
 
 @pytest.mark.parametrize(
-    ("active", "inherited", "fail"),
+    ("active", "fail", "pass_class"),
     [
         pytest.param(False, False, False, id="disabled"),
         pytest.param(True, False, False, id="enabled"),
-        pytest.param(True, True, True, id="inherited-failure"),
+        pytest.param(True, True, False, id="failure"),
+        pytest.param(True, False, True, id="deprecated-class"),
     ],
 )
-def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, inherited, fail):
+def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, active, fail, pass_class):
     """Profile complete steps once and restore the manager across failures and repeated runs."""
     import warp as wp
 
@@ -57,17 +58,23 @@ def test_profile_physics_steps_times_complete_step_once(monkeypatch, capsys, act
             if fail:
                 raise ValueError("step failed")
 
-    class InheritedManager(CoupledManager):
-        pass
+    manager = CoupledManager()
+    if pass_class:
+        from isaaclab.sim import SimulationContext
 
-    manager = (InheritedManager if inherited else CoupledManager)()
+        monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(backend_manager=manager))
     synchronize = Mock(wraps=wp.synchronize)
     monkeypatch.setattr(wp, "synchronize", synchronize)
 
     timings = []
     original_step = manager.step
     with pytest.raises(ValueError, match="step failed") if fail else nullcontext():
-        with profile_physics_steps(manager, active=active, timings=timings) as collected:
+        with (
+            pytest.warns(DeprecationWarning) if pass_class else nullcontext(),
+            profile_physics_steps(
+                CoupledManager if pass_class else manager, active=active, timings=timings
+            ) as collected,
+        ):
             assert collected is timings
             manager.step()
 

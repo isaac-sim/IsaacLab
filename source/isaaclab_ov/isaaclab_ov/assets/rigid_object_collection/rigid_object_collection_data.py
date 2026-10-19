@@ -62,7 +62,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         num_bodies: int,
         device: str,
         *,
-        backend_manager: OvPhysxManager,
+        backend_manager: OvPhysxManager | None = None,
     ):
         """Initializes the rigid object data.
 
@@ -73,8 +73,11 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
             backend_manager: The OVPhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, num_bodies, device)
+        if backend_manager is None:
+            backend_manager = OvPhysxManager._deprecated_active("RigidObjectCollectionData()")
         self._backend_manager = backend_manager
         # The view owns the fused bindings and the CPU/GPU device policy.
         self._view = root_view

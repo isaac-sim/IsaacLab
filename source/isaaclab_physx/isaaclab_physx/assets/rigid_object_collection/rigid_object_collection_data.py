@@ -63,7 +63,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     __backend_name__: str = "physx"
     """The name of the backend for the rigid object collection data."""
 
-    def __init__(self, root_view: physx.RigidBodyView, num_bodies: int, device: str, *, backend_manager: PhysxManager):
+    def __init__(
+        self,
+        root_view: physx.RigidBodyView,
+        num_bodies: int,
+        device: str,
+        *,
+        backend_manager: PhysxManager | None = None,
+    ):
         """Initializes the rigid object data.
 
         Args:
@@ -71,8 +78,11 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
             backend_manager: The PhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(root_view, num_bodies, device)
+        if backend_manager is None:
+            backend_manager = PhysxManager._deprecated_active("RigidObjectCollectionData()")
         self._backend_manager = backend_manager
         self.num_bodies = num_bodies
         # Set the root rigid body view

@@ -52,7 +52,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     __backend_name__: str = "newton"
     """The name of the backend for the rigid object collection data."""
 
-    def __init__(self, root_view: ArticulationView, num_bodies: int, device: str, *, backend_manager: NewtonManager):
+    def __init__(
+        self, root_view: ArticulationView, num_bodies: int, device: str, *, backend_manager: NewtonManager | None = None
+    ):
         """Initializes the rigid object collection data.
 
         Args:
@@ -61,7 +63,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
             backend_manager: Newton physics manager that owns the simulation state.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
+        if backend_manager is None:
+            backend_manager = NewtonManager._deprecated_active("RigidObjectCollectionData()")
         self._backend_manager = backend_manager
         super().__init__(root_view, num_bodies, device)
         self.num_bodies = num_bodies

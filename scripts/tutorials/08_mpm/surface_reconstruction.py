@@ -506,6 +506,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
         opacity=args_cli.surface_opacity,
         roughness=0.06,
         use_cuda_graph=not args_cli.disable_cuda_graph,
+        backend_manager=sim.backend_manager,
     )
 
 

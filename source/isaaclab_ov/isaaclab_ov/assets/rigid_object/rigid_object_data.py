@@ -64,7 +64,7 @@ class RigidObjectData(BaseRigidObjectData):
         device: str,
         check_shapes: bool = True,
         *,
-        backend_manager: OvPhysxManager,
+        backend_manager: OvPhysxManager | None = None,
     ):
         """Initializes the rigid object data.
 
@@ -79,8 +79,11 @@ class RigidObjectData(BaseRigidObjectData):
                 lazy reads. Defaults to ``True``; production callers thread this
                 from :attr:`~isaaclab.assets.AssetBaseCfg.disable_shape_checks`.
             backend_manager: The OVPhysX manager instance that owns the simulation.
+                Defaults to the active simulation's manager (deprecated; pass it explicitly).
         """
         super().__init__(view, device)
+        if backend_manager is None:
+            backend_manager = OvPhysxManager._deprecated_active("RigidObjectData()")
         self._backend_manager = backend_manager
         # The view owns the per-tensor-type bindings and the CPU/GPU device policy.
         self._view = view
