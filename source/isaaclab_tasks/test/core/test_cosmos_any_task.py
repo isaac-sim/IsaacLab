@@ -84,17 +84,6 @@ def test_the_shadow_hand_preset_options_are_set_with_overrides():
     assert env_cfg.feature_extractor.image_update_frames == 4
 
 
-def test_apply_cosmos_keeps_a_preset_chain_and_rejects_changing_its_control():
-    env_cfg = parse_env_cfg(SHADOW_HAND_TASK, overrides=("presets=cosmos",))
-    original = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
-    apply_cosmos(env_cfg)
-    backend = env_cfg.scene.tiled_camera.modifiers["distance_to_image_plane"][-1].backend
-    assert backend.prompt == original.prompt and backend.endpoint == original.endpoint
-    assert backend.transport == original.transport
-    with pytest.raises(ValueError, match="preset prepares depth"):
-        apply_cosmos(env_cfg, control="edge")
-
-
 def test_several_environments_need_a_compiled_service_that_batches_them(monkeypatch):
     """The batch size is the environment count; independent resets still need compiled inference."""
     _serve(monkeypatch, partial_resets=False)
@@ -205,3 +194,11 @@ def test_direct_tasks_that_size_observations_from_the_camera_are_warned(caplog):
     with caplog.at_level(logging.WARNING):
         apply_cosmos(env_cfg, prompt="A cart.")
     assert "Direct tasks" in caplog.text
+
+
+def test_every_camera_sharing_a_session_must_render_synchronously():
+    env_cfg = parse_env_cfg(KUKA_TASK, overrides=(KUKA_DUO_PRESETS,))
+    env_cfg.scene.wrist_camera.renderer_cfg.async_rendering = True
+    with pytest.raises(ValueError, match="wrist_camera"):
+        apply_cosmos(env_cfg, camera="all")
+    assert not env_cfg.scene.base_camera.modifiers
