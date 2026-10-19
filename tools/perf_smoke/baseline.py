@@ -156,11 +156,6 @@ def runtime_fps(bundle: dict) -> float | None:
         return None
 
 
-def has_usable_runtime(bundle: dict) -> bool:
-    """Whether a completed runtime sample has a finite, nonnegative FPS value."""
-    return bundle.get("run", {}).get("status") == "completed" and runtime_fps(bundle) is not None
-
-
 def workload_key(bundle: dict) -> str | None:
     """Shared workload identity, independent of metric formula and runtime versions."""
     try:
