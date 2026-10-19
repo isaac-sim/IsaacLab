@@ -146,7 +146,7 @@ class VisualizerCfg:
     backend: VisualizerBackendCfg | list[VisualizerBackendCfg] = []
     """Selected implementation(s); an empty list keeps the settings without opening a viewer.
 
-    Launch expands multiple selections into separate visualizers with the same common settings.
+    Each declaration expands independently: two views with two selected backends create four viewers.
     """
 
     view: ImageViewCfg | None = None

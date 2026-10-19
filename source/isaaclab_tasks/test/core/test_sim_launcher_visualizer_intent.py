@@ -14,12 +14,12 @@ import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher
 from isaaclab.sim import SimulationCfg
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
 import isaaclab_tasks.utils as task_utils
 from isaaclab_tasks.utils import resolve_presets, resolve_task_config, setup_preset_cli
@@ -98,6 +98,7 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
 
     viewer = VisualizerCfg(max_visible_envs=3, backend=viewer)
     other = VisualizerCfg(max_visible_envs=5, backend=NewtonGLVisualizerCfg())
+    windows = [WindowCfg(size=(640, 480)), WindowCfg(size=(800, 600))]
     for declaration, overrides, expected in (
         ([viewer, other], ["visualizer=newton_gl"], [viewer, other]),
         (
@@ -109,6 +110,14 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
             VisualizerCfg(max_visible_envs=3, backend=MultiBackendVisualizerCfg(newton_gl=viewer.backend)),
             ["visualizer=kit", "env.sim.visualizer_cfgs.backend=newton_gl"],
             [viewer],
+        ),
+        (
+            [VisualizerCfg(window=window, backend=MultiBackendVisualizerCfg()) for window in windows],
+            ["visualizer=newton_gl,newton_rtx"],
+            [
+                VisualizerCfg(window=window, backend=[NewtonGLVisualizerCfg(), NewtonRTXVisualizerCfg()])
+                for window in windows
+            ],
         ),
     ):
         env_cfg = SimpleNamespace(sim=SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=declaration))

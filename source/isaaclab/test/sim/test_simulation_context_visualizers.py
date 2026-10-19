@@ -25,7 +25,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
-from isaaclab.app import SimulationLauncher, launch_simulation
+from isaaclab.app import SimulationLauncher, launch_simulation, validate_launch
 from isaaclab.cloner import ReplicateContext
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.physics import PhysicsCfg
@@ -853,19 +853,23 @@ def test_common_visualizer_settings_survive_backend_selection(monkeypatch):
         window=WindowCfg(size=(640, 480), fps=60),
     )
     assert vars(common).keys().isdisjoint(vars(NewtonGLVisualizerCfg()))
-    sim_cfg = SimulationCfg(physics=PhysicsCfg(), device="cpu", visualizer_cfgs=common)
+    other = common.replace(eye=(8.0, 0.0, 2.0), window=WindowCfg(size=(800, 600), fps=30))
+    sim_cfg = SimulationCfg(physics=PhysicsCfg(), device="cpu", visualizer_cfgs=[common, other])
+    validate_launch(sim_cfg, {"visualizer": ["newton_gl", "newton_rtx"]})
     with launch_simulation(sim_cfg, {"visualizer": ["newton_gl", "newton_rtx"]}):
         ctx = _make_context_with_settings({}, visualizer_cfgs=sim_cfg.visualizer_cfgs)
 
     ctx._create_visualizers()
     cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
-    assert [cfg.backend.visualizer_type for cfg in cfgs] == ["newton_gl", "newton_rtx"]
-    for cfg in cfgs:
+    assert [cfg.backend.visualizer_type for cfg in cfgs] == ["newton_gl", "newton_gl", "newton_rtx", "newton_rtx"]
+    for cfg, declaration in zip(cfgs, [common, other, common, other], strict=True):
         assert cfg.max_visible_envs == 16
-        assert cfg.background_color == common.background_color
-        assert cfg.window == common.window
+        assert cfg.background_color == declaration.background_color
+        assert cfg.eye == declaration.eye
+        assert cfg.window == declaration.window
     cfgs[0].window.fps = 20
-    assert cfgs[1].window.fps == common.window.fps == 60
+    assert cfgs[2].window.fps == common.window.fps == 60
+    assert cfgs[1].window.fps == cfgs[3].window.fps == other.window.fps == 30
 
 
 def test_is_rendering_true_when_only_cfg_visualizer_is_set():

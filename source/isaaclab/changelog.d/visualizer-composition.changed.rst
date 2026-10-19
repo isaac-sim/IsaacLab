@@ -4,5 +4,7 @@
   of backend configs; custom backend configs now inherit ``VisualizerBackendCfg``. Used the common
   1920-by-1080 window default and explicit ``streaming_view=True`` for automatic camera discovery.
   ``backend`` accepted a single configuration or list; use ``[]`` instead of ``None`` for no selected viewer.
+  Kept multiple view declarations independent: two views with ``--viz=newton_gl,newton_rtx`` opened
+  four windows, preserving each view's camera and window settings.
 * **Breaking:** Restricted the teapot-fill demo to Newton GL and removed its Kit/RTX viewer setup.
   Omit ``--visualizer`` or use ``--visualizer newton_gl``; use the surface-reconstruction tutorial for RTX rendering.

@@ -381,6 +381,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   then call ``isaaclab.app.launch_simulation`` directly. Do not add another launcher to hide preset composition.
   Preserve the distinction between available preset alternatives and a list of active backends;
   do not replace one with the other to avoid a configuration boundary.
+  Keep view declarations separate from backend selections: select backends for each declared view,
+  preserving its camera and window settings rather than using the first view as a global template.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
   not import renderer implementations or manipulate their attachment state.

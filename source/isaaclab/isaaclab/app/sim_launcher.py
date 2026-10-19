@@ -236,6 +236,8 @@ def validate_launch(  # noqa: C901
         for viewer in node.visualizer_cfgs:
             if isinstance(viewer.backend, list) and viewer.backend:
                 viewers.extend(viewer.replace(backend=backend) for backend in viewer.backend)
+            elif not viewer.backend and selection:
+                viewers.extend(viewer.replace(backend=visualizer_types[name]()) for name in selection)
             else:
                 viewers.append(viewer)
         node.visualizer_cfgs = viewers

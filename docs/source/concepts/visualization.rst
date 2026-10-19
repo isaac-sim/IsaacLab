@@ -186,6 +186,21 @@ One ``VisualizerCfg`` supplies the common settings for every selected backend. S
 Backend-specific options are available when needed, but ordinary configuration uses the unchanged
 ``MultiBackendVisualizerCfg()`` declaration.
 
+Use a list of ``VisualizerCfg`` declarations for different views or window sizes. Backend selection
+applies to each declaration independently. For example, a task with these two views opens four
+windows with ``--viz=newton_gl,newton_rtx``: one GL and one RTX window per view.
+
+.. code-block:: python
+
+   visualizer_cfgs = [
+       VisualizerCfg(
+           eye=(4.0, -4.0, 3.0), window=WindowCfg(size=(640, 480)), backend=MultiBackendVisualizerCfg(),
+       ),
+       VisualizerCfg(
+           eye=(8.0, 0.0, 2.0), window=WindowCfg(size=(800, 600)), backend=MultiBackendVisualizerCfg(),
+       ),
+   ]
+
 Keep ``MultiBackendVisualizerCfg`` when declaring available alternatives. A list of concrete backend
 configs declares active viewers, so replacing the preset with a list changes the default behavior.
 
