@@ -19,6 +19,7 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from .contract import workload_identity
@@ -70,8 +71,6 @@ class GitHubClient:
                 response = urllib.request.urlopen(urllib.request.Request(destination), timeout=_REQUEST_TIMEOUT_SECONDS)
             with response:
                 return response.read()
-        except EvidenceError:
-            raise
         except urllib.error.HTTPError as exc:
             code = "expired" if exc.code == 410 else "inaccessible"
             raise EvidenceError(code, f"GitHub evidence request failed (HTTP {exc.code})") from None
@@ -159,8 +158,11 @@ def is_commit_sha(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{40}", value) is not None
 
 
-def valid_fps(value: Any) -> float | None:
-    """Read a finite, nonnegative numeric FPS value, excluding booleans."""
+def runtime_fps(bundle: dict) -> float | None:
+    """Read a sample's finite, nonnegative numeric FPS value, excluding booleans."""
+    runtime = bundle.get("runtime")
+    fps = runtime.get("total_fps") if isinstance(runtime, dict) else None
+    value = fps.get("mean") if isinstance(fps, dict) else None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     try:
@@ -171,9 +173,7 @@ def valid_fps(value: Any) -> float | None:
 
 def has_usable_runtime(bundle: dict) -> bool:
     """Whether a completed runtime sample has a finite, nonnegative FPS value."""
-    fps = bundle.get("runtime", {}).get("total_fps")
-    value = fps.get("mean") if isinstance(fps, dict) else None
-    return bundle.get("run", {}).get("status") == "completed" and valid_fps(value) is not None
+    return bundle.get("run", {}).get("status") == "completed" and runtime_fps(bundle) is not None
 
 
 def workload_key(bundle: dict) -> str | None:
@@ -184,8 +184,10 @@ def workload_key(bundle: dict) -> str | None:
         return None
 
 
-def download_artifact(client: GitHubClient, artifact: dict) -> tuple[bytes, dict[str, bytes]]:
-    """Download and validate an artifact, retaining its exact ZIP and decoded files."""
+def download_artifact(
+    client: GitHubClient, artifact: dict, comparison_dir: Path | None = None
+) -> tuple[str, dict[str, bytes]]:
+    """Download and validate an artifact, retaining its ZIP digest and decoded files."""
     data = client.download(artifact)
     digest = hashlib.sha256(data).hexdigest()
     if artifact.get("digest") and artifact["digest"].lower() != f"sha256:{digest}":
@@ -201,7 +203,11 @@ def download_artifact(client: GitHubClient, artifact: dict) -> tuple[bytes, dict
                 if entry.filename in files:
                     raise EvidenceError("corrupt", "Artifact ZIP contains duplicate file names")
                 files[entry.filename] = archive.read(entry)
-            return data, files
+            if comparison_dir is not None:
+                for name in files:
+                    if Path(name).name == "comparison.json":
+                        archive.extract(name, comparison_dir)
+            return digest, files
     except (zipfile.BadZipFile, RuntimeError, OSError) as exc:
         raise EvidenceError("corrupt", f"Artifact ZIP could not be read ({type(exc).__name__})") from None
 
@@ -239,7 +245,8 @@ def read_evidence(
     attempt: int,
     *,
     artifact_name: str | None = None,
-    contents: tuple[bytes, dict[str, bytes]] | None = None,
+    contents: tuple[str, dict[str, bytes]] | None = None,
+    comparison_dir: Path | None = None,
 ) -> Evidence:
     """Download one exact producing attempt; do not discard failed or missing legs."""
     run_id = run["id"]
@@ -260,7 +267,7 @@ def read_evidence(
         "branch": run.get("head_branch"),
     }
     try:
-        data, files = contents if contents is not None else download_artifact(client, artifact)
+        digest, files = contents if contents is not None else download_artifact(client, artifact, comparison_dir)
     except EvidenceError as exc:
         identity.update(_github_links(identity))
         raise EvidenceError(exc.code, str(exc), identity) from None
@@ -340,7 +347,7 @@ def read_evidence(
                 )
     identity.update(
         artifact_id=artifact["id"],
-        sha256=hashlib.sha256(data).hexdigest(),
+        sha256=digest,
         source_commit=commit,
         tested_commit=source.get("commit"),
         requested_head_commit=source.get("requested_head_commit"),
@@ -393,9 +400,11 @@ def resolve_candidate_artifact(client: GitHubClient, run_id: int, report_attempt
     raise EvidenceError("missing_candidate", "No producing benchmark artifact is available for this workflow run")
 
 
-def resolve_candidate(client: GitHubClient, run_id: int, report_attempt: int) -> Evidence:
+def resolve_candidate(
+    client: GitHubClient, run_id: int, report_attempt: int, comparison_dir: Path | None = None
+) -> Evidence:
     """Read the measured attempt shared by the paired report and rolling-history gate."""
     run, artifact, attempt = resolve_candidate_artifact(client, run_id, report_attempt)
-    result = read_evidence(client, run, artifact, attempt)
+    result = read_evidence(client, run, artifact, attempt, comparison_dir=comparison_dir)
     result.identity["report_attempt"] = report_attempt
     return result

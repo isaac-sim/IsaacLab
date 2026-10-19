@@ -146,18 +146,22 @@ def _build_text(value: object) -> str:
     return result
 
 
+def _build_commit(repository: str, commit: object) -> str:
+    label = _build_text(str(commit or "unknown")[:12])
+    if re.fullmatch(r"[\w.-]+/[\w.-]+", repository) and re.fullmatch(r"[0-9a-fA-F]{40}", str(commit)):
+        return f"[{label}](https://github.com/{repository}/commit/{commit})"
+    return label
+
+
 def _build_identity(label: str, identity: dict | None) -> str:
     if not identity:
         return f"**{label}:** unavailable."
-    commit = _build_text(str(identity.get("source_commit", "unknown"))[:12])
     run = _build_text(identity.get("run_id", "unknown"))
     attempt = _build_text(identity.get("run_attempt", "unknown"))
     # Rebuild links because URLs supplied by artifacts may be unsafe.
     repository = identity.get("repository", "")
     origin = f"https://github.com/{repository}" if re.fullmatch(r"[\w.-]+/[\w.-]+", repository) else None
-    source = commit
-    if origin and re.fullmatch(r"[0-9a-fA-F]{40}", str(identity.get("source_commit", ""))):
-        source = f"[{commit}]({origin}/commit/{identity['source_commit']})"
+    source = _build_commit(repository, identity.get("source_commit"))
     execution = f"run {run}, attempt {attempt}"
     run_url = None
     if origin and all(str(identity.get(field, "")).isdigit() for field in ("run_id", "run_attempt")):
@@ -183,32 +187,6 @@ def _build_result(row: dict) -> str:
     if row["absolute_change"] < 0:
         return "🔴 Regressed"
     return "⚪ Unchanged"
-
-
-def _build_reason(row: dict) -> str:
-    if row["status"] == "compared":
-        delta = row.get("absolute_change")
-        if delta is None:
-            return "Cannot compare: change unavailable"
-        if delta > 0:
-            return "↑ Higher FPS"
-        if delta < 0:
-            return "↓ Lower FPS"
-        return "Unchanged"
-    if row["status"] in ("missing", "partial"):
-        affected = [
-            label
-            for side, label in (("baseline", "Baseline"), ("candidate", "Current"))
-            if row[side]["status"] == row["status"]
-        ]
-        subject = " and ".join(affected) or "Benchmark"
-        if row["status"] == "missing":
-            return f"No {subject.lower()} samples"
-        return subject + " results incomplete"
-    return {
-        "unknown": "Cannot compare: measurement details unknown",
-        "incompatible": "Cannot compare: measurement setup differs",
-    }.get(row["status"], f"Cannot compare: {row['status']}")
 
 
 def _build_fps(value: float | None) -> str:
@@ -280,10 +258,7 @@ def _build_source_diagnostics(report: dict) -> list[str]:
 def _build_candidate_label(report: dict, identity: dict | None) -> str:
     if (identity or {}).get("source_provenance") == "github_run_metadata":
         return "B — PR revision (not verified)"
-    return {
-        "merge": "B — PR merge result",
-        "head": "B — PR head",
-    }.get(report.get("candidate_kind"), "B — PR benchmark")
+    return "B — PR merge result" if report.get("candidate_kind") == "merge" else "B — PR benchmark"
 
 
 def _build_primary_rows(rows: list[dict], failure: dict | None) -> list[dict]:
@@ -346,7 +321,7 @@ def render_build_comparison(report: dict) -> str:
         ]
     lines += [
         "<details>",
-        "<summary>Builds and source results</summary>",
+        "<summary>Sources and comparison details</summary>",
         "",
         _build_identity(a_label, identities["baseline"]),
         "",
@@ -358,31 +333,18 @@ def render_build_comparison(report: dict) -> str:
     if isinstance(selection.get("baseline_reused"), bool):
         measurement_status = "reused." if selection["baseline_reused"] else "run for this PR."
         lines += ["Baseline measurements: " + (measurement_status if report.get("baseline") else "unavailable."), ""]
-    if selection.get("baseline_origin"):
-        lines += [_build_identity("Baseline measurement origin", selection["baseline_origin"]), ""]
     measurement_sources = report.get("measurement_sources", {})
     if measurement_sources:
-        lines += [
-            "Measurement code: the tested PR's benchmark package and timer, applied to both workload revisions.",
-            "",
-        ]
+        lines += ["Measurement sources (commit · SHA-256):", ""]
         for side, label in (("baseline", "A"), ("candidate", "B")):
             measurement = measurement_sources.get(side)
             if measurement:
-                identity = {
-                    **(identities[side] or {}),
-                    "source_commit": measurement.get("commit"),
-                    "requested_head_commit": None,
-                }
-                lines += [
-                    _build_identity(f"{label} measurement source", identity),
-                    "",
-                    f"Measurement SHA-256: `{_build_text(measurement.get('digest'))}`.",
-                    "",
-                ]
-    if selection.get("reference_branch"):
-        anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
-        lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]
+                repository = (identities[side] or {}).get("repository", report.get("repository", ""))
+                lines.append(
+                    f"- {label}: {_build_commit(repository, measurement.get('commit'))} · "
+                    f"`{_build_text(measurement.get('digest'))}`"
+                )
+        lines.append("")
     lines += _build_source_diagnostics(report)
     candidate = report.get("candidate") or {}
     if candidate.get("run_attempt") and report.get("report_attempt") != candidate["run_attempt"]:
@@ -391,59 +353,29 @@ def render_build_comparison(report: dict) -> str:
             f"report: attempt {_build_text(report.get('report_attempt'))}.",
             "",
         ]
-    if selection.get("reason_code"):
-        lines += ["**Comparison unavailable:** " + _build_text(selection["reason_code"]) + ".", ""]
     for issue in selection.get("issues", []):
-        lines.append("- Selection note: " + _build_text(json.dumps(issue, sort_keys=True)))
-    lines += [
-        "",
-        "</details>",
-        "",
-        "<details>",
-        "<summary>Samples, environment and diagnostic details</summary>",
-        "",
-    ]
+        lines.append("- Selection note: " + _build_text(issue))
     if rows:
-        lines += [
-            "Sample counts are valid/expected for baseline A and current B.",
-            "",
-            "| Workload | Samples A / B | Δ FPS (B − A) |",
-            "| --- | --- | ---: |",
-        ]
-    detail_workloads: dict[str, list[str]] = {}
+        lines += ["", "**Workloads — samples A / B (valid/expected):**", ""]
     for label, row in zip(labels, rows):
         counts = []
         for side in ("baseline", "candidate"):
             item = row[side]
             expected = item.get("expected_count")
             counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
-        details = [_build_reason(row), *row.get("reasons", []), *row.get("notes", [])]
-        for difference in row.get("protocol_differences", []) + row.get("context_differences", []):
-            details.append(
-                f"{difference['field']}: "
-                f"{json.dumps(difference['baseline'], sort_keys=True)} → "
-                f"{json.dumps(difference['candidate'], sort_keys=True)}"
-            )
-        for detail in dict.fromkeys(details):
-            detail_workloads.setdefault(detail, []).append(label)
-        delta = row.get("absolute_change")
-        absolute = "—" if delta is None else f"{delta:+.6g}"
-        lines.append(f"| {_build_text(label)} | {' / '.join(counts)} | {absolute} |")
-    if rows:
-        lines += ["", "**Workload identities:**", ""]
-        lines.extend(f"- **{_build_text(label)}:** {_build_text(row['label'])}" for label, row in zip(labels, rows))
-        lines += ["", "**FPS samples:**", ""]
-        for label, row in zip(labels, rows):
-            a = json.dumps(row["baseline"].get("samples", []))
-            b = json.dumps(row["candidate"].get("samples", []))
-            lines.append(f"- **{_build_text(label)}:** A {_build_text(a)}; B {_build_text(b)}")
-    if detail_workloads:
-        lines += ["", "**Comparison details:**", ""]
-        for detail, labels in detail_workloads.items():
-            applies_to = "All workloads" if len(labels) == len(rows) and len(rows) > 1 else "; ".join(labels)
-            lines.append(f"- **{_build_text(applies_to)}:** {_build_text(detail)}")
+        details = dict.fromkeys([*row.get("reasons", []), *row.get("notes", [])])
+        lines.append(
+            f"- **{_build_text(label)}:** {' / '.join(counts)} · {_build_text(row['label'])}. "
+            + " ".join(_build_text(detail) for detail in details)
+        )
     lines.append("")
     for note in dict.fromkeys(report.get("notes", [])):
         lines.append("- " + _build_text(note))
-    lines += ["", "</details>", ""]
+    lines += [
+        "",
+        "Full samples, environment differences and provenance are in `build-comparison.json`.",
+        "",
+        "</details>",
+        "",
+    ]
     return "\n".join(lines) + "\n"
