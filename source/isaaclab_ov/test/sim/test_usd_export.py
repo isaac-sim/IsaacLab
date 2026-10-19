@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 @pytest.mark.parametrize("num_envs,env_id", [(1, 0), (2, 1)])
 def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_envs, env_id):
     """Every exported value of a fresh OVPhysX import equals the live engine's, including config overrides."""
-    from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
+    from isaaclab_ov.physics import OvPhysxCfg
     from usd_export_read_import import read, read_import, readings
 
     from isaaclab.scene import InteractiveScene
@@ -37,8 +37,8 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
         output = scene.export_to_usd(str(tmp_path / "exported.usda"), env_id=env_id)
         stage = Usd.Stage.Open(output)
         articulations, bodies = physics_prims(stage)
-        live = readings(stage, read(OvPhysxManager.get_physx_instance(), articulations, bodies, "cpu"))
-        gravity = np.asarray(OvPhysxManager.get_gravity())
+        live = readings(stage, read(sim.backend_manager.get_physx_instance(), articulations, bodies, "cpu"))
+        gravity = np.asarray(sim.backend_manager.get_gravity())
     with ProcessPoolExecutor(max_workers=1, mp_context=multiprocessing.get_context("spawn")) as pool:
         imported = pool.submit(read_import, stage.Flatten().ExportToString(), articulations, bodies).result()
     loaded = readings(stage, imported)

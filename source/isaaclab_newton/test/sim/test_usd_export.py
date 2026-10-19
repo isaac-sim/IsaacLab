@@ -16,7 +16,7 @@ from pxr import Sdf, Usd, UsdPhysics
 
 def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=None):
     """Initialize the fixture scene, export it, and capture the live model for comparison."""
-    from isaaclab_newton.physics import NewtonCfg, NewtonManager
+    from isaaclab_newton.physics import NewtonCfg
 
     from isaaclab.scene import InteractiveScene
     from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -33,8 +33,9 @@ def _export(tmp_path, solver_cfg, device, num_envs=1, env_id=0, hinge_actuator=N
         scene = InteractiveScene(cfg)
         sim.reset()
         scene.export_to_usd(output, env_id=env_id)
-        live = _capture(NewtonManager.get_model(), NewtonManager.get_state_0().body_q, env_id)
-        solver_type = type(NewtonManager._solver)
+        manager = sim.backend_manager
+        live = _capture(manager.get_model(), manager.get_state_0().body_q, env_id)
+        solver_type = type(manager._solver)
     return output, live, solver_type
 
 

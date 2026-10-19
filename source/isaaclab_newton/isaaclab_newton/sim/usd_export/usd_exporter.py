@@ -86,7 +86,7 @@ class UsdExporter(BaseUsdExporter):
             Values to author so that :meth:`load_usd` reproduces the live model.
         """
         solver_cfg = self.scene.sim.cfg.physics.solver_cfg
-        model = NewtonManager.get_model()
+        model = self.scene.sim.backend_manager.get_model()
         gravity = model.gravity.numpy()
         gravity = gravity[self.env_id] if gravity.ndim == 2 else gravity
         edits = [
@@ -151,7 +151,7 @@ class UsdExporter(BaseUsdExporter):
         Returns:
             The finalized model.
         """
-        manager = cls._manager(solver_cfg)
+        manager = cls._manager(solver_cfg)()
         builder = newton.ModelBuilder()
         manager._register_builder_attributes(builder)
         # Tagged terrains become heightfields, as in Isaac Lab; the importer does not read their colliders.
@@ -211,7 +211,7 @@ class UsdExporter(BaseUsdExporter):
             if prim:
                 edits += self._mass_edits(prim, float(mass[body]), com[body], inertia[body])
         # Root bodies and world anchors are placed where initialization put them; joint state is not exported.
-        body_q, anchors = NewtonManager.get_state_0().body_q.numpy(), model.joint_X_p.numpy()
+        body_q, anchors = self.scene.sim.backend_manager.get_state_0().body_q.numpy(), model.joint_X_p.numpy()
         parents, children, types = model.joint_parent.numpy(), model.joint_child.numpy(), model.joint_type.numpy()
         for joint in self._selected(model.joint_world):
             if parents[joint] != -1:

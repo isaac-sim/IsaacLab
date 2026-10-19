@@ -45,7 +45,7 @@ def _read_import(stage, articulations, bodies) -> dict:
 @pytest.mark.parametrize("num_envs,env_id", [(1, 0), (2, 1)])
 def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_envs, env_id):
     """Every exported value of a PhysX import in a new process equals the live engine's."""
-    from isaaclab_physx.physics import PhysxCfg, PhysxManager
+    from isaaclab_physx.physics import PhysxCfg
     from usd_export_read_import import read, readings
 
     from isaaclab.scene import InteractiveScene
@@ -60,8 +60,8 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
         output = scene.export_to_usd(str(tmp_path / "exported.usda"), env_id=env_id)
         stage = Usd.Stage.Open(output)
         articulations, bodies = physics_prims(stage)
-        live = readings(stage, read(PhysxManager.get_physics_sim_view(), articulations, bodies))
-        gravity = np.asarray(PhysxManager.get_physics_sim_view().get_gravity())
+        live = readings(stage, read(sim.backend_manager.get_physics_sim_view(), articulations, bodies))
+        gravity = np.asarray(sim.backend_manager.get_gravity())
     loaded = readings(stage, _read_import(stage, articulations, bodies))
 
     hinge = live[f"/World/envs/env_{env_id}/Robot/Hinge", "angular"]
@@ -79,7 +79,7 @@ def test_importing_the_export_reproduces_the_initialized_engine(tmp_path, num_en
 
 def test_read_getters_cover_physx_views(tmp_path):
     """Every getter of the PhysX articulation and rigid-body views is compared by the round trip or excluded."""
-    from isaaclab_physx.physics import PhysxCfg, PhysxManager
+    from isaaclab_physx.physics import PhysxCfg
     from usd_export_read_import import ARTICULATION_GETTERS, RIGID_BODY_GETTERS
 
     from isaaclab.scene import InteractiveScene
@@ -141,7 +141,7 @@ def test_read_getters_cover_physx_views(tmp_path):
     with build_simulation_context(sim_cfg=SimulationCfg(device="cpu", physics=PhysxCfg())) as sim:
         InteractiveScene(cfg)
         sim.reset()
-        view = PhysxManager.get_physics_sim_view()
+        view = sim.backend_manager.get_physics_sim_view()
         getters = {
             name
             for cls in (

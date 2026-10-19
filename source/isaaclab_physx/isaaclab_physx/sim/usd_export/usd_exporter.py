@@ -23,9 +23,7 @@ class UsdExporter(PhysxUsdExporter):
     """Export an Isaac Sim PhysX scene environment: its USD plus every engine value the USD does not state."""
 
     def _read_rigid_body(self, path: str) -> dict[str, np.ndarray]:
-        from isaaclab_physx.physics import PhysxManager
-
-        view = PhysxManager.get_physics_sim_view().create_rigid_body_view(path)
+        view = self.scene.sim.backend_manager.get_physics_sim_view().create_rigid_body_view(path)
         values = {name: getattr(view, getter)() for name, getter in RIGID_BODY_GETTERS.items()}
         # The view returns NumPy or Warp arrays, depending on its tensor frontend.
         return {name: np.asarray(v.numpy() if hasattr(v, "numpy") else v)[0].copy() for name, v in values.items()}

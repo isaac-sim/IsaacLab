@@ -98,7 +98,7 @@ class PhysxUsdExporter(BaseUsdExporter):
                     }
                 )
         edits = [edit for edit in edits if edit is not None] + self._material_edits(stage, materials)
-        return edits + self._gravity_edits(stage, self.scene.sim.physics_manager.get_gravity())
+        return edits + self._gravity_edits(stage, self.scene.sim.backend_manager.get_gravity())
 
     @abstractmethod
     def _read_rigid_body(self, path: str) -> dict[str, np.ndarray]:
