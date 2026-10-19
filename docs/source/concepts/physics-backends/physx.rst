@@ -5,16 +5,12 @@
 
 .. _physx-backend:
 
-PhysX Backend (Isaac Sim)
-=========================
+Isaac Sim PhysX
+===============
 
-The PhysX backend runs NVIDIA PhysX inside Isaac Sim, on the Omniverse Kit
-runtime. Its integration lives in the ``isaaclab_physx`` package. This page
-explains how that package starts Kit, owns the simulation lifecycle, configures
-the PhysX scene, and exposes native PhysX data to Isaac Lab assets and sensors.
-For solver selection and tuning, see :ref:`physics-backends-physx` and
-:ref:`physx-solver-tuning`. For the kit-less PhysX path, see
-:ref:`ovphysx-backend`.
+The PhysX backend runs inside Isaac Sim through the ``isaaclab_physx`` package.
+See :ref:`physx-solver-tuning` for solver settings and tuning, or
+:ref:`ovphysx-backend` for PhysX without Kit.
 
 
 Selecting the backend
@@ -37,6 +33,45 @@ the task supports it, an :class:`~isaaclab_ov.physics.OvPhysxCfg`. When the
 simulation is launched, the auto configuration resolves to Isaac Sim PhysX if
 the run needs Kit, and otherwise to OvPhysX when one is configured. Use
 ``isaacsim_physx`` to require the Isaac Sim path.
+
+
+Scene configuration
+-------------------
+
+``PhysxCfg`` fields are written to the physics scene prim at
+:attr:`~isaaclab.sim.SimulationCfg.physics_prim_path`. The manager applies
+``PhysxSceneAPI`` and sets each remaining field as a ``physxScene:``
+attribute in camel case, for example ``gpu_max_rigid_contact_count`` becomes
+``physxScene:gpuMaxRigidContactCount``. Some fields are translated instead of
+copied:
+
+* ``solver_type`` becomes ``physxScene:solverType`` (``"TGS"`` or ``"PGS"``).
+* ``bounce_threshold_velocity`` becomes ``physxScene:bounceThreshold``.
+* The timestep becomes ``physxScene:timeStepsPerSecond``.
+* GPU simulation enables GPU dynamics and the GPU broadphase. CPU simulation
+  uses the MBP broadphase.
+* ``enable_ccd`` takes effect only on CPU. CCD is disabled with a warning when
+  GPU dynamics is enabled.
+* The backend-agnostic ``deterministic`` request enables
+  ``enable_enhanced_determinism``.
+* Scene query support follows ``SimulationCfg.enable_scene_query_support``
+  and is forced on when Kit runs with a GUI.
+
+Per-prim physics properties are not part of ``PhysxCfg``. They are authored
+through the USD schema configurations described in
+:doc:`/source/concepts/schema_cfgs`. PhysX-only schema configurations, such as
+:class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`, live in
+:mod:`isaaclab_physx.sim.schemas`.
+
+Fabric
+^^^^^^
+
+When :attr:`~isaaclab.sim.SimulationCfg.use_fabric` is ``True``, the default,
+the manager enables the ``omni.physx.fabric`` extension. It also turns off
+PhysX write-back to USD (``/physics/updateToUsd`` and related settings), so
+simulated transforms reach the renderer through Fabric instead of USD. With
+``use_fabric=False``, PhysX writes simulation results back to USD, which is
+slower for large scenes.
 
 
 Runtime: Isaac Sim and Kit
@@ -169,45 +204,6 @@ through the ``omni.physx`` step subscription, and ``PRIM_DELETION`` during
 teardown. New code should prefer ``PhysicsEvent``.
 
 
-Scene configuration
--------------------
-
-``PhysxCfg`` fields are written to the physics scene prim at
-:attr:`~isaaclab.sim.SimulationCfg.physics_prim_path`. The manager applies
-``PhysxSceneAPI`` and sets each remaining field as a ``physxScene:``
-attribute in camel case, for example ``gpu_max_rigid_contact_count`` becomes
-``physxScene:gpuMaxRigidContactCount``. Some fields are translated instead of
-copied:
-
-* ``solver_type`` becomes ``physxScene:solverType`` (``"TGS"`` or ``"PGS"``).
-* ``bounce_threshold_velocity`` becomes ``physxScene:bounceThreshold``.
-* The timestep becomes ``physxScene:timeStepsPerSecond``.
-* GPU simulation enables GPU dynamics and the GPU broadphase. CPU simulation
-  uses the MBP broadphase.
-* ``enable_ccd`` takes effect only on CPU. CCD is disabled with a warning when
-  GPU dynamics is enabled.
-* The backend-agnostic ``deterministic`` request enables
-  ``enable_enhanced_determinism``.
-* Scene query support follows ``SimulationCfg.enable_scene_query_support``
-  and is forced on when Kit runs with a GUI.
-
-Per-prim physics properties are not part of ``PhysxCfg``. They are authored
-through the USD schema configurations described in
-:doc:`/source/concepts/schema_cfgs`. PhysX-only schema configurations, such as
-:class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyPropertiesCfg`, live in
-:mod:`isaaclab_physx.sim.schemas`.
-
-Fabric
-^^^^^^
-
-When :attr:`~isaaclab.sim.SimulationCfg.use_fabric` is ``True``, the default,
-the manager enables the ``omni.physx.fabric`` extension. It also turns off
-PhysX write-back to USD (``/physics/updateToUsd`` and related settings), so
-simulated transforms reach the renderer through Fabric instead of USD. With
-``use_fabric=False``, PhysX writes simulation results back to USD, which is
-slower for large scenes.
-
-
 Tensor views
 ------------
 
@@ -289,6 +285,11 @@ factory and registry design that all backends share.
 
 Native access
 -------------
+
+Use native access when the shared asset and sensor APIs do not expose the data
+or operation you need. Reuse an Isaac Lab-owned handle when its selection matches;
+create raw access only for additional capabilities. Native writes can bypass Isaac
+Lab's caches and validation, so follow the ownership and synchronization rules below.
 
 The PhysX Tensor API provides typed views for data paths and capabilities that
 require engine-native access.

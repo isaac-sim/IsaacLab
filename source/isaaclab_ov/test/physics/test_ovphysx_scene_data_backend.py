@@ -430,10 +430,11 @@ def test_ovphysx_cfg_does_not_register_unselected_backend_schemas(monkeypatch):
 
 def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkeypatch):
     """Automatic kitless PhysX selection prepares OvPhysX before creating the USD stage."""
-    from isaaclab_ov.physics import OvPhysxManager
+    from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager
+    from isaaclab_physx.physics import PhysxCfg
 
     import isaaclab.sim.simulation_context as simulation_context_module
-    from isaaclab.app.sim_launcher import _make_physics_cfg
+    from isaaclab.physics import PhysxAutoCfg
     from isaaclab.sim import SimulationCfg, SimulationContext
 
     class StageCreationReached(Exception):
@@ -461,7 +462,7 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
 
     monkeypatch.setattr(simulation_context_module, "create_new_stage", _stop_at_stage_creation)
     cfg = SimulationCfg(create_stage_in_memory=True)
-    physics_cfg = _make_physics_cfg("physx")
+    physics_cfg = PhysxAutoCfg(isaacsim_physx=PhysxCfg(), ovphysx=OvPhysxCfg())
     physics_cfg.class_type = StubPhysxManager
     cfg.physics = physics_cfg
 

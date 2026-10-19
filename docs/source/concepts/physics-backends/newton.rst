@@ -13,20 +13,17 @@ integration supports multiple solver families. Configure the
 backend with :class:`~isaaclab_newton.physics.NewtonCfg` and choose a solver
 configuration through its ``solver_cfg`` field.
 
-Task and component coverage is task-specific. Check task ``--help`` and
-:doc:`the environment catalog </source/setup/environments>` for current
-presets; the presence of a solver configuration does not imply that a task
-supports it. Start with :doc:`/source/how-to/prepare_asset_for_newton` before
-tuning a new asset or task.
+Check task ``--help`` or :doc:`the environment catalog </source/isaaclab/environments>`
+for supported presets. Before tuning a new asset, follow
+:doc:`/source/how-to/prepare_asset_for_newton`.
 
 Solver options
 --------------
 
-The links below cover Isaac Lab configuration and workflows. For solver
-formulations, feature support, and contact models, use Newton's
+Use the links below for Isaac Lab configuration and tuning. Newton's
 `solver guide <https://newton-physics.github.io/newton/latest/solvers/index.html>`__
-and its linked solver references. The generated Isaac Lab APIs remain the
-source of truth for configuration fields and defaults.
+explains the algorithms, features, and contact models. Isaac Lab's API references
+list configuration fields and defaults.
 
 .. list-table::
    :header-rows: 1
@@ -38,7 +35,7 @@ source of truth for configuration fields and defaults.
      - :ref:`mjwarp-solver-tuning` for the primary validated solver path
    * - :class:`~isaaclab_newton.physics.KaminoPADMMSolverCfg` and
        :class:`~isaaclab_newton.physics.KaminoDVISolverCfg`
-     - :ref:`kamino-solver-tuning` for the beta Kamino path
+     - :ref:`kamino-solver-tuning` for Kamino configuration
    * - :class:`~isaaclab_newton.physics.VBDSolverCfg`
      - :ref:`newton-using-vbd` for cloth, soft bodies, and coupled scenes
    * - :class:`~isaaclab_newton.physics.MPMSolverCfg`
@@ -55,7 +52,7 @@ Related workflows
 -----------------
 
 Use :doc:`/source/how-to/transfer_policies_between_physx_and_newton` to
-validate a policy across backends. Experimental specialist guides cover
+validate a policy across backends. Related guides cover
 :ref:`deformables`, :ref:`warp-environments`, and :ref:`warp-env-migration`.
 Backend developers can also read
 :doc:`/source/developer-tools/extending_newton_solvers`.
@@ -65,6 +62,11 @@ Backend developers can also read
 
 Native access
 -------------
+
+Use native access when the shared asset and sensor APIs do not expose the data
+or operation you need. Reuse an Isaac Lab-owned handle when its selection matches;
+create raw access only for additional capabilities. Native writes can bypass Isaac
+Lab's caches and validation, so follow the ownership and synchronization rules below.
 
 Mental model
 ~~~~~~~~~~~~

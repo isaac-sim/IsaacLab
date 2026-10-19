@@ -28,7 +28,9 @@ import os
 from pathlib import Path
 
 build = Path("docs/_build")
-for page in build.glob("**/source/setup/interactive_demos.html"):
+pages = list(build.glob("**/source/isaaclab/interactive_demos.html"))
+pages.extend(build.glob("**/source/setup/interactive_demos.html"))
+for page in pages:
     relative = Path(os.path.relpath(build / "demos", page.parent)).as_posix()
     content = page.read_text()
     page.write_text(content.replace('href="../../../demos/', f'href="{relative}/'))

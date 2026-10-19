@@ -116,8 +116,10 @@ def _time_calls(fn, num_iterations: int, warmup: int, device: str) -> float:
 
 
 def main():
-    with launch_simulation(cfg=NewtonCfg(solver_cfg=MJWarpSolverCfg()), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=1 / 200, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=1 / 200, device=args_cli.device, physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())
+    )
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         scene = InteractiveScene(_make_scene_cfg(args_cli.num_envs))
         sim.reset()

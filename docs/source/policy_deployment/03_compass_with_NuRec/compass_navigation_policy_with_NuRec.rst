@@ -13,10 +13,9 @@ installation, asset registration, training, evaluation, export, and ROS 2 deploy
 NuRec Assets for COMPASS
 ------------------------
 
-NuRec assets matter for COMPASS because they allow navigation policies to train in simulation on realistic
-geometry, visual appearance, and obstacle layouts. This, in turn, should reduce the sim-to-real gap between
-training scenes and real operating environments and improve zero-shot transfer. They also make it possible
-to evaluate policies in reconstructed simulation scenes that better reflect target deployment spaces.
+NuRec assets reconstruct the geometry, appearance, and obstacles of real spaces.
+Use them to train and evaluate COMPASS policies in scenes based on the deployment
+environment.
 
 Some sample assets compatible with COMPASS training are available in the
 `PhysicalAI-Robotics-NuRec dataset on Hugging Face <https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec>`_.

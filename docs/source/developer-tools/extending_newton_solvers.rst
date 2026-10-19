@@ -3,10 +3,9 @@
 Extending Newton Solvers
 ========================
 
-This page is for contributors adding a Newton solver to Isaac Lab or building a
-custom coupled solver. It describes the
-:class:`~isaaclab_newton.physics.NewtonManager` extension contract: what the
-manager owns, when its hooks run, and what a subclass must provide.
+To add a Newton solver or a custom coupled solver, implement a
+:class:`~isaaclab_newton.physics.NewtonManager` subclass. The sections below explain
+its hooks, resource ownership, and extension requirements.
 
 If you only need to select and configure a shipped solver, use the user-facing
 pages instead: :doc:`/source/concepts/backends_and_presets` for backend and
@@ -269,8 +268,10 @@ reuse the coupler's selectors or validation. For the proxy and ADMM trade-offs,
 see :ref:`newton-coupled-solvers`.
 
 
-Related Documentation
----------------------
+.. _related-documentation:
+
+Where to go next
+----------------
 
 * :doc:`add_physics_backend`: adding a whole physics backend.
 * :doc:`/source/api/lab_newton/isaaclab_newton.physics`: manager and solver

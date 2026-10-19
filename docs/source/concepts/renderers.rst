@@ -4,11 +4,9 @@
 Renderers
 =========
 
-Renderers produce camera-sensor buffers for policy observations and synthetic-data workflows.
-They are distinct from :doc:`visualizers <visualization>`, which provide
-human-facing, interactive views for inspection, debugging, and recording. Isaac Lab uses a
-pluggable renderer architecture. All implementations follow the interface defined by
-:class:`~isaaclab.renderers.BaseRenderer`.
+Renderers produce camera images for policy observations and synthetic data.
+:doc:`Visualizers <visualization>` provide interactive views for inspection and
+recording. All renderers implement :class:`~isaaclab.renderers.BaseRenderer`.
 
 Isaac Lab supports three rendering backends. See :ref:`renderer-details` for their execution models,
 output coverage, and limitations, and :ref:`camera-supported-annotators` for the output-by-backend
@@ -113,13 +111,38 @@ use case.
    - **Configuration:** :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
    - **Best for:** Workflows that must run inside Isaac Sim or Kit.
 
+Installing the OVRTX renderer
+------------------------------
+
+The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
+source package ships with the core install, but the renderer's ``ovrtx`` runtime
+wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, published
+on public PyPI) is **not** installed by default. You must request it
+explicitly — OVRTX does **not** require Isaac Sim.
+
+Add the ``ovrtx`` extra to the uv environment:
+
+.. code-block:: bash
+
+   # Install the ovrtx runtime wheel on top of an existing install
+   uv sync --inexact --extra ovrtx
+
+.. note::
+
+   The ``ov`` extra installs both the OV PhysX and OVRTX runtimes. Use the
+   ``ovrtx`` extra to install only the OVRTX runtime. ``--inexact`` preserves
+   packages already installed through other extras.
+
+Or install the public ``ovrtx`` package directly from PyPI:
+
+.. isaaclab-ovrtx-install::
+
 Choosing a rendering capability
 --------------------------------
 
-The sections below group rendering by purpose: simplified rendering for throughput-oriented
-training, photo-real rendering for full RTX image quality, and advanced outputs for geometry,
-motion, and labels. The commands use the suffixless ``Isaac-Cartpole-Camera`` task so each mode can
-be tried without editing Python.
+Choose simplified rendering for training speed, RTX for realistic lighting, or
+additional outputs for geometry and labels. These examples use
+``Isaac-Cartpole-Camera``.
 
 .. _renderer-simplified-rendering:
 
@@ -229,15 +252,12 @@ documentation for the renderer-level settings and limitations.
 Photo-real rendering
 ~~~~~~~~~~~~~~~~~~~~
 
-Here, **photo-real rendering** means the regular RGB path from the full RTX Real-Time Path-Tracing
-(RTPT) mode; it is a capability grouping, not an Isaac Lab preset name. Choose it when material
-appearance, reflections, transparency, lighting, or the accompanying RTX AOVs matter more than the
-lowest possible render latency. OVRTX provides this path without Kit, while Isaac RTX provides it
-inside Isaac Sim. See the
+**Photo-real rendering** uses RTX Real-Time Path-Tracing (RTPT) for reflections,
+transparency, and lighting. It is a rendering mode, not a preset name. OVRTX runs
+it without Kit; Isaac RTX runs it inside Isaac Sim. See
 :ovrtx-docs:`OVRTX Real-Time Path-Tracing <sensors/cameras/render_modes/real_time_path_tracing.rst>`
 and `Isaac Sim rendering modes
-<https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/rendering_modes.html>`_
-documentation.
+<https://docs.isaacsim.omniverse.nvidia.com/latest/reference_material/rendering_modes.html>`_.
 
 .. tab-set::
 
@@ -348,6 +368,55 @@ token per instance; markers without that ownership information remain shared.
    environment, so their tiled camera views can show another environment's geometry.
    See :ref:`known-issues-scene-partition-count-cap` for details.
 
+.. _renderers-async-data-flow:
+
+Asynchronous Rendering
+----------------------
+
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` returns a camera's previous capture
+while rendering its next image. This allows rendering to overlap simulation and Python work.
+The first capture, including after reset, waits for a fresh image. The ovstage path stays synchronous.
+
+Latency is one capture, not necessarily one physics or control step. State observations remain
+current, so enabling this option changes the policy's observation timing; training may need to
+account for that delay. Physics and policy computation may also use the GPU.
+
+For a camera capturing once per environment step, steady-state operation is:
+
+.. code-block:: text
+
+   Synchronous:   physics k -> submit image k -> wait/read image k -> policy
+   Asynchronous:  physics k -> submit image k -> wait/read image k-1 -> policy
+                                   |                                 |
+                                   +---- image k renders ------------+--> physics k+1
+
+The first image is returned immediately after priming and repeated once on the next capture.
+
+Each camera owns its pending observations. Reading camera A never changes camera B's pixels or
+metadata, even when they share a native render submission. Reset discards that camera's pending
+observations. A partial environment reset re-primes the whole tiled camera product, without
+invalidating other cameras.
+
+Live fields such as ``camera.data.pos_w`` and ``camera.data.intrinsic_matrices`` remain current.
+Use the capture metadata when pairing delayed pixels with a pose or calibration, for example
+when deprojecting depth:
+
+.. code-block:: python
+
+   data = camera.data
+   depth = data.output["distance_to_image_plane"]
+   capture = data.info["distance_to_image_plane"]["capture"]
+   position, orientation = capture["pos_w"], capture["quat_w_world"]
+   intrinsics, frame = capture["intrinsic_matrices"], capture["frame"]
+
+Capture metadata remains unchanged on later captures. Direct renderer callers use
+:meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` before submitting a capture and
+:meth:`~isaaclab.renderers.BaseRenderer.read_output` to publish it.
+
+SDP fills renderer-owned transform and geometry buffers, including deformable meshes, particles,
+and cables. Two buffers alternate per write and are reused only after OVRTX consumes them.
+Physics can therefore update its live arrays while the previous capture renders.
+
 Architecture Overview
 ---------------------
 
@@ -443,32 +512,6 @@ Core concepts
      sim_ctx = sim_utils.SimulationContext.instance()
      renderer: BaseRenderer = sim_ctx.get_or_create_backend(OVRTXRendererCfg())
 
-Installing the OVRTX renderer
-------------------------------
-
-The OVRTX renderer is provided by the ``isaaclab_ov`` extension. The extension's
-source package ships with the core install, but the renderer's ``ovrtx`` runtime
-wheel (the `ovrtx <https://github.com/NVIDIA-Omniverse/ovrtx>`_ package, published
-on public PyPI) is **not** installed by default. You must request it
-explicitly — OVRTX does **not** require Isaac Sim.
-
-Add the ``ovrtx`` extra to the uv environment:
-
-.. code-block:: bash
-
-   # Install the ovrtx runtime wheel on top of an existing install
-   uv sync --inexact --extra ovrtx
-
-.. note::
-
-   The ``ov`` extra installs both the OV PhysX and OVRTX runtimes. Use the
-   ``ovrtx`` extra to install only the OVRTX runtime. ``--inexact`` preserves
-   packages already installed through other extras.
-
-Or install the public ``ovrtx`` package directly from PyPI:
-
-.. isaaclab-ovrtx-install::
-
 - **Opaque render data**: The render data object returned by :meth:`~isaaclab.renderers.BaseRenderer.create_render_data` is passed to
   subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it
   via get/set attributes is an anti-pattern and breaks the API contract.
@@ -477,57 +520,12 @@ Or install the public ``ovrtx`` package directly from PyPI:
 
    The :class:`~isaaclab.renderers.BaseRenderer` class is under active development and may change without notice.
 
-.. _renderers-async-data-flow:
+.. raw:: html
 
-Asynchronous Rendering
-----------------------
+   <span id="see-also"></span>
 
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` returns a camera's previous capture
-while rendering its next image. This allows rendering to overlap simulation and Python work.
-The first capture, including after reset, waits for a fresh image. The ovstage path stays synchronous.
+Where to go next
+----------------
 
-Latency is one capture, not necessarily one physics or control step. State observations remain
-current, so enabling this option changes the policy's observation timing; training may need to
-account for that delay. Physics and policy computation may also use the GPU.
-
-For a camera capturing once per environment step, steady-state operation is:
-
-.. code-block:: text
-
-   Synchronous:   physics k -> submit image k -> wait/read image k -> policy
-   Asynchronous:  physics k -> submit image k -> wait/read image k-1 -> policy
-                                   |                                 |
-                                   +---- image k renders ------------+--> physics k+1
-
-The first image is returned immediately after priming and repeated once on the next capture.
-
-Each camera owns its pending observations. Reading camera A never changes camera B's pixels or
-metadata, even when they share a native render submission. Reset discards that camera's pending
-observations. A partial environment reset re-primes the whole tiled camera product, without
-invalidating other cameras.
-
-Live fields such as ``camera.data.pos_w`` and ``camera.data.intrinsic_matrices`` remain current.
-Use the capture metadata when pairing delayed pixels with a pose or calibration, for example
-when deprojecting depth:
-
-.. code-block:: python
-
-   data = camera.data
-   depth = data.output["distance_to_image_plane"]
-   capture = data.info["distance_to_image_plane"]["capture"]
-   position, orientation = capture["pos_w"], capture["quat_w_world"]
-   intrinsics, frame = capture["intrinsic_matrices"], capture["frame"]
-
-Capture metadata remains unchanged on later captures. Direct renderer callers use
-:meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` before submitting a capture and
-:meth:`~isaaclab.renderers.BaseRenderer.read_output` to publish it.
-
-SDP fills renderer-owned transform and geometry buffers, including deformable meshes, particles,
-and cables. Two buffers alternate per write and are reused only after OVRTX consumes them.
-Physics can therefore update its live arrays while the previous capture renders.
-
-See Also
---------
-
-- :doc:`/source/concepts/native-physics-api/scene_data_providers`: how scene data flows from physics backends to renderers
+- :doc:`/source/concepts/scene_data_providers`: how scene data flows from physics backends to renderers
 - :doc:`/source/concepts/visualization` — lightweight visualizer backends for interactive feedback

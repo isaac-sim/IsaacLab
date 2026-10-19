@@ -26,7 +26,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.devices import HaplyDeviceCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
@@ -335,8 +334,8 @@ def run_simulator(
 
 def main() -> None:
     """Set up and run the Haply teleoperation example."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=1 / 200, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=1 / 200, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
 
         # set the simulation view

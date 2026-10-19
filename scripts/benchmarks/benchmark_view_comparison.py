@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import argparse
 
+from isaaclab_physx.physics import PhysxCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Benchmark FrameView backends and PhysX RigidBodyView.")
@@ -87,8 +89,7 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
     print("  Setting up scene")
     sim_utils.create_new_stage()
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=(view_type == "fabric"))
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = sim_utils.SimulationContext(sim_cfgs[view_type])
     stage = sim_utils.get_current_stage()
     print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
@@ -138,7 +139,7 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
 
     from isaaclab.assets import RigidObjectCfg
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.sim import SimulationCfg, build_simulation_context
+    from isaaclab.sim import build_simulation_context
     from isaaclab.utils import configclass
 
     timing_results = {}
@@ -157,9 +158,8 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
         )
 
     print("  Setting up Newton scene")
-    newton_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()), device=args_cli.device)
     start_time = time.perf_counter()
-    ctx = build_simulation_context(device=args_cli.device, sim_cfg=newton_cfg, add_ground_plane=True)
+    ctx = build_simulation_context(device=args_cli.device, sim_cfg=sim_cfgs["newton"], add_ground_plane=True)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
@@ -197,8 +197,7 @@ def benchmark_physx(num_iterations: int) -> dict[str, float]:
     print("  Setting up scene")
     sim_utils.create_new_stage()
     start_time = time.perf_counter()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, use_fabric=False)
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim = sim_utils.SimulationContext(sim_cfgs["physx"])
     stage = sim_utils.get_current_stage()
     print(f"  SimulationContext: {time.perf_counter() - start_time:.4f}s")
 
@@ -445,5 +444,15 @@ def main():
 
 if __name__ == "__main__":
     # each backend builds its own simulation context; the USD, Fabric, and PhysX views need Kit
-    with launch_simulation(None, args_cli):
+    sim_cfgs = {
+        name: sim_utils.SimulationCfg(
+            dt=1.0 / 60.0 if name == "newton" else 0.01,
+            device=args_cli.device,
+            use_fabric=name == "fabric",
+            physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()) if name == "newton" else PhysxCfg(),
+        )
+        for name in args_cli.backends
+        if name != "newton" or HAS_NEWTON
+    }
+    with launch_simulation(sim_cfgs, args_cli):
         main()
