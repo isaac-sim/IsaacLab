@@ -26,13 +26,14 @@ from .control_profiles import depth_processor, edge_processor
 from .cosmos_model import service_endpoints, split_views
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
+from .prompt_files import read_prompt_files
 
 logger = logging.getLogger(__name__)
 
 COSMOS_CANVASES = tuple(CANVAS_ASPECT_RATIOS)
 """Image sizes ``(height, width)`` the Cosmos service accepts."""
 
-COSMOS_OPTIONS = ("prompt", "camera", "control", "near", "far", "endpoint", "transport")
+COSMOS_OPTIONS = ("prompt", "prompt_file", "camera", "control", "near", "far", "endpoint", "transport")
 """Options a Cosmos config file may set; each is an argument of :func:`apply_cosmos`."""
 
 
@@ -42,12 +43,15 @@ def read_cosmos_config(path: str) -> dict[str, Any]:
     Args:
         path: YAML file mapping option names (:data:`COSMOS_OPTIONS`) to values, for example
             ``prompt: A kitchen.`` or ``endpoint: unix:///tmp/cosmos.sock``. Omitted options keep their defaults.
+            ``prompt_file`` takes the place of ``prompt``: one path, a pattern, or a list, read with
+            :func:`~isaaclab_experimental.cosmos.read_prompt_files`.
 
     Returns:
         The options, to pass to :func:`apply_cosmos`.
 
     Raises:
-        ValueError: If the file is not a mapping or sets an option that does not exist.
+        ValueError: If the file is not a mapping or sets an option that does not exist, or sets both
+            ``prompt`` and ``prompt_file``.
     """
     options = load_yaml(path) or {}
     if not isinstance(options, dict):
@@ -55,6 +59,11 @@ def read_cosmos_config(path: str) -> dict[str, Any]:
     unknown = sorted(set(options) - set(COSMOS_OPTIONS))
     if unknown:
         raise ValueError(f"Unknown Cosmos option(s) {unknown} in {path}; the options are {list(COSMOS_OPTIONS)}.")
+    if "prompt_file" in options:
+        if "prompt" in options:
+            raise ValueError(f"Set either `prompt` or `prompt_file` in {path}, not both.")
+        files = options.pop("prompt_file")
+        options["prompt"] = read_prompt_files([files] if isinstance(files, str) else files)
     return options
 
 

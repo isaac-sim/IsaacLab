@@ -73,17 +73,17 @@ def test_a_cosmos_config_puts_cosmos_on_the_policy_camera_of_an_unmodified_task(
 
 
 def test_cosmos_prompts_come_from_files_or_text_but_not_both(tmp_path):
-    """Each prompt file is one prompt, used like a repeated ``--cosmos_prompt``."""
+    """Each prompt file is one prompt, used like an item of a ``prompt`` list."""
     (tmp_path / "lab.txt").write_text("A lab.\n", encoding="utf-8")
     (tmp_path / "scene.json").write_text('{"context": "A kitchen."}', encoding="utf-8")
-    files = ["--cosmos_prompt_file", str(tmp_path / "lab.txt"), "--cosmos_prompt_file", str(tmp_path / "scene.json")]
+    files = f"prompt_file: [{tmp_path / 'lab.txt'}, {tmp_path / 'scene.json'}]\n"
     env_cfg = _kuka()
-    apply_env_overrides(_cli(add_common_train_args, ["--cosmos", *files]), env_cfg)
+    apply_env_overrides(_cli(add_common_train_args, _config(tmp_path, files)), env_cfg)
 
     prompt = env_cfg.scene.base_camera.modifiers["distance_to_image_plane"][1].backend.prompt
     assert prompt == ["A lab.", '{"context": "A kitchen."}']
     with pytest.raises(ValueError, match="not both"):
-        apply_env_overrides(_cli(add_common_train_args, ["--cosmos", "--cosmos_prompt", "A lab.", *files]), _kuka())
+        apply_env_overrides(_cli(add_common_train_args, _config(tmp_path, "prompt: A lab.\n" + files)), _kuka())
 
 
 def _serve(monkeypatch, partial_resets=False):

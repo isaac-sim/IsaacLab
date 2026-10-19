@@ -19,6 +19,7 @@ __all__ = [
     "edge_processor",
     "episode_frame_budget",
     "read_cosmos_config",
+    "read_prompt_files",
     "region_control",
     "regional_edge_processor",
     "regional_edges",
@@ -26,7 +27,14 @@ __all__ = [
     "service_capabilities",
 ]
 
-from .camera import COSMOS_CANVASES, COSMOS_OPTIONS, apply_cosmos, cosmos_camera, read_cosmos_config, service_capabilities
+from .camera import (
+    COSMOS_CANVASES,
+    COSMOS_OPTIONS,
+    apply_cosmos,
+    cosmos_camera,
+    read_cosmos_config,
+    service_capabilities,
+)
 from .control_profiles import (
     RegionalEdgeControl,
     RegionalEdgeControlCfg,
@@ -42,3 +50,4 @@ from .cosmos_model import CosmosModel
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier import CosmosTransferModifier
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
+from .prompt_files import read_prompt_files
