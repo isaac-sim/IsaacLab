@@ -13,19 +13,20 @@ steps the simulation using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
-import contextlib
 import importlib.util
 import logging
 import math
 import os
 import stat
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+import ovphysx
+import ovstage
 import warp as wp
 
-from pxr import Sdf, Usd, UsdPhysics
+from pxr import Plug, Sdf, Usd, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -36,14 +37,14 @@ from isaaclab.scene_data.deformable_discovery import (
 )
 from isaaclab.sim.schemas.schemas import _setup_omniphysics_deformable_body
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.utils import instantiate
 from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
-from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
-from isaaclab_ov.cloner.replicate import _serialize_stage
+from isaaclab_ov.cloner.replicate import _convert_legacy_joint_properties, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import create_ovstage
+from isaaclab_ov.stage import OvstageBackend, OvstageBackendCfg, export_stage_to_string
 
 from . import ovphysx_compat
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
@@ -115,17 +116,6 @@ def _set_scene_dynamics_device(scene_prim: Usd.Prim, device: str) -> None:
 logger = logging.getLogger(__name__)
 
 
-def _newton_schema_root() -> str | None:
-    """Return the installed Newton USD schema plugin root, if available."""
-    spec = importlib.util.find_spec("newton_usd_schemas")
-    if spec is None or spec.origin is None:
-        return None
-    schema_root = os.path.dirname(spec.origin)
-    if not os.path.isfile(os.path.join(schema_root, "plugInfo.json")):
-        return None
-    return schema_root
-
-
 class OvPhysxSceneDataBackend(SceneDataBackend):
     """Scene-data backend for the OVPhysX physics manager.
 
@@ -133,8 +123,10 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     fill their native slices without an intermediate packing pass.
     """
 
-    def __init__(self):
+    def __init__(self, manager):
+        self._manager = manager
         self.backend: OvPhysxBackend | None = None
+        """Native resource borrowed from the context registry after warmup."""
         self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
@@ -303,7 +295,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Publish native rigid-body poses [m, xyzw]."""
         self._ensure_setup()
         if self._transforms.timestamp != self.transforms_timestamp:
-            OvPhysxManager.pre_render()
+            self._manager.pre_render()
             if self._transforms.data.transforms is not None:
                 self.backend.rigid_body_view.read(self._transforms.data.transforms)
             self._transforms.timestamp = self.transforms_timestamp
@@ -311,10 +303,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
 
 class OvPhysxBackend:
-    """Own the native OVPhysX runtime and its attached OVStage for one simulation."""
+    """Own the native OVPhysX runtime and either own or borrow its stage."""
 
-    def __init__(self, cfg: OvPhysxBackendCfg):
-        ovphysx = import_ovphysx()
+    def __init__(self, cfg: OvPhysxBackendCfg, *, scene: OvstageBackend | None = None):
         ovphysx.bootstrap()
         is_gpu = cfg.device.startswith("cuda:")
         cache_dir = cfg.cooked_collider_cache_dir
@@ -337,16 +328,47 @@ class OvPhysxBackend:
             ),
             active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
         )
+        self.scene = scene
+        self.owns_scene = scene is None
         self.stage: Any = None
         self.rigid_body_view: Any = None
+
+    def load(self, stage_usda: str) -> None:
+        """Replace the attached scene after draining its native bindings.
+
+        Args:
+            stage_usda: Exported USD scene to populate before physics attaches.
+        """
+        if self.stage is not None:
+            if self.rigid_body_view is not None:
+                self.rigid_body_view.destroy()
+                self.rigid_body_view = None
+            OvPhysxView._close_all_for(self.physx)
+            ovphysx_compat.detach_stage(self.physx)
+            self.scene.reset()
+            self.stage = None
+        if self.scene is None:
+            # PHYSICS population currently omits native-instance collider dependencies.
+            self.scene = instantiate(OvstageBackendCfg(population_domains=ovstage.PopulationDomain.ALL))
+        try:
+            self.scene.populate(stage_usda)
+            operation = self.physx.attach_ovstage(self.scene.stage, read_ordinal=self.scene.ordinal - 1)
+        except Exception:
+            if self.owns_scene:
+                self.scene.close()
+                self.scene = None
+            raise
+        self.stage = self.scene.stage
+        # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
+        ovphysx_compat.finish_stage_operation(self.physx, operation)
 
     def close(self) -> None:
         """Release bindings, the runtime, and its stage in native teardown order."""
         physx = self.physx
         if physx is None:
-            if self.stage is not None:
-                self.stage.destroy()
-                self.stage = None
+            if self.owns_scene and self.scene is not None:
+                self.scene.close()
+            self.stage = None
             return
 
         # Legacy release errors are terminal; current destroy errors may be retryable.
@@ -363,12 +385,7 @@ class OvPhysxBackend:
                     ovphysx_compat.detach_stage(physx)
                 finally:
                     try:
-                        destroy = getattr(physx, destroy_entry_point, None)
-                        if destroy is None:
-                            raise AttributeError(
-                                f"OVPhysX does not expose the selected {destroy_entry_point}() lifecycle entry point"
-                            )
-                        destroy()
+                        getattr(physx, destroy_entry_point)()
                     except Exception:
                         if destroy_entry_point == "destroy":
                             # Keep both owners if native teardown did not reach its terminal state.
@@ -384,9 +401,9 @@ class OvPhysxBackend:
         finally:
             if release_owners:
                 self.physx = None
-                if self.stage is not None:
-                    self.stage.destroy()
-                    self.stage = None
+                if self.owns_scene and self.scene is not None:
+                    self.scene.close()
+                self.stage = None
 
 
 class OvPhysxManager(PhysicsManager):
@@ -399,34 +416,33 @@ class OvPhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    def __init__(self):
+        super().__init__()
+        self._cfg: OvPhysxCfg | None = None
+        self.backend: OvPhysxBackend | None = None
+        """Native resource borrowed from the context registry after warmup."""
+        self._stage_usda: str | None = None
+        self._warmup_done: bool = False
+        self._requires_full_stage: bool = False
+        self._clone_recipes: list[CloneRecipe] = []
+        self._atexit_registered: bool = False
+        self._scene_data_backend: OvPhysxSceneDataBackend | None = None
+        self.kinematics_dirty: bool = False
+        self._gravity: tuple[float, float, float] | None = None
+
+    # USD plugin registries are process-wide; simulation state remains instance-owned.
+    _physx_schemas_registered = False
+
+    backend_name = "ovphysx"
     clone_context_type = OvPhysxReplicateContext
 
-    _cfg: ClassVar[OvPhysxCfg | None] = None
-    backend: ClassVar[OvPhysxBackend | None] = None
-    """Native runtime borrowed from the simulation registry after warmup; the registry owns its lifetime."""
-    _stage_usda: ClassVar[str | None] = None
-    _warmup_done: ClassVar[bool] = False
-    _next_control_ordinal: ClassVar[int] = 2
-    _requires_full_stage: ClassVar[bool] = False
-    # Retain construction inputs for hard reset; serialization and replay never consume them.
-    _clone_recipes: ClassVar[list[CloneRecipe]] = []
-    _atexit_registered: ClassVar[bool] = False
-    _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
-    kinematics_dirty: ClassVar[bool] = False
-    # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
-    # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
-    # value that randomization terms resample from, so live updates must not be written back to it.
-    _gravity: ClassVar[tuple[float, float, float] | None] = None
-
-    @classmethod
-    def get_dt(cls) -> float:
+    def get_dt(self) -> float:
         """Get the physics timestep. Alias for get_physics_dt()."""
-        return cls.get_physics_dt()
+        return self.get_physics_dt()
 
-    @classmethod
-    def require_full_stage(cls) -> None:
+    def require_full_stage(self) -> None:
         """Load every authored environment during the next stage warmup."""
-        cls._requires_full_stage = True
+        self._requires_full_stage = True
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
@@ -449,9 +465,8 @@ class OvPhysxManager(PhysicsManager):
         """
         _setup_omniphysics_deformable_body(prim, deformable_type, sim_mesh_prim, vis_mesh_prim)
 
-    @classmethod
     def register_clone(
-        cls, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
+        self, source: str, targets: list[str], parent_positions: list[tuple[float, float, float]] | None = None
     ) -> None:
         """Queue clones at the given world positions with identity rotations.
 
@@ -462,9 +477,7 @@ class OvPhysxManager(PhysicsManager):
                 target roots. Each position uses an identity rotation.
         """
         target_transforms = clone_transforms_from_positions(parent_positions or [])
-        cls._clone_recipes.append((source, targets, target_transforms, None, 0))
-
-    _physx_schemas_registered: ClassVar[bool] = False
+        self._clone_recipes.append((source, targets, target_transforms, None, 0))
 
     @classmethod
     def _prepare_stage_creation(cls) -> None:
@@ -483,27 +496,10 @@ class OvPhysxManager(PhysicsManager):
         """
         if cls._physx_schemas_registered:
             return
-        try:
-            import ovphysx  # noqa: PLC0415
-
-            from pxr import Plug  # noqa: PLC0415
-        except ImportError:
-            return
         schema_paths = ovphysx_compat.physx_schema_paths(ovphysx)
-        try:
-            import ovstage  # noqa: PLC0415
-        except ImportError:
-            pass  # Host USD schemas can still be registered without OVStage.
-        else:
-            schema_root = getattr(ovphysx, "codeless_schema_root", None)
-            register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
-            if callable(register_ovstage_schemas):
-                if ovphysx_compat.OVPHYSX_USES_TASKS:
-                    register_ovstage_schemas([str(path) for path in schema_paths])
-                elif callable(schema_root):
-                    register_ovstage_schemas(str(schema_root()))
-                if (newton_schema_root := _newton_schema_root()) is not None:
-                    register_ovstage_schemas(newton_schema_root)
+        ovstage.population.register_usd_schemas([str(path) for path in schema_paths])
+        # Locate the required schema package without importing it into the host USD registry.
+        ovstage.population.register_usd_schemas(os.path.dirname(importlib.util.find_spec("newton_usd_schemas").origin))
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its
@@ -513,8 +509,7 @@ class OvPhysxManager(PhysicsManager):
             registry.RegisterPlugins(schema_paths)
         cls._physx_schemas_registered = True
 
-    @classmethod
-    def initialize(cls, sim_context: SimulationContext) -> None:
+    def initialize(self, sim_context: SimulationContext) -> None:
         """Initialize the physics manager with simulation context.
 
         This stores the config and device but does not load the USD stage yet --
@@ -524,24 +519,17 @@ class OvPhysxManager(PhysicsManager):
         The simulation registry retains its native resource across reinitialization.
         """
         super().initialize(sim_context)
-        cls._ensure_physx_schemas_registered()
-        cls._gravity = tuple(sim_context.cfg.gravity)
-        cls._warmup_done = False
-        cls._requires_full_stage = False
-        cls._stage_usda = None
-        cls._clone_recipes = []
-        # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
-        # captures a real instance (not ``None``) when it builds the central
-        # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
-        # its own ``__init__``. Bindings stay empty until :meth:`_warmup_and_load`
-        # calls :meth:`OvPhysxSceneDataBackend.setup`, at which point the wheel
-        # and the USD stage are live. Matches PhysX's pattern of constructing
-        # the backend during ``initialize()``.
-        cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls.kinematics_dirty = False
+        self._ensure_physx_schemas_registered()
+        self._gravity = tuple(sim_context.cfg.gravity)
+        self._warmup_done = False
+        self._requires_full_stage = False
+        self._stage_usda = None
+        self._clone_recipes = []
+        # SimulationContext retains this backend; native bindings remain deferred until the first SDP read.
+        self._scene_data_backend = OvPhysxSceneDataBackend(self)
+        self.kinematics_dirty = False
 
-    @classmethod
-    def reset(cls, soft: bool = False) -> None:
+    def reset(self, soft: bool = False) -> None:
         """Reset physics simulation.
 
         On the first (non-soft) reset the method:
@@ -555,62 +543,48 @@ class OvPhysxManager(PhysicsManager):
         before replacing the attached stage so listeners discard stale bindings.
         """
         if not soft:
-            if not cls._warmup_done:
-                if cls.backend is not None and cls.backend.stage is not None:
-                    cls.dispatch_event(PhysicsEvent.STOP, payload={})
-                cls._warmup_and_load()
-            cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
-        cls.kinematics_dirty = True
-        cls._scene_data_backend.transforms_timestamp += 1
-        cls._scene_data_backend.geometry_timestamp += 1
+            if not self._warmup_done:
+                if self.backend is not None and self.backend.stage is not None:
+                    self.dispatch_event(PhysicsEvent.STOP, payload={})
+                self._warmup_and_load()
+            self.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
+        self.kinematics_dirty = True
+        self._scene_data_backend.transforms_timestamp += 1
+        self._scene_data_backend.geometry_timestamp += 1
 
-    @classmethod
-    def forward(cls) -> None:
+    def forward(self) -> None:
         """Evaluate and publish state changes made without stepping physics."""
-        cls.update_kinematics()
-        cls._scene_data_backend.transforms_timestamp += 1
-        cls._scene_data_backend.geometry_timestamp += 1
+        self.update_kinematics()
+        self._scene_data_backend.transforms_timestamp += 1
+        self._scene_data_backend.geometry_timestamp += 1
 
-    @classmethod
-    def pre_render(cls) -> None:
+    def pre_render(self) -> None:
         """Finish native kinematics before SDP publishes manually written joint poses."""
-        cls.update_kinematics()
+        self.update_kinematics()
 
-    @classmethod
-    def update_kinematics(cls) -> None:
+    def update_kinematics(self) -> None:
         """Update dirty articulation kinematics without publishing or rendering."""
-        if not cls.kinematics_dirty:
+        if not self.kinematics_dirty:
             return
-        if cls.backend is not None and cls.backend.physx is not None:
-            cls.backend.physx.update_articulations_kinematic()
-            cls.kinematics_dirty = False
+        if self.backend is not None and self.backend.physx is not None:
+            self.backend.physx.update_articulations_kinematic()
+            self.kinematics_dirty = False
 
-    @classmethod
-    def step(cls) -> None:
+    def step(self) -> None:
         """Step the simulation by one physics timestep."""
-        if cls.backend is None or cls.backend.physx is None:
+        if self.backend is None or self.backend.physx is None:
             return
-        dt = cls.get_physics_dt()
-        cls.backend.physx.step_sync(dt=dt)
-        cls.kinematics_dirty = True
-        cls.update_kinematics()
-        cls._scene_data_backend.transforms_timestamp += 1
-        cls._scene_data_backend.geometry_timestamp += 1
-        PhysicsManager._sim_time += dt
+        dt = self.get_physics_dt()
+        self.backend.physx.step_sync(dt=dt)
+        self.kinematics_dirty = True
+        self.update_kinematics()
+        self._scene_data_backend.transforms_timestamp += 1
+        self._scene_data_backend.geometry_timestamp += 1
+        self._sim_time += dt
 
-    @staticmethod
-    def _warmup_physx(physx: Any) -> None:
-        """Warm a runtime through its version-selected API."""
-        entry_point = OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"]
-        warmup = getattr(physx, entry_point, None)
-        if warmup is None:
-            raise AttributeError(f"OVPhysX does not expose the selected {entry_point}() lifecycle entry point")
-        warmup()
-
-    @classmethod
-    def close(cls) -> None:
+    def close(self) -> None:
         """Release ovphysx resources and clean up."""
-        sim = SimulationContext.instance()
+        sim = self._sim
         # Dispatch STOP while the runtime is still live. Asset and sensor callbacks
         # invalidate raw native handles before the view registry drains the remaining
         # binding caches and the runtime is released.
@@ -618,89 +592,50 @@ class OvPhysxManager(PhysicsManager):
             super().close()
         finally:
             try:
-                if cls.backend is not None:
-                    sim.close_backend(cls.backend)
-                    cls.backend = None
+                if self.backend is not None:
+                    try:
+                        sim.close_backend(self.backend)
+                    except Exception:
+                        # Keep the registry owner available for a retry after native teardown fails.
+                        self._sim = sim
+                        raise
+                    self.backend = None
+                    # Keep the exit hook while a retry is possible; drop it so closed managers are not retained.
+                    if self._atexit_registered:
+                        atexit.unregister(self._close_at_exit)
+                        self._atexit_registered = False
             finally:
-                cls._stage_usda = None
-                cls._warmup_done = False
-                cls._requires_full_stage = False
-                cls._clone_recipes = []
-                # Drop the SceneDataBackend singleton: its cached bindings and buffers
+                self._stage_usda = None
+                self._warmup_done = False
+                self._requires_full_stage = False
+                self._clone_recipes = []
+                # Drop the SceneDataBackend: its cached bindings and buffers
                 # belong to the runtime instance just released. The next
                 # SimulationContext re-creates it in initialize().
-                cls._scene_data_backend = None
-                cls.kinematics_dirty = False
-                cls._next_control_ordinal = 2
+                self._scene_data_backend = None
+                self.kinematics_dirty = False
 
-    @classmethod
-    def _attach_ovstage(cls, stage_usda: str) -> None:
-        """Populate an OVStage from USDA text and attach it to the runtime."""
-        import ovstage  # noqa: PLC0415
-
-        stage = create_ovstage("isaaclab")
-        try:
-            ovstage.population.open_usd_from_string(
-                stage,
-                stage_usda,
-                ordinal=1,
-                # FIXME: Use PHYSICS once OVStage includes native-instance collider
-                # dependencies in physics-only population.
-                domains=ovstage.PopulationDomain.ALL,
-            )
-            # ovphysx reads sealed data only: population completes the writes but never
-            # commits the ordinal. The initial parse requires a sealed ordinal.
-            stage.advance_write_floor(ordinal=1).wait()
-            operation = cls.backend.physx.attach_ovstage(stage, read_ordinal=1)
-        except Exception:
-            stage.destroy()
-            raise
-        cls.backend.stage = stage
-        # Accepted attach failures can retain native ownership. Keep the stage for cleanup.
-        ovphysx_compat.finish_stage_operation(cls.backend.physx, operation)
-
-        cls._next_control_ordinal = 2
-
-    @classmethod
-    def _prepare_physx_for_stage_reuse(cls) -> None:
-        """Drain stage-bound handles before reusing the active runtime for another stage."""
-        physx = cls.backend.physx
-        if physx is None:
-            return
-        if cls.backend.rigid_body_view is not None:
-            cls.backend.rigid_body_view.destroy()
-            cls.backend.rigid_body_view = None
-        OvPhysxView._close_all_for(physx)
-        ovphysx_compat.detach_stage(physx)
-        if cls.backend.stage is not None:
-            cls.backend.stage.destroy()
-            cls.backend.stage = None
-        cls._next_control_ordinal = 2
-
-    @classmethod
-    def get_physx_instance(cls) -> Any:
+    def get_physx_instance(self) -> Any:
         """Return the underlying ovphysx.PhysX instance (or None if not yet created)."""
-        return None if cls.backend is None else cls.backend.physx
+        return None if self.backend is None else self.backend.physx
 
-    @classmethod
-    def get_gravity(cls) -> tuple[float, float, float]:
+    def get_gravity(self) -> tuple[float, float, float]:
         """Return the last successfully applied world-frame gravity vector [m/s^2].
 
         Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
-        can read gravity through one classmethod. The value tracks :meth:`set_gravity`,
+        can read gravity from their owning manager. The value tracks :meth:`set_gravity`,
         falling back to the simulation cfg until the first live update.
 
         Raises:
             RuntimeError: If no simulation is active. Call :meth:`initialize` first.
         """
-        if cls._sim is None or not hasattr(cls._sim, "cfg"):
+        if self._sim is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
-        if cls._gravity is None:
-            return tuple(cls._sim.cfg.gravity)
-        return cls._gravity
+        if self._gravity is None:
+            return tuple(self._sim.cfg.gravity)
+        return self._gravity
 
-    @classmethod
-    def set_gravity(cls, gravity: tuple[float, float, float]) -> None:
+    def set_gravity(self, gravity: tuple[float, float, float]) -> None:
         """Set the scene-wide gravity vector through OvStage [m/s^2].
 
         The OvPhysX runtime accepts live scene changes only as sealed OvStage
@@ -715,7 +650,7 @@ class OvPhysxManager(PhysicsManager):
             RuntimeError: If the OVPhysX simulation has not been initialized.
             ValueError: If gravity does not contain three finite values.
         """
-        if cls._sim is None or cls.get_physx_instance() is None or cls.backend.stage is None:
+        if self._sim is None or self.get_physx_instance() is None or self.backend.stage is None:
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
         gravity_array = np.asarray(gravity, dtype=np.float32)
@@ -727,48 +662,31 @@ class OvPhysxManager(PhysicsManager):
             direction = np.array([[0.0, 0.0, -1.0]], dtype=np.float32)
         else:
             direction = (gravity_array / magnitude).reshape(1, 3)
-        ordinal = cls._next_control_ordinal
-        cls._next_control_ordinal += 1
-
-        import ovstage  # noqa: PLC0415
-
-        stage = cls.backend.stage
-        with contextlib.ExitStack() as cleanup:
-            paths = cleanup.enter_context(ovstage.PathDictionary(stage))
-            path_list = paths.create_path_list_from_strings([cls._sim.cfg.physics_prim_path])
-            cleanup.callback(paths.destroy_path_list, path_list)
-            query = cleanup.enter_context(stage.query_from_path_list(path_list))
-            stage.write_attribute(query, "physics:gravityDirection", ordinal, direction, is_array=False).wait()
-            stage.write_attribute(
+        scene = self.backend.scene
+        # Physics must consume only this control edit, not pending rendering/output writes.
+        scene.commit()
+        ordinal = scene.ordinal
+        with scene.query([self._sim.cfg.physics_prim_path]) as query:
+            scene.stage.write_attribute(query, "physics:gravityDirection", ordinal, direction, is_array=False).wait()
+            scene.stage.write_attribute(
                 query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
-            stage.advance_write_floor(ordinal=ordinal).wait()
-            operation = cls.backend.physx.update_from_ovstage(ordinal, ordinal)
-            ovphysx_compat.finish_stage_operation(cls.backend.physx, operation)
+            scene.commit()
+            operation = self.backend.physx.update_from_ovstage(ordinal, ordinal)
+            ovphysx_compat.finish_stage_operation(self.backend.physx, operation)
 
         # Publish only after successful completion; a failed native update need not be atomic.
-        cls._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
+        self._gravity = (float(gravity_array[0]), float(gravity_array[1]), float(gravity_array[2]))
 
-    @classmethod
-    def get_scene_data_backend(cls) -> SceneDataBackend:
-        """Return the SceneDataBackend for the central SceneDataProvider.
-
-        Constructed eagerly in :meth:`initialize` so :class:`SimulationContext`
-        captures a real instance (not ``None``) when wiring up the central
-        :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`. Bindings
-        are empty until :meth:`_warmup_and_load` calls
-        :meth:`OvPhysxSceneDataBackend.setup` against the live ovphysx ``PhysX``
-        and USD stage; reads against an unsetup backend return empty data
-        rather than raising.
-        """
-        return cls._scene_data_backend
+    def get_scene_data_backend(self) -> SceneDataBackend:
+        """Return the SDP backend created during initialization; native bindings are acquired lazily."""
+        return self._scene_data_backend
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    @classmethod
-    def _warmup_and_load(cls) -> None:
+    def _warmup_and_load(self) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
         When no runtime is active, constructs a new :class:`ovphysx.PhysX` instance for the
@@ -781,90 +699,94 @@ class OvPhysxManager(PhysicsManager):
         Raises:
             RuntimeError: If ``SimulationContext`` is not set.
         """
-        sim = PhysicsManager._sim
+        sim = self._sim
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
+        shared_scene = next(
+            (scene for scene in sim.get_backends(OvstageBackendCfg) if scene.cfg.scene_key is None), None
+        )
+        if shared_scene is not None and self._requires_full_stage:
+            raise ValueError(
+                "Shared OVStage cloning does not support full-stage physics imports. "
+                "Disable ISAAC_LAB_SHARE_OVSTAGE for this scene."
+            )
         plan = sim.get_clone_plan()
         entries = None
         if plan is not None:
             env_ids = np.arange(len(plan.topology.world_prototype_layout))
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
-        ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
+        ovphysx_device = "gpu" if "cuda" in self._device else "cpu"
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid() and cls._clone_recipes:
+        if scene_prim.IsValid() and self._clone_recipes:
             scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-        cls._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, PhysicsManager._cfg, ovphysx_device)
+        self._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, self._cfg, ovphysx_device)
 
-        full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
-        stage_usda, native_clones = _serialize_stage(
-            sim.stage,
-            cls._clone_recipes,
-            full_stage,
-            plan,
-            friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
-        )
-        cls._stage_usda = stage_usda
-
-        previous_backend = cls.backend
-        cls.backend = sim.get_or_create_backend(
-            OvPhysxBackendCfg(
-                device=PhysicsManager._device,
-                cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
+        if shared_scene is not None:
+            stage_usda = export_stage_to_string(
+                sim.stage,
+                len(shared_scene.clone_env_paths),
+                source_paths=tuple(source for source, _ in shared_scene.clone_copies),
+                keep_env_roots=False,
+                env_paths=shared_scene.population_env_paths,
             )
-        )
-        if not cls._atexit_registered:
-            atexit.register(cls._close_at_exit)
-            cls._atexit_registered = True
-        if cls.backend is previous_backend or cls.backend.stage is not None:
-            # Bindings are tied to the realized objects of one stage. Invalidate
-            # asset/sensor handles and drain generic views before resetting the
-            # cached runtime; PHYSICS_READY after this method rebuilds them.
-            cls._prepare_physx_for_stage_reuse()
+            if ovphysx_compat.OVPHYSX_USES_TASKS:
+                layer = Sdf.Layer.CreateAnonymous()
+                layer.ImportFromString(stage_usda)
+                _convert_legacy_joint_properties(layer, sim.cfg.physics.legacy_joint_friction_replacements)
+                stage_usda = layer.ExportToString()
+            native_clones = ()
+        else:
+            full_stage = self._requires_full_stage or ovphysx_device == "cpu"
+            stage_usda, native_clones = _serialize_stage(
+                sim.stage,
+                self._clone_recipes,
+                full_stage,
+                plan,
+                friction_replacements=sim.cfg.physics.legacy_joint_friction_replacements,
+            )
+        self._stage_usda = stage_usda
 
-        cls._attach_ovstage(stage_usda)
+        self.backend = sim.get_or_create_backend(
+            OvPhysxBackendCfg(
+                device=self._device,
+                cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
+            ),
+            scene=shared_scene,
+        )
+        if not self._atexit_registered:
+            atexit.register(self._close_at_exit)
+            self._atexit_registered = True
+        self.backend.load(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
         for source, targets, transforms, env_ids, _ in native_clones:
             ovphysx_compat.wait_for_operation(
-                cls.backend.physx, cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids)
+                self.backend.physx, self.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids)
             )
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
-        cls._warmup_physx(cls.backend.physx)
+        getattr(self.backend.physx, OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"])()
 
         # The central SceneDataProvider can request these bindings later. Headless
         # training never consumes them, so avoid binding every rigid link here.
-        if cls._scene_data_backend is None:
-            cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend._defer_setup(cls.backend, PhysicsManager._device, entries)
+        self._scene_data_backend._defer_setup(self.backend, self._device, entries)
 
-        cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
-        cls._warmup_done = True
+        self.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
+        self._warmup_done = True
 
-    @classmethod
-    def _close_at_exit(cls) -> None:
+    def _close_at_exit(self) -> None:
         """Release a live OVPhysX runtime without leaking an atexit exception."""
-        if cls.backend is None or cls.backend.physx is None:
+        if self.backend is None or self.backend.physx is None:
             return
         try:
-            sim = PhysicsManager._sim
-            is_active_manager = sim is not None and (
-                sim.physics_manager is cls or sim.physics_manager == f"{cls.__module__}:{cls.__qualname__}"
-            )
-            if is_active_manager:
-                cls.close()
-            else:
-                # Do not clear another backend's shared callbacks or simulation
-                # state if this is only a stale OVPhysX runtime.
-                cls.backend.close()
+            self.close()
         except Exception:
             logger.exception("Failed to close OVPhysX during process exit.")
 
-    @classmethod
     def _configure_physics_scenes(
-        cls, stage: Usd.Stage, physics_prim_path: str, cfg: OvPhysxCfg | None, device: str
+        self, stage: Usd.Stage, physics_prim_path: str, cfg: OvPhysxCfg | None, device: str
     ) -> None:
         """Configure every physics scene in a stage for the simulation device.
 
@@ -880,13 +802,12 @@ class OvPhysxManager(PhysicsManager):
         """
         scene_prim = stage.GetPrimAtPath(physics_prim_path)
         if scene_prim.IsValid():
-            cls._configure_physx_scene_prim(scene_prim, cfg, device)
+            self._configure_physx_scene_prim(scene_prim, cfg, device)
         for prim in stage.Traverse():
             if prim.IsA(UsdPhysics.Scene) and prim != scene_prim:
                 _set_scene_dynamics_device(prim, device)
 
-    @staticmethod
-    def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
+    def _configure_physx_scene_prim(self, scene_prim, cfg, device: str) -> None:
         """Apply the OVPhysX scene configuration to the simulation's physics scene prim.
 
         The schema, dynamics device and broadphase (see :func:`_set_scene_dynamics_device`),
@@ -902,7 +823,7 @@ class OvPhysxManager(PhysicsManager):
         _set_scene_dynamics_device(scene_prim, device)
 
         # PhysX uses the declared timestep to derive automatic collision contact offsets.
-        sim_cfg = PhysicsManager._sim.cfg
+        sim_cfg = self._sim.cfg
         scene_prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(1.0 / sim_cfg.dt))
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(
             sim_cfg.enable_scene_query_support

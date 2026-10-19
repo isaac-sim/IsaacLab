@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
@@ -223,30 +224,12 @@ SURFACE_MAX_GRID_CELLS = 4_000_000
 SURFACE_PATH = "/fluid_surface"
 
 
-def create_visualizer_cfgs():
-    """Create demo-specific visualizer configs for requested backends."""
-    requested = args_cli.visualizer or []
-    if not any(name in requested for name in ("newton_gl", "newton_rtx")):
-        return []
-
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfgs = []
-    for name in requested:
-        if name == "newton_gl":
-            cfgs.append(NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR))
-        elif name == "newton_rtx":
-            cfgs.append(NewtonRTXVisualizerCfg())
-    return cfgs
-
-
 def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
     """Configure teapot-specific surface extraction after Newton initializes."""
-    from isaaclab_newton.physics import NewtonManager
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
     from newton.geometry import ParticleSurface
 
-    model = NewtonManager.get_model()
+    model = sim.backend_manager.get_model()
     surface = ParticleSurface(
         voxel_size=SURFACE_VOXEL_SIZE,
         max_grid_cells=SURFACE_MAX_GRID_CELLS,
@@ -520,7 +503,7 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=[NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR)],
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,
@@ -811,7 +794,8 @@ def main() -> None:
             from rizon_sharpa_teapot import configured_asset_path
 
             configured_asset_path()
-        if "kit" in (args_cli.visualizer or []):
+        visualizers = {cfg.visualizer_type for cfg in sim_cfg.visualizer_cfgs}
+        if "kit" in visualizers:
             from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 

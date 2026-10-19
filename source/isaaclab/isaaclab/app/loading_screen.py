@@ -283,6 +283,10 @@ class LoadingScreen:
     hands the console back, so whatever runs next (typically an RL library's
     training log) prints undisturbed.
 
+    While active, the context replaces :func:`builtins.input` process-wide.
+    An interactive prompt restores normal output and replays captured context
+    before waiting for input. Later stages and summaries use plain console output.
+
     The screen degrades to plain stage lines, with no redirection, when it is
     disabled -- for a non-interactive console or a verbose run -- so nothing is
     hidden from a captured log.
@@ -347,7 +351,7 @@ class LoadingScreen:
         self._summary_fields: dict[str, str] = {}
 
     def __enter__(self) -> LoadingScreen:
-        """Take over the console and start spooling startup output."""
+        """Take over the console and replace :func:`builtins.input` until a prompt or shutdown."""
         global _active_screen
         self._started = time.monotonic()
         if self._enabled:
@@ -475,6 +479,7 @@ class LoadingScreen:
                 )
             self._live = None
             self._rich_console = None
+            self._enabled = False
         try:
             if live is not None:
                 live.stop()

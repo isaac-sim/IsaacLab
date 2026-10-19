@@ -558,12 +558,9 @@ def test_process_tendons_scopes_to_articulation_root():
     """Tendon discovery should ignore joints that live outside the current articulation subtree."""
     articulation = _make_articulation_shell()
     stage_usda = _make_articulation_root_stage_usda()
-    old_stage_usda = OvPhysxManager._stage_usda
-    OvPhysxManager._stage_usda = stage_usda
-    try:
-        articulation._process_tendons()
-    finally:
-        OvPhysxManager._stage_usda = old_stage_usda
+    articulation._backend_manager = OvPhysxManager()
+    articulation._backend_manager._stage_usda = stage_usda
+    articulation._process_tendons()
 
     # the tendon is reported by its schema INSTANCE name, matching PhysX; scope leakage would
     # add the identically-named instance from /World/unrelated, giving two entries
@@ -781,7 +778,7 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
         expected[selected] = positions
         torch.testing.assert_close(robot.data.joint_pos.torch, expected, atol=1e-4, rtol=0.0)
         for env_id in range(scene.num_envs):
-            binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
+            binding = sim.backend_manager.get_physx_instance().create_tensor_binding(
                 pattern=f"/World/envs/env_{env_id}/Robot", tensor_type=TT.DOF_POSITION
             )
             try:
@@ -1692,13 +1689,13 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(scene: _Articul
         articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
         articulation.write_joint_position_to_sim_index(position=articulation.data.joint_pos.torch.clone())
         with monkeypatch.context() as patch:
-            physx = Mock(wraps=OvPhysxManager.backend.physx)
-            patch.setattr(OvPhysxManager.backend, "physx", physx)
+            physx = Mock(wraps=scene.sim.backend_manager.backend.physx)
+            patch.setattr(scene.sim.backend_manager.backend, "physx", physx)
             if render_first:
-                OvPhysxManager.pre_render()
+                scene.sim.backend_manager.pre_render()
             articulation.data.root_link_vel_w
             body_com_vel_w = articulation.data.body_com_vel_w.torch
-            OvPhysxManager.pre_render()
+            scene.sim.backend_manager.pre_render()
             physx.update_articulations_kinematic.assert_called_once()
             assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
 

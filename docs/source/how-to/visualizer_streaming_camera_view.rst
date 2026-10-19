@@ -7,8 +7,7 @@ Streaming a camera view in a visualizer
 
 .. currentmodule:: isaaclab
 
-This guide shows how to show ground-truth camera frames from many environments in one live
-panel of a visualizer. For how the view works and which visualizers support it, see
+Display ground-truth camera frames from many environments in one live visualizer panel. For how the view works and which visualizers support it, see
 :ref:`visualization-streaming-camera-view`.
 
 
@@ -48,7 +47,7 @@ selection. Reading the shared view twice in one physics step reuses its frame an
 Changing the view's selection rebuilds composition state; captured composition graphs must then be
 recreated. This does not resize the sensor's render product.
 
-A perspective source uses a visualizer's renderer without creating a scene camera sensor:
+For Newton RTX, a perspective declaration is expanded into an ordinary scene camera before launch:
 
 .. code-block:: python
 
@@ -124,13 +123,16 @@ for dual monitoring.
 its tiled output in the main viewport instead of rendering a perspective view behind it.
 Selecting a perspective camera restores interactive scene rendering. Newton GL also restores picking.
 
-Without an explicit ``cameras`` list, the viewer starts in perspective and offers scene cameras
+Without an explicit ``cameras`` list, Newton GL starts in perspective and offers scene cameras
 that provide every requested ``streaming_gt_types`` channel. An explicit
 ``streaming_sensor_prim_path`` starts with that scene camera selected. For example, set
 ``streaming_gt_types=("depth",)`` to offer depth-only cameras. The RGB view accepts RGB or RGBA
 outputs; the display uses opaque alpha. No images are captured to
 build the selector. Explicitly configured scene-camera choices must support the requested channels;
 incompatible choices raise a configuration error during initialization, including inactive choices.
+
+Newton RTX displays only the sources declared in ``view`` or ``cameras``. With neither set, launch
+preparation declares one perspective camera. Scene sensors are never added to its selector automatically.
 
 Use ``cameras`` to declare a list of selectable views; the first starts active:
 
@@ -151,7 +153,9 @@ Use ``cameras`` to declare a list of selectable views; the first starts active:
 The ``cameras`` field is shared across visualizers. Kit, Rerun, and Viser use the first scene
 camera for their image panel; Newton GL and RTX provide the source dropdown shown above.
 ``SceneCameraCfg`` selects an existing sensor; ``PerspectiveCameraCfg`` configures the viewer's
-own interactive camera. Neither creates a camera sensor. Newton RTX keeps its perspective
+interactive camera. For Newton RTX, ``launch_simulation(env_cfg, ...)`` adds a ``CameraCfg``
+to the scene before any scene objects are constructed and selects it through ``SceneCameraCfg``.
+Newton GL retains its native perspective camera. Newton RTX keeps its perspective
 render resolution fixed at the initial ``WindowCfg.size``; resizing
 its window scales the displayed image. Sensor resolution remains controlled by ``CameraCfg``.
 Window resizing does not reallocate sensor or RTX perspective image buffers. Newton GL perspective
@@ -160,13 +164,57 @@ Newton windows present at up to ``WindowCfg.fps`` (30 by default), measured in w
 Changing the simulation timestep does not change that limit. Headless on-demand capture is
 independent of the window update rate; Kit uses its application's update cadence.
 
-Newton RTX uses Newton's native ``ViewerRTX`` with a simulation-owned OVStage containing the
-authored scene and clone placements. Newton owns its perspective renderer, window, and debug
-markers; scene cameras retain their own renderer and resources. No default lights are added:
-scenes without authored lights remain unlit. Scene-camera selections use their sensor's
-renderer, including Newton Warp, and skip the viewer's perspective rendering.
-Closing the viewer releases its resources while leaving the borrowed stage and sensors alive.
-RTX markers are viewer overlays and do not appear in sensor images.
+Newton RTX displays ordinary camera output in a Newton GL window. Equal ``OVRTXRendererCfg``
+configurations share one renderer and its scene. ``NewtonRTXVisualizerCfg.renderer_cfg`` selects
+the renderer for generated perspective cameras; explicitly selected scene cameras retain their
+own renderer. Newton's ``ViewerRTX`` and its borrowed-stage interface are not used.
+``isaaclab_ov.stage.OvstageBackend`` remains available for downstream consumers that need an
+independent native stage. Its ``populate(stage, plan)`` method imports and clones a declared scene.
+
+The camera owns pose, calibration, image buffers, capture, and cleanup. Window navigation calls
+``Camera.set_world_poses`` and ``Camera.set_intrinsic_matrices``; image reads use ``Camera.data``.
+There is no separate perspective rendering entry point. No default lights are added: scenes
+without authored lights remain unlit. Closing a window leaves its scene camera and renderer alive.
+
+Scripts without an ``InteractiveSceneCfg`` use ``ReplicateSession`` to declare their scene before
+spawning assets and cameras, including for a single environment:
+
+.. code-block:: python
+
+   from isaaclab.app import launch_simulation
+   from isaaclab.assets import AssetBaseCfg
+   from isaaclab.cloner import ReplicateSession
+   from isaaclab.sensors import CameraCfg
+   from isaaclab.sim import CuboidCfg, DomeLightCfg, PinholeCameraCfg, SimulationCfg, SimulationContext
+   from isaaclab.utils import instantiate
+   from isaaclab.visualizers import SceneCameraCfg
+   from isaaclab_ov.renderers import OVRTXRendererCfg
+   from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
+
+   camera_cfg = CameraCfg(
+       prim_path="/World/PerspectiveCamera", width=960, height=540,
+       spawn=PinholeCameraCfg(focal_length=12.0), renderer_cfg=OVRTXRendererCfg(),
+       offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, 5.0), convention="opengl"),
+       render_settings={"omni:rtx:quality": ("Int", 0)},
+   )
+   sim_cfg = SimulationCfg(
+       visualizer_cfgs=[NewtonRTXVisualizerCfg(cameras=[SceneCameraCfg(prim_path=camera_cfg.prim_path)])]
+   )
+   target_cfg = AssetBaseCfg(prim_path="/World/Target", spawn=CuboidCfg(size=(1.0, 1.0, 1.0)))
+   light_cfg = AssetBaseCfg(prim_path="/World/Light", spawn=DomeLightCfg(intensity=1000.0))
+   with launch_simulation(sim_cfg, {"physics": "ovphysx", "visualizer": ["newton_rtx"]}):
+       sim = SimulationContext(sim_cfg)
+       with ReplicateSession((target_cfg, light_cfg, camera_cfg), num_clones=1, env_spacing=0.0):
+           instantiate(target_cfg)
+           instantiate(light_cfg)
+           camera = instantiate(camera_cfg)
+       sim.reset()
+       while sim.is_running():
+           sim.step()
+           camera.update(sim.get_physics_dt())
+
+The script retains the camera and advances its sensor timing, just as it does for other directly
+spawned sensors. ``SceneCameraCfg`` discovers it by prim path without an ``InteractiveScene``.
 
 Display layout and channel mappings are compiled when the source, selection, resolution, or
 color settings change. Composition writes into reusable device RGBA storage. Newton GL, Newton
@@ -282,10 +330,12 @@ Configuration
 Declare camera resolution, pose, renderer, and output types on ``CameraCfg`` in the scene.
 Then choose what to display in ``VisualizerCfg``:
 
-* ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
+* ``cameras=[SceneCameraCfg(prim_path=...)]`` selects a scene camera; ``view=ImageViewCfg(source="name")``
+  selects a named sensor and its image layout. Newton RTX uses these explicit declarations.
+* For other viewers, ``streaming_sensor_prim_path`` selects a scene :class:`~isaaclab.sensors.Camera` by its configured
   prim path. The ``{ENV_REGEX_NS}`` macro uses the scene's environment template.
-  If omitted, Newton GL and RTX start in perspective mode and offer compatible scene cameras
-  in the Camera View dropdown. Other viewers select the first compatible scene camera;
+  If omitted, Newton GL starts in perspective mode and offers compatible scene cameras
+  in the Camera View dropdown. Kit and web viewers select the first compatible scene camera;
   without one, their panel stays empty.
 * ``streaming_envs`` controls how many environment tiles are shown. Pass an ``int`` to randomly
   sample that many environments, or a ``list[int]`` to pin specific environment indices.
@@ -316,8 +366,8 @@ stream. Without ``--viz``, capture runs on demand without opening a window. Addi
 displays the visualizer; it is not required to advance recorded frames. A new physics step refreshes
 the image, while repeated captures within the same step reuse it.
 
-* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and set
-  ``streaming_sensor_prim_path`` to its prim path.
+* If a view reports no matching camera, declare a ``CameraCfg`` in the scene and select it
+  with ``cameras=[SceneCameraCfg(prim_path=...)]`` or ``view=ImageViewCfg(source="name")``.
 * Each ``streaming_gt_types`` entry must have a corresponding output in the selected
   camera's ``data_types``; ``rgba`` also satisfies an ``rgb`` request. Automatically offered
   cameras support every requested channel. Explicitly selecting an incompatible camera raises an error.
@@ -334,10 +384,10 @@ Visualizers no longer create or destroy camera sensors. Replace
 ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
 with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
 ``offset``, and supply ``renderer_cfg`` there. Select that camera through
-``streaming_sensor_prim_path``, or ``cameras=[SceneCameraCfg(...)]``. This puts the camera
+``cameras=[SceneCameraCfg(...)]``. This puts the camera
 in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 The full option mapping is in the
-:doc:`3.0 migration guide </source/migration/migrating_to_isaaclab_3-0>`.
+:doc:`3.0 migration guide </source/isaaclab/migrating>`.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.
 ``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.

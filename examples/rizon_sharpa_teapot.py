@@ -591,8 +591,9 @@ class TeapotPourMotion:
         approach_offset_at_time: Callable[[float], tuple[float, float, float]] | None = None,
     ) -> None:
         import mujoco
-        from isaaclab_newton.physics import NewtonManager
         from scipy.optimize import least_squares
+
+        from isaaclab.sim import SimulationContext
 
         if not 0 <= close_interval[0] < close_interval[1] < grasp_time - 0.3 < grasp_time < pickup_end_time < duration:
             raise ValueError("Closure, pickup and sequence timings must be strictly ordered.")
@@ -617,7 +618,7 @@ class TeapotPourMotion:
         self._thumb_joints = joint_ids[7:12]
         self._thumb_jacobian_dofs = [joint + robot.num_base_dofs for joint in self._thumb_joints]
         # Startup IK needs MJWarp's native model. Feedback reads public asset state.
-        mj = NewtonManager._solver.solver("robot").mj_model
+        mj = SimulationContext.instance().backend_manager._solver.solver("robot").mj_model
         names = [mujoco.mj_id2name(mj, mujoco.mjtObj.mjOBJ_JOINT, i).split("_Physics_")[-1] for i in range(mj.njnt)]
         joints = [names.index(name) for name in ARM_JOINT_NAMES + HAND_JOINT_NAMES]
         arm_q = mj.jnt_qposadr[joints[:7]]

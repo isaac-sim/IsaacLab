@@ -132,6 +132,8 @@ def test_interactive_input_shows_captured_context_before_waiting_for_answer():
                 answer = input("Accept terms? ")
             assert builtins.input is original_input
             print(f"Answer: {answer}", flush=True)
+            screen.stage("Loading policy after answer")
+            screen.summary("Post-prompt QA", {"Task": "Terminal"})
             screen.close()
         assert builtins.input is original_input
         print("Normal output restored.", flush=True)
@@ -173,6 +175,8 @@ def test_interactive_input_shows_captured_context_before_waiting_for_answer():
                 break
             output.extend(chunk)
         assert b"Answer: NO" in output
+        assert output.index(b"Loading policy after answer") > output.index(b"Answer: NO")
+        assert output.index(b"Post-prompt QA") > output.index(b"Answer: NO")
         assert b"Normal output restored." in output
     finally:
         if process.poll() is None:

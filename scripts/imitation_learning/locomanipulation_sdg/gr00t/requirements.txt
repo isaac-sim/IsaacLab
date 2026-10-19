@@ -10,8 +10,8 @@ huggingface-hub==0.36.2
 diffusers==0.35.1
 # RigidTransform in the SDG converter needs SciPy >=1.16.
 scipy==1.16.3
-torch==2.7.1
-torchvision==0.22.1
+torch==2.10.0
+torchvision==0.25.0
 decord2==3.4.0
 msgpack==1.2.3
 pyzmq==27.2.0
