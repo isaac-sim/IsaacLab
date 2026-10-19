@@ -24,20 +24,23 @@ export LD_LIBRARY_PATH=
 uv run --no-sync isaaclab-cosmos-server --checkpoint "$COSMOS_CHECKPOINT" --kv-window 4
 ```
 
-The first three commands are one-time setup. Wait for `Cosmos ready at ...`.
+The `uv sync`, `uv pip install`, and `hf download` commands are one-time setup. Wait for `Cosmos ready at ...`.
+
+`--kv-window 4` shortens the history the model attends to so that two environments fit when Isaac Sim and Cosmos share
+one GPU: on a 48 GB GPU slice, two environments peaked at about 43 GB. If Cosmos has a GPU of its own, start it with
+`--device cuda:1` and without `--kv-window`, which keeps the default history of 30.
 
 ## 2. Train with Cosmos on the camera
 
-In a second terminal, train with the Cosmos preset and one prompt per environment:
+In a second terminal:
 
 ```bash
+export ISAAC_LAB_ROOT=/absolute/path/to/IsaacLab
 cd "$ISAAC_LAB_ROOT"
 uv run isaaclab cosmos status      # expect "ready": true and "session_active": false
 
-uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
-  --max_iterations 20 \
-  --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
-  presets=cosmos env.fall_dist=1000.0 agent.init_at_random_ep_len=false \
+uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
+  presets=cosmos \
   env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
@@ -47,11 +50,25 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   describes the scene of each environment: with `--num_envs 2` the first prompt is environment 0 and the second is
   environment 1. The same path sets `endpoint` and `transport`, and `...distance_to_image_plane.0.params.near` and
   `far` set the depth range; see the [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
+  A misspelled override path is not rejected, so check the spelling.
+
+## 3. Record a clip
+
+The same training run, recording both environments side by side:
+
+```bash
+uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
+  --max_iterations 20 \
+  --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
+  presets=cosmos env.fall_dist=1000.0 agent.init_at_random_ep_len=false \
+  env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
+```
+
 - `--viz newton_gl --video viz:newton_gl:streaming_view --video_length 600` records 600 steps (one episode) of the
-  generated images of both environments side by side. The run prints the folder with the clip.
+  generated images. The run prints the folder with the clip. Without a screen, for example over SSH, run
+  `unset DISPLAY` first.
 - A reset shows black until the environment's next chunk. `env.fall_dist=1000.0` and
   `agent.init_at_random_ep_len=false` keep the clip free of mid-episode resets: a dropped cube does not end the
   episode, and both environments run to the time limit together.
-- `--kv-window 4` on the service lets two environments fit on a 48 GB GPU that Isaac Sim shares; omit it on a larger GPU.
 
 Press Ctrl+C in the first terminal to stop the service.
