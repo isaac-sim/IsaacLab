@@ -206,10 +206,6 @@ jobs:
             echo
             echo "- Infrastructure update"
             echo
-            echo "## Release backport"
-            echo
-            echo '- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `main`'
-            echo
             echo "## Screenshots"
             echo
             echo "Not applicable."

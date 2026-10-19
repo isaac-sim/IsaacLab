@@ -26,10 +26,6 @@ is demanded by more than one party. -->
 - Breaking change (existing functionality will not work without user modification)
 - Documentation update
 
-## Release backport
-
-- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `main`
-
 ## Screenshots
 
 Please attach before and after screenshots of the change if applicable.
