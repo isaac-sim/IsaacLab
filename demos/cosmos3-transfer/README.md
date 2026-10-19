@@ -37,7 +37,7 @@ uv run isaaclab cosmos status      # expect "ready": true and "session_active": 
 uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_library rsl_rl --num_envs 2 \
   --max_iterations 20 \
   --viz newton_gl --video viz:newton_gl:streaming_view --video_length 600 \
-  presets=cosmos \
+  presets=cosmos env.fall_dist=1000.0 agent.init_at_random_ep_len=false \
   env.scene.tiled_camera.modifiers.distance_to_image_plane.1.backend.prompt="['A close-up overhead view of a robotic Shadow Hand turning a red cube on a wooden workbench.', 'A close-up overhead view of a robotic Shadow Hand turning a blue cube in a bright white lab.']"
 ```
 
@@ -49,6 +49,9 @@ uv run --extra video isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Dir
   `far` set the depth range; see the [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
 - `--viz newton_gl --video viz:newton_gl:streaming_view --video_length 600` records 600 steps (one episode) of the
   generated images of both environments side by side. The run prints the folder with the clip.
+- A reset shows black until the environment's next chunk. `env.fall_dist=1000.0` and
+  `agent.init_at_random_ep_len=false` keep the clip free of mid-episode resets: a dropped cube does not end the
+  episode, and both environments run to the time limit together.
 - `--kv-window 4` on the service lets two environments fit on a 48 GB GPU that Isaac Sim shares; omit it on a larger GPU.
 
 Press Ctrl+C in the first terminal to stop the service.
