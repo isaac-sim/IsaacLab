@@ -182,10 +182,10 @@ class OvrtxReplicateContext(cloner.ReplicateContext):
             use_ovstage = initialized._use_ovstage
             share_ovstage = initialized.backend.cfg.scene_key is None
         else:
-            # Defaults: independent OVStage rendering with OVPhysX; native OVRTX cloning with Newton.
+            # Default to native OVRTX cloning to preserve camera-task throughput on both physics backends.
             # Keep sharing opt-in until OVPhysX cold binding and shared-stage update performance are fixed.
             with_ovphysx = sim.backend_manager.clone_context_type is OvPhysxReplicateContext
-            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "1" if with_ovphysx else "0").strip()
+            value = os.environ.get("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0").strip()
             if value not in {"0", "1"}:
                 raise ValueError(f"Invalid ISAAC_LAB_OVRTX_USE_OVSTAGE: {value!r}. Expected 0 or 1.")
             share_ovstage = os.environ.get("ISAAC_LAB_SHARE_OVSTAGE") == "1"

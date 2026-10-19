@@ -236,9 +236,11 @@ Focused examples
 
    .. grid-item-card:: Tablecloth trick (Newton VBD, experimental)
 
-      .. image:: ../_static/examples/tablecloth_h2.jpg
+      .. figure:: ../_static/examples/tablecloth_h2.jpg
          :width: 100%
          :alt: Three H2 Plus robots comparing cloth pulls in the Cloth Pull Challenge cantina.
+
+         Native Kit viewport with the three pull stations aligned and interior lighting enabled.
 
       Three H2 Plus robots with SHARPA hands pull tablecloths at different speeds
       in the Cloth Pull Challenge cantina. Newton VBD simulates the cloth,
