@@ -89,6 +89,9 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 | `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
+The current Cosmos3-Nano-Sim-Transfer checkpoint is trained on depth, so `depth` is the supported control; `edge`
+and `seg` need a checkpoint trained for them.
+
 Other control recipes are `edge_processor`, `regional_edge_processor`, and
 `segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
