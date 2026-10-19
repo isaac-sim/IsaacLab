@@ -50,7 +50,7 @@ uv run isaaclab train --task Isaac-Reorient-Cube-Shadow-Camera-Direct --rl_libra
   describes the scene of each environment: with `--num_envs 2` the first prompt is environment 0 and the second is
   environment 1. The same path sets `endpoint` and `transport`, and `...distance_to_image_plane.0.params.near` and
   `far` set the depth range; see the [camera integration guide](../../source/isaaclab_experimental/docs/cosmos.md).
-  A misspelled override path is not rejected, so check the spelling.
+  A misspelled field in an override stops the run with an error naming it.
 
 ## 3. Record a clip
 
