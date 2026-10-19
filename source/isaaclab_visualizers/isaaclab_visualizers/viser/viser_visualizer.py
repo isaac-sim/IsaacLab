@@ -26,6 +26,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg
 
+from isaaclab_visualizers.mesh_variant_renderer import MeshVariantRenderer, populate_shapes_without_mesh_variants
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import log_geo_with_expanded_plane_scale
 
@@ -101,6 +102,7 @@ class NewtonViewerViser(ViewerViser):
         import viser._client_autobuild as client_autobuild
 
         self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
+        self._mesh_variant_model_shapes: tuple[int, ...] = ()
         self._per_plot_folders: dict[str, Any] = {}
         self._live_plots_folder: Any = None
 
@@ -127,6 +129,16 @@ class NewtonViewerViser(ViewerViser):
                 share=share,
                 record_to_viser=record_to_viser,
             )
+
+    def _populate_shapes(self) -> None:
+        """Exclude shapes drawn by the reset-selectable variant batches."""
+        populate_shapes_without_mesh_variants(self, self._mesh_variant_model_shapes, super()._populate_shapes)
+
+    def _compute_shape_offset_mesh(self, shape_idx: int, *args, **kwargs) -> newton.Mesh | None:
+        """Skip cached margin surfaces for reset-selected meshes."""
+        if shape_idx in self._mesh_variant_model_shapes:
+            return None
+        return super()._compute_shape_offset_mesh(shape_idx, *args, **kwargs)
 
     def clear_model(self) -> None:
         """Clear cached state and remove per-plot GUI folders with the viewer model."""
@@ -288,6 +300,7 @@ class ViserVisualizer(BaseVisualizer):
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
         self.backend = None
+        self._mesh_variant_renderer: MeshVariantRenderer | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._warned_marker_render_failure = False
         self._paused_rendering = False
@@ -324,7 +337,7 @@ class ViserVisualizer(BaseVisualizer):
         if self.cfg.verbose:
             print()
             self._log_viewer_url("ViserVisualizer", viewer_url)
-        self._viewer.set_model(self.backend.model)
+        self._bind_model()
         self._viewer.show_particles = self.cfg.show_particles
         # set_model() clears model-dependent GUI elements; build the sidebar afterwards.
         self._setup_isaaclab_sidebar(self._viewer._server)
@@ -391,6 +404,8 @@ class ViserVisualizer(BaseVisualizer):
                 if backend.geometry_offsets:
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
                 self._viewer.log_state(self.backend.state_0)
+                if self._mesh_variant_renderer is not None:
+                    self._mesh_variant_renderer.render(self._viewer, self.backend.state_0.body_q)
                 if self.cfg.enable_markers:
                     self._render_markers(self.backend.model.num_envs)
             self._render_live_plots()
@@ -432,10 +447,21 @@ class ViserVisualizer(BaseVisualizer):
             return
         self.backend = backend
         self._transform_mapping = self._sim.get_scene_data_provider().create_mapping(list(backend.model.body_label))
-        self._viewer.set_model(backend.model)
+        self._bind_model()
         self._setup_isaaclab_sidebar(self._viewer._server)
         self._viewer.set_visible_worlds(self._env_ids)
         self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+
+    def _bind_model(self) -> None:
+        """Bind regular geometry and the backend's live mesh selections."""
+        banks = tuple(bank for bank in self.backend.mesh_variants.values() if bank.render_set is not None)
+        self._viewer._mesh_variant_model_shapes = tuple(
+            shape for bank in banks for shape in bank.render_set.model_shape_indices
+        )
+        self._viewer.set_model(self.backend.model)
+        self._mesh_variant_renderer = None
+        if banks:
+            self._mesh_variant_renderer = MeshVariantRenderer(self._viewer, self.backend.model, banks, self._env_ids)
 
     def close(self) -> None:
         """Close viewer resources and finalize optional recording."""
@@ -453,6 +479,7 @@ class ViserVisualizer(BaseVisualizer):
             logger.warning("[ViserVisualizer] Error during close: %s", exc)
 
         self._viewer = None
+        self._mesh_variant_renderer = None
         self._is_initialized = False
         self.backend = self._transform_mapping = None
         super().close()

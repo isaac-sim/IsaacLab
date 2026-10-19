@@ -191,6 +191,7 @@ class PhysicsManager(metaclass=_PhysicsManagerMeta):
         return manager
 
     clone_context_type: ClassVar[type[ReplicateContext] | None] = None
+    _supports_mesh_variants: ClassVar[bool] = False
 
     supports_anim_recording: ClassVar[bool] = False
     """Whether this backend can service ``--anim_recording_enabled`` (OVD Recorder).

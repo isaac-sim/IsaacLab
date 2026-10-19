@@ -54,6 +54,7 @@ from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
+from isaaclab_newton.physics.mesh_variants import MeshVariants
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 from isaaclab_newton.physics.newton_manager_cfg import (
     NewtonBackendCfg,
@@ -75,6 +76,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
+    from isaaclab_newton.physics.mesh_variants import _MeshVariantDefinition
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 
@@ -152,6 +154,18 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
     world_mask[env_ids[wp.tid()]] = True
 
 
+class _NewtonBuilder(ModelBuilder):
+    """Native builder with construction metadata retained across model hard resets.
+
+    Variant rows and visual descriptors belong to this assembled builder; Newton's
+    ``add_builder`` and ``add_world`` do not copy them from source builders.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.mesh_variant_definitions: dict[str, _MeshVariantDefinition] = {}
+
+
 def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """Construct a native builder through the selected physics manager's factory.
 
@@ -163,7 +177,7 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """
     if isinstance(cfg.physics_cfg, NewtonCfg):
         return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
-    return ModelBuilder()
+    return _NewtonBuilder()
 
 
 class NewtonBackend:
@@ -196,12 +210,17 @@ class NewtonBackend:
         )
         self.bvh_refit = TimestampedBuffer()
 
+        self.mesh_variants = {
+            name: MeshVariants(self.model, definition) for name, definition in builder.mesh_variant_definitions.items()
+        }
+
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
         return VisualMaterialWriter(self.model, batches)
 
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
+        self.mesh_variants.clear()
         self.control = self.state_1 = self.state_0 = self.model = None
         self.deformable_ranges.clear()
         self.particle_ranges = {}
@@ -897,7 +916,7 @@ class NewtonManager(PhysicsManager):
             physics_cfg = sim.cfg.physics if sim is not None else None
         cfg = physics_cfg
 
-        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder = _NewtonBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
         builder.default_bvh_cfg = ModelBuilder.BvhConfig(
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
@@ -1573,6 +1592,8 @@ class NewtonManager(PhysicsManager):
         if world_mask is None:
             return
         self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        if self._collision_pipeline is not None:
+            self._collision_pipeline.reset_contact_matching(world_mask)
 
     # ----- Lifecycle orchestration ----------------------------------------
 
@@ -1721,9 +1742,13 @@ class NewtonManager(PhysicsManager):
             sensor.update(self.backend.state_0)
         if self._report_contacts:
             eval_contacts = contacts if contacts is not None else self._contacts
-            self._solver.update_contacts(eval_contacts, self.backend.state_0)
+            self._update_contacts_for_sensors(eval_contacts)
             for sensor in self._newton_contact_sensors.values():
                 sensor.update(self.backend.state_0, eval_contacts)
+
+    def _update_contacts_for_sensors(self, contacts: Contacts) -> None:
+        """Publish solver contact data before the sensor reads it."""
+        self._solver.update_contacts(contacts, self.backend.state_0)
 
     # ------------------------------------------------------------------
     # Composite stepping routines

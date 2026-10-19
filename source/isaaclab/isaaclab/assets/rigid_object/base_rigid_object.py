@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from ...cloner import num_spawn_variants
 from ...utils.warp import ProxyArray
 from ...utils.wrench_composer import WrenchComposer
 from ..asset_base import AssetBase
@@ -77,6 +78,16 @@ class BaseRigidObject(AssetBase):
     def body_names(self) -> list[str]:
         """Ordered names of bodies in the rigid object."""
         raise NotImplementedError()
+
+    @property
+    def num_mesh_variants(self) -> int:
+        """Number of variants in the configured spawner catalog, independent of backend switching support."""
+        return num_spawn_variants(self.cfg.spawn)
+
+    @property
+    def mesh_variant_ids(self) -> ProxyArray:
+        """Selected variant index for each environment on backends supporting reset-time selection."""
+        raise NotImplementedError(f"Backend {self.__backend_name__!r} does not support reset-time mesh selection.")
 
     @property
     @abstractmethod
@@ -180,6 +191,25 @@ class BaseRigidObject(AssetBase):
     """
     Operations - Write to simulation.
     """
+
+    def write_mesh_variant_to_sim(
+        self,
+        variant_ids: torch.Tensor | wp.array[wp.int32],
+        env_ids: Sequence[int] | torch.Tensor | wp.array[wp.int32] | None = None,
+    ) -> None:
+        """Select collision geometry and inertial properties for selected environments.
+
+        Variant indices follow the configured multi-asset spawner's order. Static catalog spawning
+        is independent of reset-time selection support. Newton MJWarp supports compatible single-body
+        mesh catalogs with external contacts and disabled sleeping; other backends raise
+        :class:`NotImplementedError` for this operation.
+
+        Args:
+            variant_ids: Variant index per selected environment, shape ``(len(env_ids),)``.
+                Every value must be in ``[0, num_mesh_variants)``.
+            env_ids: Valid, unique environment indices. If ``None``, select every environment.
+        """
+        raise NotImplementedError(f"Backend {self.__backend_name__!r} does not support reset-time mesh selection.")
 
     @abstractmethod
     def write_root_pose_to_sim_index(

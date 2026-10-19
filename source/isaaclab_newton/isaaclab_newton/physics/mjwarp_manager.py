@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import warp as wp
-from newton import Contacts, Model
+from newton import Contacts, Control, Model, State
 from newton.solvers import SolverMuJoCo
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
@@ -31,6 +31,7 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     _builder_attribute_solvers = (SolverMuJoCo,)
+    _supports_mesh_variants = True
 
     @classmethod
     def _create_solver(
@@ -38,12 +39,14 @@ class NewtonMJWarpManager(NewtonManager):
         model: Model,
         solver_cfg: MJWarpSolverCfg,
         deterministic_mode: wp.DeterministicMode = wp.DeterministicMode.NOT_GUARANTEED,
+        *,
+        separate_worlds: bool | None = None,
     ) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""
         kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg, deterministic_mode)
         # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
         kwargs.pop("ls_parallel", None)
-        return SolverMuJoCo(model, **kwargs)
+        return SolverMuJoCo(model, separate_worlds=separate_worlds, **kwargs)
 
     def _build_solver(self, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
         """Construct :class:`SolverMuJoCo` and populate the solver slots.
@@ -54,7 +57,9 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        self._solver = self._create_solver(model, solver_cfg, self._deterministic_mode)
+        self._solver = self._create_solver(
+            model, solver_cfg, self._deterministic_mode, separate_worlds=True if self.backend.mesh_variants else None
+        )
         self._use_single_state = True
         self._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
         self._supports_rigid_body_force_input = True
@@ -89,8 +94,14 @@ class NewtonMJWarpManager(NewtonManager):
         maximum contact count; ``solver.update_contacts`` later populates it
         from MuJoCo data for contact-sensor reporting.
         """
+        self._contact_observables: SolverMuJoCo.Observables | None = None
         if self._needs_collision_pipeline:
             super()._initialize_contacts()
+            self._contact_observables = (
+                self._solver.observables([SolverMuJoCo.ObservableKind.CONTACT_F], contacts=self._contacts)
+                if self._report_contacts
+                else None
+            )
             return
         if self._solver is not None:
             self._contacts = Contacts(
@@ -99,6 +110,19 @@ class NewtonMJWarpManager(NewtonManager):
                 device=self._device,
                 requested_attributes=self.backend.model.get_requested_contact_attributes(),
             )
+
+    def _step_solver(
+        self, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
+    ) -> None:
+        """Use public force observables to preserve external collision row identities."""
+        self._solver.step(state_0, state_1, control, contacts, substep_dt, observables=self._contact_observables)
+
+    def _update_contacts_for_sensors(self, contacts: Contacts) -> None:
+        if self._contact_observables is None:
+            super()._update_contacts_for_sensors(contacts)
+
+    def _solver_specific_clear(self) -> None:
+        self._contact_observables = None
 
     def _reset_solver_internals(self, world_mask: wp.array | None) -> None:
         """Clear MuJoCo Warp solver-internal state for flagged worlds.
@@ -129,9 +153,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         if self._solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
-        # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
-        # joint_q/joint_qd and has already written the authored reset pose.
-        self._solver.reset(self.backend.state_0, world_mask=world_mask, flags=0)
+        super()._reset_solver_internals(world_mask)
 
     def _log_solver_debug(self) -> None:
         """Optionally log MuJoCo solver convergence at the end of step."""

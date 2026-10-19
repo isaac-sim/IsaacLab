@@ -469,15 +469,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
-        pytest.param(
-            False,
-            id="newton_contacts",
-            marks=pytest.mark.skip(
-                reason=(
-                    "Newton normal_force_matrix_w is non-deterministic across hardware (reports 0 or inflated values)"
-                ),
-            ),
-        ),
+        pytest.param(False, id="newton_contacts"),
         pytest.param(True, id="mujoco_contacts"),
     ],
 )

@@ -14,7 +14,7 @@ import pytest
 from pxr import Usd, UsdGeom
 
 import isaaclab.cloner.replicate_session as replicate_session
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import (
     CloneCfg,
     ReplicateContext,
@@ -25,7 +25,7 @@ from isaaclab.cloner import (
 )
 from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sensors import CameraCfg, RayCasterCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
@@ -45,7 +45,7 @@ class _RenderContext(_Context):
 def simulation(monkeypatch):
     registry = []
     sim = SimpleNamespace(
-        backend_manager=SimpleNamespace(clone_context_type=_Context),
+        backend_manager=SimpleNamespace(clone_context_type=_Context, _supports_mesh_variants=False),
         clone_contexts={},
         _backend_registry=registry,
         _render_context=RenderContext(registry),
@@ -224,10 +224,14 @@ def test_grid_transforms_centers_a_float32_grid():
     np.testing.assert_array_equal(orientations, [[0, 0, 0, 1]] * 3)
 
 
-def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
+@pytest.mark.parametrize("supports_switching, unused_variant", [(True, False), (True, True), (False, True)])
+def test_multi_spawner_creates_concrete_asset_prototypes(simulation, supports_switching, unused_variant):
     """Homogeneous planning rejects variants atomically; a session authors each alternative once."""
     shapes = [CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]
-    object_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=MultiAssetSpawnerCfg(assets_cfg=shapes))
+    object_cfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=MultiAssetSpawnerCfg(assets_cfg=shapes),
+    )
     robot = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)))
     with pytest.raises(ValueError, match="single-variant"):
         clone_plan_from_env_0(CloneCfg(), (robot, object_cfg), 2, 1.0)
@@ -236,14 +240,44 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
     assert simulation.plan is None
 
     ground = AssetBaseCfg(prim_path="/World/Ground")
-    with ReplicateSession((object_cfg, ground), 4, 2.0) as session:
+    simulation.backend_manager._supports_mesh_variants = supports_switching
+    worlds = ((0,),) if unused_variant else None
+    with ReplicateSession((object_cfg, ground), 4, 2.0, world_prototypes=worlds) as session:
         plan = session.plan
         assert len(plan.asset_cfgs) == 3
         for cfg, shape in zip(plan.asset_cfgs[:2], object_cfg.spawn.assets_cfg, strict=True):
             assert cfg.spawn.assets_cfg[0] is shape
-        assert object_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
-        np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0, 1])
-        np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 1, 1])
+        unused_source = "/World/IsaacLabPrototypes/asset_1" if supports_switching else None
+        expected_sources = ["/World/envs/env_0/Object", unused_source if unused_variant else "/World/envs/env_2/Object"]
+        assert object_cfg.spawn.spawn_paths == expected_sources
+        assert cloner_path.get_asset_prototype_paths(plan)[:2] == tuple(expected_sources)
+        np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0] if unused_variant else [2, 0, 1])
+        np.testing.assert_array_equal(
+            plan.topology.world_prototype_layout, [0, 0, 0, 0] if unused_variant else [0, 0, 1, 1]
+        )
+    if unused_variant:
+        assert all(1 not in ids for _, _, ids in simulation.calls)
+
+
+def test_scene_explicit_variant_rows_preserve_pairing():
+    """Paired choices follow declaration order even when cameras initialize after rigid objects."""
+    scene = object.__new__(InteractiveScene)
+    scene.cloner_cfg = CloneCfg(valid_set=[[0, 1, 1], [-1, 0, 0]])
+    scene._env_fmt = scene.cloner_cfg.clone_template
+    assets = {"camera": CameraCfg(prim_path="{ENV_REGEX_NS}/Camera", spawn=PinholeCameraCfg())}
+    for name in ("fixed", "held"):
+        assets[name] = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/" + name,
+            spawn=MultiAssetSpawnerCfg(assets_cfg=[CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]),
+        )
+    scene.cfg = SimpleNamespace(num_envs=2, **assets)
+    _, world_prototypes, weights = scene._collect_asset_cfgs()
+    assert world_prototypes == ((1, 3, 4), (0, 2))
+    np.testing.assert_array_equal(weights, [1.0, 1.0])
+    for rows in ([[0]], [[0, 0, 2]], [[0, 0, 0.5]], []):
+        scene.cloner_cfg.valid_set = rows
+        with pytest.raises(ValueError, match="valid_set"):
+            scene._collect_asset_cfgs()
 
 
 def test_replicate_session_clears_plan_when_asset_init_fails(simulation):

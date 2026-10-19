@@ -207,6 +207,12 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
     for selector in ("/Banana", np.array([0.5]), np.array([[0]])):
         with pytest.raises(TypeError, match="integer IDs"):
             cloner.query.get_asset_prototype_world_index(plan.topology, selector)
+    # An authored source remains available even when no world initially selects it.
+    source = "/World/IsaacLabPrototypes/asset_0"
+    assets[0].spawn = CuboidCfg(size=(1, 1, 1), spawn_path=source)
+    unsampled = make_clone_plan(assets, ((1,),), 1)
+    assert cloner.path.get_asset_prototype_paths(unsampled)[0] == source
+    np.testing.assert_array_equal(unsampled.topology.world_prototypes, [1])
 
 
 @pytest.mark.parametrize("device", ["numpy", "cpu", "cuda:0"])
