@@ -19,7 +19,7 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
     gather_joint_coordinates,
     scatter_joint_coordinates,
 )
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonMJWarpManager
 from newton.selection import ArticulationView
 from scipy.spatial.transform import Rotation
 
@@ -98,11 +98,12 @@ def test_joint_commands_preserve_coordinate_layout(monkeypatch, ball_joint):
     state, control = model.state(), model.control()
     assert model.joint_coord_count != model.joint_dof_count
     assert control.joint_target_q.shape == state.joint_q.shape
-    monkeypatch.setattr(NewtonManager, "get_model", lambda: model)
-    monkeypatch.setattr(NewtonManager, "get_state_0", lambda: state)
-    monkeypatch.setattr(NewtonManager, "get_control", lambda: control)
+    backend_manager = NewtonMJWarpManager()
+    monkeypatch.setattr(backend_manager, "get_model", lambda: model)
+    monkeypatch.setattr(backend_manager, "get_state_0", lambda: state)
+    monkeypatch.setattr(backend_manager, "get_control", lambda: control)
     view = ArticulationView(model, "Robot", exclude_joint_types=[newton.JointType.FREE])
-    data = ArticulationData(view, "cpu")
+    data = ArticulationData(view, "cpu", backend_manager=backend_manager)
     data._apply_ordering_maps_after_resolve()
     num_dofs = 4 if ball_joint else 2
     assert data.joint_pos.shape == (2, num_dofs)

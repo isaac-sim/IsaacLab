@@ -8,8 +8,7 @@
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonMJWarpManager
 from isaaclab_newton.sensors.frame_transformer.frame_transformer import FrameTransformer
 from newton import ModelBuilder
 
@@ -43,30 +42,30 @@ class TestTransformToVecQuat:
 
 
 @pytest.mark.parametrize("replicated", [False, True])
-def test_sites_bind_once_to_clone_sources_or_explicit_builder(monkeypatch, replicated):
+def test_sites_bind_once_to_clone_sources_or_explicit_builder(replicated):
     main = ModelBuilder()
     source = ModelBuilder() if replicated else main
     for leg in ("FL", "FR", "RL", "RR"):
         source.add_body(label=f"Robot/{leg}_foot")
-    monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
+    manager = NewtonMJWarpManager()
     xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
-    global_label = NewtonManager.cl_register_site(None, xform)
-    local_label = NewtonManager.cl_register_site("Robot/.*_foot", xform)
-    world_label = NewtonManager.cl_register_site(None, xform, per_world=True)
-    assert NewtonManager.cl_register_site(None, xform, per_world=True) == world_label
+    global_label = manager.cl_register_site(None, xform)
+    local_label = manager.cl_register_site("Robot/.*_foot", xform)
+    world_label = manager.cl_register_site(None, xform, per_world=True)
+    assert manager.cl_register_site(None, xform, per_world=True) == world_label
 
     sources = {"Robot": source} if replicated else {}
-    global_sites, body_sites, world_sites = NewtonManager._cl_inject_sites(main, sources)
+    global_sites, body_sites, world_sites = manager._cl_inject_sites(main, sources)
     assert main.shape_body[global_sites[global_label]] == -1
     indices = body_sites[id(source)][local_label]
     assert [source.shape_body[index] for index in indices] == list(range(4))
     assert [source.shape_label[index] for index in indices] == [f"{name}/{local_label}" for name in source.body_label]
     assert world_sites == {world_label: xform}
-    assert not NewtonManager._cl_pending_sites
+    assert not manager._cl_pending_sites
 
-    NewtonManager.cl_register_site("Robot/nonexistent", xform)
+    manager.cl_register_site("Robot/nonexistent", xform)
     with pytest.raises(ValueError, match="matched no builder bodies"):
-        NewtonManager._cl_inject_sites(main, sources)
+        manager._cl_inject_sites(main, sources)
 
 
 # ---------------------------------------------------------------------------
@@ -147,7 +146,8 @@ def test_hard_resets_keep_sensor_sites(num_envs):
                 first_pass = readings
             for name, reading in readings.items():
                 torch.testing.assert_close(reading, first_pass[name], msg=lambda message: f"{name}: {message}")
-            assert len(NewtonManager._newton_imu_sensors) == len(NewtonManager._newton_frame_transform_sensors) == 1
+            manager = sim.backend_manager
+            assert len(manager._newton_imu_sensors) == len(manager._newton_frame_transform_sensors) == 1
 
 
 # ---------------------------------------------------------------------------

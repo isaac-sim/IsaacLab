@@ -115,7 +115,8 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 
     frame_view._root_view = PreviousRootView()
     frame_view._pose_binding = object()
-    monkeypatch.setattr(OvPhysxManager, "get_physx_instance", lambda: physx)
+    frame_view._backend_manager = OvPhysxManager()
+    monkeypatch.setattr(frame_view._backend_manager, "get_physx_instance", lambda: physx)
 
     def initialize(value):
         assert frame_view._root_view is None

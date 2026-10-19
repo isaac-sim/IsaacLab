@@ -16,29 +16,35 @@ import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 
 wp.config.enable_backward = False
 
 from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
-from isaaclab.app import launch_simulation
-from isaaclab.visualizers import WindowCfg
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.physics import PhysxAutoCfg
+from isaaclab.visualizers import VisualizerCfg, WindowCfg
 
-from isaaclab_tasks.utils.hydra import resolve_task_config
+from isaaclab_tasks.utils.hydra import resolve_task_config, setup_preset_cli
 
 
 def main() -> None:
-    """Run the pretrained policy in simulation time and optionally record RTX frames."""
+    """Run the pretrained policy in simulation time and optionally record visualizer frames."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--task", choices=("platforms", "ramps"), required=True)
     parser.add_argument("--checkpoint", help="Override the pretrained TorchScript checkpoint path or URL")
-    parser.add_argument("--video", action="store_true", help="Record video.mp4")
+    parser.add_argument("--video", action="store_true", help="Record the run to an MP4 clip")
     parser.add_argument("--output", type=Path, default=Path("logs/g1_terrain"))
     parser.add_argument("--seconds", type=float, help="Simulation duration in seconds, independent of wall time")
     parser.add_argument("--max_steps", type=int, help="Stop after at most this many control steps")
     parser.add_argument("--width", type=int, default=1920)
     parser.add_argument("--height", type=int, default=1080)
-    args, overrides = parser.parse_known_args()
+    add_launcher_args(parser)
+    parser.set_defaults(device=None, visualizer=None)
+    args, overrides = setup_preset_cli(parser)
     if args.seconds is not None and (not math.isfinite(args.seconds) or args.seconds <= 0):
         parser.error("--seconds must be finite and positive")
     if args.max_steps is not None and args.max_steps <= 0:
@@ -50,49 +56,51 @@ def main() -> None:
     cfg, _ = resolve_task_config(task, None, overrides=overrides)
     if args.checkpoint is not None:
         cfg.policy.checkpoint = args.checkpoint
-    cfg.sim.visualizer_cfgs = [
-        KitVisualizerCfg(
-            headless=False,
-            window=WindowCfg(size=(args.width, args.height)),
-            eye=cfg.camera_eye,
-            lookat=cfg.camera_target,
-            streaming_view=False,
-            enable_markers=False,
-            enable_live_plots=False,
-        )
-    ]
+    if not any(arg.startswith("visualizer=") for arg in overrides):
+        cfg.sim.visualizer_cfgs = [
+            KitVisualizerCfg() if isinstance(cfg.sim.physics, (PhysxCfg, PhysxAutoCfg)) else NewtonGLVisualizerCfg()
+        ]
+    aperture = 20.955 * args.height / args.width
+    cfg.sim.default_visualizer_cfg = VisualizerCfg(
+        window=WindowCfg(size=(args.width, args.height)),
+        eye=cfg.camera_eye,
+        lookat=cfg.camera_target,
+        focal_length=aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2)),
+        enable_markers=False,
+        enable_live_plots=False,
+    )
+    duration = args.seconds or cfg.duration
+    step_dt = cfg.sim.dt * cfg.decimation
+    num_steps = math.ceil(duration / step_dt)
+    if args.max_steps is not None:
+        num_steps = min(num_steps, args.max_steps)
+    if args.video:
+        cfg.video_recorders = [
+            VideoRecorderCfg(
+                output_dir=str(args.output),
+                output_filename_prefix="g1_terrain",
+                video_length=num_steps,
+                fps=round(1 / step_dt),
+            )
+        ]
     torch.set_num_threads(1)
-    with launch_simulation(cfg, {"visualizer": ["kit"], "enable_cameras": True}):
+    with launch_simulation(cfg, args):
         env = gym.make(task, cfg=cfg).unwrapped
-        writer = None
         try:
             env.reset()
             robot = env.scene["robot"]
-            visualizer = env.sim.visualizers[0]
-            env.prepare_view(visualizer)
+            kit_visualizer = next(
+                (visualizer for visualizer in env.sim.visualizers if visualizer.cfg.visualizer_type == "kit"), None
+            )
+            env.prepare_view(kit_visualizer)
             from isaaclab_tasks.contrib.g1_terrain.agents.depth_policy import DepthStudentPolicy  # noqa: PLC0415
 
             policy = DepthStudentPolicy(cfg.policy)
             policy_ids = [robot.joint_names.index(name) for name in policy.joint_names]
             action = robot.data.default_joint_pos.torch.clone()
-            if args.video:
-                import imageio.v2 as imageio  # noqa: PLC0415
-
-                args.output.mkdir(parents=True, exist_ok=True)
-                writer = imageio.get_writer(
-                    str(args.output / "video.mp4"),
-                    fps=round(1 / env.step_dt),
-                    codec="libx264",
-                    quality=8,
-                    macro_block_size=None,
-                )
-            duration = args.seconds or cfg.duration
             print(f"Running {duration:.2f} simulation seconds with scripted commands; no keyboard control.", flush=True)
             started = time.perf_counter()
             last_log = started
-            num_steps = math.ceil(duration / env.step_dt)
-            if args.max_steps is not None:
-                num_steps = min(num_steps, args.max_steps)
             for step in range(num_steps):
                 if env.sim.is_stopped():
                     break
@@ -120,12 +128,8 @@ def main() -> None:
                         flush=True,
                     )
                     last_log = now
-                if writer:
-                    writer.append_data(visualizer.render_rgb_array()[..., :3])
                 env.step(action)
         finally:
-            if writer:
-                writer.close()
             env.close()
 
 
