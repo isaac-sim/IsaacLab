@@ -15,7 +15,7 @@ import torch
 
 from ..utils import configclass
 from ..utils.noise import NoiseCfg, NoiseModelCfg
-from ..utils.tensor_processors import TensorProcessorCfg
+from ..utils.tensor_processors import DictTensorProcessorCfg, TensorProcessorCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 if TYPE_CHECKING:
@@ -246,6 +246,16 @@ class ObservationTermCfg(ManagerTermBaseCfg):
 @configclass
 class ObservationGroupCfg:
     """Configuration for an observation group."""
+
+    pipeline: list[DictTensorProcessorCfg] = []
+    """Dictionary processors applied in order after term processing, delay, and history.
+
+    Inputs are observation term names or outputs from preceding processors. Outputs add or
+    replace named observations; untouched terms remain available. Requires
+    :attr:`concatenate_terms` to be False. Returned observations are independent snapshots.
+    Processors run on every observation computation and reset with the selected environments.
+    Supported by the standard observation manager, not the experimental Warp manager.
+    """
 
     concatenate_terms: bool = True
     """Whether to concatenate the observation terms in the group. Defaults to True.

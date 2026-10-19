@@ -23,6 +23,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
     RewardTermCfg,
 )
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import DelayBuffer, configclass, noise, tensor_processors, to_dict, update_from_dict, validate
 from isaaclab.utils.string import string_to_callable
 
@@ -1029,3 +1030,113 @@ def test_positional_out_does_not_enable_destination_writes(setup_env):
     result = manager.compute()["policy"]
     setup_env.data.pos_w.zero_()
     torch.testing.assert_close(result, expected)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
+def test_dictionary_pipeline_processing_reset_and_spaces(setup_env, device):
+    """Named outputs compose after term history, survive later calls, and match Gym spaces."""
+    from types import SimpleNamespace
+
+    import warp as wp
+
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.utils.warp import ProxyArray
+
+    closed = []
+
+    class Accumulate(tensor_processors.DictTensorProcessor):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            source = data[cfg.inputs[0]]
+            self.outputs[cfg.outputs[0]] = ProxyArray(wp.zeros((source.shape[0], 1), device=source.device))
+
+        def __call__(self, data):
+            output = self.outputs[self.cfg.outputs[0]].torch
+            for name in self.cfg.inputs:
+                output.add_(data[name].torch.sum(dim=1, keepdim=True) * self.cfg.params.get("scale", 1))
+            return self.outputs
+
+        def reset(self, env_ids=None):
+            output = self.outputs[self.cfg.outputs[0]]
+            if env_ids is None:
+                output.warp.zero_()
+            else:
+                output.torch[env_ids] = 0
+
+        def close(self):
+            closed.append(self.cfg.params.get("scale", 1))
+
+    setup_env = setup_env._replace(device=device, data=MyDataClass(setup_env.num_envs, device))
+    setup_env.data.pos_w.fill_(1)
+    setup_env.data.lin_vel_w.fill_(1)
+    cfg = ObservationGroupCfg(
+        concatenate_terms=False,
+        pipeline=[
+            tensor_processors.DictTensorProcessorCfg(Accumulate, ["position", "velocity"], ["total"]),
+            tensor_processors.DictTensorProcessorCfg(Accumulate, ["total"], ["total"], {"scale": 2}),
+        ],
+    )
+    cfg.position = ObservationTermCfg(func=pos_w_data, scale=2, history_length=2)
+    cfg.velocity = ObservationTermCfg(func=lin_vel_w_data)
+    manager = ObservationManager({"policy": cfg}, setup_env)
+    first = manager.compute(update_history=True)["policy"]
+    assert list(first) == ["position", "velocity", "total"]
+    assert manager.group_obs_dim["policy"] == [(6,), (3,), (1,)]
+    torch.testing.assert_close(first["position"], torch.full((20, 6), 2.0, device=device))
+    torch.testing.assert_close(first["velocity"], torch.ones(20, 3, device=device))
+    torch.testing.assert_close(first["total"], torch.full((20, 1), 30.0, device=device))
+    second = manager.compute()["policy"]
+    torch.testing.assert_close(second["total"], torch.full((20, 1), 90.0, device=device))
+    torch.testing.assert_close(first["total"], torch.full((20, 1), 30.0, device=device))
+    manager.reset([1])
+    third = manager.compute(update_history=True)["policy"]
+    expected = torch.full((20, 1), 180.0, device=device)
+    expected[1] = 30.0
+    torch.testing.assert_close(third["total"], expected)
+    torch.testing.assert_close(setup_env.data.pos_w, torch.ones(20, 3, device=device))
+    manager.reset()
+    torch.testing.assert_close(manager.compute(update_history=True)["policy"]["total"], first["total"])
+
+    env = SimpleNamespace(observation_manager=manager, action_manager=SimpleNamespace(action_term_dim=[1]), num_envs=20)
+    ManagerBasedRLEnv._configure_gym_env_spaces(env)
+    assert env.single_observation_space.contains(
+        {"policy": {name: value[0].cpu().numpy() for name, value in third.items()}}
+    )
+    manager.close()
+    manager.close()
+    assert closed == [2, 1]
+
+
+@pytest.mark.parametrize("invalid", ["concatenation", "missing_input", "batch_size"])
+def test_dictionary_pipeline_rejects_invalid_configuration(setup_env, invalid):
+    """Reject incompatible publication and missing dependencies before observations are computed."""
+    import warp as wp
+
+    from isaaclab.utils.warp import ProxyArray
+
+    closed = []
+
+    class WrongBatch(tensor_processors.DictTensorProcessor):
+        def __init__(self, cfg, data):
+            super().__init__(cfg, data)
+            self.outputs["result"] = ProxyArray(wp.zeros((1, 3), device="cpu"))
+
+        def __call__(self, data):
+            raise AssertionError("Preparation must not advance processor state.")
+
+        def close(self):
+            closed.append(True)
+
+    cfg = ObservationGroupCfg(
+        concatenate_terms=invalid == "concatenation",
+        pipeline=[
+            tensor_processors.DictTensorProcessorCfg(
+                WrongBatch, ["missing" if invalid == "missing_input" else "position"], ["result"]
+            )
+        ],
+    )
+    cfg.position = ObservationTermCfg(func=pos_w_data)
+    match = {"concatenation": "concatenate_terms=False", "missing_input": "Missing input", "batch_size": "batch size"}
+    with pytest.raises(ValueError, match=match[invalid]):
+        ObservationManager({"policy": cfg}, setup_env)
+    assert closed == ([True] if invalid == "batch_size" else [])

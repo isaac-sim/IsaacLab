@@ -16,11 +16,10 @@ if TYPE_CHECKING:
 
 @configclass
 class DictTensorProcessorCfg:
-    """Configure one dictionary processor and declare its producer dependencies.
+    """Configure a processor for named tensors.
 
-    Names are actual dictionary keys, with no separate operation roles. Cameras use these
-    declarations before renderer initialization. The class receives ``(cfg, data)`` and
-    owns its output storage, state, and lifecycle, just like a single-tensor processor.
+    Declare the keys it reads in :attr:`inputs` and the keys it adds or replaces in
+    :attr:`outputs`. Inputs may come from the source or an earlier processor in the pipeline.
     """
 
     class_type: type[DictTensorProcessor] | str = MISSING

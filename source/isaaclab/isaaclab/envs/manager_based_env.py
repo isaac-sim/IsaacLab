@@ -609,6 +609,7 @@ class ManagerBasedEnv:
 
             # destructor is order-sensitive
             del self.action_manager
+            self.observation_manager.close()
             del self.observation_manager
             del self.event_manager
             del self.recorder_manager

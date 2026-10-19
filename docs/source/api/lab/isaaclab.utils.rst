@@ -127,20 +127,15 @@ Mesh operations
 Tensor processors
 ~~~~~~~~~~~~~~~~~
 
-The processor interfaces live together in :mod:`isaaclab.utils.tensor_processors`:
+Use :mod:`isaaclab.utils.tensor_processors` to transform observations:
 
 * ``TensorProcessor``: tensor to tensor.
 * ``DictTensorProcessor``: dictionary of named tensors to dictionary of named tensors.
 
-Dictionary tensors use ``ProxyArray`` for Warp and Torch access without copying. Processors own
-any persistent outputs and state. ``DictTensorProcessorCfg`` declares input/output keys so consumers
-can resolve dependencies before allocating buffers. Composition preserves untouched keys.
-
-Migration: import ``TensorProcessor`` and ``TensorProcessorCfg`` from
-``isaaclab.utils.tensor_processors`` in place of ``ModifierBase`` and ``ModifierCfg`` from
-``isaaclab.utils.modifiers``. Replace ``ObservationTermCfg.modifiers`` with
-``ObservationTermCfg.tensor_processors``. The processing order and tensor shapes are unchanged.
-Old imports raise ``ValueError`` with migration instructions.
+Configure single-tensor processors with :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
+Configure dictionary processors with :attr:`~isaaclab.managers.ObservationGroupCfg.pipeline`.
+Each dictionary processor declares the input keys it needs and the output keys it adds or replaces.
+Other keys remain available to subsequent processors.
 
 .. automodule:: isaaclab.utils.tensor_processors
    :members:

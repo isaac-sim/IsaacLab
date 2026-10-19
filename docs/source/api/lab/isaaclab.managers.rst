@@ -140,6 +140,37 @@ second full-image copy for normalized uint8 images. Existing observation configu
     :inherited-members:
     :show-inheritance:
 
+Dictionary observation processing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use :attr:`ObservationGroupCfg.pipeline` to combine or transform named observation terms.
+Set ``concatenate_terms=False``. Each processor runs after the terms' processing, delay, and
+history, and can read outputs from preceding processors. Outputs add or replace dictionary
+entries; untouched terms remain available.
+
+For example, given a ``FuseSensors`` subclass of
+:class:`~isaaclab.utils.tensor_processors.DictTensorProcessor`, configure a group with terms
+named ``position`` and ``velocity`` as follows:
+
+.. code-block:: python
+
+   from isaaclab.utils.tensor_processors import DictTensorProcessorCfg
+
+   sensor_group.concatenate_terms = False
+   sensor_group.pipeline = [
+       DictTensorProcessorCfg(
+           class_type="my_project.processors:FuseSensors",
+           inputs=["position", "velocity"],
+           outputs=["features"],
+       ),
+   ]
+
+The returned dictionary contains ``position``, ``velocity``, and ``features``. Processors run
+on every observation computation, including calls that do not advance history. Resetting the
+manager resets processor state for the selected environments. Returned observations remain
+valid across later computations. This option is supported by the standard observation manager;
+the experimental Warp observation manager does not support dictionary pipelines.
+
 .. autoclass:: ObservationGroupCfg
     :members:
     :exclude-members: __init__

@@ -8,16 +8,21 @@
 from __future__ import annotations
 
 import inspect
+from builtins import ExceptionGroup
 from collections.abc import Sequence
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
+import warp as wp
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from ..utils import instantiate, noise, tensor_processors, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
+from ..utils.tensor_processors._pipeline import _DictTensorProcessorPipeline
+from ..utils.warp import ProxyArray
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
@@ -86,7 +91,15 @@ class ObservationManager(ManagerBase):
             raise ValueError("Observation manager configuration is None. Please provide a valid configuration.")
 
         # call the base class constructor (this will parse the terms config)
-        super().__init__(cfg, env)
+        self._group_pipelines: dict[str, _DictTensorProcessorPipeline] = {}
+        try:
+            super().__init__(cfg, env)
+        except Exception as error:
+            try:
+                self.close()
+            except Exception as cleanup_error:
+                error.add_note(f"Failed to close observation pipelines after initialization failed: {cleanup_error}")
+            raise
 
         # compute combined vector for obs group
         self._group_obs_dim: dict[str, tuple[int, ...] | list[tuple[int, ...]]] = {}
@@ -115,10 +128,33 @@ class ObservationManager(ManagerBase):
                         " Otherwise, set 'concatenate_terms' to False in the group configuration."
                     )
             else:
-                self._group_obs_dim[group_name] = group_term_dims
+                pipeline = self._group_pipelines.get(group_name)
+                self._group_obs_dim[group_name] = (
+                    [tuple(value.torch.shape[1:]) for value in pipeline.outputs.values()]
+                    if pipeline is not None
+                    else group_term_dims
+                )
 
         # Stores the latest observations.
         self._obs_buffer: dict[str, torch.Tensor | dict[str, torch.Tensor]] | None = None
+
+    def close(self) -> None:
+        """Release dictionary processor resources. Repeated calls have no effect."""
+        errors = []
+        for pipeline in self._group_pipelines.values():
+            try:
+                pipeline.close()
+            except Exception as error:
+                errors.append(error)
+        if errors:
+            raise ExceptionGroup("Failed to close observation pipelines.", errors)
+
+    def __del__(self):
+        try:
+            if hasattr(self, "_group_pipelines"):
+                self.close()
+        finally:
+            super().__del__()
 
     def __str__(self) -> str:
         """Returns: A string representation for the observation manager."""
@@ -210,7 +246,7 @@ class ObservationManager(ManagerBase):
         The key is the group name and the value is the shape of the observation tensor.
         If the terms in the group are concatenated, the value is a single tuple representing the
         shape of the concatenated observation tensor. Otherwise, the value is a list of tuples,
-        where each tuple represents the shape of the observation tensor for a term in the group.
+        where each tuple represents an output in dictionary order, including pipeline outputs.
         """
         return self._group_obs_dim
 
@@ -341,6 +377,11 @@ class ObservationManager(ManagerBase):
         # call all tensor_processors that are classes
         for mod in self._group_obs_class_instances:
             mod.reset(env_ids=env_ids)
+        if self._group_pipelines:
+            stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
+            with stream:
+                for pipeline in self._group_pipelines.values():
+                    pipeline.reset(env_ids)
 
         # nothing to log here
         return {}
@@ -388,6 +429,9 @@ class ObservationManager(ManagerBase):
         5. Apply scaling based on :attr:`ObservationTermCfg.scale`
         6. Apply delay based on :attr:`ObservationTermCfg.delay_min_lag` and :attr:`ObservationTermCfg.delay_max_lag`
         7. Append the delayed observation to history if requested
+
+        The group's :attr:`ObservationGroupCfg.pipeline` then processes the named observations.
+        Outputs may replace existing terms or add new keys. Returned tensors are independent snapshots.
 
         We apply noise to the computed term first to maintain the integrity of how noise affects the data
         as it truly exists in the real world. If the noise is applied after clipping or scaling, the noise
@@ -489,6 +533,17 @@ class ObservationManager(ManagerBase):
             # Secure borrowed storage before another term can overwrite it, including shared scratch buffers.
             group_obs[term_name] = obs if owned else obs.clone()
 
+        pipeline = self._group_pipelines.get(group_name)
+        if pipeline is not None:
+            # Run Warp callbacks on the stream producing and consuming the Torch observations.
+            stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
+            with stream:
+                result = pipeline({name: ProxyArray(wp.from_torch(value)) for name, value in group_obs.items()})
+                return {
+                    name: value.torch.clone() if name in pipeline.produced_outputs else group_obs[name]
+                    for name, value in result.items()
+                }
+
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             if len(group_obs) == 1:
@@ -537,7 +592,7 @@ class ObservationManager(ManagerBase):
         # The destination is supplied by the manager, not by the term configuration.
         term_cfg.params.pop("out", None)
 
-    def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> tuple[int, ...]:
+    def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> torch.Tensor:
         """Probe output dimensions and cache destination specifications for explicitly supported terms."""
         out_param = inspect.signature(term_cfg.func).parameters.get("out")
         writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
@@ -547,7 +602,7 @@ class ObservationManager(ManagerBase):
         shape = tuple(sample.shape)
         if writes_output:
             self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
-        return shape
+        return sample
 
     def _prepare_terms(self):
         """Prepares a list of observation terms functions."""
@@ -592,6 +647,7 @@ class ObservationManager(ManagerBase):
                     f"Observation group '{group_name}' is not of type 'ObservationGroupCfg'."
                     f" Received: '{type(group_cfg)}'."
                 )
+            pipeline_specs = {}
             # initialize list for the group settings
             self._group_obs_term_names[group_name] = []
             self._group_obs_term_dim[group_name] = []
@@ -632,6 +688,7 @@ class ObservationManager(ManagerBase):
                     "flatten_history_dim",
                     "history_order",
                     "concatenate_dim",
+                    "pipeline",
                 ]:
                     continue
                 # check for non config
@@ -657,7 +714,8 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
                 # call function the first time to fill up dimensions
-                obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
+                sample = self._prepare_term_output(group_name, term_name, term_cfg)
+                obs_dims = tuple(sample.shape)
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -761,6 +819,7 @@ class ObservationManager(ManagerBase):
                         obs_dims = (obs_dims[0], int(np.prod(obs_dims[1:])))
 
                 self._group_obs_term_dim[group_name].append(obs_dims[1:])
+                pipeline_specs[term_name] = (obs_dims, sample.dtype, sample.device)
 
                 # add term in a separate list if term is a class
                 if isinstance(term_cfg.func, ManagerTermBase):
@@ -770,3 +829,26 @@ class ObservationManager(ManagerBase):
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
+            self._prepare_group_pipeline(group_name, group_cfg, pipeline_specs)
+
+    def _prepare_group_pipeline(
+        self,
+        group_name: str,
+        cfg: ObservationGroupCfg,
+        specs: dict[str, tuple[tuple[int, ...], torch.dtype, torch.device]],
+    ) -> None:
+        if not cfg.pipeline:
+            return
+        if cfg.concatenate_terms:
+            raise ValueError(f"Observation group '{group_name}' with a pipeline requires concatenate_terms=False.")
+        stream = wp.ScopedStream(wp.stream_from_torch(self.device)) if "cuda" in self.device else nullcontext()
+        with stream:
+            inputs = {
+                name: ProxyArray(wp.from_torch(torch.empty(shape, dtype=dtype, device=device)))
+                for name, (shape, dtype, device) in specs.items()
+            }
+            pipeline = _DictTensorProcessorPipeline(inputs, cfg.pipeline)
+        self._group_pipelines[group_name] = pipeline
+        for name, value in pipeline.outputs.items():
+            if not value.torch.shape or value.torch.shape[0] != self.num_envs:
+                raise ValueError(f"Observation pipeline output '{name}' must preserve the environment batch size.")

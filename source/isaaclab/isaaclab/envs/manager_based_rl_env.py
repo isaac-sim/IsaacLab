@@ -364,6 +364,15 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
+                pipeline = self.observation_manager._group_pipelines.get(group_name)
+                if pipeline is not None:
+                    self.single_observation_space[group_name] = gym.spaces.Dict(
+                        {
+                            name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=shape)
+                            for name, shape in zip(pipeline.outputs, group_dim)
+                        }
+                    )
+                    continue
                 group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
                 term_dict = {}
                 for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):

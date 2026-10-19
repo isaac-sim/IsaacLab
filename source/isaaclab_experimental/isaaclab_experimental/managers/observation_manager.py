@@ -640,6 +640,8 @@ class ObservationManager(ManagerBase):
                     f"Observation group '{group_name}' is not of type 'ObservationGroupCfg'."
                     f" Received: '{type(group_cfg)}'."
                 )
+            if group_cfg.pipeline:
+                raise ValueError("Dictionary observation pipelines require the standard ObservationManager.")
             # initialize list for the group settings
             # group name to list of group term names
             self._group_obs_term_names[group_name] = list()
@@ -672,6 +674,7 @@ class ObservationManager(ManagerBase):
                     "flatten_history_dim",
                     "history_order",
                     "concatenate_dim",
+                    "pipeline",
                 ]:
                     continue
                 # check for non config
