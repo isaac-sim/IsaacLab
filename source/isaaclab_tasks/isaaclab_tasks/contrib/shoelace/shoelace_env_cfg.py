@@ -377,7 +377,7 @@ class ShoelaceEnvCfg(ManagerBasedRLEnvCfg):
             use_cuda_graph=True,
         ),
     )
-    scene: ShoelaceSceneCfg = ShoelaceSceneCfg(num_envs=4, env_spacing=1.5, replicate_physics=True)
+    scene: ShoelaceSceneCfg = ShoelaceSceneCfg(num_envs=4, env_spacing=1.5)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     events: EventsCfg = EventsCfg()

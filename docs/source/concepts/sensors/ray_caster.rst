@@ -9,9 +9,11 @@ Ray Caster
 .. figure:: ../../_static/overview/sensors/raycaster_patterns.jpg
     :align: center
     :figwidth: 100%
-    :alt: A diagram outlining the basic geometry of frame transformations
+    :alt: Ray patterns supported by the ray caster sensor
 
-The Ray Caster sensor (and the ray caster camera) are similar to RTX based rendering in that they both involve casting rays.  The difference here is that the rays cast by the Ray Caster sensor return strictly collision information along the cast, and the direction of each individual ray can be specified.  They do not bounce, nor are they affected by things like materials or opacity. For each ray specified by the sensor, a line is traced along the path of the ray and the location of first collision with the specified mesh is returned. This is the method used by some of our quadruped examples to measure the local height field.
+A ray caster reports the first collision along each ray in a chosen pattern. Rays
+do not bounce or respond to materials and opacity. Quadruped tasks use this sensor
+to measure terrain height around the robot.
 
 The ray-casting implementation depends on the physics backend. With PhysX and
 OV PhysX, configured meshes are loaded into `Warp <https://nvidia.github.io/warp/>`_
@@ -22,20 +24,23 @@ environment, global terrain, and dynamic bodies. Newton ignores
 :class:`isaaclab_newton.sensors.NewtonRaycastSensorCfg` to make that behavior
 explicit and to access Newton-specific options.
 
-Using a ray caster sensor requires a **pattern** and a parent xform to be attached to.  The pattern defines how the rays are cast, while the prim properties defines the orientation and position of the sensor (additional offsets can be specified for more exact placement).  Isaac Lab supports a number of ray casting pattern configurations, including a generic LIDAR and grid pattern.
+Choose a ray pattern and a parent frame. The frame and sensor offset set the pose;
+the pattern sets the ray origins and directions. Built-in patterns include lidar
+and grids.
 
 .. literalinclude:: ../../../../examples/sensors/raycaster_sensor.py
     :language: python
     :pyobject: RaycasterSensorSceneCfg
 
-Notice that the units on the pattern config is in degrees! Also, we enable visualization here to explicitly show the pattern in the rendering, but this is not required and should be disabled for performance tuning.
+Pattern angles use degrees. Enable debug visualization to inspect the pattern,
+then disable it when measuring performance.
 
 .. figure:: ../../_static/overview/sensors/raycaster_visualizer.jpg
     :align: center
     :figwidth: 100%
     :alt: Lidar Pattern visualized
 
-Querying the sensor for data can be done at simulation run time like any other sensor.
+Read hit positions from ``data.ray_hits_w`` during simulation:
 
 .. code-block:: python
 
@@ -73,9 +78,12 @@ Querying the sensor for data can be done at simulation run time like any other s
             [    inf,     inf,     inf]]], device='cuda:0')
     -------------------------------
 
-Here we can see the data returned by the sensor itself.  Notice first that there are 3 closed brackets at the beginning and the end: this is because the data returned is batched by the number of sensors. The ray cast pattern itself has also been flattened, and so the dimensions of the array are ``[N, B, 3]`` where ``N`` is the number of sensors, ``B`` is the number of cast rays in the pattern, and 3 is the dimension of the casting space. Finally, notice that the first several values in this casting pattern are the same: this is because the lidar pattern is spherical and we have specified our FOV  to be hemispherical, which includes the poles. In this configuration, the "flattening pattern" becomes apparent: the first 180 entries will be the same because it's the bottom pole of this hemisphere, and there will be 180 of them because our horizontal FOV is 180 degrees with a resolution of 1 degree.
+Hit positions have shape ``(N, B, 3)``, where ``N`` is the number of sensors and
+``B`` is the number of rays. Missed rays return ``inf``. The repeated points in
+this example come from rays at the bottom pole of the hemispherical lidar
+pattern: all 180 horizontal samples meet there.
 
-You can use this script to experiment with pattern configurations and build an intuition about how the data is stored by altering the ``triggered`` variable on line 81.
+Try different patterns in the example below to inspect their hit positions.
 
 .. dropdown:: Code for raycaster_sensor.py
    :icon: code

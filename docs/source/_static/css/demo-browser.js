@@ -99,7 +99,7 @@
                 candidate.classList.toggle("is-selected", isSelected);
                 candidate.setAttribute("aria-pressed", String(isSelected));
             }
-            selectedName.textContent = selectedCard.dataset.demoName;
+            selectedName.textContent = selectedCard.dataset.demoId;
             selectedDescription.textContent = selectedCard.dataset.demoDescription;
             populateSelect(fields.physics, splitValues(selectedCard.dataset.demoPhysics), ["newton_mjwarp", "isaacsim_physx"]);
             updateVisualizer();

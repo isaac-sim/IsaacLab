@@ -28,8 +28,6 @@ from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
 
-from isaaclab_newton.physics.newton_manager import NewtonManager
-
 logger = logging.getLogger(__name__)
 
 WORLD_BODY_INDEX = -1
@@ -243,6 +241,7 @@ class NewtonSiteFrameView(BaseFrameView):
         self._prim_path = prim_path if isinstance(prim_path, str) else ", ".join(self._prim_paths)
         self._device = device
         self._prims = []
+        self._backend_manager = sim_utils.SimulationContext.instance().backend_manager
 
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
@@ -268,11 +267,11 @@ class NewtonSiteFrameView(BaseFrameView):
         self._scale_ta: ProxyArray | None = None
         self._count = 0
 
-        model = NewtonManager.get_model()
+        model = self._backend_manager.get_model()
         if model is not None:
             self._initialize_from_specs(model)
         else:
-            self._physics_ready_handle = NewtonManager.register_callback(
+            self._physics_ready_handle = self._backend_manager.register_callback(
                 self._on_physics_ready, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
             )
 
@@ -286,7 +285,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 plan, include_world_indices=True
             )
             groups = np.flatnonzero(np.diff(world_starts[1:])) + 1
-        model = NewtonManager.get_model()
+        model = self._backend_manager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         shape_flags = None
@@ -423,7 +422,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _on_physics_ready(self, _event) -> None:
         """Callback invoked when the Newton model becomes available."""
-        self._initialize_from_specs(NewtonManager.get_model())
+        self._initialize_from_specs(self._backend_manager.get_model())
 
     def _initialize_from_specs(self, model) -> None:
         """Initialize arrays directly from resolved specs and Newton body labels."""
@@ -444,11 +443,11 @@ class NewtonSiteFrameView(BaseFrameView):
             body_patterns, xform, scale, per_world, env_ids, spec_paths = spec
             if body_patterns is None:
                 if per_world:
-                    if NewtonManager._world_xforms is None:
+                    if self._backend_manager._world_xforms is None:
                         raise RuntimeError(f"FrameView '{self._prim_path}' needs Newton cloned-world transforms.")
-                    world_ids = range(len(NewtonManager._world_xforms)) if env_ids is None else env_ids
+                    world_ids = range(len(self._backend_manager._world_xforms)) if env_ids is None else env_ids
                     for world_id in world_ids:
-                        world_xform = NewtonManager._world_xforms[world_id]
+                        world_xform = self._backend_manager._world_xforms[world_id]
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
@@ -657,11 +656,11 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations."""
-        state = NewtonManager.get_state_0()
+        state = self._backend_manager.get_state_0()
         if not state.body_q.device.is_capturing:
             # Resolve FK deferred by state writes, such as resets inside ``env.step()``. A caller's graph capture
             # would only record it, so the pending FK is left to the next read outside the capture.
-            NewtonManager.forward()
+            self._backend_manager.forward()
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
         pos_buf = self._pos_buf if indices is None else wp.zeros(n, dtype=wp.vec3f, device=self._device)
@@ -688,7 +687,7 @@ class NewtonSiteFrameView(BaseFrameView):
         if positions is None and orientations is None:
             return
 
-        state = NewtonManager.get_state_0()
+        state = self._backend_manager.get_state_0()
         if positions is None or orientations is None:
             # The read of the current poses resolves pending FK.
             cur_pos_ta, cur_quat_ta = self._get_world_poses_impl(indices)
@@ -697,7 +696,7 @@ class NewtonSiteFrameView(BaseFrameView):
             if orientations is None:
                 orientations = cur_quat_ta.warp
         elif not state.body_q.device.is_capturing:
-            NewtonManager.forward()
+            self._backend_manager.forward()
 
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
@@ -809,7 +808,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _get_legacy_shape_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get Newton legacy geometry scales from collision shapes."""
-        model = NewtonManager.get_model()
+        model = self._backend_manager.get_model()
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
@@ -825,7 +824,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _set_legacy_shape_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set Newton legacy geometry scales on collision shapes."""
-        model = NewtonManager.get_model()
+        model = self._backend_manager.get_model()
         num_shapes = model.shape_count
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)

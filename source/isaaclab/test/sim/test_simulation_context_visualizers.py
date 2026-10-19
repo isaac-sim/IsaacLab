@@ -27,8 +27,10 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
 
-from isaaclab.app import scan
+from isaaclab.app import SimulationLauncher, launch_simulation
+from isaaclab.cloner import ReplicateContext
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
+from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.visualizers import WindowCfg
@@ -156,7 +158,7 @@ def _make_context(visualizers, provider=None):
     ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
     ctx._physics_step_count = 0
-    ctx.physics_manager = _FakePhysicsManager()
+    ctx.backend_manager = _FakePhysicsManager()
     ctx.vis_marker_registry = VisMarkerRegistry()
     return ctx
 
@@ -169,7 +171,7 @@ def test_update_visualizers_runs_forward_when_a_visualizer_requires_it():
 
     ctx.update_visualizers(0.1)
 
-    assert ctx.physics_manager.forward_calls == 1
+    assert ctx.backend_manager.forward_calls == 1
     assert viz_a.step_calls == [0.1]
     assert viz_b.step_calls == [0.1]
 
@@ -181,7 +183,7 @@ def test_update_visualizers_skips_forward_when_no_visualizer_requires_it():
 
     ctx.update_visualizers(0.1)
 
-    assert ctx.physics_manager.forward_calls == 0
+    assert ctx.backend_manager.forward_calls == 0
 
 
 def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
@@ -235,8 +237,8 @@ def test_step_waits_for_visualizer_training_pause_before_physics():
     ctx.step(render=False)
 
     assert viz.step_calls == [0.0, 0.0]
-    assert ctx.physics_manager.wait_for_playing_calls == 1
-    assert ctx.physics_manager.step_calls == 1
+    assert ctx.backend_manager.wait_for_playing_calls == 1
+    assert ctx.backend_manager.step_calls == 1
     assert ctx._physics_step_count == 1
 
 
@@ -343,7 +345,18 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
+    class _CloneContext(ReplicateContext):
+        @staticmethod
+        def prepare(sim, routing):
+            assert sim is ctx and set(routing) == {_CloneContext}
+            events.append("prepare")
+
+        def replicate(self, plan, asset_prototype_ids):
+            pytest.fail("Reset preparation must not execute cloning.")
+
     class _RenderContext:
+        clone_contexts = (_CloneContext,)
+
         @staticmethod
         def finalize_consumers(visualizers, *, rebuild):
             events.append(f"finalize_consumers:{len(visualizers)}:{rebuild}")
@@ -352,13 +365,14 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         events.append("initialize_visualizers")
         ctx._visualizers = [_FakeVisualizer()]
 
-    ctx.physics_manager = _PhysicsManager()
+    ctx.backend_manager = _PhysicsManager()
     ctx._render_context = _RenderContext()
     ctx.initialize_visualizers = _initialize_visualizers
 
     ctx.reset()
 
     assert events == [
+        "prepare",
         "reset:False",
         "invalidate_image",
         "viewer_reset",
@@ -392,7 +406,7 @@ def web_backend(monkeypatch):
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object(), device="cpu"),
-        physics_manager=type("NewtonManager", (), {}),
+        backend_manager=SimpleNamespace(backend_name="newton"),
         device="cpu",
         get_or_create_backend=Mock(return_value=backend),
         vis_marker_registry=VisMarkerRegistry(),
@@ -734,6 +748,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         ctx._scene_data_provider._num_envs = 4
         camera = SimpleNamespace(
             cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+            num_instances=4,
             _view=SimpleNamespace(
                 prims=[UsdGeom.Camera.Define(stage, f"/Scenes/world_{i}/Camera").GetPrim() for i in range(4)]
             ),
@@ -817,7 +832,7 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._pending_visualizers = []
     ctx._render_context = SimpleNamespace(clone_contexts=set())
-    ctx.physics_manager = SimpleNamespace(register_callback=Mock())
+    ctx.backend_manager = SimpleNamespace(register_callback=Mock())
     ctx._scene_data_provider = _FakeProvider()
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False
@@ -828,33 +843,32 @@ def _make_context_with_settings(
     return ctx
 
 
-def test_default_visualizer_cfg_applies_to_cli_created_configs():
+def test_default_visualizer_cfg_applies_to_cli_created_configs(monkeypatch):
+    import isaaclab_ov.app as ov_app
+
+    monkeypatch.setattr(ov_app, "OvrtxLauncher", SimulationLauncher)
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
         streaming_sensor_prim_path="/World/envs/*/Camera",
         window=WindowCfg(size=(640, 480), fps=60),
     )
-    visualizer_cfgs = scan(SimulationCfg(), {"visualizer": ["newton_gl", "newton_rtx"]}).visualizer_cfgs
-    ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
+    sim_cfg = SimulationCfg(physics=PhysicsCfg(), device="cpu")
+    with launch_simulation(sim_cfg, {"visualizer": ["newton_gl", "newton_rtx"]}):
+        ctx = _make_context_with_settings(
+            {}, visualizer_cfgs=sim_cfg.visualizer_cfgs, default_visualizer_cfg=default_cfg
+        )
 
     ctx._create_visualizers()
     cfgs = [visualizer.cfg for visualizer in ctx._pending_visualizers]
 
     assert len(cfgs) == 2
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
+    assert isinstance(cfgs[1], NewtonRTXVisualizerCfg)
     assert cfgs[0].background_color == (0.1, 0.2, 0.3)
     assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
     assert cfgs[0].window == cfgs[1].window == default_cfg.window
     cfgs[0].window.fps = 20
     assert cfgs[1].window.fps == default_cfg.window.fps == 60
-
-
-def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
-    """Requesting 'newton_rtx' via CLI resolves to a NewtonRTXVisualizerCfg."""
-    cfgs = scan(SimulationCfg(), {"visualizer": ["newton_rtx"]}).visualizer_cfgs
-
-    assert len(cfgs) == 1
-    assert isinstance(cfgs[0], NewtonRTXVisualizerCfg)
 
 
 def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
@@ -968,37 +982,26 @@ def test_explicit_type_matches_existing_cfg():
     config selects and returns that exact instance, rather than discarding it and building a
     fresh default -- exercising the branch that filters pre-existing cfgs by type."""
     sim_cfg = SimulationCfg(
-        visualizer_cfgs=[NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6)), KitVisualizerCfg()]
+        physics=PhysicsCfg(),
+        device="cpu",
+        visualizer_cfgs=[NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6)), KitVisualizerCfg()],
     )
     existing_cfg = sim_cfg.visualizer_cfgs[0]
-    cfgs = scan(sim_cfg, {"visualizer": ["newton_gl"]}).visualizer_cfgs
-
-    assert len(cfgs) == 1
-    assert cfgs[0] is existing_cfg
-    assert cfgs[0].background_color == (0.4, 0.5, 0.6)
+    with launch_simulation(sim_cfg, {"visualizer": ["newton_gl"]}):
+        assert sim_cfg.visualizer_cfgs == [existing_cfg]
+        assert sim_cfg.visualizer_cfgs[0] is existing_cfg
+        assert existing_cfg.background_color == (0.4, 0.5, 0.6)
 
 
 def test_missing_visualizer_package_propagates_import_error(monkeypatch: pytest.MonkeyPatch):
-    """Configured types need no imports; a missing requested package still reports its import failure."""
-    import importlib
+    """An unavailable configured runtime propagates its ordinary Python import error."""
+    from isaaclab_visualizers.rerun import RerunVisualizerCfg
 
-    real_import = importlib.import_module
-    requested = []
-    missing_dependency = ModuleNotFoundError("No module named 'rerun'", name="rerun")
-
-    def _failing_import(name, *args, **kwargs):
-        requested.append(name)
-        if name == "isaaclab_visualizers.rerun":
-            raise missing_dependency
-        return real_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(importlib, "import_module", _failing_import)
-
-    with pytest.raises(ModuleNotFoundError) as error:
-        scan(SimulationCfg(visualizer_cfgs=[_FakeVisualizerCfg("kit")]), {"visualizer": ["kit", "rerun"]})
-    assert error.value is missing_dependency
-    # 'kit' was satisfied by the pre-existing cfg, so only the unresolved type is constructed and reported.
-    assert requested == ["isaaclab_visualizers.rerun"]
+    cfg = RerunVisualizerCfg(class_type="missing_rerun:Viewer")
+    monkeypatch.setitem(sys.modules, "missing_rerun", None)
+    ctx = _make_context_with_settings({}, visualizer_cfgs=[cfg])
+    with pytest.raises(ModuleNotFoundError, match="missing_rerun"):
+        ctx._create_visualizers()
 
 
 # ---------------------------------------------------------------------------

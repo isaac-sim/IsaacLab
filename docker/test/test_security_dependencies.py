@@ -24,6 +24,8 @@ class TestSecurityDependencies(unittest.TestCase):
         self.assertIn("pillow>=12.3.0", project["dependencies"])
         self.assertIn("urllib3>=2.8.0", project["dependencies"])
         self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["rerun"])
+        self.assertIn("PyJWT[crypto]>=2.15.1,<3", project["optional-dependencies"]["isaacsim"])
+        self.assertIn("virtualenv>=21.7.13", project["optional-dependencies"]["rlinf"])
 
     def test_wheel_metadata_preserves_dependency_updates(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -46,6 +48,8 @@ class TestSecurityDependencies(unittest.TestCase):
             self.assertIn("pillow>=12.3.0", project["dependencies"])
             self.assertIn("urllib3>=2.8.0", project["dependencies"])
             self.assertIn("pyarrow==23.0.1", project["optional-dependencies"]["all"])
+            self.assertIn("PyJWT[crypto]>=2.15.1,<3", project["optional-dependencies"]["isaacsim"])
+            self.assertIn("virtualenv>=21.7.13", project["optional-dependencies"]["rlinf"])
 
     def test_lock_contains_security_updates(self):
         with (REPO_ROOT / "uv.lock").open("rb") as file:
@@ -55,7 +59,9 @@ class TestSecurityDependencies(unittest.TestCase):
             "gitpython": "3.1.60",
             "pillow": "12.3.0",
             "pyarrow": "23.0.1",
+            "pyjwt": "2.15.1",
             "urllib3": "2.8.0",
+            "virtualenv": "21.7.13",
         }.items():
             with self.subTest(package=name):
                 self.assertGreaterEqual(tuple(map(int, packages[name].split("."))), tuple(map(int, version.split("."))))
