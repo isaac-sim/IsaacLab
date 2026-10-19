@@ -69,7 +69,7 @@ class randomize_visual_shape(FactoryBase, ManagerTermBase):
     @classmethod
     def _get_backend(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> str:
         consumers = (
-            *(cfg.backend.visualizer_type for cfg in env.sim.cfg.visualizer_cfgs if cfg.backend is not None),
+            *(cfg.backend.visualizer_type for cfg in env.sim.cfg.visualizer_cfgs if cfg.backend),
             *env.sim.render_context.renderer_types,
         )
         supported = ("newton_gl", "newton_rtx", "newton_warp")
