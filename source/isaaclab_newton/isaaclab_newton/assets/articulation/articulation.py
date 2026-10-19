@@ -38,6 +38,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
+from isaaclab_newton.physics.solver_specs import solver_spec
 
 from .actuator_control import NewtonActuatorControl
 from .articulation_data import ArticulationData, _unsupported_fixed_tendon_property
@@ -3433,7 +3434,7 @@ class Articulation(BaseArticulation):
             self._model_init_handle.deregister()
             self._model_init_handle = None
         # Remove the post-step republish hook registered in ``_create_buffers`` so the
-        # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
+        # bound method does not linger on the backend's post-step callbacks after
         # this articulation is gone (registered only for non-identity ordering).
         post_step_callback = getattr(self, "_post_step_callback", None)
         if post_step_callback is not None:
@@ -3579,8 +3580,9 @@ class Articulation(BaseArticulation):
             )
             if tendon_types.sum() > 0:
                 raise NotImplementedError("Spatial tendons are not supported yet.")
-            # Only the active solver's manager knows whether this solver transmits to tendons.
-            self._fixed_tendon_control = self._backend_manager.create_fixed_tendon_control(self)
+            # Only the solver's specification knows whether the solver transmits to tendons.
+            backend = self._backend_manager.backend
+            self._fixed_tendon_control = solver_spec(backend.solver_cfg).fixed_tendon_control(self, backend.model)
 
     """
     Internal helpers -- Debugging.

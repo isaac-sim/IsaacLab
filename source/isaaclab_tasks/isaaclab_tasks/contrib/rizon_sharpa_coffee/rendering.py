@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics.mpm_solver import implicit_mpm_solvers
 from isaaclab_visualizers.newton import NewtonGLVisualizer, NewtonRTXVisualizer
 from newton.geometry import ParticleSurface
 
@@ -180,7 +180,7 @@ class CoffeeRendering:
             )
         solvers = [
             solver
-            for solver in NewtonMPMManager._implicit_mpm_solvers(self._backend_manager)
+            for solver in implicit_mpm_solvers(self._backend_manager.backend.solver)
             if isinstance(solver, CoffeeMPMSolver)
         ]
         if len(solvers) != 1 or solvers[0].grains is None:

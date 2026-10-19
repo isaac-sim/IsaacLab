@@ -104,6 +104,9 @@ class NewtonBackend:
         if dt is None:
             raise ValueError("A simulation NewtonBackend requires the physics step duration dt.")
 
+        self.solver_cfg = physics_cfg.solver_cfg
+        """Solver configuration; the manager replaces it with the copy whose model-dependent defaults are resolved
+        (:attr:`SolverSpec.resolve_cfg`)."""
         self.dt = dt
         """Duration of one physics step [s]."""
         self.num_substeps = physics_cfg.num_substeps
