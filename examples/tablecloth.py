@@ -683,7 +683,7 @@ TABLECLOTH_ASSETS = {
     # Illuminate the pull stations below the cantina's opaque ceiling.
     "interior_light": AssetBaseCfg(
         prim_path="/World/InteriorLight",
-        spawn=sim_utils.DiskLightCfg(radius=1.5, intensity=1000.0),
+        spawn=sim_utils.DiskLightCfg(radius=1.5, intensity=16000.0),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.8, 0.0, 3.0), rot=(0.0, 0.3007058, 0.0, 0.95371695)),
     ),
     "backdrop": AssetBaseCfg(
