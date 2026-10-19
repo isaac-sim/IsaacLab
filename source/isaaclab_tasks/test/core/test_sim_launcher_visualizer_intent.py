@@ -97,12 +97,17 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection(mon
     with pytest.warns(FutureWarning, match="newton_gl"):
         viewer = resolve_presets(MultiBackendVisualizerCfg(), overrides={"": "newton"})
     assert isinstance(viewer, NewtonGLVisualizerCfg)
-    assert resolve_presets(MultiBackendVisualizerCfg(), selected=["newton"]) is None
+    assert resolve_presets(MultiBackendVisualizerCfg(), selected=["newton"]) == []
 
     viewer = VisualizerCfg(max_visible_envs=3, backend=viewer)
     other = VisualizerCfg(max_visible_envs=5, backend=NewtonGLVisualizerCfg())
     for declaration, overrides, expected in (
         ([viewer, other], ["visualizer=newton_gl"], [viewer, other]),
+        (
+            VisualizerCfg(max_visible_envs=3, backend=[viewer.backend, KitVisualizerCfg()]),
+            ["visualizer=newton_gl"],
+            [viewer],
+        ),
         (
             VisualizerCfg(max_visible_envs=3, backend=MultiBackendVisualizerCfg(newton_gl=viewer.backend)),
             ["visualizer=kit", "env.sim.visualizer_cfgs.backend=newton_gl"],

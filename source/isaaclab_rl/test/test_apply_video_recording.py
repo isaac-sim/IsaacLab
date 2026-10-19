@@ -169,7 +169,7 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
         assert (kit_args["kit_visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
     assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in source)
     # a launch with a SimulationCfg leaves no selection behind for configs built afterwards
-    assert type(env_cfg.sim)(physics=NewtonCfg()).visualizer_cfgs.backend is None
+    assert type(env_cfg.sim)(physics=NewtonCfg()).visualizer_cfgs.backend == []
 
 
 def test_apply_video_recording_noop_when_video_false():

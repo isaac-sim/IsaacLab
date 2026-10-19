@@ -729,7 +729,7 @@ Resolution Rules
 ``--viz`` (comma-separated, e.g. ``--viz kit,newton_gl``) selects which visualizers run, and
 ``SimulationCfg.visualizer_cfgs`` configures them. Each selected type uses its configured settings,
 or else that type's default config. Concrete visualizer configs run as given when no CLI selection
-is supplied. ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=None)``;
+is supplied. ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``;
 settings alone do not open a viewer.
 
 Isaac Sim opens a window when CLI or config selects ``kit``, and never with ``HEADLESS=1`` or

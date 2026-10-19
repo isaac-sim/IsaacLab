@@ -678,8 +678,9 @@ def register_task(
             viewers = [VisualizerCfg()]
         for viewer in viewers:
             choices = MultiBackendVisualizerCfg()
-            if viewer.backend is not None:
-                vars(choices)[viewer.backend.visualizer_type] = viewer.backend
+            backends = viewer.backend if isinstance(viewer.backend, list) else [viewer.backend]
+            for backend in backends:
+                vars(choices)[backend.visualizer_type] = backend
             viewer.backend = resolve_presets(choices, overrides={"": selectors[PresetTarget.VISUALIZER.matches]})
         env_cfg.sim.visualizer_cfgs = viewers
 

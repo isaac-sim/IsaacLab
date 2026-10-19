@@ -370,6 +370,7 @@ before changing an interface. Apply these rules when adding code or cleaning up 
 * Put common configuration in the shared owner and document backend capabilities explicitly. Name
   collections in the plural. Remove empty hooks and expired compatibility aliases during their
   announced removal release instead of maintaining unused extension points.
+  Use one representation for an empty selection; do not give ``None`` and ``[]`` the same meaning.
 * Keep backend selection at shared dispatch boundaries. Use established types, configuration, and
   capability contracts instead of inferring behavior from class-name strings.
   Customize existing preset alternatives with configured instances; do not introduce a preset

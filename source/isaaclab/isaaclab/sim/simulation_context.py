@@ -347,11 +347,7 @@ class SimulationContext:
 
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available, including from a headless visualizer."""
-        return bool(
-            self.has_gui
-            or self.has_offscreen_render
-            or any(cfg.backend is not None for cfg in self.cfg.visualizer_cfgs)
-        )
+        return bool(self.has_gui or self.has_offscreen_render or any(cfg.backend for cfg in self.cfg.visualizer_cfgs))
 
     @property
     def is_rendering(self) -> bool:
@@ -365,7 +361,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or any(cfg.backend is not None and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
+            or any(cfg.backend and not cfg.headless for cfg in self.cfg.visualizer_cfgs)
             or self._xr_enabled
         )
 
@@ -389,7 +385,7 @@ class SimulationContext:
 
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
-        resolved = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.backend is not None]
+        resolved = [cfg for cfg in self.cfg.visualizer_cfgs if cfg.backend]
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if (

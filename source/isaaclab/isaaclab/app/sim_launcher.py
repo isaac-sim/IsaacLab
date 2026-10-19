@@ -234,8 +234,8 @@ def validate_launch(  # noqa: C901
             node.visualizer_cfgs = [node.visualizer_cfgs]
         viewers = []
         for viewer in node.visualizer_cfgs:
-            if isinstance(viewer.backend, list):
-                viewers.extend(viewer.replace(backend=backend) for backend in viewer.backend or [None])
+            if isinstance(viewer.backend, list) and viewer.backend:
+                viewers.extend(viewer.replace(backend=backend) for backend in viewer.backend)
             else:
                 viewers.append(viewer)
         node.visualizer_cfgs = viewers
@@ -248,7 +248,7 @@ def validate_launch(  # noqa: C901
                     [
                         viewer
                         for viewer in node.visualizer_cfgs
-                        if viewer.backend is not None and viewer.backend.visualizer_type == name
+                        if viewer.backend and viewer.backend.visualizer_type == name
                     ]
                     or [template.replace(backend=visualizer_types[name]())]
                 )
@@ -258,7 +258,7 @@ def validate_launch(  # noqa: C901
                 node.visualizer_cfgs.append(
                     template.replace(backend=KitVisualizerCfg(), headless=bool(launcher_args.get("xr", False)))
                 )
-        node.visualizer_cfgs = [viewer for viewer in node.visualizer_cfgs if viewer.backend is not None]
+        node.visualizer_cfgs = [viewer for viewer in node.visualizer_cfgs if viewer.backend]
 
     viewers = [viewer for sim in simulations for viewer in sim.visualizer_cfgs]
     for recorder in (node for node in configs if isinstance(node, VideoRecorderCfg)):
@@ -269,7 +269,7 @@ def validate_launch(  # noqa: C901
             if len(owners) != 1:
                 raise ValueError("A recorded perspective view requires exactly one configured visualizer.")
             producer = next((viewer for viewer in viewers if viewer.view is recorder.source), owners[0])
-            if producer.backend is None:
+            if not producer.backend:
                 producer = producer.replace(backend=NewtonGLVisualizerCfg())
         else:
             kind, name, channel = parse_video_source(recorder.source)
@@ -289,7 +289,7 @@ def validate_launch(  # noqa: C901
                 (
                     viewer
                     for viewer in viewers + configured
-                    if viewer.backend is not None and viewer.backend.visualizer_type == name
+                    if viewer.backend and viewer.backend.visualizer_type == name
                 ),
                 None,
             )

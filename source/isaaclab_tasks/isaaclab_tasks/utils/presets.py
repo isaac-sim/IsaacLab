@@ -61,6 +61,6 @@ class MultiBackendVisualizerCfg(PresetCfg):
     rerun: RerunVisualizerCfg = RerunVisualizerCfg()
     viser: ViserVisualizerCfg = ViserVisualizerCfg()
     none: list[VisualizerBackendCfg] = []
-    default: None = None
+    default: list[VisualizerBackendCfg] = []
 
     _aliases: ClassVar[dict[str, str]] = VISUALIZER_ALIASES

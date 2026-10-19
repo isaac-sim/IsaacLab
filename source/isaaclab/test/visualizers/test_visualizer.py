@@ -56,6 +56,7 @@ def test_visualizer_cfg_camera_sources():
     # Cross-config default merging belongs to launch preparation.
     assert "apply_defaults" not in vars(VisualizerCfg)
     cfg = VisualizerCfg()
+    assert cfg.backend == []
     assert cfg.focal_length == 12.0
     assert cfg.background_color is None
     assert cfg.streaming_view is False

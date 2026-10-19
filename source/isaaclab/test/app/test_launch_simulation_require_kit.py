@@ -219,7 +219,7 @@ def test_shared_view_recording_selects_its_producer_without_a_window(producer_co
     ]
     if producer_count == 1:
         visualizers = visualizers[0]  # SimulationCfg also accepts a single configuration.
-        visualizers.backend = None  # Recording supplies the default producer.
+        visualizers.backend = []  # Recording supplies the default producer.
     else:
         visualizers.insert(
             0, VisualizerCfg(backend=NewtonGLVisualizerCfg())

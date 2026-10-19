@@ -143,8 +143,8 @@ class VisualizerBackendCfg:
 class VisualizerCfg:
     """View, window, and scene settings independent of the selected visualizer backend."""
 
-    backend: VisualizerBackendCfg | list[VisualizerBackendCfg] | None = None
-    """Selected implementation(s); None keeps the settings without opening a viewer.
+    backend: VisualizerBackendCfg | list[VisualizerBackendCfg] = []
+    """Selected implementation(s); an empty list keeps the settings without opening a viewer.
 
     Launch expands multiple selections into separate visualizers with the same common settings.
     """
@@ -263,7 +263,7 @@ class VisualizerCfg:
         if self.view is not None:
             backends = self.backend if isinstance(self.backend, list) else [self.backend]
             for backend in backends:
-                if backend is not None and backend.visualizer_type not in ("newton_gl", "newton_rtx"):
+                if backend.visualizer_type not in ("newton_gl", "newton_rtx"):
                     raise ValueError("VisualizerCfg.view requires a Newton GL or RTX visualizer.")
             if self.cameras is not None or self.streaming_sensor_prim_path is not None:
                 raise ValueError("Choose view or legacy cameras/streaming_sensor_prim_path, not both.")

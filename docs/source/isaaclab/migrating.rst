@@ -2560,7 +2560,7 @@ The details below describe how CLI visualizer arguments resolve together with
 
 - ``--viz`` accepts **comma-separated** values (for example ``--viz kit,newton_gl``).
   ``"newton"`` is a deprecated alias for ``"newton_gl"``; prefer ``"newton_gl"`` or ``"newton_rtx"``.
-- ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=None)``. A concrete backend
+- ``SimulationCfg.visualizer_cfgs`` defaults to ``VisualizerCfg(backend=[])``. A concrete backend
   runs as declared; ``--viz`` selects backends while preserving the common view and window settings.
 - Task commands accept ``visualizer=NAME`` as an alias of ``--viz NAME``. Custom alternatives belong
   in ``isaaclab_tasks.utils.presets.MultiBackendVisualizerCfg``; pass configured instances instead
@@ -2607,6 +2607,7 @@ There is no defaults-merging pass.
 
 Select several backends with ``visualizer=rerun,newton_gl``; they share this single
 ``VisualizerCfg`` declaration. Without a selection, ``MultiBackendVisualizerCfg()`` leaves viewers inactive.
+``VisualizerCfg.backend`` accepts one backend or a list; use ``[]`` instead of ``None`` for no selection.
 In standalone scripts, pass this declaration and ``args_cli`` to
 ``isaaclab_tasks.utils.launch_simulation``. It selects ``--viz`` alternatives while preserving
 declared backend-specific options, then passes concrete configurations to core launch.

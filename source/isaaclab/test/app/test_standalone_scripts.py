@@ -317,7 +317,6 @@ def test_g1_terrain_forwards_visualizer_selection(monkeypatch, extra_args, expec
             backend.visualizer_type
             for viewer in _cfg.sim.visualizer_cfgs
             for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
-            if backend is not None
         ]
         raise LaunchReached
         yield
@@ -380,7 +379,6 @@ def test_sonic_defaults_to_offscreen_recording_and_preserves_explicit_visualizer
             backend.visualizer_type
             for viewer in _cfg.sim.visualizer_cfgs
             for backend in (viewer.backend if isinstance(viewer.backend, list) else [viewer.backend])
-            if backend is not None
         ]
         captured["launch_physics"] = getattr(launcher_args, "physics", None)
         captured["video_sources"] = [recorder.source for recorder in _cfg.video_recorders]

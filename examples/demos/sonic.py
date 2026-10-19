@@ -76,6 +76,10 @@ def main() -> None:
     add_launcher_args(parser)
     parser.set_defaults(device=None, visualizer=None)
     args, overrides = setup_preset_cli(parser)
+    use_default_visualizer = not any(
+        arg.partition("=")[0] in ("visualizer", "env.sim.visualizer_cfgs", "env.sim.visualizer_cfgs.backend")
+        for arg in overrides
+    )
     if args.seconds is not None and (not math.isfinite(args.seconds) or args.seconds <= 0):
         parser.error("--seconds must be finite and positive")
     if args.max_steps is not None and args.max_steps <= 0:
@@ -90,7 +94,9 @@ def main() -> None:
     is_physx = isinstance(cfg.sim.physics, PhysxCfg)
     if not isinstance(cfg.sim.visualizer_cfgs, list):
         cfg.sim.visualizer_cfgs = [cfg.sim.visualizer_cfgs]
-    offline_default = not is_physx and all(viewer.backend is None for viewer in cfg.sim.visualizer_cfgs)
+    offline_default = (
+        use_default_visualizer and not is_physx and not any(viewer.backend for viewer in cfg.sim.visualizer_cfgs)
+    )
     args.video = args.video or offline_default
     duration = args.seconds or cfg.duration
     step_dt = cfg.sim.dt * cfg.decimation
@@ -133,7 +139,7 @@ def main() -> None:
         viewer.eye, viewer.lookat = cfg.camera_eye, cfg.camera_target
         viewer.focal_length = aperture / (2 * math.tan(math.radians(cfg.camera_vfov) / 2))
         viewer.enable_markers = viewer.enable_live_plots = viewer.streaming_view = False
-        if is_physx and viewer.backend is None:
+        if use_default_visualizer and is_physx and not viewer.backend:
             viewer.backend = KitVisualizerCfg()
     torch.set_num_threads(1)
     with launch_simulation(cfg, args):
