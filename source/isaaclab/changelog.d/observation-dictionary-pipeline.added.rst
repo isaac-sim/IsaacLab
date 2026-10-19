@@ -1,2 +1,3 @@
-* Added dictionary tensor processing to observation groups through ``ObservationGroupCfg.pipeline``,
-  including named outputs, partial resets, resource cleanup, and matching Gym observation spaces.
+* Added dictionary-returning observation terms with ``DictTensorProcessorCfg`` entries in
+  ``ObservationTermCfg.tensor_processors``, including nested outputs, partial resets, resource cleanup,
+  and matching Gym observation spaces.

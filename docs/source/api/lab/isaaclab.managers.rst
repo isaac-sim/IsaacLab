@@ -143,33 +143,44 @@ second full-image copy for normalized uint8 images. Existing observation configu
 Dictionary observation processing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use :attr:`ObservationGroupCfg.pipeline` to combine or transform named observation terms.
-Set ``concatenate_terms=False``. Each processor runs after the terms' processing, delay, and
-history, and can read outputs from preceding processors. Outputs add or replace dictionary
-entries; untouched terms remain available.
+An :class:`ObservationTermCfg` function may return a dictionary of named Torch tensors or
+:class:`~isaaclab.utils.warp.ProxyArray` values. Set the group's ``concatenate_terms=False``
+and configure dictionary processors through the term's ``tensor_processors`` field.
+Each processor can read outputs from preceding processors and add or replace dictionary
+entries. Untouched entries remain available.
 
 For example, given a ``FuseSensors`` subclass of
-:class:`~isaaclab.utils.tensor_processors.DictTensorProcessor`, configure a group with terms
-named ``position`` and ``velocity`` as follows:
+:class:`~isaaclab.utils.tensor_processors.DictTensorProcessor`, configure a term as follows:
 
 .. code-block:: python
 
+   from isaaclab.managers import ObservationTermCfg
    from isaaclab.utils.tensor_processors import DictTensorProcessorCfg
 
-   sensor_group.concatenate_terms = False
-   sensor_group.pipeline = [
-       DictTensorProcessorCfg(
-           class_type="my_project.processors:FuseSensors",
-           inputs=["position", "velocity"],
-           outputs=["features"],
-       ),
-   ]
+   def sensor_data(env):
+       robot = env.scene["robot"]
+       return {"position": robot.data.root_pos_w, "velocity": robot.data.root_lin_vel_w}
 
-The returned dictionary contains ``position``, ``velocity``, and ``features``. Processors run
-on every observation computation, including calls that do not advance history. Resetting the
-manager resets processor state for the selected environments. Returned observations remain
-valid across later computations. This option is supported by the standard observation manager;
-the experimental Warp observation manager does not support dictionary pipelines.
+   sensor_group.concatenate_terms = False
+   sensor_group.sensors = ObservationTermCfg(
+       func=sensor_data,
+       tensor_processors=[
+           DictTensorProcessorCfg(
+               class_type="my_project.processors:FuseSensors",
+               inputs=["position", "velocity"],
+               outputs=["features"],
+           ),
+       ],
+   )
+
+For a group named ``policy``, read the result as ``observations["policy"]["sensors"]["features"]``.
+The ``sensors`` dictionary also retains ``position`` and ``velocity``. Processors run on every
+observation computation, and resetting the manager resets their state for the selected environments.
+Returned observations remain valid across later computations.
+
+Dictionary terms do not support the tensor-only ``noise``, ``clip``, ``scale``, delay, or history
+settings. Use dictionary processors for their transformations. They are supported by the standard
+observation manager; the experimental Warp manager requires tensor terms.
 
 .. autoclass:: ObservationGroupCfg
     :members:

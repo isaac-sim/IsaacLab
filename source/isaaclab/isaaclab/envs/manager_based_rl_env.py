@@ -364,18 +364,23 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             if has_concatenated_obs:
                 self.single_observation_space[group_name] = gym.spaces.Box(low=-np.inf, high=np.inf, shape=group_dim)
             else:
-                pipeline = self.observation_manager._group_pipelines.get(group_name)
-                if pipeline is not None:
-                    self.single_observation_space[group_name] = gym.spaces.Dict(
-                        {
-                            name: gym.spaces.Box(low=-np.inf, high=np.inf, shape=shape)
-                            for name, shape in zip(pipeline.outputs, group_dim)
-                        }
-                    )
-                    continue
                 group_term_cfgs = self.observation_manager._group_obs_term_cfgs[group_name]
                 term_dict = {}
                 for term_name, term_dim, term_cfg in zip(group_term_names, group_dim, group_term_cfgs):
+                    if isinstance(term_dim, dict):
+                        pipeline = self.observation_manager._term_pipelines[group_name, term_name]
+                        spaces = {}
+                        for name, shape in term_dim.items():
+                            dtype = torch.empty((), dtype=pipeline.outputs[name].torch.dtype).numpy().dtype
+                            if np.issubdtype(dtype, np.integer):
+                                low, high = np.iinfo(dtype).min, np.iinfo(dtype).max
+                            elif np.issubdtype(dtype, np.bool_):
+                                low, high = 0, 1
+                            else:
+                                low, high = -np.inf, np.inf
+                            spaces[name] = gym.spaces.Box(low=low, high=high, shape=shape, dtype=dtype)
+                        term_dict[term_name] = gym.spaces.Dict(spaces)
+                        continue
                     low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
                     high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
                     term_dict[term_name] = gym.spaces.Box(low=low, high=high, shape=term_dim)

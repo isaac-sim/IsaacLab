@@ -132,8 +132,9 @@ Use :mod:`isaaclab.utils.tensor_processors` to transform observations:
 * ``TensorProcessor``: tensor to tensor.
 * ``DictTensorProcessor``: dictionary of named tensors to dictionary of named tensors.
 
-Configure single-tensor processors with :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
-Configure dictionary processors with :attr:`~isaaclab.managers.ObservationGroupCfg.pipeline`.
+Configure processors with :attr:`~isaaclab.managers.ObservationTermCfg.tensor_processors`.
+Use ``TensorProcessorCfg`` for a term returning one tensor and ``DictTensorProcessorCfg`` for
+a term returning a dictionary of named tensors. Dictionary terms require ``concatenate_terms=False``.
 Each dictionary processor declares the input keys it needs and the output keys it adds or replaces.
 Other keys remain available to subsequent processors.
 

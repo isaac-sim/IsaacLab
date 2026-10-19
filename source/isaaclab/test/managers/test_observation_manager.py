@@ -1033,8 +1033,8 @@ def test_positional_out_does_not_enable_destination_writes(setup_env):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
-def test_dictionary_pipeline_processing_reset_and_spaces(setup_env, device):
-    """Named outputs compose after term history, survive later calls, and match Gym spaces."""
+def test_dictionary_term_processing_reset_and_spaces(setup_env, device):
+    """A term's dictionary stays nested, composes processors, and owns stable snapshots."""
     from types import SimpleNamespace
 
     import warp as wp
@@ -1066,50 +1066,82 @@ def test_dictionary_pipeline_processing_reset_and_spaces(setup_env, device):
         def close(self):
             closed.append(self.cfg.params.get("scale", 1))
 
+    def sensor_data(env):
+        return {"position": env.data.pos_w, "velocity": ProxyArray(wp.from_torch(env.data.lin_vel_w))}
+
     setup_env = setup_env._replace(device=device, data=MyDataClass(setup_env.num_envs, device))
     setup_env.data.pos_w.fill_(1)
     setup_env.data.lin_vel_w.fill_(1)
-    cfg = ObservationGroupCfg(
-        concatenate_terms=False,
-        pipeline=[
+    cfg = ObservationGroupCfg(concatenate_terms=False)
+    cfg.sensors = ObservationTermCfg(
+        func=sensor_data,
+        tensor_processors=[
             tensor_processors.DictTensorProcessorCfg(Accumulate, ["position", "velocity"], ["total"]),
             tensor_processors.DictTensorProcessorCfg(Accumulate, ["total"], ["total"], {"scale": 2}),
         ],
     )
     cfg.position = ObservationTermCfg(func=pos_w_data, scale=2, history_length=2)
-    cfg.velocity = ObservationTermCfg(func=lin_vel_w_data)
     manager = ObservationManager({"policy": cfg}, setup_env)
     first = manager.compute(update_history=True)["policy"]
-    assert list(first) == ["position", "velocity", "total"]
-    assert manager.group_obs_dim["policy"] == [(6,), (3,), (1,)]
+    assert list(first) == ["sensors", "position"]
+    assert list(first["sensors"]) == ["position", "velocity", "total"]
+    assert manager.group_obs_dim["policy"] == [{"position": (3,), "velocity": (3,), "total": (1,)}, (6,)]
     torch.testing.assert_close(first["position"], torch.full((20, 6), 2.0, device=device))
-    torch.testing.assert_close(first["velocity"], torch.ones(20, 3, device=device))
-    torch.testing.assert_close(first["total"], torch.full((20, 1), 30.0, device=device))
+    torch.testing.assert_close(first["sensors"]["velocity"], torch.ones(20, 3, device=device))
+    torch.testing.assert_close(first["sensors"]["total"], torch.full((20, 1), 12.0, device=device))
     second = manager.compute()["policy"]
-    torch.testing.assert_close(second["total"], torch.full((20, 1), 90.0, device=device))
-    torch.testing.assert_close(first["total"], torch.full((20, 1), 30.0, device=device))
+    torch.testing.assert_close(second["sensors"]["total"], torch.full((20, 1), 36.0, device=device))
+    torch.testing.assert_close(first["sensors"]["total"], torch.full((20, 1), 12.0, device=device))
     manager.reset([1])
     third = manager.compute(update_history=True)["policy"]
-    expected = torch.full((20, 1), 180.0, device=device)
-    expected[1] = 30.0
-    torch.testing.assert_close(third["total"], expected)
+    expected = torch.full((20, 1), 72.0, device=device)
+    expected[1] = 12.0
+    torch.testing.assert_close(third["sensors"]["total"], expected)
     torch.testing.assert_close(setup_env.data.pos_w, torch.ones(20, 3, device=device))
     manager.reset()
-    torch.testing.assert_close(manager.compute(update_history=True)["policy"]["total"], first["total"])
+    torch.testing.assert_close(manager.compute()["policy"]["sensors"]["total"], first["sensors"]["total"])
+    assert "sensors" in str(manager)
+    assert "policy-sensors/total" in dict(manager.get_active_iterable_terms(0))
 
     env = SimpleNamespace(observation_manager=manager, action_manager=SimpleNamespace(action_term_dim=[1]), num_envs=20)
     ManagerBasedRLEnv._configure_gym_env_spaces(env)
-    assert env.single_observation_space.contains(
-        {"policy": {name: value[0].cpu().numpy() for name, value in third.items()}}
-    )
+    sample = {
+        "sensors": {name: value[0].cpu().numpy() for name, value in third["sensors"].items()},
+        "position": third["position"][0].cpu().numpy(),
+    }
+    assert env.single_observation_space.contains({"policy": sample})
     manager.close()
     manager.close()
     assert closed == [2, 1]
 
 
-@pytest.mark.parametrize("invalid", ["concatenation", "missing_input", "batch_size"])
-def test_dictionary_pipeline_rejects_invalid_configuration(setup_env, invalid):
-    """Reject incompatible publication and missing dependencies before observations are computed."""
+def test_dictionary_term_without_processors(setup_env):
+    """Raw image dictionaries preserve dtype and snapshots, and reject changing schemas."""
+    from types import SimpleNamespace
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    pixels = torch.full((20, 2, 3), 255, dtype=torch.uint8)
+    data = {"rgb": pixels}
+    cfg = ObservationGroupCfg(concatenate_terms=False)
+    cfg.camera = ObservationTermCfg(func=lambda env: data)
+    manager = ObservationManager({"policy": cfg}, setup_env)
+    first = manager.compute()["policy"]["camera"]["rgb"]
+    pixels.zero_()
+    torch.testing.assert_close(first, torch.full((20, 2, 3), 255, dtype=torch.uint8))
+    torch.testing.assert_close(manager.compute()["policy"]["camera"]["rgb"], torch.zeros_like(pixels))
+    env = SimpleNamespace(observation_manager=manager, action_manager=SimpleNamespace(action_term_dim=[1]), num_envs=20)
+    ManagerBasedRLEnv._configure_gym_env_spaces(env)
+    assert env.single_observation_space.contains({"policy": {"camera": {"rgb": first[0].numpy()}}})
+    data["extra"] = pixels
+    with pytest.raises(ValueError, match="changed its output keys"):
+        manager.compute()
+    manager.close()
+
+
+@pytest.mark.parametrize("invalid", ["concatenation", "missing_input", "batch_size", "scale", "processor_type"])
+def test_dictionary_term_rejects_invalid_configuration(setup_env, invalid):
+    """Reject incompatible settings and dependencies without advancing processor state."""
     import warp as wp
 
     from isaaclab.utils.warp import ProxyArray
@@ -1127,16 +1159,26 @@ def test_dictionary_pipeline_rejects_invalid_configuration(setup_env, invalid):
         def close(self):
             closed.append(True)
 
-    cfg = ObservationGroupCfg(
-        concatenate_terms=invalid == "concatenation",
-        pipeline=[
+    cfg = ObservationGroupCfg(concatenate_terms=invalid == "concatenation")
+    cfg.sensors = ObservationTermCfg(
+        func=lambda env: {"position": env.data.pos_w},
+        scale=2 if invalid == "scale" else None,
+        tensor_processors=[
             tensor_processors.DictTensorProcessorCfg(
                 WrongBatch, ["missing" if invalid == "missing_input" else "position"], ["result"]
             )
         ],
     )
-    cfg.position = ObservationTermCfg(func=pos_w_data)
-    match = {"concatenation": "concatenate_terms=False", "missing_input": "Missing input", "batch_size": "batch size"}
-    with pytest.raises(ValueError, match=match[invalid]):
+    if invalid == "processor_type":
+        cfg.sensors.tensor_processors = [tensor_processors.TensorProcessorCfg(func=tensor_processors.clip)]
+    match = {
+        "concatenation": "concatenate_terms=False",
+        "missing_input": "Missing input",
+        "batch_size": "batch size",
+        "scale": "does not support",
+        "processor_type": "DictTensorProcessorCfg",
+    }
+    error = TypeError if invalid == "processor_type" else ValueError
+    with pytest.raises(error, match=match[invalid]):
         ObservationManager({"policy": cfg}, setup_env)
     assert closed == ([True] if invalid == "batch_size" else [])
