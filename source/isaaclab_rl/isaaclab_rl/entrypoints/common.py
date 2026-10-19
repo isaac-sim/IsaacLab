@@ -203,7 +203,7 @@ def add_cosmos_args(parser: argparse.ArgumentParser) -> None:
     group.add_argument("--cosmos_camera", default=None, help="Scene camera name; defaults to the only rgb camera.")
     group.add_argument(
         "--cosmos_control",
-        choices=["depth", "edge", "blur"],
+        choices=["depth", "edge"],
         default=None,
         help="Cosmos control type; defaults to depth or preserves the Cosmos preset.",
     )
