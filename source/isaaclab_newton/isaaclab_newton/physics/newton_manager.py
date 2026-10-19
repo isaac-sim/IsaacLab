@@ -1721,9 +1721,13 @@ class NewtonManager(PhysicsManager):
             sensor.update(self.backend.state_0)
         if self._report_contacts:
             eval_contacts = contacts if contacts is not None else self._contacts
-            self._solver.update_contacts(eval_contacts, self.backend.state_0)
+            self._update_contacts_for_sensors(eval_contacts)
             for sensor in self._newton_contact_sensors.values():
                 sensor.update(self.backend.state_0, eval_contacts)
+
+    def _update_contacts_for_sensors(self, contacts: Contacts) -> None:
+        """Publish solver contact data before the sensor reads it."""
+        self._solver.update_contacts(contacts, self.backend.state_0)
 
     # ------------------------------------------------------------------
     # Composite stepping routines
