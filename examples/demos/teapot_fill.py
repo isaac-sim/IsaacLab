@@ -800,8 +800,7 @@ def main() -> None:
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene_cfg = create_scene_cfg(container_usd, island_usd, bowl_usd)
-        scene = InteractiveScene(scene_cfg)
+        scene = InteractiveScene(create_scene_cfg(container_usd, island_usd, bowl_usd))
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:
