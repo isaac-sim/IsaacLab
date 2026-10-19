@@ -244,7 +244,9 @@ OVERRIDES = {
     "examples/demos/teapot_fill.py": ScriptOverride(args=("--voxel_size", "0.006"), fixed_physics_backend="newton_mpm"),
     "examples/rizon_sharpa_teapot.py": ScriptOverride(
         args=("--max_steps", "10"),
-        skip_reason="requires a licensed Rizon--Sharpa bundle",
+        fixed_physics_backend="newton_coupler",
+        visualizers=(None, "newton_gl", "newton_rtx", "kit"),
+        required_modules=("isaaclab_contrib",),
     ),
     "examples/demos/rizon_sharpa_coffee.py": ScriptOverride(
         fixed_physics_backend="newton_coupler",
