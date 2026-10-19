@@ -18,7 +18,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
-from isaaclab.physics import PhysicsManager
+from isaaclab.sim import SimulationContext
 
 
 def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, float, float, float]) -> Gf.Matrix4d:
@@ -31,7 +31,7 @@ def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, 
 
 def test_nested_clone_uses_final_target_pose(monkeypatch):
     """Nested clone rows keep their source-local pose under the target environment."""
-    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
+    manager = OvPhysxManager()
     half_sqrt_two = math.sqrt(0.5)
     source_half_angle_sin = 0.5
     source_half_angle_cos = math.sqrt(0.75)
@@ -50,7 +50,7 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     body.AddTranslateOp().Set((1, 0, 0))
     UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
 
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=OvPhysxManager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive", "/World/envs/env_0/Robot"],
@@ -75,8 +75,8 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     )
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
-    assert len(OvPhysxManager._clone_recipes) == 1
-    source, targets, poses, env_ids, source_env_id = OvPhysxManager._clone_recipes[0]
+    assert len(manager._clone_recipes) == 1
+    source, targets, poses, env_ids, source_env_id = manager._clone_recipes[0]
     assert source == "/World/envs/env_0/Robot"
     assert targets == ["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"]
     assert env_ids == [0, 1]
@@ -88,7 +88,7 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
         orientation = -orientation
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
     layer = Sdf.Layer.CreateAnonymous("export.usda")
-    serialized, native = _serialize_stage(stage, OvPhysxManager._clone_recipes, full_stage=True)
+    serialized, native = _serialize_stage(stage, manager._clone_recipes, full_stage=True)
     assert not native
     layer.ImportFromString(serialized)
     exported = Usd.Stage.Open(layer)
@@ -101,14 +101,13 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
 def test_ovphysx_context_consumes_plan():
     """The registered context publishes the rows routed to it by one clone plan."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
     positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
     plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
-    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, backend_manager=manager)).replicate(plan, (0,))
 
     assert len(recipes) == 2
     assert recipes[0][0:2] == ("/World/envs/env_0/Robot", [f"/World/envs/env_{i}/Robot" for i in range(3)])
@@ -117,6 +116,15 @@ def test_ovphysx_context_consumes_plan():
     np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
     assert recipes[0][3] == [0, 1, 2]
     assert recipes[1][3] == [0, 1]
+    before = stage.ExportToString()
+    serialized, _ = _serialize_stage(stage, recipes, full_stage=True, plan=plan)
+    exported = Usd.Stage.CreateInMemory()
+    exported.GetRootLayer().ImportFromString(serialized)
+    for env_id, position in enumerate(positions):
+        root = exported.GetPrimAtPath(f"/World/envs/env_{env_id}/Robot")
+        actual = UsdGeom.XformCache().GetLocalToWorldTransform(root).ExtractTranslation()
+        np.testing.assert_allclose(actual, position + (0.25, 0, 0))
+    assert stage.ExportToString() == before
 
 
 def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
@@ -132,7 +140,7 @@ def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
     manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2
     plan = make_clone_plan(assets, ((0,), (1,)), 4, clone_strategy=lambda weights, count: np.arange(count) % 2)
-    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0, 1))
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, backend_manager=manager)).replicate(plan, (0, 1))
 
     assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
         ("/World/envs/env_0/Object", ["/World/envs/env_0/Object", "/World/envs/env_2/Object"], [0, 2]),
@@ -151,7 +159,7 @@ def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
@@ -179,7 +187,7 @@ def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Object", "/World/envs/env_1/Object"],
@@ -208,7 +216,7 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
 
     recipes = []
     manager = SimpleNamespace(_clone_recipes=recipes)
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(backend_manager=manager))
     ovphysx_replicate(
         stage,
         sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],
@@ -225,12 +233,12 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
-    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
+    manager = OvPhysxManager()
 
-    OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
+    manager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
     expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None, 0)]
-    assert OvPhysxManager._clone_recipes == expected_recipes
+    assert manager._clone_recipes == expected_recipes
 
 
 def test_raw_replicate_validates_sources_and_pose_arrays():

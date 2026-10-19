@@ -22,7 +22,6 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import copy_mesh_transforms_to_table_kernel
 
 from isaaclab_ov._clone import ordered_clone_paths
-from isaaclab_ov.physics import OvPhysxManager
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +106,7 @@ class _OvPhysxRayCasterMixin:
 
         body_glob = _ovphysx_body_glob(body_expr)
 
-        physx = OvPhysxManager.get_physx_instance()
+        physx = self._backend_manager.get_physx_instance()
         if physx is None:
             raise RuntimeError(
                 "OvPhysxManager has no PhysX instance yet -- sensor was constructed before "
@@ -213,7 +212,7 @@ class _OvPhysxRayCasterMixin:
                 "per-pattern bindings and an interleaved-read kernel that does not exist yet."
             )
 
-        physx = OvPhysxManager.get_physx_instance()
+        physx = self._backend_manager.get_physx_instance()
         if physx is None:
             raise RuntimeError(
                 "OvPhysxManager has no PhysX instance yet -- multi-mesh target view requested "
