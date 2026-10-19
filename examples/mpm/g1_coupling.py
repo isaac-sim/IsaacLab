@@ -31,9 +31,6 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.app.logging_utils import configure_console_logging
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import resolve_presets
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
-
 logger = logging.getLogger("isaaclab.examples.mpm.g1_coupling")
 
 TASK = "Isaac-Velocity-Flat-G1"
@@ -299,7 +296,6 @@ def _configure_common_environment(env_cfg: Any) -> None:
         eye=CAMERA_EYE,
         lookat=CAMERA_TARGET,
         focal_length=CAMERA_FOCAL_LENGTH,
-        backend=MultiBackendVisualizerCfg(),
     )
     env_cfg.scene.backdrop = AssetBaseCfg(
         prim_path="/World/PresentationGround",
@@ -489,7 +485,6 @@ def main() -> None:
         if not checkpoint.is_file():
             raise FileNotFoundError(f"G1 checkpoint not found: {checkpoint}")
     configure_environment(env_cfg)
-    resolve_presets(env_cfg, overrides={"sim.visualizer_cfgs.backend": args_cli.visualizer})
     logger.info("Configured G1 rigid/MPM environment; launching visualizer.")
     env_cfg.seed = args_cli.seed
     agent_cfg.seed = args_cli.seed

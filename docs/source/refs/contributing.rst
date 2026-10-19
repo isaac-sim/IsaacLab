@@ -375,7 +375,8 @@ before changing an interface. Apply these rules when adding code or cleaning up 
   Customize existing preset alternatives with configured instances; do not introduce a preset
   subclass just to change a backend's settings. Preset declarations and selection belong in
   ``isaaclab_tasks`` and scripts. Complete selection before runtime launch; core simulation and backend
-  packages must not import, declare, or resolve presets.
+  packages must not import, declare, or resolve presets. Standalone scripts using ``--viz`` pass
+  concrete configurations to ``launch_simulation``; do not add task presets just to select a viewer.
 * Keep physics and rendering responsibilities separate and resolve construction requirements before
   finalization. Shared resource owners release their borrowers before rebuilding; physics managers must
   not import renderer implementations or manipulate their attachment state.

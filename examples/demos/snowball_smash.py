@@ -27,9 +27,6 @@ from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import resolve_presets
-from isaaclab_tasks.utils.presets import MultiBackendVisualizerCfg
-
 
 class SnowballSpec(NamedTuple):
     """Initial state and geometry for one snowball."""
@@ -192,11 +189,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=VisualizerCfg(
-            backend=MultiBackendVisualizerCfg(
-                newton_gl=NewtonGLVisualizerCfg(particle_color=SNOW_COLOR),
-            ),
-        ),
+        visualizer_cfgs=VisualizerCfg(backend=NewtonGLVisualizerCfg(particle_color=SNOW_COLOR)),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,
             num_substeps=1,
@@ -342,7 +335,7 @@ def run_simulator(sim, scene) -> None:
 
 def main() -> None:
     """Set up and run the Newton MPM snowball-smash demo."""
-    sim_cfg = resolve_presets(create_sim_cfg(), overrides={"visualizer_cfgs.backend": args_cli.visualizer})
+    sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
         import isaaclab.sim as sim_utils
         from isaaclab.scene import InteractiveScene

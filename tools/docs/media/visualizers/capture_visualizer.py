@@ -64,8 +64,8 @@ from pxr import Gf, Sdf, UsdShade
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import VideoRecorderCfg
+from isaaclab.envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES
 from isaaclab.managers import EventTermCfg
-from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.meshes import MeshCuboidCfg
 from isaaclab.sim.spawners.meshes.meshes import spawn_mesh_cuboid
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
@@ -612,13 +612,8 @@ def _follow_camera(env, env_ids) -> None:
         visualizer.set_camera_view(eye, target)
 
 
-def _hero_headless() -> bool:
-    """Whether to run offscreen (default) or in a real window for HUD window-capture."""
-    return headless("HERO_WINDOWED")
-
-
 def _hero_make_kit_visualizer_cfg() -> VisualizerCfg:
-    if _hero_headless():
+    if headless("HERO_WINDOWED"):
         # streaming_cam_target_prim_path follows the robot via a separate "Streaming View"
         # panel, captured through the standard VideoRecorderCfg path.
         return VisualizerCfg(
@@ -648,7 +643,7 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
     # No streaming_view: markers aren't drawn into that camera sensor (see module docstring).
     # eye/lookat seed the initial pose before _follow_camera takes over.
     return VisualizerCfg(
-        headless=_hero_headless(),
+        headless=headless("HERO_WINDOWED"),
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
@@ -661,7 +656,7 @@ def _hero_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
 def _hero_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
     # The perspective view uses the scene's authored lighting and native debug markers.
     return VisualizerCfg(
-        headless=_hero_headless(),
+        headless=headless("HERO_WINDOWED"),
         window=WindowCfg(size=(_HERO_WINDOW_WIDTH, _HERO_WINDOW_HEIGHT)),
         eye=_HERO_RTX_FOLLOW_EYE_OFFSET,
         lookat=(0.0, 0.0, 0.0),
@@ -760,7 +755,7 @@ def _hero_configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
     if (
         visualizer in _HERO_FOLLOW_CAM_VISUALIZERS
         or visualizer == "combined"
-        or (visualizer == "kit" and not _hero_headless())
+        or (visualizer == "kit" and not headless("HERO_WINDOWED"))
     ):
         env_cfg.events.follow_camera = EventTermCfg(
             func=_follow_camera, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
@@ -1406,82 +1401,6 @@ _SHOWCASE_H1_STAIRS_WINDOW_WIDTH = _SHOWCASE_WINDOW_WIDTH * 2
 _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT = _SHOWCASE_WINDOW_HEIGHT * 2
 
 
-def _showcase_headless() -> bool:
-    """Whether to run offscreen (default) or in a real window for HUD window-capture."""
-    return headless("SHOWCASE_WINDOWED")
-
-
-def _showcase_make_kit_visualizer_cfg() -> VisualizerCfg:
-    return VisualizerCfg(
-        headless=_showcase_headless(),
-        window=WindowCfg(size=(_SHOWCASE_WINDOW_WIDTH, _SHOWCASE_WINDOW_HEIGHT)),
-        eye=_SHOWCASE_REACH_EYE,
-        lookat=_SHOWCASE_REACH_LOOKAT,
-        enable_markers=True,
-        backend=KitVisualizerCfg(),
-    )
-
-
-def _showcase_make_newton_gl_visualizer_cfg() -> VisualizerCfg:
-    # streaming_view defaults to True; this showcase only wants the interactive camera.
-    return VisualizerCfg(
-        headless=_showcase_headless(),
-        window=WindowCfg(size=(_SHOWCASE_NEWTON_GL_WINDOW_WIDTH, _SHOWCASE_NEWTON_GL_WINDOW_HEIGHT)),
-        streaming_view=False,
-        eye=_SHOWCASE_NEWTON_GL_EYE,
-        lookat=_SHOWCASE_NEWTON_GL_LOOKAT,
-        enable_markers=True,
-        backend=NewtonGLVisualizerCfg(),
-    )
-
-
-def _showcase_make_newton_rtx_visualizer_cfg() -> VisualizerCfg:
-    # Markers are hard-blocked in NewtonRTXVisualizer for the kitless viewer.
-    return VisualizerCfg(
-        headless=_showcase_headless(),
-        window=WindowCfg(size=(_SHOWCASE_H1_STAIRS_WINDOW_WIDTH, _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT)),
-        eye=_SHOWCASE_H1_STAIRS_EYE_OFFSET,
-        lookat=_SHOWCASE_WIDE_LOOKAT,
-        backend=NewtonRTXVisualizerCfg(),
-    )
-
-
-def _showcase_make_rerun_visualizer_cfg() -> VisualizerCfg:
-    # Live plots disabled: not useful in a short clip, and adds overhead to an already
-    # browser-bottlenecked capture.
-    return VisualizerCfg(
-        eye=_SHOWCASE_SHADOW_HAND_EYE,
-        lookat=_SHOWCASE_SHADOW_HAND_LOOKAT,
-        enable_markers=True,
-        enable_live_plots=False,
-        backend=RerunVisualizerCfg(),
-    )
-
-
-def _showcase_make_viser_visualizer_cfg() -> VisualizerCfg:
-    return VisualizerCfg(
-        eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE,
-        lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT,
-        enable_markers=True,
-        backend=ViserVisualizerCfg(),
-    )
-
-
-_SHOWCASE_VISUALIZER_BUILDERS = {
-    "kit": _showcase_make_kit_visualizer_cfg,
-    "newton_gl": _showcase_make_newton_gl_visualizer_cfg,
-    "newton_rtx": _showcase_make_newton_rtx_visualizer_cfg,
-    "rerun": _showcase_make_rerun_visualizer_cfg,
-    "viser": _showcase_make_viser_visualizer_cfg,
-}
-
-_SHOWCASE_SOURCE_BY_VISUALIZER = {
-    "kit": "viz:kit",
-    "newton_gl": "viz:newton_gl",
-    "newton_rtx": "viz:newton_rtx",
-}
-
-
 # Light-blue overlay color for _add_floor_overlay; deliberately more saturated than Newton
 # GL's own muted built-in ground color so it reads as clearly blue in the browser views.
 _SHOWCASE_FLOOR_OVERLAY_COLOR = (0.45, 0.7, 1.0)
@@ -1536,19 +1455,6 @@ def _add_floor_overlay(env_cfg: object) -> None:
     )
 
 
-def _showcase_resolved_sim_cfgs(env_cfg: object) -> list[SimulationCfg]:
-    """Return every concrete :class:`SimulationCfg` on ``env_cfg.sim``.
-
-    Some task configs (e.g. the cabinet tasks) hold a per-backend preset container on
-    ``sim`` instead of a single resolved :class:`SimulationCfg` at this point in
-    construction, since backend selection happens later via Hydra presets.
-    """
-    sim = env_cfg.sim
-    if isinstance(sim, SimulationCfg):
-        return [sim]
-    return [value for field in dataclasses.fields(sim) if isinstance(value := getattr(sim, field.name), SimulationCfg)]
-
-
 def _showcase_frame_wide_camera_from_env_origins(env, env_ids) -> None:
     """Point the interactive camera at the mean spawn position of the visible envs.
 
@@ -1564,9 +1470,7 @@ def _showcase_frame_wide_camera_from_env_origins(env, env_ids) -> None:
         float(center[2]) + _SHOWCASE_H1_STAIRS_EYE_OFFSET[2],
     )
     target = (float(center[0]), float(center[1]), float(center[2]))
-    for visualizer in env.sim.visualizers:
-        if hasattr(visualizer, "set_camera_view"):
-            visualizer.set_camera_view(eye, target)
+    env.sim.set_camera_view(eye, target)
 
 
 # Paces windowed HUD captures (see record_showcase_window) to a slower wall-clock rate so the
@@ -1575,11 +1479,8 @@ def _showcase_frame_wide_camera_from_env_origins(env, env_ids) -> None:
 _showcase_step_pacer = make_step_pacer("SHOWCASE_TARGET_STEP_TIME")
 
 
-def _showcase_configure_capture(env_cfg: object, visualizer: str) -> None:
-    """Attach the requested showcase visualizer and video recorder to ``env_cfg``."""
-    for sim_cfg in _showcase_resolved_sim_cfgs(env_cfg):
-        sim_cfg.visualizer_cfgs = [_SHOWCASE_VISUALIZER_BUILDERS[visualizer]()]
-
+def _showcase_configure_capture(env_cfg: object) -> None:
+    """Configure pacing and recording for the showcase view."""
     if os.environ.get("SHOWCASE_WINDOWED") == "1":
         env_cfg.events.step_pacer = EventTermCfg(
             func=_showcase_step_pacer, mode="interval", interval_range_s=(0.0, 0.0), is_global_time=True
@@ -1587,7 +1488,8 @@ def _showcase_configure_capture(env_cfg: object, visualizer: str) -> None:
 
     output_dir = os.environ.get("SHOWCASE_VIDEO_DIR")
     if output_dir:
-        if visualizer not in _SHOWCASE_SOURCE_BY_VISUALIZER:
+        visualizer = env_cfg.sim.visualizer_cfgs.backend.visualizer_type
+        if visualizer not in CAPTURE_VISUALIZER_TYPES:
             raise ValueError(
                 f"VideoRecorderCfg capture is not supported for the '{visualizer}' showcase visualizer (no"
                 " render_rgb_array() implementation); see record_showcase_browser instead. Unset"
@@ -1595,7 +1497,7 @@ def _showcase_configure_capture(env_cfg: object, visualizer: str) -> None:
             )
         env_cfg.video_recorders = [
             VideoRecorderCfg(
-                source=_SHOWCASE_SOURCE_BY_VISUALIZER[visualizer],
+                source=f"viz:{visualizer}",
                 output_dir=output_dir,
                 output_filename_prefix=os.environ.get("SHOWCASE_VIDEO_PREFIX", "clip"),
                 video_length=int(os.environ.get("SHOWCASE_VIDEO_LENGTH", "150")),
@@ -1610,7 +1512,14 @@ class AllegroReorientShowcaseCfg(AllegroHandManagerEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _showcase_configure_capture(self, "newton_gl")
+        self.sim.visualizer_cfgs = VisualizerCfg(
+            headless=headless("SHOWCASE_WINDOWED"),
+            window=WindowCfg(size=(_SHOWCASE_NEWTON_GL_WINDOW_WIDTH, _SHOWCASE_NEWTON_GL_WINDOW_HEIGHT)),
+            eye=_SHOWCASE_NEWTON_GL_EYE,
+            lookat=_SHOWCASE_NEWTON_GL_LOOKAT,
+            backend=NewtonGLVisualizerCfg(),
+        )
+        _showcase_configure_capture(self)
         # ReorientManagerEnvBaseCfg never overrides GroundPlaneCfg.color, which defaults to
         # black; fix it just for this capture rather than editing the real task.
         self.scene.ground.spawn.color = (1.0, 1.0, 1.0)
@@ -1623,7 +1532,14 @@ class FrankaReachShowcaseCfg(FrankaReachEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _showcase_configure_capture(self, "kit")
+        self.sim.visualizer_cfgs = VisualizerCfg(
+            headless=headless("SHOWCASE_WINDOWED"),
+            window=WindowCfg(size=(_SHOWCASE_WINDOW_WIDTH, _SHOWCASE_WINDOW_HEIGHT)),
+            eye=_SHOWCASE_REACH_EYE,
+            lookat=_SHOWCASE_REACH_LOOKAT,
+            backend=KitVisualizerCfg(),
+        )
+        _showcase_configure_capture(self)
         # No _add_floor_overlay: Kit isn't affected by the floor bug, and the task's mounting
         # table sits at z=0, so an overlay here would hide it (confirmed by testing).
         self.scene.env_spacing = 2.0
@@ -1635,7 +1551,14 @@ class H1RoughShowcaseCfg(H1RoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _showcase_configure_capture(self, "newton_rtx")
+        self.sim.visualizer_cfgs = VisualizerCfg(
+            headless=headless("SHOWCASE_WINDOWED"),
+            window=WindowCfg(size=(_SHOWCASE_H1_STAIRS_WINDOW_WIDTH, _SHOWCASE_H1_STAIRS_WINDOW_HEIGHT)),
+            eye=_SHOWCASE_H1_STAIRS_EYE_OFFSET,
+            lookat=_SHOWCASE_WIDE_LOOKAT,
+            backend=NewtonRTXVisualizerCfg(),
+        )
+        _showcase_configure_capture(self)
         self.scene.terrain.terrain_generator = _SHOWCASE_STAIRS_TERRAINS_CFG
         self.events.frame_wide_camera = EventTermCfg(func=_showcase_frame_wide_camera_from_env_origins, mode="reset")
 
@@ -1646,7 +1569,13 @@ class ShadowHandReorientShowcaseCfg(ShadowHandEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _showcase_configure_capture(self, "rerun")
+        self.sim.visualizer_cfgs = VisualizerCfg(
+            eye=_SHOWCASE_SHADOW_HAND_EYE,
+            lookat=_SHOWCASE_SHADOW_HAND_LOOKAT,
+            enable_live_plots=False,
+            backend=RerunVisualizerCfg(),
+        )
+        _showcase_configure_capture(self)
         self.scene.env_spacing = _SHOWCASE_SHADOW_HAND_ENV_SPACING
         _add_floor_overlay(self)
 
@@ -1657,7 +1586,12 @@ class KukaAllegroLiftShowcaseCfg(KukaAllegroLiftEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        _showcase_configure_capture(self, "viser")
+        self.sim.visualizer_cfgs = VisualizerCfg(
+            eye=_SHOWCASE_KUKA_ALLEGRO_LIFT_EYE,
+            lookat=_SHOWCASE_KUKA_ALLEGRO_LIFT_LOOKAT,
+            backend=ViserVisualizerCfg(),
+        )
+        _showcase_configure_capture(self)
         self.scene.env_spacing = _SHOWCASE_KUKA_ALLEGRO_LIFT_ENV_SPACING
         _add_floor_overlay(self)
 
@@ -2209,14 +2143,9 @@ _STREAMING_KIT_NUM_ENVS = 128
 _STREAMING_KIT_WINDOW_TITLE = "Isaac Lab"
 
 
-def _streaming_headless() -> bool:
-    """Whether to run offscreen (default) or in a real window for HUD window-capture."""
-    return headless("STREAMING_WINDOWED")
-
-
 def _streaming_make_kit_visualizer_cfg() -> VisualizerCfg:
     return VisualizerCfg(
-        headless=_streaming_headless(),
+        headless=headless("STREAMING_WINDOWED"),
         window=WindowCfg(size=(_STREAMING_WINDOW_WIDTH, _STREAMING_WINDOW_HEIGHT)),
         eye=_STREAMING_INTERACTIVE_EYE,
         lookat=_STREAMING_INTERACTIVE_LOOKAT,

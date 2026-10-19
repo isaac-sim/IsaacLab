@@ -126,7 +126,6 @@ def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
     """One shared declaration selects both Newton viewers before launching the runtime."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("isaaclab_visualizers")
-    pytest.importorskip("isaaclab_tasks")
     if script_path.endswith("g1_coupling.py"):
         pytest.importorskip("isaaclab_contrib")
     script = script_cases.ROOT / script_path
@@ -142,7 +141,8 @@ def check_launch(cfg, args):
     simulation = cfg if isinstance(cfg, SimulationCfg) else cfg.sim
     shared = simulation.visualizer_cfgs
     assert isinstance(shared, VisualizerCfg)
-    assert [backend.visualizer_type for backend in shared.backend] == ['newton_gl', 'newton_rtx']
+    if not script.endswith('g1_coupling.py'):
+        assert 'isaaclab_tasks' not in sys.modules
     configs, _ = isaaclab.app.validate_launch(cfg, args)
     viewers = [cfg for cfg in configs if isinstance(cfg, VisualizerCfg)]
     assert [cfg.backend.visualizer_type for cfg in viewers] == ['newton_gl', 'newton_rtx']
