@@ -37,7 +37,10 @@ import torch
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.visualizers import VisualizerCfg
 
 if TYPE_CHECKING:
     from isaaclab_visualizers.newton import ParticleSurfaceRenderer
@@ -500,6 +503,7 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
+        default_visualizer_cfg=VisualizerCfg(eye=CAMERA_EYE, lookat=CAMERA_TARGET),
         visualizer_cfgs=[NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR)],
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
@@ -553,7 +557,6 @@ def create_scene_cfg(container_usd: str, island_usd: str, bowl_usd: str):
 
     import isaaclab.sim as sim_utils
     from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-    from isaaclab.scene import InteractiveSceneCfg
     from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
     from isaaclab.sim.utils import clone
     from isaaclab.utils import configclass
@@ -790,7 +793,8 @@ def main() -> None:
 
         configured_asset_path()
     sim_cfg = create_sim_cfg()
-    with launch_simulation(sim_cfg, args_cli):
+    viewer_scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    with launch_simulation({"sim": sim_cfg, "scene": viewer_scene_cfg}, args_cli):
         visualizers = {cfg.visualizer_type for cfg in sim_cfg.visualizer_cfgs}
         if "kit" in visualizers:
             from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
@@ -810,7 +814,12 @@ def main() -> None:
         from isaaclab.scene import InteractiveScene
 
         sim = sim_utils.SimulationContext(sim_cfg)
-        scene = InteractiveScene(create_scene_cfg(container_usd, island_usd, bowl_usd))
+        # Asset inspection requires the running USD runtime; retain launch's declared viewer cameras.
+        scene_cfg = create_scene_cfg(container_usd, island_usd, bowl_usd)
+        vars(scene_cfg).update(
+            {name: cfg for name, cfg in vars(viewer_scene_cfg).items() if isinstance(cfg, CameraCfg)}
+        )
+        scene = InteractiveScene(scene_cfg)
         sim.reset()
         robot_motion = None
         if ROBOT_ENABLED:

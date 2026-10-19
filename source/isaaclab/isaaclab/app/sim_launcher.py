@@ -30,6 +30,7 @@ from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualiz
 from isaaclab_visualizers.rerun import RerunVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizerCfg
 
+from .._usd_runtime import _prepare_kit_usd
 from ..envs.utils.video_recorder_cfg import CAPTURE_VISUALIZER_TYPES, VideoRecorderCfg, parse_video_source
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
@@ -443,6 +444,8 @@ def launch_simulation(
         launcher_args["device"] = launcher_args.get("device") or sim_cfg.device
 
     launcher_types = [_KIT_LAUNCHER] if kit_sources else []
+    if kit_sources:
+        _prepare_kit_usd()
     launcher_types += [
         node.launcher_type
         for node in configs
