@@ -17,6 +17,7 @@ __all__ = [
     "edge_control",
     "edge_processor",
     "episode_frame_budget",
+    "read_prompt_files",
     "region_control",
     "regional_edge_processor",
     "regional_edges",
@@ -40,3 +41,4 @@ from .cosmos_model import CosmosModel
 from .cosmos_model_cfg import CosmosModelCfg, episode_frame_budget
 from .cosmos_modifier import CosmosTransferModifier
 from .cosmos_modifier_cfg import CosmosTransferModifierCfg
+from .prompt_files import read_prompt_files

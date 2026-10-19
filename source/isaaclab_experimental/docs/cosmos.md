@@ -51,6 +51,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 |---|---|
 | `--cosmos` | Put Cosmos on the task's rgb camera |
 | `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
+| `--cosmos_prompt_file PATH` | Scene description from a file instead: `.txt` as written, `.json` (a structured caption) kept as JSON, serialized once rather than flattened into prose. One prompt per file, used like repeated `--cosmos_prompt`; repeat it, or pass a quoted pattern such as `"prompts/*.json"` (sorted) or a list such as `"[a.json,b.txt]"` |
 | `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras; repeat it, list names separated by commas, or pass `all`, for cameras sharing one session (see "Several cameras") |
 | `--cosmos_control depth\|edge` | Control prepared from the render (default `depth`); see "Controls and prompts" |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
@@ -260,6 +261,13 @@ CosmosModelCfg(
 ```
 
 A prompt can change only at an episode reset.
+
+Prompts can also come from files: `read_prompt_files(["prompts/*.json"])` returns one prompt per file, with patterns
+expanded in sorted order, so `prompt=read_prompt_files([...])` gives each of 16 environments its own file. A `.txt`
+file is used as written. A `.json` file is a structured caption, the format the model was trained on: it is parsed and
+serialized once into the prompt string, keeping its structure rather than flattening it into prose. The service does
+not upsample prompts, so prepared captions reach the model unchanged. On the command line, `--cosmos_prompt_file` does
+the same; quote patterns and bracketed lists so the shell passes them unchanged.
 
 ## Runtime and resets
 
