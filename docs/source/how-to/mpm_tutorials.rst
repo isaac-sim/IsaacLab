@@ -244,5 +244,5 @@ available in the installed package:
 
 .. code-block:: bash
 
-   uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
+   uvx --python 3.12 --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
      --coupling two_way --viz kit
