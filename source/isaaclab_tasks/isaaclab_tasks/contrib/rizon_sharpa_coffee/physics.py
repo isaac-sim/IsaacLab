@@ -7,22 +7,20 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import newton
 import numpy as np
 import warp as wp
-from isaaclab_newton.physics import NewtonMPMManager
+from isaaclab_newton.physics import MPM_SPEC
+from isaaclab_newton.physics.mpm_solver import mpm_builder
 from newton import StateFlags
 from newton.solvers import SolverImplicitMPM
-from newton.solvers.experimental.coupled import SolverCoupled
 from warp.fem import TemporaryStore
 
-from isaaclab_contrib.coupling.coupler import NewtonCouplerManager
-
 from .assets import SPOON_BOWL_LENGTH, SPOON_BOWL_WIDTH
-from .demo_env_cfg import CoffeeMPMSolverCfg
 
 if TYPE_CHECKING:
     from newton import Model, State
@@ -30,20 +28,14 @@ if TYPE_CHECKING:
     from .dissolution import CoffeeDissolution
 
 
-class CoffeeMPMManager(NewtonMPMManager):
-    """Construct the task's solver through the existing coupled-solver factory."""
+def _instantiate_coffee_mpm(model: Model, config: SolverImplicitMPM.Config, cfg) -> CoffeeMPMSolver:
+    if type(cfg.grains_per_particle) is not int or cfg.grains_per_particle < 0:
+        raise ValueError("grains_per_particle must be a nonnegative integer.")
+    return CoffeeMPMSolver(model, config, grains_per_particle=cfg.grains_per_particle)
 
-    @classmethod
-    def _instantiate_solver(
-        cls, model: Model, config: SolverImplicitMPM.Config, solver_cfg: CoffeeMPMSolverCfg
-    ) -> SolverImplicitMPM:
-        if type(solver_cfg.grains_per_particle) is not int or solver_cfg.grains_per_particle < 0:
-            raise ValueError("grains_per_particle must be a nonnegative integer.")
-        return CoffeeMPMSolver(
-            model,
-            config,
-            grains_per_particle=solver_cfg.grains_per_particle,
-        )
+
+COFFEE_MPM_SPEC = replace(MPM_SPEC, build=mpm_builder(_instantiate_coffee_mpm))
+"""Native MPM constructing :class:`CoffeeMPMSolver` through the shared MPM configuration resolution."""
 
 
 class CoffeeMPMSolver(SolverImplicitMPM):
@@ -90,21 +82,6 @@ class CoffeeMPMSolver(SolverImplicitMPM):
                 inputs=[samples, self.grains, self.model.particle_world, world_mask],
                 device=self.model.device,
             )
-
-
-class NewtonCoffeeCouplerManager(NewtonCouplerManager):
-    """Advance the robot and material independently around the measured tool mount.
-
-    The task explicitly updates its kinematic spoon from the measured palm.
-    Newton's proxy solver steps only connected proxy groups, so an empty proxy
-    graph does not advance either solver. The base coupled solver provides the
-    independent stepping required by this mounted-tool approximation.
-    """
-
-    def _build_proxy_coupled_solver(self, model, entries, proxy_cfgs, solver_cfg) -> SolverCoupled:
-        if proxy_cfgs:
-            return super()._build_proxy_coupled_solver(model, entries, proxy_cfgs, solver_cfg)
-        return SolverCoupled(model=model, entries=entries)
 
 
 def configure_spoon_rim_margin(solver: CoffeeMPMSolver, scale: float) -> None:

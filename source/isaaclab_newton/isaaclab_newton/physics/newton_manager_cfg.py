@@ -18,6 +18,8 @@ from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipeline
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
+    from .solver_specs import SolverSpec
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,27 +29,20 @@ class NewtonSolverCfg:
 
     These parameters are used to configure the Newton solver. For more information, see the `Newton documentation`_.
 
-    Subclasses set :attr:`class_type` to their matching :class:`NewtonManager`
-    subclass; :class:`NewtonCfg` propagates that to its own
-    :attr:`NewtonCfg.class_type` in :meth:`NewtonCfg.__post_init__` so that
-    ``SimulationContext`` resolves the correct manager via the existing
-    dispatch path.
+    :attr:`class_type` selects the :class:`SolverSpec` that builds the solver, ``instantiate(cfg, model, mode)``,
+    and describes it to Isaac Lab.
 
     .. _Newton documentation: https://newton.readthedocs.io/en/latest/
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
-    """Manager class for this solver.
-
-    Default points at the abstract :class:`NewtonManager`; concrete subclasses
-    override it.
-    """
+    class_type: SolverSpec | str | None = None
+    """Solver specification, or a ``"module:ATTRIBUTE"`` reference to one. ``None`` describes geometry only."""
 
     solver_type: str = "None"
     """Solver type metadata (deprecated).
 
     .. deprecated::
-        Manager dispatch is now driven by :attr:`class_type`; this field is
+        Solver dispatch is driven by :attr:`class_type`; this field is
         retained as metadata for logging and debugging only.  Do not branch on
         ``solver_type`` in new code.
     """
@@ -126,20 +121,12 @@ class NewtonCfg(PhysicsCfg):
 
     This configuration includes Newton-specific simulation settings and solver configuration.
 
-    The active :class:`NewtonManager` subclass is determined by
-    :attr:`solver_cfg.class_type`, which :meth:`__post_init__` propagates to
-    :attr:`class_type` so that ``SimulationContext`` resolves the right
-    manager subclass automatically.  User code keeps the existing two-level
-    shape ``NewtonCfg(solver_cfg=...)`` and does not need to set
-    :attr:`class_type` explicitly.
+    ``class_type`` selects the integration manager independently of ``solver_cfg.class_type``. Downstream code can
+    subclass :class:`NewtonManager` and set this field, or inject an existing instance into ``SimulationContext``.
     """
 
-    class_type: type[NewtonManager] | str | None = None
-    """The class type of the :class:`NewtonManager`.
-
-    Auto-set in :meth:`__post_init__` from :attr:`solver_cfg.class_type`.
-    Users normally do not set this directly.
-    """
+    class_type: type[NewtonManager] | str = "{DIR}.newton_manager:NewtonManager"
+    """Manager factory called without arguments by SimulationContext, unless an instance is injected."""
 
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
@@ -266,22 +253,15 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
-        # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
-        # Refuse a user-set value: setting both is ambiguous and was
-        # previously silently overwritten.
-        if self.class_type is not None:
-            raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
         if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
             raise ValueError(
                 "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
                 f"got {self.deterministic_mode!r}."
             )
         if self.solver_cfg is None:
-            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_solver_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
-
-        self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.
         if self.collision_decimation > 0 and self.collision_decimation >= self.num_substeps:

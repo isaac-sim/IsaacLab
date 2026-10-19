@@ -35,7 +35,9 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord
+from isaaclab_newton.physics.newton_builder import inject_terrain_heightfields
+from isaaclab_newton.physics.solver_specs import create_builder, usd_schema_resolvers
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 _PER_WORLD_BUILDER_HOOKS: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -133,9 +135,9 @@ def _replicate_newton(
         quaternions = np.zeros((len(env_ids), 4), dtype=np.float32)
         quaternions[:, 3] = 1.0
 
-    manager_cls = sim.backend_manager if simulation else NewtonManager
-    schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
-    create_builder = partial(manager_cls.create_builder if simulation else ModelBuilder, up_axis=up_axis)
+    schema_resolvers = usd_schema_resolvers(cfg.solver_cfg if simulation else None)
+    builder_factory = partial(create_builder, cfg) if simulation else ModelBuilder
+    builder_factory = partial(builder_factory, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
@@ -174,13 +176,13 @@ def _replicate_newton(
     ignore_paths = [*exclude_paths, *(entry.root_path for entry in entries)]
     stage_info = None
     if simulation:
-        ignore_paths.extend(manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths))
+        ignore_paths.extend(inject_terrain_heightfields(stage, builder, root_paths=import_paths, device=sim.device))
         stage_info = builder.add_usd(stage, root_path=sim.cfg.physics_prim_path, schema_resolvers=schema_resolvers)
 
     import_results: dict[str, dict[str, Any]] = {}
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
-    source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    source_builders = build_source_builders(stage, source_paths, builder_factory, schema_resolvers, **options)
     # Imports contain authored USD poses, which need not include the planned world placement.
     source_inverse = {}
     xforms = UsdGeom.XformCache()
@@ -242,7 +244,8 @@ def _replicate_newton(
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
 
     options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
-    options["per_world_builder_hooks"] = _PER_WORLD_BUILDER_HOOKS if simulation else ()
+    world_hooks = _PER_WORLD_BUILDER_HOOKS if simulation else ()
+    options["per_world_builder_hooks"] = world_hooks
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None
     local_site_map, world_xforms = replicate_builder_mapping(
