@@ -52,7 +52,7 @@ uv run isaaclab train --task Isaac-Reorient-KukaAllegro-Camera --rl_library rsl_
 | `--cosmos` | Put Cosmos on the task's rgb camera |
 | `--cosmos_prompt TEXT` | Scene description; repeat it for a different prompt per episode (one environment) or per environment (several) |
 | `--cosmos_camera NAME` | Scene camera to use, when the task has several rgb cameras |
-| `--cosmos_control depth\|edge\|blur` | Control prepared from the render (default `depth`); see "Controls and prompts" |
+| `--cosmos_control depth|edge` | Control prepared from the render (default `depth`); see "Controls and prompts" |
 | `--cosmos_near M`, `--cosmos_far M` | Depth shown white and black (defaults 0.1 m and 2.0 m) |
 | `--cosmos_endpoint URL` | Service endpoint, `unix:///path` or `tcp://host:port` (default: the service's default) |
 | `--cosmos_transport auto\|cuda_ipc\|socket` | How images move to the service; see "Endpoints and transports" (default `auto`) |
@@ -85,11 +85,10 @@ guidance 1.0, a 30-latent history window with three attention sinks, and one con
 |---|---|---|
 | `depth` | Isaac Lab | Metric depth mapped to white (near) through black (far) |
 | `edge` | Isaac Lab | Canny edges of the camera's RGB with thresholds 100 and 200, the recipe's medium preset |
-| `blur` | The service | The camera's RGB, blurred by the Framework's own filter with the recipe's medium preset |
 | `seg` | Isaac Lab | Segmentation colored with a fixed palette (`segmentation_processor`) |
 
-Other control recipes are `edge_processor`, `blur_processor`, `regional_edge_processor`, and
-`segmentation_processor`, paired with modalities `"edge"`, `"blur"`, or `"seg"`. Edge
+Other control recipes are `edge_processor`, `regional_edge_processor`, and
+`segmentation_processor`, paired with modalities `"edge"` or `"seg"`. Edge
 extraction needs OpenCV in the Isaac Lab environment; the depth and segmentation
 recipes do not. Segmentation recipes require uncolorized semantic IDs and a fixed
 palette, while regional edges also require the camera's segmentation output and
@@ -397,9 +396,8 @@ it is unavailable instead of falling back. `status` lists the service's transpor
 machine, image transport uses shared GPU buffers and the messages use the Unix socket, so no TCP is involved. CUDA
 IPC avoids the socket transport's 16-view protocol limit; available GPU memory still limits the batch size.
 
-Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process, and
-blur filtering copies RGB from GPU to CPU and back inside the service. CUDA IPC does not remove those copies
-or their synchronization costs; it avoids CPU staging when exchanging images between the two processes.
+Control preprocessing is separate from transport. Edge extraction uses CPU OpenCV in the camera process. CUDA IPC does not remove that copy
+or its synchronization cost; it avoids CPU staging when exchanging images between the two processes.
 The camera-side IPC handoff orders GPU work with events. The service synchronizes its CUDA stream before
 replying so GPU faults reach the client as errors; a complete inference step is not free of host synchronization.
 

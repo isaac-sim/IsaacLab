@@ -70,9 +70,8 @@ class CosmosModelCfg(BackendCfg):
     ``prompt[v % len(prompt)]`` for all its episodes, because a batched session keeps each view's prompt across
     resets. None omits an appearance description."""
 
-    modality: Literal["edge", "blur", "depth", "seg"] = "depth"
-    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls;
-    for blur the camera sends its RGB and the service applies the Framework's own blur filter."""
+    modality: Literal["edge", "depth", "seg"] = "depth"
+    """Type of uint8 three-channel guidance. The preceding camera modifier prepares edge, depth, and seg controls."""
 
     max_episode_frames: int | None = None
     """Image-frame budget per episode, including the initial frame: ``1 + 4*k``. ``apply_cosmos`` and the
@@ -86,8 +85,8 @@ class CosmosModelCfg(BackendCfg):
     device memory and interprocess events, with no host copies for the transfer; it needs the service on the same
     Linux machine, on the camera's GPU or on another GPU that both processes can see and that can access the
     camera's GPU directly (NVLink or PCIe peer access). The service synchronizes its CUDA stream before replying to
-    report GPU faults. Control preprocessing can still use the CPU: edge extraction in the camera process and blur
-    filtering in the service copy images to the CPU and back. ``"socket"`` sends images through host memory in the
+    report GPU faults. Control preprocessing can still use the CPU: edge extraction in the camera process
+    copies images to the CPU. ``"socket"`` sends images through host memory in the
     endpoint's messages, which also works across machines. ``"auto"`` (default) uses CUDA IPC when the service
     supports it, runs on this machine, and its GPU qualifies, and the socket otherwise. The endpoint carries the
     small step messages in both cases."""
