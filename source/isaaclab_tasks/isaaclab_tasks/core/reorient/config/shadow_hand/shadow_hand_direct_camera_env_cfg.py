@@ -220,6 +220,29 @@ SHADOW_HAND_COSMOS_CAMERA_CFG = cosmos_camera(_COSMOS_BASE_CAMERA_CFG, _COSMOS_M
 (_COSMOS_DEPTH_INPUT,) = SHADOW_HAND_COSMOS_CAMERA_CFG.modifiers
 
 
+def shadow_hand_cosmos_settings(env_cfg) -> CosmosModelCfg:
+    """Return the Cosmos settings of the camera, the object its Cosmos step uses (not a copy).
+
+    Shared by the Direct and Manager-based tasks.
+
+    Args:
+        env_cfg: Environment configuration with ``scene.tiled_camera``.
+    """
+    return _cosmos_transfer(env_cfg).backend
+
+
+def _cosmos_transfer(env_cfg) -> CosmosTransferModifierCfg:
+    """Return the camera's only Cosmos step."""
+    transfers = [
+        cfg
+        for cfg in env_cfg.scene.tiled_camera.modifiers.get(_COSMOS_DEPTH_INPUT, ())
+        if isinstance(cfg, CosmosTransferModifierCfg)
+    ]
+    if len(transfers) != 1:
+        raise ValueError("The Shadow Hand Cosmos preset requires one Cosmos step on the camera's depth chain.")
+    return transfers[0]
+
+
 def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
     """Check a Shadow Hand Cosmos preset against the Cosmos service's stream limits.
 
@@ -243,12 +266,7 @@ def validate_shadow_hand_cosmos_preset(env_cfg) -> None:
             "scene.tiled_camera.renderer_cfg.async_rendering=False "
             "(env.scene.tiled_camera.renderer_cfg.async_rendering=False on the command line)."
         )
-    transfers = [
-        cfg for cfg in camera.modifiers.get(_COSMOS_DEPTH_INPUT, ()) if isinstance(cfg, CosmosTransferModifierCfg)
-    ]
-    if len(transfers) != 1:
-        raise ValueError("The Shadow Hand Cosmos preset requires one Cosmos step on the camera's depth chain.")
-    transfer = transfers[0]
+    transfer = _cosmos_transfer(env_cfg)
     if env_cfg.feature_extractor.image_update_frames != transfer.update_frames:
         raise ValueError(
             "The Shadow Hand Cosmos preset requires feature_extractor.image_update_frames "
@@ -278,6 +296,11 @@ class ShadowHandCameraCosmosEnvCfg(ShadowHandCameraEnvCfg):
 
     scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg(num_envs=1, tiled_camera=SHADOW_HAND_COSMOS_CAMERA_CFG)
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(pretrained_checkpoint=None, image_update_frames=4)
+
+    @property
+    def cosmos(self) -> CosmosModelCfg:
+        """The camera's Cosmos settings; overrides such as ``env.cosmos.prompt=...`` set them on the camera."""
+        return shadow_hand_cosmos_settings(self)
 
     def validate_config(self):
         """Check the scene and episode fit the Cosmos service's stream limits."""
